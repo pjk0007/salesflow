@@ -1,8 +1,4 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import { migrate } from "drizzle-orm/postgres-js/migrator";
-import fs from "fs";
-import path from "path";
-import postgres from "postgres";
+import { execSync } from "child_process";
 
 export async function runMigrations() {
     const connectionString = process.env.DATABASE_URL;
@@ -11,26 +7,16 @@ export async function runMigrations() {
         return;
     }
 
-    const migrationsFolder = path.join(process.cwd(), "drizzle");
-    console.log("[migrate] cwd:", process.cwd());
-    console.log("[migrate] migrationsFolder:", migrationsFolder);
-    console.log("[migrate] folder exists:", fs.existsSync(migrationsFolder));
-
-    if (fs.existsSync(migrationsFolder)) {
-        const files = fs.readdirSync(migrationsFolder);
-        console.log("[migrate] files:", files.join(", "));
-    }
-
-    console.log("[migrate] 마이그레이션 시작...");
-    const client = postgres(connectionString, { max: 1 });
-    const db = drizzle(client);
-
+    console.log("[migrate] drizzle-kit push 시작...");
     try {
-        await migrate(db, { migrationsFolder });
-        console.log("[migrate] 마이그레이션 완료!");
-    } catch (err) {
-        console.error("[migrate] 마이그레이션 에러:", err);
-    } finally {
-        await client.end();
+        const output = execSync("npx drizzle-kit push --force", {
+            env: { ...process.env },
+            encoding: "utf-8",
+            timeout: 30000,
+        });
+        console.log("[migrate] drizzle-kit push 완료:", output);
+    } catch (err: unknown) {
+        const error = err as { stdout?: string; stderr?: string; message?: string };
+        console.error("[migrate] drizzle-kit push 에러:", error.stderr || error.message);
     }
 }
