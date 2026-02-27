@@ -20,6 +20,24 @@ const EXISTING_MIGRATIONS = [
 ];
 
 async function seedMigrationHistory(client: postgres.Sql) {
+    // 실제 테이블이 존재하는지 확인 (drizzle-kit push로 이미 적용된 DB인지)
+    const tableCheck = await client`
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.tables
+            WHERE table_schema = 'public' AND table_name = 'users'
+        ) as exists
+    `;
+    const tablesExist = tableCheck[0].exists;
+
+    if (!tablesExist) {
+        // 새 DB — 잘못 시딩된 기록이 있으면 정리하고 전체 마이그레이션 실행
+        console.log("[migrate] 새 DB 감지, 전체 마이그레이션 실행");
+        await client`DROP TABLE IF EXISTS "drizzle"."__drizzle_migrations"`;
+        await client`DROP SCHEMA IF EXISTS "drizzle"`;
+        return;
+    }
+
+    // 기존 DB — __drizzle_migrations 기록이 없으면 시딩
     await client`CREATE SCHEMA IF NOT EXISTS "drizzle"`;
     await client`
         CREATE TABLE IF NOT EXISTS "drizzle"."__drizzle_migrations" (
@@ -32,7 +50,7 @@ async function seedMigrationHistory(client: postgres.Sql) {
     const existing = await client`SELECT count(*) as cnt FROM "drizzle"."__drizzle_migrations"`;
     if (Number(existing[0].cnt) > 0) return;
 
-    console.log("[migrate] 기존 마이그레이션 기록 시딩...");
+    console.log("[migrate] 기존 DB 감지, 마이그레이션 기록 시딩...");
     for (const m of EXISTING_MIGRATIONS) {
         await client`INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES (${m.hash}, ${m.created_at})`;
     }
