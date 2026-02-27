@@ -192,3 +192,5 @@ CREATE INDEX IF NOT EXISTS "aq_template_record_idx" ON "alimtalk_automation_queu
 CREATE INDEX IF NOT EXISTS "eq_status_next_run_idx" ON "email_automation_queue" USING btree ("status","next_run_at");
 --> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "eq_template_record_idx" ON "email_automation_queue" USING btree ("template_link_id","record_id");
+--> statement-breakpoint
+ALTER TABLE "alimtalk_template_links" ADD COLUMN IF NOT EXISTS "repeat_config" jsonb;
