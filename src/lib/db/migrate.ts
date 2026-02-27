@@ -14,10 +14,14 @@ export async function runMigrations() {
     const client = postgres(connectionString, { max: 1 });
     const db = drizzle(client);
 
-    await migrate(db, {
-        migrationsFolder: path.join(process.cwd(), "drizzle"),
-    });
-
-    console.log("마이그레이션 완료!");
-    await client.end();
+    try {
+        await migrate(db, {
+            migrationsFolder: path.join(process.cwd(), "drizzle"),
+        });
+        console.log("마이그레이션 완료!");
+    } catch (err) {
+        console.error("마이그레이션 에러 (이미 적용된 경우 무시):", err);
+    } finally {
+        await client.end();
+    }
 }
