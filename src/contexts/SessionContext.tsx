@@ -1,3 +1,5 @@
+"use client";
+
 import {
     createContext,
     useContext,
@@ -6,7 +8,7 @@ import {
     useEffect,
     type ReactNode,
 } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import type { OrgRole } from "@/types";
 
 interface SessionOrg {

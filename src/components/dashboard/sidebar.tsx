@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { useRouter } from "next/router";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useSidebar } from "./sidebar-context";
 import { useSession } from "@/contexts/SessionContext";
@@ -51,14 +53,14 @@ function NavLinks({
     collapsed?: boolean;
     onNavigate?: () => void;
 }) {
-    const router = useRouter();
+    const pathname = usePathname();
     const { user } = useSession();
 
     function renderItem(item: (typeof navItems)[number]) {
         const isActive =
             item.href === "/"
-                ? router.pathname === "/"
-                : router.pathname.startsWith(item.href);
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
 
         const link = (
             <Link

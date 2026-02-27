@@ -1,4 +1,6 @@
-import { useRouter } from "next/router";
+"use client";
+
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";

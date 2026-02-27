@@ -1,5 +1,7 @@
+"use client";
+
 import { useState } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useEmailCategories } from "@/hooks/useEmailCategories";
 import { Button } from "@/components/ui/button";

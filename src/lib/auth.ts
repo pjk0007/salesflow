@@ -1,6 +1,7 @@
 import { compare, hash } from "bcryptjs";
 import jwt from "jsonwebtoken";
 import type { NextApiRequest } from "next";
+import type { NextRequest } from "next/server";
 import type { JWTPayload } from "@/types";
 import { db, apiTokens } from "@/lib/db";
 import { eq, and, gt, or, isNull } from "drizzle-orm";
@@ -59,6 +60,21 @@ export function getTokenFromRequest(req: NextApiRequest): string | null {
 
 export function getUserFromRequest(req: NextApiRequest): JWTPayload | null {
     const token = getTokenFromRequest(req);
+    if (!token) return null;
+    return verifyToken(token);
+}
+
+/**
+ * App Router version of getUserFromRequest.
+ * Reads JWT from NextRequest cookies or Authorization header.
+ */
+export function getUserFromNextRequest(req: NextRequest): JWTPayload | null {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.substring(7);
+        return verifyToken(token);
+    }
+    const token = req.cookies.get("token")?.value;
     if (!token) return null;
     return verifyToken(token);
 }

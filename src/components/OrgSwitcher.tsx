@@ -1,5 +1,7 @@
+"use client";
+
 import { useState } from "react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronsUpDown, Plus, Settings } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";

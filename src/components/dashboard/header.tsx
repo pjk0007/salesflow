@@ -1,4 +1,6 @@
-import { useRouter } from "next/router";
+"use client";
+
+import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
@@ -37,9 +39,9 @@ const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function HeaderBreadcrumb() {
-    const router = useRouter();
+    const pathname = usePathname();
     const { overrides } = useBreadcrumbOverrides();
-    const segments = router.pathname.split("/").filter(Boolean);
+    const segments = pathname.split("/").filter(Boolean);
 
     return (
         <nav className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground ml-2">
