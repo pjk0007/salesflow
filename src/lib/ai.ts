@@ -1022,6 +1022,142 @@ export async function generateWidget(
     };
 }
 
+// ---- 알림톡 생성 ----
+
+interface GenerateAlimtalkInput {
+    prompt: string;
+    product?: Product | null;
+    tone?: string;
+}
+
+interface GenerateAlimtalkResult {
+    templateName: string;
+    templateContent: string;
+    templateMessageType: string;
+    buttons: Array<{ ordering: number; type: string; name: string; linkMo?: string; linkPc?: string }>;
+    usage: { promptTokens: number; completionTokens: number };
+}
+
+function buildAlimtalkSystemPrompt(input: GenerateAlimtalkInput): string {
+    let prompt = `당신은 카카오 알림톡 템플릿 전문가입니다.
+사용자의 요청에 맞는 알림톡 템플릿을 작성하세요.
+
+반드시 다음 JSON 형식으로 응답하세요:
+{
+  "templateName": "템플릿 이름",
+  "templateContent": "본문 내용 (최대 1300자)",
+  "templateMessageType": "BA",
+  "buttons": [
+    { "type": "WL", "name": "버튼명", "linkMo": "https://..." }
+  ]
+}
+
+규칙:
+- templateContent는 반드시 1300자 이내
+- 변수는 #{변수명} 형식 사용 (예: #{고객명}, #{주문번호}, #{상품명})
+- templateMessageType: BA(기본형) 또는 EX(부가정보형) 중 적절히 선택
+- 버튼 type: WL(웹링크), BK(봇키워드), MD(메시지전달) 중 선택
+- 버튼은 0~5개, WL 타입은 linkMo 필수
+- 한국어로 작성
+- JSON만 반환하세요`;
+
+    if (input.product) {
+        prompt += `\n\n[제품 정보]\n- 이름: ${input.product.name}`;
+        if (input.product.summary) prompt += `\n- 소개: ${input.product.summary}`;
+        if (input.product.description) prompt += `\n- 상세: ${input.product.description}`;
+        if (input.product.price) prompt += `\n- 가격: ${input.product.price}`;
+        if (input.product.url) prompt += `\n- URL: ${input.product.url}`;
+    }
+
+    if (input.tone) {
+        prompt += `\n\n[톤] ${input.tone}`;
+    }
+
+    return prompt;
+}
+
+export async function generateAlimtalk(
+    client: AiClient,
+    input: GenerateAlimtalkInput
+): Promise<GenerateAlimtalkResult> {
+    const systemPrompt = buildAlimtalkSystemPrompt(input);
+    const pattern = /\{[\s\S]*"templateName"[\s\S]*"templateContent"[\s\S]*\}/;
+
+    let content: string;
+    let usage: { promptTokens: number; completionTokens: number };
+
+    if (client.provider === "openai") {
+        const response = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${client.apiKey}`,
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: client.model,
+                messages: [
+                    { role: "system", content: systemPrompt },
+                    { role: "user", content: input.prompt },
+                ],
+                response_format: { type: "json_object" },
+            }),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
+        }
+        const data = await response.json();
+        content = data.choices[0]?.message?.content || "";
+        usage = {
+            promptTokens: data.usage?.prompt_tokens ?? 0,
+            completionTokens: data.usage?.completion_tokens ?? 0,
+        };
+    } else {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+                "x-api-key": client.apiKey,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                model: client.model,
+                max_tokens: 2048,
+                system: systemPrompt,
+                messages: [{ role: "user", content: input.prompt }],
+            }),
+        });
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
+        }
+        const data = await response.json();
+        const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
+        content = textBlock?.text || "";
+        usage = {
+            promptTokens: data.usage?.input_tokens ?? 0,
+            completionTokens: data.usage?.output_tokens ?? 0,
+        };
+    }
+
+    const parsed = extractJson(content, pattern);
+    const buttons = (parsed.buttons as any[] || []).map((b: any, i: number) => ({
+        ordering: i + 1,
+        type: b.type || "WL",
+        name: b.name || "",
+        ...(b.linkMo && { linkMo: b.linkMo }),
+        ...(b.linkPc && { linkPc: b.linkPc }),
+    }));
+
+    return {
+        templateName: (parsed.templateName as string) || "",
+        templateContent: (parsed.templateContent as string) || "",
+        templateMessageType: (parsed.templateMessageType as string) || "BA",
+        buttons,
+        usage,
+    };
+}
+
 // ---- 사용량 로깅 ----
 
 export async function logAiUsage(params: {

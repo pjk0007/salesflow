@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkConfig } from "@/hooks/useAlimtalkConfig";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
@@ -47,8 +48,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send } from "lucide-react";
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TemplateLinkDialog from "./TemplateLinkDialog";
-import TemplateCreateDialog from "./TemplateCreateDialog";
-import type { NhnTemplate } from "@/lib/nhn-alimtalk";
 
 const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     TSC: { label: "생성", variant: "outline" },
@@ -59,6 +58,7 @@ const STATUS_BADGE: Record<string, { label: string; variant: "default" | "second
 };
 
 export default function TemplateList() {
+    const router = useRouter();
     const { senders } = useAlimtalkSenders();
     const { config } = useAlimtalkConfig();
     const [selectedSenderKey, setSelectedSenderKey] = useState<string | null>(null);
@@ -84,10 +84,6 @@ export default function TemplateList() {
         templateName: string;
         templateContent: string;
     } | null>(null);
-
-    // 생성/수정 다이얼로그
-    const [createDialogOpen, setCreateDialogOpen] = useState(false);
-    const [editTemplate, setEditTemplate] = useState<NhnTemplate | null>(null);
 
     // 삭제 확인
     const [deleteTarget, setDeleteTarget] = useState<{ templateCode: string; templateName: string } | null>(null);
@@ -121,7 +117,7 @@ export default function TemplateList() {
                 <h3 className="text-lg font-medium">템플릿 목록</h3>
                 <div className="flex items-center gap-2">
                     {selectedSenderKey && (
-                        <Button onClick={() => setCreateDialogOpen(true)}>
+                        <Button onClick={() => router.push(`/alimtalk/templates/new?senderKey=${encodeURIComponent(selectedSenderKey)}`)}>
                             <Plus className="h-4 w-4 mr-1" /> 템플릿 등록
                         </Button>
                     )}
@@ -236,7 +232,7 @@ export default function TemplateList() {
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuItem
                                                             disabled={!canEdit}
-                                                            onClick={() => setEditTemplate(tpl)}
+                                                            onClick={() => router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(selectedSenderKey)}`)}
                                                         >
                                                             <Pencil className="h-4 w-4 mr-2" /> 수정
                                                         </DropdownMenuItem>
@@ -270,7 +266,7 @@ export default function TemplateList() {
                     onOpenChange={() => setDetailTemplate(null)}
                     senderKey={detailTemplate.senderKey}
                     templateCode={detailTemplate.templateCode}
-                    onEdit={(tpl) => { setDetailTemplate(null); setEditTemplate(tpl); }}
+                    onEdit={(tpl) => { setDetailTemplate(null); router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(selectedSenderKey!)}`); }}
                     onDelete={(code) => { setDetailTemplate(null); setDeleteTarget({ templateCode: code, templateName: code }); }}
                 />
             )}
@@ -284,27 +280,6 @@ export default function TemplateList() {
                     templateName={linkTemplate.templateName}
                     templateContent={linkTemplate.templateContent}
                     mode="create"
-                />
-            )}
-
-            {/* 생성 다이얼로그 */}
-            {selectedSenderKey && createDialogOpen && (
-                <TemplateCreateDialog
-                    open={createDialogOpen}
-                    onOpenChange={setCreateDialogOpen}
-                    senderKey={selectedSenderKey}
-                    mode="create"
-                />
-            )}
-
-            {/* 수정 다이얼로그 */}
-            {selectedSenderKey && editTemplate && (
-                <TemplateCreateDialog
-                    open={!!editTemplate}
-                    onOpenChange={() => setEditTemplate(null)}
-                    senderKey={selectedSenderKey}
-                    mode="edit"
-                    template={editTemplate}
                 />
             )}
 
