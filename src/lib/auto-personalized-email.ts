@@ -99,7 +99,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
                     await logAiUsage({
                         orgId,
-                        userId: "system",
+                        userId: null,
                         provider: aiClient.provider,
                         model: aiClient.model,
                         promptTokens: research.usage.promptTokens,
@@ -132,7 +132,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             await logAiUsage({
                 orgId,
-                userId: "system",
+                userId: null,
                 provider: aiClient.provider,
                 model: aiClient.model,
                 promptTokens: emailResult.usage.promptTokens,

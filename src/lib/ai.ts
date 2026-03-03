@@ -1162,7 +1162,7 @@ export async function generateAlimtalk(
 
 export async function logAiUsage(params: {
     orgId: string;
-    userId: string;
+    userId: string | null;
     provider: string;
     model: string;
     promptTokens: number;
