@@ -8,6 +8,7 @@ import TemplatePreview from "@/components/alimtalk/TemplatePreview";
 import AiAlimtalkPanel from "@/components/alimtalk/AiAlimtalkPanel";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
 import { Button } from "@/components/ui/button";
+import { PageContainer } from "@/components/common/page-container";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import type { NhnTemplate, NhnTemplateButton } from "@/lib/nhn-alimtalk";
 
@@ -132,7 +133,7 @@ function EditAlimtalkTemplateContent() {
     }
 
     return (
-        <div className="space-y-4">
+        <PageContainer>
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                     <Button variant="ghost" size="icon" onClick={() => router.push("/alimtalk?tab=templates")}>
@@ -181,7 +182,7 @@ function EditAlimtalkTemplateContent() {
                     />
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }
 
