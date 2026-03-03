@@ -301,6 +301,23 @@ export const apiTokens = pgTable("api_tokens", {
 });
 
 // ============================================
+// API 토큰 권한 범위
+// ============================================
+export const apiTokenScopes = pgTable("api_token_scopes", {
+    id: serial("id").primaryKey(),
+    tokenId: integer("token_id")
+        .references(() => apiTokens.id, { onDelete: "cascade" })
+        .notNull(),
+    scopeType: varchar("scope_type", { length: 20 }).notNull(), // "workspace" | "folder" | "partition"
+    scopeId: integer("scope_id").notNull(),
+    permissions: jsonb("permissions")
+        .$type<{ read: boolean; create: boolean; update: boolean; delete: boolean }>()
+        .notNull(),
+});
+
+export type ApiTokenScope = typeof apiTokenScopes.$inferSelect;
+
+// ============================================
 // 알림톡 설정 (조직별)
 // ============================================
 export const alimtalkConfigs = pgTable("alimtalk_configs", {

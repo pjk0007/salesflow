@@ -3,8 +3,9 @@ import jwt from "jsonwebtoken";
 import type { NextApiRequest } from "next";
 import type { NextRequest } from "next/server";
 import type { JWTPayload } from "@/types";
-import { db, apiTokens } from "@/lib/db";
+import { db, apiTokens, apiTokenScopes, partitions } from "@/lib/db";
 import { eq, and, gt, or, isNull } from "drizzle-orm";
+import type { ApiTokenScope } from "@/lib/db";
 
 const JWT_SECRET: string = (() => {
     const secret = process.env.JWT_SECRET;
@@ -138,4 +139,88 @@ export async function authenticateRequest(
     }
 
     return null;
+}
+
+// ============================================
+// External API Token Auth (App Router)
+// ============================================
+
+export interface ApiTokenInfo {
+    id: number;
+    orgId: string;
+    scopes: ApiTokenScope[];
+}
+
+export function getApiTokenFromNextRequest(req: NextRequest): string | null {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+        return authHeader.substring(7);
+    }
+    const apiKey = req.headers.get("x-api-key");
+    return apiKey || null;
+}
+
+export async function resolveApiToken(tokenStr: string): Promise<ApiTokenInfo | null> {
+    try {
+        const [apiToken] = await db
+            .select()
+            .from(apiTokens)
+            .where(
+                and(
+                    eq(apiTokens.token, tokenStr),
+                    eq(apiTokens.isActive, 1),
+                    or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, new Date()))
+                )
+            );
+
+        if (!apiToken) return null;
+
+        const scopes = await db
+            .select()
+            .from(apiTokenScopes)
+            .where(eq(apiTokenScopes.tokenId, apiToken.id));
+
+        await db
+            .update(apiTokens)
+            .set({ lastUsedAt: new Date() })
+            .where(eq(apiTokens.id, apiToken.id));
+
+        return { id: apiToken.id, orgId: apiToken.orgId, scopes };
+    } catch (error) {
+        console.error("API token resolution error:", error);
+        return null;
+    }
+}
+
+type Permission = "read" | "create" | "update" | "delete";
+
+export async function checkTokenAccess(
+    tokenInfo: ApiTokenInfo,
+    partitionId: number,
+    permission: Permission
+): Promise<boolean> {
+    for (const scope of tokenInfo.scopes) {
+        if (!scope.permissions[permission]) continue;
+
+        if (scope.scopeType === "partition" && scope.scopeId === partitionId) {
+            return true;
+        }
+
+        if (scope.scopeType === "folder" || scope.scopeType === "workspace") {
+            const [partition] = await db
+                .select({ folderId: partitions.folderId, workspaceId: partitions.workspaceId })
+                .from(partitions)
+                .where(eq(partitions.id, partitionId));
+
+            if (!partition) return false;
+
+            if (scope.scopeType === "folder" && partition.folderId === scope.scopeId) {
+                return true;
+            }
+            if (scope.scopeType === "workspace" && partition.workspaceId === scope.scopeId) {
+                return true;
+            }
+        }
+    }
+    return false;
 }

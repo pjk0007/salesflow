@@ -99,6 +99,13 @@
       "when": 1770947600000,
       "tag": "0013_alimtalk_repeat_config",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1770947700000,
+      "tag": "0014_api_token_scopes",
+      "breakpoints": true
     }
   ]
 }
