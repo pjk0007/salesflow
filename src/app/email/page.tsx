@@ -15,6 +15,7 @@ import EmailTemplateLinkList from "@/components/email/EmailTemplateLinkList";
 import EmailSendLogTable from "@/components/email/EmailSendLogTable";
 import EmailConfigForm from "@/components/email/EmailConfigForm";
 import EmailCategoryManager from "@/components/email/EmailCategoryManager";
+import AutoPersonalizedEmailConfig from "@/components/email/AutoPersonalizedEmailConfig";
 
 function EmailPageContent() {
     const router = useRouter();
@@ -52,6 +53,7 @@ function EmailPageContent() {
                         <TabsTrigger value="links">연결 관리</TabsTrigger>
                         <TabsTrigger value="logs">발송 이력</TabsTrigger>
                         <TabsTrigger value="settings">설정</TabsTrigger>
+                        <TabsTrigger value="ai-auto">AI 자동발송</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="dashboard" className="mt-6">
@@ -73,6 +75,10 @@ function EmailPageContent() {
                     <TabsContent value="settings" className="mt-6 space-y-6">
                         <EmailConfigForm />
                         <EmailCategoryManager />
+                    </TabsContent>
+
+                    <TabsContent value="ai-auto" className="mt-6">
+                        <AutoPersonalizedEmailConfig partitions={partitions} fields={fields} />
                     </TabsContent>
                 </Tabs>
             </PageContainer>

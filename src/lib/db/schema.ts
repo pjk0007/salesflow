@@ -547,6 +547,34 @@ export const emailAutomationQueue = pgTable(
 );
 
 // ============================================
+// AI 개인화 이메일 자동 발송 규칙
+// ============================================
+export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    partitionId: integer("partition_id")
+        .references(() => partitions.id, { onDelete: "cascade" })
+        .notNull(),
+    productId: integer("product_id"),
+    recipientField: varchar("recipient_field", { length: 100 }).notNull(),
+    companyField: varchar("company_field", { length: 100 }).notNull(),
+    prompt: text("prompt"),
+    tone: varchar("tone", { length: 50 }),
+    triggerType: varchar("trigger_type", { length: 20 }).default("on_create").notNull(),
+    triggerCondition: jsonb("trigger_condition").$type<{
+        field?: string;
+        operator?: "eq" | "ne" | "contains";
+        value?: string;
+    }>(),
+    autoResearch: integer("auto_research").default(1).notNull(),
+    isActive: integer("is_active").default(1).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+// ============================================
 // 제품/서비스 카탈로그
 // ============================================
 export const products = pgTable("products", {
@@ -830,6 +858,7 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type EmailTemplateLink = typeof emailTemplateLinks.$inferSelect;
 export type EmailSendLog = typeof emailSendLogs.$inferSelect;
 export type EmailAutomationQueueRow = typeof emailAutomationQueue.$inferSelect;
+export type EmailAutoPersonalizedLink = typeof emailAutoPersonalizedLinks.$inferSelect;
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type AiConfig = typeof aiConfigs.$inferSelect;

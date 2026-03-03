@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
+import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
 import { broadcastToPartition } from "@/lib/sse";
 
 export async function PATCH(
@@ -59,6 +60,13 @@ export async function PATCH(
             triggerType: "on_update",
             orgId: user.orgId,
         }).catch((err) => console.error("Email auto trigger error:", err));
+
+        processAutoPersonalizedEmail({
+            record: updated,
+            partitionId: updated.partitionId,
+            triggerType: "on_update",
+            orgId: user.orgId,
+        }).catch((err) => console.error("Auto personalized email error:", err));
 
         broadcastToPartition(updated.partitionId, "record:updated", {
             partitionId: updated.partitionId,
