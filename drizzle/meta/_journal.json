@@ -113,6 +113,13 @@
       "when": 1770947800000,
       "tag": "0015_email_auto_personalized",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1770947900000,
+      "tag": "0016_billing_retry",
+      "breakpoints": true
     }
   ]
 }

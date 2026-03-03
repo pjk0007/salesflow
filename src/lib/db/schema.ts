@@ -801,6 +801,8 @@ export const subscriptions = pgTable("subscriptions", {
     tossCustomerKey: varchar("toss_customer_key", { length: 200 }),
     tossBillingKey: varchar("toss_billing_key", { length: 200 }),
     cardInfo: jsonb("card_info").$type<{ cardCompany: string; cardNumber: string }>(),
+    retryCount: integer("retry_count").default(0).notNull(),
+    nextRetryAt: timestamptz("next_retry_at"),
     canceledAt: timestamptz("canceled_at"),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),

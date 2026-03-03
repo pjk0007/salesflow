@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/SessionContext";
-import { Loader2, Check } from "lucide-react";
+import { Loader2, Check, AlertTriangle } from "lucide-react";
 
 interface PlanInfo {
     name: string;
@@ -39,6 +39,7 @@ interface BillingData {
         currentPeriodEnd: string | null;
         hasBillingKey: boolean;
         cardInfo: { cardCompany: string; cardNumber: string } | null;
+        retryCount: number;
         canceledAt: string | null;
     } | null;
     payments: Array<{
@@ -173,6 +174,7 @@ export default function BillingTab() {
 
     const currentSlug = data.plan?.slug ?? "free";
     const isPaid = currentSlug !== "free";
+    const isSuspended = data.subscription?.status === "suspended";
 
     return (
         <div className="space-y-6">
@@ -190,13 +192,34 @@ export default function BillingTab() {
                                     {formatPrice(data.plan.price)}
                                     {isPaid && "/월"}
                                 </Badge>
+                                {isSuspended && (
+                                    <Badge variant="destructive">일시정지</Badge>
+                                )}
                             </div>
-                            {data.subscription?.currentPeriodEnd && (
+                            {data.subscription?.currentPeriodEnd && !isSuspended && (
                                 <p className="text-sm text-muted-foreground">
                                     다음 결제일: {formatDate(data.subscription.currentPeriodEnd)}
                                 </p>
                             )}
-                            {isPaid && (
+                            {isSuspended && (
+                                <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 space-y-2">
+                                    <div className="flex items-center gap-2 text-sm text-destructive">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        결제 실패로 구독이 일시정지되었습니다.
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                        카드를 재등록하면 즉시 결제 후 구독이 복구됩니다.
+                                    </p>
+                                    <Button
+                                        size="sm"
+                                        onClick={() => openTossPayment(currentSlug)}
+                                        disabled={actionLoading !== null}
+                                    >
+                                        카드 재등록하기
+                                    </Button>
+                                </div>
+                            )}
+                            {isPaid && !isSuspended && (
                                 <div className="flex gap-2">
                                     <AlertDialog>
                                         <AlertDialogTrigger asChild>

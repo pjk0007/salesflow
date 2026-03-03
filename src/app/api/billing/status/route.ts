@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, plans, subscriptions, payments } from "@/lib/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
                 currentPeriodEnd: subscriptions.currentPeriodEnd,
                 tossBillingKey: subscriptions.tossBillingKey,
                 cardInfo: subscriptions.cardInfo,
+                retryCount: subscriptions.retryCount,
                 canceledAt: subscriptions.canceledAt,
                 planName: plans.name,
                 planSlug: plans.slug,
@@ -31,7 +32,10 @@ export async function GET(req: NextRequest) {
             .where(
                 and(
                     eq(subscriptions.orgId, user.orgId),
-                    eq(subscriptions.status, "active")
+                    or(
+                        eq(subscriptions.status, "active"),
+                        eq(subscriptions.status, "suspended")
+                    )
                 )
             );
 
@@ -81,6 +85,7 @@ export async function GET(req: NextRequest) {
                           currentPeriodEnd: sub.currentPeriodEnd,
                           hasBillingKey: !!sub.tossBillingKey,
                           cardInfo: sub.cardInfo ?? null,
+                          retryCount: sub.retryCount,
                           canceledAt: sub.canceledAt,
                       }
                     : null,
