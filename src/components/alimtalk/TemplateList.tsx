@@ -169,14 +169,14 @@ export default function TemplateList() {
                         </TableHeader>
                         <TableBody>
                             {templates.map((tpl) => {
-                                const statusInfo = STATUS_BADGE[tpl.templateStatus] || {
-                                    label: tpl.templateStatusName || tpl.templateStatus,
+                                const statusInfo = STATUS_BADGE[tpl.status] || {
+                                    label: tpl.statusName || tpl.status,
                                     variant: "outline" as const,
                                 };
-                                const isApproved = tpl.templateStatus === "APR";
-                                const canEdit = ["TSC", "APR", "REJ"].includes(tpl.templateStatus);
-                                const canDelete = ["TSC", "REQ", "REJ"].includes(tpl.templateStatus);
-                                const canComment = ["TSC", "REJ"].includes(tpl.templateStatus);
+                                const isApproved = tpl.status === "APR";
+                                const canEdit = ["TSC", "APR", "REJ"].includes(tpl.status);
+                                const canDelete = ["TSC", "REQ", "REJ"].includes(tpl.status);
+                                const canComment = ["TSC", "REJ"].includes(tpl.status);
 
                                 return (
                                     <TableRow key={tpl.templateCode}>

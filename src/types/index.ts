@@ -307,8 +307,8 @@ export interface AlimtalkTemplate {
   templateName: string;
   templateMessageType: string;
   templateContent: string;
-  templateStatus: string;
-  templateStatusName: string;
+  status: string;
+  statusName: string;
   buttons?: Array<{
     ordering: number;
     type: string;

@@ -43,8 +43,8 @@ export interface NhnTemplate {
     templateEmphasizeType: string;
     templateContent: string;
     templateUrl: string;
-    templateStatus: string;
-    templateStatusName: string;
+    status: string;
+    statusName: string;
     templateExtra?: string;
     templateTitle?: string;
     templateSubtitle?: string;
