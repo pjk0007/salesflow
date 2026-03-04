@@ -61,9 +61,11 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
         prompt += `
 - 사람이 직접 작성한 것처럼 자연스러운 플레인 텍스트 스타일로 작성하세요.
 - 허용 서식: <b>, <u>, <mark>(하이라이트), <br>, <a>, <p> 태그만 사용
+- 반드시 핵심 키워드나 강조할 부분에 <b> 또는 <u> 태그를 적극 사용하세요 (서비스명, 핵심 혜택, 숫자 등)
+- 문단 사이에 <br><br>을 넣어 여백을 충분히 확보하세요 (빽빽하게 붙여쓰지 마세요)
 - 금지: 배경색, 테이블 레이아웃, 큰 CTA 버튼, 이미지, 헤더/푸터 디자인, 컬러 박스
 - CTA는 텍스트 링크(<a> 태그)로만 표현하세요 (버튼 스타일 금지)
-- htmlBody는 <div style="font-family: sans-serif; font-size: 14px; line-height: 1.6; color: #222;"> 안에 작성`;
+- htmlBody는 <div style="font-family: sans-serif; font-size: 14px; line-height: 1.8; color: #222;"> 안에 작성`;
     }
 
     if (input.product) {
@@ -106,7 +108,14 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
 
     if (input.tone) {
         if (input.tone === "concise") {
-            prompt += `\n\n[톤] 미사여구를 과도하게 섞지 말고 AI가 작성한 티가 나지 않게 간결하고 실제 담당자가 메일을 보내는 듯한 간결한 말투로 작성하세요.`;
+            prompt += `\n\n[톤: 간결/실무형 — 반드시 지켜야 할 규칙]
+- 전체 이메일 본문을 5~8문장 이내로 작성하세요. 절대 길게 쓰지 마세요.
+- 구조: 인사(1문장) → 자기소개(1문장) → 핵심 제안(2~3문장) → CTA(1문장) → 마무리(1문장)
+- 실제 영업 담당자가 직접 쓴 것처럼 자연스럽고 담백한 말투를 사용하세요.
+- 금지 표현: "혁신적인", "최적의 솔루션", "귀사의 성장을 위해", "시너지", "탁월한", "차별화된", "획기적인", "파트너십을 통해", "함께 성장", "비즈니스 가치" 등 AI가 자주 쓰는 미사여구
+- 불릿 포인트는 최대 3개까지만 허용하며, 가능하면 쓰지 마세요.
+- 한 문장에 한 가지 내용만 담으세요. 접속사로 문장을 늘리지 마세요.
+- "~드립니다", "~하겠습니다" 대신 "~합니다", "~해요" 등 간결한 종결어미를 사용하세요.`;
         } else {
             prompt += `\n\n[톤] ${input.tone}`;
         }
