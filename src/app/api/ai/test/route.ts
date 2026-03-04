@@ -73,6 +73,14 @@ export async function POST(req: NextRequest) {
             );
             if (!response.ok) {
                 const error = await response.json().catch(() => ({}));
+                const errStatus = error?.error?.status;
+                // RESOURCE_EXHAUSTED (quota 초과)는 키 자체는 유효 → 연결 성공
+                if (errStatus === "RESOURCE_EXHAUSTED") {
+                    return NextResponse.json({
+                        success: true,
+                        data: { connected: true },
+                    });
+                }
                 return NextResponse.json({
                     success: true,
                     data: { connected: false, error: error?.error?.message || "API 키가 유효하지 않습니다." },
