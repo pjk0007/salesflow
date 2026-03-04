@@ -564,6 +564,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     companyField: varchar("company_field", { length: 100 }).notNull(),
     prompt: text("prompt"),
     tone: varchar("tone", { length: 50 }),
+    format: varchar("format", { length: 20 }).default("plain").notNull(),
     triggerType: varchar("trigger_type", { length: 20 }).default("on_create").notNull(),
     triggerCondition: jsonb("trigger_condition").$type<{
         field?: string;
@@ -631,6 +632,23 @@ export const aiUsageLogs = pgTable("ai_usage_logs", {
     purpose: varchar("purpose", { length: 50 }).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
 });
+
+// ============================================
+// AI 사용량 쿼터 (조직별 월간)
+// ============================================
+export const aiUsageQuotas = pgTable("ai_usage_quotas", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    month: varchar("month", { length: 7 }).notNull(),
+    totalTokens: integer("total_tokens").default(0).notNull(),
+    quotaLimit: integer("quota_limit").default(100000).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => [
+    unique().on(table.orgId, table.month),
+]);
 
 // ============================================
 // 조직 초대
@@ -867,6 +885,7 @@ export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type AiConfig = typeof aiConfigs.$inferSelect;
 export type AiUsageLog = typeof aiUsageLogs.$inferSelect;
+export type AiUsageQuota = typeof aiUsageQuotas.$inferSelect;
 export type OrganizationInvitation = typeof organizationInvitations.$inferSelect;
 export type NewOrganizationInvitation = typeof organizationInvitations.$inferInsert;
 export type OrganizationMember = typeof organizationMembers.$inferSelect;

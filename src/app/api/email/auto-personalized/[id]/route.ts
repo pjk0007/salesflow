@@ -34,6 +34,7 @@ export async function PUT(
             companyField,
             prompt,
             tone,
+            format,
             triggerType,
             triggerCondition,
             autoResearch,
@@ -58,6 +59,7 @@ export async function PUT(
         if (companyField !== undefined) updateData.companyField = companyField;
         if (prompt !== undefined) updateData.prompt = prompt || null;
         if (tone !== undefined) updateData.tone = tone || null;
+        if (format !== undefined) updateData.format = format || "plain";
         if (triggerType !== undefined) updateData.triggerType = triggerType;
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition || null;
         if (autoResearch !== undefined) updateData.autoResearch = autoResearch;

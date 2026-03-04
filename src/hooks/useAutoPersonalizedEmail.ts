@@ -12,6 +12,7 @@ export interface AutoPersonalizedLink {
     companyField: string;
     prompt: string | null;
     tone: string | null;
+    format: string;
     triggerType: string;
     triggerCondition: {
         field?: string;
@@ -31,6 +32,7 @@ interface CreateInput {
     companyField: string;
     prompt?: string;
     tone?: string;
+    format?: string;
     triggerType: "on_create" | "on_update";
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
@@ -42,6 +44,7 @@ interface UpdateInput {
     companyField?: string;
     prompt?: string;
     tone?: string;
+    format?: string;
     triggerType?: string;
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;

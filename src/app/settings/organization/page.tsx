@@ -10,7 +10,7 @@ import { Building2, Users, Bot, Key } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import OrgGeneralTab from "@/components/settings/OrgGeneralTab";
 import OrgTeamTab from "@/components/settings/OrgTeamTab";
-import AiConfigTab from "@/components/settings/AiConfigTab";
+import AiUsageTab from "@/components/settings/AiUsageTab";
 import ApiTokensTab from "@/components/settings/ApiTokensTab";
 
 function OrganizationSettingsContent() {
@@ -77,7 +77,7 @@ function OrganizationSettingsContent() {
                     </TabsContent>
 
                     <TabsContent value="ai" className="mt-6">
-                        <AiConfigTab />
+                        <AiUsageTab />
                     </TabsContent>
 
                     <TabsContent value="api-tokens" className="mt-6">

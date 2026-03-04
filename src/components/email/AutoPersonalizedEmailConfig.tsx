@@ -36,8 +36,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 
+const FORMAT_OPTIONS = [
+    { value: "plain", label: "간결한 텍스트" },
+    { value: "designed", label: "디자인 이메일" },
+];
+
 const TONE_OPTIONS = [
     { value: "", label: "기본" },
+    { value: "concise", label: "간결한 (AI 티 안 나게)" },
     { value: "professional", label: "전문적" },
     { value: "friendly", label: "친근한" },
     { value: "formal", label: "격식있는" },
@@ -70,6 +76,7 @@ export default function AutoPersonalizedEmailConfig({
     const [companyField, setCompanyField] = useState("");
     const [prompt, setPrompt] = useState("");
     const [tone, setTone] = useState("");
+    const [format, setFormat] = useState<"plain" | "designed">("plain");
     const [autoResearch, setAutoResearch] = useState(true);
     const [conditionEnabled, setConditionEnabled] = useState(false);
     const [conditionField, setConditionField] = useState("");
@@ -84,6 +91,7 @@ export default function AutoPersonalizedEmailConfig({
         setCompanyField("");
         setPrompt("");
         setTone("");
+        setFormat("plain");
         setAutoResearch(true);
         setConditionEnabled(false);
         setConditionField("");
@@ -105,6 +113,7 @@ export default function AutoPersonalizedEmailConfig({
         setCompanyField(link.companyField);
         setPrompt(link.prompt || "");
         setTone(link.tone || "");
+        setFormat((link.format as "plain" | "designed") || "plain");
         setAutoResearch(link.autoResearch === 1);
         if (link.triggerCondition?.field) {
             setConditionEnabled(true);
@@ -137,6 +146,7 @@ export default function AutoPersonalizedEmailConfig({
                     companyField,
                     prompt: prompt || undefined,
                     tone: tone || undefined,
+                    format,
                     autoResearch: autoResearch ? 1 : 0,
                     triggerCondition,
                 });
@@ -149,6 +159,7 @@ export default function AutoPersonalizedEmailConfig({
                     companyField,
                     prompt: prompt || undefined,
                     tone: tone || undefined,
+                    format,
                     autoResearch: autoResearch ? 1 : 0,
                     triggerCondition,
                 });
@@ -223,6 +234,9 @@ export default function AutoPersonalizedEmailConfig({
                                         </Badge>
                                         <Badge variant="outline">
                                             {link.triggerType === "on_create" ? "생성 시" : "수정 시"}
+                                        </Badge>
+                                        <Badge variant="outline">
+                                            {FORMAT_OPTIONS.find((f) => f.value === link.format)?.label || "간결한 텍스트"}
                                         </Badge>
                                     </div>
                                     <p className="text-sm text-muted-foreground">
@@ -344,6 +358,25 @@ export default function AutoPersonalizedEmailConfig({
                                 placeholder="예: 이 회사에 적합한 제품 소개 이메일을 작성해주세요."
                                 rows={3}
                             />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label>이메일 형식</Label>
+                            <Select value={format} onValueChange={(v) => setFormat(v as "plain" | "designed")}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {FORMAT_OPTIONS.map((f) => (
+                                        <SelectItem key={f.value} value={f.value}>
+                                            {f.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                {format === "plain" ? "편지처럼 간결한 텍스트 이메일" : "헤더, CTA 버튼 등 디자인 포함 이메일"}
+                            </p>
                         </div>
 
                         <div className="space-y-2">

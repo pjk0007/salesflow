@@ -14,7 +14,6 @@ import CompanyResearchSection from "./CompanyResearchSection";
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
 import SendEmailDialog from "./SendEmailDialog";
 import UnifiedLogTable from "@/components/logs/UnifiedLogTable";
-import { useAiConfig } from "@/hooks/useAiConfig";
 import type { DbRecord } from "@/lib/db";
 import type { FieldDefinition } from "@/types";
 
@@ -37,8 +36,6 @@ export default function RecordDetailDialog({
 }: RecordDetailDialogProps) {
     const [alimtalkOpen, setAlimtalkOpen] = useState(false);
     const [emailOpen, setEmailOpen] = useState(false);
-    const { config: aiConfig } = useAiConfig();
-
     if (!record) return null;
 
     const data = record.data as Record<string, unknown>;
@@ -90,8 +87,8 @@ export default function RecordDetailDialog({
                             ))}
                         </div>
 
-                        {/* 회사 정보 (AI 설정 있을 때만) */}
-                        {aiConfig && (
+                        {/* 회사 정보 */}
+                        {(
                             <CompanyResearchSection
                                 recordId={record.id}
                                 recordData={data}

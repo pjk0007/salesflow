@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getAiClient, generateProduct, logAiUsage } from "@/lib/ai";
+import { getSearchClient, generateProduct, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { scrapeImageUrl } from "@/lib/scrape-image";
 
 export async function POST(req: NextRequest) {
@@ -9,12 +9,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = await getAiClient(user.orgId);
-    if (!client) {
+    const searchClient = getSearchClient();
+    if (!searchClient) {
+        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
+    }
+
+    const quota = await checkTokenQuota(user.orgId);
+    if (!quota.allowed) {
         return NextResponse.json({
             success: false,
-            error: "AI 설정이 필요합니다. 설정 > AI 탭에서 API 키를 등록해주세요.",
-        }, { status: 400 });
+            error: "이번 달 AI 사용량을 초과했습니다. 플랜 업그레이드를 고려해주세요.",
+        }, { status: 429 });
     }
 
     const { prompt } = await req.json();
@@ -23,19 +28,21 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const result = await generateProduct(client, { prompt: prompt.trim() });
+        const result = await generateProduct(searchClient, { prompt: prompt.trim() });
+
+        const totalTokens = result.usage.promptTokens + result.usage.completionTokens;
+        await updateTokenUsage(user.orgId, totalTokens);
 
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: client.provider,
-            model: client.provider === "openai" ? "gpt-4o-search-preview" : client.model,
+            provider: "gemini",
+            model: searchClient.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,
             purpose: "product_generation",
         });
 
-        // imageUrl이 없으면 사이트에서 og:image / favicon 추출
         let imageUrl = result.imageUrl;
         if (!imageUrl && result.url) {
             imageUrl = await scrapeImageUrl(result.url) ?? undefined;

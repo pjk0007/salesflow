@@ -1,11 +1,15 @@
-import { db, aiConfigs, aiUsageLogs } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, aiUsageLogs, aiUsageQuotas, subscriptions, plans } from "@/lib/db";
+import { eq, and, gte, sql } from "drizzle-orm";
 import type { Product } from "@/lib/db";
 
 // ---- 타입 ----
 
 interface AiClient {
-    provider: "openai" | "anthropic" | "gemini";
+    apiKey: string;
+    model: string;
+}
+
+interface SearchClient {
     apiKey: string;
     model: string;
 }
@@ -16,6 +20,7 @@ interface GenerateEmailInput {
     recordData?: Record<string, unknown> | null;
     tone?: string;
     ctaUrl?: string;
+    format?: "plain" | "designed";
 }
 
 interface GenerateEmailResult {
@@ -24,37 +29,47 @@ interface GenerateEmailResult {
     usage: { promptTokens: number; completionTokens: number };
 }
 
-// ---- getAiClient ----
+// ---- 클라이언트 (ENV 기반) ----
 
-export async function getAiClient(orgId: string): Promise<AiClient | null> {
-    const [config] = await db
-        .select()
-        .from(aiConfigs)
-        .where(and(eq(aiConfigs.orgId, orgId), eq(aiConfigs.isActive, 1)))
-        .limit(1);
+export function getAiClient(): AiClient | null {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) return null;
+    return { apiKey, model: "claude-sonnet-4-6" };
+}
 
-    if (!config) return null;
-
-    return {
-        provider: config.provider as "openai" | "anthropic" | "gemini",
-        apiKey: config.apiKey,
-        model: config.model || (config.provider === "openai" ? "gpt-4.1" : config.provider === "gemini" ? "gemini-2.5-flash" : "claude-sonnet-4-6"),
-    };
+export function getSearchClient(): SearchClient | null {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) return null;
+    return { apiKey, model: "gemini-2.5-flash" };
 }
 
 // ---- 시스템 프롬프트 빌드 ----
 
 function buildSystemPrompt(input: GenerateEmailInput): string {
+    const isDesigned = input.format === "designed";
+
     let prompt = `당신은 B2B 영업/마케팅 이메일 전문가입니다.
 사용자의 지시에 따라 이메일을 작성해주세요.
 반드시 JSON 형식으로 응답하세요: { "subject": "이메일 제목", "htmlBody": "<html>...</html>" }
 
-[스타일 규칙 — 반드시 준수]
+[스타일 규칙 — 반드시 준수]`;
+
+    if (isDesigned) {
+        prompt += `
+- 전문적인 HTML 마케팅 이메일 형식으로 작성하세요.
+- 허용: 헤더 섹션, CTA 버튼(배경색+둥근 모서리+패딩), 배경색, 섹션 구분, 테이블 레이아웃
+- 인라인 CSS만 사용하세요 (외부 CSS 금지)
+- 모바일 반응형을 고려한 max-width: 600px 컨테이너 사용
+- 깔끔한 색상 조합 사용 (과하지 않게)
+- htmlBody는 완전한 HTML 이메일 구조로 작성`;
+    } else {
+        prompt += `
 - 사람이 직접 작성한 것처럼 자연스러운 플레인 텍스트 스타일로 작성하세요.
 - 허용 서식: <b>, <u>, <mark>(하이라이트), <br>, <a>, <p> 태그만 사용
 - 금지: 배경색, 테이블 레이아웃, 큰 CTA 버튼, 이미지, 헤더/푸터 디자인, 컬러 박스
 - CTA는 텍스트 링크(<a> 태그)로만 표현하세요 (버튼 스타일 금지)
 - htmlBody는 <div style="font-family: sans-serif; font-size: 14px; line-height: 1.6; color: #222;"> 안에 작성`;
+    }
 
     if (input.product) {
         prompt += `\n\n[제품 정보]\n- 이름: ${input.product.name}`;
@@ -64,7 +79,6 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
         if (input.product.url) prompt += `\n- 사이트: ${input.product.url}`;
     }
 
-    // CTA URL + UTM
     const ctaUrl = input.ctaUrl || input.product?.url;
     if (ctaUrl) {
         prompt += `\n\n[CTA 링크 규칙]
@@ -75,7 +89,6 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
     }
 
     if (input.recordData) {
-        // _companyResearch 데이터가 있으면 별도 섹션으로 추가
         const companyResearch = input.recordData._companyResearch as Record<string, unknown> | undefined;
         if (companyResearch && typeof companyResearch === "object") {
             prompt += "\n\n[상대 회사 정보]";
@@ -89,7 +102,7 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
 
         prompt += "\n\n[수신자 정보]";
         for (const [key, value] of Object.entries(input.recordData)) {
-            if (key.startsWith("_")) continue; // 내부 필드 제외
+            if (key.startsWith("_")) continue;
             if (value != null && value !== "") {
                 prompt += `\n- ${key}: ${String(value)}`;
             }
@@ -97,7 +110,11 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
     }
 
     if (input.tone) {
-        prompt += `\n\n[톤] ${input.tone}`;
+        if (input.tone === "concise") {
+            prompt += `\n\n[톤] 미사여구를 과도하게 섞지 말고 AI가 작성한 티가 나지 않게 간결하고 실제 담당자가 메일을 보내는 듯한 간결한 말투로 작성하세요.`;
+        } else {
+            prompt += `\n\n[톤] ${input.tone}`;
+        }
     }
 
     return prompt;
@@ -110,67 +127,16 @@ export async function generateEmail(
     input: GenerateEmailInput
 ): Promise<GenerateEmailResult> {
     const systemPrompt = buildSystemPrompt(input);
-
-    if (client.provider === "openai") {
-        return callOpenAI(client, systemPrompt, input.prompt);
-    } else if (client.provider === "gemini") {
-        return callGemini(client, systemPrompt, input.prompt);
-    } else {
-        return callAnthropic(client, systemPrompt, input.prompt);
-    }
+    return callAnthropic(client, systemPrompt, input.prompt);
 }
-
-// ---- 스트리밍 이메일 생성 ----
 
 export function buildEmailSystemPrompt(input: GenerateEmailInput): string {
     return buildSystemPrompt(input);
 }
 
-export type { AiClient, GenerateEmailInput };
+export type { AiClient, SearchClient, GenerateEmailInput };
 
-// ---- OpenAI 호출 ----
-
-async function callOpenAI(
-    client: AiClient,
-    systemPrompt: string,
-    userPrompt: string
-): Promise<GenerateEmailResult> {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${client.apiKey}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: client.model,
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-            ],
-            response_format: { type: "json_object" },
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
-    const parsed = JSON.parse(content);
-
-    return {
-        subject: parsed.subject,
-        htmlBody: parsed.htmlBody,
-        usage: {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-        },
-    };
-}
-
-// ---- Anthropic 호출 ----
+// ---- Anthropic 호출 (이메일 JSON 파싱용) ----
 
 async function callAnthropic(
     client: AiClient,
@@ -194,17 +160,14 @@ async function callAnthropic(
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
+        throw new Error(error?.error?.message || "AI API 호출에 실패했습니다.");
     }
 
     const data = await response.json();
     const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
     const content = textBlock?.text || "";
 
-    // 토큰 제한으로 잘렸는지 체크
     const truncated = data.stop_reason === "max_tokens";
-
-    // JSON 파싱 (extractJson 3단계 폴백 활용 + 잘림 복구)
     const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
 
     return {
@@ -217,107 +180,60 @@ async function callAnthropic(
     };
 }
 
-// ---- Gemini 호출 (non-search) ----
+// ---- Anthropic 범용 JSON 호출 ----
 
-async function callGemini(
+async function callAnthropicJson(
     client: AiClient,
     systemPrompt: string,
-    userPrompt: string
-): Promise<GenerateEmailResult> {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-                generationConfig: { temperature: 0.7 },
-            }),
-        }
-    );
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
-    }
-
-    const data = await response.json();
-    const textParts = data.candidates?.[0]?.content?.parts?.filter(
-        (p: { text?: string }) => p.text
-    ) ?? [];
-    const content = textParts.map((p: { text: string }) => p.text).join("");
-
-    const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/);
-
-    return {
-        subject: parsed.subject as string,
-        htmlBody: parsed.htmlBody as string,
-        usage: {
-            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
-            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
-        },
-    };
-}
-
-// ---- Gemini 범용 호출 (content + usage 반환) ----
-
-async function callGeminiGeneric(
-    client: AiClient,
-    systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    maxTokens: number = 4096
 ): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number } }> {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-                generationConfig: { temperature: 0.7 },
-            }),
-        }
-    );
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+            "x-api-key": client.apiKey,
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            model: client.model,
+            max_tokens: maxTokens,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+        }),
+    });
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
+        throw new Error(error?.error?.message || "AI API 호출에 실패했습니다.");
     }
 
     const data = await response.json();
-    const textParts = data.candidates?.[0]?.content?.parts?.filter(
-        (p: { text?: string }) => p.text
-    ) ?? [];
-    const content = textParts.map((p: { text: string }) => p.text).join("");
-
+    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
     return {
-        content,
+        content: textBlock?.text || "",
         usage: {
-            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
-            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+            promptTokens: data.usage?.input_tokens ?? 0,
+            completionTokens: data.usage?.output_tokens ?? 0,
         },
     };
 }
 
-// ---- 범용 웹 검색 호출 ----
+// ---- JSON 파싱 유틸 ----
 
 function extractJson(content: string, jsonPattern: RegExp, truncated = false): Record<string, unknown> {
-    // 1) Try regex pattern match first
     const jsonMatch = content.match(jsonPattern);
     if (jsonMatch) {
         try { return JSON.parse(jsonMatch[0]); } catch (e) {
             console.log("[extractJson] Step 1 match found but parse failed:", e);
         }
     }
-    // 2) Try markdown code block ```json ... ```
     const codeBlockMatch = content.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
     if (codeBlockMatch) {
         try { return JSON.parse(codeBlockMatch[1].trim()); } catch (e) {
             console.log("[extractJson] Step 2 match found but parse failed:", e);
         }
     }
-    // 3) Try finding any top-level JSON object with balanced braces
     const startIdx = content.indexOf("{");
     if (startIdx !== -1) {
         let depth = 0;
@@ -331,7 +247,6 @@ function extractJson(content: string, jsonPattern: RegExp, truncated = false): R
             }
         }
     }
-    // 4) 잘린 JSON 복구 — subject와 htmlBody를 직접 추출
     if (truncated || content.includes('"subject"') || content.includes('"htmlBody"')) {
         const recovered = recoverTruncatedEmailJson(content);
         if (recovered) {
@@ -343,23 +258,16 @@ function extractJson(content: string, jsonPattern: RegExp, truncated = false): R
     throw new Error("AI 응답에서 데이터를 파싱할 수 없습니다.");
 }
 
-/**
- * 토큰 제한으로 잘린 JSON에서 subject와 htmlBody를 직접 추출합니다.
- * { "subject": "...", "htmlBody": "..." } 형태에서 각 값을 regex로 꺼냅니다.
- */
 function recoverTruncatedEmailJson(content: string): Record<string, unknown> | null {
-    // subject 추출
     const subjectMatch = content.match(/"subject"\s*:\s*"((?:[^"\\]|\\.)*)"/);
     if (!subjectMatch) return null;
 
-    // htmlBody 추출 — 값이 잘렸을 수 있으므로 시작 위치부터 끝까지 가져옴
     const htmlBodyStart = content.match(/"htmlBody"\s*:\s*"/);
     if (!htmlBodyStart || htmlBodyStart.index === undefined) return null;
 
     const valueStart = htmlBodyStart.index + htmlBodyStart[0].length;
     let htmlBody = "";
     let i = valueStart;
-    // escaped string 파싱
     while (i < content.length) {
         if (content[i] === "\\" && i + 1 < content.length) {
             const next = content[i + 1];
@@ -369,15 +277,16 @@ function recoverTruncatedEmailJson(content: string): Record<string, unknown> | n
             if (next === "\\") { htmlBody += "\\"; i += 2; continue; }
             htmlBody += next; i += 2; continue;
         }
-        if (content[i] === '"') break; // 정상 종료
+        if (content[i] === '"') break;
         htmlBody += content[i];
         i++;
     }
 
     if (!htmlBody) return null;
-
     return { subject: subjectMatch[1], htmlBody };
 }
+
+// ---- Gemini 웹서칭 ----
 
 interface WebSearchResult {
     parsed: Record<string, unknown>;
@@ -385,152 +294,8 @@ interface WebSearchResult {
     usage: { promptTokens: number; completionTokens: number };
 }
 
-async function callOpenAIWithSearch(
-    client: AiClient,
-    systemPrompt: string,
-    userPrompt: string,
-    jsonPattern: RegExp
-): Promise<WebSearchResult> {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-            Authorization: `Bearer ${client.apiKey}`,
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: "gpt-4o-search-preview",
-            messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-            ],
-            web_search_options: {
-                user_location: {
-                    type: "approximate",
-                    approximate: { country: "KR" },
-                },
-            },
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content || "";
-
-    console.log("[OpenAI WebSearch] Raw content length:", content.length);
-    console.log("[OpenAI WebSearch] Content preview:", content.substring(0, 500));
-
-    const parsed = extractJson(content, jsonPattern);
-
-    const annotations = data.choices[0]?.message?.annotations ?? [];
-    const sources = annotations
-        .filter((a: { type: string }) => a.type === "url_citation")
-        .map((a: { url: string; title?: string }) => ({
-            url: a.url,
-            title: a.title || a.url,
-        }));
-
-    return {
-        parsed,
-        sources,
-        usage: {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-        },
-    };
-}
-
-async function callAnthropicWithSearch(
-    client: AiClient,
-    systemPrompt: string,
-    userPrompt: string,
-    jsonPattern: RegExp
-): Promise<WebSearchResult> {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-            "x-api-key": client.apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: client.model,
-            max_tokens: 4096,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
-            tools: [
-                {
-                    type: "web_search_20250305",
-                    name: "web_search",
-                    max_uses: 3,
-                },
-            ],
-        }),
-    });
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
-    }
-
-    const data = await response.json();
-
-    console.log("[Anthropic WebSearch] stop_reason:", data.stop_reason);
-    console.log("[Anthropic WebSearch] content blocks:", data.content?.map((b: { type: string }) => b.type));
-
-    // web_search_tool_result 블록에서 소스 추출
-    const searchResults: Array<{ url: string; title: string }> = [];
-    for (const block of data.content ?? []) {
-        if (block.type === "server_tool_use" && block.name === "web_search") {
-            console.log("[Anthropic WebSearch] Search query:", block.input?.query);
-        }
-        if (block.type === "web_search_tool_result") {
-            for (const result of block.content ?? []) {
-                if (result.type === "web_search_result" && result.url) {
-                    searchResults.push({ url: result.url, title: result.title || result.url });
-                }
-            }
-        }
-    }
-    console.log("[Anthropic WebSearch] Search results found:", searchResults.length);
-
-    const textBlock = data.content?.find(
-        (b: { type: string }) => b.type === "text"
-    );
-    const content = textBlock?.text || "";
-    console.log("[Anthropic WebSearch] Text content preview:", content.substring(0, 300));
-
-    const parsed = extractJson(content, jsonPattern);
-
-    const sources: Array<{ url: string; title: string }> = [];
-    // 1) web_search_tool_result에서 가져온 소스
-    sources.push(...searchResults);
-    // 2) textBlock citations에서 추가
-    if (textBlock?.citations) {
-        for (const cite of textBlock.citations) {
-            if (cite.type === "web_search_result_location" && cite.url) {
-                if (!sources.some((s) => s.url === cite.url)) {
-                    sources.push({ url: cite.url, title: cite.title || cite.url });
-                }
-            }
-        }
-    }
-
-    return {
-        parsed,
-        sources,
-        usage: {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
-        },
-    };
-}
-
 async function callGeminiWithSearch(
-    client: AiClient,
+    client: SearchClient,
     systemPrompt: string,
     userPrompt: string,
     jsonPattern: RegExp
@@ -554,20 +319,14 @@ async function callGeminiWithSearch(
     }
 
     const data = await response.json();
-
-    console.log("[Gemini WebSearch] candidates:", data.candidates?.length);
-
     const candidate = data.candidates?.[0];
     const textParts = candidate?.content?.parts?.filter(
         (p: { text?: string }) => p.text
     ) ?? [];
     const content = textParts.map((p: { text: string }) => p.text).join("");
 
-    console.log("[Gemini WebSearch] Content preview:", content.substring(0, 500));
-
     const parsed = extractJson(content, jsonPattern);
 
-    // groundingMetadata에서 sources 추출
     const sources: Array<{ url: string; title: string }> = [];
     const grounding = candidate?.groundingMetadata;
     if (grounding?.groundingChunks) {
@@ -588,7 +347,7 @@ async function callGeminiWithSearch(
     };
 }
 
-// ---- 제품 생성 ----
+// ---- 제품 생성 (웹서칭) ----
 
 interface GenerateProductInput {
     prompt: string;
@@ -631,17 +390,13 @@ function buildProductSystemPrompt(): string {
 }
 
 export async function generateProduct(
-    client: AiClient,
+    searchClient: SearchClient,
     input: GenerateProductInput
 ): Promise<GenerateProductResult> {
     const systemPrompt = buildProductSystemPrompt();
     const pattern = /\{[\s\S]*"name"[\s\S]*"description"[\s\S]*\}/;
 
-    const result = client.provider === "openai"
-        ? await callOpenAIWithSearch(client, systemPrompt, input.prompt, pattern)
-        : client.provider === "gemini"
-        ? await callGeminiWithSearch(client, systemPrompt, input.prompt, pattern)
-        : await callAnthropicWithSearch(client, systemPrompt, input.prompt, pattern);
+    const result = await callGeminiWithSearch(searchClient, systemPrompt, input.prompt, pattern);
 
     return {
         name: result.parsed.name as string || "",
@@ -656,7 +411,7 @@ export async function generateProduct(
     };
 }
 
-// ---- 회사 조사 ----
+// ---- 회사 조사 (웹서칭) ----
 
 interface CompanyResearchInput {
     companyName: string;
@@ -676,7 +431,6 @@ export interface CompanyResearchResult {
 
 function buildCompanyResearchSystemPrompt(): string {
     return `당신은 기업 정보 조사 전문가입니다.
-
 중요: 반드시 웹 검색(web_search)을 먼저 실행한 후 결과를 기반으로 답변하세요.
 사전 지식만으로 답변하지 마세요. 반드시 실시간 웹 검색을 수행해야 합니다.
 
@@ -704,7 +458,7 @@ function buildCompanyResearchSystemPrompt(): string {
 }
 
 export async function generateCompanyResearch(
-    client: AiClient,
+    searchClient: SearchClient,
     input: CompanyResearchInput
 ): Promise<CompanyResearchResult> {
     const systemPrompt = buildCompanyResearchSystemPrompt();
@@ -712,7 +466,6 @@ export async function generateCompanyResearch(
 
     let userPrompt = `"${input.companyName}" 회사(기업)에 대해 웹 검색을 수행하고, 업종, 주요 서비스, 기업 규모, 공식 웹사이트 정보를 JSON으로 알려주세요.`;
 
-    // 레코드의 추가 정보를 검색 힌트로 활용
     if (input.additionalContext && Object.keys(input.additionalContext).length > 0) {
         const hints: string[] = [];
         for (const [key, val] of Object.entries(input.additionalContext)) {
@@ -725,22 +478,14 @@ export async function generateCompanyResearch(
         }
     }
 
-    console.log("[CompanyResearch] provider:", client.provider, "model:", client.model);
-
     let result: WebSearchResult;
     try {
-        result = client.provider === "openai"
-            ? await callOpenAIWithSearch(client, systemPrompt, userPrompt, pattern)
-            : client.provider === "gemini"
-            ? await callGeminiWithSearch(client, systemPrompt, userPrompt, pattern)
-            : await callAnthropicWithSearch(client, systemPrompt, userPrompt, pattern);
+        result = await callGeminiWithSearch(searchClient, systemPrompt, userPrompt, pattern);
     } catch (err) {
         const msg = err instanceof Error ? err.message : "";
-        // API 인증/크레딧/네트워크 에러는 사용자에게 전파
         if (msg.includes("credit") || msg.includes("API") || msg.includes("key") || msg.includes("auth") || msg.includes("401") || msg.includes("403")) {
             throw err;
         }
-        // JSON 파싱 실패 — 검색 결과 없음으로 처리
         return {
             companyName: input.companyName,
             industry: "정보 없음",
@@ -838,67 +583,7 @@ export async function generateWebForm(
     const systemPrompt = buildWebFormSystemPrompt(input.workspaceFields);
     const pattern = /\{[\s\S]*"title"[\s\S]*"fields"[\s\S]*\}/;
 
-    let content: string;
-    let usage: { promptTokens: number; completionTokens: number };
-
-    if (client.provider === "openai") {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${client.apiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: input.prompt },
-                ],
-                response_format: { type: "json_object" },
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        content = data.choices[0]?.message?.content || "";
-        usage = {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-        };
-    } else if (client.provider === "gemini") {
-        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
-        content = g.content;
-        usage = g.usage;
-    } else {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-                "x-api-key": client.apiKey,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                max_tokens: 4096,
-                system: systemPrompt,
-                messages: [{ role: "user", content: input.prompt }],
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-        content = textBlock?.text || "";
-        usage = {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
-        };
-    }
-
+    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt);
     const parsed = extractJson(content, pattern);
     const fields = (parsed.fields as any[] || []).map((f: any) => ({
         label: f.label || "",
@@ -988,67 +673,7 @@ export async function generateDashboard(
     const systemPrompt = buildDashboardSystemPrompt(input.workspaceFields);
     const pattern = /\{[\s\S]*"name"[\s\S]*"widgets"[\s\S]*\}/;
 
-    let content: string;
-    let usage: { promptTokens: number; completionTokens: number };
-
-    if (client.provider === "openai") {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${client.apiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: input.prompt },
-                ],
-                response_format: { type: "json_object" },
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        content = data.choices[0]?.message?.content || "";
-        usage = {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-        };
-    } else if (client.provider === "gemini") {
-        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
-        content = g.content;
-        usage = g.usage;
-    } else {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-                "x-api-key": client.apiKey,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                max_tokens: 4096,
-                system: systemPrompt,
-                messages: [{ role: "user", content: input.prompt }],
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-        content = textBlock?.text || "";
-        usage = {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
-        };
-    }
-
+    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt);
     const parsed = extractJson(content, pattern);
     const widgets = (parsed.widgets as any[] || []).map((w: any) => ({
         title: w.title || "",
@@ -1128,67 +753,7 @@ export async function generateWidget(
     const systemPrompt = buildWidgetSystemPrompt(input.workspaceFields);
     const pattern = /\{[\s\S]*"title"[\s\S]*"widgetType"[\s\S]*\}/;
 
-    let content: string;
-    let usage: { promptTokens: number; completionTokens: number };
-
-    if (client.provider === "openai") {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${client.apiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: input.prompt },
-                ],
-                response_format: { type: "json_object" },
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        content = data.choices[0]?.message?.content || "";
-        usage = {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-        };
-    } else if (client.provider === "gemini") {
-        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
-        content = g.content;
-        usage = g.usage;
-    } else {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-                "x-api-key": client.apiKey,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                max_tokens: 2048,
-                system: systemPrompt,
-                messages: [{ role: "user", content: input.prompt }],
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-        content = textBlock?.text || "";
-        usage = {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
-        };
-    }
-
+    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt, 2048);
     const parsed = extractJson(content, pattern);
 
     return {
@@ -1263,67 +828,7 @@ export async function generateAlimtalk(
     const systemPrompt = buildAlimtalkSystemPrompt(input);
     const pattern = /\{[\s\S]*"templateName"[\s\S]*"templateContent"[\s\S]*\}/;
 
-    let content: string;
-    let usage: { promptTokens: number; completionTokens: number };
-
-    if (client.provider === "openai") {
-        const response = await fetch("https://api.openai.com/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${client.apiKey}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                messages: [
-                    { role: "system", content: systemPrompt },
-                    { role: "user", content: input.prompt },
-                ],
-                response_format: { type: "json_object" },
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "OpenAI API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        content = data.choices[0]?.message?.content || "";
-        usage = {
-            promptTokens: data.usage?.prompt_tokens ?? 0,
-            completionTokens: data.usage?.completion_tokens ?? 0,
-        };
-    } else if (client.provider === "gemini") {
-        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
-        content = g.content;
-        usage = g.usage;
-    } else {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-                "x-api-key": client.apiKey,
-                "anthropic-version": "2023-06-01",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: client.model,
-                max_tokens: 2048,
-                system: systemPrompt,
-                messages: [{ role: "user", content: input.prompt }],
-            }),
-        });
-        if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
-        }
-        const data = await response.json();
-        const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-        content = textBlock?.text || "";
-        usage = {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
-        };
-    }
-
+    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt, 2048);
     const parsed = extractJson(content, pattern);
     const buttons = (parsed.buttons as any[] || []).map((b: any, i: number) => ({
         ordering: i + 1,
@@ -1339,6 +844,110 @@ export async function generateAlimtalk(
         templateMessageType: (parsed.templateMessageType as string) || "BA",
         buttons,
         usage,
+    };
+}
+
+// ---- 토큰 쿼터 ----
+
+async function getQuotaLimitForOrg(orgId: string): Promise<number> {
+    const [sub] = await db
+        .select({ planId: subscriptions.planId })
+        .from(subscriptions)
+        .where(and(eq(subscriptions.orgId, orgId), eq(subscriptions.status, "active")))
+        .limit(1);
+
+    if (!sub?.planId) return 100_000;
+
+    const [plan] = await db
+        .select({ name: plans.name })
+        .from(plans)
+        .where(eq(plans.id, sub.planId))
+        .limit(1);
+
+    if (plan?.name === "Enterprise") return 10_000_000;
+    if (plan?.name === "Pro") return 1_000_000;
+    return 100_000;
+}
+
+async function getOrCreateQuota(orgId: string, month: string): Promise<{ totalTokens: number; quotaLimit: number }> {
+    const [existing] = await db
+        .select({ totalTokens: aiUsageQuotas.totalTokens, quotaLimit: aiUsageQuotas.quotaLimit })
+        .from(aiUsageQuotas)
+        .where(and(eq(aiUsageQuotas.orgId, orgId), eq(aiUsageQuotas.month, month)))
+        .limit(1);
+
+    if (existing) return existing;
+
+    const limit = await getQuotaLimitForOrg(orgId);
+    const [created] = await db
+        .insert(aiUsageQuotas)
+        .values({ orgId, month, totalTokens: 0, quotaLimit: limit })
+        .onConflictDoNothing()
+        .returning({ totalTokens: aiUsageQuotas.totalTokens, quotaLimit: aiUsageQuotas.quotaLimit });
+
+    return created ?? { totalTokens: 0, quotaLimit: limit };
+}
+
+export async function checkTokenQuota(orgId: string): Promise<{ allowed: boolean; remaining: number }> {
+    const month = new Date().toISOString().slice(0, 7);
+    const quota = await getOrCreateQuota(orgId, month);
+    const remaining = quota.quotaLimit - quota.totalTokens;
+    return { allowed: remaining > 0, remaining };
+}
+
+export async function updateTokenUsage(orgId: string, tokens: number): Promise<void> {
+    const month = new Date().toISOString().slice(0, 7);
+
+    const [existing] = await db
+        .select({ id: aiUsageQuotas.id })
+        .from(aiUsageQuotas)
+        .where(and(eq(aiUsageQuotas.orgId, orgId), eq(aiUsageQuotas.month, month)))
+        .limit(1);
+
+    if (existing) {
+        await db
+            .update(aiUsageQuotas)
+            .set({
+                totalTokens: sql`${aiUsageQuotas.totalTokens} + ${tokens}`,
+                updatedAt: new Date(),
+            })
+            .where(eq(aiUsageQuotas.id, existing.id));
+    } else {
+        const limit = await getQuotaLimitForOrg(orgId);
+        await db
+            .insert(aiUsageQuotas)
+            .values({ orgId, month, totalTokens: tokens, quotaLimit: limit })
+            .onConflictDoNothing();
+    }
+}
+
+// ---- 사용량 조회 (API용) ----
+
+export async function getUsageData(orgId: string) {
+    const month = new Date().toISOString().slice(0, 7);
+    const quota = await getOrCreateQuota(orgId, month);
+
+    const breakdown = await db
+        .select({
+            purpose: aiUsageLogs.purpose,
+            totalPrompt: sql<number>`COALESCE(SUM(${aiUsageLogs.promptTokens}), 0)`,
+            totalCompletion: sql<number>`COALESCE(SUM(${aiUsageLogs.completionTokens}), 0)`,
+            count: sql<number>`COUNT(*)`,
+        })
+        .from(aiUsageLogs)
+        .where(and(
+            eq(aiUsageLogs.orgId, orgId),
+            gte(aiUsageLogs.createdAt, new Date(`${month}-01`)),
+        ))
+        .groupBy(aiUsageLogs.purpose);
+
+    return {
+        month,
+        totalTokens: quota.totalTokens,
+        quotaLimit: quota.quotaLimit,
+        remaining: quota.quotaLimit - quota.totalTokens,
+        usagePercent: quota.quotaLimit > 0 ? Math.round((quota.totalTokens / quota.quotaLimit) * 100) : 0,
+        breakdown,
     };
 }
 

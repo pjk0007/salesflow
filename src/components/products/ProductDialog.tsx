@@ -12,7 +12,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { useAiConfig } from "@/hooks/useAiConfig";
 import AiProductPanel from "./AiProductPanel";
 import type { Product } from "@/lib/db";
 
@@ -47,7 +46,6 @@ export default function ProductDialog({
     const [imageUrl, setImageUrl] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showAiPanel, setShowAiPanel] = useState(false);
-    const { config: aiConfig } = useAiConfig();
 
     useEffect(() => {
         if (open && product) {
@@ -106,7 +104,7 @@ export default function ProductDialog({
                 <DialogHeader>
                     <div className="flex items-center justify-between">
                         <DialogTitle>{isEdit ? "제품 수정" : "제품 추가"}</DialogTitle>
-                        {!isEdit && aiConfig && (
+                        {!isEdit && (
                             <Button
                                 variant={showAiPanel ? "default" : "outline"}
                                 size="sm"

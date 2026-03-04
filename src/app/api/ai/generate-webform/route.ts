@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getAiClient, generateWebForm, logAiUsage } from "@/lib/ai";
+import { getAiClient, generateWebForm, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -8,12 +8,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = await getAiClient(user.orgId);
+    const client = getAiClient();
     if (!client) {
+        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
+    }
+
+    const quota = await checkTokenQuota(user.orgId);
+    if (!quota.allowed) {
         return NextResponse.json({
             success: false,
-            error: "AI 설정이 필요합니다. 설정 > AI 탭에서 API 키를 등록해주세요.",
-        }, { status: 400 });
+            error: "이번 달 AI 사용량을 초과했습니다. 플랜 업그레이드를 고려해주세요.",
+        }, { status: 429 });
     }
 
     const { prompt, workspaceFields } = await req.json();
@@ -22,15 +27,15 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const result = await generateWebForm(client, {
-            prompt: prompt.trim(),
-            workspaceFields,
-        });
+        const result = await generateWebForm(client, { prompt: prompt.trim(), workspaceFields });
+
+        const totalTokens = result.usage.promptTokens + result.usage.completionTokens;
+        await updateTokenUsage(user.orgId, totalTokens);
 
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: client.provider,
+            provider: "anthropic",
             model: client.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,
@@ -39,12 +44,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: {
-                name: result.name,
-                title: result.title,
-                description: result.description,
-                fields: result.fields,
-            },
+            data: { name: result.name, title: result.title, description: result.description, fields: result.fields },
         });
     } catch (error) {
         console.error("AI webform generation error:", error);

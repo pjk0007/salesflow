@@ -1,7 +1,7 @@
 import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
-import { getAiClient, generateEmail, generateCompanyResearch, logAiUsage } from "@/lib/ai";
+import { getAiClient, getSearchClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import type { DbRecord } from "@/lib/db";
 
@@ -70,8 +70,12 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             if (!email || typeof email !== "string" || !email.includes("@")) continue;
 
             // 5. AI 클라이언트 확인
-            const aiClient = await getAiClient(orgId);
+            const aiClient = getAiClient();
             if (!aiClient) continue;
+
+            // 5-1. 토큰 쿼터 확인
+            const quota = await checkTokenQuota(orgId);
+            if (!quota.allowed) continue;
 
             // 6. 이메일 클라이언트 확인
             const emailClient = await getEmailClient(orgId);
@@ -82,9 +86,10 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
             let recordData = { ...data };
             if (link.autoResearch === 1 && !recordData._companyResearch) {
+                const searchClient = getSearchClient();
                 const companyName = data[link.companyField] as string;
-                if (companyName && typeof companyName === "string" && companyName.trim()) {
-                    const research = await generateCompanyResearch(aiClient, { companyName, additionalContext: data });
+                if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
+                    const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
                     recordData._companyResearch = {
                         ...research,
                         sources: research.sources,
@@ -97,11 +102,14 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                         .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
                         .where(eq(records.id, record.id));
 
+                    const researchTokens = research.usage.promptTokens + research.usage.completionTokens;
+                    await updateTokenUsage(orgId, researchTokens);
+
                     await logAiUsage({
                         orgId,
                         userId: null,
-                        provider: aiClient.provider,
-                        model: aiClient.model,
+                        provider: "gemini",
+                        model: searchClient.model,
                         promptTokens: research.usage.promptTokens,
                         completionTokens: research.usage.completionTokens,
                         purpose: "auto_company_research",
@@ -121,7 +129,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             }
 
             // 9. AI 이메일 생성
-            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}, provider: ${aiClient.provider}`);
+            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}`);
             const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
             const emailResult = await generateEmail(aiClient, {
                 prompt,
@@ -129,13 +137,17 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 recordData,
                 tone: link.tone || undefined,
                 ctaUrl: product?.url || undefined,
+                format: (link.format as "plain" | "designed") || "plain",
             });
             console.log(`[AutoEmail] Step 9 done: subject="${emailResult.subject}", bodyLen=${emailResult.htmlBody?.length ?? 0}`);
+
+            const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
+            await updateTokenUsage(orgId, emailTokens);
 
             await logAiUsage({
                 orgId,
                 userId: null,
-                provider: aiClient.provider,
+                provider: "anthropic",
                 model: aiClient.model,
                 promptTokens: emailResult.usage.promptTokens,
                 completionTokens: emailResult.usage.completionTokens,

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getAiClient, generateCompanyResearch, logAiUsage } from "@/lib/ai";
+import { getSearchClient, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -8,12 +8,17 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = await getAiClient(user.orgId);
-    if (!client) {
+    const searchClient = getSearchClient();
+    if (!searchClient) {
+        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
+    }
+
+    const quota = await checkTokenQuota(user.orgId);
+    if (!quota.allowed) {
         return NextResponse.json({
             success: false,
-            error: "AI 설정이 필요합니다. 설정 > AI 탭에서 API 키를 등록해주세요.",
-        }, { status: 400 });
+            error: "이번 달 AI 사용량을 초과했습니다. 플랜 업그레이드를 고려해주세요.",
+        }, { status: 429 });
     }
 
     const { companyName, recordData } = await req.json();
@@ -22,16 +27,19 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const result = await generateCompanyResearch(client, {
+        const result = await generateCompanyResearch(searchClient, {
             companyName: companyName.trim(),
             additionalContext: recordData as Record<string, unknown> | undefined,
         });
 
+        const totalTokens = result.usage.promptTokens + result.usage.completionTokens;
+        await updateTokenUsage(user.orgId, totalTokens);
+
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: client.provider,
-            model: client.provider === "openai" ? "gpt-4o-search-preview" : client.model,
+            provider: "gemini",
+            model: searchClient.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,
             purpose: "company_research",

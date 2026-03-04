@@ -4,7 +4,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ArrowLeft, Loader2, Sparkles, ImageIcon, X } from "lucide-react";
-import { useAiConfig } from "@/hooks/useAiConfig";
 import AiProductPanel from "./AiProductPanel";
 import { toast } from "sonner";
 import type { Product } from "@/lib/db";
@@ -33,7 +32,6 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
     const [imageUrl, setImageUrl] = useState("");
     const [saving, setSaving] = useState(false);
     const [showAiPanel, setShowAiPanel] = useState(false);
-    const { config: aiConfig } = useAiConfig();
     const initialized = useRef(false);
 
     useEffect(() => {
@@ -87,7 +85,7 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
                     </h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    {!product && aiConfig && (
+                    {!product && (
                         <Button
                             variant={showAiPanel ? "default" : "outline"}
                             size="sm"

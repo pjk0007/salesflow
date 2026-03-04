@@ -12,7 +12,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { extractEmailVariables } from "@/lib/email-utils";
-import { useAiConfig } from "@/hooks/useAiConfig";
 import { useEmailCategories } from "@/hooks/useEmailCategories";
 import AiEmailPanel from "@/components/email/AiEmailPanel";
 import { toast } from "sonner";
@@ -50,7 +49,6 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     const [editMode, setEditMode] = useState<"visual" | "code">("visual");
     const editorRef = useRef<HTMLDivElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
-    const { config: aiConfig } = useAiConfig();
     const { categories } = useEmailCategories();
     const initialized = useRef(false);
 
@@ -316,7 +314,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                         <span className="text-xs text-amber-600">변경사항 있음</span>
                     )}
 
-                    {aiConfig && (
+                    {(
                         <Button
                             variant={showAiPanel ? "default" : "outline"}
                             size="sm"
