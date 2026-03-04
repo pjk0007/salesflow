@@ -307,10 +307,11 @@ export class NhnAlimtalkClient {
             "GET",
             `/alimtalk/v2.3/appkeys/{appkey}/senders/${encodeURIComponent(senderKey)}/templates`
         );
+        const listResponse = result.templateListResponse as { templates?: NhnTemplate[]; totalCount?: number } | undefined;
         return {
             header: result.header,
-            templates: (result.templates ?? []) as NhnTemplate[],
-            totalCount: (result.totalCount ?? 0) as number,
+            templates: (listResponse?.templates ?? []) as NhnTemplate[],
+            totalCount: (listResponse?.totalCount ?? 0) as number,
         };
     }
 
@@ -321,7 +322,7 @@ export class NhnAlimtalkClient {
         );
         return {
             header: result.header,
-            template: (result.template ?? null) as NhnTemplate | null,
+            template: (result.templates ?? null) as NhnTemplate | null,
         };
     }
 
