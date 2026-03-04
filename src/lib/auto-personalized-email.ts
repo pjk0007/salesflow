@@ -121,6 +121,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             }
 
             // 9. AI 이메일 생성
+            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}, provider: ${aiClient.provider}`);
             const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
             const emailResult = await generateEmail(aiClient, {
                 prompt,
@@ -129,6 +130,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 tone: link.tone || undefined,
                 ctaUrl: product?.url || undefined,
             });
+            console.log(`[AutoEmail] Step 9 done: subject="${emailResult.subject}", bodyLen=${emailResult.htmlBody?.length ?? 0}`);
 
             await logAiUsage({
                 orgId,
@@ -145,6 +147,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             if (emailConfig.signatureEnabled && emailConfig.signature) {
                 finalBody = appendSignature(finalBody, emailConfig.signature);
             }
+            console.log(`[AutoEmail] Step 10: Sending to ${email}, subject="${emailResult.subject}", bodyLen=${finalBody?.length ?? 0}`);
 
             const nhnResult = await emailClient.sendEachMail({
                 senderAddress: emailConfig.fromEmail,
@@ -153,6 +156,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 body: finalBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
             });
+            console.log(`[AutoEmail] Step 10 done: isSuccessful=${nhnResult.header.isSuccessful}, resultMessage=${nhnResult.header.resultMessage}`);
 
             const isSuccess = nhnResult.header.isSuccessful;
             const sendResult = nhnResult.data?.results?.[0];
