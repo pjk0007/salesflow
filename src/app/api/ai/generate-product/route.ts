@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getSearchClient, generateProduct, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getAiClient, generateProduct, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { scrapeImageUrl } from "@/lib/scrape-image";
 
 export async function POST(req: NextRequest) {
@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const searchClient = getSearchClient();
-    if (!searchClient) {
+    const client = getAiClient();
+    if (!client) {
         return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
     }
 
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const result = await generateProduct(searchClient, { prompt: prompt.trim() });
+        const result = await generateProduct(client, { prompt: prompt.trim() });
 
         const totalTokens = result.usage.promptTokens + result.usage.completionTokens;
         await updateTokenUsage(user.orgId, totalTokens);
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
             orgId: user.orgId,
             userId: user.userId,
             provider: "gemini",
-            model: searchClient.model,
+            model: client.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,
             purpose: "product_generation",

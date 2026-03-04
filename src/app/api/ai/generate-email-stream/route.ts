@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
                 };
 
                 try {
-                    const usage = await streamAnthropic(client, systemPrompt, input.prompt, sendEvent);
+                    const usage = await streamGemini(client, systemPrompt, input.prompt, sendEvent);
 
                     sendEvent("done", { usage });
                     controller.close();
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
                     logAiUsage({
                         orgId: user.orgId,
                         userId: user.userId,
-                        provider: "anthropic",
+                        provider: "gemini",
                         model: client.model,
                         promptTokens: usage.promptTokens,
                         completionTokens: usage.completionTokens,
@@ -108,31 +108,27 @@ export async function POST(req: NextRequest) {
 
 type SendEvent = (event: string, data: unknown) => void;
 
-async function streamAnthropic(
+async function streamGemini(
     client: AiClient,
     systemPrompt: string,
     userPrompt: string,
     sendEvent: SendEvent
 ): Promise<Usage> {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-            "x-api-key": client.apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: client.model,
-            max_tokens: 16384,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
-            stream: true,
-        }),
-    });
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:streamGenerateContent?alt=sse&key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            }),
+        }
+    );
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "Anthropic API 호출에 실패했습니다.");
+        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
     }
 
     const reader = response.body!.getReader();
@@ -155,15 +151,16 @@ async function streamAnthropic(
 
             try {
                 const parsed = JSON.parse(data);
+                const candidate = parsed.candidates?.[0];
+                const text = candidate?.content?.parts?.[0]?.text;
 
-                if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-                    sendEvent("chunk", { text: parsed.delta.text });
+                if (text) {
+                    sendEvent("chunk", { text });
                 }
-                if (parsed.type === "message_start" && parsed.message?.usage) {
-                    usage.promptTokens = parsed.message.usage.input_tokens ?? 0;
-                }
-                if (parsed.type === "message_delta" && parsed.usage) {
-                    usage.completionTokens = parsed.usage.output_tokens ?? 0;
+
+                if (parsed.usageMetadata) {
+                    usage.promptTokens = parsed.usageMetadata.promptTokenCount ?? 0;
+                    usage.completionTokens = parsed.usageMetadata.candidatesTokenCount ?? 0;
                 }
             } catch {
                 // ignore

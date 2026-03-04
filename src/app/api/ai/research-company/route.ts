@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getSearchClient, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getAiClient, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -8,8 +8,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const searchClient = getSearchClient();
-    if (!searchClient) {
+    const client = getAiClient();
+    if (!client) {
         return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
     }
 
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const result = await generateCompanyResearch(searchClient, {
+        const result = await generateCompanyResearch(client, {
             companyName: companyName.trim(),
             additionalContext: recordData as Record<string, unknown> | undefined,
         });
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
             orgId: user.orgId,
             userId: user.userId,
             provider: "gemini",
-            model: searchClient.model,
+            model: client.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,
             purpose: "company_research",

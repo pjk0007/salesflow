@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: "anthropic",
+            provider: "gemini",
             model: client.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,

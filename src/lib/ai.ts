@@ -9,10 +9,8 @@ interface AiClient {
     model: string;
 }
 
-interface SearchClient {
-    apiKey: string;
-    model: string;
-}
+/** @deprecated AiClient로 통일 */
+type SearchClient = AiClient;
 
 interface GenerateEmailInput {
     prompt: string;
@@ -32,16 +30,13 @@ interface GenerateEmailResult {
 // ---- 클라이언트 (ENV 기반) ----
 
 export function getAiClient(): AiClient | null {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return null;
-    return { apiKey, model: "claude-sonnet-4-6" };
-}
-
-export function getSearchClient(): SearchClient | null {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return null;
     return { apiKey, model: "gemini-2.5-flash" };
 }
+
+/** @deprecated getAiClient()로 통일 — 하위 호환용 별칭 */
+export const getSearchClient = getAiClient;
 
 // ---- 시스템 프롬프트 빌드 ----
 
@@ -127,7 +122,7 @@ export async function generateEmail(
     input: GenerateEmailInput
 ): Promise<GenerateEmailResult> {
     const systemPrompt = buildSystemPrompt(input);
-    return callAnthropic(client, systemPrompt, input.prompt);
+    return callGeminiEmail(client, systemPrompt, input.prompt);
 }
 
 export function buildEmailSystemPrompt(input: GenerateEmailInput): string {
@@ -136,27 +131,24 @@ export function buildEmailSystemPrompt(input: GenerateEmailInput): string {
 
 export type { AiClient, SearchClient, GenerateEmailInput };
 
-// ---- Anthropic 호출 (이메일 JSON 파싱용) ----
+// ---- Gemini 호출 (이메일 JSON 파싱용) ----
 
-async function callAnthropic(
+async function callGeminiEmail(
     client: AiClient,
     systemPrompt: string,
     userPrompt: string
 ): Promise<GenerateEmailResult> {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-            "x-api-key": client.apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: client.model,
-            max_tokens: 16384,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
-        }),
-    });
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            }),
+        }
+    );
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -164,44 +156,43 @@ async function callAnthropic(
     }
 
     const data = await response.json();
-    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-    const content = textBlock?.text || "";
+    const candidate = data.candidates?.[0];
+    const textParts = candidate?.content?.parts?.filter(
+        (p: { text?: string }) => p.text
+    ) ?? [];
+    const content = textParts.map((p: { text: string }) => p.text).join("");
 
-    const truncated = data.stop_reason === "max_tokens";
+    const truncated = candidate?.finishReason === "MAX_TOKENS";
     const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
 
     return {
         subject: parsed.subject as string,
         htmlBody: parsed.htmlBody as string,
         usage: {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
+            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
         },
     };
 }
 
-// ---- Anthropic 범용 JSON 호출 ----
+// ---- Gemini 범용 JSON 호출 ----
 
-async function callAnthropicJson(
+async function callGeminiJson(
     client: AiClient,
     systemPrompt: string,
-    userPrompt: string,
-    maxTokens: number = 4096
+    userPrompt: string
 ): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number } }> {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-            "x-api-key": client.apiKey,
-            "anthropic-version": "2023-06-01",
-            "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-            model: client.model,
-            max_tokens: maxTokens,
-            system: systemPrompt,
-            messages: [{ role: "user", content: userPrompt }],
-        }),
-    });
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            }),
+        }
+    );
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
@@ -209,12 +200,15 @@ async function callAnthropicJson(
     }
 
     const data = await response.json();
-    const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
+    const candidate = data.candidates?.[0];
+    const textParts = candidate?.content?.parts?.filter(
+        (p: { text?: string }) => p.text
+    ) ?? [];
     return {
-        content: textBlock?.text || "",
+        content: textParts.map((p: { text: string }) => p.text).join(""),
         usage: {
-            promptTokens: data.usage?.input_tokens ?? 0,
-            completionTokens: data.usage?.output_tokens ?? 0,
+            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
         },
     };
 }
@@ -390,13 +384,13 @@ function buildProductSystemPrompt(): string {
 }
 
 export async function generateProduct(
-    searchClient: SearchClient,
+    client: AiClient,
     input: GenerateProductInput
 ): Promise<GenerateProductResult> {
     const systemPrompt = buildProductSystemPrompt();
     const pattern = /\{[\s\S]*"name"[\s\S]*"description"[\s\S]*\}/;
 
-    const result = await callGeminiWithSearch(searchClient, systemPrompt, input.prompt, pattern);
+    const result = await callGeminiWithSearch(client, systemPrompt, input.prompt, pattern);
 
     return {
         name: result.parsed.name as string || "",
@@ -458,7 +452,7 @@ function buildCompanyResearchSystemPrompt(): string {
 }
 
 export async function generateCompanyResearch(
-    searchClient: SearchClient,
+    client: AiClient,
     input: CompanyResearchInput
 ): Promise<CompanyResearchResult> {
     const systemPrompt = buildCompanyResearchSystemPrompt();
@@ -480,7 +474,7 @@ export async function generateCompanyResearch(
 
     let result: WebSearchResult;
     try {
-        result = await callGeminiWithSearch(searchClient, systemPrompt, userPrompt, pattern);
+        result = await callGeminiWithSearch(client, systemPrompt, userPrompt, pattern);
     } catch (err) {
         const msg = err instanceof Error ? err.message : "";
         if (msg.includes("credit") || msg.includes("API") || msg.includes("key") || msg.includes("auth") || msg.includes("401") || msg.includes("403")) {
@@ -583,7 +577,7 @@ export async function generateWebForm(
     const systemPrompt = buildWebFormSystemPrompt(input.workspaceFields);
     const pattern = /\{[\s\S]*"title"[\s\S]*"fields"[\s\S]*\}/;
 
-    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt);
+    const { content, usage } = await callGeminiJson(client, systemPrompt, input.prompt);
     const parsed = extractJson(content, pattern);
     const fields = (parsed.fields as any[] || []).map((f: any) => ({
         label: f.label || "",
@@ -673,7 +667,7 @@ export async function generateDashboard(
     const systemPrompt = buildDashboardSystemPrompt(input.workspaceFields);
     const pattern = /\{[\s\S]*"name"[\s\S]*"widgets"[\s\S]*\}/;
 
-    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt);
+    const { content, usage } = await callGeminiJson(client, systemPrompt, input.prompt);
     const parsed = extractJson(content, pattern);
     const widgets = (parsed.widgets as any[] || []).map((w: any) => ({
         title: w.title || "",
@@ -753,7 +747,7 @@ export async function generateWidget(
     const systemPrompt = buildWidgetSystemPrompt(input.workspaceFields);
     const pattern = /\{[\s\S]*"title"[\s\S]*"widgetType"[\s\S]*\}/;
 
-    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt, 2048);
+    const { content, usage } = await callGeminiJson(client, systemPrompt, input.prompt);
     const parsed = extractJson(content, pattern);
 
     return {
@@ -828,7 +822,7 @@ export async function generateAlimtalk(
     const systemPrompt = buildAlimtalkSystemPrompt(input);
     const pattern = /\{[\s\S]*"templateName"[\s\S]*"templateContent"[\s\S]*\}/;
 
-    const { content, usage } = await callAnthropicJson(client, systemPrompt, input.prompt, 2048);
+    const { content, usage } = await callGeminiJson(client, systemPrompt, input.prompt);
     const parsed = extractJson(content, pattern);
     const buttons = (parsed.buttons as any[] || []).map((b: any, i: number) => ({
         ordering: i + 1,

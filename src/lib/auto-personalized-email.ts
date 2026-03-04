@@ -1,7 +1,7 @@
 import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
-import { getAiClient, getSearchClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import type { DbRecord } from "@/lib/db";
 
@@ -75,7 +75,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             // 5. AI 클라이언트 확인
             const aiClient = getAiClient();
-            if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`); continue; }
+            if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (GEMINI_API_KEY missing)`); continue; }
 
             // 5-1. 토큰 쿼터 확인
             const quota = await checkTokenQuota(orgId);
@@ -90,10 +90,9 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
             let recordData = { ...data };
             if (link.autoResearch === 1 && !recordData._companyResearch) {
-                const searchClient = getSearchClient();
                 const companyName = data[link.companyField] as string;
-                if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
-                    const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
+                if (aiClient && companyName && typeof companyName === "string" && companyName.trim()) {
+                    const research = await generateCompanyResearch(aiClient, { companyName, additionalContext: data });
                     recordData._companyResearch = {
                         ...research,
                         sources: research.sources,
@@ -113,7 +112,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                         orgId,
                         userId: null,
                         provider: "gemini",
-                        model: searchClient.model,
+                        model: aiClient.model,
                         promptTokens: research.usage.promptTokens,
                         completionTokens: research.usage.completionTokens,
                         purpose: "auto_company_research",
@@ -151,7 +150,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             await logAiUsage({
                 orgId,
                 userId: null,
-                provider: "anthropic",
+                provider: "gemini",
                 model: aiClient.model,
                 promptTokens: emailResult.usage.promptTokens,
                 completionTokens: emailResult.usage.completionTokens,
