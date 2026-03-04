@@ -606,7 +606,7 @@ export const aiConfigs = pgTable("ai_configs", {
         .references(() => organizations.id, { onDelete: "cascade" })
         .unique()
         .notNull(),
-    provider: varchar("provider", { length: 50 }).notNull(), // "openai" | "anthropic"
+    provider: varchar("provider", { length: 50 }).notNull(), // "openai" | "anthropic" | "gemini"
     apiKey: varchar("api_key", { length: 500 }).notNull(),
     model: varchar("model", { length: 100 }),
     isActive: integer("is_active").default(1).notNull(),

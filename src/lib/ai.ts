@@ -232,7 +232,7 @@ async function callGemini(
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-                generationConfig: { responseMimeType: "application/json" },
+                generationConfig: { temperature: 0.7 },
             }),
         }
     );
@@ -247,11 +247,12 @@ async function callGemini(
         (p: { text?: string }) => p.text
     ) ?? [];
     const content = textParts.map((p: { text: string }) => p.text).join("");
-    const parsed = JSON.parse(content);
+
+    const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/);
 
     return {
-        subject: parsed.subject,
-        htmlBody: parsed.htmlBody,
+        subject: parsed.subject as string,
+        htmlBody: parsed.htmlBody as string,
         usage: {
             promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
             completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
@@ -274,7 +275,7 @@ async function callGeminiGeneric(
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-                generationConfig: { responseMimeType: "application/json" },
+                generationConfig: { temperature: 0.7 },
             }),
         }
     );
