@@ -38,7 +38,7 @@ export async function getAiClient(orgId: string): Promise<AiClient | null> {
     return {
         provider: config.provider as "openai" | "anthropic" | "gemini",
         apiKey: config.apiKey,
-        model: config.model || (config.provider === "openai" ? "gpt-4.1" : config.provider === "gemini" ? "gemini-2.0-flash" : "claude-sonnet-4-6"),
+        model: config.model || (config.provider === "openai" ? "gpt-4.1" : config.provider === "gemini" ? "gemini-2.5-flash" : "claude-sonnet-4-6"),
     };
 }
 
