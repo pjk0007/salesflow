@@ -5,7 +5,7 @@ import type { Product } from "@/lib/db";
 // ---- 타입 ----
 
 interface AiClient {
-    provider: "openai" | "anthropic";
+    provider: "openai" | "anthropic" | "gemini";
     apiKey: string;
     model: string;
 }
@@ -36,9 +36,9 @@ export async function getAiClient(orgId: string): Promise<AiClient | null> {
     if (!config) return null;
 
     return {
-        provider: config.provider as "openai" | "anthropic",
+        provider: config.provider as "openai" | "anthropic" | "gemini",
         apiKey: config.apiKey,
-        model: config.model || (config.provider === "openai" ? "gpt-4.1" : "claude-sonnet-4-6"),
+        model: config.model || (config.provider === "openai" ? "gpt-4.1" : config.provider === "gemini" ? "gemini-2.0-flash" : "claude-sonnet-4-6"),
     };
 }
 
@@ -113,6 +113,8 @@ export async function generateEmail(
 
     if (client.provider === "openai") {
         return callOpenAI(client, systemPrompt, input.prompt);
+    } else if (client.provider === "gemini") {
+        return callGemini(client, systemPrompt, input.prompt);
     } else {
         return callAnthropic(client, systemPrompt, input.prompt);
     }
@@ -211,6 +213,88 @@ async function callAnthropic(
         usage: {
             promptTokens: data.usage?.input_tokens ?? 0,
             completionTokens: data.usage?.output_tokens ?? 0,
+        },
+    };
+}
+
+// ---- Gemini 호출 (non-search) ----
+
+async function callGemini(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string
+): Promise<GenerateEmailResult> {
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                generationConfig: { responseMimeType: "application/json" },
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
+    }
+
+    const data = await response.json();
+    const textParts = data.candidates?.[0]?.content?.parts?.filter(
+        (p: { text?: string }) => p.text
+    ) ?? [];
+    const content = textParts.map((p: { text: string }) => p.text).join("");
+    const parsed = JSON.parse(content);
+
+    return {
+        subject: parsed.subject,
+        htmlBody: parsed.htmlBody,
+        usage: {
+            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+        },
+    };
+}
+
+// ---- Gemini 범용 호출 (content + usage 반환) ----
+
+async function callGeminiGeneric(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string
+): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number } }> {
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                generationConfig: { responseMimeType: "application/json" },
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
+    }
+
+    const data = await response.json();
+    const textParts = data.candidates?.[0]?.content?.parts?.filter(
+        (p: { text?: string }) => p.text
+    ) ?? [];
+    const content = textParts.map((p: { text: string }) => p.text).join("");
+
+    return {
+        content,
+        usage: {
+            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
         },
     };
 }
@@ -444,6 +528,65 @@ async function callAnthropicWithSearch(
     };
 }
 
+async function callGeminiWithSearch(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string,
+    jsonPattern: RegExp
+): Promise<WebSearchResult> {
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                tools: [{ google_search: {} }],
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
+    }
+
+    const data = await response.json();
+
+    console.log("[Gemini WebSearch] candidates:", data.candidates?.length);
+
+    const candidate = data.candidates?.[0];
+    const textParts = candidate?.content?.parts?.filter(
+        (p: { text?: string }) => p.text
+    ) ?? [];
+    const content = textParts.map((p: { text: string }) => p.text).join("");
+
+    console.log("[Gemini WebSearch] Content preview:", content.substring(0, 500));
+
+    const parsed = extractJson(content, jsonPattern);
+
+    // groundingMetadata에서 sources 추출
+    const sources: Array<{ url: string; title: string }> = [];
+    const grounding = candidate?.groundingMetadata;
+    if (grounding?.groundingChunks) {
+        for (const chunk of grounding.groundingChunks) {
+            if (chunk.web?.uri) {
+                sources.push({ url: chunk.web.uri, title: chunk.web.title || chunk.web.uri });
+            }
+        }
+    }
+
+    return {
+        parsed,
+        sources,
+        usage: {
+            promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+            completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+        },
+    };
+}
+
 // ---- 제품 생성 ----
 
 interface GenerateProductInput {
@@ -495,6 +638,8 @@ export async function generateProduct(
 
     const result = client.provider === "openai"
         ? await callOpenAIWithSearch(client, systemPrompt, input.prompt, pattern)
+        : client.provider === "gemini"
+        ? await callGeminiWithSearch(client, systemPrompt, input.prompt, pattern)
         : await callAnthropicWithSearch(client, systemPrompt, input.prompt, pattern);
 
     return {
@@ -514,6 +659,7 @@ export async function generateProduct(
 
 interface CompanyResearchInput {
     companyName: string;
+    additionalContext?: Record<string, unknown>;
 }
 
 export interface CompanyResearchResult {
@@ -563,7 +709,20 @@ export async function generateCompanyResearch(
     const systemPrompt = buildCompanyResearchSystemPrompt();
     const pattern = /\{[\s\S]*"companyName"[\s\S]*"description"[\s\S]*\}/;
 
-    const userPrompt = `"${input.companyName}" 회사(기업)에 대해 웹 검색을 수행하고, 업종, 주요 서비스, 기업 규모, 공식 웹사이트 정보를 JSON으로 알려주세요.`;
+    let userPrompt = `"${input.companyName}" 회사(기업)에 대해 웹 검색을 수행하고, 업종, 주요 서비스, 기업 규모, 공식 웹사이트 정보를 JSON으로 알려주세요.`;
+
+    // 레코드의 추가 정보를 검색 힌트로 활용
+    if (input.additionalContext && Object.keys(input.additionalContext).length > 0) {
+        const hints: string[] = [];
+        for (const [key, val] of Object.entries(input.additionalContext)) {
+            if (val && typeof val === "string" && val.trim() && !key.startsWith("_")) {
+                hints.push(`${key}: ${val}`);
+            }
+        }
+        if (hints.length > 0) {
+            userPrompt += `\n\n참고 정보 (검색 정확도를 높이는 데 활용하세요):\n${hints.join("\n")}`;
+        }
+    }
 
     console.log("[CompanyResearch] provider:", client.provider, "model:", client.model);
 
@@ -571,6 +730,8 @@ export async function generateCompanyResearch(
     try {
         result = client.provider === "openai"
             ? await callOpenAIWithSearch(client, systemPrompt, userPrompt, pattern)
+            : client.provider === "gemini"
+            ? await callGeminiWithSearch(client, systemPrompt, userPrompt, pattern)
             : await callAnthropicWithSearch(client, systemPrompt, userPrompt, pattern);
     } catch (err) {
         const msg = err instanceof Error ? err.message : "";
@@ -705,6 +866,10 @@ export async function generateWebForm(
             promptTokens: data.usage?.prompt_tokens ?? 0,
             completionTokens: data.usage?.completion_tokens ?? 0,
         };
+    } else if (client.provider === "gemini") {
+        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
+        content = g.content;
+        usage = g.usage;
     } else {
         const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
@@ -851,6 +1016,10 @@ export async function generateDashboard(
             promptTokens: data.usage?.prompt_tokens ?? 0,
             completionTokens: data.usage?.completion_tokens ?? 0,
         };
+    } else if (client.provider === "gemini") {
+        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
+        content = g.content;
+        usage = g.usage;
     } else {
         const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
@@ -987,6 +1156,10 @@ export async function generateWidget(
             promptTokens: data.usage?.prompt_tokens ?? 0,
             completionTokens: data.usage?.completion_tokens ?? 0,
         };
+    } else if (client.provider === "gemini") {
+        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
+        content = g.content;
+        usage = g.usage;
     } else {
         const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
@@ -1118,6 +1291,10 @@ export async function generateAlimtalk(
             promptTokens: data.usage?.prompt_tokens ?? 0,
             completionTokens: data.usage?.completion_tokens ?? 0,
         };
+    } else if (client.provider === "gemini") {
+        const g = await callGeminiGeneric(client, systemPrompt, input.prompt);
+        content = g.content;
+        usage = g.usage;
     } else {
         const response = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",

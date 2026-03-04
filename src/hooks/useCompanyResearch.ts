@@ -13,7 +13,7 @@ interface CompanyResearchResult {
 export function useCompanyResearch() {
     const [isResearching, setIsResearching] = useState(false);
 
-    const researchCompany = async (input: { companyName: string }): Promise<{
+    const researchCompany = async (input: { companyName: string; recordData?: Record<string, unknown> }): Promise<{
         success: boolean;
         data?: CompanyResearchResult;
         error?: string;

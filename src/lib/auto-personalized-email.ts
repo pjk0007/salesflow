@@ -84,7 +84,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             if (link.autoResearch === 1 && !recordData._companyResearch) {
                 const companyName = data[link.companyField] as string;
                 if (companyName && typeof companyName === "string" && companyName.trim()) {
-                    const research = await generateCompanyResearch(aiClient, { companyName });
+                    const research = await generateCompanyResearch(aiClient, { companyName, additionalContext: data });
                     recordData._companyResearch = {
                         ...research,
                         sources: research.sources,

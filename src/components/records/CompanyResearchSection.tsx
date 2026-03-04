@@ -65,7 +65,7 @@ export default function CompanyResearchSection({
             return;
         }
 
-        const result = await researchCompany({ companyName: companyName.trim() });
+        const result = await researchCompany({ companyName: companyName.trim(), recordData });
 
         if (result.success && result.data) {
             const newResearch: CompanyResearch = {

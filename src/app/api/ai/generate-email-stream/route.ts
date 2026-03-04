@@ -62,6 +62,8 @@ export async function POST(req: NextRequest) {
 
                     if (client.provider === "openai") {
                         usage = await streamOpenAI(client, systemPrompt, input.prompt, sendEvent);
+                    } else if (client.provider === "gemini") {
+                        usage = await streamGemini(client, systemPrompt, input.prompt, sendEvent);
                     } else {
                         usage = await streamAnthropic(client, systemPrompt, input.prompt, sendEvent);
                     }
@@ -226,6 +228,66 @@ async function streamAnthropic(
                 }
                 if (parsed.type === "message_delta" && parsed.usage) {
                     usage.completionTokens = parsed.usage.output_tokens ?? 0;
+                }
+            } catch {
+                // ignore
+            }
+        }
+    }
+
+    return usage;
+}
+
+async function streamGemini(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string,
+    sendEvent: SendEvent
+): Promise<Usage> {
+    const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:streamGenerateContent?alt=sse&key=${client.apiKey}`,
+        {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            }),
+        }
+    );
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const usage: Usage = { promptTokens: 0, completionTokens: 0 };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data: ")) continue;
+            const data = trimmed.slice(6);
+
+            try {
+                const parsed = JSON.parse(data);
+                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (text) {
+                    sendEvent("chunk", { text });
+                }
+                if (parsed.usageMetadata) {
+                    usage.promptTokens = parsed.usageMetadata.promptTokenCount ?? 0;
+                    usage.completionTokens = parsed.usageMetadata.candidatesTokenCount ?? 0;
                 }
             } catch {
                 // ignore

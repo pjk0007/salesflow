@@ -16,13 +16,16 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
     }
 
-    const { companyName } = await req.json();
+    const { companyName, recordData } = await req.json();
     if (!companyName || typeof companyName !== "string" || !companyName.trim()) {
         return NextResponse.json({ success: false, error: "회사명을 입력해주세요." }, { status: 400 });
     }
 
     try {
-        const result = await generateCompanyResearch(client, { companyName: companyName.trim() });
+        const result = await generateCompanyResearch(client, {
+            companyName: companyName.trim(),
+            additionalContext: recordData as Record<string, unknown> | undefined,
+        });
 
         await logAiUsage({
             orgId: user.orgId,

@@ -59,6 +59,31 @@ export async function POST(req: NextRequest) {
             });
         }
 
+        if (provider === "gemini") {
+            const response = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: "test" }] }],
+                        generationConfig: { maxOutputTokens: 1 },
+                    }),
+                }
+            );
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                return NextResponse.json({
+                    success: true,
+                    data: { connected: false, error: error?.error?.message || "API 키가 유효하지 않습니다." },
+                });
+            }
+            return NextResponse.json({
+                success: true,
+                data: { connected: true },
+            });
+        }
+
         return NextResponse.json({ success: false, error: "지원하지 않는 provider입니다." }, { status: 400 });
     } catch (error) {
         console.error("AI connection test error:", error);
