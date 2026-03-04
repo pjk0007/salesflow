@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         if (!provider || !apiKey) {
             return NextResponse.json({ success: false, error: "provider와 apiKey는 필수입니다." }, { status: 400 });
         }
-        if (!["openai", "anthropic"].includes(provider)) {
+        if (!["openai", "anthropic", "gemini"].includes(provider)) {
             return NextResponse.json({ success: false, error: "지원하지 않는 provider입니다." }, { status: 400 });
         }
 
