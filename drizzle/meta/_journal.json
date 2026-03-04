@@ -127,6 +127,20 @@
       "when": 1770948000000,
       "tag": "0017_email_signature",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1770948100000,
+      "tag": "0018_ai_usage_quotas",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1770948200000,
+      "tag": "0019_auto_email_format",
+      "breakpoints": true
     }
   ]
 }
