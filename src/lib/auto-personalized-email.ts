@@ -38,6 +38,8 @@ interface AutoPersonalizedParams {
 export async function processAutoPersonalizedEmail(params: AutoPersonalizedParams): Promise<void> {
     const { record, partitionId, triggerType, orgId } = params;
 
+    console.log(`[AutoEmail] Start: record=${record.id}, partition=${partitionId}, trigger=${triggerType}`);
+
     // 1. 매칭되는 규칙 조회
     const links = await db
         .select()
@@ -50,7 +52,8 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             )
         );
 
-    if (links.length === 0) return;
+    if (links.length === 0) { console.log(`[AutoEmail] No matching rules`); return; }
+    console.log(`[AutoEmail] Found ${links.length} rules`);
 
     const data = record.data as Record<string, unknown>;
 
@@ -58,28 +61,29 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
         try {
             // 2. 조건 평가
             if (!evaluateCondition(link.triggerCondition as Parameters<typeof evaluateCondition>[0], data)) {
+                console.log(`[AutoEmail] Rule ${link.id}: condition not met`);
                 continue;
             }
 
             // 3. 쿨다운 체크
             const canSend = await checkCooldown(record.id);
-            if (!canSend) continue;
+            if (!canSend) { console.log(`[AutoEmail] Rule ${link.id}: cooldown active`); continue; }
 
             // 4. 수신자 이메일 추출
             const email = data[link.recipientField];
-            if (!email || typeof email !== "string" || !email.includes("@")) continue;
+            if (!email || typeof email !== "string" || !email.includes("@")) { console.log(`[AutoEmail] Rule ${link.id}: no valid email in field "${link.recipientField}" (got: ${email})`); continue; }
 
             // 5. AI 클라이언트 확인
             const aiClient = getAiClient();
-            if (!aiClient) continue;
+            if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`); continue; }
 
             // 5-1. 토큰 쿼터 확인
             const quota = await checkTokenQuota(orgId);
-            if (!quota.allowed) continue;
+            if (!quota.allowed) { console.log(`[AutoEmail] Rule ${link.id}: quota exceeded`); continue; }
 
             // 6. 이메일 클라이언트 확인
             const emailClient = await getEmailClient(orgId);
-            if (!emailClient) continue;
+            if (!emailClient) { console.log(`[AutoEmail] Rule ${link.id}: no email client`); continue; }
             const emailConfig = await getEmailConfig(orgId);
             if (!emailConfig?.fromEmail) continue;
 
