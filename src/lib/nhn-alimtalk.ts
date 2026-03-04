@@ -320,9 +320,11 @@ export class NhnAlimtalkClient {
             "GET",
             `/alimtalk/v2.3/appkeys/{appkey}/senders/${encodeURIComponent(senderKey)}/templates/${encodeURIComponent(templateCode)}`
         );
+        const tpl = result.template ?? result.templates;
+        const single = Array.isArray(tpl) ? tpl[0] : tpl;
         return {
             header: result.header,
-            template: (result.templates ?? null) as NhnTemplate | null,
+            template: (single ?? null) as NhnTemplate | null,
         };
     }
 

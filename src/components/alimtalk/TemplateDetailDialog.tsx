@@ -108,7 +108,7 @@ export default function TemplateDetailDialog({
 
                         {(onEdit || onDelete) && (
                             <div className="flex gap-2 pt-2 border-t">
-                                {onEdit && ["TSC", "APR", "REJ"].includes(template.status) && (
+                                {onEdit && ["TSC01", "TSC03", "TSC04"].includes(template.status) && (
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -117,7 +117,7 @@ export default function TemplateDetailDialog({
                                         수정
                                     </Button>
                                 )}
-                                {onDelete && ["TSC", "REQ", "REJ"].includes(template.status) && (
+                                {onDelete && ["TSC01", "TSC02", "TSC04"].includes(template.status) && (
                                     <Button
                                         variant="destructive"
                                         size="sm"

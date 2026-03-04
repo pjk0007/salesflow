@@ -49,12 +49,12 @@ import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send } 
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TemplateLinkDialog from "./TemplateLinkDialog";
 
-const STATUS_BADGE: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    TSC: { label: "생성", variant: "outline" },
-    APR: { label: "승인", variant: "default" },
-    REJ: { label: "반려", variant: "destructive" },
-    REQ: { label: "검수요청", variant: "secondary" },
-    STP: { label: "중단", variant: "destructive" },
+const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+    TSC01: "outline",       // 생성
+    TSC02: "secondary",     // 검수중
+    TSC03: "default",       // 승인
+    TSC04: "destructive",   // 반려
+    TSC05: "destructive",   // 중단
 };
 
 export default function TemplateList() {
@@ -169,14 +169,12 @@ export default function TemplateList() {
                         </TableHeader>
                         <TableBody>
                             {templates.map((tpl) => {
-                                const statusInfo = STATUS_BADGE[tpl.status] || {
-                                    label: tpl.statusName || tpl.status,
-                                    variant: "outline" as const,
-                                };
-                                const isApproved = tpl.status === "APR";
-                                const canEdit = ["TSC", "APR", "REJ"].includes(tpl.status);
-                                const canDelete = ["TSC", "REQ", "REJ"].includes(tpl.status);
-                                const canComment = ["TSC", "REJ"].includes(tpl.status);
+                                const statusVariant = STATUS_VARIANT[tpl.status] ?? "outline";
+                                const statusLabel = tpl.statusName || tpl.status;
+                                const isApproved = tpl.status === "TSC03";
+                                const canEdit = ["TSC01", "TSC03", "TSC04"].includes(tpl.status);
+                                const canDelete = ["TSC01", "TSC02", "TSC04"].includes(tpl.status);
+                                const canComment = ["TSC01", "TSC04"].includes(tpl.status);
 
                                 return (
                                     <TableRow key={tpl.templateCode}>
@@ -188,8 +186,8 @@ export default function TemplateList() {
                                             {tpl.templateMessageType}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={statusInfo.variant}>
-                                                {statusInfo.label}
+                                            <Badge variant={statusVariant}>
+                                                {statusLabel}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
