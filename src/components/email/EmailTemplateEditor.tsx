@@ -150,8 +150,8 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     const previewBodyHtml = useMemo(() => {
         const displayHtml = isStreaming && streamingHtml ? streamingHtml : htmlBody;
         return displayHtml.replace(
-            /##(\w+)##/g,
-            '<span style="background:#fef3c7;padding:0 4px;border-radius:2px;color:#92400e">[$1]</span>'
+            /##([^#]+)##/g,
+            '<code style="background:#fef3c7;padding:2px 6px;border-radius:4px;color:#92400e;font-size:0.9em;font-family:inherit">$1</code>'
         );
     }, [htmlBody, isStreaming, streamingHtml]);
 
