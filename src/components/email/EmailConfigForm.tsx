@@ -3,11 +3,32 @@ import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
+
+export interface SignatureData {
+    name?: string;
+    title?: string;
+    company?: string;
+    phone?: string;
+    email?: string;
+    websites?: string[];
+    extra?: string;
+}
+
+function parseSignature(raw: string | null): SignatureData {
+    if (!raw) return {};
+    try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) return parsed;
+    } catch {
+        // legacy plain text — migrate to structured
+        if (raw.trim()) return { extra: raw };
+    }
+    return {};
+}
 
 export default function EmailConfigForm() {
     const { config, isLoading, saveConfig, testConnection } = useEmailConfig();
@@ -15,7 +36,7 @@ export default function EmailConfigForm() {
     const [secretKey, setSecretKey] = useState("");
     const [fromName, setFromName] = useState("");
     const [fromEmail, setFromEmail] = useState("");
-    const [signature, setSignature] = useState("");
+    const [sig, setSig] = useState<SignatureData>({});
     const [signatureEnabled, setSignatureEnabled] = useState(false);
     const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "fail">("idle");
     const [saving, setSaving] = useState(false);
@@ -26,7 +47,7 @@ export default function EmailConfigForm() {
             setAppKey(config.appKey);
             setFromName(config.fromName || "");
             setFromEmail(config.fromEmail || "");
-            setSignature(config.signature || "");
+            setSig(parseSignature(config.signature));
             setSignatureEnabled(config.signatureEnabled ?? false);
         }
     }, [config]);
@@ -47,13 +68,15 @@ export default function EmailConfigForm() {
         }
     };
 
+    const serializeSignature = () => JSON.stringify(sig);
+
     const handleSave = async () => {
         if (!appKey || !secretKey) {
             toast.error("appKey와 secretKey를 입력해주세요.");
             return;
         }
         setSaving(true);
-        const result = await saveConfig({ appKey, secretKey, fromName, fromEmail, signature, signatureEnabled });
+        const result = await saveConfig({ appKey, secretKey, fromName, fromEmail, signature: serializeSignature(), signatureEnabled });
         setSaving(false);
         if (result.success) {
             toast.success("이메일 설정이 저장되었습니다.");
@@ -70,7 +93,7 @@ export default function EmailConfigForm() {
             secretKey: config.secretKey,
             fromName: config.fromName || undefined,
             fromEmail: config.fromEmail || undefined,
-            signature,
+            signature: serializeSignature(),
             signatureEnabled,
         });
         setSavingSignature(false);
@@ -79,6 +102,30 @@ export default function EmailConfigForm() {
         } else {
             toast.error(result.error || "저장에 실패했습니다.");
         }
+    };
+
+    const updateSig = (field: keyof SignatureData, value: string) => {
+        setSig((prev) => ({ ...prev, [field]: value }));
+    };
+
+    const addWebsite = () => {
+        setSig((prev) => ({ ...prev, websites: [...(prev.websites || []), ""] }));
+    };
+
+    const updateWebsite = (index: number, value: string) => {
+        setSig((prev) => {
+            const websites = [...(prev.websites || [])];
+            websites[index] = value;
+            return { ...prev, websites };
+        });
+    };
+
+    const removeWebsite = (index: number) => {
+        setSig((prev) => {
+            const websites = [...(prev.websites || [])];
+            websites.splice(index, 1);
+            return { ...prev, websites };
+        });
     };
 
     if (isLoading) {
@@ -197,18 +244,85 @@ export default function EmailConfigForm() {
                 </CardHeader>
                 {signatureEnabled && (
                     <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="sig-name">이름</Label>
+                                <Input
+                                    id="sig-name"
+                                    value={sig.name || ""}
+                                    onChange={(e) => updateSig("name", e.target.value)}
+                                    placeholder="홍길동"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="sig-title">직책</Label>
+                                <Input
+                                    id="sig-title"
+                                    value={sig.title || ""}
+                                    onChange={(e) => updateSig("title", e.target.value)}
+                                    placeholder="영업팀 매니저"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="sig-company">회사</Label>
+                                <Input
+                                    id="sig-company"
+                                    value={sig.company || ""}
+                                    onChange={(e) => updateSig("company", e.target.value)}
+                                    placeholder="SalesFlow Inc."
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="sig-phone">전화번호</Label>
+                                <Input
+                                    id="sig-phone"
+                                    value={sig.phone || ""}
+                                    onChange={(e) => updateSig("phone", e.target.value)}
+                                    placeholder="010-1234-5678"
+                                />
+                            </div>
+                        </div>
                         <div className="space-y-2">
-                            <Label htmlFor="email-signature">서명 내용</Label>
-                            <Textarea
-                                id="email-signature"
-                                value={signature}
-                                onChange={(e) => setSignature(e.target.value)}
-                                placeholder={"홍길동 | 영업팀 매니저\n전화: 010-1234-5678\nemail@company.com"}
-                                rows={4}
+                            <Label htmlFor="sig-email">이메일 주소</Label>
+                            <Input
+                                id="sig-email"
+                                type="email"
+                                value={sig.email || ""}
+                                onChange={(e) => updateSig("email", e.target.value)}
+                                placeholder="hong@company.com"
                             />
-                            <p className="text-xs text-muted-foreground">
-                                줄바꿈이 그대로 적용됩니다.
-                            </p>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                                <Label>웹사이트</Label>
+                                <Button type="button" variant="ghost" size="sm" onClick={addWebsite}>
+                                    <Plus className="h-4 w-4 mr-1" />
+                                    추가
+                                </Button>
+                            </div>
+                            {(sig.websites || []).map((url, i) => (
+                                <div key={i} className="flex items-center gap-2">
+                                    <Input
+                                        value={url}
+                                        onChange={(e) => updateWebsite(i, e.target.value)}
+                                        placeholder="https://company.com"
+                                    />
+                                    <Button type="button" variant="ghost" size="icon" onClick={() => removeWebsite(i)}>
+                                        <X className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="sig-extra">기타 정보</Label>
+                            <Input
+                                id="sig-extra"
+                                value={sig.extra || ""}
+                                onChange={(e) => updateSig("extra", e.target.value)}
+                                placeholder="서울시 강남구 테헤란로 123"
+                            />
                         </div>
                         <Button
                             onClick={handleSaveSignature}

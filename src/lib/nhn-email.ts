@@ -246,8 +246,56 @@ function escapeHtml(str: string): string {
         .replace(/"/g, "&quot;");
 }
 
+interface SignatureData {
+    name?: string;
+    title?: string;
+    company?: string;
+    phone?: string;
+    email?: string;
+    websites?: string[];
+    extra?: string;
+}
+
+function renderSignatureHtml(data: SignatureData): string {
+    const lines: string[] = [];
+
+    // 이름 + 직책
+    if (data.name || data.title) {
+        const parts: string[] = [];
+        if (data.name) parts.push(`<b>${escapeHtml(data.name)}</b>`);
+        if (data.title) parts.push(escapeHtml(data.title));
+        lines.push(parts.join(" | "));
+    }
+
+    if (data.company) lines.push(escapeHtml(data.company));
+    if (data.phone) lines.push(`Tel: ${escapeHtml(data.phone)}`);
+    if (data.email) lines.push(`Email: <a href="mailto:${escapeHtml(data.email)}" style="color:#0066cc; text-decoration:none;">${escapeHtml(data.email)}</a>`);
+    if (data.websites?.length) {
+        for (const url of data.websites) {
+            if (url.trim()) lines.push(`<a href="${escapeHtml(url)}" style="color:#0066cc; text-decoration:none;">${escapeHtml(url)}</a>`);
+        }
+    }
+    if (data.extra) lines.push(escapeHtml(data.extra));
+
+    return lines.join("<br>");
+}
+
 export function appendSignature(htmlBody: string, signature: string): string {
-    const sigHtml = `<div style="margin-top:24px; padding-top:16px; border-top:1px solid #e5e5e5; font-size:13px; color:#666; white-space:pre-line;">${escapeHtml(signature)}</div>`;
+    let sigContent: string;
+
+    try {
+        const parsed = JSON.parse(signature);
+        if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+            sigContent = renderSignatureHtml(parsed as SignatureData);
+        } else {
+            sigContent = escapeHtml(signature);
+        }
+    } catch {
+        // legacy plain text
+        sigContent = `<span style="white-space:pre-line;">${escapeHtml(signature)}</span>`;
+    }
+
+    const sigHtml = `<div style="margin-top:24px; padding-top:16px; border-top:1px solid #e5e5e5; font-size:13px; color:#666; line-height:1.6;">${sigContent}</div>`;
 
     if (htmlBody.includes("</body>")) {
         return htmlBody.replace("</body>", sigHtml + "</body>");
