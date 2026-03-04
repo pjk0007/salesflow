@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Shuffle } from "lucide-react";
+import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Shuffle, FolderInput } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -17,6 +17,10 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSub,
+    DropdownMenuSubContent,
+    DropdownMenuSubTrigger,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
@@ -38,6 +42,7 @@ interface PartitionNavProps {
     onRenameFolder: (id: number, currentName: string) => void;
     onDeletePartition: (id: number, name: string) => void;
     onDeleteFolder: (id: number, name: string) => void;
+    onMovePartition?: (partitionId: number, folderId: number | null) => void;
     onDistributionSettings?: (id: number, name: string) => void;
 }
 
@@ -54,6 +59,7 @@ export default function PartitionNav({
     onRenameFolder,
     onDeletePartition,
     onDeleteFolder,
+    onMovePartition,
     onDistributionSettings,
 }: PartitionNavProps) {
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
@@ -218,12 +224,32 @@ export default function PartitionNav({
                                                         <Pencil className="h-3.5 w-3.5 mr-2" />
                                                         이름 변경
                                                     </DropdownMenuItem>
+                                                    {onMovePartition && partitionTree && (
+                                                        <DropdownMenuSub>
+                                                            <DropdownMenuSubTrigger>
+                                                                <FolderInput className="h-3.5 w-3.5 mr-2" />
+                                                                폴더 이동
+                                                            </DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent>
+                                                                <DropdownMenuItem onClick={() => onMovePartition(pt.id, null)}>
+                                                                    미분류
+                                                                </DropdownMenuItem>
+                                                                {partitionTree.folders.filter((f) => f.id !== folder.id).map((f) => (
+                                                                    <DropdownMenuItem key={f.id} onClick={() => onMovePartition(pt.id, f.id)}>
+                                                                        <FolderOpen className="h-3.5 w-3.5 mr-2" />
+                                                                        {f.name}
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    )}
                                                     {onDistributionSettings && (
                                                         <DropdownMenuItem onClick={() => onDistributionSettings(pt.id, pt.name)}>
                                                             <Shuffle className="h-3.5 w-3.5 mr-2" />
                                                             배분 설정
                                                         </DropdownMenuItem>
                                                     )}
+                                                    <DropdownMenuSeparator />
                                                     <DropdownMenuItem
                                                         className="text-destructive"
                                                         onClick={() => onDeletePartition(pt.id, pt.name)}
@@ -268,12 +294,29 @@ export default function PartitionNav({
                                             <Pencil className="h-3.5 w-3.5 mr-2" />
                                             이름 변경
                                         </DropdownMenuItem>
+                                        {onMovePartition && partitionTree && partitionTree.folders.length > 0 && (
+                                            <DropdownMenuSub>
+                                                <DropdownMenuSubTrigger>
+                                                    <FolderInput className="h-3.5 w-3.5 mr-2" />
+                                                    폴더 이동
+                                                </DropdownMenuSubTrigger>
+                                                <DropdownMenuSubContent>
+                                                    {partitionTree.folders.map((f) => (
+                                                        <DropdownMenuItem key={f.id} onClick={() => onMovePartition(pt.id, f.id)}>
+                                                            <FolderOpen className="h-3.5 w-3.5 mr-2" />
+                                                            {f.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuSub>
+                                        )}
                                         {onDistributionSettings && (
                                             <DropdownMenuItem onClick={() => onDistributionSettings(pt.id, pt.name)}>
                                                 <Shuffle className="h-3.5 w-3.5 mr-2" />
                                                 배분 설정
                                             </DropdownMenuItem>
                                         )}
+                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem
                                             className="text-destructive"
                                             onClick={() => onDeletePartition(pt.id, pt.name)}

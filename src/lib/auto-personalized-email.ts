@@ -199,6 +199,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 recordId: record.id,
                 recipientEmail: email,
                 subject: emailResult.subject,
+                body: finalBody,
                 requestId: nhnResult.data?.requestId,
                 status: isSuccess ? "sent" : "failed",
                 resultCode: sendResult ? String(sendResult.resultCode) : null,

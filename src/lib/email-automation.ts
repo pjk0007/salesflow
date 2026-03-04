@@ -87,6 +87,7 @@ async function sendEmailSingle(
         emailTemplateId: template.id,
         recipientEmail: email,
         subject: substitutedSubject,
+        body: finalBody,
         requestId: nhnResult.data?.requestId,
         status: isSuccess ? "sent" : "failed",
         resultCode: sendResult ? String(sendResult.resultCode) : null,

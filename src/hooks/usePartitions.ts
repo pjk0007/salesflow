@@ -26,6 +26,17 @@ export function usePartitions(workspaceId: number | null) {
         return result;
     };
 
+    const movePartition = async (id: number, folderId: number | null) => {
+        const res = await fetch(`/api/partitions/${id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ folderId }),
+        });
+        const result = await res.json();
+        if (result.success) mutate();
+        return result;
+    };
+
     const renamePartition = async (id: number, name: string) => {
         const res = await fetch(`/api/partitions/${id}`, {
             method: "PATCH",
@@ -79,6 +90,7 @@ export function usePartitions(workspaceId: number | null) {
         error,
         mutate,
         createPartition,
+        movePartition,
         renamePartition,
         deletePartition,
         createFolder,

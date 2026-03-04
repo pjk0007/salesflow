@@ -65,6 +65,7 @@ export default function RecordsPage() {
         partitionTree,
         isLoading: ptLoading,
         createPartition,
+        movePartition,
         renamePartition,
         deletePartition,
         createFolder,
@@ -201,6 +202,15 @@ export default function RecordsPage() {
         }
     }, [deletePartitionTarget, deletePartition, partitionId]);
 
+    const handleMovePartition = useCallback(async (partitionId: number, folderId: number | null) => {
+        const result = await movePartition(partitionId, folderId);
+        if (result.success) {
+            toast.success("파티션이 이동되었습니다.");
+        } else {
+            toast.error(result.error || "이동에 실패했습니다.");
+        }
+    }, [movePartition]);
+
     const handleDeleteFolder = useCallback(async (folderId: number) => {
         const result = await deleteFolder(folderId);
         if (result.success) {
@@ -258,6 +268,7 @@ export default function RecordsPage() {
                     onRenameFolder={(id, name) => setRenameTarget({ type: "folder", id, name })}
                     onDeletePartition={(id, name) => setDeletePartitionTarget({ id, name })}
                     onDeleteFolder={handleDeleteFolder}
+                    onMovePartition={handleMovePartition}
                     onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
                 />
 

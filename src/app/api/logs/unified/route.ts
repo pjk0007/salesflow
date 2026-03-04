@@ -31,9 +31,11 @@ export async function GET(req: NextRequest) {
             const titleCol = type === "alimtalk" ? "template_name" : "subject";
 
             let q = sql`
-                SELECT id, ${sql.raw(`'${type}'`)}::text as channel, org_id, partition_id, record_id,
+                SELECT id, ${sql.raw(`'${type}'`)}::text as channel,
+                       org_id as "orgId", partition_id as "partitionId", record_id as "recordId",
                        ${sql.raw(recipientCol)} as recipient, ${sql.raw(titleCol)} as title,
-                       status, trigger_type, result_message, sent_by, sent_at, completed_at
+                       status, trigger_type as "triggerType", result_message as "resultMessage",
+                       sent_by as "sentBy", sent_at as "sentAt", completed_at as "completedAt"
                 FROM ${sql.raw(table)}
                 WHERE org_id = ${orgId}
             `;
@@ -68,7 +70,7 @@ export async function GET(req: NextRequest) {
         }
 
         const countQuery = sql`SELECT count(*)::int as count FROM (${unionQuery}) t`;
-        const dataQuery = sql`SELECT * FROM (${unionQuery}) t ORDER BY sent_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
+        const dataQuery = sql`SELECT * FROM (${unionQuery}) t ORDER BY "sentAt" DESC LIMIT ${pageSize} OFFSET ${offset}`;
 
         const [countResult] = await db.execute(countQuery) as { count: number }[];
         const total = countResult.count;

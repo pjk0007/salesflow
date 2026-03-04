@@ -512,6 +512,7 @@ export const emailSendLogs = pgTable("email_send_logs", {
     emailTemplateId: integer("email_template_id"),
     recipientEmail: varchar("recipient_email", { length: 200 }).notNull(),
     subject: varchar("subject", { length: 500 }),
+    body: text("body"),
     requestId: varchar("request_id", { length: 100 }),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
     resultCode: varchar("result_code", { length: 20 }),
