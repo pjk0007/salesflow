@@ -533,6 +533,79 @@ export async function generateCompanyResearch(
     };
 }
 
+// ---- 레코드 자동 보강 (웹검색) ----
+
+interface FieldEnrichmentInput {
+    searchValue: string;
+    fields: Array<{ key: string; label: string }>;
+    additionalContext?: Record<string, unknown>;
+}
+
+interface FieldEnrichmentResult {
+    data: Record<string, string>;
+    sources: Array<{ url: string; title: string }>;
+    usage: { promptTokens: number; completionTokens: number };
+}
+
+function buildFieldEnrichmentSystemPrompt(fields: Array<{ key: string; label: string }>): string {
+    const fieldList = fields.map((f) => `  "${f.key}": "${f.label}에 해당하는 값"`).join(",\n");
+    return `당신은 기업/조직 정보 조사 전문가입니다.
+중요: 반드시 웹 검색(web_search)을 먼저 실행한 후 결과를 기반으로 답변하세요.
+
+절차:
+1. 사용자가 제공한 검색어로 웹 검색을 실행합니다.
+2. 검색 결과를 분석하여 아래 JSON 형식으로 정리합니다.
+3. JSON만 반환합니다.
+
+반환 형식:
+{
+${fieldList}
+}
+
+규칙:
+- 반드시 웹 검색을 실행한 후 응답하세요.
+- JSON 외의 텍스트를 포함하지 마세요.
+- 정보를 찾을 수 없는 항목은 빈 문자열("")로 표시하세요.
+- 한국어로 작성하세요.`;
+}
+
+export async function generateFieldEnrichment(
+    client: AiClient,
+    input: FieldEnrichmentInput
+): Promise<FieldEnrichmentResult> {
+    const systemPrompt = buildFieldEnrichmentSystemPrompt(input.fields);
+    const keys = input.fields.map((f) => `"${f.key}"`).join("|");
+    const pattern = new RegExp(`\\{[\\s\\S]*(${keys})[\\s\\S]*\\}`);
+
+    let userPrompt = `"${input.searchValue}"에 대해 웹 검색을 수행하고, 관련 정보를 JSON으로 알려주세요.`;
+
+    if (input.additionalContext && Object.keys(input.additionalContext).length > 0) {
+        const hints: string[] = [];
+        for (const [key, val] of Object.entries(input.additionalContext)) {
+            if (val && typeof val === "string" && val.trim() && !key.startsWith("_")) {
+                hints.push(`${key}: ${val}`);
+            }
+        }
+        if (hints.length > 0) {
+            userPrompt += `\n\n참고 정보:\n${hints.join("\n")}`;
+        }
+    }
+
+    try {
+        const result = await callGeminiWithSearch(client, systemPrompt, userPrompt, pattern);
+        const data: Record<string, string> = {};
+        for (const f of input.fields) {
+            const val = result.parsed[f.key];
+            if (val && typeof val === "string" && val.trim()) {
+                data[f.key] = val;
+            }
+        }
+        return { data, sources: result.sources, usage: result.usage };
+    } catch {
+        return { data: {}, sources: [], usage: { promptTokens: 0, completionTokens: 0 } };
+    }
+}
+
 // ---- 웹폼 생성 ----
 
 interface GenerateWebFormInput {

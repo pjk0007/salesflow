@@ -7,6 +7,7 @@ import { checkPlanLimit, getResourceCount } from "@/lib/billing";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
+import { processAutoEnrich } from "@/lib/auto-enrich";
 import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
 
@@ -276,6 +277,13 @@ export async function POST(req: NextRequest) {
             triggerType: "on_create",
             orgId: tokenInfo.orgId,
         }).catch((err) => console.error("Auto personalized email error:", err));
+
+        processAutoEnrich({
+            record: result,
+            partitionId,
+            triggerType: "on_create",
+            orgId: tokenInfo.orgId,
+        }).catch((err) => console.error("Auto enrich error:", err));
 
         broadcastToPartition(partitionId, "record:created", {
             partitionId,

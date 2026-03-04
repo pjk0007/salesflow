@@ -849,6 +849,24 @@ export const payments = pgTable("payments", {
 });
 
 // ============================================
+// 레코드 자동 웹검색 보강
+// ============================================
+export const recordAutoEnrichRules = pgTable("record_auto_enrich_rules", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    partitionId: integer("partition_id")
+        .references(() => partitions.id, { onDelete: "cascade" })
+        .notNull(),
+    searchField: varchar("search_field", { length: 100 }).notNull(),
+    targetFields: jsonb("target_fields").$type<string[]>().notNull(),
+    isActive: integer("is_active").default(1).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+// ============================================
 // 타입 추출
 // ============================================
 export type Organization = typeof organizations.$inferSelect;
@@ -902,3 +920,4 @@ export type NewDashboardWidget = typeof dashboardWidgets.$inferInsert;
 export type Plan = typeof plans.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
+export type RecordAutoEnrichRule = typeof recordAutoEnrichRules.$inferSelect;
