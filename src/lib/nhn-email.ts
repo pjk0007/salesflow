@@ -233,3 +233,24 @@ export async function getEmailConfig(orgId: string) {
 }
 
 export { extractEmailVariables, substituteVariables } from "./email-utils";
+
+// ============================================
+// 이메일 서명
+// ============================================
+
+function escapeHtml(str: string): string {
+    return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+export function appendSignature(htmlBody: string, signature: string): string {
+    const sigHtml = `<div style="margin-top:24px; padding-top:16px; border-top:1px solid #e5e5e5; font-size:13px; color:#666; white-space:pre-line;">${escapeHtml(signature)}</div>`;
+
+    if (htmlBody.includes("</body>")) {
+        return htmlBody.replace("</body>", sigHtml + "</body>");
+    }
+    return htmlBody + sigHtml;
+}

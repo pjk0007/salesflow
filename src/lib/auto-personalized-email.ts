@@ -1,6 +1,6 @@
 import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
-import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
+import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, generateCompanyResearch, logAiUsage } from "@/lib/ai";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import type { DbRecord } from "@/lib/db";
@@ -141,11 +141,16 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             });
 
             // 10. NHN Cloud 이메일 발송
+            let finalBody = emailResult.htmlBody;
+            if (emailConfig.signatureEnabled && emailConfig.signature) {
+                finalBody = appendSignature(finalBody, emailConfig.signature);
+            }
+
             const nhnResult = await emailClient.sendEachMail({
                 senderAddress: emailConfig.fromEmail,
                 senderName: emailConfig.fromName || undefined,
                 title: emailResult.subject,
-                body: emailResult.htmlBody,
+                body: finalBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
             });
 

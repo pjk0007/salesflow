@@ -6,6 +6,8 @@ interface EmailConfigData {
     secretKey: string;
     fromName: string | null;
     fromEmail: string | null;
+    signature: string | null;
+    signatureEnabled: boolean;
     isActive: number;
 }
 
@@ -22,7 +24,7 @@ export function useEmailConfig() {
         fetcher
     );
 
-    const saveConfig = async (config: { appKey: string; secretKey: string; fromName?: string; fromEmail?: string }) => {
+    const saveConfig = async (config: { appKey: string; secretKey: string; fromName?: string; fromEmail?: string; signature?: string; signatureEnabled?: boolean }) => {
         const res = await fetch("/api/email/config", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

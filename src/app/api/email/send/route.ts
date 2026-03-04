@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getEmailClient, getEmailConfig, substituteVariables } from "@/lib/nhn-email";
+import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -90,13 +90,16 @@ export async function POST(req: NextRequest) {
             }
 
             const substitutedSubject = substituteVariables(template.subject, mappings, data);
-            const substitutedBody = substituteVariables(template.htmlBody, mappings, data);
+            let finalBody = substituteVariables(template.htmlBody, mappings, data);
+            if (config.signatureEnabled && config.signature) {
+                finalBody = appendSignature(finalBody, config.signature);
+            }
 
             const nhnResult = await client.sendEachMail({
                 senderAddress: config.fromEmail,
                 senderName: config.fromName || undefined,
                 title: substitutedSubject,
-                body: substitutedBody,
+                body: finalBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
             });
 

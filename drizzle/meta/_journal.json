@@ -120,6 +120,13 @@
       "when": 1770947900000,
       "tag": "0016_billing_retry",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1770948000000,
+      "tag": "0017_email_signature",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { db, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
-import { getEmailClient, getEmailConfig, substituteVariables } from "@/lib/nhn-email";
+import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 
@@ -63,13 +63,16 @@ async function sendEmailSingle(
     // 변수 매핑
     const mappings = (link.variableMappings as Record<string, string>) || {};
     const substitutedSubject = substituteVariables(template.subject, mappings, data);
-    const substitutedBody = substituteVariables(template.htmlBody, mappings, data);
+    let finalBody = substituteVariables(template.htmlBody, mappings, data);
+    if (config.signatureEnabled && config.signature) {
+        finalBody = appendSignature(finalBody, config.signature);
+    }
 
     const nhnResult = await client.sendEachMail({
         senderAddress: config.fromEmail,
         senderName: config.fromName || undefined,
         title: substitutedSubject,
-        body: substitutedBody,
+        body: finalBody,
         receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
     });
 

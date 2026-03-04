@@ -33,6 +33,8 @@ export async function GET(req: NextRequest) {
                 secretKey: maskSecret(config.secretKey),
                 fromName: config.fromName,
                 fromEmail: config.fromEmail,
+                signature: config.signature,
+                signatureEnabled: config.signatureEnabled,
                 isActive: config.isActive,
             },
         });
@@ -49,7 +51,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const { appKey, secretKey, fromName, fromEmail } = await req.json();
+        const { appKey, secretKey, fromName, fromEmail, signature, signatureEnabled } = await req.json();
         if (!appKey || !secretKey) {
             return NextResponse.json({ success: false, error: "appKey와 secretKey는 필수입니다." }, { status: 400 });
         }
@@ -63,13 +65,13 @@ export async function POST(req: NextRequest) {
         if (existing) {
             await db
                 .update(emailConfigs)
-                .set({ appKey, secretKey, fromName: fromName || null, fromEmail: fromEmail || null, updatedAt: new Date() })
+                .set({ appKey, secretKey, fromName: fromName || null, fromEmail: fromEmail || null, signature: signature || null, signatureEnabled: signatureEnabled ?? false, updatedAt: new Date() })
                 .where(eq(emailConfigs.id, existing.id));
             return NextResponse.json({ success: true, data: { id: existing.id } });
         } else {
             const [created] = await db
                 .insert(emailConfigs)
-                .values({ orgId: user.orgId, appKey, secretKey, fromName: fromName || null, fromEmail: fromEmail || null })
+                .values({ orgId: user.orgId, appKey, secretKey, fromName: fromName || null, fromEmail: fromEmail || null, signature: signature || null, signatureEnabled: signatureEnabled ?? false })
                 .returning({ id: emailConfigs.id });
             return NextResponse.json({ success: true, data: { id: created.id } }, { status: 201 });
         }

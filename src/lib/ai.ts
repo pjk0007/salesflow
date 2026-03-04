@@ -48,7 +48,13 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
     let prompt = `당신은 B2B 영업/마케팅 이메일 전문가입니다.
 사용자의 지시에 따라 이메일을 작성해주세요.
 반드시 JSON 형식으로 응답하세요: { "subject": "이메일 제목", "htmlBody": "<html>...</html>" }
-htmlBody는 깔끔한 HTML 이메일이어야 합니다. 인라인 스타일을 사용하세요.`;
+
+[스타일 규칙 — 반드시 준수]
+- 사람이 직접 작성한 것처럼 자연스러운 플레인 텍스트 스타일로 작성하세요.
+- 허용 서식: <b>, <u>, <mark>(하이라이트), <br>, <a>, <p> 태그만 사용
+- 금지: 배경색, 테이블 레이아웃, 큰 CTA 버튼, 이미지, 헤더/푸터 디자인, 컬러 박스
+- CTA는 텍스트 링크(<a> 태그)로만 표현하세요 (버튼 스타일 금지)
+- htmlBody는 <div style="font-family: sans-serif; font-size: 14px; line-height: 1.6; color: #222;"> 안에 작성`;
 
     if (input.product) {
         prompt += `\n\n[제품 정보]\n- 이름: ${input.product.name}`;

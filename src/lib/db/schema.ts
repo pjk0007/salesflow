@@ -436,6 +436,8 @@ export const emailConfigs = pgTable("email_configs", {
     secretKey: varchar("secret_key", { length: 200 }).notNull(),
     fromName: varchar("from_name", { length: 100 }),
     fromEmail: varchar("from_email", { length: 200 }),
+    signature: text("signature"),
+    signatureEnabled: boolean("signature_enabled").default(false).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
