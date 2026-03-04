@@ -107,7 +107,7 @@ export default function EditFieldDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
                     <DialogHeader>
                         <DialogTitle>속성 수정</DialogTitle>

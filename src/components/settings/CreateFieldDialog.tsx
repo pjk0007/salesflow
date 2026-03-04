@@ -126,7 +126,7 @@ export default function CreateFieldDialog({
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className="max-w-md">
+            <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
                 <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
                     <DialogHeader>
                         <DialogTitle>새 속성 추가</DialogTitle>

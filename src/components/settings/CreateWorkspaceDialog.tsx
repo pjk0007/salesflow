@@ -115,7 +115,7 @@ export default function CreateWorkspaceDialog({
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
-            <DialogContent className={step === "template" ? "max-w-2xl" : "max-w-md"}>
+            <DialogContent className={`${step === "template" ? "max-w-2xl" : "max-w-md"} max-h-[90vh] overflow-y-auto`}>
                 <DialogHeader>
                     <DialogTitle>
                         {step === "info" ? "워크스페이스 추가" : "속성 템플릿 선택"}

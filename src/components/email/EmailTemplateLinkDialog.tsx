@@ -150,11 +150,18 @@ export default function EmailTemplateLinkDialog({
 
                     <div className="space-y-2">
                         <Label>수신 이메일 필드</Label>
-                        <Input
-                            value={recipientField}
-                            onChange={(e) => setRecipientField(e.target.value)}
-                            placeholder="email"
-                        />
+                        <Select value={recipientField} onValueChange={setRecipientField}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="필드 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {fields.map((f) => (
+                                    <SelectItem key={f.key} value={f.key}>
+                                        {f.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
 
                     {variables.length > 0 && (
@@ -164,17 +171,26 @@ export default function EmailTemplateLinkDialog({
                                 <div key={v} className="flex items-center gap-2">
                                     <span className="text-sm font-mono w-[120px] shrink-0">{v}</span>
                                     <span className="text-muted-foreground">&rarr;</span>
-                                    <Input
+                                    <Select
                                         value={variableMappings[v] || ""}
-                                        onChange={(e) =>
+                                        onValueChange={(val) =>
                                             setVariableMappings((prev) => ({
                                                 ...prev,
-                                                [v]: e.target.value,
+                                                [v]: val,
                                             }))
                                         }
-                                        placeholder="필드명"
-                                        className="flex-1"
-                                    />
+                                    >
+                                        <SelectTrigger className="flex-1">
+                                            <SelectValue placeholder="필드 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {fields.map((f) => (
+                                                <SelectItem key={f.key} value={f.key}>
+                                                    {f.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             ))}
                         </div>

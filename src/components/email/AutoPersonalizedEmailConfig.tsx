@@ -281,7 +281,7 @@ export default function AutoPersonalizedEmailConfig({
 
             {/* 생성/수정 Dialog */}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>
                             {editingLink ? "AI 개인화 발송 규칙 수정" : "AI 개인화 발송 규칙 추가"}

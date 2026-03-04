@@ -99,7 +99,7 @@ export default function SenderProfileRegisterDialog({
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>
                         발신프로필 등록 {step === 2 && "- 인증"}

@@ -43,7 +43,7 @@ export default function TemplatePickerDialog({
                 onOpenChange(o);
             }}
         >
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>속성 템플릿 선택</DialogTitle>
                 </DialogHeader>
