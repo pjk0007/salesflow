@@ -78,6 +78,7 @@ export default function AutoPersonalizedEmailConfig({
     const [tone, setTone] = useState("");
     const [format, setFormat] = useState<"plain" | "designed">("plain");
     const [autoResearch, setAutoResearch] = useState(true);
+    const [useSignaturePersona, setUseSignaturePersona] = useState(false);
     const [conditionEnabled, setConditionEnabled] = useState(false);
     const [conditionField, setConditionField] = useState("");
     const [conditionOperator, setConditionOperator] = useState("eq");
@@ -93,6 +94,7 @@ export default function AutoPersonalizedEmailConfig({
         setTone("");
         setFormat("plain");
         setAutoResearch(true);
+        setUseSignaturePersona(false);
         setConditionEnabled(false);
         setConditionField("");
         setConditionOperator("eq");
@@ -115,6 +117,7 @@ export default function AutoPersonalizedEmailConfig({
         setTone(link.tone || "");
         setFormat((link.format as "plain" | "designed") || "plain");
         setAutoResearch(link.autoResearch === 1);
+        setUseSignaturePersona(link.useSignaturePersona === 1);
         if (link.triggerCondition?.field) {
             setConditionEnabled(true);
             setConditionField(link.triggerCondition.field);
@@ -148,6 +151,7 @@ export default function AutoPersonalizedEmailConfig({
                     tone: tone || undefined,
                     format,
                     autoResearch: autoResearch ? 1 : 0,
+                    useSignaturePersona: useSignaturePersona ? 1 : 0,
                     triggerCondition,
                 });
             } else {
@@ -161,6 +165,7 @@ export default function AutoPersonalizedEmailConfig({
                     tone: tone || undefined,
                     format,
                     autoResearch: autoResearch ? 1 : 0,
+                    useSignaturePersona: useSignaturePersona ? 1 : 0,
                     triggerCondition,
                 });
             }
@@ -244,6 +249,7 @@ export default function AutoPersonalizedEmailConfig({
                                     </p>
                                     <p className="text-sm text-muted-foreground">
                                         자동 조사: {link.autoResearch === 1 ? "ON" : "OFF"}
+                                        {link.useSignaturePersona === 1 && " | 페르소나: ON"}
                                         {link.tone && ` | 톤: ${TONE_OPTIONS.find((t) => t.value === link.tone)?.label || link.tone}`}
                                     </p>
                                 </div>
@@ -434,6 +440,14 @@ export default function AutoPersonalizedEmailConfig({
                                 />
                             </div>
                         )}
+
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <Label>서명 발신자 페르소나</Label>
+                                <p className="text-xs text-muted-foreground">이메일 서명의 이름/직함으로 발신자 톤을 설정</p>
+                            </div>
+                            <Switch checked={useSignaturePersona} onCheckedChange={setUseSignaturePersona} />
+                        </div>
 
                         <div className="flex items-center justify-between">
                             <div>

@@ -131,8 +131,23 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 product = p ?? null;
             }
 
+            // 8-1. 발신자 페르소나 (서명에서 추출)
+            let senderPersona: { name: string; title?: string; company?: string } | null = null;
+            if (link.useSignaturePersona === 1 && emailConfig.signature) {
+                try {
+                    const sig = JSON.parse(emailConfig.signature);
+                    if (sig && typeof sig === "object" && sig.name) {
+                        senderPersona = {
+                            name: sig.name,
+                            title: sig.title || undefined,
+                            company: sig.company || undefined,
+                        };
+                    }
+                } catch { /* legacy plain text signature — skip */ }
+            }
+
             // 9. AI 이메일 생성
-            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}`);
+            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}${senderPersona ? `, persona=${senderPersona.name}` : ""}`);
             const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
             const emailResult = await generateEmail(aiClient, {
                 prompt,
@@ -141,6 +156,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 tone: link.tone || undefined,
                 ctaUrl: product?.url || undefined,
                 format: (link.format as "plain" | "designed") || "plain",
+                senderPersona,
             });
             console.log(`[AutoEmail] Step 9 done: subject="${emailResult.subject}", bodyLen=${emailResult.htmlBody?.length ?? 0}`);
 

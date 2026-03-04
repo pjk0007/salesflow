@@ -38,6 +38,7 @@ export async function PUT(
             triggerType,
             triggerCondition,
             autoResearch,
+            useSignaturePersona,
             isActive,
         } = body;
 
@@ -63,6 +64,7 @@ export async function PUT(
         if (triggerType !== undefined) updateData.triggerType = triggerType;
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition || null;
         if (autoResearch !== undefined) updateData.autoResearch = autoResearch;
+        if (useSignaturePersona !== undefined) updateData.useSignaturePersona = useSignaturePersona;
         if (isActive !== undefined) updateData.isActive = isActive;
 
         const [updated] = await db

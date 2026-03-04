@@ -12,6 +12,12 @@ interface AiClient {
 /** @deprecated AiClient로 통일 */
 type SearchClient = AiClient;
 
+interface SenderPersona {
+    name: string;
+    title?: string;
+    company?: string;
+}
+
 interface GenerateEmailInput {
     prompt: string;
     product?: Product | null;
@@ -19,6 +25,7 @@ interface GenerateEmailInput {
     tone?: string;
     ctaUrl?: string;
     format?: "plain" | "designed";
+    senderPersona?: SenderPersona | null;
 }
 
 interface GenerateEmailResult {
@@ -104,6 +111,16 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
                 prompt += `\n- ${key}: ${String(value)}`;
             }
         }
+    }
+
+    if (input.senderPersona) {
+        const p = input.senderPersona;
+        prompt += `\n\n[발신자 페르소나 — 이 사람이 직접 쓴 것처럼 작성]`;
+        prompt += `\n- 이름: ${p.name}`;
+        if (p.title) prompt += `\n- 직함: ${p.title}`;
+        if (p.company) prompt += `\n- 소속: ${p.company}`;
+        prompt += `\n- 자기소개를 "${p.name}${p.title ? ` ${p.title}` : ""}입니다" 형태로 자연스럽게 작성하세요.`;
+        prompt += `\n- "저희 팀", "저희 회사" 대신 1인칭("제가", "저는")을 사용하세요.`;
     }
 
     if (input.tone) {

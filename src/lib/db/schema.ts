@@ -572,6 +572,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
         value?: string;
     }>(),
     autoResearch: integer("auto_research").default(1).notNull(),
+    useSignaturePersona: integer("use_signature_persona").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),

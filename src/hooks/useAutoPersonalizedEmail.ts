@@ -20,6 +20,7 @@ export interface AutoPersonalizedLink {
         value?: string;
     } | null;
     autoResearch: number;
+    useSignaturePersona: number;
     isActive: number;
     createdAt: string;
     updatedAt: string;
@@ -36,6 +37,7 @@ interface CreateInput {
     triggerType: "on_create" | "on_update";
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
+    useSignaturePersona?: number;
 }
 
 interface UpdateInput {
@@ -48,6 +50,7 @@ interface UpdateInput {
     triggerType?: string;
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
+    useSignaturePersona?: number;
     isActive?: number;
 }
 
