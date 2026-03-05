@@ -7,8 +7,6 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { useFields } from "@/hooks/useFields";
 import EmailDashboard from "@/components/email/EmailDashboard";
 import EmailTemplateList from "@/components/email/EmailTemplateList";
 import EmailTemplateLinkList from "@/components/email/EmailTemplateLinkList";
@@ -26,10 +24,6 @@ function EmailPageContent() {
     const setActiveTab = (tab: string) => {
         router.replace(`/email?tab=${tab}`);
     };
-    const { workspaces } = useWorkspaces();
-    const firstWorkspaceId = workspaces?.[0]?.id ?? null;
-    const { fields } = useFields(firstWorkspaceId);
-
     // 조직 내 모든 파티션 조회
     const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
 
@@ -38,6 +32,7 @@ function EmailPageContent() {
         const hasMultipleWorkspaces = new Set(items.map((p) => p.workspaceId)).size > 1;
         return items.map((p) => ({
             id: p.id,
+            workspaceId: p.workspaceId,
             name: hasMultipleWorkspaces ? `[${p.workspaceName}] ${p.name}` : p.name,
         }));
     }, [allPartitionsData]);
@@ -69,7 +64,7 @@ function EmailPageContent() {
                     </TabsContent>
 
                     <TabsContent value="links" className="mt-6">
-                        <EmailTemplateLinkList partitions={partitions} fields={fields} />
+                        <EmailTemplateLinkList partitions={partitions} />
                     </TabsContent>
 
                     <TabsContent value="logs" className="mt-6">
@@ -82,7 +77,7 @@ function EmailPageContent() {
                     </TabsContent>
 
                     <TabsContent value="ai-auto" className="mt-6">
-                        <AutoPersonalizedEmailConfig partitions={partitions} fields={fields} />
+                        <AutoPersonalizedEmailConfig partitions={partitions} />
                     </TabsContent>
                 </Tabs>
             </PageContainer>

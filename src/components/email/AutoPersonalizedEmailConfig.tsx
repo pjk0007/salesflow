@@ -35,6 +35,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
+import { useFields } from "@/hooks/useFields";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -50,13 +51,11 @@ const TONE_OPTIONS = [
 ];
 
 interface AutoPersonalizedEmailConfigProps {
-    partitions: Array<{ id: number; name: string }>;
-    fields: Array<{ key: string; label: string; fieldType: string }>;
+    partitions: Array<{ id: number; name: string; workspaceId: number }>;
 }
 
 export default function AutoPersonalizedEmailConfig({
     partitions,
-    fields,
 }: AutoPersonalizedEmailConfigProps) {
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
         partitions[0]?.id ?? null
@@ -68,6 +67,8 @@ export default function AutoPersonalizedEmailConfig({
     const { links, isLoading, createLink, updateLink, deleteLink } =
         useAutoPersonalizedEmail(selectedPartitionId);
     const { products } = useProducts({ activeOnly: true });
+    const selectedWorkspaceId = partitions.find((p) => p.id === selectedPartitionId)?.workspaceId ?? null;
+    const { fields } = useFields(selectedWorkspaceId);
 
     // Dialog form state
     const [productId, setProductId] = useState<number | null>(null);

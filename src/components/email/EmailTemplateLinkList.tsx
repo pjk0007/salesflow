@@ -22,16 +22,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import EmailTemplateLinkDialog from "./EmailTemplateLinkDialog";
-import type { FieldDefinition } from "@/types";
+import { useFields } from "@/hooks/useFields";
 
 interface Partition {
     id: number;
     name: string;
+    workspaceId: number;
 }
 
 interface EmailTemplateLinkListProps {
     partitions: Partition[];
-    fields: FieldDefinition[];
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -40,11 +40,13 @@ const TRIGGER_LABELS: Record<string, string> = {
     on_update: "수정 시",
 };
 
-export default function EmailTemplateLinkList({ partitions, fields }: EmailTemplateLinkListProps) {
+export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkListProps) {
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
         partitions.length > 0 ? partitions[0].id : null
     );
     const { templateLinks, isLoading, deleteLink } = useEmailTemplateLinks(selectedPartitionId);
+    const selectedWorkspaceId = partitions.find((p) => p.id === selectedPartitionId)?.workspaceId ?? null;
+    const { fields } = useFields(selectedWorkspaceId);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingLink, setEditingLink] = useState<typeof templateLinks[0] | null>(null);
 
