@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { useEmailSend } from "@/hooks/useEmailSend";
+import { useSenderProfiles } from "@/hooks/useSenderProfiles";
+import { useSignatures } from "@/hooks/useSignatures";
 import {
     Dialog,
     DialogContent,
@@ -41,15 +43,31 @@ export default function SendEmailDialog({
 }: SendEmailDialogProps) {
     const { templateLinks } = useEmailTemplateLinks(partitionId);
     const { sendEmail } = useEmailSend();
+    const { profiles, defaultProfile } = useSenderProfiles();
+    const { signatures, defaultSignature } = useSignatures();
     const [selectedLinkId, setSelectedLinkId] = useState<number | null>(null);
+    const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+    const [selectedSigId, setSelectedSigId] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<EmailSendResult | null>(null);
 
     const activeLinks = templateLinks.filter((l) => l.isActive === 1);
 
+    useEffect(() => {
+        if (defaultProfile && !selectedProfileId) setSelectedProfileId(String(defaultProfile.id));
+    }, [defaultProfile, selectedProfileId]);
+
+    useEffect(() => {
+        if (defaultSignature && !selectedSigId) setSelectedSigId(String(defaultSignature.id));
+    }, [defaultSignature, selectedSigId]);
+
     const handleSend = async () => {
         if (!selectedLinkId) {
             toast.error("템플릿을 선택해주세요.");
+            return;
+        }
+        if (profiles.length > 0 && !selectedProfileId) {
+            toast.error("발신자 프로필을 선택해주세요.");
             return;
         }
 
@@ -57,6 +75,8 @@ export default function SendEmailDialog({
         const sendResult = await sendEmail({
             templateLinkId: selectedLinkId,
             recordIds,
+            senderProfileId: selectedProfileId ? Number(selectedProfileId) : undefined,
+            signatureId: selectedSigId === "none" ? null : selectedSigId ? Number(selectedSigId) : undefined,
         });
         setLoading(false);
 
@@ -72,6 +92,8 @@ export default function SendEmailDialog({
 
     const handleClose = () => {
         setSelectedLinkId(null);
+        setSelectedProfileId(defaultProfile ? String(defaultProfile.id) : "");
+        setSelectedSigId(defaultSignature ? String(defaultSignature.id) : "");
         setResult(null);
         onOpenChange(false);
     };
@@ -163,6 +185,45 @@ export default function SendEmailDialog({
                                         </>
                                     );
                                 })()}
+                            </div>
+                        )}
+
+                        {/* 발신자 프로필 선택 */}
+                        {profiles.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium">발신자</p>
+                                <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="발신자 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {profiles.map((p) => (
+                                            <SelectItem key={p.id} value={String(p.id)}>
+                                                {p.name} ({p.fromName} &lt;{p.fromEmail}&gt;)
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {/* 서명 선택 */}
+                        {signatures.length > 0 && (
+                            <div className="space-y-2">
+                                <p className="text-sm font-medium">서명</p>
+                                <Select value={selectedSigId} onValueChange={setSelectedSigId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="서명 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">서명 없음</SelectItem>
+                                        {signatures.map((s) => (
+                                            <SelectItem key={s.id} value={String(s.id)}>
+                                                {s.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
                         )}
 

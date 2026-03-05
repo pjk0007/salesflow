@@ -870,6 +870,37 @@ export const recordAutoEnrichRules = pgTable("record_auto_enrich_rules", {
 });
 
 // ============================================
+// 이메일 발신자 프로필 (조직별 다중)
+// ============================================
+export const emailSenderProfiles = pgTable("email_sender_profiles", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    fromName: varchar("from_name", { length: 100 }).notNull(),
+    fromEmail: varchar("from_email", { length: 200 }).notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+// ============================================
+// 이메일 서명 (조직별 다중)
+// ============================================
+export const emailSignatures = pgTable("email_signatures", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    signature: text("signature").notNull(),
+    isDefault: boolean("is_default").default(false).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+// ============================================
 // 타입 추출
 // ============================================
 export type Organization = typeof organizations.$inferSelect;
@@ -924,3 +955,5 @@ export type Plan = typeof plans.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type RecordAutoEnrichRule = typeof recordAutoEnrichRules.$inferSelect;
+export type EmailSenderProfile = typeof emailSenderProfiles.$inferSelect;
+export type EmailSignature = typeof emailSignatures.$inferSelect;

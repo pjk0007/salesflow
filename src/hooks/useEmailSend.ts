@@ -3,7 +3,7 @@ import { useState } from "react";
 export function useEmailSend() {
     const [isSending, setIsSending] = useState(false);
 
-    const sendEmail = async (data: { templateLinkId: number; recordIds: number[] }) => {
+    const sendEmail = async (data: { templateLinkId: number; recordIds: number[]; senderProfileId?: number; signatureId?: number | null }) => {
         setIsSending(true);
         try {
             const res = await fetch("/api/email/send", {

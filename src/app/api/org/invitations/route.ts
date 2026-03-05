@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, organizationInvitations, users, organizationMembers } from "@/lib/db";
+import { db, organizationInvitations, organizations, users, organizationMembers, emailSenderProfiles } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
+import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
 import crypto from "crypto";
 
 export async function GET(req: NextRequest) {
@@ -152,6 +153,53 @@ export async function POST(req: NextRequest) {
             })
             .returning();
 
+        // 초대 이메일 발송 (실패해도 초대 자체는 성공)
+        let emailSent = false;
+        try {
+            const emailClient = await getEmailClient(user.orgId);
+            const emailConfig = await getEmailConfig(user.orgId);
+            if (emailClient && emailConfig) {
+                const [org] = await db
+                    .select({ name: organizations.name })
+                    .from(organizations)
+                    .where(eq(organizations.id, user.orgId));
+
+                const orgName = org?.name || "SalesFlow";
+                const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
+                const inviteUrl = `${baseUrl}/invite?token=${token}`;
+
+                // 기본 발신자 프로필 → 레거시 fallback
+                let senderAddress = emailConfig.fromEmail || "";
+                let senderName = emailConfig.fromName || orgName;
+                const [defaultProfile] = await db
+                    .select()
+                    .from(emailSenderProfiles)
+                    .where(and(eq(emailSenderProfiles.orgId, user.orgId), eq(emailSenderProfiles.isDefault, true)))
+                    .limit(1);
+                if (defaultProfile) {
+                    senderAddress = defaultProfile.fromEmail;
+                    senderName = defaultProfile.fromName;
+                }
+
+                await emailClient.sendEachMail({
+                    senderAddress,
+                    senderName,
+                    title: `[SalesFlow] ${orgName} 팀에 초대되었습니다`,
+                    body: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px;">
+  <h2 style="margin: 0 0 16px; color: #111;">${orgName} 팀 초대</h2>
+  <p style="color: #444; line-height: 1.7; margin: 0 0 8px;">안녕하세요,</p>
+  <p style="color: #444; line-height: 1.7; margin: 0 0 24px;"><b>${user.name}</b>님이 <b>${orgName}</b> 팀의 ${role === "admin" ? "관리자" : "멤버"}로 초대했습니다.</p>
+  <a href="${inviteUrl}" style="display: inline-block; background: #111; color: #fff; padding: 12px 28px; border-radius: 6px; text-decoration: none; font-weight: 500;">초대 수락하기</a>
+  <p style="color: #888; font-size: 13px; margin: 24px 0 0;">이 초대는 7일 후 만료됩니다.</p>
+</div>`,
+                    receiverList: [{ receiveMailAddr: email.toLowerCase(), receiveType: "MRT0" }],
+                });
+                emailSent = true;
+            }
+        } catch (e) {
+            console.error("Invitation email send error:", e);
+        }
+
         return NextResponse.json({
             success: true,
             data: {
@@ -160,6 +208,7 @@ export async function POST(req: NextRequest) {
                 role: invitation.role,
                 token: invitation.token,
                 expiresAt: invitation.expiresAt,
+                emailSent,
             },
         }, { status: 201 });
     } catch (error) {

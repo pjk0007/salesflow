@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces } from "@/lib/db";
+import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces, emailSenderProfiles, emailSignatures } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
@@ -16,12 +16,65 @@ export async function POST(req: NextRequest) {
     }
 
     const config = await getEmailConfig(user.orgId);
-    if (!config?.fromEmail) {
-        return NextResponse.json({ success: false, error: "발신 이메일 주소를 설정해주세요." }, { status: 400 });
-    }
 
     try {
-        const { templateLinkId, recordIds } = await req.json();
+        const { templateLinkId, recordIds, senderProfileId, signatureId } = await req.json();
+
+        // 발신자 프로필 결정
+        let senderFromEmail: string | null = null;
+        let senderFromName: string | undefined;
+
+        if (senderProfileId) {
+            const [profile] = await db
+                .select()
+                .from(emailSenderProfiles)
+                .where(and(eq(emailSenderProfiles.id, senderProfileId), eq(emailSenderProfiles.orgId, user.orgId)));
+            if (profile) {
+                senderFromEmail = profile.fromEmail;
+                senderFromName = profile.fromName;
+            }
+        }
+        if (!senderFromEmail) {
+            // 기본 프로필 fallback
+            const [defaultProfile] = await db
+                .select()
+                .from(emailSenderProfiles)
+                .where(and(eq(emailSenderProfiles.orgId, user.orgId), eq(emailSenderProfiles.isDefault, true)))
+                .limit(1);
+            if (defaultProfile) {
+                senderFromEmail = defaultProfile.fromEmail;
+                senderFromName = defaultProfile.fromName;
+            } else if (config?.fromEmail) {
+                // 레거시 fallback
+                senderFromEmail = config.fromEmail;
+                senderFromName = config.fromName || undefined;
+            }
+        }
+        if (!senderFromEmail) {
+            return NextResponse.json({ success: false, error: "발신 이메일 주소를 설정해주세요." }, { status: 400 });
+        }
+
+        // 서명 결정
+        let signatureJson: string | null = null;
+        if (signatureId === null) {
+            // 명시적으로 "서명 없음" 선택
+            signatureJson = null;
+        } else if (signatureId) {
+            const [sig] = await db
+                .select()
+                .from(emailSignatures)
+                .where(and(eq(emailSignatures.id, signatureId), eq(emailSignatures.orgId, user.orgId)));
+            if (sig) signatureJson = sig.signature;
+        } else {
+            // signatureId 미전달 → 기본 서명
+            const [defaultSig] = await db
+                .select()
+                .from(emailSignatures)
+                .where(and(eq(emailSignatures.orgId, user.orgId), eq(emailSignatures.isDefault, true)))
+                .limit(1);
+            if (defaultSig) signatureJson = defaultSig.signature;
+            else if (config?.signatureEnabled && config?.signature) signatureJson = config.signature;
+        }
 
         if (!templateLinkId || !recordIds || !Array.isArray(recordIds) || recordIds.length === 0) {
             return NextResponse.json({
@@ -91,13 +144,13 @@ export async function POST(req: NextRequest) {
 
             const substitutedSubject = substituteVariables(template.subject, mappings, data);
             let finalBody = substituteVariables(template.htmlBody, mappings, data);
-            if (config.signatureEnabled && config.signature) {
-                finalBody = appendSignature(finalBody, config.signature);
+            if (signatureJson) {
+                finalBody = appendSignature(finalBody, signatureJson);
             }
 
             const nhnResult = await client.sendEachMail({
-                senderAddress: config.fromEmail,
-                senderName: config.fromName || undefined,
+                senderAddress: senderFromEmail!,
+                senderName: senderFromName,
                 title: substitutedSubject,
                 body: finalBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],

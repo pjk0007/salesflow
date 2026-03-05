@@ -1,4 +1,4 @@
-import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products } from "@/lib/db";
+import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products, emailSenderProfiles, emailSignatures } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
@@ -85,7 +85,36 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             const emailClient = await getEmailClient(orgId);
             if (!emailClient) { console.log(`[AutoEmail] Rule ${link.id}: no email client`); continue; }
             const emailConfig = await getEmailConfig(orgId);
-            if (!emailConfig?.fromEmail) continue;
+
+            // 6-1. 발신자 프로필 결정 (기본 프로필 → 레거시 fallback)
+            let senderFromEmail: string | null = null;
+            let senderFromName: string | undefined;
+            const [defaultProfile] = await db
+                .select()
+                .from(emailSenderProfiles)
+                .where(and(eq(emailSenderProfiles.orgId, orgId), eq(emailSenderProfiles.isDefault, true)))
+                .limit(1);
+            if (defaultProfile) {
+                senderFromEmail = defaultProfile.fromEmail;
+                senderFromName = defaultProfile.fromName;
+            } else if (emailConfig?.fromEmail) {
+                senderFromEmail = emailConfig.fromEmail;
+                senderFromName = emailConfig.fromName || undefined;
+            }
+            if (!senderFromEmail) continue;
+
+            // 6-2. 서명 결정 (기본 서명 → 레거시 fallback)
+            let signatureJson: string | null = null;
+            const [defaultSig] = await db
+                .select()
+                .from(emailSignatures)
+                .where(and(eq(emailSignatures.orgId, orgId), eq(emailSignatures.isDefault, true)))
+                .limit(1);
+            if (defaultSig) {
+                signatureJson = defaultSig.signature;
+            } else if (emailConfig?.signatureEnabled && emailConfig?.signature) {
+                signatureJson = emailConfig.signature;
+            }
 
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
             let recordData = { ...data };
@@ -133,9 +162,9 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             // 8-1. 발신자 페르소나 (서명에서 추출)
             let senderPersona: { name: string; title?: string; company?: string } | null = null;
-            if (link.useSignaturePersona === 1 && emailConfig.signature) {
+            if (link.useSignaturePersona === 1 && signatureJson) {
                 try {
-                    const sig = JSON.parse(emailConfig.signature);
+                    const sig = JSON.parse(signatureJson);
                     if (sig && typeof sig === "object" && sig.name) {
                         senderPersona = {
                             name: sig.name,
@@ -175,14 +204,14 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             // 10. NHN Cloud 이메일 발송
             let finalBody = emailResult.htmlBody;
-            if (emailConfig.signatureEnabled && emailConfig.signature) {
-                finalBody = appendSignature(finalBody, emailConfig.signature);
+            if (signatureJson) {
+                finalBody = appendSignature(finalBody, signatureJson);
             }
             console.log(`[AutoEmail] Step 10: Sending to ${email}, subject="${emailResult.subject}", bodyLen=${finalBody?.length ?? 0}`);
 
             const nhnResult = await emailClient.sendEachMail({
-                senderAddress: emailConfig.fromEmail,
-                senderName: emailConfig.fromName || undefined,
+                senderAddress: senderFromEmail!,
+                senderName: senderFromName,
                 title: emailResult.subject,
                 body: finalBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
