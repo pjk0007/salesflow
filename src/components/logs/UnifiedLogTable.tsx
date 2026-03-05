@@ -165,6 +165,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                     <TableHead>수신자</TableHead>
                                     <TableHead>제목</TableHead>
                                     <TableHead>상태</TableHead>
+                                    <TableHead>읽음</TableHead>
                                     {!compact && <TableHead>방식</TableHead>}
                                     <TableHead>발송일시</TableHead>
                                     {!compact && <TableHead>결과</TableHead>}
@@ -193,6 +194,15 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                                 <Badge variant={statusInfo.variant}>
                                                     {statusInfo.label}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {log.channel === "email" && log.status === "sent" ? (
+                                                    log.isOpened ? (
+                                                        <Badge variant="default" className="bg-green-600 text-xs">읽음</Badge>
+                                                    ) : (
+                                                        <Badge variant="outline" className="text-xs">안읽음</Badge>
+                                                    )
+                                                ) : null}
                                             </TableCell>
                                             {!compact && (
                                                 <TableCell>

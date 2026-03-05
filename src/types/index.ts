@@ -368,4 +368,6 @@ export interface UnifiedLog {
     sentBy: string | null;
     sentAt: string;
     completedAt: string | null;
+    isOpened: number;
+    openedAt: string | null;
 }

@@ -162,6 +162,13 @@
       "when": 1770948500000,
       "tag": "0022_email_log_body",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1770948600000,
+      "tag": "0023_email_read_tracking",
+      "breakpoints": true
     }
   ]
 }

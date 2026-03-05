@@ -521,6 +521,8 @@ export const emailSendLogs = pgTable("email_send_logs", {
     sentBy: uuid("sent_by").references(() => users.id),
     sentAt: timestamptz("sent_at").defaultNow().notNull(),
     completedAt: timestamptz("completed_at"),
+    isOpened: integer("is_opened").default(0).notNull(),
+    openedAt: timestamptz("opened_at"),
 });
 
 // ============================================

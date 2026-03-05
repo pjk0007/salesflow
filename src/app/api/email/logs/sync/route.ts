@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, gte } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient } from "@/lib/nhn-email";
 
@@ -16,7 +16,10 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        // pending 상태인 로그 조회
+        let updated = 0;
+        let readUpdated = 0;
+
+        // ── 단계 1: pending 상태 동기화 ──
         const pendingLogs = await db
             .select()
             .from(emailSendLogs)
@@ -28,19 +31,9 @@ export async function POST(req: NextRequest) {
             )
             .limit(100);
 
-        if (pendingLogs.length === 0) {
-            return NextResponse.json({
-                success: true,
-                data: { synced: 0, updated: 0 },
-            });
-        }
+        const pendingRequestIds = [...new Set(pendingLogs.map((l) => l.requestId).filter(Boolean))];
 
-        let updated = 0;
-
-        // requestId별로 그룹핑하여 조회
-        const requestIds = [...new Set(pendingLogs.map((l) => l.requestId).filter(Boolean))];
-
-        for (const requestId of requestIds) {
+        for (const requestId of pendingRequestIds) {
             if (!requestId) continue;
 
             try {
@@ -48,7 +41,6 @@ export async function POST(req: NextRequest) {
                 if (!result.header.isSuccessful || !result.data) continue;
 
                 for (const mail of result.data) {
-                    // SST2=발송완료, SST3=발송실패, SST5=수신거부
                     let newStatus: string | null = null;
                     if (mail.mailStatusCode === "SST2") newStatus = "sent";
                     else if (mail.mailStatusCode === "SST3") newStatus = "failed";
@@ -56,7 +48,6 @@ export async function POST(req: NextRequest) {
 
                     if (!newStatus) continue;
 
-                    // 해당 requestId + 수신자의 로그 업데이트
                     const matchingLogs = pendingLogs.filter(
                         (l) => l.requestId === requestId && l.recipientEmail === mail.receiveMailAddr
                     );
@@ -69,6 +60,8 @@ export async function POST(req: NextRequest) {
                                 resultCode: mail.resultCode,
                                 resultMessage: mail.resultCodeName,
                                 completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
+                                isOpened: mail.isOpened ? 1 : 0,
+                                openedAt: mail.openedDate ? new Date(mail.openedDate) : null,
                             })
                             .where(eq(emailSendLogs.id, log.id));
                         updated++;
@@ -79,9 +72,58 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // ── 단계 2: sent 상태 읽음 동기화 (최근 7일, 미읽음) ──
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const unreadSentLogs = await db
+            .select()
+            .from(emailSendLogs)
+            .where(
+                and(
+                    eq(emailSendLogs.orgId, user.orgId),
+                    eq(emailSendLogs.status, "sent"),
+                    eq(emailSendLogs.isOpened, 0),
+                    gte(emailSendLogs.sentAt, sevenDaysAgo)
+                )
+            )
+            .limit(100);
+
+        const sentRequestIds = [...new Set(unreadSentLogs.map((l) => l.requestId).filter(Boolean))];
+
+        for (const requestId of sentRequestIds) {
+            if (!requestId) continue;
+
+            try {
+                const result = await client.queryMails({ requestId });
+                if (!result.header.isSuccessful || !result.data) continue;
+
+                for (const mail of result.data) {
+                    if (!mail.isOpened) continue;
+
+                    const matchingLogs = unreadSentLogs.filter(
+                        (l) => l.requestId === requestId && l.recipientEmail === mail.receiveMailAddr
+                    );
+
+                    for (const log of matchingLogs) {
+                        await db
+                            .update(emailSendLogs)
+                            .set({
+                                isOpened: 1,
+                                openedAt: mail.openedDate ? new Date(mail.openedDate) : new Date(),
+                            })
+                            .where(eq(emailSendLogs.id, log.id));
+                        readUpdated++;
+                    }
+                }
+            } catch {
+                // 개별 조회 실패는 무시
+            }
+        }
+
         return NextResponse.json({
             success: true,
-            data: { synced: pendingLogs.length, updated },
+            data: { synced: pendingLogs.length, updated, readUpdated },
         });
     } catch (error) {
         console.error("Email sync error:", error);

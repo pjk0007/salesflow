@@ -61,7 +61,7 @@ export default function EmailSendLogTable() {
         const result = await syncLogs();
         setSyncing(false);
         if (result.success) {
-            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트`);
+            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트${result.data.readUpdated ? `, ${result.data.readUpdated}건 읽음 확인` : ""}`);
         } else {
             toast.error(result.error || "동기화에 실패했습니다.");
         }
@@ -123,6 +123,7 @@ export default function EmailSendLogTable() {
                                 <TableHead>수신자</TableHead>
                                 <TableHead>제목</TableHead>
                                 <TableHead>상태</TableHead>
+                                <TableHead>읽음</TableHead>
                                 <TableHead>방식</TableHead>
                                 <TableHead>발송일</TableHead>
                             </TableRow>
@@ -144,6 +145,15 @@ export default function EmailSendLogTable() {
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            {log.status === "sent" ? (
+                                                log.isOpened ? (
+                                                    <Badge variant="default" className="bg-green-600">읽음</Badge>
+                                                ) : (
+                                                    <Badge variant="outline">안읽음</Badge>
+                                                )
+                                            ) : null}
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
@@ -219,6 +229,16 @@ export default function EmailSendLogTable() {
                                                 <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
                                             </span>
                                         </div>
+                                        {selectedLog.status === "sent" && (
+                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                                <span className="text-sm text-muted-foreground">읽음</span>
+                                                <span className="col-span-2 text-sm">
+                                                    {selectedLog.isOpened
+                                                        ? formatDateFull(selectedLog.openedAt as unknown as string)
+                                                        : "안읽음"}
+                                                </span>
+                                            </div>
+                                        )}
                                         <div className="grid grid-cols-3 gap-2 py-2 border-b">
                                             <span className="text-sm text-muted-foreground">발송일시</span>
                                             <span className="col-span-2 text-sm">

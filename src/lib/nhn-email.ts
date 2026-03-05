@@ -41,6 +41,8 @@ export interface NhnEmailQueryResult {
     title: string;
     requestDate: string;
     resultDate: string;
+    isOpened?: boolean;
+    openedDate?: string;
 }
 
 // ============================================
