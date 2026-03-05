@@ -2,12 +2,12 @@
 
 import { Suspense, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import useSWR from "swr";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { usePartitions } from "@/hooks/usePartitions";
 import { useFields } from "@/hooks/useFields";
 import EmailDashboard from "@/components/email/EmailDashboard";
 import EmailTemplateList from "@/components/email/EmailTemplateList";
@@ -16,6 +16,8 @@ import EmailSendLogTable from "@/components/email/EmailSendLogTable";
 import EmailConfigForm from "@/components/email/EmailConfigForm";
 import EmailCategoryManager from "@/components/email/EmailCategoryManager";
 import AutoPersonalizedEmailConfig from "@/components/email/AutoPersonalizedEmailConfig";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function EmailPageContent() {
     const router = useRouter();
@@ -26,17 +28,19 @@ function EmailPageContent() {
     };
     const { workspaces } = useWorkspaces();
     const firstWorkspaceId = workspaces?.[0]?.id ?? null;
-    const { partitionTree } = usePartitions(firstWorkspaceId);
     const { fields } = useFields(firstWorkspaceId);
 
+    // 조직 내 모든 파티션 조회
+    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+
     const partitions = useMemo(() => {
-        if (!partitionTree) return [];
-        const all = [
-            ...partitionTree.ungrouped,
-            ...partitionTree.folders.flatMap((f) => f.partitions),
-        ];
-        return all.map((p) => ({ id: p.id, name: p.name }));
-    }, [partitionTree]);
+        const items: Array<{ id: number; name: string; workspaceId: number; workspaceName: string }> = allPartitionsData?.data ?? [];
+        const hasMultipleWorkspaces = new Set(items.map((p) => p.workspaceId)).size > 1;
+        return items.map((p) => ({
+            id: p.id,
+            name: hasMultipleWorkspaces ? `[${p.workspaceName}] ${p.name}` : p.name,
+        }));
+    }, [allPartitionsData]);
 
     return (
         <WorkspaceLayout>
