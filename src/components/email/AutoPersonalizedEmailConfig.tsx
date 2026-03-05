@@ -358,49 +358,56 @@ export default function AutoPersonalizedEmailConfig({
                         </div>
 
                         <div className="space-y-2">
-                            <Label>AI 지시사항 (선택)</Label>
+                            <Label>AI 지시사항</Label>
                             <Textarea
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="예: 이 회사에 적합한 제품 소개 이메일을 작성해주세요."
+                                placeholder="직접 지시사항을 입력하면 아래 형식/톤 설정 대신 이 내용이 사용됩니다."
                                 rows={3}
                             />
+                            {prompt.trim() && (
+                                <p className="text-xs text-muted-foreground">직접 지시사항이 입력되어 형식/톤 설정은 무시됩니다.</p>
+                            )}
                         </div>
 
-                        <div className="space-y-2">
-                            <Label>이메일 형식</Label>
-                            <Select value={format} onValueChange={(v) => setFormat(v as "plain" | "designed")}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {FORMAT_OPTIONS.map((f) => (
-                                        <SelectItem key={f.value} value={f.value}>
-                                            {f.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-xs text-muted-foreground">
-                                {format === "plain" ? "편지처럼 간결한 텍스트 이메일" : "헤더, CTA 버튼 등 디자인 포함 이메일"}
-                            </p>
-                        </div>
+                        {!prompt.trim() && (
+                            <>
+                                <div className="space-y-2">
+                                    <Label>이메일 형식</Label>
+                                    <Select value={format} onValueChange={(v) => setFormat(v as "plain" | "designed")}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {FORMAT_OPTIONS.map((f) => (
+                                                <SelectItem key={f.value} value={f.value}>
+                                                    {f.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        {format === "plain" ? "편지처럼 간결한 텍스트 이메일" : "헤더, CTA 버튼 등 디자인 포함 이메일"}
+                                    </p>
+                                </div>
 
-                        <div className="space-y-2">
-                            <Label>톤</Label>
-                            <Select value={tone} onValueChange={setTone}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="기본" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {TONE_OPTIONS.map((t) => (
-                                        <SelectItem key={t.value || "default"} value={t.value || "default"}>
-                                            {t.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                <div className="space-y-2">
+                                    <Label>톤</Label>
+                                    <Select value={tone} onValueChange={setTone}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="기본" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {TONE_OPTIONS.map((t) => (
+                                                <SelectItem key={t.value || "default"} value={t.value || "default"}>
+                                                    {t.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </>
+                        )}
 
                         <div className="flex items-center justify-between">
                             <div>
