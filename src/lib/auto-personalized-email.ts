@@ -58,6 +58,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
+        let pendingLogId: number | null = null;
         try {
             // 2. 조건 평가
             if (!evaluateCondition(link.triggerCondition as Parameters<typeof evaluateCondition>[0], data)) {
@@ -175,6 +176,23 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 } catch { /* legacy plain text signature — skip */ }
             }
 
+            // 8-2. 선점 로그 삽입 (동시 트리거 race condition 방지)
+            const canStillSend = await checkCooldown(record.id);
+            if (!canStillSend) { console.log(`[AutoEmail] Rule ${link.id}: cooldown active (pre-generate check)`); continue; }
+
+            const [_pendingLog] = await db.insert(emailSendLogs).values({
+                orgId,
+                partitionId,
+                recordId: record.id,
+                recipientEmail: email,
+                subject: "(생성 중)",
+                body: "",
+                status: "pending",
+                triggerType: "ai_auto",
+                sentAt: new Date(),
+            }).returning();
+            pendingLogId = _pendingLog.id;
+
             // 9. AI 이메일 생성
             console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}${senderPersona ? `, persona=${senderPersona.name}` : ""}`);
             const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
@@ -221,23 +239,26 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             const isSuccess = nhnResult.header.isSuccessful;
             const sendResult = nhnResult.data?.results?.[0];
 
-            // 11. 발송 로그 기록
-            await db.insert(emailSendLogs).values({
-                orgId,
-                partitionId,
-                recordId: record.id,
-                recipientEmail: email,
-                subject: emailResult.subject,
-                body: finalBody,
-                requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
-                resultCode: sendResult ? String(sendResult.resultCode) : null,
-                resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
-                triggerType: "ai_auto",
-                sentAt: new Date(),
-            });
+            // 11. 선점 로그 업데이트
+            await db.update(emailSendLogs)
+                .set({
+                    subject: emailResult.subject,
+                    body: finalBody,
+                    requestId: nhnResult.data?.requestId,
+                    status: isSuccess ? "sent" : "failed",
+                    resultCode: sendResult ? String(sendResult.resultCode) : null,
+                    resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+                    sentAt: new Date(),
+                })
+                .where(eq(emailSendLogs.id, pendingLogId!));
         } catch (err) {
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);
+            if (pendingLogId) {
+                await db.update(emailSendLogs)
+                    .set({ status: "failed", resultMessage: String(err) })
+                    .where(eq(emailSendLogs.id, pendingLogId))
+                    .catch(() => {});
+            }
         }
     }
 }
