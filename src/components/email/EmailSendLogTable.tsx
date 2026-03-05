@@ -149,7 +149,12 @@ export default function EmailSendLogTable() {
                                         <TableCell>
                                             {log.status === "sent" ? (
                                                 log.isOpened ? (
-                                                    <Badge variant="default" className="bg-green-600">읽음</Badge>
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <Badge variant="default" className="bg-green-600 w-fit">읽음</Badge>
+                                                        {log.openedAt && (
+                                                            <span className="text-xs text-muted-foreground">{formatDate(log.openedAt as unknown as string)}</span>
+                                                        )}
+                                                    </div>
                                                 ) : (
                                                     <Badge variant="outline">안읽음</Badge>
                                                 )

@@ -198,7 +198,14 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                             <TableCell>
                                                 {log.channel === "email" && log.status === "sent" ? (
                                                     log.isOpened ? (
-                                                        <Badge variant="default" className="bg-green-600 text-xs">읽음</Badge>
+                                                        <div className="flex flex-col gap-0.5">
+                                                            <Badge variant="default" className="bg-green-600 text-xs w-fit">읽음</Badge>
+                                                            {log.openedAt && (
+                                                                <span className="text-xs text-muted-foreground">
+                                                                    {new Date(log.openedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     ) : (
                                                         <Badge variant="outline" className="text-xs">안읽음</Badge>
                                                     )
