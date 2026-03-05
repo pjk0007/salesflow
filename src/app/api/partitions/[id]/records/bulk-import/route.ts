@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, records, partitions, workspaces, organizations } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { processAutoTrigger } from "@/lib/alimtalk-automation";
+import { processEmailAutoTrigger } from "@/lib/email-automation";
+import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
+import { processAutoEnrich } from "@/lib/auto-enrich";
+import { broadcastToPartition } from "@/lib/sse";
 
 export async function POST(
     req: NextRequest,
@@ -67,6 +72,7 @@ export async function POST(
 
             // 레코드 순회 삽입
             const errors: Array<{ row: number; message: string }> = [];
+            const insertedRecords: Array<typeof records.$inferSelect> = [];
             let insertedCount = 0;
             let skippedCount = 0;
             let currentSeq = org.integratedCodeSeq;
@@ -93,14 +99,15 @@ export async function POST(
                 currentSeq++;
                 const integratedCode = `${org.integratedCodePrefix}-${String(currentSeq).padStart(4, "0")}`;
 
-                await tx.insert(records).values({
+                const [inserted] = await tx.insert(records).values({
                     orgId: user.orgId,
                     workspaceId: partition.workspaceId,
                     partitionId,
                     integratedCode,
                     data,
-                });
+                }).returning();
                 insertedCount++;
+                insertedRecords.push(inserted);
             }
 
             // 조직 시퀀스 업데이트
@@ -109,8 +116,20 @@ export async function POST(
                 .set({ integratedCodeSeq: currentSeq })
                 .where(eq(organizations.id, org.id));
 
-            return { totalCount: importRecords.length, insertedCount, skippedCount, errors };
+            return { totalCount: importRecords.length, insertedCount, skippedCount, errors, insertedRecords };
         });
+
+        // 자동 트리거 (fire-and-forget)
+        for (const record of result.insertedRecords) {
+            const triggerParams = { record, partitionId, triggerType: "on_create" as const, orgId: user.orgId };
+            processAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: auto trigger error:", err));
+            processEmailAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: email auto trigger error:", err));
+            processAutoPersonalizedEmail(triggerParams).catch((err) => console.error("Bulk import: auto personalized email error:", err));
+            processAutoEnrich(triggerParams).catch((err) => console.error("Bulk import: auto enrich error:", err));
+        }
+
+        // SSE 브로드캐스트
+        broadcastToPartition(partitionId, "record:created", { partitionId });
 
         return NextResponse.json({
             success: true,
