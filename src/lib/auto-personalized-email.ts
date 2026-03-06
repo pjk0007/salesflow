@@ -58,7 +58,6 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
-        let pendingLogId: number | null = null;
         try {
             // 2. 조건 평가
             if (!evaluateCondition(link.triggerCondition as Parameters<typeof evaluateCondition>[0], data)) {
@@ -176,62 +175,18 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 } catch { /* legacy plain text signature — skip */ }
             }
 
-            // 8-2. 선점 로그 삽입 (동시 트리거 race condition 방지)
-            const canStillSend = await checkCooldown(record.id);
-            if (!canStillSend) { console.log(`[AutoEmail] Rule ${link.id}: cooldown active (pre-generate check)`); continue; }
-
-            const [_pendingLog] = await db.insert(emailSendLogs).values({
-                orgId,
-                partitionId,
-                recordId: record.id,
-                recipientEmail: email,
-                subject: "(생성 중)",
-                body: "",
-                status: "pending",
-                triggerType: "ai_auto",
-                sentAt: new Date(),
-            }).returning();
-            pendingLogId = _pendingLog.id;
-
-            // 9. AI 이메일 생성 (최대 2회 시도, hallucination 검증)
-            const companyName = data[link.companyField] as string | undefined;
-            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}, company="${companyName}"${senderPersona ? `, persona=${senderPersona.name}` : ""}`);
+            // 8-2. AI 이메일 생성
             const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
-            let emailResult: Awaited<ReturnType<typeof generateEmail>> | null = null;
-            for (let attempt = 0; attempt < 2; attempt++) {
-                const result = await generateEmail(aiClient, {
-                    prompt,
-                    product,
-                    recordData,
-                    tone: link.tone || undefined,
-                    ctaUrl: product?.url || undefined,
-                    format: (link.format as "plain" | "designed") || "plain",
-                    senderPersona,
-                });
-                // hallucination 검증: 회사명이 있으면 subject 또는 body에 포함되어야 함
-                if (companyName && companyName.trim()) {
-                    const generated = (result.subject + " " + result.htmlBody).toLowerCase();
-                    if (!generated.includes(companyName.trim().toLowerCase())) {
-                        console.warn(`[AutoEmail] Hallucination detected (attempt ${attempt + 1}): expected "${companyName}" but got subject="${result.subject}"`);
-                        if (attempt === 0) continue; // 1회 재시도
-                        // 2회째도 실패 → emailResult를 null로 유지하여 발송 차단
-                        console.error(`[AutoEmail] Hallucination persisted after 2 attempts for record ${record.id}, blocking send`);
-                        break;
-                    }
-                }
-                emailResult = result;
-                break;
-            }
-            if (!emailResult) {
-                console.error(`[AutoEmail] Failed to generate valid email for record ${record.id} — hallucination block`);
-                if (pendingLogId) {
-                    await db.update(emailSendLogs)
-                        .set({ status: "failed", resultMessage: "Hallucination detected: company name mismatch after 2 attempts" })
-                        .where(eq(emailSendLogs.id, pendingLogId));
-                }
-                continue;
-            }
-            console.log(`[AutoEmail] Step 9 done: subject="${emailResult.subject}", bodyLen=${emailResult.htmlBody?.length ?? 0}`);
+            const emailResult = await generateEmail(aiClient, {
+                prompt,
+                product,
+                recordData,
+                tone: link.tone || undefined,
+                ctaUrl: product?.url || undefined,
+                format: (link.format as "plain" | "designed") || "plain",
+                senderPersona,
+            });
+            console.log(`[AutoEmail] Email generated for record ${record.id}: subject="${emailResult.subject}"`);
 
             const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
             await updateTokenUsage(orgId, emailTokens);
@@ -246,12 +201,11 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 purpose: "auto_personalized_email",
             });
 
-            // 10. NHN Cloud 이메일 발송
+            // 9. NHN Cloud 이메일 발송
             let finalBody = emailResult.htmlBody;
             if (signatureJson) {
                 finalBody = appendSignature(finalBody, signatureJson);
             }
-            console.log(`[AutoEmail] Step 10: Sending to ${email}, subject="${emailResult.subject}", bodyLen=${finalBody?.length ?? 0}`);
 
             const nhnResult = await emailClient.sendEachMail({
                 senderAddress: senderFromEmail!,
@@ -260,31 +214,28 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 body: finalBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
             });
-            console.log(`[AutoEmail] Step 10 done: isSuccessful=${nhnResult.header.isSuccessful}, resultMessage=${nhnResult.header.resultMessage}`);
 
             const isSuccess = nhnResult.header.isSuccessful;
             const sendResult = nhnResult.data?.results?.[0];
 
-            // 11. 선점 로그 업데이트
-            await db.update(emailSendLogs)
-                .set({
-                    subject: emailResult.subject,
-                    body: finalBody,
-                    requestId: nhnResult.data?.requestId,
-                    status: isSuccess ? "sent" : "failed",
-                    resultCode: sendResult ? String(sendResult.resultCode) : null,
-                    resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
-                    sentAt: new Date(),
-                })
-                .where(eq(emailSendLogs.id, pendingLogId!));
+            // 10. 발송 로그 기록
+            await db.insert(emailSendLogs).values({
+                orgId,
+                partitionId,
+                recordId: record.id,
+                recipientEmail: email,
+                subject: emailResult.subject,
+                body: finalBody,
+                requestId: nhnResult.data?.requestId,
+                status: isSuccess ? "sent" : "failed",
+                resultCode: sendResult ? String(sendResult.resultCode) : null,
+                resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+                triggerType: "ai_auto",
+                sentAt: new Date(),
+            });
+            console.log(`[AutoEmail] Rule ${link.id}: ${isSuccess ? "sent" : "failed"} to ${email}`);
         } catch (err) {
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);
-            if (pendingLogId) {
-                await db.update(emailSendLogs)
-                    .set({ status: "failed", resultMessage: String(err) })
-                    .where(eq(emailSendLogs.id, pendingLogId))
-                    .catch(() => {});
-            }
         }
     }
 }

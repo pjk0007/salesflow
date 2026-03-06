@@ -167,11 +167,6 @@ async function callGeminiEmail(
     systemPrompt: string,
     userPrompt: string
 ): Promise<GenerateEmailResult> {
-    console.log(`[GeminiEmail] === PROMPT START ===`);
-    console.log(`[GeminiEmail] System (${systemPrompt.length} chars):\n${systemPrompt}`);
-    console.log(`[GeminiEmail] User: ${userPrompt}`);
-    console.log(`[GeminiEmail] === PROMPT END ===`);
-
     const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
         {
@@ -195,11 +190,6 @@ async function callGeminiEmail(
         (p: { text?: string }) => p.text
     ) ?? [];
     const content = textParts.map((p: { text: string }) => p.text).join("");
-
-    console.log(`[GeminiEmail] === RESPONSE START ===`);
-    console.log(`[GeminiEmail] Raw (${content.length} chars):\n${content.substring(0, 500)}${content.length > 500 ? "...(truncated)" : ""}`);
-    console.log(`[GeminiEmail] finishReason: ${candidate?.finishReason}`);
-    console.log(`[GeminiEmail] === RESPONSE END ===`);
 
     const truncated = candidate?.finishReason === "MAX_TOKENS";
     const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);

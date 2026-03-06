@@ -120,22 +120,13 @@ export async function POST(
         });
 
         // 자동 트리거 (fire-and-forget)
-        // AI 자동발송은 순차 실행 (동시 Gemini 호출 시 응답 혼선 방지)
-        console.log(`[BulkImport] Triggering ${result.insertedRecords.length} records:`, result.insertedRecords.map(r => r.id));
-        (async () => {
-            for (const record of result.insertedRecords) {
-                console.log(`[BulkImport] Processing triggers for record ${record.id}, data keys:`, Object.keys(record.data as Record<string, unknown>));
-                const triggerParams = { record, partitionId, triggerType: "on_create" as const, orgId: user.orgId };
-                processAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: auto trigger error:", err));
-                processEmailAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: email auto trigger error:", err));
-                processAutoEnrich(triggerParams).catch((err) => console.error("Bulk import: auto enrich error:", err));
-                try {
-                    await processAutoPersonalizedEmail(triggerParams);
-                } catch (err) {
-                    console.error("Bulk import: auto personalized email error:", err);
-                }
-            }
-        })();
+        for (const record of result.insertedRecords) {
+            const triggerParams = { record, partitionId, triggerType: "on_create" as const, orgId: user.orgId };
+            processAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: auto trigger error:", err));
+            processEmailAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: email auto trigger error:", err));
+            processAutoEnrich(triggerParams).catch((err) => console.error("Bulk import: auto enrich error:", err));
+            processAutoPersonalizedEmail(triggerParams).catch((err) => console.error("Bulk import: auto personalized email error:", err));
+        }
 
         // SSE 브로드캐스트
         broadcastToPartition(partitionId, "record:created", { partitionId });
