@@ -214,12 +214,23 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                     if (!generated.includes(companyName.trim().toLowerCase())) {
                         console.warn(`[AutoEmail] Hallucination detected (attempt ${attempt + 1}): expected "${companyName}" but got subject="${result.subject}"`);
                         if (attempt === 0) continue; // 1회 재시도
+                        // 2회째도 실패 → emailResult를 null로 유지하여 발송 차단
+                        console.error(`[AutoEmail] Hallucination persisted after 2 attempts for record ${record.id}, blocking send`);
+                        break;
                     }
                 }
                 emailResult = result;
                 break;
             }
-            if (!emailResult) { console.error(`[AutoEmail] Failed to generate valid email for record ${record.id}`); continue; }
+            if (!emailResult) {
+                console.error(`[AutoEmail] Failed to generate valid email for record ${record.id} — hallucination block`);
+                if (pendingLogId) {
+                    await db.update(emailSendLogs)
+                        .set({ status: "failed", resultMessage: "Hallucination detected: company name mismatch after 2 attempts" })
+                        .where(eq(emailSendLogs.id, pendingLogId));
+                }
+                continue;
+            }
             console.log(`[AutoEmail] Step 9 done: subject="${emailResult.subject}", bodyLen=${emailResult.htmlBody?.length ?? 0}`);
 
             const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
