@@ -971,9 +971,9 @@ async function getQuotaLimitForOrg(orgId: string): Promise<number> {
         .where(eq(plans.id, sub.planId))
         .limit(1);
 
-    if (plan?.name === "Enterprise") return 10_000_000;
-    if (plan?.name === "Pro") return 1_000_000;
-    return 100_000;
+    if (plan?.name === "Enterprise") return 100_000_000;
+    if (plan?.name === "Pro") return 10_000_000;
+    return 1_000_000;
 }
 
 async function getOrCreateQuota(orgId: string, month: string): Promise<{ totalTokens: number; quotaLimit: number }> {
@@ -983,7 +983,17 @@ async function getOrCreateQuota(orgId: string, month: string): Promise<{ totalTo
         .where(and(eq(aiUsageQuotas.orgId, orgId), eq(aiUsageQuotas.month, month)))
         .limit(1);
 
-    if (existing) return existing;
+    if (existing) {
+        // 플랜 변경 시 quotaLimit 자동 동기화
+        const currentLimit = await getQuotaLimitForOrg(orgId);
+        if (existing.quotaLimit !== currentLimit) {
+            await db.update(aiUsageQuotas)
+                .set({ quotaLimit: currentLimit, updatedAt: new Date() })
+                .where(and(eq(aiUsageQuotas.orgId, orgId), eq(aiUsageQuotas.month, month)));
+            return { ...existing, quotaLimit: currentLimit };
+        }
+        return existing;
+    }
 
     const limit = await getQuotaLimitForOrg(orgId);
     const [created] = await db
@@ -1054,7 +1064,10 @@ export async function getUsageData(orgId: string) {
         quotaLimit: quota.quotaLimit,
         remaining: quota.quotaLimit - quota.totalTokens,
         usagePercent: quota.quotaLimit > 0 ? Math.round((quota.totalTokens / quota.quotaLimit) * 100) : 0,
-        breakdown,
+        breakdown: breakdown.map((b) => ({
+            purpose: b.purpose,
+            tokens: b.totalPrompt + b.totalCompletion,
+        })),
     };
 }
 
