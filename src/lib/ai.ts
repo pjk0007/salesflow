@@ -1066,7 +1066,7 @@ export async function getUsageData(orgId: string) {
         usagePercent: quota.quotaLimit > 0 ? Math.round((quota.totalTokens / quota.quotaLimit) * 100) : 0,
         breakdown: breakdown.map((b) => ({
             purpose: b.purpose,
-            tokens: b.totalPrompt + b.totalCompletion,
+            tokens: Number(b.totalPrompt) + Number(b.totalCompletion),
         })),
     };
 }
