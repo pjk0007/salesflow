@@ -53,6 +53,7 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
     let prompt = `당신은 B2B 영업/마케팅 이메일 전문가입니다.
 사용자의 지시에 따라 이메일을 작성해주세요.
 반드시 JSON 형식으로 응답하세요: { "subject": "이메일 제목", "htmlBody": "<html>...</html>" }
+subject는 반드시 plain text만 사용하세요. HTML 태그(<b>, <u> 등)를 절대 넣지 마세요.
 
 [스타일 규칙 — 반드시 준수]`;
 
@@ -86,10 +87,10 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
     const ctaUrl = input.ctaUrl || input.product?.url;
     if (ctaUrl) {
         prompt += `\n\n[CTA 링크 규칙]
-- 이메일의 모든 CTA 버튼/링크 href에 다음 URL을 사용하세요: ${ctaUrl}
-- URL에 UTM 파라미터를 추가하세요: utm_source=email&utm_medium=sales&utm_campaign=outreach
-- 예시: ${ctaUrl}${ctaUrl.includes("?") ? "&" : "?"}utm_source=email&utm_medium=sales&utm_campaign=outreach
-- "자세히 알아보기", "무료 시작하기" 등의 CTA 버튼에 모두 이 URL을 적용하세요.`;
+- 이메일의 모든 CTA 링크 href에 다음 URL을 그대로 사용하세요: ${ctaUrl}
+- URL을 수정하거나 파라미터를 추가하지 마세요. 정확히 위 URL만 사용하세요.
+- CTA 링크의 표시 텍스트는 반드시 자연스러운 문구를 사용하세요 (예: "자세히 알아보기", "무료 시작하기"). URL을 표시 텍스트로 쓰지 마세요.
+- 미팅 예약, 캘린더 링크 등 실제로 지원하지 않는 기능을 CTA로 쓰지 마세요.`;
     }
 
     if (input.recordData) {
@@ -151,7 +152,17 @@ export async function generateEmail(
     input: GenerateEmailInput
 ): Promise<GenerateEmailResult> {
     const systemPrompt = buildSystemPrompt(input);
-    return callGeminiEmail(client, systemPrompt, input.prompt);
+    const result = await callGeminiEmail(client, systemPrompt, input.prompt);
+
+    // CTA URL에 UTM 파라미터 자동 추가 (코드에서 처리하여 &amp; 문제 방지)
+    const ctaUrl = input.ctaUrl || input.product?.url;
+    if (ctaUrl && result.htmlBody) {
+        const utm = "utm_source=email&utm_medium=sales&utm_campaign=outreach";
+        const urlWithUtm = ctaUrl + (ctaUrl.includes("?") ? "&" : "?") + utm;
+        result.htmlBody = result.htmlBody.replaceAll(ctaUrl, urlWithUtm);
+    }
+
+    return result;
 }
 
 export function buildEmailSystemPrompt(input: GenerateEmailInput): string {
@@ -195,7 +206,7 @@ async function callGeminiEmail(
     const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
 
     return {
-        subject: parsed.subject as string,
+        subject: (parsed.subject as string).replace(/<[^>]*>/g, ""),
         htmlBody: parsed.htmlBody as string,
         usage: {
             promptTokens: data.usageMetadata?.promptTokenCount ?? 0,

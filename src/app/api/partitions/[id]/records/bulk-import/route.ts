@@ -119,14 +119,23 @@ export async function POST(
             return { totalCount: importRecords.length, insertedCount, skippedCount, errors, insertedRecords };
         });
 
-        // 자동 트리거 (fire-and-forget)
+        // 자동 트리거 (알림톡/이메일/보강은 fire-and-forget, AI 자동발송은 순차)
         for (const record of result.insertedRecords) {
             const triggerParams = { record, partitionId, triggerType: "on_create" as const, orgId: user.orgId };
             processAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: auto trigger error:", err));
             processEmailAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: email auto trigger error:", err));
             processAutoEnrich(triggerParams).catch((err) => console.error("Bulk import: auto enrich error:", err));
-            processAutoPersonalizedEmail(triggerParams).catch((err) => console.error("Bulk import: auto personalized email error:", err));
         }
+        // AI 자동발송은 순차 실행 (Gemini API rate limit 방지)
+        (async () => {
+            for (const record of result.insertedRecords) {
+                try {
+                    await processAutoPersonalizedEmail({ record, partitionId, triggerType: "on_create", orgId: user.orgId });
+                } catch (err) {
+                    console.error("Bulk import: auto personalized email error:", err);
+                }
+            }
+        })();
 
         // SSE 브로드캐스트
         broadcastToPartition(partitionId, "record:created", { partitionId });
