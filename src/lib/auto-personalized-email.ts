@@ -193,18 +193,33 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             }).returning();
             pendingLogId = _pendingLog.id;
 
-            // 9. AI 이메일 생성
-            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}${senderPersona ? `, persona=${senderPersona.name}` : ""}`);
+            // 9. AI 이메일 생성 (최대 2회 시도, hallucination 검증)
+            const companyName = data[link.companyField] as string | undefined;
+            console.log(`[AutoEmail] Step 9: Generating email for record ${record.id}, company="${companyName}"${senderPersona ? `, persona=${senderPersona.name}` : ""}`);
             const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
-            const emailResult = await generateEmail(aiClient, {
-                prompt,
-                product,
-                recordData,
-                tone: link.tone || undefined,
-                ctaUrl: product?.url || undefined,
-                format: (link.format as "plain" | "designed") || "plain",
-                senderPersona,
-            });
+            let emailResult: Awaited<ReturnType<typeof generateEmail>> | null = null;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const result = await generateEmail(aiClient, {
+                    prompt,
+                    product,
+                    recordData,
+                    tone: link.tone || undefined,
+                    ctaUrl: product?.url || undefined,
+                    format: (link.format as "plain" | "designed") || "plain",
+                    senderPersona,
+                });
+                // hallucination 검증: 회사명이 있으면 subject 또는 body에 포함되어야 함
+                if (companyName && companyName.trim()) {
+                    const generated = (result.subject + " " + result.htmlBody).toLowerCase();
+                    if (!generated.includes(companyName.trim().toLowerCase())) {
+                        console.warn(`[AutoEmail] Hallucination detected (attempt ${attempt + 1}): expected "${companyName}" but got subject="${result.subject}"`);
+                        if (attempt === 0) continue; // 1회 재시도
+                    }
+                }
+                emailResult = result;
+                break;
+            }
+            if (!emailResult) { console.error(`[AutoEmail] Failed to generate valid email for record ${record.id}`); continue; }
             console.log(`[AutoEmail] Step 9 done: subject="${emailResult.subject}", bodyLen=${emailResult.htmlBody?.length ?? 0}`);
 
             const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
