@@ -9,10 +9,11 @@ interface LogsResponse {
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export function useEmailLogs(params?: { partitionId?: number; triggerType?: string; page?: number }) {
+export function useEmailLogs(params?: { partitionId?: number; triggerType?: string; isOpened?: string; page?: number }) {
     const qs = new URLSearchParams();
     if (params?.partitionId) qs.set("partitionId", String(params.partitionId));
     if (params?.triggerType) qs.set("triggerType", params.triggerType);
+    if (params?.isOpened) qs.set("isOpened", params.isOpened);
     if (params?.page) qs.set("page", String(params.page));
     const query = qs.toString() ? `?${qs.toString()}` : "";
 

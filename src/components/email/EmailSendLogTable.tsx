@@ -46,12 +46,14 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
 export default function EmailSendLogTable() {
     const [page, setPage] = useState(1);
     const [triggerType, setTriggerType] = useState<string>("");
+    const [isOpened, setIsOpened] = useState<string>("");
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<EmailSendLog | null>(null);
 
     const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
         page,
         triggerType: triggerType || undefined,
+        isOpened: isOpened || undefined,
     });
 
     const totalPages = Math.ceil(totalCount / 50);
@@ -101,6 +103,16 @@ export default function EmailSendLogTable() {
                         <SelectItem value="auto">자동</SelectItem>
                         <SelectItem value="repeat">반복</SelectItem>
                         <SelectItem value="ai_auto">AI 자동</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={isOpened || "all"} onValueChange={(v) => { setIsOpened(v === "all" ? "" : v); setPage(1); }}>
+                    <SelectTrigger className="w-[130px]">
+                        <SelectValue placeholder="읽음 상태" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        <SelectItem value="1">읽음</SelectItem>
+                        <SelectItem value="0">안읽음</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

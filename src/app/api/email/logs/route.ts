@@ -25,6 +25,14 @@ export async function GET(req: NextRequest) {
         if (triggerType) {
             conditions.push(eq(emailSendLogs.triggerType, triggerType));
         }
+        const isOpened = searchParams.get("isOpened");
+        if (isOpened === "1") {
+            conditions.push(eq(emailSendLogs.isOpened, 1));
+            conditions.push(eq(emailSendLogs.status, "sent"));
+        } else if (isOpened === "0") {
+            conditions.push(eq(emailSendLogs.isOpened, 0));
+            conditions.push(eq(emailSendLogs.status, "sent"));
+        }
 
         const [countResult] = await db
             .select({ count: sql<number>`count(*)` })
