@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, alimtalkSendLogs, emailSendLogs } from "@/lib/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
+import { db, alimtalkSendLogs, emailSendLogs, emailTemplateLinks, partitions } from "@/lib/db";
+import { eq, and, gte, lte, sql, isNotNull } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -43,22 +43,47 @@ export async function GET(req: NextRequest) {
                 .orderBy(sql`count(*) desc`)
                 .limit(limit);
 
-        // 이메일 템플릿(제목) 집계
-        const emailTemplates = channel === "alimtalk" ? [] :
+        // 이메일 연결관리(templateLink) 기준 집계
+        const emailByLink = channel === "alimtalk" ? [] :
             await db
                 .select({
-                    name: emailSendLogs.subject,
+                    name: emailTemplateLinks.name,
                     total: sql<number>`count(*)::int`.as("total"),
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
                 })
                 .from(emailSendLogs)
+                .innerJoin(emailTemplateLinks, eq(emailSendLogs.templateLinkId, emailTemplateLinks.id))
                 .where(and(
                     eq(emailSendLogs.orgId, orgId),
                     gte(emailSendLogs.sentAt, start),
                     lte(emailSendLogs.sentAt, end),
+                    isNotNull(emailSendLogs.templateLinkId),
                 ))
-                .groupBy(emailSendLogs.subject)
+                .groupBy(emailTemplateLinks.name)
+                .orderBy(sql`count(*) desc`)
+                .limit(limit);
+
+        // AI 자동발송 파티션 기준 집계
+        const emailByAiAuto = channel === "alimtalk" ? [] :
+            await db
+                .select({
+                    partitionName: partitions.name,
+                    total: sql<number>`count(*)::int`.as("total"),
+                    sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
+                    failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
+                })
+                .from(emailSendLogs)
+                .innerJoin(partitions, eq(emailSendLogs.partitionId, partitions.id))
+                .where(and(
+                    eq(emailSendLogs.orgId, orgId),
+                    eq(emailSendLogs.triggerType, "ai_auto"),
+                    gte(emailSendLogs.sentAt, start),
+                    lte(emailSendLogs.sentAt, end),
+                ))
+                .groupBy(partitions.name)
                 .orderBy(sql`count(*) desc`)
                 .limit(limit);
 
@@ -67,17 +92,31 @@ export async function GET(req: NextRequest) {
             ...alimtalkTemplates.map(t => ({
                 name: t.name || "(이름 없음)",
                 channel: "alimtalk" as const,
+                type: "template" as const,
                 total: t.total,
                 sent: t.sent,
                 failed: t.failed,
+                opened: 0,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
             })),
-            ...emailTemplates.map(t => ({
-                name: t.name || "(제목 없음)",
+            ...emailByLink.map(t => ({
+                name: t.name || "(이름 없음)",
                 channel: "email" as const,
+                type: "link" as const,
                 total: t.total,
                 sent: t.sent,
                 failed: t.failed,
+                opened: t.opened,
+                successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
+            })),
+            ...emailByAiAuto.map(t => ({
+                name: `AI: ${t.partitionName}`,
+                channel: "email" as const,
+                type: "ai_auto" as const,
+                total: t.total,
+                sent: t.sent,
+                failed: t.failed,
+                opened: t.opened,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
             })),
         ]

@@ -131,7 +131,7 @@ export default function AnalyticsSection() {
             {/* 템플릿 성과 */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-base">템플릿별 성과 (Top 10)</CardTitle>
+                    <CardTitle className="text-base">발송 규칙별 성과 (Top 10)</CardTitle>
                 </CardHeader>
                 <CardContent>
                     {isLoading ? (

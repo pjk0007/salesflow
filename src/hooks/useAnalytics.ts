@@ -25,9 +25,11 @@ export interface AnalyticsSummary {
 export interface TemplatePerformance {
     name: string;
     channel: "alimtalk" | "email";
+    type: "template" | "link" | "ai_auto";
     total: number;
     sent: number;
     failed: number;
+    opened: number;
     successRate: number;
 }
 
