@@ -3,7 +3,20 @@ import { db, records, alimtalkSendLogs, emailSendLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
-function aggregateStats(rows: Array<{ status: string; count: number }>) {
+function aggregateStats(rows: Array<{ status: string; count: number; opened: number }>) {
+    let total = 0, sent = 0, failed = 0, pending = 0, opened = 0;
+    for (const row of rows) {
+        total += row.count;
+        opened += row.opened;
+        if (row.status === "sent") sent = row.count;
+        else if (row.status === "failed" || row.status === "rejected") failed += row.count;
+        else if (row.status === "pending") pending = row.count;
+    }
+    const openRate = sent > 0 ? Math.round((opened / sent) * 1000) / 10 : 0;
+    return { total, sent, failed, pending, opened, openRate };
+}
+
+function aggregateAlimtalkStats(rows: Array<{ status: string; count: number }>) {
     let total = 0, sent = 0, failed = 0, pending = 0;
     for (const row of rows) {
         total += row.count;
@@ -33,7 +46,13 @@ export async function GET(req: NextRequest) {
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
-        const [alimtalkStats, emailStats, newRecordsCount] = await Promise.all([
+        const emailWhere = and(
+            eq(emailSendLogs.orgId, orgId),
+            gte(emailSendLogs.sentAt, start),
+            lte(emailSendLogs.sentAt, end),
+        );
+
+        const [alimtalkStats, emailStats, newRecordsCount, triggerBreakdown] = await Promise.all([
             // 알림톡 상태별 카운트
             db.select({
                 status: alimtalkSendLogs.status,
@@ -47,17 +66,14 @@ export async function GET(req: NextRequest) {
                 ))
                 .groupBy(alimtalkSendLogs.status),
 
-            // 이메일 상태별 카운트
+            // 이메일 상태별 카운트 + 읽음
             db.select({
                 status: emailSendLogs.status,
                 count: sql<number>`count(*)::int`,
+                opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`,
             })
                 .from(emailSendLogs)
-                .where(and(
-                    eq(emailSendLogs.orgId, orgId),
-                    gte(emailSendLogs.sentAt, start),
-                    lte(emailSendLogs.sentAt, end),
-                ))
+                .where(emailWhere)
                 .groupBy(emailSendLogs.status),
 
             // 기간 내 신규 레코드 수
@@ -68,14 +84,37 @@ export async function GET(req: NextRequest) {
                     gte(records.createdAt, start),
                     lte(records.createdAt, end),
                 )),
+
+            // triggerType별 breakdown
+            db.select({
+                triggerType: emailSendLogs.triggerType,
+                total: sql<number>`count(*)::int`,
+                sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`,
+                failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`,
+                opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`,
+            })
+                .from(emailSendLogs)
+                .where(emailWhere)
+                .groupBy(emailSendLogs.triggerType),
         ]);
+
+        const triggerData = triggerBreakdown.map((t) => ({
+            triggerType: t.triggerType || "unknown",
+            total: t.total,
+            sent: t.sent,
+            failed: t.failed,
+            opened: t.opened,
+            successRate: t.total > 0 ? Math.round((t.sent / t.total) * 1000) / 10 : 0,
+            openRate: t.sent > 0 ? Math.round((t.opened / t.sent) * 1000) / 10 : 0,
+        }));
 
         return NextResponse.json({
             success: true,
             data: {
-                alimtalk: aggregateStats(alimtalkStats),
+                alimtalk: aggregateAlimtalkStats(alimtalkStats),
                 email: aggregateStats(emailStats),
                 newRecordsInPeriod: newRecordsCount[0]?.count ?? 0,
+                triggerBreakdown: triggerData,
             },
         });
     } catch (error) {

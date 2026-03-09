@@ -3,13 +3,13 @@
 ## In Progress
 
 ## Bug Fixes
-- [ ] extractJson Step 1~3 실패 시 본문 빈 이메일 발송되는 문제 — Step 4 복구 로직 개선 완료, 검증 필요
-- [ ] Gemini htmlBody 안 이스케이프 안 된 따옴표 → JSON 파싱 실패 빈도 모니터링
 
 ## Pending
-- [ ] 대량 발송 결과 분석 (발송 성공률, 읽음률)
+- [ ] 알림톡 템플릿 추가 페이지와 기능이 실제 NHN 알림톡 템플릿 추가 페이지, 기능과 차이가 있음 -> 똑같이 만들기
+- [ ] 이메일을 전송 후 n일 후 메일을 읽지 않았을 때 전송하는 프로세스 추가
 
 ## Done
+- [x] 발송 결과 분석 (읽음률 카드, triggerType별 성과 테이블, 일별 추세 차트)
 - [x] CSV 파일 정리 (TSV→CSV, N샵→네이버, 이메일 치환)
 - [x] test.csv 3000건 → test1/2/3.csv 1000건씩 분할
 - [x] Gemini hallucination 원인 규명 (프롬프트 내 하드코딩 데이터)

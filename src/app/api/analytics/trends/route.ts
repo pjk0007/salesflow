@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
                     date: sql<string>`date_trunc('day', ${emailSendLogs.sentAt})::date::text`.as("date"),
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
                 })
                 .from(emailSendLogs)
                 .where(and(
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
             alimtalkFailed: number;
             emailSent: number;
             emailFailed: number;
+            emailOpened: number;
         }>();
 
         for (const row of alimtalkTrends) {
@@ -73,6 +75,7 @@ export async function GET(req: NextRequest) {
                 alimtalkFailed: row.failed,
                 emailSent: 0,
                 emailFailed: 0,
+                emailOpened: 0,
             });
         }
 
@@ -81,6 +84,7 @@ export async function GET(req: NextRequest) {
             if (existing) {
                 existing.emailSent = row.sent;
                 existing.emailFailed = row.failed;
+                existing.emailOpened = row.opened;
             } else {
                 map.set(row.date, {
                     date: row.date,
@@ -88,6 +92,7 @@ export async function GET(req: NextRequest) {
                     alimtalkFailed: 0,
                     emailSent: row.sent,
                     emailFailed: row.failed,
+                    emailOpened: row.opened,
                 });
             }
         }
