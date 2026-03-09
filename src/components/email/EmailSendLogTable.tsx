@@ -63,7 +63,7 @@ export default function EmailSendLogTable() {
         const result = await syncLogs();
         setSyncing(false);
         if (result.success) {
-            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트${result.data.readUpdated ? `, ${result.data.readUpdated}건 읽음 확인` : ""}`);
+            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트, ${result.data.readUpdated || 0}건 읽음 확인 (${result.data.readChecked || 0}건 조회)`);
         } else {
             toast.error(result.error || "동기화에 실패했습니다.");
         }

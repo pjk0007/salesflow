@@ -72,9 +72,9 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // ── 단계 2: sent 상태 읽음 동기화 (최근 7일, 미읽음) ──
-        const sevenDaysAgo = new Date();
-        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        // ── 단계 2: sent 상태 읽음 동기화 (최근 30일, 미읽음, 제한 없음) ──
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
         const unreadSentLogs = await db
             .select()
@@ -84,16 +84,20 @@ export async function POST(req: NextRequest) {
                     eq(emailSendLogs.orgId, user.orgId),
                     eq(emailSendLogs.status, "sent"),
                     eq(emailSendLogs.isOpened, 0),
-                    gte(emailSendLogs.sentAt, sevenDaysAgo)
+                    gte(emailSendLogs.sentAt, thirtyDaysAgo)
                 )
-            )
-            .limit(100);
+            );
 
-        const sentRequestIds = [...new Set(unreadSentLogs.map((l) => l.requestId).filter(Boolean))];
+        // requestId 기준으로 그룹핑해 NHN API 호출 최소화
+        const logsByRequestId = new Map<string, typeof unreadSentLogs>();
+        for (const log of unreadSentLogs) {
+            if (!log.requestId) continue;
+            const group = logsByRequestId.get(log.requestId);
+            if (group) group.push(log);
+            else logsByRequestId.set(log.requestId, [log]);
+        }
 
-        for (const requestId of sentRequestIds) {
-            if (!requestId) continue;
-
+        for (const [requestId, logs] of logsByRequestId) {
             try {
                 const result = await client.queryMails({ requestId });
                 if (!result.header.isSuccessful || !result.data) continue;
@@ -101,8 +105,8 @@ export async function POST(req: NextRequest) {
                 for (const mail of result.data) {
                     if (!mail.isOpened) continue;
 
-                    const matchingLogs = unreadSentLogs.filter(
-                        (l) => l.requestId === requestId && l.recipientEmail === mail.receiveMailAddr
+                    const matchingLogs = logs.filter(
+                        (l) => l.recipientEmail === mail.receiveMailAddr
                     );
 
                     for (const log of matchingLogs) {
@@ -123,7 +127,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: { synced: pendingLogs.length, updated, readUpdated },
+            data: { synced: pendingLogs.length, updated, readChecked: unreadSentLogs.length, readUpdated },
         });
     } catch (error) {
         console.error("Email sync error:", error);
