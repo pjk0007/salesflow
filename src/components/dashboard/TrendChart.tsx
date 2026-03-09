@@ -82,6 +82,14 @@ export default function TrendChart({ data, channel }: TrendChartProps) {
                         />
                         <Area
                             type="monotone"
+                            dataKey="emailOpened"
+                            name="이메일 읽음"
+                            stroke="#8b5cf6"
+                            fill="#8b5cf6"
+                            fillOpacity={0.2}
+                        />
+                        <Area
+                            type="monotone"
                             dataKey="emailFailed"
                             name="이메일 실패"
                             stackId="email"

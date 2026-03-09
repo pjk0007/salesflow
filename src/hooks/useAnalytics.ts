@@ -6,6 +6,7 @@ export interface TrendItem {
     alimtalkFailed: number;
     emailSent: number;
     emailFailed: number;
+    emailOpened: number;
 }
 
 export interface ChannelSummary {
