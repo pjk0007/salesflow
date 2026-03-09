@@ -53,6 +53,7 @@ function buildSystemPrompt(input: GenerateEmailInput): string {
     let prompt = `당신은 B2B 영업/마케팅 이메일 전문가입니다.
 사용자의 지시에 따라 이메일을 작성해주세요.
 반드시 JSON 형식으로 응답하세요: { "subject": "이메일 제목", "htmlBody": "<html>...</html>" }
+중요: htmlBody 값 안의 모든 큰따옴표(")는 반드시 \\"로 이스케이프하세요. HTML 속성에는 큰따옴표 대신 작은따옴표(')를 사용하세요 (예: style='color: red').
 subject는 반드시 plain text만 사용하세요. HTML 태그(<b>, <u> 등)를 절대 넣지 마세요.
 
 [스타일 규칙 — 반드시 준수]`;
@@ -311,7 +312,15 @@ function recoverTruncatedEmailJson(content: string): Record<string, unknown> | n
             if (next === "\\") { htmlBody += "\\"; i += 2; continue; }
             htmlBody += next; i += 2; continue;
         }
-        if (content[i] === '"') break;
+        if (content[i] === '"') {
+            // JSON 종료 확인: 뒤에 } 또는 끝이면 진짜 종료
+            const remaining = content.substring(i + 1).trimStart();
+            if (remaining.startsWith("}") || remaining === "" || remaining.startsWith("```")) break;
+            // HTML 속성 안의 이스케이프 안 된 따옴표 → 그대로 포함
+            htmlBody += '"';
+            i++;
+            continue;
+        }
         htmlBody += content[i];
         i++;
     }
