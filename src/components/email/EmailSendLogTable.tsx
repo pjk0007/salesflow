@@ -47,13 +47,26 @@ export default function EmailSendLogTable() {
     const [page, setPage] = useState(1);
     const [triggerType, setTriggerType] = useState<string>("");
     const [isOpened, setIsOpened] = useState<string>("");
+    const [period, setPeriod] = useState<string>("");
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<EmailSendLog | null>(null);
+
+    const dateRange = (() => {
+        if (!period) return {};
+        const end = new Date();
+        const start = new Date();
+        start.setDate(start.getDate() - Number(period));
+        return {
+            startDate: start.toISOString().split("T")[0],
+            endDate: end.toISOString().split("T")[0],
+        };
+    })();
 
     const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
         page,
         triggerType: triggerType || undefined,
         isOpened: isOpened || undefined,
+        ...dateRange,
     });
 
     const totalPages = Math.ceil(totalCount / 50);
@@ -113,6 +126,17 @@ export default function EmailSendLogTable() {
                         <SelectItem value="all">전체</SelectItem>
                         <SelectItem value="1">읽음</SelectItem>
                         <SelectItem value="0">안읽음</SelectItem>
+                    </SelectContent>
+                </Select>
+                <Select value={period || "all"} onValueChange={(v) => { setPeriod(v === "all" ? "" : v); setPage(1); }}>
+                    <SelectTrigger className="w-[130px]">
+                        <SelectValue placeholder="발송일" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">전체 기간</SelectItem>
+                        <SelectItem value="7">최근 7일</SelectItem>
+                        <SelectItem value="30">최근 30일</SelectItem>
+                        <SelectItem value="90">최근 90일</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs } from "@/lib/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -24,6 +24,16 @@ export async function GET(req: NextRequest) {
         const triggerType = searchParams.get("triggerType");
         if (triggerType) {
             conditions.push(eq(emailSendLogs.triggerType, triggerType));
+        }
+        const startDate = searchParams.get("startDate");
+        if (startDate) {
+            conditions.push(gte(emailSendLogs.sentAt, new Date(startDate)));
+        }
+        const endDate = searchParams.get("endDate");
+        if (endDate) {
+            const end = new Date(endDate);
+            end.setDate(end.getDate() + 1);
+            conditions.push(lte(emailSendLogs.sentAt, end));
         }
         const isOpened = searchParams.get("isOpened");
         if (isOpened === "1") {
