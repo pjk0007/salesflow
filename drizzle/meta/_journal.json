@@ -183,6 +183,13 @@
       "when": 1770948800000,
       "tag": "0025_email_followup",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1770948900000,
+      "tag": "0026_followup_chain",
+      "breakpoints": true
     }
   ]
 }
