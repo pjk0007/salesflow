@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { Product } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface ApiResponse<T> {
     success: boolean;
@@ -13,7 +14,6 @@ interface UseProductsOptions {
     activeOnly?: boolean;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useProducts(options?: UseProductsOptions) {
     const params = new URLSearchParams();
@@ -24,7 +24,7 @@ export function useProducts(options?: UseProductsOptions) {
     const qs = params.toString();
     const key = `/api/products${qs ? `?${qs}` : ""}`;
 
-    const { data, error, isLoading, mutate } = useSWR<ApiResponse<Product[]>>(key, fetcher);
+    const { data, error, isLoading, mutate } = useSWR<ApiResponse<Product[]>>(key, defaultFetcher);
 
     const createProduct = async (input: {
         name: string;

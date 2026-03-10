@@ -1,11 +1,11 @@
 import useSWR from "swr";
 import type { WebForm } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface WebFormWithFieldCount extends WebForm {
     fieldCount: number;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useWebForms(workspaceId?: number | null) {
     const key = workspaceId
@@ -15,7 +15,7 @@ export function useWebForms(workspaceId?: number | null) {
     const { data, error, isLoading, mutate } = useSWR<{
         success: boolean;
         data: WebFormWithFieldCount[];
-    }>(key, fetcher);
+    }>(key, defaultFetcher);
 
     const createForm = async (input: {
         name: string;

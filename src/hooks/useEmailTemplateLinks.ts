@@ -1,17 +1,17 @@
 import useSWR from "swr";
 import type { EmailTemplateLink } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplateLinksResponse {
     success: boolean;
     data?: EmailTemplateLink[];
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useEmailTemplateLinks(partitionId: number | null) {
     const { data, error, isLoading, mutate } = useSWR<TemplateLinksResponse>(
         partitionId ? `/api/email/template-links?partitionId=${partitionId}` : null,
-        fetcher
+        defaultFetcher
     );
 
     const createLink = async (linkData: {

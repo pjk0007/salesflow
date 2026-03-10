@@ -1,12 +1,12 @@
 import useSWR from "swr";
 import type { ApiResponse, OrgInfo, UpdateOrgInput } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useOrgSettings() {
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<OrgInfo>>(
         "/api/org/settings",
-        fetcher
+        defaultFetcher
     );
 
     const updateOrg = async (input: UpdateOrgInput) => {

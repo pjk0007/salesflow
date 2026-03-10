@@ -3,9 +3,7 @@ import { db, records, partitions, workspaces, organizations } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
-import { processAutoTrigger } from "@/lib/alimtalk-automation";
-import { processEmailAutoTrigger } from "@/lib/email-automation";
-import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
+import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
@@ -282,26 +280,12 @@ export async function POST(
             return newRecord;
         });
 
-        processAutoTrigger({
+        dispatchAutoTriggers({
             record: result,
             partitionId,
             triggerType: "on_create",
             orgId: user.orgId,
-        }).catch((err) => console.error("Auto trigger error:", err));
-
-        processEmailAutoTrigger({
-            record: result,
-            partitionId,
-            triggerType: "on_create",
-            orgId: user.orgId,
-        }).catch((err) => console.error("Email auto trigger error:", err));
-
-        processAutoPersonalizedEmail({
-            record: result,
-            partitionId,
-            triggerType: "on_create",
-            orgId: user.orgId,
-        }).catch((err) => console.error("Auto personalized email error:", err));
+        });
 
         processAutoEnrich({
             record: result,

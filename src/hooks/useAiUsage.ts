@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface PurposeBreakdown {
     purpose: string;
@@ -14,12 +15,11 @@ interface AiUsageData {
     breakdown: PurposeBreakdown[];
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAiUsage() {
     const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: AiUsageData }>(
         "/api/ai/usage",
-        fetcher
+        defaultFetcher
     );
 
     return {

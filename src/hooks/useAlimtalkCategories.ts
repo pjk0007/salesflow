@@ -1,6 +1,7 @@
 import useSWR from "swr";
 import { useAlimtalkConfig } from "./useAlimtalkConfig";
 import type { NhnSenderCategory } from "@/lib/nhn-alimtalk";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface CategoriesResponse {
     success: boolean;
@@ -8,14 +9,13 @@ interface CategoriesResponse {
     error?: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAlimtalkCategories() {
     const { isConfigured } = useAlimtalkConfig();
 
     const { data, error, isLoading } = useSWR<CategoriesResponse>(
         isConfigured ? "/api/alimtalk/sender-categories" : null,
-        fetcher,
+        defaultFetcher,
         { revalidateOnFocus: false }
     );
 

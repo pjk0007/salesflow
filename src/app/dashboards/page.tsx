@@ -9,11 +9,9 @@ import { usePartitions } from "@/hooks/usePartitions";
 import { useDashboards } from "@/hooks/useDashboards";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import WidgetConfigDialog from "@/components/dashboard/WidgetConfigDialog";
+import DashboardCreateForm from "@/components/dashboard/DashboardCreateForm";
+import DashboardToolbar from "@/components/dashboard/DashboardToolbar";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
     Select,
     SelectContent,
@@ -22,13 +20,10 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { Plus, Pencil, Link2, Trash2, Globe, Lock, Sparkles, Filter } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { DashboardWidget } from "@/lib/db";
 
-// Dynamic import for react-grid-layout (client-only)
 const DashboardGrid = dynamic(
     () => import("@/components/dashboard/DashboardGrid"),
     { ssr: false }
@@ -91,8 +86,6 @@ export default function DashboardsPage() {
             });
     }, [selectedDashboardId]);
 
-    const hasAi = !!aiPrompt.trim();
-
     // 파티션 범위 관련
     const scopeIds = selectedDashboard?.partitionIds as number[] | null;
     const scopeLabel = !scopeIds || scopeIds.length === 0
@@ -103,13 +96,9 @@ export default function DashboardsPage() {
         async (partitionId: number, checked: boolean) => {
             if (!selectedDashboard) return;
             const current = (selectedDashboard.partitionIds as number[] | null) || [];
-            let next: number[];
-            if (checked) {
-                next = [...current, partitionId];
-            } else {
-                next = current.filter((id) => id !== partitionId);
-            }
-            // 빈 배열 → null (전체)
+            const next = checked
+                ? [...current, partitionId]
+                : current.filter((id) => id !== partitionId);
             await updateDashboard(selectedDashboard.id, {
                 partitionIds: next.length > 0 ? next : null,
             });
@@ -128,13 +117,9 @@ export default function DashboardsPage() {
         async (folderPartitionIds: number[], checked: boolean) => {
             if (!selectedDashboard) return;
             const current = (selectedDashboard.partitionIds as number[] | null) || [];
-            let next: number[];
-            if (checked) {
-                next = [...new Set([...current, ...folderPartitionIds])];
-            } else {
-                const removeSet = new Set(folderPartitionIds);
-                next = current.filter((id) => !removeSet.has(id));
-            }
+            const next = checked
+                ? [...new Set([...current, ...folderPartitionIds])]
+                : current.filter((id) => !new Set(folderPartitionIds).has(id));
             await updateDashboard(selectedDashboard.id, {
                 partitionIds: next.length > 0 ? next : null,
             });
@@ -143,12 +128,13 @@ export default function DashboardsPage() {
         [selectedDashboard, updateDashboard, mutateData]
     );
 
+    const hasAi = !!aiPrompt.trim();
+
     const handleCreate = useCallback(async () => {
         if (!workspaceId) return;
         if (!hasAi && !newName) return;
         setCreating(true);
 
-        // 1. 대시보드 생성
         const result = await createDashboard({
             name: newName || aiPrompt.trim().slice(0, 30),
             workspaceId,
@@ -161,7 +147,6 @@ export default function DashboardsPage() {
 
         const dashboardId = result.data.id;
 
-        // 2. AI 프롬프트가 있으면 위젯 자동 생성
         if (hasAi) {
             try {
                 const aiRes = await fetch("/api/ai/generate-dashboard", {
@@ -179,11 +164,9 @@ export default function DashboardsPage() {
                 const aiJson = await aiRes.json();
                 if (aiJson.success) {
                     const data = aiJson.data;
-                    // AI가 생성한 이름으로 대시보드 이름 업데이트
                     if (data.name) {
                         await updateDashboard(dashboardId, { name: data.name });
                     }
-                    // 위젯 일괄 추가
                     for (const w of data.widgets) {
                         await fetch(`/api/dashboards/${dashboardId}/widgets`, {
                             method: "POST",
@@ -191,7 +174,6 @@ export default function DashboardsPage() {
                             body: JSON.stringify(w),
                         });
                     }
-                    // 위젯 목록 다시 로드
                     const widgetRes = await fetch(`/api/dashboards/${dashboardId}`);
                     const widgetJson = await widgetRes.json();
                     if (widgetJson.success) {
@@ -208,7 +190,6 @@ export default function DashboardsPage() {
             toast.success("대시보드가 생성되었습니다.");
         }
 
-        // 3. 정리 + 새 대시보드 선택
         setShowCreate(false);
         setNewName("");
         setAiPrompt("");
@@ -249,14 +230,12 @@ export default function DashboardsPage() {
     const handleLayoutChange = useCallback(
         async (layouts: Array<{ id: number; x: number; y: number; w: number; h: number }>) => {
             if (!selectedDashboardId) return;
-            // 로컬 상태 즉시 반영 (스냅백 방지)
             setWidgets((prev) =>
                 prev.map((w) => {
                     const l = layouts.find((lay) => lay.id === w.id);
                     return l ? { ...w, layoutX: l.x, layoutY: l.y, layoutW: l.w, layoutH: l.h } : w;
                 })
             );
-            // 서버에 저장
             await fetch(`/api/dashboards/${selectedDashboardId}/widgets`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -380,42 +359,15 @@ export default function DashboardsPage() {
 
                 {/* 인라인 생성 영역 */}
                 {showCreate && (
-                    <div className="border rounded-lg p-4 space-y-3">
-                        <div className="space-y-2">
-                            <Label>대시보드 이름</Label>
-                            <Input
-                                value={newName}
-                                onChange={(e) => setNewName(e.target.value)}
-                                placeholder="대시보드 이름"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label className="flex items-center gap-1">
-                                <Sparkles className="h-4 w-4" /> AI 위젯 자동 생성
-                                <span className="text-muted-foreground font-normal">(선택)</span>
-                            </Label>
-                            <Textarea
-                                value={aiPrompt}
-                                onChange={(e) => setAiPrompt(e.target.value)}
-                                placeholder="예: 영업 현황 대시보드, 월별 매출 분석"
-                                rows={2}
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                입력하면 대시보드 이름과 위젯을 AI가 자동으로 구성합니다.
-                            </p>
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                onClick={handleCreate}
-                                disabled={creating || (!newName && !hasAi)}
-                            >
-                                {creating ? (hasAi ? "AI 생성 중..." : "생성 중...") : (hasAi ? "AI로 생성" : "생성")}
-                            </Button>
-                            <Button variant="outline" onClick={() => { setShowCreate(false); setNewName(""); setAiPrompt(""); }}>
-                                취소
-                            </Button>
-                        </div>
-                    </div>
+                    <DashboardCreateForm
+                        newName={newName}
+                        onNewNameChange={setNewName}
+                        aiPrompt={aiPrompt}
+                        onAiPromptChange={setAiPrompt}
+                        creating={creating}
+                        onSubmit={handleCreate}
+                        onCancel={() => { setShowCreate(false); setNewName(""); setAiPrompt(""); }}
+                    />
                 )}
 
                 {/* Dashboard tabs */}
@@ -439,129 +391,25 @@ export default function DashboardsPage() {
 
                 {/* Toolbar */}
                 {selectedDashboard && (
-                    <div className="flex items-center gap-2 border-b pb-3">
-                        <Button
-                            variant={isEditing ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setIsEditing(!isEditing)}
-                        >
-                            <Pencil className="h-3 w-3 mr-1" />
-                            {isEditing ? "편집 완료" : "편집"}
-                        </Button>
-                        {isEditing && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    setEditingWidget(null);
-                                    setWidgetConfigOpen(true);
-                                }}
-                            >
-                                <Plus className="h-3 w-3 mr-1" /> 위젯 추가
-                            </Button>
-                        )}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleTogglePublic}
-                        >
-                            {selectedDashboard.isPublic ? (
-                                <Globe className="h-3 w-3 mr-1" />
-                            ) : (
-                                <Lock className="h-3 w-3 mr-1" />
-                            )}
-                            {selectedDashboard.isPublic ? "공개" : "비공개"}
-                        </Button>
-                        {selectedDashboard.isPublic && (
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={handleCopyLink}
-                            >
-                                <Link2 className="h-3 w-3 mr-1" /> 링크 복사
-                            </Button>
-                        )}
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button variant="ghost" size="sm">
-                                    <Filter className="h-3 w-3 mr-1" />
-                                    데이터 범위: {scopeLabel}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-64 max-h-80 overflow-y-auto" align="start">
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <Checkbox
-                                            id="scope-all"
-                                            checked={!scopeIds || scopeIds.length === 0}
-                                            onCheckedChange={() => handleScopeAll()}
-                                        />
-                                        <label htmlFor="scope-all" className="text-sm font-medium">전체</label>
-                                    </div>
-                                    {partitionTree && (
-                                        <>
-                                            {partitionTree.folders.map((folder) => {
-                                                const folderPIds = folder.partitions.map((p) => p.id);
-                                                const allChecked = scopeIds ? folderPIds.every((id) => scopeIds.includes(id)) : false;
-                                                const someChecked = scopeIds ? folderPIds.some((id) => scopeIds.includes(id)) : false;
-                                                return (
-                                                    <div key={folder.id}>
-                                                        <div className="flex items-center gap-2">
-                                                            <Checkbox
-                                                                id={`folder-${folder.id}`}
-                                                                checked={allChecked ? true : someChecked ? "indeterminate" : false}
-                                                                onCheckedChange={(checked) => handleScopeFolder(folderPIds, !!checked)}
-                                                            />
-                                                            <label htmlFor={`folder-${folder.id}`} className="text-sm font-medium">{folder.name}</label>
-                                                        </div>
-                                                        <div className="ml-6 space-y-1 mt-1">
-                                                            {folder.partitions.map((p) => (
-                                                                <div key={p.id} className="flex items-center gap-2">
-                                                                    <Checkbox
-                                                                        id={`part-${p.id}`}
-                                                                        checked={scopeIds ? scopeIds.includes(p.id) : false}
-                                                                        onCheckedChange={(checked) => handleScopeChange(p.id, !!checked)}
-                                                                    />
-                                                                    <label htmlFor={`part-${p.id}`} className="text-sm text-muted-foreground">{p.name}</label>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                            {partitionTree.ungrouped.length > 0 && (
-                                                <div className="space-y-1">
-                                                    {partitionTree.ungrouped.map((p) => (
-                                                        <div key={p.id} className="flex items-center gap-2">
-                                                            <Checkbox
-                                                                id={`part-${p.id}`}
-                                                                checked={scopeIds ? scopeIds.includes(p.id) : false}
-                                                                onCheckedChange={(checked) => handleScopeChange(p.id, !!checked)}
-                                                            />
-                                                            <label htmlFor={`part-${p.id}`} className="text-sm text-muted-foreground">{p.name}</label>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
-                                </div>
-                            </PopoverContent>
-                        </Popover>
-                        <div className="ml-auto">
-                            <Badge variant="outline">
-                                갱신: {selectedDashboard.refreshInterval}초
-                            </Badge>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive"
-                            onClick={handleDelete}
-                        >
-                            <Trash2 className="h-3 w-3" />
-                        </Button>
-                    </div>
+                    <DashboardToolbar
+                        isEditing={isEditing}
+                        onToggleEdit={() => setIsEditing(!isEditing)}
+                        onAddWidget={() => {
+                            setEditingWidget(null);
+                            setWidgetConfigOpen(true);
+                        }}
+                        isPublic={!!selectedDashboard.isPublic}
+                        onTogglePublic={handleTogglePublic}
+                        onCopyLink={handleCopyLink}
+                        refreshInterval={selectedDashboard.refreshInterval}
+                        onDelete={handleDelete}
+                        scopeIds={scopeIds}
+                        scopeLabel={scopeLabel}
+                        partitionTree={partitionTree}
+                        onScopeChange={handleScopeChange}
+                        onScopeAll={handleScopeAll}
+                        onScopeFolder={handleScopeFolder}
+                    />
                 )}
 
                 {/* Grid */}

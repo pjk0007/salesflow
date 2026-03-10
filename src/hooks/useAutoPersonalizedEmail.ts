@@ -1,6 +1,6 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export interface AutoPersonalizedLink {
     id: number;
@@ -57,7 +57,7 @@ interface UpdateInput {
 export function useAutoPersonalizedEmail(partitionId: number | null) {
     const { data, error, isLoading, mutate } = useSWR(
         partitionId ? `/api/email/auto-personalized?partitionId=${partitionId}` : null,
-        fetcher
+        defaultFetcher
     );
 
     const createLink = async (input: CreateInput) => {

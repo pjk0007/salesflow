@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface AlimtalkConfigData {
     id: number;
@@ -13,12 +14,11 @@ interface ConfigResponse {
     data: AlimtalkConfigData | null;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAlimtalkConfig() {
     const { data, error, isLoading, mutate } = useSWR<ConfigResponse>(
         "/api/alimtalk/config",
-        fetcher
+        defaultFetcher
     );
 
     const saveConfig = async (config: { appKey: string; secretKey: string }) => {

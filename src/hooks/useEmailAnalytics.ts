@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface EmailStats {
     total: number;
@@ -42,16 +43,15 @@ interface TrendItem {
     alimtalkFailed: number;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useEmailAnalytics(startDate: string, endDate: string) {
     const { data: summaryData, isLoading: summaryLoading } = useSWR<{ success: boolean; data: SummaryData }>(
         `/api/analytics/summary?startDate=${startDate}&endDate=${endDate}`,
-        fetcher
+        defaultFetcher
     );
     const { data: trendsData, isLoading: trendsLoading } = useSWR<{ success: boolean; data: TrendItem[] }>(
         `/api/analytics/trends?startDate=${startDate}&endDate=${endDate}&channel=email`,
-        fetcher
+        defaultFetcher
     );
 
     return {

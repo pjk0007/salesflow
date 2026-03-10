@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { RecordAutoEnrichRule } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface ApiResponse {
     success: boolean;
@@ -7,12 +8,11 @@ interface ApiResponse {
     error?: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAutoEnrichRules(partitionId: number | null) {
     const { data, isLoading, mutate } = useSWR<ApiResponse>(
         partitionId ? `/api/records/auto-enrich?partitionId=${partitionId}` : null,
-        fetcher
+        defaultFetcher
     );
 
     const createRule = async (ruleData: {

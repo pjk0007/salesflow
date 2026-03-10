@@ -1,12 +1,12 @@
 import useSWR from "swr";
 import type { ApiResponse, WorkspaceDetail, UpdateWorkspaceInput } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useWorkspaceSettings(workspaceId: number | null) {
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<WorkspaceDetail>>(
         workspaceId ? `/api/workspaces/${workspaceId}/settings` : null,
-        fetcher
+        defaultFetcher
     );
 
     const updateWorkspace = async (input: UpdateWorkspaceInput) => {

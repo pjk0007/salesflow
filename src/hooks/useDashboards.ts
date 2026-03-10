@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import type { Dashboard } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useDashboards(workspaceId?: number | null) {
     const key = workspaceId
@@ -11,7 +11,7 @@ export function useDashboards(workspaceId?: number | null) {
     const { data, error, isLoading, mutate } = useSWR<{
         success: boolean;
         data: Dashboard[];
-    }>(key, fetcher);
+    }>(key, defaultFetcher);
 
     const createDashboard = async (input: {
         name: string;

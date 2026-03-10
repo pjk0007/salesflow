@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export interface NhnCategory {
     categoryId: number;
@@ -11,12 +12,11 @@ interface CategoriesResponse {
     data?: NhnCategory[];
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useEmailCategories() {
     const { data, isLoading, mutate } = useSWR<CategoriesResponse>(
         "/api/email/categories",
-        fetcher
+        defaultFetcher
     );
 
     const createCategory = async (catData: { categoryName: string; categoryDesc?: string }) => {

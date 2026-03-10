@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { UnifiedLog } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseUnifiedLogsParams {
     channel?: string;
@@ -22,7 +23,6 @@ interface UnifiedLogsResponse {
     totalPages: number;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function buildQueryString(params: UseUnifiedLogsParams): string {
     const qs = new URLSearchParams();
@@ -42,7 +42,7 @@ export function useUnifiedLogs(params: UseUnifiedLogsParams = {}) {
     const queryString = buildQueryString(params);
     const { data, error, isLoading, mutate } = useSWR<UnifiedLogsResponse>(
         `/api/logs/unified?${queryString}`,
-        fetcher
+        defaultFetcher
     );
 
     return {

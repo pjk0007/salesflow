@@ -1,17 +1,17 @@
 import useSWR from "swr";
 import type { AlimtalkTemplateLink } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplateLinksResponse {
     success: boolean;
     data?: AlimtalkTemplateLink[];
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAlimtalkTemplateLinks(partitionId: number | null) {
     const { data, error, isLoading, mutate } = useSWR<TemplateLinksResponse>(
         partitionId ? `/api/alimtalk/template-links?partitionId=${partitionId}` : null,
-        fetcher
+        defaultFetcher
     );
 
     const createLink = async (linkData: {

@@ -1,12 +1,12 @@
 import useSWR from "swr";
 import type { ApiResponse, InvitationItem, OrgRole } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useOrgInvitations() {
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<InvitationItem[]>>(
         "/api/org/invitations",
-        fetcher
+        defaultFetcher
     );
 
     const createInvitation = async (email: string, role: OrgRole) => {

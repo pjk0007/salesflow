@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export interface TrendItem {
     date: string;
@@ -46,7 +47,6 @@ function getDateRange(period: Period): { startDate: string; endDate: string } {
     };
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const emptySummary: AnalyticsSummary = {
     alimtalk: { total: 0, sent: 0, failed: 0, pending: 0 },
@@ -64,17 +64,17 @@ export function useAnalytics(period: Period = "30d", channel: string = "all") {
     const { data: trendsData, isLoading: trendsLoading } = useSWR<{
         success: boolean;
         data?: TrendItem[];
-    }>(trendsKey, fetcher, { refreshInterval: 60000 });
+    }>(trendsKey, defaultFetcher, { refreshInterval: 60000 });
 
     const { data: summaryData, isLoading: summaryLoading } = useSWR<{
         success: boolean;
         data?: AnalyticsSummary;
-    }>(summaryKey, fetcher, { refreshInterval: 60000 });
+    }>(summaryKey, defaultFetcher, { refreshInterval: 60000 });
 
     const { data: templatesData, isLoading: templatesLoading } = useSWR<{
         success: boolean;
         data?: TemplatePerformance[];
-    }>(templatesKey, fetcher, { refreshInterval: 60000 });
+    }>(templatesKey, defaultFetcher, { refreshInterval: 60000 });
 
     return {
         trends: trendsData?.data ?? [],

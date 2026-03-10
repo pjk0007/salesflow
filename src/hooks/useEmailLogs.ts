@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { EmailSendLog } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface LogsResponse {
     success: boolean;
@@ -7,7 +8,6 @@ interface LogsResponse {
     totalCount?: number;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useEmailLogs(params?: { partitionId?: number; triggerType?: string; isOpened?: string; startDate?: string; endDate?: string; page?: number }) {
     const qs = new URLSearchParams();
@@ -21,7 +21,7 @@ export function useEmailLogs(params?: { partitionId?: number; triggerType?: stri
 
     const { data, error, isLoading, mutate } = useSWR<LogsResponse>(
         `/api/email/logs${query}`,
-        fetcher
+        defaultFetcher
     );
 
     const syncLogs = async () => {

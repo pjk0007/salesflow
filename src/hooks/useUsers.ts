@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { UserListItem, CreateUserInput, UpdateUserInput } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseUsersParams {
     page?: number;
@@ -24,13 +25,12 @@ function buildQueryString(params: UseUsersParams): string {
     return qs.toString();
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useUsers(params: UseUsersParams) {
     const queryString = buildQueryString(params);
     const key = `/api/users?${queryString}`;
 
-    const { data, error, isLoading, mutate } = useSWR<UsersResponse>(key, fetcher);
+    const { data, error, isLoading, mutate } = useSWR<UsersResponse>(key, defaultFetcher);
 
     const createUser = async (userData: CreateUserInput) => {
         const res = await fetch("/api/users", {

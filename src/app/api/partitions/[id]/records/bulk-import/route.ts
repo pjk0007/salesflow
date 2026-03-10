@@ -5,6 +5,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
+// Note: bulk-import uses sequential AI email (rate limit), so dispatchAutoTriggers is not used here
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { broadcastToPartition } from "@/lib/sse";
 

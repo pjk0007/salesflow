@@ -1,6 +1,7 @@
 import useSWR from "swr";
 import { useAlimtalkConfig } from "./useAlimtalkConfig";
 import type { NhnSenderProfile } from "@/lib/nhn-alimtalk";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface SendersResponse {
     success: boolean;
@@ -10,14 +11,13 @@ interface SendersResponse {
     };
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAlimtalkSenders() {
     const { isConfigured } = useAlimtalkConfig();
 
     const { data, error, isLoading, mutate } = useSWR<SendersResponse>(
         isConfigured ? "/api/alimtalk/senders" : null,
-        fetcher
+        defaultFetcher
     );
 
     const registerSender = async (senderData: {

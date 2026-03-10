@@ -1,7 +1,8 @@
-import { db, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records, emailSenderProfiles, emailSignatures } from "@/lib/db";
+import { db, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
 import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
+import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 
 // ============================================
@@ -47,34 +48,13 @@ async function sendEmailSingle(
     const config = await getEmailConfig(orgId);
 
     // 발신자 프로필 결정 (기본 프로필 → 레거시 fallback)
-    let senderFromEmail: string | null = null;
-    let senderFromName: string | undefined;
-    const [defaultProfile] = await db
-        .select()
-        .from(emailSenderProfiles)
-        .where(and(eq(emailSenderProfiles.orgId, orgId), eq(emailSenderProfiles.isDefault, true)))
-        .limit(1);
-    if (defaultProfile) {
-        senderFromEmail = defaultProfile.fromEmail;
-        senderFromName = defaultProfile.fromName;
-    } else if (config?.fromEmail) {
-        senderFromEmail = config.fromEmail;
-        senderFromName = config.fromName || undefined;
-    }
-    if (!senderFromEmail) return false;
+    const sender = await resolveDefaultSender(orgId, config);
+    if (!sender.fromEmail) return false;
+    const senderFromEmail = sender.fromEmail;
+    const senderFromName = sender.fromName;
 
     // 서명 결정 (기본 서명 → 레거시 fallback)
-    let signatureJson: string | null = null;
-    const [defaultSig] = await db
-        .select()
-        .from(emailSignatures)
-        .where(and(eq(emailSignatures.orgId, orgId), eq(emailSignatures.isDefault, true)))
-        .limit(1);
-    if (defaultSig) {
-        signatureJson = defaultSig.signature;
-    } else if (config?.signatureEnabled && config?.signature) {
-        signatureJson = config.signature;
-    }
+    const signatureJson = await resolveDefaultSignature(orgId, config);
 
     // 이메일 템플릿 조회
     const [template] = await db

@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface EmailConfigData {
     id: number;
@@ -16,12 +17,11 @@ interface ConfigResponse {
     data: EmailConfigData | null;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useEmailConfig() {
     const { data, error, isLoading, mutate } = useSWR<ConfigResponse>(
         "/api/email/config",
-        fetcher
+        defaultFetcher
     );
 
     const saveConfig = async (config: { appKey: string; secretKey: string; fromName?: string; fromEmail?: string; signature?: string; signatureEnabled?: boolean }) => {

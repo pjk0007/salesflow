@@ -1,12 +1,12 @@
 import useSWR from "swr";
 import type { ApiResponse, MemberItem, OrgRole } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useOrgMembers() {
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<MemberItem[]>>(
         "/api/org/members",
-        fetcher
+        defaultFetcher
     );
 
     const updateRole = async (userId: string, role: OrgRole) => {

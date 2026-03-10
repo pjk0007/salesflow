@@ -1,6 +1,6 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useDashboardData(
     dashboardId: number | null,
@@ -13,7 +13,7 @@ export function useDashboardData(
     const { data, error, isLoading, mutate } = useSWR<{
         success: boolean;
         data: Record<number, unknown>;
-    }>(key, fetcher, {
+    }>(key, defaultFetcher, {
         refreshInterval: refreshInterval ? refreshInterval * 1000 : undefined,
     });
 

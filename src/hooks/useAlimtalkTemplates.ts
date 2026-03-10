@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { NhnTemplate } from "@/lib/nhn-alimtalk";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplatesResponse {
     success: boolean;
@@ -9,12 +10,11 @@ interface TemplatesResponse {
     };
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useAlimtalkTemplates(senderKey: string | null) {
     const { data, error, isLoading, mutate } = useSWR<TemplatesResponse>(
         senderKey ? `/api/alimtalk/templates?senderKey=${encodeURIComponent(senderKey)}` : null,
-        fetcher
+        defaultFetcher
     );
 
     return {

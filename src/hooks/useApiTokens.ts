@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface ApiTokenScope {
     id: number;
@@ -35,12 +36,11 @@ interface UpdateTokenInput {
     scopes?: CreateTokenInput["scopes"];
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useApiTokens() {
     const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: ApiTokenWithScopes[] }>(
         "/api/api-tokens",
-        fetcher
+        defaultFetcher
     );
 
     const createToken = async (input: CreateTokenInput) => {

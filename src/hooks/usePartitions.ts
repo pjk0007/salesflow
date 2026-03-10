@@ -1,18 +1,18 @@
 import useSWR from "swr";
 import type { ApiResponse, CreatePartitionInput, CreateFolderInput } from "@/types";
 import type { Folder, Partition } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export interface PartitionTree {
     folders: (Folder & { partitions: Partition[] })[];
     ungrouped: Partition[];
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function usePartitions(workspaceId: number | null) {
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<PartitionTree>>(
         workspaceId ? `/api/workspaces/${workspaceId}/partitions` : null,
-        fetcher
+        defaultFetcher
     );
 
     const createPartition = async (input: CreatePartitionInput) => {

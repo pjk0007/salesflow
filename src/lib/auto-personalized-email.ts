@@ -1,8 +1,9 @@
-import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products, emailSenderProfiles, emailSignatures } from "@/lib/db";
+import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
+import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import type { DbRecord } from "@/lib/db";
 
 // ============================================
@@ -87,34 +88,13 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             const emailConfig = await getEmailConfig(orgId);
 
             // 6-1. 발신자 프로필 결정 (기본 프로필 → 레거시 fallback)
-            let senderFromEmail: string | null = null;
-            let senderFromName: string | undefined;
-            const [defaultProfile] = await db
-                .select()
-                .from(emailSenderProfiles)
-                .where(and(eq(emailSenderProfiles.orgId, orgId), eq(emailSenderProfiles.isDefault, true)))
-                .limit(1);
-            if (defaultProfile) {
-                senderFromEmail = defaultProfile.fromEmail;
-                senderFromName = defaultProfile.fromName;
-            } else if (emailConfig?.fromEmail) {
-                senderFromEmail = emailConfig.fromEmail;
-                senderFromName = emailConfig.fromName || undefined;
-            }
-            if (!senderFromEmail) continue;
+            const sender = await resolveDefaultSender(orgId, emailConfig);
+            if (!sender.fromEmail) continue;
+            const senderFromEmail = sender.fromEmail;
+            const senderFromName = sender.fromName;
 
             // 6-2. 서명 결정 (기본 서명 → 레거시 fallback)
-            let signatureJson: string | null = null;
-            const [defaultSig] = await db
-                .select()
-                .from(emailSignatures)
-                .where(and(eq(emailSignatures.orgId, orgId), eq(emailSignatures.isDefault, true)))
-                .limit(1);
-            if (defaultSig) {
-                signatureJson = defaultSig.signature;
-            } else if (emailConfig?.signatureEnabled && emailConfig?.signature) {
-                signatureJson = emailConfig.signature;
-            }
+            const signatureJson = await resolveDefaultSignature(orgId, emailConfig);
 
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
             let recordData = { ...data };

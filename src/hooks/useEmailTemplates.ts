@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { EmailTemplate } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplatesResponse {
     success: boolean;
@@ -7,12 +8,11 @@ interface TemplatesResponse {
     totalCount?: number;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useEmailTemplates() {
     const { data, error, isLoading, mutate } = useSWR<TemplatesResponse>(
         "/api/email/templates",
-        fetcher
+        defaultFetcher
     );
 
     const createTemplate = async (templateData: {

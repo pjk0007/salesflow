@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, CreateWorkspaceInput } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface WorkspaceItem {
     id: number;
@@ -8,12 +9,11 @@ interface WorkspaceItem {
     icon: string | null;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useWorkspaces() {
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<WorkspaceItem[]>>(
         "/api/workspaces",
-        fetcher
+        defaultFetcher
     );
 
     const createWorkspace = async (input: CreateWorkspaceInput) => {

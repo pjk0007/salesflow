@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import type { AlimtalkSendLog } from "@/lib/db";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseAlimtalkLogsParams {
     partitionId?: number | null;
@@ -20,7 +21,6 @@ interface LogsResponse {
     totalPages: number;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 function buildQueryString(params: UseAlimtalkLogsParams): string {
     const qs = new URLSearchParams();
@@ -38,7 +38,7 @@ export function useAlimtalkLogs(params: UseAlimtalkLogsParams = {}) {
     const queryString = buildQueryString(params);
     const { data, error, isLoading, mutate } = useSWR<LogsResponse>(
         `/api/alimtalk/logs?${queryString}`,
-        fetcher
+        defaultFetcher
     );
 
     const syncResults = async (logIds?: number[]) => {

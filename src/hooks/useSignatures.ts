@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface EmailSignatureData {
     id: number;
@@ -10,12 +11,11 @@ interface EmailSignatureData {
     updatedAt: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useSignatures() {
     const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: EmailSignatureData[] }>(
         "/api/email/signatures",
-        fetcher
+        defaultFetcher
     );
 
     const createSignature = async (sig: { name: string; signature: string }) => {

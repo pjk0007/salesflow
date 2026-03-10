@@ -1,4 +1,5 @@
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface SenderProfile {
     id: number;
@@ -11,12 +12,11 @@ interface SenderProfile {
     updatedAt: string;
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useSenderProfiles() {
     const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data: SenderProfile[] }>(
         "/api/email/sender-profiles",
-        fetcher
+        defaultFetcher
     );
 
     const createProfile = async (profile: { name: string; fromName: string; fromEmail: string }) => {

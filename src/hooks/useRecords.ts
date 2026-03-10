@@ -1,6 +1,7 @@
 import useSWR from "swr";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition, ImportResult } from "@/types";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseRecordsParams {
     partitionId: number | null;
@@ -37,7 +38,6 @@ function buildQueryString(params: UseRecordsParams): string {
     return qs.toString();
 }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export function useRecords(params: UseRecordsParams) {
     const queryString = buildQueryString(params);
@@ -45,7 +45,7 @@ export function useRecords(params: UseRecordsParams) {
         ? `/api/partitions/${params.partitionId}/records?${queryString}`
         : null;
 
-    const { data, error, isLoading, mutate } = useSWR<RecordsResponse>(key, fetcher);
+    const { data, error, isLoading, mutate } = useSWR<RecordsResponse>(key, defaultFetcher);
 
     const jsonHeaders = (): Record<string, string> => {
         const h: Record<string, string> = { "Content-Type": "application/json" };
