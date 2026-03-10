@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +22,6 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import EmailTemplateLinkDialog from "./EmailTemplateLinkDialog";
-import { useFields } from "@/hooks/useFields";
 
 interface Partition {
     id: number;
@@ -41,23 +40,19 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkListProps) {
+    const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
         partitions.length > 0 ? partitions[0].id : null
     );
     const { templateLinks, isLoading, deleteLink } = useEmailTemplateLinks(selectedPartitionId);
-    const selectedWorkspaceId = partitions.find((p) => p.id === selectedPartitionId)?.workspaceId ?? null;
-    const { fields } = useFields(selectedWorkspaceId);
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [editingLink, setEditingLink] = useState<typeof templateLinks[0] | null>(null);
 
     const handleCreate = () => {
-        setEditingLink(null);
-        setDialogOpen(true);
+        if (!selectedPartitionId) return;
+        router.push(`/email/links/new?partitionId=${selectedPartitionId}`);
     };
 
-    const handleEdit = (link: typeof templateLinks[0]) => {
-        setEditingLink(link);
-        setDialogOpen(true);
+    const handleEdit = (linkId: number) => {
+        router.push(`/email/links/${linkId}?partitionId=${selectedPartitionId}`);
     };
 
     const handleDelete = async (id: number) => {
@@ -141,7 +136,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" onClick={() => handleEdit(link)}>
+                                        <Button variant="ghost" size="icon" onClick={() => handleEdit(link.id)}>
                                             <Pencil className="h-4 w-4" />
                                         </Button>
                                         <Button variant="ghost" size="icon" onClick={() => handleDelete(link.id)}>
@@ -155,15 +150,6 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                 </Table>
             )}
 
-            {selectedPartitionId && (
-                <EmailTemplateLinkDialog
-                    open={dialogOpen}
-                    onOpenChange={setDialogOpen}
-                    partitionId={selectedPartitionId}
-                    link={editingLink}
-                    fields={fields}
-                />
-            )}
         </div>
     );
 }

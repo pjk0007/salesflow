@@ -39,6 +39,7 @@ export function useEmailTemplateLinks(partitionId: number | null) {
         id: number,
         linkData: {
             name?: string;
+            emailTemplateId?: number;
             recipientField?: string;
             variableMappings?: Record<string, string>;
             isActive?: number;

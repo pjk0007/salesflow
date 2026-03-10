@@ -1,15 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAutoPersonalizedEmail, type AutoPersonalizedLink } from "@/hooks/useAutoPersonalizedEmail";
-import { useProducts } from "@/hooks/useProducts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import {
     Select,
     SelectContent,
@@ -17,13 +14,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from "@/components/ui/dialog";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -35,8 +25,6 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
-import { useFields } from "@/hooks/useFields";
-import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -58,130 +46,22 @@ interface AutoPersonalizedEmailConfigProps {
 export default function AutoPersonalizedEmailConfig({
     partitions,
 }: AutoPersonalizedEmailConfigProps) {
+    const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
         partitions[0]?.id ?? null
     );
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [editingLink, setEditingLink] = useState<AutoPersonalizedLink | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
 
-    const { links, isLoading, createLink, updateLink, deleteLink } =
+    const { links, isLoading, updateLink, deleteLink } =
         useAutoPersonalizedEmail(selectedPartitionId);
-    const { products } = useProducts({ activeOnly: true });
-    const selectedWorkspaceId = partitions.find((p) => p.id === selectedPartitionId)?.workspaceId ?? null;
-    const { fields } = useFields(selectedWorkspaceId);
 
-    // Dialog form state
-    const [productId, setProductId] = useState<number | null>(null);
-    const [triggerType, setTriggerType] = useState<"on_create" | "on_update">("on_create");
-    const [recipientField, setRecipientField] = useState("");
-    const [companyField, setCompanyField] = useState("");
-    const [prompt, setPrompt] = useState("");
-    const [tone, setTone] = useState("");
-    const [format, setFormat] = useState<"plain" | "designed">("plain");
-    const [autoResearch, setAutoResearch] = useState(true);
-    const [useSignaturePersona, setUseSignaturePersona] = useState(false);
-    const [conditionEnabled, setConditionEnabled] = useState(false);
-    const [conditionField, setConditionField] = useState("");
-    const [conditionOperator, setConditionOperator] = useState("eq");
-    const [conditionValue, setConditionValue] = useState("");
-    const [submitting, setSubmitting] = useState(false);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [followupConfig, setFollowupConfig] = useState<any>(null);
-
-    const resetForm = () => {
-        setProductId(null);
-        setTriggerType("on_create");
-        setRecipientField("");
-        setCompanyField("");
-        setPrompt("");
-        setTone("");
-        setFormat("plain");
-        setAutoResearch(true);
-        setUseSignaturePersona(false);
-        setConditionEnabled(false);
-        setConditionField("");
-        setConditionOperator("eq");
-        setConditionValue("");
-        setFollowupConfig(null);
-        setEditingLink(null);
+    const handleCreate = () => {
+        if (!selectedPartitionId) return;
+        router.push(`/email/ai-auto/new?partitionId=${selectedPartitionId}`);
     };
 
-    const openCreateDialog = () => {
-        resetForm();
-        setDialogOpen(true);
-    };
-
-    const openEditDialog = (link: AutoPersonalizedLink) => {
-        setEditingLink(link);
-        setProductId(link.productId);
-        setTriggerType(link.triggerType as "on_create" | "on_update");
-        setRecipientField(link.recipientField);
-        setCompanyField(link.companyField);
-        setPrompt(link.prompt || "");
-        setTone(link.tone || "");
-        setFormat((link.format as "plain" | "designed") || "plain");
-        setAutoResearch(link.autoResearch === 1);
-        setUseSignaturePersona(link.useSignaturePersona === 1);
-        setFollowupConfig(link.followupConfig ?? null);
-        if (link.triggerCondition?.field) {
-            setConditionEnabled(true);
-            setConditionField(link.triggerCondition.field);
-            setConditionOperator(link.triggerCondition.operator || "eq");
-            setConditionValue(link.triggerCondition.value || "");
-        } else {
-            setConditionEnabled(false);
-            setConditionField("");
-            setConditionOperator("eq");
-            setConditionValue("");
-        }
-        setDialogOpen(true);
-    };
-
-    const handleSubmit = async () => {
-        if (!selectedPartitionId || !recipientField || !companyField) return;
-
-        setSubmitting(true);
-        try {
-            const triggerCondition = conditionEnabled && conditionField
-                ? { field: conditionField, operator: conditionOperator, value: conditionValue }
-                : null;
-
-            if (editingLink) {
-                await updateLink(editingLink.id, {
-                    productId: productId,
-                    triggerType,
-                    recipientField,
-                    companyField,
-                    prompt: prompt || undefined,
-                    tone: tone || undefined,
-                    format,
-                    autoResearch: autoResearch ? 1 : 0,
-                    useSignaturePersona: useSignaturePersona ? 1 : 0,
-                    triggerCondition,
-                    followupConfig: followupConfig || null,
-                });
-            } else {
-                await createLink({
-                    partitionId: selectedPartitionId,
-                    productId: productId,
-                    triggerType,
-                    recipientField,
-                    companyField,
-                    prompt: prompt || undefined,
-                    tone: tone || undefined,
-                    format,
-                    autoResearch: autoResearch ? 1 : 0,
-                    useSignaturePersona: useSignaturePersona ? 1 : 0,
-                    triggerCondition,
-                    followupConfig: followupConfig || null,
-                });
-            }
-            setDialogOpen(false);
-            resetForm();
-        } finally {
-            setSubmitting(false);
-        }
+    const handleEdit = (linkId: number) => {
+        router.push(`/email/ai-auto/${linkId}?partitionId=${selectedPartitionId}`);
     };
 
     const handleToggleActive = async (link: AutoPersonalizedLink) => {
@@ -215,7 +95,7 @@ export default function AutoPersonalizedEmailConfig({
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Button size="sm" onClick={openCreateDialog} disabled={!selectedPartitionId}>
+                        <Button size="sm" onClick={handleCreate} disabled={!selectedPartitionId}>
                             <Plus className="h-4 w-4 mr-1" />
                             규칙 추가
                         </Button>
@@ -274,7 +154,7 @@ export default function AutoPersonalizedEmailConfig({
                                     <Button
                                         variant="ghost"
                                         size="icon"
-                                        onClick={() => openEditDialog(link)}
+                                        onClick={() => handleEdit(link.id)}
                                     >
                                         <Pencil className="h-4 w-4" />
                                     </Button>
@@ -291,212 +171,6 @@ export default function AutoPersonalizedEmailConfig({
                     </div>
                 )}
             </CardContent>
-
-            {/* 생성/수정 Dialog */}
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {editingLink ? "AI 개인화 발송 규칙 수정" : "AI 개인화 발송 규칙 추가"}
-                        </DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                        <div className="space-y-2">
-                            <Label>제품</Label>
-                            <Select
-                                value={productId?.toString() ?? "none"}
-                                onValueChange={(v) => setProductId(v === "none" ? null : Number(v))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="제품 선택 (선택사항)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">선택 안함</SelectItem>
-                                    {products.map((p) => (
-                                        <SelectItem key={p.id} value={p.id.toString()}>
-                                            {p.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>트리거</Label>
-                            <Select
-                                value={triggerType}
-                                onValueChange={(v) => setTriggerType(v as "on_create" | "on_update")}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="on_create">레코드 생성 시</SelectItem>
-                                    <SelectItem value="on_update">레코드 수정 시</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>수신자 이메일 필드</Label>
-                            <Select value={recipientField} onValueChange={setRecipientField}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="필드 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {fields.map((f) => (
-                                        <SelectItem key={f.key} value={f.key}>
-                                            {f.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>회사명 필드</Label>
-                            <Select value={companyField} onValueChange={setCompanyField}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="필드 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {fields.map((f) => (
-                                        <SelectItem key={f.key} value={f.key}>
-                                            {f.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label>AI 지시사항</Label>
-                            <Textarea
-                                value={prompt}
-                                onChange={(e) => setPrompt(e.target.value)}
-                                placeholder="직접 지시사항을 입력하면 아래 형식/톤 설정 대신 이 내용이 사용됩니다."
-                                rows={3}
-                            />
-                            {prompt.trim() && (
-                                <p className="text-xs text-muted-foreground">직접 지시사항이 입력되어 형식/톤 설정은 무시됩니다.</p>
-                            )}
-                        </div>
-
-                        {!prompt.trim() && (
-                            <>
-                                <div className="space-y-2">
-                                    <Label>이메일 형식</Label>
-                                    <Select value={format} onValueChange={(v) => setFormat(v as "plain" | "designed")}>
-                                        <SelectTrigger>
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {FORMAT_OPTIONS.map((f) => (
-                                                <SelectItem key={f.value} value={f.value}>
-                                                    {f.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-muted-foreground">
-                                        {format === "plain" ? "편지처럼 간결한 텍스트 이메일" : "헤더, CTA 버튼 등 디자인 포함 이메일"}
-                                    </p>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <Label>톤</Label>
-                                    <Select value={tone} onValueChange={setTone}>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="기본" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {TONE_OPTIONS.map((t) => (
-                                                <SelectItem key={t.value || "default"} value={t.value || "default"}>
-                                                    {t.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </>
-                        )}
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <Label>발송 조건</Label>
-                                <p className="text-xs text-muted-foreground">특정 조건을 만족할 때만 발송</p>
-                            </div>
-                            <Switch checked={conditionEnabled} onCheckedChange={setConditionEnabled} />
-                        </div>
-
-                        {conditionEnabled && (
-                            <div className="grid grid-cols-3 gap-2">
-                                <Select value={conditionField} onValueChange={setConditionField}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="필드" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {fields.map((f) => (
-                                            <SelectItem key={f.key} value={f.key}>
-                                                {f.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <Select value={conditionOperator} onValueChange={setConditionOperator}>
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="eq">같음</SelectItem>
-                                        <SelectItem value="ne">같지 않음</SelectItem>
-                                        <SelectItem value="contains">포함</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <Input
-                                    value={conditionValue}
-                                    onChange={(e) => setConditionValue(e.target.value)}
-                                    placeholder="값"
-                                />
-                            </div>
-                        )}
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <Label>서명 발신자 페르소나</Label>
-                                <p className="text-xs text-muted-foreground">이메일 서명의 이름/직함으로 발신자 톤을 설정</p>
-                            </div>
-                            <Switch checked={useSignaturePersona} onCheckedChange={setUseSignaturePersona} />
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <Label>회사 자동 조사</Label>
-                                <p className="text-xs text-muted-foreground">AI 웹 검색으로 회사 정보를 자동 조사</p>
-                            </div>
-                            <Switch checked={autoResearch} onCheckedChange={setAutoResearch} />
-                        </div>
-
-                        <FollowupConfigForm
-                            mode="ai"
-                            value={followupConfig}
-                            onChange={setFollowupConfig}
-                        />
-                    </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                            취소
-                        </Button>
-                        <Button
-                            onClick={handleSubmit}
-                            disabled={submitting || !recipientField || !companyField}
-                        >
-                            {submitting && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
-                            {editingLink ? "수정" : "저장"}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
 
             {/* 삭제 확인 */}
             <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>

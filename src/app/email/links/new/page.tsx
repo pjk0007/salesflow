@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
-import { useEmailTemplates } from "@/hooks/useEmailTemplates";
-import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+"use client";
+
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,35 +15,34 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { useEmailTemplates } from "@/hooks/useEmailTemplates";
+import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
+import { useFields } from "@/hooks/useFields";
 import { extractEmailVariables } from "@/lib/email-utils";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
-import type { EmailTemplateLink } from "@/lib/db";
-import type { FieldDefinition } from "@/types";
+import useSWR from "swr";
 
-interface EmailTemplateLinkDialogProps {
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    partitionId: number;
-    link: EmailTemplateLink | null;
-    fields: FieldDefinition[];
-}
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
-export default function EmailTemplateLinkDialog({
-    open,
-    onOpenChange,
-    partitionId,
-    link,
-    fields,
-}: EmailTemplateLinkDialogProps) {
+function NewLinkPageContent() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const partitionId = Number(searchParams.get("partitionId"));
+
+    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const workspaceId = (allPartitionsData?.data as Array<{ id: number; workspaceId: number }>)
+        ?.find((p) => p.id === partitionId)?.workspaceId ?? null;
+
     const { templates: allTemplates } = useEmailTemplates();
     const templates = allTemplates.filter((t) => t.status !== "draft");
-    const { createLink, updateLink } = useEmailTemplateLinks(partitionId);
-    const [saving, setSaving] = useState(false);
+    const { createLink } = useEmailTemplateLinks(partitionId || null);
+    const { fields } = useFields(workspaceId);
 
+    const [saving, setSaving] = useState(false);
     const [name, setName] = useState("");
     const [emailTemplateId, setEmailTemplateId] = useState<number | null>(null);
     const [recipientField, setRecipientField] = useState("");
@@ -55,30 +56,6 @@ export default function EmailTemplateLinkDialog({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
 
-    useEffect(() => {
-        if (link) {
-            setName(link.name);
-            setEmailTemplateId(link.emailTemplateId);
-            setRecipientField(link.recipientField);
-            setVariableMappings((link.variableMappings as Record<string, string>) || {});
-            setTriggerType(link.triggerType);
-            setTriggerCondition(link.triggerCondition ?? null);
-            setUseRepeat(!!link.repeatConfig);
-            setRepeatConfig(link.repeatConfig ?? null);
-            setFollowupConfig(link.followupConfig ?? null);
-        } else {
-            setName("");
-            setEmailTemplateId(null);
-            setRecipientField("");
-            setVariableMappings({});
-            setTriggerType("manual");
-            setTriggerCondition(null);
-            setUseRepeat(false);
-            setRepeatConfig(null);
-            setFollowupConfig(null);
-        }
-    }, [link, open]);
-
     const selectedTemplate = templates.find((t) => t.id === emailTemplateId);
     const variables = selectedTemplate
         ? extractEmailVariables(selectedTemplate.subject + " " + selectedTemplate.htmlBody)
@@ -91,7 +68,7 @@ export default function EmailTemplateLinkDialog({
         }
         setSaving(true);
         try {
-            const data = {
+            const result = await createLink({
                 partitionId,
                 name,
                 emailTemplateId,
@@ -101,15 +78,10 @@ export default function EmailTemplateLinkDialog({
                 triggerCondition: triggerType !== "manual" ? triggerCondition : null,
                 repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
                 followupConfig: followupConfig || null,
-            };
-
-            const result = link
-                ? await updateLink(link.id, data)
-                : await createLink(data);
-
+            });
             if (result.success) {
-                toast.success(link ? "연결이 수정되었습니다." : "연결이 생성되었습니다.");
-                onOpenChange(false);
+                toast.success("연결이 생성되었습니다.");
+                router.push("/email?tab=links");
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
             }
@@ -118,14 +90,35 @@ export default function EmailTemplateLinkDialog({
         }
     };
 
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{link ? "연결 편집" : "새 연결"}</DialogTitle>
-                </DialogHeader>
+    if (!partitionId) {
+        return (
+            <WorkspaceLayout>
+                <PageContainer>
+                    <div className="text-center text-muted-foreground py-12">
+                        파티션 정보가 없습니다.
+                    </div>
+                </PageContainer>
+            </WorkspaceLayout>
+        );
+    }
 
-                <div className="space-y-4">
+    return (
+        <WorkspaceLayout>
+            <PageContainer>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Button variant="ghost" size="icon" onClick={() => router.push("/email?tab=links")}>
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                        <h1 className="text-xl font-semibold">새 연결</h1>
+                    </div>
+                    <Button onClick={handleSave} disabled={saving || !name || !emailTemplateId || !recipientField}>
+                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                        연결
+                    </Button>
+                </div>
+
+                <div className="max-w-2xl space-y-6">
                     <div className="space-y-2">
                         <Label>연결 이름</Label>
                         <Input
@@ -180,10 +173,7 @@ export default function EmailTemplateLinkDialog({
                                     <Select
                                         value={variableMappings[v] || ""}
                                         onValueChange={(val) =>
-                                            setVariableMappings((prev) => ({
-                                                ...prev,
-                                                [v]: val,
-                                            }))
+                                            setVariableMappings((prev) => ({ ...prev, [v]: val }))
                                         }
                                     >
                                         <SelectTrigger className="flex-1">
@@ -202,7 +192,7 @@ export default function EmailTemplateLinkDialog({
                         </div>
                     )}
 
-                    <div className="border-t pt-4 space-y-4">
+                    <div className="border-t pt-6 space-y-4">
                         <h4 className="font-medium">자동 발송 설정</h4>
 
                         <div className="space-y-2">
@@ -243,7 +233,7 @@ export default function EmailTemplateLinkDialog({
                         )}
                     </div>
 
-                    <div className="border-t pt-4">
+                    <div className="border-t pt-6">
                         <FollowupConfigForm
                             mode="template"
                             value={followupConfig}
@@ -252,17 +242,15 @@ export default function EmailTemplateLinkDialog({
                         />
                     </div>
                 </div>
+            </PageContainer>
+        </WorkspaceLayout>
+    );
+}
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => onOpenChange(false)}>
-                        취소
-                    </Button>
-                    <Button onClick={handleSave} disabled={saving || !name || !emailTemplateId || !recipientField}>
-                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        {link ? "수정" : "연결"}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+export default function NewLinkPage() {
+    return (
+        <Suspense>
+            <NewLinkPageContent />
+        </Suspense>
     );
 }
