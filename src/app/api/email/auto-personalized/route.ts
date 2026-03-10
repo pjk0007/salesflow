@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
                 triggerCondition: emailAutoPersonalizedLinks.triggerCondition,
                 autoResearch: emailAutoPersonalizedLinks.autoResearch,
                 useSignaturePersona: emailAutoPersonalizedLinks.useSignaturePersona,
+                followupConfig: emailAutoPersonalizedLinks.followupConfig,
                 isActive: emailAutoPersonalizedLinks.isActive,
                 createdAt: emailAutoPersonalizedLinks.createdAt,
                 updatedAt: emailAutoPersonalizedLinks.updatedAt,
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
             triggerCondition,
             autoResearch = 1,
             useSignaturePersona = 0,
+            followupConfig,
         } = await req.json();
 
         if (!partitionId || !recipientField || !companyField) {
@@ -125,6 +127,7 @@ export async function POST(req: NextRequest) {
                 triggerCondition: triggerCondition || null,
                 autoResearch: autoResearch ?? 1,
                 useSignaturePersona: useSignaturePersona ?? 0,
+                followupConfig: followupConfig || null,
             })
             .returning();
 

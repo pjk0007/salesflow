@@ -10,6 +10,7 @@ import {
     unique,
     jsonb,
     index,
+    uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type { FormulaConfig } from "@/types";
 
@@ -491,6 +492,11 @@ export const emailTemplateLinks = pgTable("email_template_links", {
             value: string;
         };
     } | null>(),
+    followupConfig: jsonb("followup_config").$type<{
+        delayDays: number;
+        onOpened?: { templateId: number };
+        onNotOpened?: { templateId: number };
+    } | null>(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
@@ -523,6 +529,7 @@ export const emailSendLogs = pgTable("email_send_logs", {
     completedAt: timestamptz("completed_at"),
     isOpened: integer("is_opened").default(0).notNull(),
     openedAt: timestamptz("opened_at"),
+    parentLogId: integer("parent_log_id"),
 });
 
 // ============================================
@@ -576,10 +583,40 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     }>(),
     autoResearch: integer("auto_research").default(1).notNull(),
     useSignaturePersona: integer("use_signature_persona").default(0).notNull(),
+    followupConfig: jsonb("followup_config").$type<{
+        delayDays: number;
+        onOpened?: { prompt: string };
+        onNotOpened?: { prompt: string };
+    } | null>(),
     isActive: integer("is_active").default(1).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
+
+// ============================================
+// 이메일 후속 발송 큐
+// ============================================
+export const emailFollowupQueue = pgTable(
+    "email_followup_queue",
+    {
+        id: serial("id").primaryKey(),
+        parentLogId: integer("parent_log_id")
+            .references(() => emailSendLogs.id, { onDelete: "cascade" })
+            .notNull(),
+        sourceType: varchar("source_type", { length: 20 }).notNull(),
+        sourceId: integer("source_id").notNull(),
+        orgId: uuid("org_id").notNull(),
+        checkAt: timestamptz("check_at").notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(),
+        result: varchar("result", { length: 20 }),
+        processedAt: timestamptz("processed_at"),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        statusCheckIdx: index("efq_status_check_idx").on(table.status, table.checkAt),
+        parentLogIdx: uniqueIndex("efq_parent_log_idx").on(table.parentLogId),
+    })
+);
 
 // ============================================
 // 제품/서비스 카탈로그

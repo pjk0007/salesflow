@@ -23,6 +23,7 @@ export function useEmailTemplateLinks(partitionId: number | null) {
         triggerType?: string;
         triggerCondition?: Record<string, unknown> | null;
         repeatConfig?: Record<string, unknown> | null;
+        followupConfig?: Record<string, unknown> | null;
     }) => {
         const res = await fetch("/api/email/template-links", {
             method: "POST",
@@ -44,6 +45,7 @@ export function useEmailTemplateLinks(partitionId: number | null) {
             triggerType?: string;
             triggerCondition?: Record<string, unknown> | null;
             repeatConfig?: Record<string, unknown> | null;
+            followupConfig?: Record<string, unknown> | null;
         }
     ) => {
         const res = await fetch(`/api/email/template-links/${id}`, {

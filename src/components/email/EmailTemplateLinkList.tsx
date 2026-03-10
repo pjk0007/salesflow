@@ -128,9 +128,16 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <Badge variant={link.isActive ? "default" : "secondary"}>
-                                        {link.isActive ? "활성" : "비활성"}
-                                    </Badge>
+                                    <div className="flex items-center gap-1">
+                                        <Badge variant={link.isActive ? "default" : "secondary"}>
+                                            {link.isActive ? "활성" : "비활성"}
+                                        </Badge>
+                                        {link.followupConfig && (
+                                            <Badge variant="outline">
+                                                후속 {(link.followupConfig as { delayDays: number }).delayDays}일
+                                            </Badge>
+                                        )}
+                                    </div>
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1">

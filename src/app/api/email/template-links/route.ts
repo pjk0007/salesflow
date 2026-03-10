@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
             triggerType = "manual",
             triggerCondition,
             repeatConfig,
+            followupConfig,
         } = await req.json();
 
         if (!partitionId || !name || !emailTemplateId || !recipientField) {
@@ -87,6 +88,7 @@ export async function POST(req: NextRequest) {
                 triggerType,
                 triggerCondition: triggerCondition || null,
                 repeatConfig: repeatConfig || null,
+                followupConfig: followupConfig || null,
                 createdBy: user.userId,
             })
             .returning();

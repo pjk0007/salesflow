@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { useFields } from "@/hooks/useFields";
+import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -85,6 +86,8 @@ export default function AutoPersonalizedEmailConfig({
     const [conditionOperator, setConditionOperator] = useState("eq");
     const [conditionValue, setConditionValue] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [followupConfig, setFollowupConfig] = useState<any>(null);
 
     const resetForm = () => {
         setProductId(null);
@@ -100,6 +103,7 @@ export default function AutoPersonalizedEmailConfig({
         setConditionField("");
         setConditionOperator("eq");
         setConditionValue("");
+        setFollowupConfig(null);
         setEditingLink(null);
     };
 
@@ -119,6 +123,7 @@ export default function AutoPersonalizedEmailConfig({
         setFormat((link.format as "plain" | "designed") || "plain");
         setAutoResearch(link.autoResearch === 1);
         setUseSignaturePersona(link.useSignaturePersona === 1);
+        setFollowupConfig(link.followupConfig ?? null);
         if (link.triggerCondition?.field) {
             setConditionEnabled(true);
             setConditionField(link.triggerCondition.field);
@@ -154,6 +159,7 @@ export default function AutoPersonalizedEmailConfig({
                     autoResearch: autoResearch ? 1 : 0,
                     useSignaturePersona: useSignaturePersona ? 1 : 0,
                     triggerCondition,
+                    followupConfig: followupConfig || null,
                 });
             } else {
                 await createLink({
@@ -168,6 +174,7 @@ export default function AutoPersonalizedEmailConfig({
                     autoResearch: autoResearch ? 1 : 0,
                     useSignaturePersona: useSignaturePersona ? 1 : 0,
                     triggerCondition,
+                    followupConfig: followupConfig || null,
                 });
             }
             setDialogOpen(false);
@@ -244,6 +251,11 @@ export default function AutoPersonalizedEmailConfig({
                                         <Badge variant="outline">
                                             {FORMAT_OPTIONS.find((f) => f.value === link.format)?.label || "간결한 텍스트"}
                                         </Badge>
+                                        {link.followupConfig && (
+                                            <Badge variant="outline">
+                                                후속 {link.followupConfig.delayDays}일
+                                            </Badge>
+                                        )}
                                     </div>
                                     <p className="text-sm text-muted-foreground">
                                         수신: {link.recipientField} | 회사: {link.companyField}
@@ -464,6 +476,12 @@ export default function AutoPersonalizedEmailConfig({
                             </div>
                             <Switch checked={autoResearch} onCheckedChange={setAutoResearch} />
                         </div>
+
+                        <FollowupConfigForm
+                            mode="ai"
+                            value={followupConfig}
+                            onChange={setFollowupConfig}
+                        />
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>

@@ -3,6 +3,7 @@ import { eq, and, gte, lte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
+import { enqueueFollowup } from "@/lib/email-followup";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 
 // ============================================
@@ -41,15 +42,15 @@ async function sendEmailSingle(
     record: DbRecord,
     orgId: string,
     triggerType: "auto" | "repeat"
-): Promise<boolean> {
+): Promise<{ success: boolean; logId?: number }> {
     const client = await getEmailClient(orgId);
-    if (!client) return false;
+    if (!client) return { success: false };
 
     const config = await getEmailConfig(orgId);
 
     // 발신자 프로필 결정 (기본 프로필 → 레거시 fallback)
     const sender = await resolveDefaultSender(orgId, config);
-    if (!sender.fromEmail) return false;
+    if (!sender.fromEmail) return { success: false };
     const senderFromEmail = sender.fromEmail;
     const senderFromName = sender.fromName;
 
@@ -63,11 +64,11 @@ async function sendEmailSingle(
         .where(eq(emailTemplates.id, link.emailTemplateId))
         .limit(1);
 
-    if (!template) return false;
+    if (!template) return { success: false };
 
     const data = record.data as Record<string, unknown>;
     const email = data[link.recipientField];
-    if (!email || typeof email !== "string" || !email.includes("@")) return false;
+    if (!email || typeof email !== "string" || !email.includes("@")) return { success: false };
 
     // 변수 매핑
     const mappings = (link.variableMappings as Record<string, string>) || {};
@@ -88,7 +89,7 @@ async function sendEmailSingle(
     const isSuccess = nhnResult.header.isSuccessful;
     const sendResult = nhnResult.data?.results?.[0];
 
-    await db.insert(emailSendLogs).values({
+    const [inserted] = await db.insert(emailSendLogs).values({
         orgId,
         templateLinkId: link.id,
         partitionId: link.partitionId,
@@ -103,9 +104,9 @@ async function sendEmailSingle(
         resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
         triggerType,
         sentAt: new Date(),
-    });
+    }).returning({ id: emailSendLogs.id });
 
-    return isSuccess;
+    return { success: isSuccess, logId: inserted?.id };
 }
 
 // ============================================
@@ -148,7 +149,20 @@ export async function processEmailAutoTrigger(params: EmailAutoTriggerParams): P
         if (!canSend) continue;
 
         // 발송
-        const success = await sendEmailSingle(link, record, orgId, "auto");
+        const { success, logId } = await sendEmailSingle(link, record, orgId, "auto");
+
+        // 후속 발송 큐 등록
+        if (success && logId && link.followupConfig) {
+            const fc = link.followupConfig as { delayDays: number };
+            await enqueueFollowup({
+                logId,
+                sourceType: "template",
+                sourceId: link.id,
+                orgId,
+                sentAt: new Date(),
+                delayDays: fc.delayDays,
+            });
+        }
 
         // 반복 발송 큐 등록
         if (success && link.repeatConfig) {
@@ -247,7 +261,7 @@ export async function processEmailRepeatQueue(): Promise<{
         }
 
         // 발송
-        const success = await sendEmailSingle(link, record, item.orgId, "repeat");
+        const { success } = await sendEmailSingle(link, record, item.orgId, "repeat");
 
         const newCount = item.repeatCount + 1;
         const isMaxReached = newCount >= config.maxRepeat;

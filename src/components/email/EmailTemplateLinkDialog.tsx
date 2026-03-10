@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { extractEmailVariables } from "@/lib/email-utils";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
+import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import type { EmailTemplateLink } from "@/lib/db";
 import type { FieldDefinition } from "@/types";
 
@@ -51,6 +52,8 @@ export default function EmailTemplateLinkDialog({
     const [useRepeat, setUseRepeat] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [repeatConfig, setRepeatConfig] = useState<any>(null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const [followupConfig, setFollowupConfig] = useState<any>(null);
 
     useEffect(() => {
         if (link) {
@@ -62,6 +65,7 @@ export default function EmailTemplateLinkDialog({
             setTriggerCondition(link.triggerCondition ?? null);
             setUseRepeat(!!link.repeatConfig);
             setRepeatConfig(link.repeatConfig ?? null);
+            setFollowupConfig(link.followupConfig ?? null);
         } else {
             setName("");
             setEmailTemplateId(null);
@@ -71,6 +75,7 @@ export default function EmailTemplateLinkDialog({
             setTriggerCondition(null);
             setUseRepeat(false);
             setRepeatConfig(null);
+            setFollowupConfig(null);
         }
     }, [link, open]);
 
@@ -95,6 +100,7 @@ export default function EmailTemplateLinkDialog({
                 triggerType,
                 triggerCondition: triggerType !== "manual" ? triggerCondition : null,
                 repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
+                followupConfig: followupConfig || null,
             };
 
             const result = link
@@ -235,6 +241,15 @@ export default function EmailTemplateLinkDialog({
                                 )}
                             </>
                         )}
+                    </div>
+
+                    <div className="border-t pt-4">
+                        <FollowupConfigForm
+                            mode="template"
+                            value={followupConfig}
+                            onChange={setFollowupConfig}
+                            templates={templates}
+                        />
                     </div>
                 </div>
 

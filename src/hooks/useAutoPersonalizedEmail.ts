@@ -21,6 +21,11 @@ export interface AutoPersonalizedLink {
     } | null;
     autoResearch: number;
     useSignaturePersona: number;
+    followupConfig: {
+        delayDays: number;
+        onOpened?: { prompt: string };
+        onNotOpened?: { prompt: string };
+    } | null;
     isActive: number;
     createdAt: string;
     updatedAt: string;
@@ -38,6 +43,11 @@ interface CreateInput {
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
     useSignaturePersona?: number;
+    followupConfig?: {
+        delayDays: number;
+        onOpened?: { prompt: string };
+        onNotOpened?: { prompt: string };
+    } | null;
 }
 
 interface UpdateInput {
@@ -51,6 +61,11 @@ interface UpdateInput {
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
     useSignaturePersona?: number;
+    followupConfig?: {
+        delayDays: number;
+        onOpened?: { prompt: string };
+        onNotOpened?: { prompt: string };
+    } | null;
     isActive?: number;
 }
 

@@ -40,6 +40,7 @@ export async function PUT(
             autoResearch,
             useSignaturePersona,
             isActive,
+            followupConfig,
         } = body;
 
         // 제품 변경 시 소유권 확인
@@ -66,6 +67,7 @@ export async function PUT(
         if (autoResearch !== undefined) updateData.autoResearch = autoResearch;
         if (useSignaturePersona !== undefined) updateData.useSignaturePersona = useSignaturePersona;
         if (isActive !== undefined) updateData.isActive = isActive;
+        if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
 
         const [updated] = await db
             .update(emailAutoPersonalizedLinks)
