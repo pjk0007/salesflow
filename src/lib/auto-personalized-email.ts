@@ -218,15 +218,18 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             // 11. 후속 발송 큐 등록
             if (isSuccess && inserted?.id && link.followupConfig) {
-                const fc = link.followupConfig as { delayDays: number };
-                await enqueueFollowup({
-                    logId: inserted.id,
-                    sourceType: "ai",
-                    sourceId: link.id,
-                    orgId,
-                    sentAt: new Date(),
-                    delayDays: fc.delayDays,
-                });
+                const steps = Array.isArray(link.followupConfig) ? link.followupConfig : [link.followupConfig];
+                const first = steps[0] as { delayDays: number } | undefined;
+                if (first?.delayDays) {
+                    await enqueueFollowup({
+                        logId: inserted.id,
+                        sourceType: "ai",
+                        sourceId: link.id,
+                        orgId,
+                        sentAt: new Date(),
+                        delayDays: first.delayDays,
+                    });
+                }
             }
         } catch (err) {
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);

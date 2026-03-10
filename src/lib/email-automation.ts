@@ -153,15 +153,18 @@ export async function processEmailAutoTrigger(params: EmailAutoTriggerParams): P
 
         // 후속 발송 큐 등록
         if (success && logId && link.followupConfig) {
-            const fc = link.followupConfig as { delayDays: number };
-            await enqueueFollowup({
-                logId,
-                sourceType: "template",
-                sourceId: link.id,
-                orgId,
-                sentAt: new Date(),
-                delayDays: fc.delayDays,
-            });
+            const steps = Array.isArray(link.followupConfig) ? link.followupConfig : [link.followupConfig];
+            const first = steps[0] as { delayDays: number } | undefined;
+            if (first?.delayDays) {
+                await enqueueFollowup({
+                    logId,
+                    sourceType: "template",
+                    sourceId: link.id,
+                    orgId,
+                    sentAt: new Date(),
+                    delayDays: first.delayDays,
+                });
+            }
         }
 
         // 반복 발송 큐 등록
