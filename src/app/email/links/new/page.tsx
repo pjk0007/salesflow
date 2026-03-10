@@ -284,8 +284,18 @@ function NewLinkPageContent() {
                                             />
 
                                             <div className="flex items-center gap-2">
-                                                <Switch checked={useRepeat} onCheckedChange={setUseRepeat} />
-                                                <Label>반복 발송 사용</Label>
+                                                <Switch
+                                                    checked={useRepeat}
+                                                    onCheckedChange={(v) => {
+                                                        setUseRepeat(v);
+                                                        if (v) setFollowupConfig(null);
+                                                    }}
+                                                    disabled={!!followupConfig}
+                                                />
+                                                <Label className={followupConfig ? "text-muted-foreground" : ""}>
+                                                    반복 발송 사용
+                                                    {followupConfig && <span className="text-xs ml-1">(후속 발송과 동시 사용 불가)</span>}
+                                                </Label>
                                             </div>
 
                                             {useRepeat && (
@@ -301,18 +311,25 @@ function NewLinkPageContent() {
                             </Card>
 
                             {/* Card 3: 후속 발송 */}
-                            <Card id="section-followup">
+                            <Card id="section-followup" className={useRepeat ? "opacity-60" : ""}>
                                 <CardHeader>
-                                    <CardTitle>후속 발송</CardTitle>
-                                    <CardDescription>일정 기간 후 자동으로 후속 이메일 발송</CardDescription>
+                                    <CardTitle>
+                                        후속 발송
+                                        {useRepeat && <span className="text-xs font-normal text-muted-foreground ml-2">(반복 발송과 동시 사용 불가)</span>}
+                                    </CardTitle>
+                                    <CardDescription>일정 기간 후 읽음 여부에 따라 후속 이메일 발송</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    <FollowupConfigForm
-                                        mode="template"
-                                        value={followupConfig}
-                                        onChange={setFollowupConfig}
-                                        templates={templates}
-                                    />
+                                    {useRepeat ? (
+                                        <p className="text-sm text-muted-foreground">반복 발송 사용 중에는 후속 발송을 설정할 수 없습니다.</p>
+                                    ) : (
+                                        <FollowupConfigForm
+                                            mode="template"
+                                            value={followupConfig}
+                                            onChange={setFollowupConfig}
+                                            templates={templates}
+                                        />
+                                    )}
                                 </CardContent>
                             </Card>
                         </div>
