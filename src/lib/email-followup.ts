@@ -14,6 +14,31 @@ import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsa
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 
 // ============================================
+// 타입 정의
+// ============================================
+
+interface TemplateFollowupStep {
+    delayDays: number;
+    onOpened?: { templateId: number };
+    onNotOpened?: { templateId: number };
+}
+
+interface AiFollowupStep {
+    delayDays: number;
+    onOpened?: { prompt: string };
+    onNotOpened?: { prompt: string };
+}
+
+type FollowupConfig = TemplateFollowupStep | AiFollowupStep;
+
+/** followupConfig를 배열로 정규화 (하위 호환) */
+function normalizeFollowupConfig(config: unknown): FollowupConfig[] {
+    if (!config) return [];
+    if (Array.isArray(config)) return config;
+    return [config as FollowupConfig];
+}
+
+// ============================================
 // 후속 발송 큐 등록
 // ============================================
 
@@ -24,7 +49,9 @@ export async function enqueueFollowup(params: {
     orgId: string;
     sentAt: Date;
     delayDays: number;
+    stepIndex?: number;
 }): Promise<void> {
+    const stepIndex = params.stepIndex ?? 0;
     const checkAt = new Date(params.sentAt.getTime() + params.delayDays * 24 * 60 * 60 * 1000);
 
     await db
@@ -34,10 +61,11 @@ export async function enqueueFollowup(params: {
             sourceType: params.sourceType,
             sourceId: params.sourceId,
             orgId: params.orgId,
+            stepIndex,
             checkAt,
             status: "pending",
         })
-        .onConflictDoNothing({ target: emailFollowupQueue.parentLogId });
+        .onConflictDoNothing();
 }
 
 // ============================================
@@ -184,14 +212,12 @@ async function handleTemplateFollowup(
 
     if (!link || !link.followupConfig) return false;
 
-    const config = link.followupConfig as {
-        delayDays: number;
-        onOpened?: { templateId: number };
-        onNotOpened?: { templateId: number };
-    };
+    const steps = normalizeFollowupConfig(link.followupConfig);
+    const currentStep = steps[item.stepIndex] as TemplateFollowupStep | undefined;
+    if (!currentStep) return false;
 
     // 2. 조건에 맞는 templateId 확인
-    const action = isOpened ? config.onOpened : config.onNotOpened;
+    const action = isOpened ? currentStep.onOpened : currentStep.onNotOpened;
     if (!action?.templateId) return false;
 
     // 3. 후속 템플릿 조회
@@ -244,7 +270,7 @@ async function handleTemplateFollowup(
     const sendResult = nhnResult.data?.results?.[0];
 
     // 8. 로그 기록
-    await db.insert(emailSendLogs).values({
+    const [inserted] = await db.insert(emailSendLogs).values({
         orgId: item.orgId,
         templateLinkId: link.id,
         partitionId: link.partitionId,
@@ -260,7 +286,23 @@ async function handleTemplateFollowup(
         triggerType: "followup",
         parentLogId: parentLog.id,
         sentAt: new Date(),
-    });
+    }).returning({ id: emailSendLogs.id });
+
+    // 9. 체인: 다음 step이 있으면 큐 등록
+    if (isSuccess && inserted?.id) {
+        const nextStep = steps[item.stepIndex + 1] as TemplateFollowupStep | undefined;
+        if (nextStep) {
+            await enqueueFollowup({
+                logId: inserted.id,
+                sourceType: "template",
+                sourceId: link.id,
+                orgId: item.orgId,
+                sentAt: new Date(),
+                delayDays: nextStep.delayDays,
+                stepIndex: item.stepIndex + 1,
+            });
+        }
+    }
 
     return isSuccess;
 }
@@ -283,14 +325,12 @@ async function handleAiFollowup(
 
     if (!link || !link.followupConfig) return false;
 
-    const config = link.followupConfig as {
-        delayDays: number;
-        onOpened?: { prompt: string };
-        onNotOpened?: { prompt: string };
-    };
+    const steps = normalizeFollowupConfig(link.followupConfig);
+    const currentStep = steps[item.stepIndex] as AiFollowupStep | undefined;
+    if (!currentStep) return false;
 
     // 2. 조건에 맞는 prompt 확인
-    const action = isOpened ? config.onOpened : config.onNotOpened;
+    const action = isOpened ? currentStep.onOpened : currentStep.onNotOpened;
     if (!action?.prompt) return false;
 
     // 3. AI 클라이언트 확인
@@ -329,6 +369,7 @@ async function handleAiFollowup(
         `- 제목: ${parentLog.subject || "(없음)"}`,
         `- 본문 요약: ${(parentLog.body || "").substring(0, 500)}`,
         `- 읽음 여부: ${isOpened ? "읽음" : "읽지 않음"}`,
+        `- 후속 단계: ${item.stepIndex + 1}단계`,
         ``,
         `위 이메일에 대한 후속 이메일을 작성해주세요.`,
         `사용자 지시: ${action.prompt}`,
@@ -388,7 +429,7 @@ async function handleAiFollowup(
     const sendResult = nhnResult.data?.results?.[0];
 
     // 10. 로그 기록
-    await db.insert(emailSendLogs).values({
+    const [inserted] = await db.insert(emailSendLogs).values({
         orgId: item.orgId,
         partitionId: parentLog.partitionId,
         recordId: parentLog.recordId,
@@ -402,7 +443,23 @@ async function handleAiFollowup(
         triggerType: "ai_followup",
         parentLogId: parentLog.id,
         sentAt: new Date(),
-    });
+    }).returning({ id: emailSendLogs.id });
+
+    // 11. 체인: 다음 step이 있으면 큐 등록
+    if (isSuccess && inserted?.id) {
+        const nextStep = steps[item.stepIndex + 1] as AiFollowupStep | undefined;
+        if (nextStep) {
+            await enqueueFollowup({
+                logId: inserted.id,
+                sourceType: "ai",
+                sourceId: link.id,
+                orgId: item.orgId,
+                sentAt: new Date(),
+                delayDays: nextStep.delayDays,
+                stepIndex: item.stepIndex + 1,
+            });
+        }
+    }
 
     return isSuccess;
 }

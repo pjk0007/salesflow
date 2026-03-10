@@ -412,7 +412,11 @@ function EditLinkPageContent() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">후속 발송</span>
                                             {followupConfig ? (
-                                                <Badge>{followupConfig.delayDays}일 후</Badge>
+                                                <Badge>
+                                                    {Array.isArray(followupConfig)
+                                                        ? `${followupConfig.length}단계`
+                                                        : `${followupConfig.delayDays}일 후`}
+                                                </Badge>
                                             ) : (
                                                 <Badge variant="outline">OFF</Badge>
                                             )}

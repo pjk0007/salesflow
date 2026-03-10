@@ -606,6 +606,7 @@ export const emailFollowupQueue = pgTable(
         sourceType: varchar("source_type", { length: 20 }).notNull(),
         sourceId: integer("source_id").notNull(),
         orgId: uuid("org_id").notNull(),
+        stepIndex: integer("step_index").default(0).notNull(),
         checkAt: timestamptz("check_at").notNull(),
         status: varchar("status", { length: 20 }).default("pending").notNull(),
         result: varchar("result", { length: 20 }),
@@ -614,7 +615,7 @@ export const emailFollowupQueue = pgTable(
     },
     (table) => ({
         statusCheckIdx: index("efq_status_check_idx").on(table.status, table.checkAt),
-        parentLogIdx: uniqueIndex("efq_parent_log_idx").on(table.parentLogId),
+        parentLogStepIdx: uniqueIndex("efq_parent_log_step_idx").on(table.parentLogId, table.stepIndex),
     })
 );
 
