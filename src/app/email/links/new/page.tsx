@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import {
     Select,
     SelectContent,
@@ -15,7 +23,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
@@ -27,6 +41,25 @@ import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const TRIGGER_LABELS: Record<string, string> = {
+    manual: "수동",
+    on_create: "생성 시",
+    on_update: "수정 시",
+};
+
+function HelpTip({ text }: { text: string }) {
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <HelpCircle className="h-3.5 w-3.5 text-muted-foreground inline ml-1 cursor-help" />
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-[240px]">
+                <p className="text-xs">{text}</p>
+            </TooltipContent>
+        </Tooltip>
+    );
+}
 
 function NewLinkPageContent() {
     const router = useRouter();
@@ -60,6 +93,8 @@ function NewLinkPageContent() {
     const variables = selectedTemplate
         ? extractEmailVariables(selectedTemplate.subject + " " + selectedTemplate.htmlBody)
         : [];
+
+    const mappedCount = Object.values(variableMappings).filter(Boolean).length;
 
     const handleSave = async () => {
         if (!name || !emailTemplateId || !recipientField) {
@@ -104,145 +139,248 @@ function NewLinkPageContent() {
 
     return (
         <WorkspaceLayout>
-            <PageContainer>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Button variant="ghost" size="icon" onClick={() => router.push("/email?tab=links")}>
-                            <ArrowLeft className="h-5 w-5" />
+            <TooltipProvider>
+                <PageContainer>
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <Button variant="ghost" size="icon" onClick={() => router.push("/email?tab=links")}>
+                                <ArrowLeft className="h-5 w-5" />
+                            </Button>
+                            <h1 className="text-xl font-semibold">새 연결</h1>
+                        </div>
+                        <Button onClick={handleSave} disabled={saving || !name || !emailTemplateId || !recipientField}>
+                            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            연결
                         </Button>
-                        <h1 className="text-xl font-semibold">새 연결</h1>
-                    </div>
-                    <Button onClick={handleSave} disabled={saving || !name || !emailTemplateId || !recipientField}>
-                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        연결
-                    </Button>
-                </div>
-
-                <div className="max-w-2xl space-y-6">
-                    <div className="space-y-2">
-                        <Label>연결 이름</Label>
-                        <Input
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            placeholder="신규 고객 환영 이메일"
-                        />
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>이메일 템플릿</Label>
-                        <Select
-                            value={emailTemplateId ? String(emailTemplateId) : ""}
-                            onValueChange={(v) => setEmailTemplateId(Number(v))}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="템플릿 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {templates.map((t) => (
-                                    <SelectItem key={t.id} value={String(t.id)}>
-                                        {t.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <div className="flex gap-6">
+                        {/* Left: Form */}
+                        <div className="flex-1 min-w-0 space-y-6">
+                            {/* Card 1: 기본 정보 */}
+                            <Card id="section-basic">
+                                <CardHeader>
+                                    <CardTitle>기본 정보</CardTitle>
+                                    <CardDescription>연결 이름과 이메일 템플릿, 수신자 설정</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>
+                                            연결 이름
+                                            <HelpTip text="목록에서 구분하기 위한 이름입니다" />
+                                        </Label>
+                                        <Input
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            placeholder="신규 고객 환영 이메일"
+                                        />
+                                    </div>
 
-                    <div className="space-y-2">
-                        <Label>수신 이메일 필드</Label>
-                        <Select value={recipientField} onValueChange={setRecipientField}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="필드 선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {fields.map((f) => (
-                                    <SelectItem key={f.key} value={f.key}>
-                                        {f.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                                    <div className="space-y-2">
+                                        <Label>
+                                            이메일 템플릿
+                                            <HelpTip text="발송할 이메일 템플릿을 선택하세요. 임시저장(draft) 상태는 제외됩니다." />
+                                        </Label>
+                                        <Select
+                                            value={emailTemplateId ? String(emailTemplateId) : ""}
+                                            onValueChange={(v) => setEmailTemplateId(Number(v))}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="템플릿 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {templates.map((t) => (
+                                                    <SelectItem key={t.id} value={String(t.id)}>
+                                                        {t.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                    {variables.length > 0 && (
-                        <div className="space-y-2">
-                            <Label>변수 매핑</Label>
-                            {variables.map((v) => (
-                                <div key={v} className="flex items-center gap-2">
-                                    <span className="text-sm font-mono w-[120px] shrink-0">{v}</span>
-                                    <span className="text-muted-foreground">&rarr;</span>
-                                    <Select
-                                        value={variableMappings[v] || ""}
-                                        onValueChange={(val) =>
-                                            setVariableMappings((prev) => ({ ...prev, [v]: val }))
-                                        }
-                                    >
-                                        <SelectTrigger className="flex-1">
-                                            <SelectValue placeholder="필드 선택" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {fields.map((f) => (
-                                                <SelectItem key={f.key} value={f.key}>
-                                                    {f.label}
-                                                </SelectItem>
+                                    <div className="space-y-2">
+                                        <Label>
+                                            수신 이메일 필드
+                                            <HelpTip text="이메일 주소가 저장된 레코드 필드를 선택하세요" />
+                                        </Label>
+                                        <Select value={recipientField} onValueChange={setRecipientField}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="필드 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {fields.map((f) => (
+                                                    <SelectItem key={f.key} value={f.key}>
+                                                        {f.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    {variables.length > 0 && (
+                                        <div className="space-y-2">
+                                            <Label>
+                                                변수 매핑
+                                                <HelpTip text="템플릿의 {{변수}}를 레코드 필드와 연결합니다" />
+                                            </Label>
+                                            {variables.map((v) => (
+                                                <div key={v} className="flex items-center gap-2">
+                                                    <span className="text-sm font-mono w-[120px] shrink-0">{v}</span>
+                                                    <span className="text-muted-foreground">&rarr;</span>
+                                                    <Select
+                                                        value={variableMappings[v] || ""}
+                                                        onValueChange={(val) =>
+                                                            setVariableMappings((prev) => ({ ...prev, [v]: val }))
+                                                        }
+                                                    >
+                                                        <SelectTrigger className="flex-1">
+                                                            <SelectValue placeholder="필드 선택" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {fields.map((f) => (
+                                                                <SelectItem key={f.key} value={f.key}>
+                                                                    {f.label}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
                                             ))}
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
 
-                    <div className="border-t pt-6 space-y-4">
-                        <h4 className="font-medium">자동 발송 설정</h4>
+                            {/* Card 2: 자동 발송 설정 */}
+                            <Card id="section-trigger">
+                                <CardHeader>
+                                    <CardTitle>자동 발송 설정</CardTitle>
+                                    <CardDescription>발송 방식과 조건, 반복 설정</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>
+                                            발송 방식
+                                            <HelpTip text="수동: 직접 발송 / 생성 시: 레코드 생성 시 자동 / 수정 시: 레코드 수정 시 자동" />
+                                        </Label>
+                                        <Select value={triggerType} onValueChange={setTriggerType}>
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="manual">수동</SelectItem>
+                                                <SelectItem value="on_create">생성 시</SelectItem>
+                                                <SelectItem value="on_update">수정 시</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
 
-                        <div className="space-y-2">
-                            <Label>발송 방식</Label>
-                            <Select value={triggerType} onValueChange={setTriggerType}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="manual">수동</SelectItem>
-                                    <SelectItem value="on_create">생성 시</SelectItem>
-                                    <SelectItem value="on_update">수정 시</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
+                                    {triggerType !== "manual" && (
+                                        <>
+                                            <TriggerConditionForm
+                                                fields={fields}
+                                                value={triggerCondition}
+                                                onChange={setTriggerCondition}
+                                            />
 
-                        {triggerType !== "manual" && (
-                            <>
-                                <TriggerConditionForm
-                                    fields={fields}
-                                    value={triggerCondition}
-                                    onChange={setTriggerCondition}
-                                />
+                                            <div className="flex items-center gap-2">
+                                                <Switch checked={useRepeat} onCheckedChange={setUseRepeat} />
+                                                <Label>반복 발송 사용</Label>
+                                            </div>
 
-                                <div className="flex items-center gap-2">
-                                    <Switch checked={useRepeat} onCheckedChange={setUseRepeat} />
-                                    <Label>반복 발송 사용</Label>
-                                </div>
+                                            {useRepeat && (
+                                                <RepeatConfigForm
+                                                    fields={fields}
+                                                    value={repeatConfig}
+                                                    onChange={setRepeatConfig}
+                                                />
+                                            )}
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
 
-                                {useRepeat && (
-                                    <RepeatConfigForm
-                                        fields={fields}
-                                        value={repeatConfig}
-                                        onChange={setRepeatConfig}
+                            {/* Card 3: 후속 발송 */}
+                            <Card id="section-followup">
+                                <CardHeader>
+                                    <CardTitle>후속 발송</CardTitle>
+                                    <CardDescription>일정 기간 후 자동으로 후속 이메일 발송</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <FollowupConfigForm
+                                        mode="template"
+                                        value={followupConfig}
+                                        onChange={setFollowupConfig}
+                                        templates={templates}
                                     />
-                                )}
-                            </>
-                        )}
-                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
 
-                    <div className="border-t pt-6">
-                        <FollowupConfigForm
-                            mode="template"
-                            value={followupConfig}
-                            onChange={setFollowupConfig}
-                            templates={templates}
-                        />
+                        {/* Right: Summary Panel */}
+                        <div className="hidden lg:block w-[320px] shrink-0">
+                            <div className="sticky top-6 space-y-4">
+                                {/* Section Anchors */}
+                                <div className="flex gap-2 text-sm">
+                                    <button onClick={() => document.getElementById("section-basic")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">기본 정보</button>
+                                    <span className="text-muted-foreground">/</span>
+                                    <button onClick={() => document.getElementById("section-trigger")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">자동 발송</button>
+                                    <span className="text-muted-foreground">/</span>
+                                    <button onClick={() => document.getElementById("section-followup")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">후속 발송</button>
+                                </div>
+
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-sm">요약</CardTitle>
+                                    </CardHeader>
+                                    <CardContent className="space-y-3 text-sm">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">연결 이름</span>
+                                            <span className="font-medium truncate ml-2 max-w-[160px]">{name || "—"}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">템플릿</span>
+                                            <span className="font-medium truncate ml-2 max-w-[160px]">{selectedTemplate?.name || "—"}</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">수신 필드</span>
+                                            <span className="font-medium">{recipientField || "—"}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-muted-foreground">발송 방식</span>
+                                            <Badge variant={triggerType === "manual" ? "outline" : "default"}>
+                                                {TRIGGER_LABELS[triggerType]}
+                                            </Badge>
+                                        </div>
+                                        {variables.length > 0 && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">변수 매핑</span>
+                                                <span className="font-medium">{mappedCount}/{variables.length}개</span>
+                                            </div>
+                                        )}
+                                        {triggerType !== "manual" && (
+                                            <div className="flex justify-between">
+                                                <span className="text-muted-foreground">반복 발송</span>
+                                                <Badge variant={useRepeat ? "default" : "outline"}>
+                                                    {useRepeat ? "ON" : "OFF"}
+                                                </Badge>
+                                            </div>
+                                        )}
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-muted-foreground">후속 발송</span>
+                                            {followupConfig ? (
+                                                <Badge>{followupConfig.delayDays}일 후</Badge>
+                                            ) : (
+                                                <Badge variant="outline">OFF</Badge>
+                                            )}
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            </PageContainer>
+                </PageContainer>
+            </TooltipProvider>
         </WorkspaceLayout>
     );
 }
