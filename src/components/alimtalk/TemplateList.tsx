@@ -45,9 +45,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send } from "lucide-react";
+import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal } from "lucide-react";
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TemplateLinkDialog from "./TemplateLinkDialog";
+import TestSendDialog from "./TestSendDialog";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     TSC01: "outline",       // 생성
@@ -82,6 +83,13 @@ export default function TemplateList() {
         senderKey: string;
         templateCode: string;
         templateName: string;
+        templateContent: string;
+    } | null>(null);
+
+    // 테스트 발송
+    const [testSendTemplate, setTestSendTemplate] = useState<{
+        senderKey: string;
+        templateCode: string;
         templateContent: string;
     } | null>(null);
 
@@ -246,6 +254,16 @@ export default function TemplateList() {
                                                         >
                                                             <Send className="h-4 w-4 mr-2" /> 검수 요청
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            disabled={!isApproved}
+                                                            onClick={() => setTestSendTemplate({
+                                                                senderKey: selectedSenderKey!,
+                                                                templateCode: tpl.templateCode,
+                                                                templateContent: tpl.templateContent,
+                                                            })}
+                                                        >
+                                                            <SendHorizontal className="h-4 w-4 mr-2" /> 테스트 발송
+                                                        </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </div>
@@ -278,6 +296,16 @@ export default function TemplateList() {
                     templateName={linkTemplate.templateName}
                     templateContent={linkTemplate.templateContent}
                     mode="create"
+                />
+            )}
+
+            {testSendTemplate && (
+                <TestSendDialog
+                    open={!!testSendTemplate}
+                    onOpenChange={() => setTestSendTemplate(null)}
+                    senderKey={testSendTemplate.senderKey}
+                    templateCode={testSendTemplate.templateCode}
+                    templateContent={testSendTemplate.templateContent}
                 />
             )}
 
