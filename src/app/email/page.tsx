@@ -14,6 +14,7 @@ import EmailSendLogTable from "@/components/email/EmailSendLogTable";
 import EmailConfigForm from "@/components/email/EmailConfigForm";
 import EmailCategoryManager from "@/components/email/EmailCategoryManager";
 import AutoPersonalizedEmailConfig from "@/components/email/AutoPersonalizedEmailConfig";
+import FollowupQueueTable from "@/components/email/FollowupQueueTable";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -53,6 +54,7 @@ function EmailPageContent() {
                         <TabsTrigger value="logs">발송 이력</TabsTrigger>
                         <TabsTrigger value="settings">설정</TabsTrigger>
                         <TabsTrigger value="ai-auto">AI 자동발송</TabsTrigger>
+                        <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="dashboard" className="mt-6">
@@ -78,6 +80,10 @@ function EmailPageContent() {
 
                     <TabsContent value="ai-auto" className="mt-6">
                         <AutoPersonalizedEmailConfig partitions={partitions} />
+                    </TabsContent>
+
+                    <TabsContent value="followup-queue" className="mt-6">
+                        <FollowupQueueTable />
                     </TabsContent>
                 </Tabs>
             </PageContainer>
