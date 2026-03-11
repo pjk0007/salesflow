@@ -12,9 +12,11 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Button } from "@/components/ui/button";
 import { useAlimtalkTemplateCategories } from "@/hooks/useAlimtalkTemplateCategories";
 import ButtonEditor from "./ButtonEditor";
 import QuickReplyEditor from "./QuickReplyEditor";
+import { Plus, Trash2 } from "lucide-react";
 import type { NhnTemplateButton, NhnTemplateQuickReply } from "@/lib/nhn-alimtalk";
 
 export interface TemplateFormState {
@@ -32,6 +34,23 @@ export interface TemplateFormState {
     buttons: NhnTemplateButton[];
     quickReplies: NhnTemplateQuickReply[];
     interactionType: "buttons" | "quickReplies";
+    templateImageName: string;
+    templateImageUrl: string;
+    templateItem: {
+        list: Array<{ title: string; description: string }>;
+        summary?: { title: string; description: string };
+    } | null;
+    templateItemHighlight: {
+        title: string;
+        description: string;
+        imageUrl?: string;
+    } | null;
+    templateRepresentLink: {
+        linkMo: string;
+        linkPc: string;
+        schemeIos: string;
+        schemeAndroid: string;
+    } | null;
 }
 
 interface TemplateFormEditorProps {
@@ -82,6 +101,9 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
 
     const showExtra = value.templateMessageType === "EX" || value.templateMessageType === "MI";
     const showEmphasize = value.templateEmphasizeType === "TEXT";
+    const showImage = value.templateEmphasizeType === "IMAGE";
+    const showItemList = value.templateEmphasizeType === "ITEM_LIST";
+
 
     return (
         <div className="space-y-4 overflow-y-auto pr-1">
@@ -176,6 +198,171 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                 </div>
             )}
 
+            {/* IMAGE 강조 시 이미지 URL/파일명 */}
+            {showImage && (
+                <div className="space-y-2 pl-2 border-l-2 border-blue-200">
+                    <div className="space-y-1">
+                        <Label htmlFor="templateImageUrl">이미지 URL</Label>
+                        <Input
+                            id="templateImageUrl"
+                            placeholder="이미지 URL"
+                            value={value.templateImageUrl}
+                            onChange={(e) => update({ templateImageUrl: e.target.value })}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="templateImageName">파일명</Label>
+                        <Input
+                            id="templateImageName"
+                            placeholder="파일명"
+                            value={value.templateImageName}
+                            onChange={(e) => update({ templateImageName: e.target.value })}
+                        />
+                    </div>
+                </div>
+            )}
+
+            {/* ITEM_LIST 강조 시 하이라이트 + 아이템 리스트 */}
+            {showItemList && (
+                <div className="space-y-3 pl-2 border-l-2 border-blue-200">
+                    {/* 아이템 하이라이트 */}
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium">아이템 하이라이트</Label>
+                        <div className="space-y-1">
+                            <Input
+                                placeholder="제목 (최대 30자)"
+                                value={value.templateItemHighlight?.title ?? ""}
+                                onChange={(e) => update({
+                                    templateItemHighlight: {
+                                        title: e.target.value,
+                                        description: value.templateItemHighlight?.description ?? "",
+                                        imageUrl: value.templateItemHighlight?.imageUrl,
+                                    },
+                                })}
+                                maxLength={30}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Input
+                                placeholder="설명 (최대 19자)"
+                                value={value.templateItemHighlight?.description ?? ""}
+                                onChange={(e) => update({
+                                    templateItemHighlight: {
+                                        title: value.templateItemHighlight?.title ?? "",
+                                        description: e.target.value,
+                                        imageUrl: value.templateItemHighlight?.imageUrl,
+                                    },
+                                })}
+                                maxLength={19}
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Input
+                                placeholder="이미지 URL (선택)"
+                                value={value.templateItemHighlight?.imageUrl ?? ""}
+                                onChange={(e) => update({
+                                    templateItemHighlight: {
+                                        title: value.templateItemHighlight?.title ?? "",
+                                        description: value.templateItemHighlight?.description ?? "",
+                                        imageUrl: e.target.value || undefined,
+                                    },
+                                })}
+                            />
+                        </div>
+                    </div>
+
+                    {/* 아이템 리스트 */}
+                    <div className="space-y-2">
+                        <Label className="text-sm font-medium">아이템 리스트</Label>
+                        {(value.templateItem?.list ?? []).map((item, idx) => (
+                            <div key={idx} className="flex gap-2 items-center">
+                                <Input
+                                    placeholder="제목"
+                                    value={item.title}
+                                    onChange={(e) => {
+                                        const list = [...(value.templateItem?.list ?? [])];
+                                        list[idx] = { ...list[idx], title: e.target.value };
+                                        update({ templateItem: { ...value.templateItem!, list } });
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Input
+                                    placeholder="설명"
+                                    value={item.description}
+                                    onChange={(e) => {
+                                        const list = [...(value.templateItem?.list ?? [])];
+                                        list[idx] = { ...list[idx], description: e.target.value };
+                                        update({ templateItem: { ...value.templateItem!, list } });
+                                    }}
+                                    className="flex-1"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => {
+                                        const list = (value.templateItem?.list ?? []).filter((_, i) => i !== idx);
+                                        if (list.length < 2) return;
+                                        update({ templateItem: { ...value.templateItem!, list } });
+                                    }}
+                                    disabled={(value.templateItem?.list ?? []).length <= 2}
+                                    className="shrink-0"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                        {(value.templateItem?.list ?? []).length < 10 && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    const list = [...(value.templateItem?.list ?? []), { title: "", description: "" }];
+                                    update({ templateItem: { ...(value.templateItem ?? { list: [] }), list } });
+                                }}
+                            >
+                                <Plus className="h-4 w-4 mr-1" />
+                                항목 추가 ({(value.templateItem?.list ?? []).length}/10)
+                            </Button>
+                        )}
+
+                        {/* 요약 */}
+                        <div className="space-y-1 pt-2 border-t">
+                            <Label className="text-xs text-muted-foreground">요약 (선택)</Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="요약 제목 (최대 6자)"
+                                    value={value.templateItem?.summary?.title ?? ""}
+                                    onChange={(e) => {
+                                        const summary = {
+                                            title: e.target.value,
+                                            description: value.templateItem?.summary?.description ?? "",
+                                        };
+                                        update({ templateItem: { ...value.templateItem!, summary } });
+                                    }}
+                                    maxLength={6}
+                                    className="flex-1"
+                                />
+                                <Input
+                                    placeholder="요약 설명 (최대 14자)"
+                                    value={value.templateItem?.summary?.description ?? ""}
+                                    onChange={(e) => {
+                                        const summary = {
+                                            title: value.templateItem?.summary?.title ?? "",
+                                            description: e.target.value,
+                                        };
+                                        update({ templateItem: { ...value.templateItem!, summary } });
+                                    }}
+                                    maxLength={14}
+                                    className="flex-1"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 헤더 */}
             <div className="space-y-1">
                 <Label htmlFor="templateHeader">헤더</Label>
@@ -255,6 +442,61 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                         ))}
                     </SelectContent>
                 </Select>
+            </div>
+
+            {/* 대표 링크 */}
+            <div className="space-y-2">
+                <Label className="text-sm font-medium">대표 링크 (선택)</Label>
+                <div className="space-y-1">
+                    <Input
+                        placeholder="모바일 웹 링크"
+                        value={value.templateRepresentLink?.linkMo ?? ""}
+                        onChange={(e) => update({
+                            templateRepresentLink: {
+                                linkMo: e.target.value,
+                                linkPc: value.templateRepresentLink?.linkPc ?? "",
+                                schemeIos: value.templateRepresentLink?.schemeIos ?? "",
+                                schemeAndroid: value.templateRepresentLink?.schemeAndroid ?? "",
+                            },
+                        })}
+                    />
+                    <Input
+                        placeholder="PC 웹 링크"
+                        value={value.templateRepresentLink?.linkPc ?? ""}
+                        onChange={(e) => update({
+                            templateRepresentLink: {
+                                linkMo: value.templateRepresentLink?.linkMo ?? "",
+                                linkPc: e.target.value,
+                                schemeIos: value.templateRepresentLink?.schemeIos ?? "",
+                                schemeAndroid: value.templateRepresentLink?.schemeAndroid ?? "",
+                            },
+                        })}
+                    />
+                    <Input
+                        placeholder="iOS 앱 스킴"
+                        value={value.templateRepresentLink?.schemeIos ?? ""}
+                        onChange={(e) => update({
+                            templateRepresentLink: {
+                                linkMo: value.templateRepresentLink?.linkMo ?? "",
+                                linkPc: value.templateRepresentLink?.linkPc ?? "",
+                                schemeIos: e.target.value,
+                                schemeAndroid: value.templateRepresentLink?.schemeAndroid ?? "",
+                            },
+                        })}
+                    />
+                    <Input
+                        placeholder="Android 앱 스킴"
+                        value={value.templateRepresentLink?.schemeAndroid ?? ""}
+                        onChange={(e) => update({
+                            templateRepresentLink: {
+                                linkMo: value.templateRepresentLink?.linkMo ?? "",
+                                linkPc: value.templateRepresentLink?.linkPc ?? "",
+                                schemeIos: value.templateRepresentLink?.schemeIos ?? "",
+                                schemeAndroid: e.target.value,
+                            },
+                        })}
+                    />
+                </div>
             </div>
 
             {/* 상호작용 타입 토글 */}

@@ -64,6 +64,8 @@ export interface NhnTemplate {
         schemeIos?: string;
         schemeAndroid?: string;
     };
+    templateImageName?: string;
+    templateImageUrl?: string;
     securityFlag?: boolean;
     categoryCode?: string;
     buttons?: NhnTemplateButton[];

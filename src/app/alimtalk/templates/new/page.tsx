@@ -27,6 +27,11 @@ const DEFAULT_FORM: TemplateFormState = {
     buttons: [],
     quickReplies: [],
     interactionType: "buttons",
+    templateImageName: "",
+    templateImageUrl: "",
+    templateItem: null,
+    templateItemHighlight: null,
+    templateRepresentLink: null,
 };
 
 function NewAlimtalkTemplateContent() {
@@ -84,6 +89,10 @@ function NewAlimtalkTemplateContent() {
                 ...(form.categoryCode && { categoryCode: form.categoryCode }),
                 ...(form.interactionType === "buttons" && form.buttons.length > 0 && { buttons: form.buttons }),
                 ...(form.interactionType === "quickReplies" && form.quickReplies.length > 0 && { quickReplies: form.quickReplies }),
+                ...(form.templateImageUrl && { templateImageName: form.templateImageName, templateImageUrl: form.templateImageUrl }),
+                ...(form.templateItem && { templateItem: form.templateItem }),
+                ...(form.templateItemHighlight && { templateItemHighlight: form.templateItemHighlight }),
+                ...(form.templateRepresentLink && (form.templateRepresentLink.linkMo || form.templateRepresentLink.linkPc || form.templateRepresentLink.schemeIos || form.templateRepresentLink.schemeAndroid) && { templateRepresentLink: form.templateRepresentLink }),
             };
 
             const result = await createTemplate(payload);

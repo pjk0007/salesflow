@@ -29,6 +29,16 @@ function templateToFormState(template: NhnTemplate): TemplateFormState {
         buttons: template.buttons || [],
         quickReplies: template.quickReplies || [],
         interactionType: hasButtons || (template.quickReplies?.length ?? 0) === 0 ? "buttons" : "quickReplies",
+        templateImageName: template.templateImageName || "",
+        templateImageUrl: template.templateImageUrl || "",
+        templateItem: template.templateItem || null,
+        templateItemHighlight: template.templateItemHighlight || null,
+        templateRepresentLink: template.templateRepresentLink ? {
+            linkMo: template.templateRepresentLink.linkMo || "",
+            linkPc: template.templateRepresentLink.linkPc || "",
+            schemeIos: template.templateRepresentLink.schemeIos || "",
+            schemeAndroid: template.templateRepresentLink.schemeAndroid || "",
+        } : null,
     };
 }
 
@@ -101,6 +111,10 @@ function EditAlimtalkTemplateContent() {
                 ...(form.categoryCode && { categoryCode: form.categoryCode }),
                 ...(form.interactionType === "buttons" && form.buttons.length > 0 && { buttons: form.buttons }),
                 ...(form.interactionType === "quickReplies" && form.quickReplies.length > 0 && { quickReplies: form.quickReplies }),
+                ...(form.templateImageUrl && { templateImageName: form.templateImageName, templateImageUrl: form.templateImageUrl }),
+                ...(form.templateItem && { templateItem: form.templateItem }),
+                ...(form.templateItemHighlight && { templateItemHighlight: form.templateItemHighlight }),
+                ...(form.templateRepresentLink && (form.templateRepresentLink.linkMo || form.templateRepresentLink.linkPc || form.templateRepresentLink.schemeIos || form.templateRepresentLink.schemeAndroid) && { templateRepresentLink: form.templateRepresentLink }),
             };
 
             const result = await updateTemplate(templateCode, payload);

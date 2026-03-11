@@ -17,6 +17,21 @@ const EXISTING_MIGRATIONS = [
     { hash: "0009_multi_org", created_at: 1770947200000 },
     { hash: "0010_subscription_card_info", created_at: 1770947300000 },
     { hash: "0011_workspace_code_prefix", created_at: 1770947400000 },
+    { hash: "0012_missing_tables", created_at: 1770947500000 },
+    { hash: "0013_alimtalk_repeat_config", created_at: 1770947600000 },
+    { hash: "0014_api_token_scopes", created_at: 1770947700000 },
+    { hash: "0015_email_auto_personalized", created_at: 1770947800000 },
+    { hash: "0016_billing_retry", created_at: 1770947900000 },
+    { hash: "0017_email_signature", created_at: 1770948000000 },
+    { hash: "0018_ai_usage_quotas", created_at: 1770948100000 },
+    { hash: "0019_auto_email_format", created_at: 1770948200000 },
+    { hash: "0020_signature_persona", created_at: 1770948300000 },
+    { hash: "0021_auto_enrich", created_at: 1770948400000 },
+    { hash: "0022_email_log_body", created_at: 1770948500000 },
+    { hash: "0023_email_read_tracking", created_at: 1770948600000 },
+    { hash: "0024_email_sender_signatures", created_at: 1770948700000 },
+    { hash: "0025_email_followup", created_at: 1770948800000 },
+    { hash: "0026_followup_chain", created_at: 1770948900000 },
 ];
 
 async function seedMigrationHistory(client: postgres.Sql) {
