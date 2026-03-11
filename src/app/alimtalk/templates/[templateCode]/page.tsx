@@ -193,6 +193,11 @@ function EditAlimtalkTemplateContent() {
                         buttons={form.buttons}
                         quickReplies={form.quickReplies}
                         interactionType={form.interactionType}
+                        templateImageUrl={form.templateImageUrl}
+                        templateImageName={form.templateImageName}
+                        templateItemHighlight={form.templateItemHighlight}
+                        templateItem={form.templateItem}
+                        templateRepresentLink={form.templateRepresentLink}
                     />
                 </div>
             </div>

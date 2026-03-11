@@ -11,6 +11,23 @@ interface TemplatePreviewProps {
     buttons: NhnTemplateButton[];
     quickReplies: NhnTemplateQuickReply[];
     interactionType: "buttons" | "quickReplies";
+    templateImageUrl?: string;
+    templateImageName?: string;
+    templateItemHighlight?: {
+        title: string;
+        description: string;
+        imageUrl?: string;
+    } | null;
+    templateItem?: {
+        list: Array<{ title: string; description: string }>;
+        summary?: { title: string; description: string };
+    } | null;
+    templateRepresentLink?: {
+        linkMo: string;
+        linkPc: string;
+        schemeIos: string;
+        schemeAndroid: string;
+    } | null;
 }
 
 function highlightVariables(content: string) {
@@ -47,9 +64,18 @@ export default function TemplatePreview({
     buttons,
     quickReplies,
     interactionType,
+    templateImageUrl,
+    templateItemHighlight,
+    templateItem,
+    templateRepresentLink,
 }: TemplatePreviewProps) {
     const showExtra = (templateMessageType === "EX" || templateMessageType === "MI") && templateExtra;
     const showEmphasize = templateEmphasizeType === "TEXT" && (templateTitle || templateSubtitle);
+    const showImage = templateEmphasizeType === "IMAGE" && templateImageUrl;
+    const showItemList = templateEmphasizeType === "ITEM_LIST";
+    const hasRepresentLink = templateRepresentLink &&
+        (templateRepresentLink.linkMo || templateRepresentLink.linkPc ||
+         templateRepresentLink.schemeIos || templateRepresentLink.schemeAndroid);
 
     return (
         <div className="space-y-2">
@@ -79,6 +105,49 @@ export default function TemplatePreview({
                         </>
                     )}
 
+                    {/* 강조 (IMAGE 타입) */}
+                    {showImage && (
+                        <>
+                            <div className="mb-2 rounded overflow-hidden bg-gray-100 aspect-2/1 flex items-center justify-center">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={templateImageUrl}
+                                    alt="강조 이미지"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = "none";
+                                        (e.target as HTMLImageElement).parentElement!.innerHTML =
+                                            '<span class="text-xs text-muted-foreground">이미지 미리보기</span>';
+                                    }}
+                                />
+                            </div>
+                            <div className="border-t my-2" />
+                        </>
+                    )}
+
+                    {/* 강조 (ITEM_LIST 타입) */}
+                    {showItemList && (templateItemHighlight?.title || templateItemHighlight?.description) && (
+                        <>
+                            <div className="mb-2 flex gap-2 items-start">
+                                {templateItemHighlight.imageUrl && (
+                                    <div className="w-10 h-10 rounded bg-gray-100 shrink-0 overflow-hidden">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={templateItemHighlight.imageUrl} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
+                                <div className="min-w-0">
+                                    {templateItemHighlight.title && (
+                                        <div className="text-sm font-bold leading-tight truncate">{templateItemHighlight.title}</div>
+                                    )}
+                                    {templateItemHighlight.description && (
+                                        <div className="text-xs text-muted-foreground mt-0.5 truncate">{templateItemHighlight.description}</div>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="border-t my-2" />
+                        </>
+                    )}
+
                     {/* 본문 */}
                     <div
                         className="text-sm whitespace-pre-wrap leading-relaxed"
@@ -87,12 +156,46 @@ export default function TemplatePreview({
                         }}
                     />
 
+                    {/* 아이템 리스트 */}
+                    {showItemList && templateItem && templateItem.list.length > 0 && (
+                        <>
+                            <div className="border-t my-2" />
+                            <div className="space-y-1">
+                                {templateItem.list.map((item, i) => (
+                                    <div key={i} className="flex justify-between text-xs">
+                                        <span className="text-muted-foreground truncate">{item.title || `항목 ${i + 1}`}</span>
+                                        <span className="font-medium truncate ml-2">{item.description}</span>
+                                    </div>
+                                ))}
+                                {templateItem.summary && (templateItem.summary.title || templateItem.summary.description) && (
+                                    <>
+                                        <div className="border-t my-1" />
+                                        <div className="flex justify-between text-xs font-bold">
+                                            <span>{templateItem.summary.title}</span>
+                                            <span>{templateItem.summary.description}</span>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    )}
+
                     {/* 부가정보 */}
                     {showExtra && (
                         <>
                             <div className="border-t my-2" />
                             <div className="text-xs text-muted-foreground whitespace-pre-wrap">
                                 {templateExtra}
+                            </div>
+                        </>
+                    )}
+
+                    {/* 대표 링크 */}
+                    {hasRepresentLink && (
+                        <>
+                            <div className="border-t my-2" />
+                            <div className="text-xs text-blue-500 truncate">
+                                {templateRepresentLink!.linkMo || templateRepresentLink!.linkPc || "링크"}
                             </div>
                         </>
                     )}
