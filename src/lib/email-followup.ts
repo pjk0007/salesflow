@@ -363,16 +363,18 @@ async function handleAiFollowup(
         product = p ?? null;
     }
 
-    // 6. AI 프롬프트 구성 (이전 이메일 컨텍스트 포함)
+    // 6. AI 프롬프트 구성 (사용자 지시 우선, 이전 이메일 컨텍스트 참고용)
     const previousEmailContext = [
-        `이전에 발송한 이메일:`,
+        `[최우선 지시사항]`,
+        `${action.prompt}`,
+        ``,
+        `[참고: 이전 발송 이메일]`,
         `- 제목: ${parentLog.subject || "(없음)"}`,
-        `- 본문 요약: ${(parentLog.body || "").substring(0, 500)}`,
+        `- 본문 요약: ${(parentLog.body || "").substring(0, 300)}`,
         `- 읽음 여부: ${isOpened ? "읽음" : "읽지 않음"}`,
         `- 후속 단계: ${item.stepIndex + 1}단계`,
         ``,
-        `위 이메일에 대한 후속 이메일을 작성해주세요.`,
-        `사용자 지시: ${action.prompt}`,
+        `위 지시사항을 반드시 따르되, 이전 이메일은 맥락 파악용으로만 참고하세요. 이전 이메일의 내용을 반복하지 마세요.`,
     ].join("\n");
 
     // 7. 발신자 페르소나
