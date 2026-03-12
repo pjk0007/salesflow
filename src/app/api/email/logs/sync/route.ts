@@ -72,25 +72,25 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // ── 단계 2: sent 상태 읽음 동기화 (최근 30일, 미읽음, 제한 없음) ──
+        // ── 단계 2: sent 상태 동기화 (실제 NHN 상태 반영 + 읽음 체크, 최근 30일) ──
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        let statusCorrected = 0;
 
-        const unreadSentLogs = await db
+        const sentLogs = await db
             .select()
             .from(emailSendLogs)
             .where(
                 and(
                     eq(emailSendLogs.orgId, user.orgId),
                     eq(emailSendLogs.status, "sent"),
-                    eq(emailSendLogs.isOpened, 0),
                     gte(emailSendLogs.sentAt, thirtyDaysAgo)
                 )
             );
 
         // requestId 기준으로 그룹핑해 NHN API 호출 최소화
-        const logsByRequestId = new Map<string, typeof unreadSentLogs>();
-        for (const log of unreadSentLogs) {
+        const logsByRequestId = new Map<string, typeof sentLogs>();
+        for (const log of sentLogs) {
             if (!log.requestId) continue;
             const group = logsByRequestId.get(log.requestId);
             if (group) group.push(log);
@@ -103,21 +103,38 @@ export async function POST(req: NextRequest) {
                 if (!result.header.isSuccessful || !result.data) continue;
 
                 for (const mail of result.data) {
-                    if (!mail.isOpened) continue;
-
                     const matchingLogs = logs.filter(
                         (l) => l.recipientEmail === mail.receiveMailAddr
                     );
 
                     for (const log of matchingLogs) {
-                        await db
-                            .update(emailSendLogs)
-                            .set({
-                                isOpened: 1,
-                                openedAt: mail.openedDate ? new Date(mail.openedDate) : new Date(),
-                            })
-                            .where(eq(emailSendLogs.id, log.id));
-                        readUpdated++;
+                        // 실제 NHN 상태가 실패/거부이면 상태 보정
+                        if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST5") {
+                            const correctedStatus = mail.mailStatusCode === "SST3" ? "failed" : "rejected";
+                            await db
+                                .update(emailSendLogs)
+                                .set({
+                                    status: correctedStatus,
+                                    resultCode: mail.resultCode,
+                                    resultMessage: mail.resultCodeName,
+                                    completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
+                                })
+                                .where(eq(emailSendLogs.id, log.id));
+                            statusCorrected++;
+                            continue;
+                        }
+
+                        // 읽음 동기화
+                        if (mail.isOpened && log.isOpened === 0) {
+                            await db
+                                .update(emailSendLogs)
+                                .set({
+                                    isOpened: 1,
+                                    openedAt: mail.openedDate ? new Date(mail.openedDate) : new Date(),
+                                })
+                                .where(eq(emailSendLogs.id, log.id));
+                            readUpdated++;
+                        }
                     }
                 }
             } catch {
@@ -127,7 +144,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: { synced: pendingLogs.length, updated, readChecked: unreadSentLogs.length, readUpdated },
+            data: { synced: pendingLogs.length, updated, sentChecked: sentLogs.length, statusCorrected, readUpdated },
         });
     } catch (error) {
         console.error("Email sync error:", error);
