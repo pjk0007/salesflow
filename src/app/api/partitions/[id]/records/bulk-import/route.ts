@@ -5,7 +5,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
-// Note: bulk-import uses sequential AI email (rate limit), so dispatchAutoTriggers is not used here
+// Note: bulk-import uses batched AI email (rate limit safe), so dispatchAutoTriggers is not used here
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { broadcastToPartition } from "@/lib/sse";
 
@@ -127,13 +127,19 @@ export async function POST(
             processEmailAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: email auto trigger error:", err));
             processAutoEnrich(triggerParams).catch((err) => console.error("Bulk import: auto enrich error:", err));
         }
-        // AI 자동발송은 순차 실행 (Gemini API rate limit 방지)
+        // AI 자동발송은 배치 병렬 실행 (5건/배치, 1초 딜레이로 rate limit 준수)
         (async () => {
-            for (const record of result.insertedRecords) {
-                try {
-                    await processAutoPersonalizedEmail({ record, partitionId, triggerType: "on_create", orgId: user.orgId });
-                } catch (err) {
-                    console.error("Bulk import: auto personalized email error:", err);
+            const BATCH_SIZE = 5;
+            const BATCH_DELAY_MS = 1000;
+            for (let i = 0; i < result.insertedRecords.length; i += BATCH_SIZE) {
+                const batch = result.insertedRecords.slice(i, i + BATCH_SIZE);
+                await Promise.allSettled(
+                    batch.map(record =>
+                        processAutoPersonalizedEmail({ record, partitionId, triggerType: "on_create", orgId: user.orgId })
+                    )
+                );
+                if (i + BATCH_SIZE < result.insertedRecords.length) {
+                    await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
                 }
             }
         })();
