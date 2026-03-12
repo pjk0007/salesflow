@@ -22,10 +22,11 @@ interface QueueResponse {
     totalCount?: number;
 }
 
-export function useFollowupQueue(params?: { status?: string; sourceType?: string; page?: number }) {
+export function useFollowupQueue(params?: { status?: string; sourceType?: string; search?: string; page?: number }) {
     const qs = new URLSearchParams();
     if (params?.status) qs.set("status", params.status);
     if (params?.sourceType) qs.set("sourceType", params.sourceType);
+    if (params?.search) qs.set("search", params.search);
     if (params?.page) qs.set("page", String(params.page));
     const query = qs.toString() ? `?${qs.toString()}` : "";
 
@@ -34,11 +35,19 @@ export function useFollowupQueue(params?: { status?: string; sourceType?: string
         defaultFetcher
     );
 
+    const cancelItem = async (id: number) => {
+        const res = await fetch(`/api/email/followup-queue/${id}`, { method: "PATCH" });
+        const json = await res.json();
+        if (json.success) mutate();
+        return json;
+    };
+
     return {
         items: data?.data ?? [],
         totalCount: data?.totalCount ?? 0,
         isLoading,
         error,
         mutate,
+        cancelItem,
     };
 }

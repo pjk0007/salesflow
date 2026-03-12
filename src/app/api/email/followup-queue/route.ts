@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailFollowupQueue, emailSendLogs } from "@/lib/db";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ilike } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -25,13 +25,19 @@ export async function GET(req: NextRequest) {
         if (sourceType) {
             conditions.push(eq(emailFollowupQueue.sourceType, sourceType));
         }
+        const search = searchParams.get("search");
+        if (search) {
+            conditions.push(ilike(emailSendLogs.recipientEmail, `%${search}%`));
+        }
 
         const whereClause = and(...conditions);
 
-        const [countResult] = await db
+        const baseQuery = db
             .select({ count: sql<number>`count(*)` })
             .from(emailFollowupQueue)
+            .leftJoin(emailSendLogs, eq(emailFollowupQueue.parentLogId, emailSendLogs.id))
             .where(whereClause);
+        const [countResult] = await baseQuery;
 
         const items = await db
             .select({

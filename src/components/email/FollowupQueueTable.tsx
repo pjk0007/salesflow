@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useFollowupQueue } from "@/hooks/useFollowupQueue";
 import {
     Table,
@@ -18,9 +18,10 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
     pending: { label: "대기", variant: "outline" },
@@ -48,12 +49,32 @@ export default function FollowupQueueTable() {
     const [page, setPage] = useState(1);
     const [status, setStatus] = useState<string>("");
     const [sourceType, setSourceType] = useState<string>("");
+    const [searchInput, setSearchInput] = useState("");
+    const [search, setSearch] = useState("");
+    const [cancellingId, setCancellingId] = useState<number | null>(null);
+    const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-    const { items, totalCount, isLoading } = useFollowupQueue({
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(() => {
+            setSearch(searchInput);
+            setPage(1);
+        }, 300);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [searchInput]);
+
+    const { items, totalCount, isLoading, cancelItem } = useFollowupQueue({
         page,
         status: status || undefined,
         sourceType: sourceType || undefined,
+        search: search || undefined,
     });
+
+    const handleCancel = async (id: number) => {
+        setCancellingId(id);
+        await cancelItem(id);
+        setCancellingId(null);
+    };
 
     const totalPages = Math.ceil(totalCount / 50);
 
@@ -84,6 +105,13 @@ export default function FollowupQueueTable() {
                         <SelectItem value="ai">AI</SelectItem>
                     </SelectContent>
                 </Select>
+
+                <Input
+                    placeholder="수신자 이메일 검색"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    className="w-[240px]"
+                />
             </div>
 
             {/* Table */}
@@ -112,6 +140,7 @@ export default function FollowupQueueTable() {
                                     <TableHead className="w-[80px]">상태</TableHead>
                                     <TableHead className="w-[80px]">결과</TableHead>
                                     <TableHead className="w-[120px]">처리일</TableHead>
+                                    <TableHead className="w-[60px]"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -145,6 +174,19 @@ export default function FollowupQueueTable() {
                                                 )}
                                             </TableCell>
                                             <TableCell>{formatDate(item.processedAt)}</TableCell>
+                                            <TableCell>
+                                                {item.status === "pending" && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-7 w-7"
+                                                        disabled={cancellingId === item.id}
+                                                        onClick={() => handleCancel(item.id)}
+                                                    >
+                                                        <X className="h-4 w-4" />
+                                                    </Button>
+                                                )}
+                                            </TableCell>
                                         </TableRow>
                                     );
                                 })}
