@@ -43,8 +43,7 @@ export async function POST(req: NextRequest) {
                 for (const mail of result.data) {
                     let newStatus: string | null = null;
                     if (mail.mailStatusCode === "SST2") newStatus = "sent";
-                    else if (mail.mailStatusCode === "SST3") newStatus = "failed";
-                    else if (mail.mailStatusCode === "SST5") newStatus = "rejected";
+                    else if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST7") newStatus = "failed";
 
                     if (!newStatus) continue;
 
@@ -108,13 +107,12 @@ export async function POST(req: NextRequest) {
                     );
 
                     for (const log of matchingLogs) {
-                        // 실제 NHN 상태가 실패/거부이면 상태 보정
-                        if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST5") {
-                            const correctedStatus = mail.mailStatusCode === "SST3" ? "failed" : "rejected";
+                        // 실제 NHN 상태가 실패/미인증이면 상태 보정
+                        if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST7") {
                             await db
                                 .update(emailSendLogs)
                                 .set({
-                                    status: correctedStatus,
+                                    status: "failed",
                                     resultCode: mail.resultCode,
                                     resultMessage: mail.resultCodeName,
                                     completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
