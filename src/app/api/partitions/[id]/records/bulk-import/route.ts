@@ -33,8 +33,8 @@ export async function POST(
     if (!Array.isArray(importRecords) || importRecords.length === 0) {
         return NextResponse.json({ success: false, error: "가져올 레코드가 없습니다." }, { status: 400 });
     }
-    if (importRecords.length > 1000) {
-        return NextResponse.json({ success: false, error: "최대 1,000건까지 가져올 수 있습니다." }, { status: 400 });
+    if (importRecords.length > 3000) {
+        return NextResponse.json({ success: false, error: "최대 3,000건까지 가져올 수 있습니다." }, { status: 400 });
     }
 
     try {
