@@ -266,8 +266,8 @@ async function handleTemplateFollowup(
         receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
     });
 
-    const isSuccess = nhnResult.header.isSuccessful;
     const sendResult = nhnResult.data?.results?.[0];
+    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
 
     // 8. 로그 기록
     const [inserted] = await db.insert(emailSendLogs).values({
@@ -425,8 +425,8 @@ async function handleAiFollowup(
         receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
     });
 
-    const isSuccess = nhnResult.header.isSuccessful;
     const sendResult = nhnResult.data?.results?.[0];
+    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
 
     // 10. 로그 기록
     const [inserted] = await db.insert(emailSendLogs).values({

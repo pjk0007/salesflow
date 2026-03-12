@@ -86,8 +86,8 @@ async function sendEmailSingle(
         receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
     });
 
-    const isSuccess = nhnResult.header.isSuccessful;
     const sendResult = nhnResult.data?.results?.[0];
+    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
 
     const [inserted] = await db.insert(emailSendLogs).values({
         orgId,

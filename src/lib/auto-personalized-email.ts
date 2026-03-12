@@ -196,8 +196,8 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
             });
 
-            const isSuccess = nhnResult.header.isSuccessful;
             const sendResult = nhnResult.data?.results?.[0];
+            const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
 
             // 10. 발송 로그 기록
             const [inserted] = await db.insert(emailSendLogs).values({
