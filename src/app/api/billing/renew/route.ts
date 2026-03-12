@@ -4,8 +4,8 @@ import { processRenewals, processRetries } from "@/lib/billing";
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 export async function POST(req: NextRequest) {
-    const secretKey = req.headers.get("x-secret-key");
-    if (!CRON_SECRET || secretKey !== CRON_SECRET) {
+    const token = req.headers.get("x-secret") || req.headers.get("x-secret-key") || req.headers.get("authorization")?.replace("Bearer ", "");
+    if (!CRON_SECRET || token !== CRON_SECRET) {
         return NextResponse.json(
             { success: false, error: "Unauthorized" },
             { status: 401 }

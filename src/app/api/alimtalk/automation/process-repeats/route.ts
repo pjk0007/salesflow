@@ -8,8 +8,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "CRON_SECRET이 설정되지 않았습니다." }, { status: 500 });
     }
 
-    const authHeader = req.headers.get("authorization");
-    const token = authHeader?.replace("Bearer ", "") || req.nextUrl.searchParams.get("secret");
+    const token = req.headers.get("x-secret") || req.headers.get("authorization")?.replace("Bearer ", "") || req.nextUrl.searchParams.get("secret");
 
     if (token !== cronSecret) {
         return NextResponse.json({ success: false, error: "인증에 실패했습니다." }, { status: 401 });
