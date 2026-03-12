@@ -36,8 +36,8 @@ export default function FileUploadStep({
                 if (rows.length < 2) return;
                 const headers = rows[0];
                 const data = rows.slice(1);
-                if (data.length > 1000) {
-                    onError([{ row: 0, message: `${data.length}건 감지 — 최대 1,000건까지 가능합니다.` }]);
+                if (data.length > 3000) {
+                    onError([{ row: 0, message: `${data.length}건 감지 — 최대 3,000건까지 가능합니다.` }]);
                     return;
                 }
 
@@ -63,7 +63,7 @@ export default function FileUploadStep({
                 <p className="text-sm text-muted-foreground mt-2">
                     CSV 파일을 여기에 클릭하여 선택하세요
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">최대 1,000건</p>
+                <p className="text-xs text-muted-foreground mt-1">최대 3,000건</p>
                 <input
                     ref={fileInputRef}
                     type="file"
