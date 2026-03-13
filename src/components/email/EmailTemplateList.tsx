@@ -22,14 +22,17 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Send } from "lucide-react";
 import { toast } from "sonner";
+import EmailTestSendDialog from "@/components/email/EmailTestSendDialog";
+import type { EmailTemplate } from "@/lib/db";
 
 export default function EmailTemplateList() {
     const router = useRouter();
     const { templates, isLoading, deleteTemplate } = useEmailTemplates();
     const { categories } = useEmailCategories();
     const [categoryFilter, setCategoryFilter] = useState<string>("all");
+    const [testSendTemplate, setTestSendTemplate] = useState<EmailTemplate | null>(null);
 
     const filteredTemplates = categoryFilter === "all"
         ? templates
@@ -94,7 +97,7 @@ export default function EmailTemplateList() {
                             <TableHead>제목</TableHead>
                             <TableHead>카테고리</TableHead>
                             <TableHead>상태</TableHead>
-                            <TableHead className="w-[100px]">작업</TableHead>
+                            <TableHead className="w-[130px]">작업</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -124,6 +127,15 @@ export default function EmailTemplateList() {
                                 </TableCell>
                                 <TableCell>
                                     <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={template.status === "draft"}
+                                            onClick={() => setTestSendTemplate(template)}
+                                            title="테스트 발송"
+                                        >
+                                            <Send className="h-4 w-4" />
+                                        </Button>
                                         <Button variant="ghost" size="icon" onClick={() => router.push(`/email/templates/${template.id}`)}>
                                             <Pencil className="h-4 w-4" />
                                         </Button>
@@ -136,6 +148,14 @@ export default function EmailTemplateList() {
                         ))}
                     </TableBody>
                 </Table>
+            )}
+
+            {testSendTemplate && (
+                <EmailTestSendDialog
+                    open={!!testSendTemplate}
+                    onOpenChange={(open) => { if (!open) setTestSendTemplate(null); }}
+                    template={testSendTemplate}
+                />
             )}
         </div>
     );
