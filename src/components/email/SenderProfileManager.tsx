@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Plus, Pencil, Trash2, Star } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Star, CheckCircle, Send } from "lucide-react";
 import { toast } from "sonner";
 
 interface SenderProfile {
@@ -35,17 +35,47 @@ export default function SenderProfileManager({
     const [editingId, setEditingId] = useState<number | null>(null);
     const [form, setForm] = useState({ name: "", fromName: "", fromEmail: "" });
     const [saving, setSaving] = useState(false);
+    const [verifying, setVerifying] = useState(false);
+    const [verified, setVerified] = useState(false);
 
     const openNew = () => {
         setEditingId(null);
         setForm({ name: "", fromName: "", fromEmail: "" });
+        setVerified(false);
         setDialogOpen(true);
     };
 
     const openEdit = (p: SenderProfile) => {
         setEditingId(p.id);
         setForm({ name: p.name, fromName: p.fromName, fromEmail: p.fromEmail });
+        setVerified(true); // 기존 프로필은 이미 검증됨
         setDialogOpen(true);
+    };
+
+    const handleVerify = async () => {
+        if (!form.fromEmail || !form.fromEmail.includes("@")) {
+            toast.error("유효한 발신 이메일을 입력해주세요.");
+            return;
+        }
+        setVerifying(true);
+        try {
+            const res = await fetch("/api/email/sender-profiles/verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ fromEmail: form.fromEmail, fromName: form.fromName }),
+            });
+            const result = await res.json();
+            if (result.success) {
+                setVerified(true);
+                toast.success("발신 이메일이 확인되었습니다. 확인 메일이 발송되었습니다.");
+            } else {
+                toast.error(result.error || "발신 이메일 확인에 실패했습니다.");
+            }
+        } catch {
+            toast.error("요청에 실패했습니다.");
+        } finally {
+            setVerifying(false);
+        }
     };
 
     const handleSave = async () => {
@@ -156,17 +186,47 @@ export default function SenderProfileManager({
                         </div>
                         <div className="space-y-2">
                             <Label>발신 이메일</Label>
-                            <Input
-                                type="email"
-                                value={form.fromEmail}
-                                onChange={(e) => setForm((p) => ({ ...p, fromEmail: e.target.value }))}
-                                placeholder="예: marketing@company.com"
-                            />
+                            <div className="flex gap-2">
+                                <Input
+                                    type="email"
+                                    value={form.fromEmail}
+                                    onChange={(e) => {
+                                        setForm((p) => ({ ...p, fromEmail: e.target.value }));
+                                        if (!editingId) setVerified(false);
+                                    }}
+                                    placeholder="예: marketing@company.com"
+                                    className="flex-1"
+                                />
+                                {!editingId && (
+                                    <Button
+                                        type="button"
+                                        variant={verified ? "outline" : "secondary"}
+                                        size="sm"
+                                        className="shrink-0"
+                                        onClick={handleVerify}
+                                        disabled={verifying || verified || !form.fromEmail.includes("@")}
+                                    >
+                                        {verifying ? (
+                                            <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                        ) : verified ? (
+                                            <CheckCircle className="h-4 w-4 mr-1 text-green-500" />
+                                        ) : (
+                                            <Send className="h-4 w-4 mr-1" />
+                                        )}
+                                        {verified ? "확인됨" : "테스트"}
+                                    </Button>
+                                )}
+                            </div>
+                            {!editingId && !verified && (
+                                <p className="text-xs text-muted-foreground">
+                                    NHN에 등록된 발신 주소인지 테스트 발송으로 확인합니다.
+                                </p>
+                            )}
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>취소</Button>
-                        <Button onClick={handleSave} disabled={saving}>
+                        <Button onClick={handleSave} disabled={saving || (!editingId && !verified)}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                             {editingId ? "수정" : "추가"}
                         </Button>

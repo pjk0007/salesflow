@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
+import { useFields } from "@/hooks/useFields";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -45,6 +46,13 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
         partitions.length > 0 ? partitions[0].id : null
     );
     const { templateLinks, isLoading, deleteLink } = useEmailTemplateLinks(selectedPartitionId);
+    const selectedPartition = partitions.find((p) => p.id === selectedPartitionId);
+    const { fields } = useFields(selectedPartition?.workspaceId ?? null);
+    const fieldLabelMap = useMemo(() => {
+        const map: Record<string, string> = {};
+        for (const f of fields) map[f.key] = f.label;
+        return map;
+    }, [fields]);
 
     const handleCreate = () => {
         if (!selectedPartitionId) return;
@@ -116,7 +124,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                         {templateLinks.map((link) => (
                             <TableRow key={link.id}>
                                 <TableCell className="font-medium">{link.name}</TableCell>
-                                <TableCell className="text-muted-foreground">{link.recipientField}</TableCell>
+                                <TableCell className="text-muted-foreground">{fieldLabelMap[link.recipientField] || link.recipientField}</TableCell>
                                 <TableCell>
                                     <Badge variant={link.triggerType === "manual" ? "outline" : "default"}>
                                         {TRIGGER_LABELS[link.triggerType] || link.triggerType}
