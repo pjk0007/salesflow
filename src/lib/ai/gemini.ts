@@ -18,17 +18,27 @@ export async function callGeminiEmail(
     systemPrompt: string,
     userPrompt: string
 ): Promise<GenerateEmailResult> {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
-        {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`;
+    const body = JSON.stringify({
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+    });
+
+    let response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+    });
+
+    // 서버 과부하(429/503) 시 1~2초 대기 후 1회 재시도
+    if (!response.ok && (response.status === 429 || response.status === 503)) {
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+        response = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-            }),
-        }
-    );
+            body,
+        });
+    }
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));

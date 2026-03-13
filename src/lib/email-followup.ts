@@ -90,62 +90,85 @@ export async function processEmailFollowupQueue(): Promise<{
                 lte(emailFollowupQueue.checkAt, now)
             )
         )
-        .limit(100);
+        .limit(5000);
 
-    for (const item of items) {
-        stats.processed++;
+    // 5건/배치, 1초 딜레이로 배치 병렬 처리
+    const BATCH_SIZE = 5;
+    const BATCH_DELAY_MS = 1000;
 
-        try {
-            // 1. 원본 발송 로그 조회
-            const [parentLog] = await db
-                .select()
-                .from(emailSendLogs)
-                .where(eq(emailSendLogs.id, item.parentLogId))
-                .limit(1);
-
-            if (!parentLog) {
-                await updateQueueStatus(item.id, "cancelled", null);
-                stats.cancelled++;
-                continue;
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+        const batch = items.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(
+            batch.map(item => processFollowupItem(item, stats))
+        );
+        for (const r of results) {
+            if (r.status === "rejected") {
+                console.error("[Followup] Batch item error:", r.reason);
             }
-
-            // 2. 읽음 상태 최신화 (NHN API)
-            await syncReadStatus(parentLog);
-
-            // 재조회 (업데이트 반영)
-            const [refreshedLog] = await db
-                .select()
-                .from(emailSendLogs)
-                .where(eq(emailSendLogs.id, item.parentLogId))
-                .limit(1);
-
-            const isOpened = refreshedLog?.isOpened === 1;
-            const result = isOpened ? "opened" : "not_opened";
-
-            // 3. sourceType에 따라 분기
-            let sent = false;
-
-            if (item.sourceType === "template") {
-                sent = await handleTemplateFollowup(item, refreshedLog!, isOpened);
-            } else if (item.sourceType === "ai") {
-                sent = await handleAiFollowup(item, refreshedLog!, isOpened);
-            }
-
-            if (sent) {
-                await updateQueueStatus(item.id, "sent", result);
-                stats.sent++;
-            } else {
-                await updateQueueStatus(item.id, "skipped", result);
-                stats.skipped++;
-            }
-        } catch (err) {
-            console.error(`[Followup] Error processing queue item ${item.id}:`, err);
-            await updateQueueStatus(item.id, "cancelled", null);
-            stats.cancelled++;
+        }
+        if (i + BATCH_SIZE < items.length) {
+            await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
         }
     }
 
     return stats;
+}
+
+/** 개별 후속 큐 항목 처리 */
+async function processFollowupItem(
+    item: typeof emailFollowupQueue.$inferSelect,
+    stats: { processed: number; sent: number; skipped: number; cancelled: number }
+): Promise<void> {
+    stats.processed++;
+
+    try {
+        // 1. 원본 발송 로그 조회
+        const [parentLog] = await db
+            .select()
+            .from(emailSendLogs)
+            .where(eq(emailSendLogs.id, item.parentLogId))
+            .limit(1);
+
+        if (!parentLog) {
+            await updateQueueStatus(item.id, "cancelled", null);
+            stats.cancelled++;
+            return;
+        }
+
+        // 2. 읽음 상태 최신화 (NHN API)
+        await syncReadStatus(parentLog);
+
+        // 재조회 (업데이트 반영)
+        const [refreshedLog] = await db
+            .select()
+            .from(emailSendLogs)
+            .where(eq(emailSendLogs.id, item.parentLogId))
+            .limit(1);
+
+        const isOpened = refreshedLog?.isOpened === 1;
+        const result = isOpened ? "opened" : "not_opened";
+
+        // 3. sourceType에 따라 분기
+        let sent = false;
+
+        if (item.sourceType === "template") {
+            sent = await handleTemplateFollowup(item, refreshedLog!, isOpened);
+        } else if (item.sourceType === "ai") {
+            sent = await handleAiFollowup(item, refreshedLog!, isOpened);
+        }
+
+        if (sent) {
+            await updateQueueStatus(item.id, "sent", result);
+            stats.sent++;
+        } else {
+            await updateQueueStatus(item.id, "skipped", result);
+            stats.skipped++;
+        }
+    } catch (err) {
+        console.error(`[Followup] Error processing queue item ${item.id}:`, err);
+        await updateQueueStatus(item.id, "cancelled", null);
+        stats.cancelled++;
+    }
 }
 
 // ============================================
