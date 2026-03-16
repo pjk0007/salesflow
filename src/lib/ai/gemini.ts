@@ -30,8 +30,8 @@ export async function callGeminiEmail(
         body,
     });
 
-    // 서버 과부하(429/503) 시 1~2초 대기 후 1회 재시도
-    if (!response.ok && (response.status === 429 || response.status === 503)) {
+    // 서버 에러(429/500/503) 시 1~2초 대기 후 1회 재시도
+    if (!response.ok && [429, 500, 503].includes(response.status)) {
         await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
         response = await fetch(url, {
             method: "POST",
