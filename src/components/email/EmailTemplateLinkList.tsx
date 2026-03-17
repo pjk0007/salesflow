@@ -67,10 +67,10 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
         router.push(`/email/links/${linkId}?partitionId=${selectedPartitionId}`);
     };
 
-    const handleToggleActive = async (link: { id: number; isActive: boolean }) => {
-        const result = await updateLink(link.id, { isActive: link.isActive ? 0 : 1 });
+    const handleToggleActive = async (link: { id: number; isActive: number }) => {
+        const result = await updateLink(link.id, { isActive: link.isActive === 1 ? 0 : 1 });
         if (result.success) {
-            toast.success(link.isActive ? "비활성화되었습니다." : "활성화되었습니다.");
+            toast.success(link.isActive === 1 ? "비활성화되었습니다." : "활성화되었습니다.");
         }
     };
 
