@@ -288,6 +288,27 @@ export default function ApiTokensTab() {
 const ENDPOINTS = [
     {
         method: "GET",
+        path: "/api/v1/partitions",
+        title: "파티션 목록 조회",
+        desc: "토큰 권한(scope)에 해당하는 파티션 목록을 조회합니다. 레코드 API 호출 시 필요한 partitionId를 확인할 수 있습니다.",
+        params: null,
+        body: null,
+        response: `{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "name": "영업 리드",
+      "workspaceId": 1,
+      "workspaceName": "기본 워크스페이스",
+      "folderId": null,
+      "folderName": null
+    }
+  ]
+}`,
+    },
+    {
+        method: "GET",
         path: "/api/v1/records",
         title: "레코드 목록 조회",
         desc: "파티션 내 레코드를 검색·필터·정렬하여 조회합니다.",

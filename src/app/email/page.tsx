@@ -101,8 +101,8 @@ function EmailPageContent() {
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
                         <TabsList>
                             <TabsTrigger value="dashboard">대시보드</TabsTrigger>
-                            <TabsTrigger value="links">연결 관리</TabsTrigger>
                             <TabsTrigger value="templates">템플릿</TabsTrigger>
+                            <TabsTrigger value="links">템플릿 자동발송</TabsTrigger>
                             <TabsTrigger value="ai-auto">AI 자동발송</TabsTrigger>
                             <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
                             <TabsTrigger value="logs">발송 이력</TabsTrigger>
@@ -112,12 +112,12 @@ function EmailPageContent() {
                             <EmailDashboard onTabChange={setActiveTab} />
                         </TabsContent>
 
-                        <TabsContent value="links" className="mt-6">
-                            <EmailTemplateLinkList partitions={partitions} />
-                        </TabsContent>
-
                         <TabsContent value="templates" className="mt-6">
                             <EmailTemplateList />
+                        </TabsContent>
+
+                        <TabsContent value="links" className="mt-6">
+                            <EmailTemplateLinkList partitions={partitions} />
                         </TabsContent>
 
                         <TabsContent value="ai-auto" className="mt-6">
