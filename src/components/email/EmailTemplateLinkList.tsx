@@ -148,7 +148,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                 </div>
                                 <div className="flex items-center gap-2">
                                     <Switch
-                                        checked={link.isActive}
+                                        checked={!!link.isActive}
                                         onCheckedChange={() => handleToggleActive(link)}
                                     />
                                     <Button
