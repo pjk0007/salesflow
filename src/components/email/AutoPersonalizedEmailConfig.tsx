@@ -76,7 +76,7 @@ export default function AutoPersonalizedEmailConfig({
             tone: link.tone ?? undefined,
             format: link.format,
             triggerType: link.triggerType as "on_create" | "on_update",
-            triggerCondition: link.triggerCondition ?? undefined,
+            triggerCondition: link.triggerCondition?.field ? link.triggerCondition as { field: string; operator: string; value: string } : null,
             autoResearch: link.autoResearch,
             useSignaturePersona: link.useSignaturePersona,
             followupConfig: link.followupConfig ?? undefined,
