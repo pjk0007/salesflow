@@ -37,7 +37,12 @@ import { toast } from "sonner";
 import { useApiTokens } from "@/hooks/useApiTokens";
 import { useSession } from "@/contexts/SessionContext";
 import ApiTokenCreateDialog from "./ApiTokenCreateDialog";
-import { Plus, MoreHorizontal, Pencil, Trash2, Copy, Check } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Copy, Check, ChevronDown } from "lucide-react";
+import {
+    Collapsible,
+    CollapsibleContent,
+    CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 function formatRelativeTime(dateStr: string | null): string {
     if (!dateStr) return "-";
@@ -209,6 +214,9 @@ export default function ApiTokensTab() {
                 </CardContent>
             </Card>
 
+            {/* API 문서 */}
+            <ApiDocsCard />
+
             {/* 생성 다이얼로그 */}
             <ApiTokenCreateDialog
                 open={createDialogOpen}
@@ -272,5 +280,243 @@ export default function ApiTokensTab() {
                 </AlertDialogContent>
             </AlertDialog>
         </div>
+    );
+}
+
+/* ─── API 문서 카드 ─── */
+
+const ENDPOINTS = [
+    {
+        method: "GET",
+        path: "/api/v1/records",
+        title: "레코드 목록 조회",
+        desc: "파티션 내 레코드를 검색·필터·정렬하여 조회합니다.",
+        params: [
+            { name: "partitionId", type: "number", required: true, desc: "파티션 ID (필수)" },
+            { name: "page", type: "number", required: false, desc: "페이지 번호 (기본 1)" },
+            { name: "pageSize", type: "number", required: false, desc: "페이지 크기 (기본 50, 최대 200)" },
+            { name: "search", type: "string", required: false, desc: "전체 텍스트 검색어" },
+            { name: "sortField", type: "string", required: false, desc: "정렬 필드명" },
+            { name: "sortOrder", type: "string", required: false, desc: "asc | desc" },
+            { name: "filters", type: "JSON", required: false, desc: "필터 조건 (JSON 문자열)" },
+        ],
+        body: null,
+        response: `{
+  "success": true,
+  "data": [ { "id": 1, "data": { ... }, ... } ],
+  "total": 150,
+  "page": 1,
+  "pageSize": 50,
+  "totalPages": 3
+}`,
+    },
+    {
+        method: "POST",
+        path: "/api/v1/records",
+        title: "레코드 생성",
+        desc: "새 레코드를 생성합니다. 자동 배분·자동 발송 트리거가 실행됩니다.",
+        params: null,
+        body: `{
+  "partitionId": 1,
+  "data": {
+    "이름": "홍길동",
+    "이메일": "hong@example.com",
+    "전화번호": "010-1234-5678"
+  }
+}`,
+        response: `{
+  "success": true,
+  "data": { "id": 42, "data": { ... }, ... }
+}`,
+    },
+    {
+        method: "GET",
+        path: "/api/v1/records/:id",
+        title: "레코드 단건 조회",
+        desc: "레코드 ID로 단건 조회합니다.",
+        params: null,
+        body: null,
+        response: `{
+  "success": true,
+  "data": { "id": 42, "data": { ... }, ... }
+}`,
+    },
+    {
+        method: "PUT",
+        path: "/api/v1/records/:id",
+        title: "레코드 수정",
+        desc: "레코드 데이터를 부분 업데이트합니다. 기존 데이터와 병합됩니다.",
+        params: null,
+        body: `{
+  "data": {
+    "상태": "계약완료",
+    "메모": "3월 계약 체결"
+  }
+}`,
+        response: `{
+  "success": true,
+  "data": { "id": 42, "data": { ... }, ... }
+}`,
+    },
+    {
+        method: "DELETE",
+        path: "/api/v1/records/:id",
+        title: "레코드 삭제",
+        desc: "레코드를 삭제합니다.",
+        params: null,
+        body: null,
+        response: `{
+  "success": true,
+  "message": "Record deleted."
+}`,
+    },
+];
+
+const FILTER_OPERATORS = [
+    { op: "contains", desc: "문자열 포함", example: '"홍"' },
+    { op: "equals", desc: "정확히 일치", example: '"서울"' },
+    { op: "not_equals", desc: "불일치", example: '"서울"' },
+    { op: "gt / gte / lt / lte", desc: "숫자 비교", example: "100" },
+    { op: "before / after", desc: "날짜 비교", example: '"2026-03-01"' },
+    { op: "between", desc: "범위", example: '["2026-01-01","2026-03-31"]' },
+    { op: "is_empty / is_not_empty", desc: "빈값 여부", example: "true" },
+];
+
+function MethodBadge({ method }: { method: string }) {
+    const colors: Record<string, string> = {
+        GET: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+        POST: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300",
+        PUT: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
+        DELETE: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300",
+    };
+    return (
+        <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-bold font-mono ${colors[method] ?? ""}`}>
+            {method}
+        </span>
+    );
+}
+
+function CodeBlock({ children }: { children: string }) {
+    return (
+        <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto whitespace-pre">
+            {children}
+        </pre>
+    );
+}
+
+function ApiDocsCard() {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>API 문서</CardTitle>
+                <CardDescription>
+                    외부 시스템에서 Sendb 레코드에 접근하기 위한 REST API 레퍼런스입니다.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {/* 인증 */}
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">인증</h4>
+                    <p className="text-sm text-muted-foreground">
+                        모든 요청에 <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">Authorization</code> 헤더를 포함해야 합니다.
+                    </p>
+                    <CodeBlock>{`Authorization: Bearer <API_TOKEN>`}</CodeBlock>
+                </div>
+
+                {/* 베이스 URL */}
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">베이스 URL</h4>
+                    <CodeBlock>{`${typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}`}</CodeBlock>
+                </div>
+
+                {/* 엔드포인트 */}
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">엔드포인트</h4>
+                    <div className="space-y-2">
+                        {ENDPOINTS.map((ep) => (
+                            <Collapsible key={`${ep.method}-${ep.path}`}>
+                                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50 transition-colors group">
+                                    <MethodBadge method={ep.method} />
+                                    <code className="font-mono text-xs">{ep.path}</code>
+                                    <span className="ml-auto text-xs text-muted-foreground">{ep.title}</span>
+                                    <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="border-x border-b rounded-b-md px-3 py-3 space-y-3">
+                                    <p className="text-sm text-muted-foreground">{ep.desc}</p>
+
+                                    {ep.params && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold text-muted-foreground">쿼리 파라미터</p>
+                                            <div className="rounded-md border text-xs">
+                                                <table className="w-full">
+                                                    <tbody>
+                                                        {ep.params.map((p) => (
+                                                            <tr key={p.name} className="border-b last:border-0">
+                                                                <td className="px-2 py-1.5 font-mono font-medium whitespace-nowrap">
+                                                                    {p.name}
+                                                                    {p.required && <span className="text-red-500 ml-0.5">*</span>}
+                                                                </td>
+                                                                <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{p.type}</td>
+                                                                <td className="px-2 py-1.5 text-muted-foreground">{p.desc}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {ep.body && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs font-semibold text-muted-foreground">요청 본문</p>
+                                            <CodeBlock>{ep.body}</CodeBlock>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-1">
+                                        <p className="text-xs font-semibold text-muted-foreground">응답</p>
+                                        <CodeBlock>{ep.response}</CodeBlock>
+                                    </div>
+                                </CollapsibleContent>
+                            </Collapsible>
+                        ))}
+                    </div>
+                </div>
+
+                {/* 필터 연산자 */}
+                <Collapsible>
+                    <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-semibold hover:text-foreground/80 group">
+                        필터 연산자
+                        <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2 space-y-2">
+                        <p className="text-sm text-muted-foreground">
+                            <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">filters</code> 쿼리 파라미터에 JSON 배열로 전달합니다.
+                        </p>
+                        <CodeBlock>{`?filters=[{"field":"이름","operator":"contains","value":"홍"}]`}</CodeBlock>
+                        <div className="rounded-md border text-xs">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b bg-muted/50">
+                                        <th className="px-2 py-1.5 text-left font-medium">연산자</th>
+                                        <th className="px-2 py-1.5 text-left font-medium">설명</th>
+                                        <th className="px-2 py-1.5 text-left font-medium">value 예시</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {FILTER_OPERATORS.map((f) => (
+                                        <tr key={f.op} className="border-b last:border-0">
+                                            <td className="px-2 py-1.5 font-mono">{f.op}</td>
+                                            <td className="px-2 py-1.5 text-muted-foreground">{f.desc}</td>
+                                            <td className="px-2 py-1.5 font-mono text-muted-foreground">{f.example}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
+            </CardContent>
+        </Card>
     );
 }
