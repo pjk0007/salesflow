@@ -23,7 +23,7 @@ export default function CompleteStep({
             <div>
                 <h2 className="text-2xl font-bold">모든 설정이 완료되었습니다!</h2>
                 <p className="mt-2 text-muted-foreground">
-                    이제 SalesFlow를 시작해보세요.
+                    이제 Sendb를 시작해보세요.
                 </p>
             </div>
 

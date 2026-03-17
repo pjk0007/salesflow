@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
             customerKey: currentSub.tossCustomerKey,
             amount: targetPlan.price,
             orderId,
-            orderName: `SalesFlow ${targetPlan.name} 플랜`,
+            orderName: `Sendb ${targetPlan.name} 플랜`,
         });
 
         const now = new Date();

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SendbIcon } from "@/components/SendbLogo";
 import {
     Sheet,
     SheetContent,
@@ -36,8 +37,8 @@ export default function LandingNavbar() {
             }`}
         >
             <div className="container mx-auto flex h-14 items-center justify-between px-4">
-                <Link href="/" className="text-xl font-bold">
-                    SalesFlow
+                <Link href="/" className="flex items-center gap-2 text-xl font-bold">
+                    <SendbIcon className="size-5" />Sendb
                 </Link>
 
                 {/* Desktop Nav */}
@@ -71,7 +72,7 @@ export default function LandingNavbar() {
                         </Button>
                     </SheetTrigger>
                     <SheetContent side="right" className="w-72">
-                        <SheetTitle className="text-lg font-bold">SalesFlow</SheetTitle>
+                        <SheetTitle className="flex items-center gap-2 text-lg font-bold"><SendbIcon className="size-4" />Sendb</SheetTitle>
                         <nav className="mt-6 flex flex-col gap-4">
                             {NAV_LINKS.map((link) => (
                                 <a

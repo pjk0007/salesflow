@@ -7,7 +7,7 @@ export default function LandingFooter() {
                 <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
                     {/* Brand */}
                     <div>
-                        <p className="text-lg font-bold">SalesFlow</p>
+                        <p className="text-lg font-bold">Sendb</p>
                         <p className="mt-1 text-sm text-muted-foreground">
                             스마트 영업 관리 플랫폼
                         </p>
@@ -45,7 +45,7 @@ export default function LandingFooter() {
 
                 <div className="mt-8 border-t pt-8">
                     <p className="text-center text-xs text-muted-foreground">
-                        &copy; 2026 SalesFlow. All rights reserved.
+                        &copy; 2026 Sendb. All rights reserved.
                     </p>
                 </div>
             </div>

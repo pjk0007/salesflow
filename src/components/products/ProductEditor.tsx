@@ -131,7 +131,7 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
                         <Input
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="예: SalesFlow Pro"
+                            placeholder="예: Sendb Pro"
                         />
                     </div>
 

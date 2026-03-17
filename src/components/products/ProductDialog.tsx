@@ -139,7 +139,7 @@ export default function ProductDialog({
                         <Input
                             value={name}
                             onChange={(e) => setName(e.target.value)}
-                            placeholder="예: SalesFlow Pro"
+                            placeholder="예: Sendb Pro"
                         />
                     </div>
 

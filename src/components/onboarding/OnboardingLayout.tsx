@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SendbIcon } from "@/components/SendbLogo";
 import StepIndicator from "./StepIndicator";
 
 interface OnboardingLayoutProps {
@@ -31,8 +32,8 @@ export default function OnboardingLayout({
         <div className="flex min-h-screen flex-col">
             {/* Header */}
             <header className="flex items-center justify-between border-b px-6 py-3">
-                <Link href="/" className="text-xl font-bold">
-                    SalesFlow
+                <Link href="/" className="flex items-center gap-2 text-xl font-bold">
+                    <SendbIcon className="size-5" />Sendb
                 </Link>
                 <Button variant="ghost" size="sm" onClick={onSkipAll}>
                     건너뛰기

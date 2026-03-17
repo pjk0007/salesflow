@@ -195,7 +195,7 @@ export async function processRenewals(): Promise<{
                 customerKey: sub.tossCustomerKey,
                 amount: plan.price,
                 orderId,
-                orderName: `SalesFlow ${plan.name} 플랜 갱신`,
+                orderName: `Sendb ${plan.name} 플랜 갱신`,
             });
 
             const periodStart = new Date();
@@ -292,7 +292,7 @@ export async function processRetries(): Promise<{
                 customerKey: sub.tossCustomerKey,
                 amount: plan.price,
                 orderId,
-                orderName: `SalesFlow ${plan.name} 플랜 갱신 (재시도)`,
+                orderName: `Sendb ${plan.name} 플랜 갱신 (재시도)`,
             });
 
             const periodStart = new Date();

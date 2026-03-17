@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
         const result = await client.sendEachMail({
             senderAddress: fromEmail,
             senderName: fromName || undefined,
-            title: "[SalesFlow] 발신자 이메일 확인",
-            body: "<p>이 메일은 SalesFlow에서 발신자 이메일 주소를 확인하기 위해 발송되었습니다.</p><p>이 메일을 수신하셨다면 발신자 이메일이 정상적으로 등록되어 있습니다.</p>",
+            title: "[Sendb] 발신자 이메일 확인",
+            body: "<p>이 메일은 Sendb에서 발신자 이메일 주소를 확인하기 위해 발송되었습니다.</p><p>이 메일을 수신하셨다면 발신자 이메일이 정상적으로 등록되어 있습니다.</p>",
             receiverList: [{ receiveMailAddr: fromEmail, receiveType: "MRT0" }],
         });
 

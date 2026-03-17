@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { SendbIcon } from "@/components/SendbLogo";
 import { useSidebar } from "./sidebar-context";
 import { useSession } from "@/contexts/SessionContext";
 import {
@@ -132,7 +133,7 @@ export function DesktopSidebar({
                     href="/"
                     className="flex items-center gap-2 text-xl font-bold tracking-tight"
                 >
-                    {collapsed ? "SF" : "SalesFlow"}
+                    <SendbIcon className="size-5" />{!collapsed && "Sendb"}
                 </Link>
             </div>
 
@@ -186,10 +187,10 @@ export function MobileSidebar() {
                 <div className="flex h-14 items-center justify-between border-b px-6">
                     <Link
                         href="/"
-                        className="text-xl font-bold tracking-tight"
+                        className="flex items-center gap-2 text-xl font-bold tracking-tight"
                         onClick={() => setOpen(false)}
                     >
-                        SalesFlow
+                        <SendbIcon className="size-5" />Sendb
                     </Link>
                     <Button
                         variant="ghost"

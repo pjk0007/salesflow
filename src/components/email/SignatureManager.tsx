@@ -215,7 +215,7 @@ export default function SignatureManager({
                                 <Input
                                     value={form.sig.company || ""}
                                     onChange={(e) => updateField("company", e.target.value)}
-                                    placeholder="SalesFlow Inc."
+                                    placeholder="Sendb Inc."
                                 />
                             </div>
                             <div className="space-y-2">

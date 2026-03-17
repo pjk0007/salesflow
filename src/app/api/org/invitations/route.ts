@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
                     .from(organizations)
                     .where(eq(organizations.id, user.orgId));
 
-                const orgName = org?.name || "SalesFlow";
+                const orgName = org?.name || "Sendb";
                 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.nextUrl.origin;
                 const inviteUrl = `${baseUrl}/invite?token=${token}`;
 
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
                 await emailClient.sendEachMail({
                     senderAddress,
                     senderName,
-                    title: `[SalesFlow] ${orgName} 팀에 초대되었습니다`,
+                    title: `[Sendb] ${orgName} 팀에 초대되었습니다`,
                     body: `<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 32px 24px;">
   <h2 style="margin: 0 0 16px; color: #111;">${orgName} 팀 초대</h2>
   <p style="color: #444; line-height: 1.7; margin: 0 0 8px;">안녕하세요,</p>

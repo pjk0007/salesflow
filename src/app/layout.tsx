@@ -4,7 +4,7 @@ import type { Metadata, Viewport } from "next";
 import Providers from "./providers";
 
 export const metadata: Metadata = {
-    title: "SalesFlow",
+    title: "Sendb",
 };
 
 export const viewport: Viewport = {
@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return (
         <html lang="ko" suppressHydrationWarning>
             <head>
+                <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
                 <link
                     rel="stylesheet"
                     as="style"

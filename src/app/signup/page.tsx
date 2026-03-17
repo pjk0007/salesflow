@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { SendbIcon } from "@/components/SendbLogo";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -54,7 +55,7 @@ export default function SignupPage() {
         <div className="flex min-h-screen">
             {/* 좌측 브랜드 패널 */}
             <div className="hidden lg:flex lg:w-1/2 flex-col justify-between bg-primary p-12 text-primary-foreground">
-                <Link href="/" className="text-xl font-bold text-primary-foreground hover:opacity-80">SalesFlow</Link>
+                <Link href="/" className="flex items-center gap-2 text-xl font-bold text-primary-foreground hover:opacity-80"><SendbIcon className="size-5" />Sendb</Link>
                 <div className="space-y-4">
                     <h2 className="text-3xl font-bold leading-tight">
                         스마트한 영업 관리를
@@ -66,7 +67,7 @@ export default function SignupPage() {
                     </p>
                 </div>
                 <p className="text-sm text-primary-foreground/60">
-                    &copy; 2026 SalesFlow. All rights reserved.
+                    &copy; 2026 Sendb. All rights reserved.
                 </p>
             </div>
 
@@ -79,7 +80,7 @@ export default function SignupPage() {
                                 회원가입
                             </CardTitle>
                             <CardDescription>
-                                SalesFlow 계정을 생성합니다
+                                Sendb 계정을 생성합니다
                             </CardDescription>
                         </CardHeader>
                         <CardContent>

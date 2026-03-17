@@ -12,7 +12,7 @@ function DashboardMockup() {
                     <div className="h-3 w-3 rounded-full bg-yellow-400" />
                     <div className="h-3 w-3 rounded-full bg-green-400" />
                 </div>
-                <span className="ml-2 text-xs text-muted-foreground">SalesFlow Dashboard</span>
+                <span className="ml-2 text-xs text-muted-foreground">Sendb Dashboard</span>
             </div>
 
             <div className="p-4 space-y-4">

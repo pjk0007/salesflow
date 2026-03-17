@@ -181,7 +181,7 @@ export default function SenderProfileManager({
                             <Input
                                 value={form.fromName}
                                 onChange={(e) => setForm((p) => ({ ...p, fromName: e.target.value }))}
-                                placeholder="예: SalesFlow 마케팅"
+                                placeholder="예: Sendb 마케팅"
                             />
                         </div>
                         <div className="space-y-2">

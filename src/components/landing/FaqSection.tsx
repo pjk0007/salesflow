@@ -8,7 +8,7 @@ import AnimateOnScroll from "./AnimateOnScroll";
 
 const FAQ = [
     {
-        q: "SalesFlow는 무료로 사용할 수 있나요?",
+        q: "Sendb는 무료로 사용할 수 있나요?",
         a: "네, Free 플랜으로 워크스페이스 1개, 레코드 500건, 멤버 2명까지 무료로 사용할 수 있습니다. 신용카드 등록 없이 바로 시작하세요.",
     },
     {
