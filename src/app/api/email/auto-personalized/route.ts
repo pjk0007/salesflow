@@ -79,6 +79,7 @@ export async function POST(req: NextRequest) {
             autoResearch = 1,
             useSignaturePersona = 0,
             followupConfig,
+            isActive,
         } = await req.json();
 
         if (!partitionId || !recipientField || !companyField) {
@@ -128,6 +129,7 @@ export async function POST(req: NextRequest) {
                 autoResearch: autoResearch ?? 1,
                 useSignaturePersona: useSignaturePersona ?? 0,
                 followupConfig: followupConfig || null,
+                ...(isActive !== undefined && { isActive }),
             })
             .returning();
 

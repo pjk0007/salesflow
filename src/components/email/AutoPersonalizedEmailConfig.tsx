@@ -80,8 +80,9 @@ export default function AutoPersonalizedEmailConfig({
             autoResearch: link.autoResearch,
             useSignaturePersona: link.useSignaturePersona,
             followupConfig: link.followupConfig ?? undefined,
+            isActive: 0,
         });
-        if (result.success) toast.success("규칙이 복제되었습니다.");
+        if (result.success) toast.success("규칙이 복제되었습니다. (비활성 상태)");
         else toast.error("복제에 실패했습니다.");
     };
 

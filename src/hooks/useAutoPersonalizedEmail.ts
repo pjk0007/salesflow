@@ -48,6 +48,7 @@ interface CreateInput {
         onOpened?: { prompt: string };
         onNotOpened?: { prompt: string };
     } | null;
+    isActive?: number;
 }
 
 interface UpdateInput {
