@@ -24,7 +24,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Loader2, Plus, Pencil, Trash2, Copy } from "lucide-react";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -52,7 +53,7 @@ export default function AutoPersonalizedEmailConfig({
     );
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
 
-    const { links, isLoading, updateLink, deleteLink } =
+    const { links, isLoading, createLink, updateLink, deleteLink } =
         useAutoPersonalizedEmail(selectedPartitionId);
 
     const handleCreate = () => {
@@ -62,6 +63,26 @@ export default function AutoPersonalizedEmailConfig({
 
     const handleEdit = (linkId: number) => {
         router.push(`/email/ai-auto/${linkId}?partitionId=${selectedPartitionId}`);
+    };
+
+    const handleDuplicate = async (link: AutoPersonalizedLink) => {
+        if (!selectedPartitionId) return;
+        const result = await createLink({
+            partitionId: selectedPartitionId,
+            productId: link.productId,
+            recipientField: link.recipientField,
+            companyField: link.companyField,
+            prompt: link.prompt ?? undefined,
+            tone: link.tone ?? undefined,
+            format: link.format,
+            triggerType: link.triggerType as "on_create" | "on_update",
+            triggerCondition: link.triggerCondition ?? undefined,
+            autoResearch: link.autoResearch,
+            useSignaturePersona: link.useSignaturePersona,
+            followupConfig: link.followupConfig ?? undefined,
+        });
+        if (result.success) toast.success("규칙이 복제되었습니다.");
+        else toast.error("복제에 실패했습니다.");
     };
 
     const handleToggleActive = async (link: AutoPersonalizedLink) => {
@@ -154,6 +175,15 @@ export default function AutoPersonalizedEmailConfig({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        title="복제"
+                                        onClick={() => handleDuplicate(link)}
+                                    >
+                                        <Copy className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        title="수정"
                                         onClick={() => handleEdit(link.id)}
                                     >
                                         <Pencil className="h-4 w-4" />
@@ -161,6 +191,7 @@ export default function AutoPersonalizedEmailConfig({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        title="삭제"
                                         onClick={() => setDeleteTarget(link)}
                                     >
                                         <Trash2 className="h-4 w-4" />
