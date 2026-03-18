@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
                     await updateTokenUsage(user.orgId, researchTokens);
                     await logAiUsage({
                         orgId: user.orgId,
-                        userId: user.id,
+                        userId: user.userId,
                         provider: "gemini",
                         model: aiClient.model,
                         promptTokens: research.usage.promptTokens,
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
         await updateTokenUsage(user.orgId, emailTokens);
         await logAiUsage({
             orgId: user.orgId,
-            userId: user.id,
+            userId: user.userId,
             provider: "gemini",
             model: aiClient.model,
             promptTokens: emailResult.usage.promptTokens,
