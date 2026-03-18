@@ -25,7 +25,8 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Pencil, Trash2, Copy } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Copy, Send } from "lucide-react";
+import AiAutoTestSendDialog from "./AiAutoTestSendDialog";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -52,6 +53,7 @@ export default function AutoPersonalizedEmailConfig({
         partitions[0]?.id ?? null
     );
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
+    const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
     const { links, isLoading, createLink, updateLink, deleteLink } =
         useAutoPersonalizedEmail(selectedPartitionId);
@@ -176,6 +178,14 @@ export default function AutoPersonalizedEmailConfig({
                                     <Button
                                         variant="ghost"
                                         size="icon"
+                                        title="테스트 발송"
+                                        onClick={() => setTestTarget(link)}
+                                    >
+                                        <Send className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
                                         title="복제"
                                         onClick={() => handleDuplicate(link)}
                                     >
@@ -219,6 +229,18 @@ export default function AutoPersonalizedEmailConfig({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* 테스트 발송 */}
+            {testTarget && (
+                <AiAutoTestSendDialog
+                    open={!!testTarget}
+                    onOpenChange={(open) => !open && setTestTarget(null)}
+                    linkId={testTarget.id}
+                    linkName={testTarget.productName || "제품 미지정"}
+                    recipientField={testTarget.recipientField}
+                    companyField={testTarget.companyField}
+                />
+            )}
         </Card>
     );
 }
