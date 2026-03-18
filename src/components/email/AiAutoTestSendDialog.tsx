@@ -157,14 +157,16 @@ export default function AiAutoTestSendDialog({
                     <Button variant="outline" onClick={() => handleClose(false)} disabled={sending}>
                         닫기
                     </Button>
-                    <Button onClick={handleSend} disabled={sending || !testEmail || !companyName.trim()}>
-                        {sending ? (
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        ) : (
-                            <Send className="h-4 w-4 mr-2" />
-                        )}
-                        {sending ? "생성 및 발송 중..." : "테스트 발송"}
-                    </Button>
+                    {!preview && (
+                        <Button onClick={handleSend} disabled={sending || !testEmail || !companyName.trim()}>
+                            {sending ? (
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <Send className="h-4 w-4 mr-2" />
+                            )}
+                            {sending ? "생성 및 발송 중..." : "테스트 발송"}
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
