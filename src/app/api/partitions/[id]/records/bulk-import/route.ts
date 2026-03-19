@@ -58,24 +58,35 @@ export async function POST(
                 .from(organizations)
                 .where(eq(organizations.id, user.orgId));
 
-            // 중복 체크 필드 확인
-            const duplicateField = partition.duplicateCheckField;
-            const existingValues = new Set<string>();
+            // 중복 체크 필드 확인 (duplicateConfig 우선, fallback to duplicateCheckField)
+            const dupConfig = partition.duplicateConfig as { field: string; action: string } | null;
+            const duplicateField = dupConfig?.field || partition.duplicateCheckField;
+            const dupAction = dupConfig?.action || "reject"; // reject=skip/error, allow/merge/delete_old
+
+            // 기존 레코드 값 → ID 매핑 (merge/delete_old용)
+            const existingMap = new Map<string, number>();
+            const existingDataMap = new Map<string, Record<string, unknown>>();
             if (duplicateField) {
                 const existing = await tx
-                    .select({ val: sql<string>`${records.data}->>${duplicateField}` })
+                    .select({ id: records.id, data: records.data, val: sql<string>`${records.data}->>${duplicateField}` })
                     .from(records)
                     .where(eq(records.partitionId, partitionId));
                 for (const r of existing) {
-                    if (r.val) existingValues.add(r.val);
+                    if (r.val) {
+                        existingMap.set(r.val, r.id);
+                        existingDataMap.set(r.val, r.data as Record<string, unknown>);
+                    }
                 }
             }
+            // 배치 내 중복 추적
+            const batchValues = new Set<string>();
 
             // 레코드 순회 삽입
             const errors: Array<{ row: number; message: string }> = [];
             const insertedRecords: Array<typeof records.$inferSelect> = [];
             let insertedCount = 0;
             let skippedCount = 0;
+            let mergedCount = 0;
             let currentSeq = org.integratedCodeSeq;
 
             for (let i = 0; i < importRecords.length; i++) {
@@ -84,16 +95,40 @@ export async function POST(
                 // 중복 체크
                 if (duplicateField && data[duplicateField]) {
                     const val = String(data[duplicateField]);
-                    if (existingValues.has(val)) {
-                        if (duplicateAction === "skip") {
-                            skippedCount++;
+                    const isDupExisting = existingMap.has(val);
+                    const isDupBatch = batchValues.has(val);
+
+                    if (isDupExisting || isDupBatch) {
+                        if (dupAction === "allow") {
+                            // 그대로 진행 (중복 허용)
+                        } else if (dupAction === "merge" && isDupExisting) {
+                            // 기존 레코드에 새 데이터 병합
+                            const existingData = existingDataMap.get(val) || {};
+                            const mergedData = { ...existingData, ...data };
+                            await tx
+                                .update(records)
+                                .set({ data: mergedData, updatedAt: new Date() })
+                                .where(eq(records.id, existingMap.get(val)!));
+                            existingDataMap.set(val, mergedData);
+                            mergedCount++;
                             continue;
+                        } else if (dupAction === "delete_old" && isDupExisting) {
+                            // 기존 삭제 후 아래 생성 로직 진행
+                            await tx.delete(records).where(eq(records.id, existingMap.get(val)!));
+                            existingMap.delete(val);
+                            existingDataMap.delete(val);
                         } else {
-                            errors.push({ row: i + 1, message: `중복: ${duplicateField}="${val}"` });
-                            continue;
+                            // reject (기존 skip/error 동작)
+                            if (duplicateAction === "skip") {
+                                skippedCount++;
+                                continue;
+                            } else {
+                                errors.push({ row: i + 1, message: `중복: ${duplicateField}="${val}"` });
+                                continue;
+                            }
                         }
                     }
-                    existingValues.add(val);
+                    batchValues.add(val);
                 }
 
                 // 통합코드 생성
@@ -117,7 +152,7 @@ export async function POST(
                 .set({ integratedCodeSeq: currentSeq })
                 .where(eq(organizations.id, org.id));
 
-            return { totalCount: importRecords.length, insertedCount, skippedCount, errors, insertedRecords };
+            return { totalCount: importRecords.length, insertedCount, skippedCount, mergedCount, errors, insertedRecords };
         });
 
         // 자동 트리거 (알림톡/이메일/보강은 fire-and-forget, AI 자동발송은 순차)
@@ -152,6 +187,7 @@ export async function POST(
             totalCount: result.totalCount,
             insertedCount: result.insertedCount,
             skippedCount: result.skippedCount,
+            mergedCount: result.mergedCount,
             errors: result.errors,
         });
     } catch (error) {
