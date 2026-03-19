@@ -185,7 +185,11 @@ export default function ImportDialog({
                     <DialogDescription>
                         {step === 1 && "CSV 파일을 선택하세요."}
                         {step === 2 && "CSV 컬럼을 필드에 매핑하세요."}
-                        {step === 3 && (result ? "가져오기가 완료되었습니다." : "데이터를 확인하고 가져오기를 실행하세요.")}
+                        {step === 3 && (result
+                            ? (result.insertedCount === 0 && !(result as any).mergedCount
+                                ? "중복으로 인해 등록된 레코드가 없습니다."
+                                : "가져오기가 완료되었습니다.")
+                            : "데이터를 확인하고 가져오기를 실행하세요.")}
                     </DialogDescription>
                 </DialogHeader>
 

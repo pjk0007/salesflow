@@ -84,21 +84,56 @@ export default function ImportResultStep({
                 </div>
             )}
 
-            {result !== null && (
-                <div className="border border-green-200 bg-green-50 rounded-lg p-4 space-y-1">
-                    <p className="text-sm font-medium text-green-700 flex items-center gap-1">
-                        <CheckCircle2 className="h-4 w-4" /> 가져오기 완료
-                    </p>
-                    <p className="text-sm">전체: {result.totalCount}건</p>
-                    <p className="text-sm">성공: {result.insertedCount}건</p>
-                    {result.skippedCount > 0 && (
-                        <p className="text-sm">건너뛰기: {result.skippedCount}건</p>
-                    )}
-                    {result.errors.length > 0 && (
-                        <p className="text-sm text-destructive">에러: {result.errors.length}건</p>
-                    )}
-                </div>
-            )}
+            {result !== null && (() => {
+                const hasIssues = result.skippedCount > 0 || result.errors.length > 0;
+                const mergedCount = (result as ImportResult & { mergedCount?: number }).mergedCount || 0;
+                const allSkipped = result.insertedCount === 0 && mergedCount === 0;
+                const borderClass = allSkipped
+                    ? "border-orange-200 bg-orange-50"
+                    : hasIssues
+                    ? "border-yellow-200 bg-yellow-50"
+                    : "border-green-200 bg-green-50";
+                const textClass = allSkipped
+                    ? "text-orange-700"
+                    : hasIssues
+                    ? "text-yellow-700"
+                    : "text-green-700";
+                const label = allSkipped
+                    ? "전부 건너뛰었습니다"
+                    : hasIssues
+                    ? "가져오기 완료 (일부 건너뜀)"
+                    : "가져오기 완료";
+
+                return (
+                    <div className={`border rounded-lg p-4 space-y-1 ${borderClass}`}>
+                        <p className={`text-sm font-medium flex items-center gap-1 ${textClass}`}>
+                            {allSkipped ? <AlertCircle className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
+                            {label}
+                        </p>
+                        <p className="text-sm">전체: {result.totalCount}건</p>
+                        {result.insertedCount > 0 && (
+                            <p className="text-sm">신규 등록: {result.insertedCount}건</p>
+                        )}
+                        {mergedCount > 0 && (
+                            <p className="text-sm">병합: {mergedCount}건</p>
+                        )}
+                        {result.skippedCount > 0 && (
+                            <p className="text-sm text-orange-600">중복 건너뛰기: {result.skippedCount}건</p>
+                        )}
+                        {result.errors.length > 0 && (
+                            <div>
+                                <p className="text-sm text-destructive">에러: {result.errors.length}건</p>
+                                <ul className="text-xs text-destructive mt-1 space-y-0.5 max-h-[80px] overflow-y-auto">
+                                    {result.errors.slice(0, 5).map((e, i) => (
+                                        <li key={i}>{e.row}행: {e.message}</li>
+                                    ))}
+                                    {result.errors.length > 5 && <li>... 외 {result.errors.length - 5}건</li>}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
+                );
+            })()}
         </div>
     );
 }
