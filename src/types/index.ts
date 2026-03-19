@@ -203,6 +203,14 @@ export interface InvitationItem {
   createdAt: string;
 }
 
+// 중복 설정
+export interface DuplicateConfig {
+    field: string;
+    action: "reject" | "allow" | "merge" | "delete_old";
+    highlightEnabled: boolean;
+    highlightColor: string;
+}
+
 // 워크스페이스 설정
 export interface WorkspaceSettings {
     defaultVisibleFields?: string[];

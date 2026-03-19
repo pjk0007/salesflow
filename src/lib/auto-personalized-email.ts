@@ -28,6 +28,28 @@ async function checkCooldown(recordId: number, cooldownHours: number = 1): Promi
 }
 
 // ============================================
+// 중복 수신자 체크 (같은 파티션 + 같은 이메일로 AI 자동 발송 이력)
+// ============================================
+async function checkDuplicateRecipientForAiAuto(
+    partitionId: number,
+    recipientEmail: string
+): Promise<boolean> {
+    const [existing] = await db
+        .select({ id: emailSendLogs.id })
+        .from(emailSendLogs)
+        .where(
+            and(
+                eq(emailSendLogs.partitionId, partitionId),
+                eq(emailSendLogs.recipientEmail, recipientEmail),
+                eq(emailSendLogs.triggerType, "ai_auto"),
+                eq(emailSendLogs.status, "sent")
+            )
+        )
+        .limit(1);
+    return !existing;
+}
+
+// ============================================
 // 메인 자동화 함수
 // ============================================
 interface AutoPersonalizedParams {
@@ -70,6 +92,18 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             // 3. 쿨다운 체크
             const canSend = await checkCooldown(record.id);
             if (!canSend) { console.log(`[AutoEmail] Rule ${link.id}: cooldown active`); continue; }
+
+            // 3-1. 중복 수신자 체크
+            if (link.preventDuplicate) {
+                const recipientEmail = data[link.recipientField] as string;
+                if (recipientEmail) {
+                    const canSendDup = await checkDuplicateRecipientForAiAuto(link.partitionId, recipientEmail);
+                    if (!canSendDup) {
+                        console.log(`[AutoEmail] Rule ${link.id}: duplicate recipient skipped: ${recipientEmail}`);
+                        continue;
+                    }
+                }
+            }
 
             // 4. 수신자 이메일 추출
             const email = data[link.recipientField];

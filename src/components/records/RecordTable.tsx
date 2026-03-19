@@ -34,6 +34,8 @@ interface RecordTableProps {
     total: number;
     pageSize: number;
     onPageChange: (page: number) => void;
+    // 중복 표시
+    duplicateHighlight?: { color: string; ids: Set<number> } | null;
 }
 
 export default function RecordTable({
@@ -53,6 +55,7 @@ export default function RecordTable({
     total,
     pageSize,
     onPageChange,
+    duplicateHighlight,
 }: RecordTableProps) {
     // 표시할 필드 결정
     const displayFields = useMemo(() => {
@@ -162,6 +165,11 @@ export default function RecordTable({
                                 <TableRow
                                     key={record.id}
                                     data-state={selectedIds.has(record.id) ? "selected" : undefined}
+                                    style={
+                                        duplicateHighlight?.ids.has(record.id)
+                                            ? { backgroundColor: duplicateHighlight.color + "33" }
+                                            : undefined
+                                    }
                                 >
                                     <TableCell>
                                         <Checkbox

@@ -136,6 +136,11 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                         <Badge variant="outline">
                                             {TRIGGER_LABELS[link.triggerType] || link.triggerType}
                                         </Badge>
+                                        {link.preventDuplicate === 1 && (
+                                            <Badge variant="outline" className="text-orange-600 border-orange-300">
+                                                중복방지
+                                            </Badge>
+                                        )}
                                         {link.followupConfig && (
                                             <Badge variant="outline">
                                                 후속 {(link.followupConfig as { delayDays: number }).delayDays}일

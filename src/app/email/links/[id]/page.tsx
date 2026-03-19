@@ -92,6 +92,7 @@ function EditLinkPageContent() {
     const [repeatConfig, setRepeatConfig] = useState<any>(null);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
+    const [preventDuplicate, setPreventDuplicate] = useState(0);
 
     useEffect(() => {
         if (link && !loaded) {
@@ -104,6 +105,7 @@ function EditLinkPageContent() {
             setUseRepeat(!!link.repeatConfig);
             setRepeatConfig(link.repeatConfig ?? null);
             setFollowupConfig(link.followupConfig ?? null);
+            setPreventDuplicate(link.preventDuplicate ?? 0);
             setLoaded(true);
         }
     }, [link, loaded]);
@@ -131,6 +133,7 @@ function EditLinkPageContent() {
                 triggerCondition: triggerType !== "manual" ? triggerCondition : null,
                 repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
                 followupConfig: followupConfig || null,
+                preventDuplicate,
             });
             if (result.success) {
                 toast.success("연결이 수정되었습니다.");
@@ -331,6 +334,17 @@ function EditLinkPageContent() {
                                                     onChange={setRepeatConfig}
                                                 />
                                             )}
+
+                                            <div className="flex items-center gap-2">
+                                                <Switch
+                                                    checked={preventDuplicate === 1}
+                                                    onCheckedChange={(v) => setPreventDuplicate(v ? 1 : 0)}
+                                                />
+                                                <div>
+                                                    <Label>중복 발송 방지</Label>
+                                                    <p className="text-xs text-muted-foreground">같은 수신자에게 이미 발송된 이력이 있으면 재발송하지 않습니다.</p>
+                                                </div>
+                                            </div>
                                         </>
                                     )}
                                 </CardContent>

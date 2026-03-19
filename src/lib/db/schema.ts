@@ -156,6 +156,12 @@ export const partitions = pgTable("partitions", {
     >(),
     // 중복 체크
     duplicateCheckField: varchar("duplicate_check_field", { length: 100 }),
+    duplicateConfig: jsonb("duplicate_config").$type<{
+        field: string;
+        action: "reject" | "allow" | "merge" | "delete_old";
+        highlightEnabled: boolean;
+        highlightColor: string;
+    } | null>(),
     // 상태 옵션 필터
     statusOptionIds: jsonb("status_option_ids").$type<number[]>(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
@@ -497,6 +503,7 @@ export const emailTemplateLinks = pgTable("email_template_links", {
         onOpened?: { templateId: number };
         onNotOpened?: { templateId: number };
     } | null>(),
+    preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
@@ -588,6 +595,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
         onOpened?: { prompt: string };
         onNotOpened?: { prompt: string };
     } | null>(),
+    preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),

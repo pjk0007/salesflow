@@ -32,7 +32,7 @@ export async function PUT(
     }
 
     try {
-        const { name, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig } = await req.json();
+        const { name, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig, preventDuplicate } = await req.json();
 
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
         if (name !== undefined) updateData.name = name;
@@ -43,6 +43,7 @@ export async function PUT(
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition;
         if (repeatConfig !== undefined) updateData.repeatConfig = repeatConfig;
         if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
+        if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;
 
         const [updated] = await db
             .update(emailTemplateLinks)

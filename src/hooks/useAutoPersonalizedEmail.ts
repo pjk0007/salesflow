@@ -21,6 +21,7 @@ export interface AutoPersonalizedLink {
     } | null;
     autoResearch: number;
     useSignaturePersona: number;
+    preventDuplicate: number;
     followupConfig: {
         delayDays: number;
         onOpened?: { prompt: string };
@@ -49,6 +50,7 @@ interface CreateInput {
         onNotOpened?: { prompt: string };
     } | null;
     isActive?: number;
+    preventDuplicate?: number;
 }
 
 interface UpdateInput {
@@ -68,6 +70,7 @@ interface UpdateInput {
         onNotOpened?: { prompt: string };
     } | null;
     isActive?: number;
+    preventDuplicate?: number;
 }
 
 export function useAutoPersonalizedEmail(partitionId: number | null) {

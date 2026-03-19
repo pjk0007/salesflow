@@ -210,27 +210,54 @@ export async function POST(
             }, { status: 403 });
         }
 
-        // 중복 체크
-        if (partition.duplicateCheckField) {
-            const checkValue = recordData[partition.duplicateCheckField];
+        // 중복 체크 (duplicateConfig 우선, fallback to duplicateCheckField)
+        const dupConfig = partition.duplicateConfig as { field: string; action: string } | null;
+        const dupField = dupConfig?.field || partition.duplicateCheckField;
+
+        if (dupField) {
+            const checkValue = recordData[dupField];
             if (checkValue) {
                 const [duplicate] = await db
-                    .select({ id: records.id })
+                    .select({ id: records.id, data: records.data })
                     .from(records)
                     .where(
                         and(
                             eq(records.partitionId, partitionId),
-                            sql`${records.data}->>
-                                ${partition.duplicateCheckField} = ${String(checkValue)}`
+                            sql`${records.data}->>${dupField} = ${String(checkValue)}`
                         )
                     )
                     .limit(1);
 
                 if (duplicate) {
-                    return NextResponse.json({
-                        success: false,
-                        error: `중복된 데이터가 존재합니다. (${partition.duplicateCheckField}: ${checkValue})`,
-                    }, { status: 409 });
+                    const action = dupConfig?.action || "reject";
+
+                    switch (action) {
+                        case "reject":
+                            return NextResponse.json({
+                                success: false,
+                                error: `중복된 데이터가 존재합니다. (${dupField}: ${checkValue})`,
+                            }, { status: 409 });
+
+                        case "allow":
+                            // 그대로 진행 (중복 허용)
+                            break;
+
+                        case "merge": {
+                            // 기존 레코드에 새 데이터 병합
+                            const mergedData = { ...(duplicate.data as Record<string, unknown>), ...recordData };
+                            const [merged] = await db
+                                .update(records)
+                                .set({ data: mergedData, updatedAt: new Date() })
+                                .where(eq(records.id, duplicate.id))
+                                .returning();
+                            return NextResponse.json({ success: true, data: merged, merged: true });
+                        }
+
+                        case "delete_old":
+                            // 기존 삭제 후 아래 생성 로직 진행
+                            await db.delete(records).where(eq(records.id, duplicate.id));
+                            break;
+                    }
                 }
             }
         }

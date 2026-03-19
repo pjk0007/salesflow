@@ -106,6 +106,7 @@ function NewAiAutoPageContent() {
     const [conditionValue, setConditionValue] = useState("");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
+    const [preventDuplicate, setPreventDuplicate] = useState(0);
 
     const selectedProduct = products.find((p) => p.id === productId);
 
@@ -133,6 +134,7 @@ function NewAiAutoPageContent() {
                 useSignaturePersona: useSignaturePersona ? 1 : 0,
                 triggerCondition,
                 followupConfig: followupConfig || null,
+                preventDuplicate,
             });
             if (result.success) {
                 toast.success("규칙이 생성되었습니다.");
@@ -343,6 +345,14 @@ function NewAiAutoPageContent() {
                                         </div>
                                         <Switch checked={autoResearch} onCheckedChange={setAutoResearch} />
                                     </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <Label>중복 발송 방지</Label>
+                                            <p className="text-xs text-muted-foreground">같은 수신자에게 이미 발송된 이력이 있으면 재발송하지 않습니다.</p>
+                                        </div>
+                                        <Switch checked={preventDuplicate === 1} onCheckedChange={(v) => setPreventDuplicate(v ? 1 : 0)} />
+                                    </div>
                                 </CardContent>
                             </Card>
 
@@ -467,6 +477,12 @@ function NewAiAutoPageContent() {
                                             <span className="text-muted-foreground">페르소나</span>
                                             <Badge variant={useSignaturePersona ? "default" : "outline"}>
                                                 {useSignaturePersona ? "ON" : "OFF"}
+                                            </Badge>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-muted-foreground">중복 방지</span>
+                                            <Badge variant={preventDuplicate === 1 ? "default" : "outline"}>
+                                                {preventDuplicate === 1 ? "ON" : "OFF"}
                                             </Badge>
                                         </div>
                                         {conditionEnabled && conditionField && (

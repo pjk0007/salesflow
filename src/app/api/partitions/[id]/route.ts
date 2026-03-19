@@ -72,7 +72,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 파티션 ID입니다." }, { status: 400 });
     }
 
-    const { name, folderId, useDistributionOrder, maxDistributionOrder, distributionDefaults } = await req.json();
+    const { name, folderId, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig } = await req.json();
 
     // name-only 업데이트가 아닌 경우에도 지원
     if (name !== undefined && (!name || !String(name).trim())) {
@@ -113,6 +113,12 @@ export async function PATCH(
 
         if (distributionDefaults !== undefined) {
             updateData.distributionDefaults = distributionDefaults;
+        }
+
+        if (duplicateConfig !== undefined) {
+            updateData.duplicateConfig = duplicateConfig;
+            // duplicateCheckField 동기화 (하위호환)
+            updateData.duplicateCheckField = duplicateConfig?.field || null;
         }
 
         const [updated] = await db

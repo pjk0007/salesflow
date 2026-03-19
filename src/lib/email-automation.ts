@@ -34,6 +34,28 @@ async function checkEmailCooldown(
 }
 
 // ============================================
+// 중복 수신자 체크 (같은 규칙 + 같은 이메일로 이미 발송한 이력)
+// ============================================
+
+async function checkDuplicateRecipient(
+    templateLinkId: number,
+    recipientEmail: string
+): Promise<boolean> {
+    const [existing] = await db
+        .select({ id: emailSendLogs.id })
+        .from(emailSendLogs)
+        .where(
+            and(
+                eq(emailSendLogs.templateLinkId, templateLinkId),
+                eq(emailSendLogs.recipientEmail, recipientEmail),
+                eq(emailSendLogs.status, "sent")
+            )
+        )
+        .limit(1);
+    return !existing;
+}
+
+// ============================================
 // 단건 자동 발송
 // ============================================
 
@@ -147,6 +169,18 @@ export async function processEmailAutoTrigger(params: EmailAutoTriggerParams): P
         // 쿨다운 체크
         const canSend = await checkEmailCooldown(record.id, link.id);
         if (!canSend) continue;
+
+        // 중복 수신자 체크
+        if (link.preventDuplicate) {
+            const email = (data[link.recipientField] as string) || "";
+            if (email) {
+                const canSendDup = await checkDuplicateRecipient(link.id, email);
+                if (!canSendDup) {
+                    console.log(`[EmailAuto] Duplicate recipient skipped: linkId=${link.id}, email=${email}`);
+                    continue;
+                }
+            }
+        }
 
         // 발송
         const { success, logId } = await sendEmailSingle(link, record, orgId, "auto");

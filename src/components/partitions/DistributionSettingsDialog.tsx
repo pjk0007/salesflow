@@ -30,6 +30,13 @@ import type { FieldDefinition } from "@/types";
 type DistributionDefault = { field: string; value: string };
 type DistributionDefaults = Record<number, DistributionDefault[]>;
 
+interface DuplicateConfig {
+    field: string;
+    action: "reject" | "allow" | "merge" | "delete_old";
+    highlightEnabled: boolean;
+    highlightColor: string;
+}
+
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -39,6 +46,7 @@ interface Props {
         useDistributionOrder: boolean;
         maxDistributionOrder: number;
         distributionDefaults: DistributionDefaults | null;
+        duplicateConfig?: DuplicateConfig | null;
     }) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -57,12 +65,24 @@ export default function DistributionSettingsDialog({
     const [openSections, setOpenSections] = useState<Set<number>>(new Set());
     const [saving, setSaving] = useState(false);
 
+    // 중복 설정
+    const [dupField, setDupField] = useState("");
+    const [dupAction, setDupAction] = useState<DuplicateConfig["action"]>("reject");
+    const [dupHighlight, setDupHighlight] = useState(false);
+    const [dupColor, setDupColor] = useState("#FEF3C7");
+
     useEffect(() => {
         if (open) {
             setEnabled(!!partition.useDistributionOrder);
             setMaxOrder(partition.maxDistributionOrder);
             setDefaults((partition.distributionDefaults as DistributionDefaults) ?? {});
             setOpenSections(new Set());
+            // 중복 설정 초기화
+            const dc = partition.duplicateConfig as DuplicateConfig | null;
+            setDupField(dc?.field || partition.duplicateCheckField || "");
+            setDupAction(dc?.action || "reject");
+            setDupHighlight(dc?.highlightEnabled ?? false);
+            setDupColor(dc?.highlightColor || "#FEF3C7");
         }
     }, [open, partition]);
 
@@ -123,9 +143,12 @@ export default function DistributionSettingsDialog({
                 maxDistributionOrder: maxOrder,
                 distributionDefaults:
                     Object.keys(cleanedDefaults).length > 0 ? cleanedDefaults : null,
+                duplicateConfig: dupField && dupField !== "__none__"
+                    ? { field: dupField, action: dupAction, highlightEnabled: dupHighlight, highlightColor: dupColor }
+                    : null,
             });
             if (result.success) {
-                toast.success("배분 설정이 저장되었습니다.");
+                toast.success("파티션 설정이 저장되었습니다.");
                 onOpenChange(false);
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
@@ -148,7 +171,7 @@ export default function DistributionSettingsDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>배분 설정 — {partition.name}</DialogTitle>
+                    <DialogTitle>파티션 설정 — {partition.name}</DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -320,6 +343,58 @@ export default function DistributionSettingsDialog({
                             </div>
                         </>
                     )}
+
+                    {/* 중복 관리 */}
+                    <div className="border-t pt-4 space-y-3">
+                        <Label className="text-base font-semibold">중복 관리</Label>
+
+                        <div className="space-y-1">
+                            <Label className="text-sm">중복 기준 필드</Label>
+                            <Select value={dupField} onValueChange={setDupField}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="필드 선택 (미설정 시 중복 체크 안 함)" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="__none__">없음</SelectItem>
+                                    {fields.map((f) => (
+                                        <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {dupField && dupField !== "__none__" && (
+                            <>
+                                <div className="space-y-1">
+                                    <Label className="text-sm">중복 시 액션</Label>
+                                    <Select value={dupAction} onValueChange={(v) => setDupAction(v as DuplicateConfig["action"])}>
+                                        <SelectTrigger>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="reject">거부 (등록 차단)</SelectItem>
+                                            <SelectItem value="allow">허용 (중복 그대로)</SelectItem>
+                                            <SelectItem value="merge">병합 (기존에 덮어쓰기)</SelectItem>
+                                            <SelectItem value="delete_old">교체 (기존 삭제 후 신규)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <Switch checked={dupHighlight} onCheckedChange={setDupHighlight} />
+                                    <Label className="text-sm">중복 행 색상 표시</Label>
+                                    {dupHighlight && (
+                                        <input
+                                            type="color"
+                                            value={dupColor}
+                                            onChange={(e) => setDupColor(e.target.value)}
+                                            className="w-8 h-8 rounded border cursor-pointer"
+                                        />
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
 
                     <div className="flex justify-end gap-2 pt-2">
                         <Button

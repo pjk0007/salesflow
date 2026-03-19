@@ -44,6 +44,7 @@ export async function GET(req: NextRequest) {
                 autoResearch: emailAutoPersonalizedLinks.autoResearch,
                 useSignaturePersona: emailAutoPersonalizedLinks.useSignaturePersona,
                 followupConfig: emailAutoPersonalizedLinks.followupConfig,
+                preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
                 isActive: emailAutoPersonalizedLinks.isActive,
                 createdAt: emailAutoPersonalizedLinks.createdAt,
                 updatedAt: emailAutoPersonalizedLinks.updatedAt,
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
             useSignaturePersona = 0,
             followupConfig,
             isActive,
+            preventDuplicate = 0,
         } = await req.json();
 
         if (!partitionId || !recipientField || !companyField) {
@@ -130,6 +132,7 @@ export async function POST(req: NextRequest) {
                 useSignaturePersona: useSignaturePersona ?? 0,
                 followupConfig: followupConfig || null,
                 ...(isActive !== undefined && { isActive }),
+                preventDuplicate: preventDuplicate ? 1 : 0,
             })
             .returning();
 

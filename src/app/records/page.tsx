@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
 import RecordToolbar from "@/components/records/RecordToolbar";
@@ -231,6 +231,25 @@ export default function RecordsPage() {
     // 폴더 목록 (CreatePartitionDialog용)
     const folderList = partitionTree?.folders.map((f) => ({ id: f.id, name: f.name })) ?? [];
 
+    // 중복 레코드 하이라이트 계산
+    const duplicateHighlight = useMemo(() => {
+        const dc = currentPartition?.duplicateConfig as { field: string; highlightEnabled: boolean; highlightColor: string } | null | undefined;
+        if (!dc?.highlightEnabled || !dc.field || !records.length) return null;
+        const valueMap = new Map<string, number[]>();
+        for (const record of records) {
+            const val = String((record.data as Record<string, unknown>)?.[dc.field] ?? "");
+            if (!val) continue;
+            const ids = valueMap.get(val) || [];
+            ids.push(record.id);
+            valueMap.set(val, ids);
+        }
+        const dupIds = new Set<number>();
+        for (const ids of valueMap.values()) {
+            if (ids.length > 1) ids.forEach((id) => dupIds.add(id));
+        }
+        return dupIds.size > 0 ? { color: dc.highlightColor || "#FEF3C7", ids: dupIds } : null;
+    }, [records, currentPartition?.duplicateConfig]);
+
     const handleExport = useCallback(async () => {
         try {
             const blob = await exportCsv({
@@ -313,6 +332,7 @@ export default function RecordsPage() {
                                 total={total}
                                 pageSize={pageSize}
                                 onPageChange={setPage}
+                                duplicateHighlight={duplicateHighlight}
                             />
                         </>
                     ) : (
