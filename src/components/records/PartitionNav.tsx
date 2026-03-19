@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Shuffle, FolderInput } from "lucide-react";
+import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -245,8 +245,8 @@ export default function PartitionNav({
                                                     )}
                                                     {onDistributionSettings && (
                                                         <DropdownMenuItem onClick={() => onDistributionSettings(pt.id, pt.name)}>
-                                                            <Shuffle className="h-3.5 w-3.5 mr-2" />
-                                                            배분 설정
+                                                            <Settings2 className="h-3.5 w-3.5 mr-2" />
+                                                            파티션 설정
                                                         </DropdownMenuItem>
                                                     )}
                                                     <DropdownMenuSeparator />
@@ -312,8 +312,8 @@ export default function PartitionNav({
                                         )}
                                         {onDistributionSettings && (
                                             <DropdownMenuItem onClick={() => onDistributionSettings(pt.id, pt.name)}>
-                                                <Shuffle className="h-3.5 w-3.5 mr-2" />
-                                                배분 설정
+                                                <Settings2 className="h-3.5 w-3.5 mr-2" />
+                                                파티션 설정
                                             </DropdownMenuItem>
                                         )}
                                         <DropdownMenuSeparator />
