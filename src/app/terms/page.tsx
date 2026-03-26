@@ -21,20 +21,20 @@ export default function TermsPage() {
         <div className="min-h-screen bg-[#f7f9fb] text-slate-900">
             {/* Nav */}
             <nav className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md shadow-sm h-16 flex items-center justify-center">
-                <div className="flex justify-between items-center px-8 h-16 w-full max-w-7xl">
-                    <Link href="/" className="text-2xl font-bold tracking-tight text-slate-900">Sendb</Link>
-                    <Link href="/" className="text-blue-700 font-semibold hover:text-blue-600 transition-colors">홈으로 돌아가기</Link>
+                <div className="flex justify-between items-center px-4 md:px-8 h-16 w-full max-w-7xl">
+                    <Link href="/" className="text-xl md:text-2xl font-bold tracking-tight text-slate-900">Sendb</Link>
+                    <Link href="/" className="text-blue-700 font-semibold hover:text-blue-600 transition-colors text-sm md:text-base">홈으로 돌아가기</Link>
                 </div>
             </nav>
 
             {/* Main */}
-            <main className="pt-24 pb-20 px-6 max-w-[1280px] mx-auto min-h-screen">
-                <header className="mb-16 text-center md:text-left">
-                    <h1 className="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-4">이용약관</h1>
-                    <p className="text-slate-500 text-lg">최종 업데이트: 2026년 3월 26일</p>
+            <main className="pt-20 md:pt-24 pb-12 md:pb-20 px-4 md:px-6 max-w-[1280px] mx-auto min-h-screen">
+                <header className="mb-8 md:mb-16 text-center md:text-left">
+                    <h1 className="text-3xl md:text-5xl font-extrabold text-slate-900 tracking-tight mb-2 md:mb-4">이용약관</h1>
+                    <p className="text-slate-500 text-sm md:text-lg">최종 업데이트: 2026년 3월 26일</p>
                 </header>
 
-                <div className="flex flex-col md:flex-row gap-12">
+                <div className="flex flex-col md:flex-row gap-6 md:gap-12">
                     {/* Sidebar TOC */}
                     <aside className="hidden md:block sticky top-24 self-start w-64 shrink-0">
                         <div className="bg-slate-50 flex flex-col p-4 rounded-xl">
@@ -58,10 +58,10 @@ export default function TermsPage() {
                     </aside>
 
                     {/* Content */}
-                    <div className="flex-1 space-y-16 max-w-4xl">
+                    <div className="flex-1 space-y-10 md:space-y-16 max-w-4xl">
                         {/* Section 1 */}
                         <section className="scroll-mt-24" id="section-1">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 1 조 (목적)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 1 조 (목적)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 본 약관은 &apos;Sendb&apos;(이하 &quot;회사&quot;)가 제공하는 B2B 세일즈 자동화 솔루션 및 관련 제반 서비스(이하 &quot;서비스&quot;)를 이용함에 있어 회사와 이용자의 권리, 의무 및 책임사항, 기타 필요한 사항을 규정함을 목적으로 합니다.
                             </p>
@@ -69,7 +69,7 @@ export default function TermsPage() {
 
                         {/* Section 2 */}
                         <section className="scroll-mt-24" id="section-2">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 2 조 (정의)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 2 조 (정의)</h3>
                             <div className="space-y-4 text-slate-600 leading-relaxed">
                                 {[
                                     "\"서비스\"라 함은 구현되는 단말기(PC, 휴대형 단말기 등의 각종 유무선 장치)와 상관없이 \"이용자\"가 이용할 수 있는 Sendb 플랫폼 및 관련 제반 서비스를 의미합니다.",
@@ -86,7 +86,7 @@ export default function TermsPage() {
 
                         {/* Section 3 */}
                         <section className="scroll-mt-24" id="section-3">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 3 조 (서비스 이용)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 3 조 (서비스 이용)</h3>
                             <p className="text-slate-600 leading-relaxed mb-6">
                                 회사는 이용자에게 세일즈 자동화, 데이터 분석, 계약 관리 등의 기능을 제공합니다. 이용자는 회사가 정한 절차에 따라 서비스를 이용하며, 시스템의 안정성을 해치는 행위는 금지됩니다.
                             </p>
@@ -104,7 +104,7 @@ export default function TermsPage() {
 
                         {/* Section 4 */}
                         <section className="scroll-mt-24" id="section-4">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 4 조 (회원가입 및 계정)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 4 조 (회원가입 및 계정)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 이용자는 회사가 정한 가입 양식에 따라 회원정보를 기입한 후 이 약관에 동의한다는 의사표시를 함으로써 회원가입을 신청합니다. 회사는 다음 각 호에 해당하지 않는 한 회원으로 등록합니다.
                             </p>
@@ -117,7 +117,7 @@ export default function TermsPage() {
 
                         {/* Section 5 */}
                         <section className="scroll-mt-24" id="section-5">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 5 조 (서비스 제공 및 변경)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 5 조 (서비스 제공 및 변경)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 회사는 이용자에게 아래와 같은 서비스를 제공합니다. 서비스의 내용은 회사의 사정에 따라 변경될 수 있으며, 변경 시 사전에 공지합니다.
                             </p>
@@ -131,7 +131,7 @@ export default function TermsPage() {
 
                         {/* Section 6 */}
                         <section className="scroll-mt-24" id="section-6">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 6 조 (요금 및 결제)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 6 조 (요금 및 결제)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 서비스 이용 요금은 회사가 별도로 정하는 바에 따릅니다. 유료 서비스의 이용 요금, 결제 방법 등은 해당 서비스 페이지에 게시합니다. 이용자는 회사가 정한 결제 수단을 통해 요금을 납부해야 하며, 결제 후 환불은 관련 법령 및 회사 정책에 따릅니다.
                             </p>
@@ -139,7 +139,7 @@ export default function TermsPage() {
 
                         {/* Section 7 & 9 Bento Grid */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div className="md:col-span-2 bg-white p-8 rounded-2xl shadow-sm border border-slate-100" id="section-7">
+                            <div className="md:col-span-2 bg-white p-5 md:p-8 rounded-2xl shadow-sm border border-slate-100" id="section-7">
                                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                     이용자의 핵심 의무
                                 </h3>
@@ -147,7 +147,7 @@ export default function TermsPage() {
                                     회원은 아이디와 비밀번호를 관리할 책임이 있으며, 타인에게 양도하거나 대여할 수 없습니다. 또한 서비스 이용 과정에서 선량한 관리자로서의 주의 의무를 다해야 하며, 부정한 방법으로 시스템에 접근하여 데이터를 조작하거나 탈취하는 행위를 엄격히 금지합니다.
                                 </p>
                             </div>
-                            <div className="bg-blue-50 p-8 rounded-2xl border border-blue-100" id="section-9">
+                            <div className="bg-blue-50 p-5 md:p-8 rounded-2xl border border-blue-100" id="section-9">
                                 <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                                     개인정보보호
                                 </h3>
@@ -159,7 +159,7 @@ export default function TermsPage() {
 
                         {/* Section 8 */}
                         <section className="scroll-mt-24" id="section-8">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 8 조 (서비스 이용 제한)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 8 조 (서비스 이용 제한)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 회사는 이용자가 본 약관의 의무를 위반하거나 서비스의 정상적인 운영을 방해한 경우, 경고, 일시정지, 영구이용정지 등으로 서비스 이용을 단계적으로 제한할 수 있습니다. 이용 제한의 구체적인 기준은 회사의 운영 정책에 따릅니다.
                             </p>
@@ -167,7 +167,7 @@ export default function TermsPage() {
 
                         {/* Section 10 */}
                         <section className="scroll-mt-24" id="section-10">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 10 조 (지식재산권)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 10 조 (지식재산권)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 서비스에 대한 저작권 및 지식재산권은 회사에 귀속됩니다. 이용자는 서비스를 이용함으로써 얻은 정보를 회사의 사전 승낙 없이 복제, 송신, 출판, 배포, 방송 기타 방법에 의하여 영리 목적으로 이용하거나 제3자에게 이용하게 하여서는 안 됩니다.
                             </p>
@@ -175,7 +175,7 @@ export default function TermsPage() {
 
                         {/* Section 11 */}
                         <section className="scroll-mt-24" id="section-11">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 11 조 (면책조항)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 11 조 (면책조항)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 회사는 천재지변, 전쟁, 국가 비상사태 또는 이에 준하는 불가항력으로 인하여 서비스를 제공할 수 없는 경우에는 서비스 제공에 관한 책임이 면제됩니다. 또한 이용자의 귀책사유로 인한 서비스 이용의 장애에 대하여는 책임을 지지 않습니다.
                             </p>
@@ -183,7 +183,7 @@ export default function TermsPage() {
 
                         {/* Section 12 */}
                         <section className="scroll-mt-24" id="section-12">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 12 조 (약관의 변경)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 12 조 (약관의 변경)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 회사는 필요하다고 인정되는 경우 본 약관을 변경할 수 있으며, 변경된 약관은 적용일자 및 변경사유를 명시하여 서비스 내에 그 적용일자 7일 이전부터 공지합니다. 이용자에게 불리한 약관의 변경은 30일 전에 공지합니다.
                             </p>
@@ -191,7 +191,7 @@ export default function TermsPage() {
 
                         {/* Section 13 */}
                         <section className="scroll-mt-24" id="section-13">
-                            <h3 className="text-2xl font-bold text-slate-900 mb-6">제 13 조 (분쟁해결)</h3>
+                            <h3 className="text-xl md:text-2xl font-bold text-slate-900 mb-4 md:mb-6">제 13 조 (분쟁해결)</h3>
                             <p className="text-slate-600 leading-relaxed">
                                 회사와 이용자 간에 발생한 서비스 이용에 관한 분쟁은 상호 간의 원만한 합의를 위해 최선을 다합니다. 만약 합의가 이루어지지 않을 경우, 대한민국 법률에 따라 회사의 본사 소재지를 관할하는 법원을 전용 관할 법원으로 합니다.
                             </p>
@@ -210,7 +210,7 @@ export default function TermsPage() {
 
             {/* Footer */}
             <footer className="bg-white border-t border-slate-100">
-                <div className="flex flex-col md:flex-row justify-between items-center px-8 py-12 w-full max-w-7xl mx-auto">
+                <div className="flex flex-col md:flex-row justify-between items-center px-4 md:px-8 py-8 md:py-12 w-full max-w-7xl mx-auto">
                     <div className="mb-6 md:mb-0">
                         <span className="text-sm font-bold text-slate-900">Sendb</span>
                         <p className="text-slate-500 mt-2 text-xs">&copy; 2026 Sendb. All rights reserved.</p>
