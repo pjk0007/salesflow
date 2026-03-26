@@ -204,6 +204,13 @@
       "when": 1770949100000,
       "tag": "0028_field_sortable",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1770949200000,
+      "tag": "0029_alimtalk_prevent_duplicate",
+      "breakpoints": true
     }
   ]
 }

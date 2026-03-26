@@ -49,6 +49,7 @@ export default function AlimtalkTemplateLinkDialog({
     const [triggerType, setTriggerType] = useState("manual");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [triggerCondition, setTriggerCondition] = useState<any>(null);
+    const [preventDuplicate, setPreventDuplicate] = useState(false);
     const [useRepeat, setUseRepeat] = useState(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [repeatConfig, setRepeatConfig] = useState<any>(null);
@@ -62,6 +63,7 @@ export default function AlimtalkTemplateLinkDialog({
             setVariableMappings((link.variableMappings as Record<string, string>) || {});
             setTriggerType(link.triggerType);
             setTriggerCondition(link.triggerCondition ?? null);
+            setPreventDuplicate(!!link.preventDuplicate);
             setUseRepeat(!!link.repeatConfig);
             setRepeatConfig(link.repeatConfig ?? null);
         } else {
@@ -72,6 +74,7 @@ export default function AlimtalkTemplateLinkDialog({
             setVariableMappings({});
             setTriggerType("manual");
             setTriggerCondition(null);
+            setPreventDuplicate(false);
             setUseRepeat(false);
             setRepeatConfig(null);
         }
@@ -104,6 +107,7 @@ export default function AlimtalkTemplateLinkDialog({
                       triggerType,
                       triggerCondition: triggerType !== "manual" ? triggerCondition : null,
                       repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
+                      preventDuplicate,
                   })
                 : await createLink({
                       partitionId,
@@ -116,6 +120,7 @@ export default function AlimtalkTemplateLinkDialog({
                       triggerType,
                       triggerCondition: triggerType !== "manual" ? triggerCondition : null,
                       repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
+                      preventDuplicate,
                   });
 
             if (result.success) {
@@ -211,17 +216,26 @@ export default function AlimtalkTemplateLinkDialog({
                                 <div key={v} className="flex items-center gap-2">
                                     <span className="text-sm font-mono w-[120px] shrink-0">{v}</span>
                                     <span className="text-muted-foreground">&rarr;</span>
-                                    <Input
+                                    <Select
                                         value={variableMappings[v] || ""}
-                                        onChange={(e) =>
+                                        onValueChange={(val) =>
                                             setVariableMappings((prev) => ({
                                                 ...prev,
-                                                [v]: e.target.value,
+                                                [v]: val,
                                             }))
                                         }
-                                        placeholder="필드명"
-                                        className="flex-1"
-                                    />
+                                    >
+                                        <SelectTrigger className="flex-1">
+                                            <SelectValue placeholder="필드 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent position="popper" className="max-h-60">
+                                            {fields.map((f) => (
+                                                <SelectItem key={f.key} value={f.key}>
+                                                    {f.label} ({f.key})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                             ))}
                         </div>
@@ -264,6 +278,11 @@ export default function AlimtalkTemplateLinkDialog({
                                         onChange={setRepeatConfig}
                                     />
                                 )}
+
+                                <div className="flex items-center gap-2">
+                                    <Switch checked={preventDuplicate} onCheckedChange={setPreventDuplicate} />
+                                    <Label>동일 레코드 중복 발송 방지</Label>
+                                </div>
                             </>
                         )}
                     </div>

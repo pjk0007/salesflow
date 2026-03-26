@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
             triggerType = "manual",
             triggerCondition,
             repeatConfig,
+            preventDuplicate,
         } = await req.json();
 
         if (!partitionId || !name || !senderKey || !templateCode || !recipientField) {
@@ -92,6 +93,7 @@ export async function POST(req: NextRequest) {
                 triggerType,
                 triggerCondition: triggerCondition || null,
                 repeatConfig: repeatConfig || null,
+                preventDuplicate: preventDuplicate ? 1 : 0,
                 createdBy: user.userId,
             })
             .returning({ id: alimtalkTemplateLinks.id });

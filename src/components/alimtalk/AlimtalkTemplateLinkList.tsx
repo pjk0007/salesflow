@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
+import { useFields } from "@/hooks/useFields";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,16 +24,15 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import AlimtalkTemplateLinkDialog from "./AlimtalkTemplateLinkDialog";
 import type { AlimtalkTemplateLink } from "@/lib/db";
-import type { FieldDefinition } from "@/types";
 
 interface Partition {
     id: number;
     name: string;
+    workspaceId: number;
 }
 
 interface AlimtalkTemplateLinkListProps {
     partitions: Partition[];
-    fields: FieldDefinition[];
 }
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -41,10 +41,15 @@ const TRIGGER_LABELS: Record<string, string> = {
     on_update: "수정 시",
 };
 
-export default function AlimtalkTemplateLinkList({ partitions, fields }: AlimtalkTemplateLinkListProps) {
+export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplateLinkListProps) {
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
         partitions.length > 0 ? partitions[0].id : null
     );
+    const selectedWorkspaceId = useMemo(() => {
+        const p = partitions.find((p) => p.id === selectedPartitionId);
+        return p?.workspaceId ?? null;
+    }, [partitions, selectedPartitionId]);
+    const { fields } = useFields(selectedWorkspaceId);
     const { templateLinks, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingLink, setEditingLink] = useState<AlimtalkTemplateLink | null>(null);

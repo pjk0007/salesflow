@@ -36,7 +36,7 @@ export async function PUT(
 
     try {
         const { name, recipientField, variableMappings, isActive,
-                triggerType, triggerCondition, repeatConfig } = await req.json();
+                triggerType, triggerCondition, repeatConfig, preventDuplicate } = await req.json();
 
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
         if (name !== undefined) updateData.name = name;
@@ -46,6 +46,7 @@ export async function PUT(
         if (triggerType !== undefined) updateData.triggerType = triggerType;
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition;
         if (repeatConfig !== undefined) updateData.repeatConfig = repeatConfig;
+        if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;
 
         await db
             .update(alimtalkTemplateLinks)

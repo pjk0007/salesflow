@@ -29,6 +29,10 @@ export function evaluateCondition(
         case "ne":
             return fieldValue !== targetValue;
         case "contains":
+            // 콤마 구분 멀티값: "테스트,구독중" → 필드값이 그 중 하나에 일치하면 true
+            if (targetValue.includes(",")) {
+                return targetValue.split(",").some((v) => v.trim() === fieldValue);
+            }
             return fieldValue.includes(targetValue);
         default:
             return false;
@@ -73,11 +77,17 @@ async function sendSingle(
     triggerType: "auto" | "repeat"
 ): Promise<boolean> {
     const client = await getAlimtalkClient(orgId);
-    if (!client) return false;
+    if (!client) {
+        console.log(`[alimtalk] sendSingle failed: no NHN client for org ${orgId}`);
+        return false;
+    }
 
     const data = record.data as Record<string, unknown>;
     const phone = data[link.recipientField];
-    if (!phone || typeof phone !== "string") return false;
+    if (!phone || typeof phone !== "string") {
+        console.log(`[alimtalk] sendSingle failed: no phone in field "${link.recipientField}", got: ${JSON.stringify(phone)}`);
+        return false;
+    }
 
     const recipientNo = normalizePhoneNumber(phone);
     if (recipientNo.length < 10) return false;
@@ -89,8 +99,12 @@ async function sendSingle(
         templateParameter = {};
         for (const [variable, fieldKey] of Object.entries(mappings)) {
             const paramKey = variable.replace(/^#\{|\}$/g, "");
-            const fieldValue = data[fieldKey];
-            templateParameter[paramKey] = fieldValue != null ? String(fieldValue) : "";
+            let val = data[fieldKey] != null ? String(data[fieldKey]) : "";
+            // ISO 날짜 → YYYY-MM-DD 변환 (알림톡 14자 제한 대응)
+            if (/^\d{4}-\d{2}-\d{2}T/.test(val)) {
+                val = val.slice(0, 10);
+            }
+            templateParameter[paramKey] = val;
         }
     }
 
@@ -150,6 +164,7 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
             )
         );
 
+    console.log(`[alimtalk] trigger: ${triggerType}, partition: ${partitionId}, record: ${record.id}, links: ${links.length}`);
     if (links.length === 0) return;
 
     const data = record.data as Record<string, unknown>;
@@ -157,13 +172,37 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
     for (const link of links) {
         // 조건 평가
         if (!evaluateCondition(link.triggerCondition as TriggerCondition | null, data)) {
+            console.log(`[alimtalk] skip link ${link.id} (${link.name}): condition not met`);
             continue;
+        }
+
+        // 중복 발송 방지 체크
+        if (link.preventDuplicate) {
+            const [alreadySent] = await db
+                .select({ id: alimtalkSendLogs.id })
+                .from(alimtalkSendLogs)
+                .where(
+                    and(
+                        eq(alimtalkSendLogs.recordId, record.id),
+                        eq(alimtalkSendLogs.templateLinkId, link.id),
+                        inArray(alimtalkSendLogs.status, ["sent", "pending"])
+                    )
+                )
+                .limit(1);
+            if (alreadySent) {
+                console.log(`[alimtalk] skip link ${link.id} (${link.name}): duplicate prevented`);
+                continue;
+            }
         }
 
         // 쿨다운 체크
         const canSend = await checkCooldown(record.id, link.id);
-        if (!canSend) continue;
+        if (!canSend) {
+            console.log(`[alimtalk] skip link ${link.id} (${link.name}): cooldown`);
+            continue;
+        }
 
+        console.log(`[alimtalk] sending link ${link.id} (${link.name}) to record ${record.id}`);
         // 발송
         const success = await sendSingle(link, record, orgId, "auto");
 

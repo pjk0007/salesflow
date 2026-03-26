@@ -60,7 +60,7 @@ export default function VariableMappingEditor({
                             <SelectTrigger className="flex-1">
                                 <SelectValue placeholder="필드 선택" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="max-h-60">
                                 {fields.map((field) => (
                                     <SelectItem key={field.key} value={field.key}>
                                         {field.label} ({field.key})

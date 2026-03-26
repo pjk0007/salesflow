@@ -33,7 +33,10 @@ export default function TriggerConditionForm({
     value,
     onChange,
 }: TriggerConditionFormProps) {
-    const isAlways = !value || !value.field;
+    const isAlways = value === null;
+    const selectedField = fields.find((f) => f.key === value?.field);
+    const isSelectField = selectedField?.fieldType === "select";
+    const fieldOptions = selectedField?.options ?? [];
 
     const handleAlwaysChange = (checked: boolean) => {
         if (checked) {
@@ -96,12 +99,53 @@ export default function TriggerConditionForm({
                             </SelectContent>
                         </Select>
 
-                        <Input
-                            value={value?.value || ""}
-                            onChange={(e) => onChange({ ...value, value: e.target.value })}
-                            placeholder="값"
-                        />
+                        {isSelectField && fieldOptions.length > 0 && value?.operator !== "contains" ? (
+                            <Select
+                                value={value?.value || ""}
+                                onValueChange={(v) => onChange({ ...value, value: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="값 선택" />
+                                </SelectTrigger>
+                                <SelectContent position="popper" className="max-h-60">
+                                    {fieldOptions.map((opt) => (
+                                        <SelectItem key={opt} value={opt}>
+                                            {opt}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        ) : !isSelectField || !fieldOptions.length ? (
+                            <Input
+                                value={value?.value || ""}
+                                onChange={(e) => onChange({ ...value, value: e.target.value })}
+                                placeholder="값"
+                            />
+                        ) : null}
                     </div>
+
+                    {isSelectField && fieldOptions.length > 0 && value?.operator === "contains" && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                            {fieldOptions.map((opt) => {
+                                const selected = (value?.value || "").split(",").filter(Boolean);
+                                const isChecked = selected.includes(opt);
+                                return (
+                                    <label key={opt} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                                        <Checkbox
+                                            checked={isChecked}
+                                            onCheckedChange={(checked) => {
+                                                const next = checked
+                                                    ? [...selected, opt]
+                                                    : selected.filter((s) => s !== opt);
+                                                onChange({ ...value, value: next.join(",") });
+                                            }}
+                                        />
+                                        {opt}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
         </div>

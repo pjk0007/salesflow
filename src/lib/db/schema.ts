@@ -371,6 +371,7 @@ export const alimtalkTemplateLinks = pgTable("alimtalk_template_links", {
     } | null>(),
     recipientField: varchar("recipient_field", { length: 100 }).notNull(),
     variableMappings: jsonb("variable_mappings").$type<Record<string, string>>(),
+    preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
