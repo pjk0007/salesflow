@@ -59,10 +59,10 @@ export default function SignupPage() {
                 </div>
 
                 {/* 로고 */}
-                <div className="relative z-10 flex items-center gap-2">
+                <Link href="/" className="relative z-10 flex items-center gap-2 hover:opacity-80 transition-opacity">
                     <SendbIcon className="size-8" />
                     <span className="text-3xl font-black text-white tracking-tighter">Sendb</span>
-                </div>
+                </Link>
 
                 {/* 중앙 콘텐츠 */}
                 <div className="relative z-10 max-w-lg">

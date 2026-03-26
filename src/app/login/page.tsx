@@ -50,10 +50,10 @@ export default function LoginPage() {
                 <div className="absolute -bottom-[10%] -left-[10%] w-64 h-64 bg-[#7c3aed]/30 rounded-full blur-3xl" />
 
                 {/* 로고 */}
-                <div className="z-10 flex items-center gap-2">
+                <Link href="/" className="z-10 flex items-center gap-2 hover:opacity-80 transition-opacity">
                     <SendbIcon className="size-8" />
                     <span className="text-2xl font-black tracking-tight text-white">Sendb</span>
-                </div>
+                </Link>
 
                 {/* 중앙 콘텐츠 */}
                 <div className="z-10 flex flex-col items-center justify-center text-center space-y-12">

@@ -8,8 +8,7 @@ export function SendbIcon({ className = "size-5" }: { className?: string }) {
                 </linearGradient>
             </defs>
             <rect width="32" height="32" rx="8" fill="url(#sf-grad)" />
-            <path d="M9 22.5L16 7l7 15.5-7-3.5-7 3.5z" fill="white" fillOpacity="0.9" />
-            <path d="M16 19V7" stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M9 23L16 7l7 16-7-3.5L9 23z" fill="white" fillOpacity="0.9" />
         </svg>
     );
 }
