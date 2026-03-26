@@ -3,7 +3,8 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import path from "path";
 import postgres from "postgres";
 
-// 기존에 drizzle-kit push로 적용된 마이그레이션 목록 (최초 1회 시딩용)
+// 기존에 drizzle-kit push로 실제 적용된 마이그레이션 목록 (최초 1회 시딩용)
+// 주의: 실제 push된 것만 포함 (0022까지). 0023+ 는 migrate()가 SQL 실행
 const EXISTING_MIGRATIONS = [
     { hash: "0000_premium_luke_cage", created_at: 1770946331787 },
     { hash: "0001_email_configs_nhn", created_at: 1770946400000 },
@@ -28,10 +29,16 @@ const EXISTING_MIGRATIONS = [
     { hash: "0020_signature_persona", created_at: 1770948300000 },
     { hash: "0021_auto_enrich", created_at: 1770948400000 },
     { hash: "0022_email_log_body", created_at: 1770948500000 },
-    { hash: "0023_email_read_tracking", created_at: 1770948600000 },
-    { hash: "0024_email_sender_signatures", created_at: 1770948700000 },
-    { hash: "0025_email_followup", created_at: 1770948800000 },
-    { hash: "0026_followup_chain", created_at: 1770948900000 },
+];
+
+// 이전에 잘못 시딩된 마이그레이션 (push 안 됐는데 기록만 들어간 것)
+// 이전에 잘못 시딩되었거나, SQL 미실행 상태로 기록된 마이그레이션
+const INCORRECTLY_SEEDED = [
+    "0023_email_read_tracking",
+    "0024_email_sender_signatures",
+    "0025_email_followup",
+    "0026_followup_chain",
+    "0027_duplicate_prevention",
 ];
 
 async function seedMigrationHistory(client: postgres.Sql) {
@@ -63,7 +70,18 @@ async function seedMigrationHistory(client: postgres.Sql) {
     `;
 
     const existing = await client`SELECT count(*) as cnt FROM "drizzle"."__drizzle_migrations"`;
-    if (Number(existing[0].cnt) > 0) return;
+    const cnt = Number(existing[0].cnt);
+
+    if (cnt > 0) {
+        // 잘못 시딩된 기록 정리 (push 안 됐는데 기록만 들어간 것)
+        for (const hash of INCORRECTLY_SEEDED) {
+            const del = await client`DELETE FROM "drizzle"."__drizzle_migrations" WHERE hash = ${hash}`;
+            if (del.count > 0) {
+                console.log(`[migrate] 잘못 시딩된 기록 제거: ${hash}`);
+            }
+        }
+        return;
+    }
 
     console.log("[migrate] 기존 DB 감지, 마이그레이션 기록 시딩...");
     for (const m of EXISTING_MIGRATIONS) {
