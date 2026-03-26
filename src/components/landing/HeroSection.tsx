@@ -1,65 +1,39 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import AnimateOnScroll from "./AnimateOnScroll";
 
 function DashboardMockup() {
     return (
-        <div className="rounded-2xl border shadow-2xl bg-background overflow-hidden">
-            {/* Title bar */}
-            <div className="flex items-center gap-2 border-b px-4 py-2.5">
-                <div className="flex gap-1.5">
-                    <div className="h-3 w-3 rounded-full bg-red-400" />
-                    <div className="h-3 w-3 rounded-full bg-yellow-400" />
-                    <div className="h-3 w-3 rounded-full bg-green-400" />
+        <div className="relative">
+            <div className="absolute -top-20 -right-20 w-96 h-96 bg-blue-400/20 blur-[100px] rounded-full" />
+            <div className="absolute -bottom-20 -left-20 w-96 h-96 bg-violet-400/20 blur-[100px] rounded-full" />
+            <div className="relative bg-white rounded-2xl shadow-2xl border border-slate-100 p-4 hover:scale-[1.02] transition-transform duration-500">
+                {/* Title bar */}
+                <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-3">
+                    <div className="flex gap-1.5">
+                        <div className="h-3 w-3 rounded-full bg-red-400" />
+                        <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                        <div className="h-3 w-3 rounded-full bg-green-400" />
+                    </div>
+                    <span className="ml-2 text-xs text-slate-400">Sendb Dashboard</span>
                 </div>
-                <span className="ml-2 text-xs text-muted-foreground">Sendb Dashboard</span>
-            </div>
-
-            <div className="p-4 space-y-4">
-                {/* Stats row */}
-                <div className="grid grid-cols-3 gap-3">
+                {/* Stats */}
+                <div className="grid grid-cols-3 gap-3 mb-3">
                     {[
                         { label: "신규 고객", value: "128", change: "+12%" },
                         { label: "전환율", value: "34.2%", change: "+5.1%" },
                         { label: "월 매출", value: "₩4,200만", change: "+18%" },
                     ].map((stat) => (
-                        <div key={stat.label} className="rounded-lg border p-3">
-                            <p className="text-[10px] text-muted-foreground">{stat.label}</p>
-                            <p className="text-lg font-bold">{stat.value}</p>
-                            <p className="text-[10px] text-green-500">{stat.change}</p>
+                        <div key={stat.label} className="rounded-xl bg-slate-50 border border-slate-100 p-3">
+                            <p className="text-[10px] text-slate-400">{stat.label}</p>
+                            <p className="text-lg font-bold text-slate-900">{stat.value}</p>
+                            <p className="text-[10px] text-emerald-500 font-medium">{stat.change}</p>
                         </div>
                     ))}
                 </div>
-
-                {/* Table mockup */}
-                <div className="rounded-lg border">
-                    <div className="grid grid-cols-4 gap-2 border-b px-3 py-2 text-[10px] font-medium text-muted-foreground">
-                        <span>고객명</span>
-                        <span>회사</span>
-                        <span>상태</span>
-                        <span>금액</span>
-                    </div>
-                    {[
-                        { name: "김영수", company: "테크코리아", status: "진행중", amount: "₩500만" },
-                        { name: "이지현", company: "디지털랩", status: "완료", amount: "₩320만" },
-                        { name: "박민호", company: "스타트업허브", status: "검토중", amount: "₩180만" },
-                    ].map((row) => (
-                        <div key={row.name} className="grid grid-cols-4 gap-2 px-3 py-2 text-[11px]">
-                            <span className="font-medium">{row.name}</span>
-                            <span className="text-muted-foreground">{row.company}</span>
-                            <span>
-                                <span className={`inline-block rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
-                                    row.status === "완료"
-                                        ? "bg-green-100 text-green-700"
-                                        : row.status === "진행중"
-                                        ? "bg-blue-100 text-blue-700"
-                                        : "bg-yellow-100 text-yellow-700"
-                                }`}>
-                                    {row.status}
-                                </span>
-                            </span>
-                            <span className="font-medium">{row.amount}</span>
-                        </div>
+                {/* Chart */}
+                <div className="flex items-end gap-1.5 h-20 px-2">
+                    {[40, 55, 35, 65, 45, 80, 60, 75, 50, 90, 70, 85].map((h, i) => (
+                        <div key={i} className="flex-1 rounded-sm bg-blue-500/20" style={{ height: `${h}%` }} />
                     ))}
                 </div>
             </div>
@@ -69,47 +43,36 @@ function DashboardMockup() {
 
 export default function HeroSection() {
     return (
-        <section className="py-20 lg:py-28 px-4">
-            <div className="container mx-auto">
-                <div className="grid lg:grid-cols-2 gap-12 items-center">
-                    <AnimateOnScroll>
-                        <div className="flex flex-col items-start">
-                            {/* Badge */}
-                            <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs">
-                                <span className="relative flex h-2 w-2">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
-                                    <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-                                </span>
-                                영업 자동화 플랫폼
-                            </div>
-
-                            <h1 className="mt-6 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                                영업의 모든 것을
-                                <br />
-                                한 곳에서 관리하세요
-                            </h1>
-                            <p className="mt-6 max-w-lg text-lg text-muted-foreground">
-                                고객 관리부터 이메일 자동화, AI 도우미까지.
-                                스마트한 영업 관리 플랫폼으로 성과를 높이세요.
-                            </p>
-                            <div className="mt-8 flex items-center gap-4">
-                                <Button size="lg" asChild>
-                                    <Link href="/signup">무료로 시작하기</Link>
-                                </Button>
-                                <Button size="lg" variant="outline" asChild>
-                                    <Link href="#features">자세히 알아보기</Link>
-                                </Button>
-                            </div>
-                            <p className="mt-4 text-xs text-muted-foreground">
-                                신용카드 없이 무료로 시작 · 설정 5분
-                            </p>
+        <section className="pt-32 pb-20 md:pt-48 md:pb-32 bg-linear-to-br from-blue-50 via-white to-violet-50 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-6 md:px-12 grid lg:grid-cols-2 gap-12 items-center">
+                <AnimateOnScroll>
+                    <div className="space-y-8">
+                        <span className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold tracking-wide">
+                            영업 자동화의 새로운 기준
+                        </span>
+                        <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 leading-[1.15] tracking-tight">
+                            영업의 모든 것을 <br />
+                            <span className="bg-linear-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">한 곳에서 관리하세요</span>
+                        </h1>
+                        <p className="text-lg md:text-xl text-slate-600 leading-relaxed max-w-lg">
+                            고객 관리, 이메일 자동화, AI 어시스턴트까지. Sendb로 영업 생산성을 극대화하세요.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <Link href="/signup"
+                                className="px-8 py-4 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:-translate-y-0.5 transition-all text-center">
+                                무료로 시작하기
+                            </Link>
+                            <a href="#features"
+                                className="px-8 py-4 bg-white text-slate-700 border border-slate-200 font-bold rounded-xl hover:bg-slate-50 transition-all text-center">
+                                자세히 알아보기
+                            </a>
                         </div>
-                    </AnimateOnScroll>
+                    </div>
+                </AnimateOnScroll>
 
-                    <AnimateOnScroll delay={200} className="hidden md:block">
-                        <DashboardMockup />
-                    </AnimateOnScroll>
-                </div>
+                <AnimateOnScroll delay={200} className="hidden md:block">
+                    <DashboardMockup />
+                </AnimateOnScroll>
             </div>
         </section>
     );
