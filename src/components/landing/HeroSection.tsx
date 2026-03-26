@@ -43,8 +43,8 @@ function DashboardMockup() {
 
 export default function HeroSection() {
     return (
-        <section className="pt-32 pb-20 md:pt-48 md:pb-32 bg-linear-to-br from-blue-50 via-white to-violet-50 overflow-hidden">
-            <div className="max-w-7xl mx-auto px-6 md:px-12 grid lg:grid-cols-2 gap-12 items-center">
+        <section className="min-h-screen flex items-center bg-linear-to-br from-blue-50 via-white to-violet-50 overflow-hidden">
+            <div className="max-w-7xl mx-auto px-6 md:px-12 grid lg:grid-cols-2 gap-12 items-center w-full">
                 <AnimateOnScroll>
                     <div className="space-y-8">
                         <span className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold tracking-wide">

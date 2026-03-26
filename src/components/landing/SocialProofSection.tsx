@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef, useEffect, useState } from "react";
-import AnimateOnScroll from "./AnimateOnScroll";
 import { useCountUp } from "@/hooks/useCountUp";
 
 const METRICS = [
@@ -17,6 +16,7 @@ function CountUpCard({
     label,
     duration,
     decimals = 0,
+    inView,
     delay,
 }: {
     end: number;
@@ -24,38 +24,22 @@ function CountUpCard({
     label: string;
     duration: number;
     decimals?: number;
+    inView: boolean;
     delay: number;
 }) {
-    const ref = useRef<HTMLDivElement>(null);
-    const [inView, setInView] = useState(false);
+    const [started, setStarted] = useState(false);
 
     useEffect(() => {
-        const el = ref.current;
-        if (!el) return;
+        if (!inView) return;
+        const timer = setTimeout(() => setStarted(true), delay);
+        return () => clearTimeout(timer);
+    }, [inView, delay]);
 
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    setTimeout(() => setInView(true), delay);
-                    observer.unobserve(el);
-                }
-            },
-            { threshold: 0.3 }
-        );
-
-        observer.observe(el);
-        return () => observer.disconnect();
-    }, [delay]);
-
-    const value = useCountUp({ end, duration, start: inView, decimals });
-
+    const value = useCountUp({ end, duration, start: started, decimals });
     const formatted = decimals > 0 ? value.toFixed(decimals) : value.toLocaleString();
 
     return (
-        <div
-            ref={ref}
-            className="text-center p-6 rounded-2xl bg-slate-50 border border-transparent hover:border-blue-100 transition-colors"
-        >
+        <div className="text-center p-6 rounded-2xl bg-slate-50 border border-transparent hover:border-blue-100 transition-colors">
             <div className="text-3xl font-bold text-blue-600 mb-2 tabular-nums">
                 {formatted}
                 {suffix}
@@ -66,10 +50,35 @@ function CountUpCard({
 }
 
 export default function SocialProofSection() {
+    const ref = useRef<HTMLDivElement>(null);
+    const [inView, setInView] = useState(false);
+
+    useEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setInView(true);
+                    observer.unobserve(el);
+                }
+            },
+            { threshold: 0.3 }
+        );
+
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+
     return (
         <section className="py-16 bg-white border-y border-slate-100">
-            <div className="max-w-7xl mx-auto px-6 md:px-12">
-                <AnimateOnScroll>
+            <div ref={ref} className="max-w-7xl mx-auto px-6 md:px-12">
+                <div
+                    className={`transition-all duration-700 ease-out ${
+                        inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+                    }`}
+                >
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
                         {METRICS.map((m, i) => (
                             <CountUpCard
@@ -79,11 +88,12 @@ export default function SocialProofSection() {
                                 label={m.label}
                                 duration={m.duration}
                                 decimals={m.decimals}
+                                inView={inView}
                                 delay={i * 150}
                             />
                         ))}
                     </div>
-                </AnimateOnScroll>
+                </div>
             </div>
         </section>
     );
