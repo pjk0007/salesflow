@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import TemplateFormEditor, { type TemplateFormState } from "@/components/alimtalk/TemplateFormEditor";
@@ -38,8 +38,42 @@ function NewAlimtalkTemplateContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const senderKey = searchParams.get("senderKey");
+    const cloneFrom = searchParams.get("cloneFrom");
     const [form, setForm] = useState<TemplateFormState>(DEFAULT_FORM);
     const [showAi, setShowAi] = useState(false);
+
+    // 복제 시 원본 템플릿 데이터 로드
+    useEffect(() => {
+        if (!cloneFrom || !senderKey) return;
+        fetch(`/api/alimtalk/templates/${encodeURIComponent(cloneFrom)}?senderKey=${encodeURIComponent(senderKey)}`)
+            .then((res) => res.json())
+            .then((result) => {
+                if (!result.success || !result.data) return;
+                const tpl = result.data;
+                setForm({
+                    ...DEFAULT_FORM,
+                    templateCode: `${tpl.templateCode}_copy`,
+                    templateName: `${tpl.templateName} (복사본)`,
+                    templateContent: tpl.templateContent ?? "",
+                    templateMessageType: tpl.templateMessageType ?? "BA",
+                    templateEmphasizeType: tpl.templateEmphasizeType ?? "NONE",
+                    templateExtra: tpl.templateExtra ?? "",
+                    templateTitle: tpl.templateTitle ?? "",
+                    templateSubtitle: tpl.templateSubtitle ?? "",
+                    templateHeader: tpl.templateHeader ?? "",
+                    securityFlag: !!tpl.securityFlag,
+                    categoryCode: tpl.categoryCode ?? "",
+                    buttons: tpl.buttons ?? [],
+                    quickReplies: tpl.quickReplies ?? [],
+                    interactionType: tpl.quickReplies?.length ? "quickReplies" : "buttons",
+                    templateImageName: tpl.templateImageName ?? "",
+                    templateImageUrl: tpl.templateImageUrl ?? "",
+                    templateItem: tpl.templateItem ?? null,
+                    templateItemHighlight: tpl.templateItemHighlight ?? null,
+                    templateRepresentLink: tpl.templateRepresentLink ?? null,
+                });
+            });
+    }, [cloneFrom, senderKey]);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { createTemplate } = useAlimtalkTemplateManage(senderKey);

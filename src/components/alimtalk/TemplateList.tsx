@@ -45,7 +45,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal } from "lucide-react";
+import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy } from "lucide-react";
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TemplateLinkDialog from "./TemplateLinkDialog";
 import TestSendDialog from "./TestSendDialog";
@@ -253,6 +253,17 @@ export default function TemplateList() {
                                                             onClick={() => setCommentTarget({ templateCode: tpl.templateCode, templateName: tpl.templateName })}
                                                         >
                                                             <Send className="h-4 w-4 mr-2" /> 검수 요청
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                const params = new URLSearchParams({
+                                                                    senderKey: selectedSenderKey!,
+                                                                    cloneFrom: tpl.templateCode,
+                                                                });
+                                                                router.push(`/alimtalk/templates/new?${params.toString()}`);
+                                                            }}
+                                                        >
+                                                            <Copy className="h-4 w-4 mr-2" /> 복제
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             disabled={!isApproved}
