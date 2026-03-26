@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces, organizations } from "@/lib/db";
+import { db, records, partitions, workspaces, organizations, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
@@ -128,18 +128,31 @@ export async function GET(
         const whereClause = and(...conditions);
 
         // 정렬
-        const orderBy =
-            sortField === "registeredAt"
-                ? sortOrder === "asc"
-                    ? asc(records.registeredAt)
-                    : desc(records.registeredAt)
-                : sortField === "integratedCode"
-                    ? sortOrder === "asc"
-                        ? asc(records.integratedCode)
-                        : desc(records.integratedCode)
-                    : sortOrder === "asc"
-                        ? asc(records.createdAt)
-                        : desc(records.createdAt);
+        let orderBy;
+        if (sortField === "registeredAt") {
+            orderBy = sortOrder === "asc" ? asc(records.registeredAt) : desc(records.registeredAt);
+        } else if (sortField === "integratedCode") {
+            orderBy = sortOrder === "asc" ? asc(records.integratedCode) : desc(records.integratedCode);
+        } else if (sortField === "createdAt") {
+            orderBy = sortOrder === "asc" ? asc(records.createdAt) : desc(records.createdAt);
+        } else {
+            // JSONB data 필드: 타입에 따라 캐스팅하여 정렬
+            const [fieldDef] = await db
+                .select({ fieldType: fieldDefinitions.fieldType })
+                .from(fieldDefinitions)
+                .where(and(eq(fieldDefinitions.workspaceId, access.partition.workspaceId), eq(fieldDefinitions.key, sortField)));
+
+            let jsonField;
+            const ft = fieldDef?.fieldType;
+            if (ft === "number" || ft === "currency") {
+                jsonField = sql`(${records.data}->>${sortField})::numeric`;
+            } else if (ft === "date" || ft === "datetime") {
+                jsonField = sql`(${records.data}->>${sortField})::timestamptz`;
+            } else {
+                jsonField = sql`${records.data}->>${sortField}`;
+            }
+            orderBy = sortOrder === "asc" ? asc(jsonField) : desc(jsonField);
+        }
 
         // 총 건수
         const [totalResult] = await db

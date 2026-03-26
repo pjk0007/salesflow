@@ -1,4 +1,21 @@
 import { useState, useEffect } from "react";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,7 +29,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ChevronUp, ChevronDown, Plus, Pencil, Trash2, Lock, LayoutTemplate } from "lucide-react";
+import { GripVertical, Plus, Pencil, Trash2, Lock, LayoutTemplate, ArrowUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useFields } from "@/hooks/useFields";
@@ -40,6 +57,86 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
     user_select: "사용자 선택",
 };
 
+function SortableFieldRow({
+    field,
+    onEdit,
+    onDelete,
+}: {
+    field: FieldDefinition;
+    onEdit: (field: FieldDefinition) => void;
+    onDelete: (field: FieldDefinition) => void;
+}) {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+        useSortable({ id: field.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+        <TableRow ref={setNodeRef} style={style}>
+            <TableCell className="w-10">
+                <button
+                    type="button"
+                    className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded"
+                    {...attributes}
+                    {...listeners}
+                >
+                    <GripVertical className="h-4 w-4 text-muted-foreground" />
+                </button>
+            </TableCell>
+            <TableCell className="font-medium">
+                {field.label}
+            </TableCell>
+            <TableCell className="text-muted-foreground text-sm font-mono">
+                {field.key}
+            </TableCell>
+            <TableCell>
+                <Badge variant="secondary">
+                    {FIELD_TYPE_LABELS[field.fieldType] || field.fieldType}
+                </Badge>
+            </TableCell>
+            <TableCell>
+                {!!field.isRequired && (
+                    <span className="text-destructive font-bold">*</span>
+                )}
+            </TableCell>
+            <TableCell>
+                {!!field.isSortable && (
+                    <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+            </TableCell>
+            <TableCell className="text-sm text-muted-foreground">
+                {field.category || "-"}
+            </TableCell>
+            <TableCell>
+                {field.isSystem ? (
+                    <Lock className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                    <div className="flex gap-1">
+                        <button
+                            type="button"
+                            className="p-1 hover:bg-accent rounded"
+                            onClick={() => onEdit(field)}
+                        >
+                            <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                            type="button"
+                            className="p-1 hover:bg-destructive/10 rounded text-destructive"
+                            onClick={() => onDelete(field)}
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    </div>
+                )}
+            </TableCell>
+        </TableRow>
+    );
+}
+
 export default function FieldManagementTab() {
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
     const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -60,18 +157,21 @@ export default function FieldManagementTab() {
         }
     }, [workspaces, selectedId]);
 
-    const handleMoveUp = async (index: number) => {
-        if (index <= 0) return;
-        const ids = fields.map((f) => f.id);
-        [ids[index - 1], ids[index]] = [ids[index], ids[index - 1]];
-        await reorderFields(ids);
-    };
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
 
-    const handleMoveDown = async (index: number) => {
-        if (index >= fields.length - 1) return;
-        const ids = fields.map((f) => f.id);
-        [ids[index], ids[index + 1]] = [ids[index + 1], ids[index]];
-        await reorderFields(ids);
+    const handleDragEnd = async (event: DragEndEvent) => {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+
+        const oldIndex = fields.findIndex((f) => f.id === active.id);
+        const newIndex = fields.findIndex((f) => f.id === over.id);
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const reordered = arrayMove(fields, oldIndex, newIndex);
+        await reorderFields(reordered.map((f) => f.id));
     };
 
     const handleEdit = (field: FieldDefinition) => {
@@ -165,88 +265,36 @@ export default function FieldManagementTab() {
                             등록된 속성이 없습니다.
                         </div>
                     ) : (
-                        <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-[70px]">순서</TableHead>
-                                        <TableHead>라벨</TableHead>
-                                        <TableHead>key</TableHead>
-                                        <TableHead>타입</TableHead>
-                                        <TableHead className="w-[60px]">필수</TableHead>
-                                        <TableHead className="w-[60px]">카테고리</TableHead>
-                                        <TableHead className="w-[90px]">작업</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {fields.map((field, index) => (
-                                        <TableRow key={field.id}>
-                                            <TableCell>
-                                                <div className="flex flex-col gap-0.5">
-                                                    <button
-                                                        type="button"
-                                                        className="p-0.5 hover:bg-accent rounded disabled:opacity-30"
-                                                        disabled={index === 0}
-                                                        onClick={() => handleMoveUp(index)}
-                                                    >
-                                                        <ChevronUp className="h-3.5 w-3.5" />
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        className="p-0.5 hover:bg-accent rounded disabled:opacity-30"
-                                                        disabled={index === fields.length - 1}
-                                                        onClick={() => handleMoveDown(index)}
-                                                    >
-                                                        <ChevronDown className="h-3.5 w-3.5" />
-                                                    </button>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="font-medium">
-                                                {field.label}
-                                            </TableCell>
-                                            <TableCell className="text-muted-foreground text-sm font-mono">
-                                                {field.key}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary">
-                                                    {FIELD_TYPE_LABELS[field.fieldType] || field.fieldType}
-                                                </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {!!field.isRequired && (
-                                                    <span className="text-destructive font-bold">*</span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-sm text-muted-foreground">
-                                                {field.category || "-"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {field.isSystem ? (
-                                                    <Lock className="h-4 w-4 text-muted-foreground" />
-                                                ) : (
-                                                    <div className="flex gap-1">
-                                                        <button
-                                                            type="button"
-                                                            className="p-1 hover:bg-accent rounded"
-                                                            onClick={() => handleEdit(field)}
-                                                        >
-                                                            <Pencil className="h-4 w-4" />
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            className="p-1 hover:bg-destructive/10 rounded text-destructive"
-                                                            onClick={() => handleDelete(field)}
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </TableCell>
+                        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                            <div className="rounded-md border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[40px]" />
+                                            <TableHead>라벨</TableHead>
+                                            <TableHead>key</TableHead>
+                                            <TableHead>타입</TableHead>
+                                            <TableHead className="w-[60px]">필수</TableHead>
+                                            <TableHead className="w-[60px]">정렬</TableHead>
+                                            <TableHead className="w-[60px]">카테고리</TableHead>
+                                            <TableHead className="w-[90px]">작업</TableHead>
                                         </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        <SortableContext items={fields.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+                                            {fields.map((field) => (
+                                                <SortableFieldRow
+                                                    key={field.id}
+                                                    field={field}
+                                                    onEdit={handleEdit}
+                                                    onDelete={handleDelete}
+                                                />
+                                            ))}
+                                        </SortableContext>
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </DndContext>
                     )}
                 </>
             )}

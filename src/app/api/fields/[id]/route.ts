@@ -30,7 +30,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 필드 ID입니다." }, { status: 400 });
     }
 
-    const { label, category, isRequired, options, defaultWidth } = await req.json();
+    const { label, category, isRequired, isSortable, options, defaultWidth } = await req.json();
 
     try {
         const access = await verifyOwnership(fieldId, user.orgId);
@@ -57,6 +57,9 @@ export async function PATCH(
         }
         if (defaultWidth !== undefined) {
             updates.defaultWidth = Math.max(40, Number(defaultWidth) || 120);
+        }
+        if (isSortable !== undefined) {
+            updates.isSortable = isSortable ? 1 : 0;
         }
 
         const [updated] = await db

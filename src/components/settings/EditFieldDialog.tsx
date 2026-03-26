@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDefinition, UpdateFieldInput } from "@/types";
@@ -49,6 +50,7 @@ export default function EditFieldDialog({
     const [isRequired, setIsRequired] = useState(false);
     const [options, setOptions] = useState<string[]>([]);
     const [newOption, setNewOption] = useState("");
+    const [isSortable, setIsSortable] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -57,6 +59,7 @@ export default function EditFieldDialog({
             setCategory(field.category ?? "");
             setDefaultWidth(field.defaultWidth);
             setIsRequired(!!field.isRequired);
+            setIsSortable(!!field.isSortable);
             setOptions(field.options ?? []);
             setNewOption("");
         }
@@ -87,6 +90,7 @@ export default function EditFieldDialog({
                 label: label.trim(),
                 category: category.trim() || undefined,
                 isRequired,
+                isSortable,
                 defaultWidth,
                 options: field.fieldType === "select" ? options : undefined,
             });
@@ -167,6 +171,17 @@ export default function EditFieldDialog({
                             <Label htmlFor="editIsRequired" className="cursor-pointer">
                                 필수 항목
                             </Label>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="editIsSortable" className="cursor-pointer">
+                                정렬 가능
+                            </Label>
+                            <Switch
+                                id="editIsSortable"
+                                checked={isSortable}
+                                onCheckedChange={setIsSortable}
+                            />
                         </div>
 
                         {field.fieldType === "select" && (

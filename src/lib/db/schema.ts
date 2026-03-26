@@ -103,6 +103,7 @@ export const fieldDefinitions = pgTable(
         sortOrder: integer("sort_order").default(0).notNull(),
         isRequired: integer("is_required").default(0).notNull(),
         isSystem: integer("is_system").default(0).notNull(),
+        isSortable: integer("is_sortable").default(0).notNull(),
         // 표시 설정
         defaultWidth: integer("default_width").default(120).notNull(),
         minWidth: integer("min_width").default(80).notNull(),

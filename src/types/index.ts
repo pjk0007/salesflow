@@ -69,6 +69,7 @@ export interface FieldDefinition {
   sortOrder: number;
   isRequired: boolean;
   isSystem: boolean;
+  isSortable: boolean;
   defaultWidth: number;
   minWidth: number;
   cellType: CellType | null;
@@ -268,6 +269,7 @@ export interface UpdateFieldInput {
     label?: string;
     category?: string;
     isRequired?: boolean;
+    isSortable?: boolean;
     options?: string[];
     defaultWidth?: number;
 }

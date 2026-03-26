@@ -57,12 +57,11 @@ export default function RecordTable({
     onPageChange,
     duplicateHighlight,
 }: RecordTableProps) {
-    // 표시할 필드 결정
+    // 표시할 필드 결정 (순서는 fields의 sortOrder 기준)
     const displayFields = useMemo(() => {
         if (visibleFieldKeys && visibleFieldKeys.length > 0) {
-            return visibleFieldKeys
-                .map((key) => fields.find((f) => f.key === key))
-                .filter((f): f is FieldDefinition => f !== undefined);
+            const keySet = new Set(visibleFieldKeys);
+            return fields.filter((f) => keySet.has(f.key));
         }
         return fields;
     }, [fields, visibleFieldKeys]);
@@ -152,8 +151,13 @@ export default function RecordTable({
                                 <TableHead
                                     key={field.key}
                                     style={{ minWidth: field.minWidth, width: field.defaultWidth }}
+                                    className={!!field.isSortable ? "cursor-pointer select-none" : undefined}
+                                    onClick={!!field.isSortable ? () => handleSort(field.key) : undefined}
                                 >
-                                    {field.label}
+                                    <span className="flex items-center gap-1">
+                                        {field.label}
+                                        {!!field.isSortable && renderSortIcon(field.key)}
+                                    </span>
                                 </TableHead>
                             ))}
                         </TableRow>
