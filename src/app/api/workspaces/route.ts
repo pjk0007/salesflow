@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
                 name: workspaces.name,
                 description: workspaces.description,
                 icon: workspaces.icon,
+                defaultFieldTypeId: workspaces.defaultFieldTypeId,
             })
             .from(workspaces)
             .where(eq(workspaces.orgId, user.orgId))

@@ -83,7 +83,7 @@ export async function POST(
         return NextResponse.json({ success: false, error: "워크스페이스 ID가 필요합니다." }, { status: 400 });
     }
 
-    const { name, folderId } = await req.json();
+    const { name, folderId, fieldTypeId } = await req.json();
     if (!name || !name.trim()) {
         return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
     }
@@ -125,6 +125,7 @@ export async function POST(
                 workspaceId,
                 name: name.trim(),
                 folderId: folderId || null,
+                fieldTypeId: fieldTypeId || null,
                 visibleFields,
             })
             .returning({

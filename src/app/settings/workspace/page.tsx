@@ -10,6 +10,7 @@ import { Layers, ListTree, Sparkles } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import WorkspaceSettingsTab from "@/components/settings/WorkspaceSettingsTab";
 import FieldManagementTab from "@/components/settings/FieldManagementTab";
+import FieldTypeManagementTab from "@/components/settings/FieldTypeManagementTab";
 import AutoEnrichTab from "@/components/settings/AutoEnrichTab";
 
 function WorkspaceSettingsContent() {
@@ -53,9 +54,13 @@ function WorkspaceSettingsContent() {
                             <Layers className="mr-2 h-4 w-4" />
                             워크스페이스 관리
                         </TabsTrigger>
+                        <TabsTrigger value="field-types">
+                            <ListTree className="mr-2 h-4 w-4" />
+                            속성 타입 관리
+                        </TabsTrigger>
                         <TabsTrigger value="fields">
                             <ListTree className="mr-2 h-4 w-4" />
-                            속성 관리
+                            속성 관리 (기존)
                         </TabsTrigger>
                         <TabsTrigger value="automation">
                             <Sparkles className="mr-2 h-4 w-4" />
@@ -65,6 +70,10 @@ function WorkspaceSettingsContent() {
 
                     <TabsContent value="workspace" className="mt-6">
                         <WorkspaceSettingsTab />
+                    </TabsContent>
+
+                    <TabsContent value="field-types" className="mt-6">
+                        <FieldTypeManagementTab />
                     </TabsContent>
 
                     <TabsContent value="fields" className="mt-6">

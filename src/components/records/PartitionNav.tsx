@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput } from "lucide-react";
+import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput, ListTree } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -27,6 +27,9 @@ import { cn } from "@/lib/utils";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { getIconComponent } from "@/components/ui/icon-picker";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { useFieldTypes } from "@/hooks/useFieldTypes";
+import { toast } from "sonner";
 import type { PartitionTree } from "@/hooks/usePartitions";
 
 interface PartitionNavProps {
@@ -43,6 +46,7 @@ interface PartitionNavProps {
     onDeletePartition: (id: number, name: string) => void;
     onDeleteFolder: (id: number, name: string) => void;
     onMovePartition?: (partitionId: number, folderId: number | null) => void;
+    onMutatePartitions?: () => void;
     onDistributionSettings?: (id: number, name: string) => void;
 }
 
@@ -61,9 +65,35 @@ export default function PartitionNav({
     onDeleteFolder,
     onMovePartition,
     onDistributionSettings,
+    onMutatePartitions,
 }: PartitionNavProps) {
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
+    const { fieldTypes: types } = useFieldTypes();
     const [openFolders, setOpenFolders] = useState<Set<number>>(new Set());
+
+    const changePartitionType = async (partitionId: number, newTypeId: number | null) => {
+        const res = await fetch(`/api/partitions/${partitionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ fieldTypeId: newTypeId }),
+        });
+        const result = await res.json();
+        if (result.success) {
+            toast.success("속성 타입이 변경되었습니다.");
+            onMutatePartitions?.();
+        } else {
+            toast.error(result.error || "변경에 실패했습니다.");
+        }
+    };
+
+    const getTypeName = (fieldTypeId: number | null) => {
+        if (!fieldTypeId) return null;
+        return types.find((t) => t.id === fieldTypeId)?.name ?? null;
+    };
+    const selectedWorkspace = workspaces.find((w) => w.id === workspaceId);
+    const defaultTypeName = selectedWorkspace?.defaultFieldTypeId
+        ? getTypeName(selectedWorkspace.defaultFieldTypeId as number)
+        : null;
 
     const toggleFolder = (folderId: number) => {
         setOpenFolders((prev) => {
@@ -208,6 +238,9 @@ export default function PartitionNav({
                                             >
                                                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                                 <span className="truncate">{pt.name}</span>
+                                                <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
+                                                    {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
+                                                </Badge>
                                             </Button>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -220,6 +253,10 @@ export default function PartitionNav({
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
+                                                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                                        속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
+                                                    </div>
+                                                    <DropdownMenuSeparator />
                                                     <DropdownMenuItem onClick={() => onRenamePartition(pt.id, pt.name)}>
                                                         <Pencil className="h-3.5 w-3.5 mr-2" />
                                                         이름 변경
@@ -238,6 +275,25 @@ export default function PartitionNav({
                                                                     <DropdownMenuItem key={f.id} onClick={() => onMovePartition(pt.id, f.id)}>
                                                                         <FolderOpen className="h-3.5 w-3.5 mr-2" />
                                                                         {f.name}
+                                                                    </DropdownMenuItem>
+                                                                ))}
+                                                            </DropdownMenuSubContent>
+                                                        </DropdownMenuSub>
+                                                    )}
+                                                    {types.length > 0 && (
+                                                        <DropdownMenuSub>
+                                                            <DropdownMenuSubTrigger>
+                                                                <ListTree className="h-3.5 w-3.5 mr-2" />
+                                                                속성 타입 변경
+                                                            </DropdownMenuSubTrigger>
+                                                            <DropdownMenuSubContent>
+                                                                <DropdownMenuItem onClick={() => changePartitionType(pt.id, null)}>
+                                                                    기본 타입 사용 {!pt.fieldTypeId && "✓"}
+                                                                </DropdownMenuItem>
+                                                                <DropdownMenuSeparator />
+                                                                {types.map((t) => (
+                                                                    <DropdownMenuItem key={t.id} onClick={() => changePartitionType(pt.id, t.id)}>
+                                                                        {t.name} {pt.fieldTypeId === t.id && "✓"}
                                                                     </DropdownMenuItem>
                                                                 ))}
                                                             </DropdownMenuSubContent>
@@ -278,6 +334,9 @@ export default function PartitionNav({
                                 >
                                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                     <span className="truncate">{pt.name}</span>
+                                    <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
+                                        {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
+                                    </Badge>
                                 </Button>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -290,6 +349,10 @@ export default function PartitionNav({
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                            속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
+                                        </div>
+                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={() => onRenamePartition(pt.id, pt.name)}>
                                             <Pencil className="h-3.5 w-3.5 mr-2" />
                                             이름 변경
@@ -305,6 +368,25 @@ export default function PartitionNav({
                                                         <DropdownMenuItem key={f.id} onClick={() => onMovePartition(pt.id, f.id)}>
                                                             <FolderOpen className="h-3.5 w-3.5 mr-2" />
                                                             {f.name}
+                                                        </DropdownMenuItem>
+                                                    ))}
+                                                </DropdownMenuSubContent>
+                                            </DropdownMenuSub>
+                                        )}
+                                        {types.length > 0 && (
+                                            <DropdownMenuSub>
+                                                <DropdownMenuSubTrigger>
+                                                    <ListTree className="h-3.5 w-3.5 mr-2" />
+                                                    속성 타입 변경
+                                                </DropdownMenuSubTrigger>
+                                                <DropdownMenuSubContent>
+                                                    <DropdownMenuItem onClick={() => changePartitionType(pt.id, null)}>
+                                                        기본 타입 사용 {!pt.fieldTypeId && "✓"}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+                                                    {types.map((t) => (
+                                                        <DropdownMenuItem key={t.id} onClick={() => changePartitionType(pt.id, t.id)}>
+                                                            {t.name} {pt.fieldTypeId === t.id && "✓"}
                                                         </DropdownMenuItem>
                                                     ))}
                                                 </DropdownMenuSubContent>

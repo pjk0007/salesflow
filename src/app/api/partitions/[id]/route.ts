@@ -72,7 +72,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 파티션 ID입니다." }, { status: 400 });
     }
 
-    const { name, folderId, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig } = await req.json();
+    const { name, folderId, fieldTypeId, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig } = await req.json();
 
     // name-only 업데이트가 아닌 경우에도 지원
     if (name !== undefined && (!name || !String(name).trim())) {
@@ -93,6 +93,10 @@ export async function PATCH(
 
         if (folderId !== undefined) {
             updateData.folderId = folderId === null ? null : Number(folderId);
+        }
+
+        if (fieldTypeId !== undefined) {
+            updateData.fieldTypeId = fieldTypeId === null ? null : Number(fieldTypeId);
         }
 
         if (useDistributionOrder !== undefined) {

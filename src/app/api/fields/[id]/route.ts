@@ -109,6 +109,9 @@ export async function DELETE(
         await db.delete(fieldDefinitions).where(eq(fieldDefinitions.id, fieldId));
 
         // 파티션 visibleFields에서 삭제된 key 제거
+        if (!workspaceId) {
+            return NextResponse.json({ success: true });
+        }
         const partitionList = await db
             .select({ id: partitions.id, visibleFields: partitions.visibleFields })
             .from(partitions)

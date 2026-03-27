@@ -58,10 +58,20 @@ export type CellType =
   | "textarea"
   | "email";
 
+// 속성 타입 정의 (field_types 테이블)
+export interface FieldTypeDefinition {
+  id: number;
+  orgId: string;
+  name: string;
+  description: string | null;
+  icon: string | null;
+}
+
 // 필드 정의 (클라이언트용)
 export interface FieldDefinition {
   id: number;
   workspaceId: number;
+  fieldTypeId: number | null;
   key: string;
   label: string;
   fieldType: FieldType;
@@ -225,6 +235,7 @@ export interface WorkspaceDetail {
     description: string | null;
     icon: string | null;
     codePrefix: string | null;
+    defaultFieldTypeId: number | null;
     settings: WorkspaceSettings | null;
 }
 
@@ -247,6 +258,7 @@ export interface CreateWorkspaceInput {
 export interface CreatePartitionInput {
     name: string;
     folderId?: number | null;
+    fieldTypeId?: number;
 }
 
 // 폴더 생성 입력

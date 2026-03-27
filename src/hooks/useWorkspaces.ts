@@ -7,6 +7,7 @@ interface WorkspaceItem {
     name: string;
     description: string | null;
     icon: string | null;
+    defaultFieldTypeId: number | null;
 }
 
 

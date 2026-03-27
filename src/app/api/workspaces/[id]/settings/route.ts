@@ -30,6 +30,7 @@ export async function GET(
                 description: workspaces.description,
                 icon: workspaces.icon,
                 codePrefix: workspaces.codePrefix,
+                defaultFieldTypeId: workspaces.defaultFieldTypeId,
                 settings: workspaces.settings,
             })
             .from(workspaces)
@@ -66,7 +67,7 @@ export async function PATCH(
     }
 
     try {
-        const { name, description, icon, codePrefix } = await req.json();
+        const { name, description, icon, codePrefix, defaultFieldTypeId } = await req.json();
 
         if (name !== undefined && !name.trim()) {
             return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
@@ -98,6 +99,9 @@ export async function PATCH(
         if (codePrefix !== undefined) {
             updateData.codePrefix = codePrefix;
         }
+        if (defaultFieldTypeId !== undefined) {
+            updateData.defaultFieldTypeId = defaultFieldTypeId;
+        }
 
         const [updated] = await db
             .update(workspaces)
@@ -109,6 +113,7 @@ export async function PATCH(
                 description: workspaces.description,
                 icon: workspaces.icon,
                 codePrefix: workspaces.codePrefix,
+                defaultFieldTypeId: workspaces.defaultFieldTypeId,
                 settings: workspaces.settings,
             });
 

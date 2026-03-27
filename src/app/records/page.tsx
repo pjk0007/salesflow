@@ -19,6 +19,7 @@ import DistributionSettingsDialog from "@/components/partitions/DistributionSett
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
 import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { useRecords } from "@/hooks/useRecords";
 import { useSSE } from "@/hooks/useSSE";
 import { toast } from "sonner";
@@ -73,7 +74,9 @@ export default function RecordsPage() {
         deleteFolder,
         mutate: mutatePartitions,
     } = usePartitions(workspaceId);
-    const { fields } = useFields(workspaceId);
+    const { fields: workspaceFields } = useFields(workspaceId);
+    const { fields: resolvedFields } = useResolvedFields(partitionId);
+    const fields = resolvedFields.length > 0 ? resolvedFields : workspaceFields;
     const {
         records,
         total,
@@ -289,6 +292,7 @@ export default function RecordsPage() {
                     onDeleteFolder={handleDeleteFolder}
                     onMovePartition={handleMovePartition}
                     onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
+                    onMutatePartitions={mutatePartitions}
                 />
 
                 {/* 우측: 레코드 영역 */}
@@ -349,11 +353,11 @@ export default function RecordsPage() {
             </div>
 
             {/* 레코드 다이얼로그 */}
-            {workspaceId && (
+            {partitionId && (
                 <CreateRecordDialog
                     open={createDialogOpen}
                     onOpenChange={setCreateDialogOpen}
-                    workspaceId={workspaceId}
+                    partitionId={partitionId}
                     onSubmit={createRecord}
                 />
             )}

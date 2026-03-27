@@ -5,11 +5,19 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
+import { useFieldTypes } from "@/hooks/useFieldTypes";
 import IconPicker, { getIconComponent } from "@/components/ui/icon-picker";
 import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
@@ -18,11 +26,13 @@ export default function WorkspaceSettingsTab() {
     const { workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList } = useWorkspaces();
     const [selectedId, setSelectedId] = useState<number | null>(null);
     const { workspace, isLoading } = useWorkspaceSettings(selectedId);
+    const { fieldTypes: types } = useFieldTypes();
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [icon, setIcon] = useState("");
     const [codePrefix, setCodePrefix] = useState("");
+    const [defaultFieldTypeId, setDefaultFieldTypeId] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [createOpen, setCreateOpen] = useState(false);
@@ -42,6 +52,7 @@ export default function WorkspaceSettingsTab() {
             setDescription(workspace.description ?? "");
             setIcon(workspace.icon ?? "");
             setCodePrefix(workspace.codePrefix ?? "");
+            setDefaultFieldTypeId(workspace.defaultFieldTypeId ? String(workspace.defaultFieldTypeId) : "");
         }
     }, [workspace]);
 
@@ -62,6 +73,7 @@ export default function WorkspaceSettingsTab() {
                     description: description.trim() || null,
                     icon: icon.trim() || null,
                     codePrefix: codePrefix.trim() || null,
+                    defaultFieldTypeId: defaultFieldTypeId ? Number(defaultFieldTypeId) : null,
                 }),
             });
             const result = await res.json();
@@ -177,6 +189,25 @@ export default function WorkspaceSettingsTab() {
                             <div className="space-y-1.5">
                                 <Label>아이콘</Label>
                                 <IconPicker value={icon} onChange={setIcon} />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label>기본 속성 타입</Label>
+                                <Select value={defaultFieldTypeId} onValueChange={setDefaultFieldTypeId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="속성 타입 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {types.map((t) => (
+                                            <SelectItem key={t.id} value={String(t.id)}>
+                                                {t.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    파티션에 별도 타입을 지정하지 않으면 이 타입이 적용됩니다.
+                                </p>
                             </div>
 
                             <div className="space-y-1.5">

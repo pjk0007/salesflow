@@ -17,6 +17,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { useFieldTypes } from "@/hooks/useFieldTypes";
 import type { CreatePartitionInput } from "@/types";
 
 interface CreatePartitionDialogProps {
@@ -34,11 +35,14 @@ export default function CreatePartitionDialog({
 }: CreatePartitionDialogProps) {
     const [name, setName] = useState("");
     const [folderId, setFolderId] = useState<string>("");
+    const [fieldTypeId, setFieldTypeId] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const { fieldTypes: types } = useFieldTypes();
 
     const resetForm = () => {
         setName("");
         setFolderId("");
+        setFieldTypeId("");
     };
 
     const handleOpenChange = (open: boolean) => {
@@ -58,6 +62,7 @@ export default function CreatePartitionDialog({
             const result = await onSubmit({
                 name: name.trim(),
                 folderId: folderId ? Number(folderId) : null,
+                fieldTypeId: fieldTypeId ? Number(fieldTypeId) : undefined,
             });
             if (result.success) {
                 toast.success("파티션이 생성되었습니다.");
@@ -91,6 +96,28 @@ export default function CreatePartitionDialog({
                                 placeholder="파티션 이름"
                             />
                         </div>
+
+                        {types.length > 0 && (
+                            <div className="space-y-1.5">
+                                <Label>속성 타입</Label>
+                                <Select value={fieldTypeId} onValueChange={setFieldTypeId}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="워크스페이스 기본 타입 사용" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="default">워크스페이스 기본 타입 사용</SelectItem>
+                                        {types.map((t) => (
+                                            <SelectItem key={t.id} value={String(t.id)}>
+                                                {t.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground">
+                                    미선택 시 워크스페이스의 기본 속성 타입이 적용됩니다.
+                                </p>
+                            </div>
+                        )}
 
                         {folders.length > 0 && (
                             <div className="space-y-1.5">

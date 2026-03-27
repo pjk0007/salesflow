@@ -67,6 +67,23 @@ export const users = pgTable(
 );
 
 // ============================================
+// 속성 타입 (Field Types)
+// ============================================
+export const fieldTypes = pgTable("field_types", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    description: text("description"),
+    icon: varchar("icon", { length: 50 }),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    orgNameUnique: unique().on(table.orgId, table.name),
+}));
+
+// ============================================
 // 워크스페이스
 // ============================================
 export const workspaces = pgTable("workspaces", {
@@ -78,6 +95,7 @@ export const workspaces = pgTable("workspaces", {
     description: text("description"),
     icon: varchar("icon", { length: 50 }),
     codePrefix: varchar("code_prefix", { length: 20 }),
+    defaultFieldTypeId: integer("default_field_type_id"),
     settings: jsonb("settings").$type<{
         defaultVisibleFields?: string[];
         duplicateCheckField?: string;
@@ -87,15 +105,16 @@ export const workspaces = pgTable("workspaces", {
 });
 
 // ============================================
-// 필드 정의 (워크스페이스별 커스텀 필드)
+// 필드 정의 (속성 타입별 커스텀 필드)
 // ============================================
 export const fieldDefinitions = pgTable(
     "field_definitions",
     {
         id: serial("id").primaryKey(),
         workspaceId: integer("workspace_id")
-            .references(() => workspaces.id, { onDelete: "cascade" })
-            .notNull(),
+            .references(() => workspaces.id, { onDelete: "cascade" }),
+        fieldTypeId: integer("field_type_id")
+            .references(() => fieldTypes.id, { onDelete: "cascade" }),
         key: varchar("key", { length: 100 }).notNull(),
         label: varchar("label", { length: 200 }).notNull(),
         fieldType: varchar("field_type", { length: 30 }).notNull(), // text|number|date|select|phone|...
@@ -146,6 +165,7 @@ export const partitions = pgTable("partitions", {
         .notNull(),
     name: varchar("name", { length: 100 }).notNull(),
     folderId: integer("folder_id"),
+    fieldTypeId: integer("field_type_id"),
     displayOrder: integer("display_order").default(0).notNull(),
     visibleFields: jsonb("visible_fields").$type<string[]>(),
     // 분배순서 설정

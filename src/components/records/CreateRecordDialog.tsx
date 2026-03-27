@@ -19,23 +19,23 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { toast } from "sonner";
 
 interface CreateRecordDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    workspaceId: number;
+    partitionId: number | null;
     onSubmit: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
 }
 
 export default function CreateRecordDialog({
     open,
     onOpenChange,
-    workspaceId,
+    partitionId,
     onSubmit,
 }: CreateRecordDialogProps) {
-    const { fields } = useFields(workspaceId);
+    const { fields } = useResolvedFields(partitionId);
     const [formData, setFormData] = useState<Record<string, unknown>>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
