@@ -4,10 +4,14 @@ import { adPlatforms, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
+const UNMASK_KEYS = new Set(["type", "webhookVerifyToken"]);
+
 function maskCredentials(credentials: Record<string, unknown>): Record<string, unknown> {
     const masked: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(credentials)) {
-        if (typeof value === "string" && value.length > 8) {
+        if (UNMASK_KEYS.has(key)) {
+            masked[key] = value;
+        } else if (typeof value === "string" && value.length > 8) {
             masked[key] = value.substring(0, 4) + "****";
         } else {
             masked[key] = value;
