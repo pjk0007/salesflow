@@ -10,7 +10,22 @@ export async function GET(req: NextRequest) {
     const token = req.nextUrl.searchParams.get("hub.verify_token");
     const challenge = req.nextUrl.searchParams.get("hub.challenge");
 
-    if (mode === "subscribe" && token === process.env.META_WEBHOOK_VERIFY_TOKEN) {
+    if (mode !== "subscribe" || !token) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // DB에서 해당 verify token을 가진 플랫폼이 있는지 확인
+    const allMetaPlatforms = await db
+        .select({ credentials: adPlatforms.credentials })
+        .from(adPlatforms)
+        .where(and(eq(adPlatforms.platform, "meta"), eq(adPlatforms.status, "connected")));
+
+    const matched = allMetaPlatforms.some((p) => {
+        const creds = p.credentials as MetaCredentials;
+        return creds.webhookVerifyToken === token;
+    });
+
+    if (matched) {
         return new Response(challenge || "", { status: 200 });
     }
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

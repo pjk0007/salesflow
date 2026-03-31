@@ -409,6 +409,7 @@ export interface MetaCredentials {
     appId: string;
     appSecret: string;
     pageAccessTokens: Record<string, string>; // { pageId: pageAccessToken }
+    webhookVerifyToken: string; // 조직별 자동 생성, Meta Developer에 복사해서 등록
 }
 
 export interface GoogleCredentials {

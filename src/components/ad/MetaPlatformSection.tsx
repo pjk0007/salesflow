@@ -106,7 +106,7 @@ function MetaConnectForm({
     onCreate,
 }: {
     onMutate: () => void;
-    onCreate: (params: { platform: "meta"; name: string; credentials: { type: "meta"; accessToken: string; appId: string; appSecret: string; pageAccessTokens: Record<string, string> } }) => Promise<{ success: boolean; error?: string; data?: { id: number } }>;
+    onCreate: (params: { platform: "meta"; name: string; credentials: { type: "meta"; accessToken: string; appId: string; appSecret: string; pageAccessTokens: Record<string, string>; webhookVerifyToken: string } }) => Promise<{ success: boolean; error?: string; data?: { id: number } }>;
 }) {
     const [appId, setAppId] = useState("");
     const [appSecret, setAppSecret] = useState("");
@@ -120,6 +120,9 @@ function MetaConnectForm({
 
         setSaving(true);
         try {
+            // Webhook verify token 자동 생성
+            const verifyToken = `sendb_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+
             // 1. 먼저 DB에 플랫폼 저장 (accessToken은 OAuth 후에 채워짐)
             const result = await onCreate({
                 platform: "meta",
@@ -130,6 +133,7 @@ function MetaConnectForm({
                     appId: appId.trim(),
                     appSecret: appSecret.trim(),
                     pageAccessTokens: {},
+                    webhookVerifyToken: verifyToken,
                 },
             });
 
@@ -298,6 +302,9 @@ function MetaConnected({
     };
 
     const statusBadge = STATUS_BADGE[platform.status] || STATUS_BADGE.connected;
+    const credentials = platform.credentials as { webhookVerifyToken?: string; appId?: string };
+    const webhookVerifyToken = credentials.webhookVerifyToken;
+    const [showWebhookInfo, setShowWebhookInfo] = useState(false);
 
     return (
         <Card>
@@ -332,6 +339,52 @@ function MetaConnected({
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
+                {/* ─── Webhook 설정 안내 ─── */}
+                {webhookVerifyToken && (
+                    <div className="border rounded-lg">
+                        <div
+                            className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50"
+                            onClick={() => setShowWebhookInfo(!showWebhookInfo)}
+                        >
+                            <div className="flex items-center gap-2">
+                                {showWebhookInfo ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                <span className="font-medium text-sm">Webhook 설정</span>
+                                <span className="text-xs text-muted-foreground">리드 자동 수집을 위해 Meta Developer에서 설정 필요</span>
+                            </div>
+                        </div>
+                        {showWebhookInfo && (
+                            <div className="px-4 pb-4 space-y-3 text-sm">
+                                <p className="text-muted-foreground">
+                                    Meta Developer 앱 &gt; Webhooks &gt; Page 에서 아래 정보를 등록하세요.
+                                </p>
+                                <div className="space-y-2 bg-muted/50 rounded-lg p-3 font-mono text-xs">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">콜백 URL:</span>
+                                        <button
+                                            className="text-blue-600 hover:underline"
+                                            onClick={() => { navigator.clipboard.writeText("https://sendb.kr/api/webhooks/meta"); toast.success("복사됨"); }}
+                                        >
+                                            https://sendb.kr/api/webhooks/meta
+                                        </button>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-muted-foreground">인증 토큰:</span>
+                                        <button
+                                            className="text-blue-600 hover:underline"
+                                            onClick={() => { navigator.clipboard.writeText(webhookVerifyToken); toast.success("복사됨"); }}
+                                        >
+                                            {webhookVerifyToken}
+                                        </button>
+                                    </div>
+                                </div>
+                                <p className="text-muted-foreground">
+                                    등록 후 <strong>leadgen</strong> 필드를 구독하세요.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* ─── 광고 계정 ─── */}
                 <CollapsibleSection
                     title="광고 계정"
