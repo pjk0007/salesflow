@@ -6,12 +6,13 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, Bot, Key } from "lucide-react";
+import { Building2, Users, Bot, Key, Megaphone } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import OrgGeneralTab from "@/components/settings/OrgGeneralTab";
 import OrgTeamTab from "@/components/settings/OrgTeamTab";
 import AiUsageTab from "@/components/settings/AiUsageTab";
 import ApiTokensTab from "@/components/settings/ApiTokensTab";
+import AdIntegrationTab from "@/components/settings/AdIntegrationTab";
 
 function OrganizationSettingsContent() {
     const router = useRouter();
@@ -66,6 +67,10 @@ function OrganizationSettingsContent() {
                             <Key className="mr-2 h-4 w-4" />
                             API 토큰
                         </TabsTrigger>
+                        <TabsTrigger value="ad-integration">
+                            <Megaphone className="mr-2 h-4 w-4" />
+                            광고 연동
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="general" className="mt-6">
@@ -82,6 +87,10 @@ function OrganizationSettingsContent() {
 
                     <TabsContent value="api-tokens" className="mt-6">
                         <ApiTokensTab />
+                    </TabsContent>
+
+                    <TabsContent value="ad-integration" className="mt-6">
+                        <AdIntegrationTab />
                     </TabsContent>
                 </Tabs>
             </PageContainer>

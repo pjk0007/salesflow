@@ -393,3 +393,94 @@ export interface UnifiedLog {
     isOpened: number;
     openedAt: string | null;
 }
+
+// ============================================
+// 광고 플랫폼 연동
+// ============================================
+
+export type AdPlatformType = "meta" | "google" | "naver";
+export type AdPlatformStatus = "connected" | "expired" | "error" | "disconnected";
+export type AdAccountStatus = "active" | "paused" | "disabled";
+export type AdLeadLogStatus = "success" | "failed" | "duplicate" | "skipped";
+
+export interface MetaCredentials {
+    type: "meta";
+    accessToken: string;
+    appId: string;
+    appSecret: string;
+    pageAccessTokens: Record<string, string>; // { pageId: pageAccessToken }
+}
+
+export interface GoogleCredentials {
+    type: "google";
+    refreshToken: string;
+    clientId: string;
+    clientSecret: string;
+    developerToken: string;
+}
+
+export interface NaverCredentials {
+    type: "naver";
+    apiKey: string;
+    secretKey: string;
+    customerId: string;
+}
+
+export type AdPlatformCredentials = MetaCredentials | GoogleCredentials | NaverCredentials;
+
+export interface AdPlatformInfo {
+    id: number;
+    orgId: string;
+    platform: AdPlatformType;
+    name: string;
+    credentials: AdPlatformCredentials;
+    status: AdPlatformStatus;
+    lastSyncAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdAccountInfo {
+    id: number;
+    adPlatformId: number;
+    workspaceId: number | null;
+    workspaceName?: string;
+    externalAccountId: string;
+    name: string;
+    currency: string | null;
+    status: AdAccountStatus;
+    metadata: Record<string, unknown> | null;
+    lastSyncAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdLeadIntegrationInfo {
+    id: number;
+    orgId: string;
+    adAccountId: number;
+    adAccountName?: string;
+    name: string;
+    platform: AdPlatformType;
+    partitionId: number | null;
+    partitionName?: string;
+    formId: string;
+    formName: string | null;
+    fieldMappings: Record<string, string>;
+    defaultValues: Record<string, unknown> | null;
+    isActive: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface AdLeadLogInfo {
+    id: number;
+    integrationId: number;
+    integrationName?: string;
+    externalLeadId: string | null;
+    recordId: number | null;
+    status: AdLeadLogStatus;
+    errorMessage: string | null;
+    processedAt: string | null;
+    createdAt: string;
+}

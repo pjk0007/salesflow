@@ -969,6 +969,104 @@ export const emailSignatures = pgTable("email_signatures", {
 });
 
 // ============================================
+// 광고 플랫폼 연결
+// ============================================
+export const adPlatforms = pgTable("ad_platforms", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    platform: varchar("platform", { length: 20 }).notNull(), // 'meta' | 'google' | 'naver'
+    name: varchar("name", { length: 200 }).notNull(),
+    credentials: jsonb("credentials").notNull(), // AdPlatformCredentials (see types/index.ts)
+    status: varchar("status", { length: 20 }).default("connected").notNull(),
+    // 'connected' | 'expired' | 'error' | 'disconnected'
+    lastSyncAt: timestamptz("last_sync_at"),
+    createdBy: uuid("created_by")
+        .references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    orgPlatformNameUnique: unique().on(table.orgId, table.platform, table.name),
+}));
+
+// ============================================
+// 광고 계정
+// ============================================
+export const adAccounts = pgTable("ad_accounts", {
+    id: serial("id").primaryKey(),
+    adPlatformId: integer("ad_platform_id")
+        .references(() => adPlatforms.id, { onDelete: "cascade" })
+        .notNull(),
+    workspaceId: integer("workspace_id")
+        .references(() => workspaces.id, { onDelete: "set null" }),
+    externalAccountId: varchar("external_account_id", { length: 100 }).notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    currency: varchar("currency", { length: 10 }),
+    status: varchar("status", { length: 20 }).default("active").notNull(),
+    // 'active' | 'paused' | 'disabled'
+    metadata: jsonb("metadata"),
+    lastSyncAt: timestamptz("last_sync_at"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    platformAccountUnique: unique().on(table.adPlatformId, table.externalAccountId),
+}));
+
+// ============================================
+// 광고 리드 연동 설정
+// ============================================
+export const adLeadIntegrations = pgTable("ad_lead_integrations", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    adAccountId: integer("ad_account_id")
+        .references(() => adAccounts.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    platform: varchar("platform", { length: 20 }).notNull(), // denormalized for webhook lookup
+    partitionId: integer("partition_id")
+        .references(() => partitions.id, { onDelete: "set null" }),
+    formId: varchar("form_id", { length: 200 }).notNull(),
+    formName: varchar("form_name", { length: 200 }),
+    fieldMappings: jsonb("field_mappings").notNull(), // { "platform_field": "db_column" }
+    defaultValues: jsonb("default_values"), // { "column": "fixed_value" }
+    isActive: integer("is_active").default(1).notNull(),
+    createdBy: uuid("created_by")
+        .references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    accountFormUnique: unique().on(table.adAccountId, table.formId),
+    formIdIdx: index("ad_lead_integrations_form_id_idx").on(table.formId),
+    platformIdx: index("ad_lead_integrations_platform_idx").on(table.platform),
+}));
+
+// ============================================
+// 광고 리드 수집 로그
+// ============================================
+export const adLeadLogs = pgTable("ad_lead_logs", {
+    id: serial("id").primaryKey(),
+    integrationId: integer("integration_id")
+        .references(() => adLeadIntegrations.id, { onDelete: "cascade" })
+        .notNull(),
+    externalLeadId: varchar("external_lead_id", { length: 200 }),
+    recordId: integer("record_id"),
+    rawData: jsonb("raw_data"),
+    status: varchar("status", { length: 20 }).default("success").notNull(),
+    // 'success' | 'failed' | 'duplicate' | 'skipped'
+    errorMessage: text("error_message"),
+    processedAt: timestamptz("processed_at").defaultNow(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+}, (table) => ({
+    integrationCreatedIdx: index("ad_lead_logs_integration_created_idx")
+        .on(table.integrationId, table.createdAt),
+    externalLeadIdx: index("ad_lead_logs_external_lead_idx")
+        .on(table.externalLeadId),
+}));
+
+// ============================================
 // 타입 추출
 // ============================================
 export type Organization = typeof organizations.$inferSelect;
@@ -1025,3 +1123,11 @@ export type Payment = typeof payments.$inferSelect;
 export type RecordAutoEnrichRule = typeof recordAutoEnrichRules.$inferSelect;
 export type EmailSenderProfile = typeof emailSenderProfiles.$inferSelect;
 export type EmailSignature = typeof emailSignatures.$inferSelect;
+export type AdPlatform = typeof adPlatforms.$inferSelect;
+export type NewAdPlatform = typeof adPlatforms.$inferInsert;
+export type AdAccount = typeof adAccounts.$inferSelect;
+export type NewAdAccount = typeof adAccounts.$inferInsert;
+export type AdLeadIntegration = typeof adLeadIntegrations.$inferSelect;
+export type NewAdLeadIntegration = typeof adLeadIntegrations.$inferInsert;
+export type AdLeadLog = typeof adLeadLogs.$inferSelect;
+export type NewAdLeadLog = typeof adLeadLogs.$inferInsert;
