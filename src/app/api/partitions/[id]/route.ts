@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, workspaces, records } from "@/lib/db";
+import { db, partitions, workspaces, records, fieldDefinitions } from "@/lib/db";
 import { eq, and, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -96,7 +96,26 @@ export async function PATCH(
         }
 
         if (fieldTypeId !== undefined) {
-            updateData.fieldTypeId = fieldTypeId === null ? null : Number(fieldTypeId);
+            const newFieldTypeId = fieldTypeId === null ? null : Number(fieldTypeId);
+            updateData.fieldTypeId = newFieldTypeId;
+
+            // 속성 타입 변경 시 visibleFields를 새 타입의 필드들로 동기화
+            if (newFieldTypeId) {
+                const typeFields = await db
+                    .select({ key: fieldDefinitions.key })
+                    .from(fieldDefinitions)
+                    .where(eq(fieldDefinitions.fieldTypeId, newFieldTypeId))
+                    .orderBy(fieldDefinitions.sortOrder);
+                updateData.visibleFields = typeFields.map((f) => f.key);
+            } else {
+                // 타입 해제 시 워크스페이스 필드로 복원
+                const wsFields = await db
+                    .select({ key: fieldDefinitions.key })
+                    .from(fieldDefinitions)
+                    .where(eq(fieldDefinitions.workspaceId, access.partition.workspaceId))
+                    .orderBy(fieldDefinitions.sortOrder);
+                updateData.visibleFields = wsFields.map((f) => f.key);
+            }
         }
 
         if (useDistributionOrder !== undefined) {
