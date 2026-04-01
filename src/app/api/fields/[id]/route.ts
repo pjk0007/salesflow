@@ -1,15 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, fieldDefinitions, workspaces, partitions } from "@/lib/db";
+import { fieldTypes } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 async function verifyOwnership(fieldId: number, orgId: string) {
-    const result = await db
+    // fieldTypeId 기반 (field type 시스템)
+    const byFieldType = await db
+        .select({ field: fieldDefinitions, ftOrgId: fieldTypes.orgId })
+        .from(fieldDefinitions)
+        .innerJoin(fieldTypes, eq(fieldDefinitions.fieldTypeId, fieldTypes.id))
+        .where(and(eq(fieldDefinitions.id, fieldId), eq(fieldTypes.orgId, orgId)));
+    if (byFieldType[0]) return { field: byFieldType[0].field };
+
+    // fallback: workspaceId 기반 (레거시)
+    const byWorkspace = await db
         .select({ field: fieldDefinitions, wsOrgId: workspaces.orgId })
         .from(fieldDefinitions)
         .innerJoin(workspaces, eq(fieldDefinitions.workspaceId, workspaces.id))
         .where(and(eq(fieldDefinitions.id, fieldId), eq(workspaces.orgId, orgId)));
-    return result[0] ?? null;
+    if (byWorkspace[0]) return { field: byWorkspace[0].field };
+
+    return null;
 }
 
 export async function PATCH(

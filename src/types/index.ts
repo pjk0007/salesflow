@@ -273,6 +273,7 @@ export interface CreateFieldInput {
     fieldType: FieldType;
     category?: string;
     isRequired?: boolean;
+    isSortable?: boolean;
     options?: string[];
 }
 

@@ -50,6 +50,7 @@ export default function CreateFieldDialog({
     const [fieldType, setFieldType] = useState<FieldType>("text");
     const [category, setCategory] = useState("");
     const [isRequired, setIsRequired] = useState(false);
+    const [isSortable, setIsSortable] = useState(false);
     const [options, setOptions] = useState<string[]>([]);
     const [newOption, setNewOption] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,6 +61,7 @@ export default function CreateFieldDialog({
         setFieldType("text");
         setCategory("");
         setIsRequired(false);
+        setIsSortable(false);
         setOptions([]);
         setNewOption("");
     };
@@ -108,6 +110,7 @@ export default function CreateFieldDialog({
                 fieldType,
                 category: category.trim() || undefined,
                 isRequired,
+                isSortable,
                 options: fieldType === "select" ? options : undefined,
             });
             if (result.success) {
@@ -182,15 +185,27 @@ export default function CreateFieldDialog({
                             />
                         </div>
 
-                        <div className="flex items-center gap-2">
-                            <Checkbox
-                                id="isRequired"
-                                checked={isRequired}
-                                onCheckedChange={(checked) => setIsRequired(checked === true)}
-                            />
-                            <Label htmlFor="isRequired" className="cursor-pointer">
-                                필수 항목
-                            </Label>
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="isRequired"
+                                    checked={isRequired}
+                                    onCheckedChange={(checked) => setIsRequired(checked === true)}
+                                />
+                                <Label htmlFor="isRequired" className="cursor-pointer">
+                                    필수 항목
+                                </Label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id="isSortable"
+                                    checked={isSortable}
+                                    onCheckedChange={(checked) => setIsSortable(checked === true)}
+                                />
+                                <Label htmlFor="isSortable" className="cursor-pointer">
+                                    정렬 가능
+                                </Label>
+                            </div>
                         </div>
 
                         {fieldType === "select" && (
