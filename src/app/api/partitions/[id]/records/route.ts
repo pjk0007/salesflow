@@ -7,6 +7,7 @@ import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
+import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 
 async function verifyPartitionAccess(partitionId: number, orgId: string) {
     const result = await db
@@ -293,7 +294,7 @@ export async function POST(
 
             // 분배순서 자동 할당 (원자적)
             let distributionOrder: number | null = null;
-            let finalData = recordData;
+            let finalData = await applyFieldDefaults(partitionId, recordData);
             const distribution = await assignDistributionOrder(tx, partition.id);
             if (distribution) {
                 distributionOrder = distribution.distributionOrder;

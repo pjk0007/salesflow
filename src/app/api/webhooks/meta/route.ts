@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, records, partitions, workspaces } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
+import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 
 // GET: Meta Webhook 검증
 export async function GET(req: NextRequest) {
@@ -248,7 +249,10 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
         return;
     }
 
-    // 8. 레코드 생성
+    // 8. 필드 기본값 적용
+    const finalRecordData = await applyFieldDefaults(integration.partitionId!, recordData);
+
+    // 9. 레코드 생성
     try {
         const [newRecord] = await db
             .insert(records)
@@ -256,7 +260,7 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
                 orgId: integration.orgId,
                 workspaceId: partitionRow.workspaceId,
                 partitionId: integration.partitionId,
-                data: recordData,
+                data: finalRecordData,
                 registeredAt: new Date(),
             })
             .returning({ id: records.id });

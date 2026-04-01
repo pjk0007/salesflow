@@ -225,6 +225,13 @@
       "when": 1770949400000,
       "tag": "0031_ad_lead_management",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1770949500000,
+      "tag": "0032_field_default_value",
+      "breakpoints": true
     }
   ]
 }

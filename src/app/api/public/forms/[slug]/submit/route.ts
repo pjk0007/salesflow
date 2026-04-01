@@ -5,6 +5,7 @@ import { assignDistributionOrder } from "@/lib/distribution";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { broadcastToPartition } from "@/lib/sse";
+import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 
 export async function POST(
     req: NextRequest,
@@ -87,7 +88,7 @@ export async function POST(
 
             // 분배순서 자동 할당
             let distributionOrder: number | null = null;
-            let finalData = recordData;
+            let finalData = await applyFieldDefaults(form.partitionId, recordData);
             const distribution = await assignDistributionOrder(tx, form.partitionId);
             if (distribution) {
                 distributionOrder = distribution.distributionOrder;

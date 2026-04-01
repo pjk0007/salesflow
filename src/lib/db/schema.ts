@@ -131,6 +131,8 @@ export const fieldDefinitions = pgTable(
         // Select/Status 옵션
         options: jsonb("options").$type<string[]>(),
         statusOptionCategoryId: integer("status_option_category_id"),
+        // 기본값 (레코드 생성 시 자동 적용)
+        defaultValue: varchar("default_value", { length: 500 }),
         // 수식 설정
         formulaConfig: jsonb("formula_config").$type<FormulaConfig>(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),

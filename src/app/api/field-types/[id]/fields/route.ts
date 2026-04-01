@@ -75,7 +75,7 @@ export async function POST(
         return NextResponse.json({ success: false, error: "타입을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const { key, label, fieldType, category, isRequired, options } = await req.json();
+    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options } = await req.json();
 
     if (!key?.trim() || !label?.trim()) {
         return NextResponse.json({ success: false, error: "key와 라벨을 입력해주세요." }, { status: 400 });
@@ -106,10 +106,12 @@ export async function POST(
                 cellType,
                 category: category?.trim() || null,
                 isRequired: isRequired ? 1 : 0,
+                isSortable: isSortable ? 1 : 0,
                 isSystem: 0,
                 sortOrder: nextSortOrder,
                 defaultWidth: 120,
                 minWidth: 80,
+                defaultValue: defaultValue?.trim() || null,
                 options: fieldType === "select" && options?.length ? options : null,
             })
             .returning({ id: fieldDefinitions.id, key: fieldDefinitions.key, label: fieldDefinitions.label });

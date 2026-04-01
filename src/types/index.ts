@@ -86,6 +86,7 @@ export interface FieldDefinition {
   cellClassName: string | null;
   options: string[] | null;
   statusOptionCategoryId: number | null;
+  defaultValue: string | null;
   formulaConfig: FormulaConfig | null;
 }
 
@@ -274,6 +275,7 @@ export interface CreateFieldInput {
     category?: string;
     isRequired?: boolean;
     isSortable?: boolean;
+    defaultValue?: string;
     options?: string[];
 }
 

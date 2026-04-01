@@ -8,6 +8,7 @@ import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
+import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -273,7 +274,7 @@ export async function POST(req: NextRequest) {
                 .where(eq(organizations.id, org.id));
 
             let distributionOrder: number | null = null;
-            let finalData = recordData;
+            let finalData = await applyFieldDefaults(partitionId, recordData);
             const distribution = await assignDistributionOrder(tx, partition.id);
             if (distribution) {
                 distributionOrder = distribution.distributionOrder;
