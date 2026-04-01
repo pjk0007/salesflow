@@ -197,12 +197,12 @@ export default function EditFieldDialog({
                         <div className="space-y-1.5">
                             <Label>기본값</Label>
                             {field.fieldType === "select" && options.length > 0 ? (
-                                <Select value={defaultValue} onValueChange={setDefaultValue}>
+                                <Select value={defaultValue || "__none__"} onValueChange={(v) => setDefaultValue(v === "__none__" ? "" : v)}>
                                     <SelectTrigger className="w-full">
                                         <SelectValue placeholder="기본값 선택 (선택사항)" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="">없음</SelectItem>
+                                        <SelectItem value="__none__">없음</SelectItem>
                                         {options.map((opt) => (
                                             <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                                         ))}
