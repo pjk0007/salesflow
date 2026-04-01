@@ -27,8 +27,16 @@ import type { DbRecord } from "@/lib/db";
 import type { FilterCondition } from "@/types";
 
 export default function RecordsPage() {
-    const [workspaceId, setWorkspaceId] = useState<number | null>(null);
-    const [partitionId, setPartitionId] = useState<number | null>(null);
+    const [workspaceId, setWorkspaceId] = useState<number | null>(() => {
+        if (typeof window === "undefined") return null;
+        const saved = localStorage.getItem("records_last_workspace");
+        return saved ? Number(saved) : null;
+    });
+    const [partitionId, setPartitionId] = useState<number | null>(() => {
+        if (typeof window === "undefined") return null;
+        const saved = localStorage.getItem("records_last_partition");
+        return saved ? Number(saved) : null;
+    });
     const [page, setPage] = useState(1);
     const [search, setSearch] = useState("");
     const [distributionOrder, setDistributionOrder] = useState<number | undefined>();
@@ -107,11 +115,13 @@ export default function RecordsPage() {
         onAnyChange: () => mutateRecords(),
     });
 
-    // 첫 번째 워크스페이스 자동 선택
+    // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째)
     useEffect(() => {
-        if (!workspaceId && workspaces.length > 0) {
-            setWorkspaceId(workspaces[0].id);
-        }
+        if (workspaces.length === 0) return;
+        if (workspaceId && workspaces.some((w) => w.id === workspaceId)) return;
+        // 저장된 워크스페이스가 없거나 유효하지 않으면 첫 번째 선택
+        setWorkspaceId(workspaces[0].id);
+        setPartitionId(null);
     }, [workspaces, workspaceId]);
 
     // 워크스페이스 변경 시 파티션 초기화
@@ -121,6 +131,8 @@ export default function RecordsPage() {
         setPage(1);
         setSearch("");
         setSelectedIds(new Set());
+        localStorage.setItem("records_last_workspace", String(id));
+        localStorage.removeItem("records_last_partition");
     }, []);
 
     // 파티션 변경 시 초기화
@@ -128,6 +140,7 @@ export default function RecordsPage() {
         setPartitionId(id);
         setPage(1);
         setSearch("");
+        localStorage.setItem("records_last_partition", String(id));
         setSelectedIds(new Set());
         setFilters([]);
         setSortField("registeredAt");
