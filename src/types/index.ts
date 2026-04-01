@@ -285,6 +285,7 @@ export interface UpdateFieldInput {
     category?: string;
     isRequired?: boolean;
     isSortable?: boolean;
+    defaultValue?: string;
     options?: string[];
     defaultWidth?: number;
 }

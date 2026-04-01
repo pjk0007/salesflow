@@ -11,6 +11,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDefinition, UpdateFieldInput } from "@/types";
@@ -51,6 +58,7 @@ export default function EditFieldDialog({
     const [options, setOptions] = useState<string[]>([]);
     const [newOption, setNewOption] = useState("");
     const [isSortable, setIsSortable] = useState(false);
+    const [defaultValue, setDefaultValue] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -60,6 +68,7 @@ export default function EditFieldDialog({
             setDefaultWidth(field.defaultWidth);
             setIsRequired(!!field.isRequired);
             setIsSortable(!!field.isSortable);
+            setDefaultValue(field.defaultValue ?? "");
             setOptions(field.options ?? []);
             setNewOption("");
         }
@@ -91,6 +100,7 @@ export default function EditFieldDialog({
                 category: category.trim() || undefined,
                 isRequired,
                 isSortable,
+                defaultValue: defaultValue.trim() || undefined,
                 defaultWidth,
                 options: field.fieldType === "select" ? options : undefined,
             });
@@ -182,6 +192,29 @@ export default function EditFieldDialog({
                                 checked={isSortable}
                                 onCheckedChange={setIsSortable}
                             />
+                        </div>
+
+                        <div className="space-y-1.5">
+                            <Label>기본값</Label>
+                            {field.fieldType === "select" && options.length > 0 ? (
+                                <Select value={defaultValue} onValueChange={setDefaultValue}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="기본값 선택 (선택사항)" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="">없음</SelectItem>
+                                        {options.map((opt) => (
+                                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <Input
+                                    value={defaultValue}
+                                    onChange={(e) => setDefaultValue(e.target.value)}
+                                    placeholder="레코드 생성 시 자동 입력될 값 (선택사항)"
+                                />
+                            )}
                         </div>
 
                         {field.fieldType === "select" && (
