@@ -57,10 +57,11 @@ import {
     ChevronDown,
     ChevronRight,
     Facebook,
+    Pencil,
 } from "lucide-react";
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
-import type { AdPlatformInfo } from "@/types";
+import type { AdPlatformInfo, AdLeadIntegrationInfo } from "@/types";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
     connected: { label: "연결됨", className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
@@ -597,82 +598,16 @@ function MetaConnected({
                     </AlertDialogContent>
                 </AlertDialog>
 
-                {/* 연동 상세 다이얼로그 */}
-                <Dialog open={!!detailIntegration} onOpenChange={(open) => { if (!open) setDetailIntegration(null); }}>
-                    <DialogContent className="max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle>{detailIntegration?.name}</DialogTitle>
-                        </DialogHeader>
-                        {detailIntegration && (
-                            <div className="space-y-4 text-sm">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <span className="text-muted-foreground">리드 폼</span>
-                                        <p className="font-medium">{detailIntegration.formName || detailIntegration.formId}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">대상 파티션</span>
-                                        <p className="font-medium">{detailIntegration.partitionName || "-"}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">상태</span>
-                                        <p className="font-medium">{detailIntegration.isActive === 1 ? "활성" : "비활성"}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-muted-foreground">폼 ID</span>
-                                        <p className="font-mono text-xs">{detailIntegration.formId}</p>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <span className="text-muted-foreground">필드 매핑</span>
-                                    <div className="mt-1 rounded-md border">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="text-xs">Meta 필드</TableHead>
-                                                    <TableHead className="text-xs">DB 컬럼</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {Object.entries(detailIntegration.fieldMappings || {}).map(([from, to]) => (
-                                                    <TableRow key={from}>
-                                                        <TableCell className="font-mono text-xs py-1.5">{from}</TableCell>
-                                                        <TableCell className="font-mono text-xs py-1.5">{to}</TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </div>
-
-                                {detailIntegration.defaultValues && Object.keys(detailIntegration.defaultValues).length > 0 && (
-                                    <div>
-                                        <span className="text-muted-foreground">기본값</span>
-                                        <div className="mt-1 rounded-md border">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead className="text-xs">컬럼</TableHead>
-                                                        <TableHead className="text-xs">값</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {Object.entries(detailIntegration.defaultValues).map(([key, val]) => (
-                                                        <TableRow key={key}>
-                                                            <TableCell className="font-mono text-xs py-1.5">{key}</TableCell>
-                                                            <TableCell className="text-xs py-1.5">{String(val)}</TableCell>
-                                                        </TableRow>
-                                                    ))}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </DialogContent>
-                </Dialog>
+                {/* 연동 상세/수정 다이얼로그 */}
+                {detailIntegration && (
+                    <IntegrationDetailDialog
+                        integration={detailIntegration}
+                        open={!!detailIntegration}
+                        onOpenChange={(open) => { if (!open) setDetailIntegration(null); }}
+                        onUpdate={updateIntegration}
+                        onUpdated={() => mutateIntegrations()}
+                    />
+                )}
             </CardContent>
         </Card>
     );
@@ -710,5 +645,213 @@ function CollapsibleSection({
             </div>
             {open && <div className="px-4 pb-3">{children}</div>}
         </div>
+    );
+}
+
+// ─── 연동 상세/수정 다이얼로그 ───
+
+function IntegrationDetailDialog({
+    integration,
+    open,
+    onOpenChange,
+    onUpdate,
+    onUpdated,
+}: {
+    integration: AdLeadIntegrationInfo;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onUpdate: (id: number, params: { fieldMappings?: Record<string, string>; defaultValues?: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
+    onUpdated: () => void;
+}) {
+    const [editing, setEditing] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [mappings, setMappings] = useState<Array<{ from: string; to: string }>>([]);
+    const [defaults, setDefaults] = useState<Array<{ key: string; value: string }>>([]);
+
+    const startEditing = () => {
+        setMappings(
+            Object.entries(integration.fieldMappings || {}).map(([from, to]) => ({ from, to: String(to) }))
+        );
+        setDefaults(
+            Object.entries(integration.defaultValues || {}).map(([key, val]) => ({ key, value: String(val) }))
+        );
+        setEditing(true);
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        const fieldMappings: Record<string, string> = {};
+        for (const m of mappings) {
+            if (m.from.trim() && m.to.trim()) fieldMappings[m.from.trim()] = m.to.trim();
+        }
+        const defaultValues: Record<string, unknown> = {};
+        for (const d of defaults) {
+            if (d.key.trim() && d.value.trim()) defaultValues[d.key.trim()] = d.value.trim();
+        }
+        const result = await onUpdate(integration.id, { fieldMappings, defaultValues });
+        if (result.success) {
+            toast.success("연동 설정이 수정되었습니다.");
+            setEditing(false);
+            onUpdated();
+            onOpenChange(false);
+        } else {
+            toast.error(result.error || "수정 실패");
+        }
+        setSaving(false);
+    };
+
+    const updateMapping = (index: number, field: "from" | "to", value: string) => {
+        setMappings((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
+    };
+
+    const removeMapping = (index: number) => {
+        setMappings((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const updateDefault = (index: number, field: "key" | "value", value: string) => {
+        setDefaults((prev) => prev.map((d, i) => (i === index ? { ...d, [field]: value } : d)));
+    };
+
+    const removeDefault = (index: number) => {
+        setDefaults((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={(o) => { if (!o) { setEditing(false); } onOpenChange(o); }}>
+            <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>{integration.name}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 text-sm">
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <span className="text-muted-foreground">리드 폼</span>
+                            <p className="font-medium">{integration.formName || integration.formId}</p>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground">대상 파티션</span>
+                            <p className="font-medium">{integration.partitionName || "-"}</p>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground">상태</span>
+                            <p className="font-medium">{integration.isActive === 1 ? "활성" : "비활성"}</p>
+                        </div>
+                        <div>
+                            <span className="text-muted-foreground">폼 ID</span>
+                            <p className="font-mono text-xs">{integration.formId}</p>
+                        </div>
+                    </div>
+
+                    {!editing ? (
+                        <>
+                            <div>
+                                <span className="text-muted-foreground">필드 매핑</span>
+                                <div className="mt-1 rounded-md border">
+                                    <Table>
+                                        <TableHeader>
+                                            <TableRow>
+                                                <TableHead className="text-xs">Meta 필드</TableHead>
+                                                <TableHead className="text-xs">DB 컬럼</TableHead>
+                                            </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {Object.entries(integration.fieldMappings || {}).map(([from, to]) => (
+                                                <TableRow key={from}>
+                                                    <TableCell className="font-mono text-xs py-1.5">{from}</TableCell>
+                                                    <TableCell className="font-mono text-xs py-1.5">{to}</TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
+                            </div>
+
+                            {integration.defaultValues && Object.keys(integration.defaultValues).length > 0 && (
+                                <div>
+                                    <span className="text-muted-foreground">기본값</span>
+                                    <div className="mt-1 rounded-md border">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="text-xs">컬럼</TableHead>
+                                                    <TableHead className="text-xs">값</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {Object.entries(integration.defaultValues).map(([key, val]) => (
+                                                    <TableRow key={key}>
+                                                        <TableCell className="font-mono text-xs py-1.5">{key}</TableCell>
+                                                        <TableCell className="text-xs py-1.5">{String(val)}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="flex justify-end">
+                                <Button size="sm" variant="outline" onClick={startEditing}>
+                                    <Pencil className="h-4 w-4 mr-1" />
+                                    수정
+                                </Button>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-muted-foreground">필드 매핑</span>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setMappings([...mappings, { from: "", to: "" }])}>
+                                        <Plus className="h-3 w-3 mr-1" /> 추가
+                                    </Button>
+                                </div>
+                                <div className="space-y-2">
+                                    {mappings.map((m, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <Input className="h-8 text-xs font-mono" placeholder="Meta 필드" value={m.from} onChange={(e) => updateMapping(i, "from", e.target.value)} />
+                                            <span className="text-muted-foreground shrink-0">→</span>
+                                            <Input className="h-8 text-xs font-mono" placeholder="DB 컬럼" value={m.to} onChange={(e) => updateMapping(i, "to", e.target.value)} />
+                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 text-destructive" onClick={() => removeMapping(i)}>
+                                                <Unlink className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <span className="text-muted-foreground">기본값</span>
+                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDefaults([...defaults, { key: "", value: "" }])}>
+                                        <Plus className="h-3 w-3 mr-1" /> 추가
+                                    </Button>
+                                </div>
+                                <div className="space-y-2">
+                                    {defaults.map((d, i) => (
+                                        <div key={i} className="flex items-center gap-2">
+                                            <Input className="h-8 text-xs font-mono" placeholder="컬럼" value={d.key} onChange={(e) => updateDefault(i, "key", e.target.value)} />
+                                            <span className="text-muted-foreground shrink-0">=</span>
+                                            <Input className="h-8 text-xs" placeholder="값" value={d.value} onChange={(e) => updateDefault(i, "value", e.target.value)} />
+                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 text-destructive" onClick={() => removeDefault(i)}>
+                                                <Unlink className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2">
+                                <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={saving}>취소</Button>
+                                <Button size="sm" onClick={handleSave} disabled={saving}>
+                                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                                    저장
+                                </Button>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
