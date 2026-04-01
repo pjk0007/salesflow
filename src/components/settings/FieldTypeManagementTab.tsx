@@ -127,7 +127,7 @@ function SortableFieldRow({
 }
 
 export default function FieldTypeManagementTab() {
-    const { fieldTypes: types, createType, deleteType } = useFieldTypes();
+    const { fieldTypes: types, createType, updateType, deleteType } = useFieldTypes();
     const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
     const { fields, reorderFields, createField, updateField, deleteField } = useFieldTypeManagement(selectedTypeId);
 
@@ -135,6 +135,13 @@ export default function FieldTypeManagementTab() {
     const [newTypeName, setNewTypeName] = useState("");
     const [newTypeDesc, setNewTypeDesc] = useState("");
     const [creatingType, setCreatingType] = useState(false);
+
+    const [editTypeOpen, setEditTypeOpen] = useState(false);
+    const [editTypeName, setEditTypeName] = useState("");
+    const [editTypeDesc, setEditTypeDesc] = useState("");
+    const [editingType, setEditingType] = useState(false);
+    const [deleteTypeOpen, setDeleteTypeOpen] = useState(false);
+    const [deletingType, setDeletingType] = useState(false);
 
     const [createFieldOpen, setCreateFieldOpen] = useState(false);
     const [editOpen, setEditOpen] = useState(false);
@@ -181,15 +188,38 @@ export default function FieldTypeManagementTab() {
         setCreatingType(false);
     };
 
+    const handleEditTypeOpen = () => {
+        if (!selectedType) return;
+        setEditTypeName(selectedType.name);
+        setEditTypeDesc(selectedType.description || "");
+        setEditTypeOpen(true);
+    };
+
+    const handleEditType = async () => {
+        if (!selectedTypeId || !editTypeName.trim()) return;
+        setEditingType(true);
+        const result = await updateType(selectedTypeId, { name: editTypeName.trim(), description: editTypeDesc.trim() || undefined });
+        if (result.success) {
+            toast.success("속성 타입이 수정되었습니다.");
+            setEditTypeOpen(false);
+        } else {
+            toast.error(result.error || "수정에 실패했습니다.");
+        }
+        setEditingType(false);
+    };
+
     const handleDeleteType = async () => {
         if (!selectedTypeId) return;
+        setDeletingType(true);
         const result = await deleteType(selectedTypeId);
         if (result.success) {
             toast.success("속성 타입이 삭제되었습니다.");
             setSelectedTypeId(null);
+            setDeleteTypeOpen(false);
         } else {
             toast.error(result.error || "삭제에 실패했습니다.");
         }
+        setDeletingType(false);
     };
 
     const handleEdit = (field: FieldDefinition) => {
@@ -217,7 +247,7 @@ export default function FieldTypeManagementTab() {
                         <Card
                             key={type.id}
                             className={cn(
-                                "cursor-pointer hover:border-primary/50 transition-colors",
+                                "cursor-pointer hover:border-primary/50 transition-colors relative group",
                                 selectedTypeId === type.id && "border-primary ring-1 ring-primary"
                             )}
                             onClick={() => setSelectedTypeId(type.id)}
@@ -228,6 +258,22 @@ export default function FieldTypeManagementTab() {
                                     {type.description || "설명 없음"}
                                 </div>
                             </CardContent>
+                            <div className="absolute top-2 right-2 hidden group-hover:flex gap-1">
+                                <button
+                                    type="button"
+                                    className="p-1 hover:bg-accent rounded"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedTypeId(type.id); handleEditTypeOpen(); }}
+                                >
+                                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                                <button
+                                    type="button"
+                                    className="p-1 hover:bg-destructive/10 rounded"
+                                    onClick={(e) => { e.stopPropagation(); setSelectedTypeId(type.id); setDeleteTypeOpen(true); }}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </button>
+                            </div>
                         </Card>
                     ))}
                 </div>
@@ -319,6 +365,59 @@ export default function FieldTypeManagementTab() {
                         <Button variant="outline" onClick={() => setCreateTypeOpen(false)} disabled={creatingType}>취소</Button>
                         <Button onClick={handleCreateType} disabled={creatingType || !newTypeName.trim()}>
                             {creatingType ? "생성 중..." : "생성"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 타입 수정 다이얼로그 */}
+            <Dialog open={editTypeOpen} onOpenChange={setEditTypeOpen}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>속성 타입 수정</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-2">
+                        <div className="space-y-1.5">
+                            <Label>타입 이름 <span className="text-destructive">*</span></Label>
+                            <Input
+                                value={editTypeName}
+                                onChange={(e) => setEditTypeName(e.target.value)}
+                                autoFocus
+                            />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>설명</Label>
+                            <Input
+                                value={editTypeDesc}
+                                onChange={(e) => setEditTypeDesc(e.target.value)}
+                                placeholder="타입 설명 (선택)"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditTypeOpen(false)} disabled={editingType}>취소</Button>
+                        <Button onClick={handleEditType} disabled={editingType || !editTypeName.trim()}>
+                            {editingType ? "저장 중..." : "저장"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* 타입 삭제 다이얼로그 */}
+            <Dialog open={deleteTypeOpen} onOpenChange={setDeleteTypeOpen}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>속성 타입 삭제</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-muted-foreground py-2">
+                        &quot;{selectedType?.name}&quot; 타입을 삭제하시겠습니까?
+                        <br />
+                        <span className="text-destructive">사용 중인 워크스페이스가 있으면 삭제할 수 없습니다.</span>
+                    </p>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteTypeOpen(false)} disabled={deletingType}>취소</Button>
+                        <Button variant="destructive" onClick={handleDeleteType} disabled={deletingType}>
+                            {deletingType ? "삭제 중..." : "삭제"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
