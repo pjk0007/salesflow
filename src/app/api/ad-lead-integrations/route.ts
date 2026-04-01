@@ -110,8 +110,9 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error: unknown) {
-        if (error instanceof Error && error.message?.includes("unique")) {
-            return NextResponse.json({ success: false, error: "이미 동일한 광고 계정과 폼 ID의 연동이 존재합니다." }, { status: 409 });
+        const errStr = String(error) + String((error as { cause?: unknown })?.cause || "");
+        if (errStr.includes("unique") || errStr.includes("23505")) {
+            return NextResponse.json({ success: false, error: "이미 동일한 광고 계정과 폼의 연동이 존재합니다. 기존 연동을 삭제 후 다시 시도하세요." }, { status: 409 });
         }
         console.error("Ad lead integration create error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });

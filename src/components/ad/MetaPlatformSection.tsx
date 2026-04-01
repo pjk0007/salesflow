@@ -244,7 +244,7 @@ function MetaConnected({
     onSync: (id: number) => Promise<{ success: boolean; error?: string }>;
 }) {
     const { accounts, mutate: mutateAccounts } = useAdAccounts(platform.id);
-    const { integrations, mutate: mutateIntegrations, updateIntegration } = useAdLeadIntegrations();
+    const { integrations, mutate: mutateIntegrations, updateIntegration, deleteIntegration } = useAdLeadIntegrations();
     const { logs } = useAdLeadLogs();
     const { data: workspacesData } = useSWR<{ success: boolean; data: Array<{ id: number; name: string }> }>("/api/workspaces", defaultFetcher);
     const workspaces = workspacesData?.data || [];
@@ -298,6 +298,16 @@ function MetaConnected({
         const result = await updateIntegration(id, { isActive: currentActive === 1 ? 0 : 1 });
         if (!result.success) {
             toast.error(result.error || "상태 변경 실패");
+        }
+    };
+
+    const handleDeleteIntegration = async (id: number, name: string) => {
+        if (!window.confirm(`"${name}" 연동을 삭제하시겠습니까?`)) return;
+        const result = await deleteIntegration(id);
+        if (result.success) {
+            toast.success("연동이 삭제되었습니다.");
+        } else {
+            toast.error(result.error || "삭제 실패");
         }
     };
 
@@ -466,6 +476,7 @@ function MetaConnected({
                                     <TableHead>리드 폼</TableHead>
                                     <TableHead>대상 파티션</TableHead>
                                     <TableHead className="w-20">활성</TableHead>
+                                    <TableHead className="w-10"></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -479,6 +490,16 @@ function MetaConnected({
                                                 checked={integration.isActive === 1}
                                                 onCheckedChange={() => handleToggleIntegration(integration.id, integration.isActive)}
                                             />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-destructive hover:text-destructive h-8 w-8 p-0"
+                                                onClick={() => handleDeleteIntegration(integration.id, integration.name)}
+                                            >
+                                                <Unlink className="h-4 w-4" />
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))}
