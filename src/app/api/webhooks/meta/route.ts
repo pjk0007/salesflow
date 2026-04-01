@@ -220,8 +220,8 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
     }
 
     // 광고 소재/캠페인 이름 자동 추가
-    if (adName) recordData._adName = adName;
-    if (campaignName) recordData._campaignName = campaignName;
+    if (adName) recordData.adName = adName;
+    if (campaignName) recordData.campaignName = campaignName;
 
     // 등록일 자동 설정
     if (!recordData.registeredAt) {
