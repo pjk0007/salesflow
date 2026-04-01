@@ -27,6 +27,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useAdPlatforms } from "@/hooks/useAdPlatforms";
 import { useAdAccounts } from "@/hooks/useAdAccounts";
@@ -250,6 +260,7 @@ function MetaConnected({
     const workspaces = workspacesData?.data || [];
 
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; onConfirm: () => void } | null>(null);
     const [syncing, setSyncing] = useState(false);
     const [accountsOpen, setAccountsOpen] = useState(true);
     const [integrationsOpen, setIntegrationsOpen] = useState(true);
@@ -271,13 +282,19 @@ function MetaConnected({
         setSyncing(false);
     };
 
-    const handleDisconnect = async () => {
-        if (!window.confirm("Meta 연결을 해제하시겠습니까?\n연결된 모든 광고 계정과 리드 연동 설정이 삭제됩니다.")) return;
-        const result = await onDisconnect(platform.id);
-        if (result.success) {
-            toast.success("Meta 연결이 해제되었습니다.");
-            onMutate();
-        }
+    const handleDisconnect = () => {
+        setConfirmAction({
+            title: "Meta 연결 해제",
+            description: "연결된 모든 광고 계정과 리드 연동 설정이 함께 삭제됩니다. 계속하시겠습니까?",
+            onConfirm: async () => {
+                const result = await onDisconnect(platform.id);
+                if (result.success) {
+                    toast.success("Meta 연결이 해제되었습니다.");
+                    onMutate();
+                }
+                setConfirmAction(null);
+            },
+        });
     };
 
     const handleWorkspaceChange = async (accountId: number, workspaceId: string) => {
@@ -301,14 +318,20 @@ function MetaConnected({
         }
     };
 
-    const handleDeleteIntegration = async (id: number, name: string) => {
-        if (!window.confirm(`"${name}" 연동을 삭제하시겠습니까?`)) return;
-        const result = await deleteIntegration(id);
-        if (result.success) {
-            toast.success("연동이 삭제되었습니다.");
-        } else {
-            toast.error(result.error || "삭제 실패");
-        }
+    const handleDeleteIntegration = (id: number, name: string) => {
+        setConfirmAction({
+            title: "리드 연동 삭제",
+            description: `"${name}" 연동을 삭제하시겠습니까?`,
+            onConfirm: async () => {
+                const result = await deleteIntegration(id);
+                if (result.success) {
+                    toast.success("연동이 삭제되었습니다.");
+                } else {
+                    toast.error(result.error || "삭제 실패");
+                }
+                setConfirmAction(null);
+            },
+        });
     };
 
     const statusBadge = STATUS_BADGE[platform.status] || STATUS_BADGE.connected;
@@ -553,6 +576,19 @@ function MetaConnected({
                     onOpenChange={setDialogOpen}
                     onCreated={() => mutateIntegrations()}
                 />
+
+                <AlertDialog open={!!confirmAction} onOpenChange={(open) => { if (!open) setConfirmAction(null); }}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>{confirmAction?.title}</AlertDialogTitle>
+                            <AlertDialogDescription>{confirmAction?.description}</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>취소</AlertDialogCancel>
+                            <AlertDialogAction variant="destructive" onClick={confirmAction?.onConfirm}>확인</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </CardContent>
         </Card>
     );
