@@ -42,6 +42,12 @@ import { useAdPlatforms } from "@/hooks/useAdPlatforms";
 import { useAdAccounts } from "@/hooks/useAdAccounts";
 import { useAdLeadIntegrations } from "@/hooks/useAdLeadIntegrations";
 import { useAdLeadLogs } from "@/hooks/useAdLeadLogs";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import CreateIntegrationDialog from "@/components/ad/CreateIntegrationDialog";
 import {
     RefreshCw,
@@ -260,6 +266,7 @@ function MetaConnected({
     const workspaces = workspacesData?.data || [];
 
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [detailIntegration, setDetailIntegration] = useState<typeof metaIntegrations[number] | null>(null);
     const [confirmAction, setConfirmAction] = useState<{ title: string; description: string; onConfirm: () => void } | null>(null);
     const [syncing, setSyncing] = useState(false);
     const [accountsOpen, setAccountsOpen] = useState(true);
@@ -505,7 +512,7 @@ function MetaConnected({
                             <TableBody>
                                 {metaIntegrations.map((integration) => (
                                     <TableRow key={integration.id}>
-                                        <TableCell className="font-medium">{integration.name}</TableCell>
+                                        <TableCell className="font-medium cursor-pointer hover:underline" onClick={() => setDetailIntegration(integration)}>{integration.name}</TableCell>
                                         <TableCell className="text-muted-foreground">{integration.formName || integration.formId}</TableCell>
                                         <TableCell>{integration.partitionName || "-"}</TableCell>
                                         <TableCell>
@@ -589,6 +596,83 @@ function MetaConnected({
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+
+                {/* 연동 상세 다이얼로그 */}
+                <Dialog open={!!detailIntegration} onOpenChange={(open) => { if (!open) setDetailIntegration(null); }}>
+                    <DialogContent className="max-w-lg">
+                        <DialogHeader>
+                            <DialogTitle>{detailIntegration?.name}</DialogTitle>
+                        </DialogHeader>
+                        {detailIntegration && (
+                            <div className="space-y-4 text-sm">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <span className="text-muted-foreground">리드 폼</span>
+                                        <p className="font-medium">{detailIntegration.formName || detailIntegration.formId}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">대상 파티션</span>
+                                        <p className="font-medium">{detailIntegration.partitionName || "-"}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">상태</span>
+                                        <p className="font-medium">{detailIntegration.isActive === 1 ? "활성" : "비활성"}</p>
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">폼 ID</span>
+                                        <p className="font-mono text-xs">{detailIntegration.formId}</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <span className="text-muted-foreground">필드 매핑</span>
+                                    <div className="mt-1 rounded-md border">
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead className="text-xs">Meta 필드</TableHead>
+                                                    <TableHead className="text-xs">DB 컬럼</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {Object.entries(detailIntegration.fieldMappings || {}).map(([from, to]) => (
+                                                    <TableRow key={from}>
+                                                        <TableCell className="font-mono text-xs py-1.5">{from}</TableCell>
+                                                        <TableCell className="font-mono text-xs py-1.5">{to}</TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+
+                                {detailIntegration.defaultValues && Object.keys(detailIntegration.defaultValues).length > 0 && (
+                                    <div>
+                                        <span className="text-muted-foreground">기본값</span>
+                                        <div className="mt-1 rounded-md border">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="text-xs">컬럼</TableHead>
+                                                        <TableHead className="text-xs">값</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {Object.entries(detailIntegration.defaultValues).map(([key, val]) => (
+                                                        <TableRow key={key}>
+                                                            <TableCell className="font-mono text-xs py-1.5">{key}</TableCell>
+                                                            <TableCell className="text-xs py-1.5">{String(val)}</TableCell>
+                                                        </TableRow>
+                                                    ))}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
             </CardContent>
         </Card>
     );

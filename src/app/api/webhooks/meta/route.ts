@@ -67,10 +67,10 @@ async function processMetaWebhook(body: MetaWebhookBody) {
         for (const change of entry.changes || []) {
             if (change.field !== "leadgen") continue;
 
-            const { leadgen_id, form_id } = change.value;
+            const { leadgen_id, form_id, ad_id } = change.value;
 
             try {
-                await processLead(leadgen_id, form_id);
+                await processLead(leadgen_id, form_id, ad_id);
             } catch (err) {
                 console.error(`[Meta Webhook] lead ${leadgen_id} processing failed:`, err);
             }
@@ -78,7 +78,7 @@ async function processMetaWebhook(body: MetaWebhookBody) {
     }
 }
 
-async function processLead(leadgenId: string, formId: string) {
+async function processLead(leadgenId: string, formId: string, adId?: string) {
     // 1. 연동 설정 찾기
     const [integration] = await db
         .select()
@@ -169,6 +169,24 @@ async function processLead(leadgenId: string, formId: string) {
         return;
     }
 
+    // 4-2. 광고 소재 이름 조회 (ad_id가 있는 경우)
+    let adName: string | null = null;
+    let campaignName: string | null = null;
+    if (adId) {
+        try {
+            const adRes = await fetch(
+                `https://graph.facebook.com/v21.0/${adId}?access_token=${accessToken}&fields=name,campaign{name}`
+            );
+            const adData = await adRes.json();
+            if (!adData.error) {
+                adName = adData.name || null;
+                campaignName = adData.campaign?.name || null;
+            }
+        } catch {
+            // 광고 조회 실패해도 리드 처리는 계속
+        }
+    }
+
     // 5. 파티션 유효성 검증
     if (!integration.partitionId) {
         await db.insert(adLeadLogs).values({
@@ -199,6 +217,10 @@ async function processLead(leadgenId: string, formId: string) {
             recordData[column] = typeof value === "boolean" ? (value ? 1 : 0) : value;
         }
     }
+
+    // 광고 소재/캠페인 이름 자동 추가
+    if (adName) recordData._adName = adName;
+    if (campaignName) recordData._campaignName = campaignName;
 
     // 7. 파티션의 워크스페이스 정보 조회
     const [partitionRow] = await db
