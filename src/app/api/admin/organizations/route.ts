@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
             planName: sql<string>`(
                 SELECT p.name FROM subscriptions s
                 JOIN plans p ON p.id = s.plan_id
-                WHERE s.organization_id = ${organizations.id} AND s.status = 'active'
+                WHERE s.org_id = ${organizations.id} AND s.status = 'active'
                 LIMIT 1
             )`,
         })
