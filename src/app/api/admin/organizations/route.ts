@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { db, organizations, organizationMembers, subscriptions, plans } from "@/lib/db";
-import { sql, eq, ilike, or } from "drizzle-orm";
+import { sql, eq, ilike, or, count } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -24,25 +24,41 @@ export async function GET(req: NextRequest) {
         .from(organizations)
         .where(where);
 
-    const rows = await db
+    const orgs = await db
         .select({
             id: organizations.id,
             name: organizations.name,
             slug: organizations.slug,
             createdAt: organizations.createdAt,
-            memberCount: sql<number>`(SELECT count(*)::int FROM organization_members WHERE organization_id = ${organizations.id})`,
-            planName: sql<string>`(
-                SELECT p.name FROM subscriptions s
-                JOIN plans p ON p.id = s.plan_id
-                WHERE s.org_id = ${organizations.id} AND s.status = 'active'
-                LIMIT 1
-            )`,
         })
         .from(organizations)
         .where(where)
         .orderBy(organizations.createdAt)
         .limit(limit)
         .offset(offset);
+
+    // 각 조직의 멤버 수 + 플랜명 조회
+    const rows = await Promise.all(
+        orgs.map(async (org) => {
+            const [mc] = await db
+                .select({ count: count() })
+                .from(organizationMembers)
+                .where(eq(organizationMembers.organizationId, org.id));
+
+            const [sub] = await db
+                .select({ planName: plans.name })
+                .from(subscriptions)
+                .innerJoin(plans, eq(plans.id, subscriptions.planId))
+                .where(eq(subscriptions.orgId, org.id))
+                .limit(1);
+
+            return {
+                ...org,
+                memberCount: mc?.count ?? 0,
+                planName: sub?.planName ?? null,
+            };
+        })
+    );
 
     return NextResponse.json({
         success: true,

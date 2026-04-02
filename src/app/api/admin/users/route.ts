@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { db, users } from "@/lib/db";
-import { sql, ilike, or } from "drizzle-orm";
+import { db, users, organizationMembers } from "@/lib/db";
+import { sql, eq, ilike, or, count } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         .from(users)
         .where(where);
 
-    const rows = await db
+    const userList = await db
         .select({
             id: users.id,
             email: users.email,
@@ -32,13 +32,22 @@ export async function GET(req: NextRequest) {
             isActive: users.isActive,
             isSuperAdmin: users.isSuperAdmin,
             createdAt: users.createdAt,
-            orgCount: sql<number>`(SELECT count(*)::int FROM organization_members WHERE user_id = ${users.id})`,
         })
         .from(users)
         .where(where)
         .orderBy(users.createdAt)
         .limit(limit)
         .offset(offset);
+
+    const rows = await Promise.all(
+        userList.map(async (u) => {
+            const [mc] = await db
+                .select({ count: count() })
+                .from(organizationMembers)
+                .where(eq(organizationMembers.userId, u.id));
+            return { ...u, orgCount: mc?.count ?? 0 };
+        })
+    );
 
     return NextResponse.json({
         success: true,
