@@ -246,6 +246,13 @@
       "when": 1770949700000,
       "tag": "0034_field_option_colors",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1770949800000,
+      "tag": "0035_field_groupable",
+      "breakpoints": true
     }
   ]
 }

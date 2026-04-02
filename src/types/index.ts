@@ -88,6 +88,7 @@ export interface FieldDefinition {
   options: string[] | null;
   optionColors: Record<string, string> | null;
   optionStyle: "pill" | "square" | null;
+  isGroupable: boolean;
   statusOptionCategoryId: number | null;
   defaultValue: string | null;
   formulaConfig: FormulaConfig | null;
@@ -293,6 +294,7 @@ export interface UpdateFieldInput {
     options?: string[];
     optionColors?: Record<string, string>;
     optionStyle?: "pill" | "square";
+    isGroupable?: boolean;
     cellClassName?: string;
     defaultWidth?: number;
 }

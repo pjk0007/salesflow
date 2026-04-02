@@ -253,10 +253,9 @@ export default function RecordsPage() {
         }
     }, [deleteFolder]);
 
-    // 상태 필드 탐색 (selectWithStatusBg 또는 select 타입의 "status" 키 필드)
+    // 그룹 기준 필드 탐색 (isGroupable이 켜진 select 필드)
     const statusField = useMemo(() =>
-        fields.find(f => f.cellType === "selectWithStatusBg") ??
-        fields.find(f => f.fieldType === "select" && f.key === "status" && f.options && f.options.length > 0),
+        fields.find(f => f.isGroupable && f.fieldType === "select" && f.options && f.options.length > 0),
         [fields]
     );
 

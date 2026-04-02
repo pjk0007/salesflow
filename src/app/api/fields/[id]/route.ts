@@ -42,7 +42,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 필드 ID입니다." }, { status: 400 });
     }
 
-    const { label, category, isRequired, isSortable, defaultValue, options, optionColors, optionStyle, cellClassName, defaultWidth } = await req.json();
+    const { label, category, isRequired, isSortable, defaultValue, options, optionColors, optionStyle, isGroupable, cellClassName, defaultWidth } = await req.json();
 
     try {
         const access = await verifyOwnership(fieldId, user.orgId);
@@ -72,6 +72,28 @@ export async function PATCH(
         }
         if (optionStyle !== undefined) {
             updates.optionStyle = optionStyle === "pill" || optionStyle === "square" ? optionStyle : null;
+        }
+        if (isGroupable !== undefined) {
+            updates.isGroupable = isGroupable ? 1 : 0;
+            // 그룹 기준 켤 때, 같은 fieldTypeId/workspaceId의 다른 필드 isGroupable 해제
+            if (isGroupable) {
+                const field = access.field;
+                if (field.fieldTypeId) {
+                    await db.update(fieldDefinitions)
+                        .set({ isGroupable: 0, updatedAt: new Date() })
+                        .where(and(
+                            eq(fieldDefinitions.fieldTypeId, field.fieldTypeId),
+                            eq(fieldDefinitions.isGroupable, 1),
+                        ));
+                } else if (field.workspaceId) {
+                    await db.update(fieldDefinitions)
+                        .set({ isGroupable: 0, updatedAt: new Date() })
+                        .where(and(
+                            eq(fieldDefinitions.workspaceId, field.workspaceId),
+                            eq(fieldDefinitions.isGroupable, 1),
+                        ));
+                }
+            }
         }
         if (cellClassName !== undefined) {
             updates.cellClassName = cellClassName?.trim() || null;

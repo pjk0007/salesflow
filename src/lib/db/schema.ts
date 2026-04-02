@@ -133,6 +133,7 @@ export const fieldDefinitions = pgTable(
         options: jsonb("options").$type<string[]>(),
         optionColors: jsonb("option_colors").$type<Record<string, string>>(),
         optionStyle: varchar("option_style", { length: 10 }), // "pill" | "square"
+        isGroupable: integer("is_groupable").default(0).notNull(),
         statusOptionCategoryId: integer("status_option_category_id"),
         // 기본값 (레코드 생성 시 자동 적용)
         defaultValue: varchar("default_value", { length: 500 }),

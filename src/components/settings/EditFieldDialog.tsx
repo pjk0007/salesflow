@@ -78,6 +78,7 @@ export default function EditFieldDialog({
     const [optionStyle, setOptionStyle] = useState<"pill" | "square">("pill");
     const [newOption, setNewOption] = useState("");
     const [textColor, setTextColor] = useState("");
+    const [isGroupable, setIsGroupable] = useState(false);
     const [isSortable, setIsSortable] = useState(false);
     const [defaultValue, setDefaultValue] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,6 +95,7 @@ export default function EditFieldDialog({
             setOptionColors(field.optionColors ?? {});
             setOptionStyle(field.optionStyle ?? "pill");
             setTextColor(field.cellClassName ?? "");
+            setIsGroupable(!!field.isGroupable);
             setNewOption("");
         }
     }, [open, field]);
@@ -129,6 +131,7 @@ export default function EditFieldDialog({
                 options: field.fieldType === "select" ? options : undefined,
                 optionColors: field.fieldType === "select" ? optionColors : undefined,
                 optionStyle: field.fieldType === "select" ? optionStyle : undefined,
+                isGroupable: field.fieldType === "select" ? isGroupable : undefined,
                 cellClassName: textColor || undefined,
             });
             if (result.success) {
@@ -220,6 +223,22 @@ export default function EditFieldDialog({
                                 onCheckedChange={setIsSortable}
                             />
                         </div>
+
+                        {field.fieldType === "select" && (
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label htmlFor="editIsGroupable" className="cursor-pointer">
+                                        그룹 기준
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">이 필드를 기준으로 레코드를 그룹핑합니다</p>
+                                </div>
+                                <Switch
+                                    id="editIsGroupable"
+                                    checked={isGroupable}
+                                    onCheckedChange={setIsGroupable}
+                                />
+                            </div>
+                        )}
 
                         <div className="space-y-1.5">
                             <Label>기본값</Label>
