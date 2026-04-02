@@ -288,7 +288,7 @@ export default function RecordsPage() {
 
     return (
         <WorkspaceLayout>
-            <div className="flex h-full">
+            <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
                 {/* 좌측: 파티션 네비게이션 */}
                 <PartitionNav
                     workspaceId={workspaceId}
@@ -309,7 +309,7 @@ export default function RecordsPage() {
                 />
 
                 {/* 우측: 레코드 영역 */}
-                <div className="flex-1 flex flex-col min-w-0">
+                <div className="flex-1 flex flex-col min-w-0 min-h-0">
                     {partitionId ? (
                         <>
                             <RecordToolbar

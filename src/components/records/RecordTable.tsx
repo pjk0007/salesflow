@@ -1,12 +1,5 @@
 import { useCallback, useMemo } from "react";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,16 +86,14 @@ export default function RecordTable({
 
     const renderSortIcon = (field: string) => {
         if (sortField !== field) return <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />;
-        return sortOrder === "asc"
-            ? <ArrowUp className="h-3 w-3" />
-            : <ArrowDown className="h-3 w-3" />;
+        return sortOrder === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />;
     };
 
     const handleCellSave = useCallback(
         (recordId: number, fieldKey: string, value: unknown) => {
             onUpdateRecord(recordId, { [fieldKey]: value });
         },
-        [onUpdateRecord]
+        [onUpdateRecord],
     );
 
     if (isLoading) {
@@ -127,19 +118,16 @@ export default function RecordTable({
     }
 
     return (
-        <div className="flex flex-col flex-1">
-            <div className="flex-1 overflow-auto">
+        <div className="flex flex-col flex-1 min-h-0">
+            <div className="flex-1 min-h-0 overflow-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-10">
-                                <Checkbox
-                                    checked={allSelected}
-                                    onCheckedChange={toggleAll}
-                                />
+                                <Checkbox checked={allSelected} onCheckedChange={toggleAll} />
                             </TableHead>
                             <TableHead
-                                className="w-[120px] cursor-pointer select-none"
+                                className="w-30 cursor-pointer select-none"
                                 onClick={() => handleSort("integratedCode")}
                             >
                                 <span className="flex items-center gap-1">
@@ -192,9 +180,7 @@ export default function RecordTable({
                                             <InlineEditCell
                                                 field={field}
                                                 value={data[field.key]}
-                                                onSave={(val) =>
-                                                    handleCellSave(record.id, field.key, val)
-                                                }
+                                                onSave={(val) => handleCellSave(record.id, field.key, val)}
                                             />
                                         </TableCell>
                                     ))}
@@ -209,8 +195,7 @@ export default function RecordTable({
             {totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t">
                     <p className="text-sm text-muted-foreground">
-                        총 {total.toLocaleString()}건 중{" "}
-                        {((page - 1) * pageSize + 1).toLocaleString()}-
+                        총 {total.toLocaleString()}건 중 {((page - 1) * pageSize + 1).toLocaleString()}-
                         {Math.min(page * pageSize, total).toLocaleString()}건
                     </p>
                     <div className="flex items-center gap-1">
