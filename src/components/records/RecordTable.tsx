@@ -29,6 +29,8 @@ interface RecordTableProps {
     onPageChange: (page: number) => void;
     // 중복 표시
     duplicateHighlight?: { color: string; ids: Set<number> } | null;
+    // 그룹 뷰에서 사용 시 페이지네이션 숨김
+    compact?: boolean;
 }
 
 export default function RecordTable({
@@ -49,6 +51,7 @@ export default function RecordTable({
     pageSize,
     onPageChange,
     duplicateHighlight,
+    compact,
 }: RecordTableProps) {
     // 표시할 필드 결정 (순서는 fields의 sortOrder 기준)
     const displayFields = useMemo(() => {
@@ -106,7 +109,7 @@ export default function RecordTable({
         );
     }
 
-    if (records.length === 0) {
+    if (records.length === 0 && !compact) {
         return (
             <div className="flex-1 flex items-center justify-center p-12">
                 <div className="text-center text-muted-foreground">
@@ -192,7 +195,7 @@ export default function RecordTable({
             </div>
 
             {/* 페이지네이션 */}
-            {totalPages > 1 && (
+            {!compact && totalPages > 1 && (
                 <div className="flex items-center justify-between px-4 py-3 border-t">
                     <p className="text-sm text-muted-foreground">
                         총 {total.toLocaleString()}건 중 {((page - 1) * pageSize + 1).toLocaleString()}-

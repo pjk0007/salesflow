@@ -5,6 +5,7 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
 import RecordToolbar from "@/components/records/RecordToolbar";
 import RecordTable from "@/components/records/RecordTable";
+import GroupedRecordView from "@/components/records/GroupedRecordView";
 import CreateRecordDialog from "@/components/records/CreateRecordDialog";
 import DeleteConfirmDialog from "@/components/records/DeleteConfirmDialog";
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
@@ -44,6 +45,10 @@ export default function RecordsPage() {
     const [filters, setFilters] = useState<FilterCondition[]>([]);
     const [sortField, setSortField] = useState("registeredAt");
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+    const [viewMode, setViewMode] = useState<"flat" | "grouped">(() => {
+        if (typeof window === "undefined") return "flat";
+        return (localStorage.getItem("records_view_mode") as "flat" | "grouped") || "flat";
+    });
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [alimtalkDialogOpen, setAlimtalkDialogOpen] = useState(false);
@@ -248,6 +253,18 @@ export default function RecordsPage() {
         }
     }, [deleteFolder]);
 
+    // 상태 필드 탐색 (selectWithStatusBg 또는 select 타입의 "status" 키 필드)
+    const statusField = useMemo(() =>
+        fields.find(f => f.cellType === "selectWithStatusBg") ??
+        fields.find(f => f.fieldType === "select" && f.key === "status" && f.options && f.options.length > 0),
+        [fields]
+    );
+
+    const handleViewModeChange = useCallback((mode: "flat" | "grouped") => {
+        setViewMode(mode);
+        localStorage.setItem("records_view_mode", mode);
+    }, []);
+
     // 현재 선택된 파티션 정보
     const currentPartition = partitionTree
         ? [
@@ -343,26 +360,56 @@ export default function RecordsPage() {
                                 fields={fields}
                                 filters={filters}
                                 onFiltersChange={handleFiltersChange}
+                                viewMode={viewMode}
+                                onViewModeChange={handleViewModeChange}
+                                hasStatusField={!!statusField}
                             />
-                            <RecordTable
-                                records={records}
-                                fields={fields}
-                                visibleFieldKeys={currentPartition?.visibleFields ?? null}
-                                isLoading={recordsLoading}
-                                selectedIds={selectedIds}
-                                onSelectionChange={setSelectedIds}
-                                onUpdateRecord={handleUpdateRecord}
-                                onRecordClick={handleRecordClick}
-                                sortField={sortField}
-                                sortOrder={sortOrder}
-                                onSortChange={handleSortChange}
-                                page={currentPage}
-                                totalPages={totalPages}
-                                total={total}
-                                pageSize={pageSize}
-                                onPageChange={setPage}
-                                duplicateHighlight={duplicateHighlight}
-                            />
+                            {viewMode === "grouped" && statusField ? (
+                                <GroupedRecordView
+                                    records={records}
+                                    fields={fields}
+                                    visibleFieldKeys={currentPartition?.visibleFields ?? null}
+                                    isLoading={recordsLoading}
+                                    selectedIds={selectedIds}
+                                    onSelectionChange={setSelectedIds}
+                                    onUpdateRecord={handleUpdateRecord}
+                                    onRecordClick={handleRecordClick}
+                                    groupByField={statusField}
+                                    sortField={sortField}
+                                    sortOrder={sortOrder}
+                                    onSortChange={handleSortChange}
+                                    page={currentPage}
+                                    totalPages={totalPages}
+                                    total={total}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
+                                    duplicateHighlight={duplicateHighlight}
+                                    onCreateWithStatus={(statusValue) => {
+                                        // TODO: CreateRecordDialog에 기본 상태값 전달
+                                        setCreateDialogOpen(true);
+                                    }}
+                                />
+                            ) : (
+                                <RecordTable
+                                    records={records}
+                                    fields={fields}
+                                    visibleFieldKeys={currentPartition?.visibleFields ?? null}
+                                    isLoading={recordsLoading}
+                                    selectedIds={selectedIds}
+                                    onSelectionChange={setSelectedIds}
+                                    onUpdateRecord={handleUpdateRecord}
+                                    onRecordClick={handleRecordClick}
+                                    sortField={sortField}
+                                    sortOrder={sortOrder}
+                                    onSortChange={handleSortChange}
+                                    page={currentPage}
+                                    totalPages={totalPages}
+                                    total={total}
+                                    pageSize={pageSize}
+                                    onPageChange={setPage}
+                                    duplicateHighlight={duplicateHighlight}
+                                />
+                            )}
                         </>
                     ) : (
                         <div className="flex-1 flex items-center justify-center p-12">

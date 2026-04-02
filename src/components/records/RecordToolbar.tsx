@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Trash2, MessageSquare, Mail, Download, Upload } from "lucide-react";
+import { Search, Plus, Trash2, MessageSquare, Mail, Download, Upload, List, LayoutList } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,6 +27,10 @@ interface RecordToolbarProps {
     fields: FieldDefinition[];
     filters: FilterCondition[];
     onFiltersChange: (filters: FilterCondition[]) => void;
+    // 뷰 모드
+    viewMode?: "flat" | "grouped";
+    onViewModeChange?: (mode: "flat" | "grouped") => void;
+    hasStatusField?: boolean;
 }
 
 export default function RecordToolbar({
@@ -44,6 +48,9 @@ export default function RecordToolbar({
     fields,
     filters,
     onFiltersChange,
+    viewMode,
+    onViewModeChange,
+    hasStatusField,
 }: RecordToolbarProps) {
     const [searchInput, setSearchInput] = useState("");
 
@@ -74,6 +81,30 @@ export default function RecordToolbar({
                 filters={filters}
                 onFiltersChange={onFiltersChange}
             />
+
+            {/* 뷰 모드 토글 */}
+            {hasStatusField && onViewModeChange && (
+                <div className="flex items-center border rounded-md">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 rounded-r-none ${viewMode === "flat" ? "bg-accent" : ""}`}
+                        onClick={() => onViewModeChange("flat")}
+                        title="리스트 뷰"
+                    >
+                        <List className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className={`h-8 w-8 rounded-l-none ${viewMode === "grouped" ? "bg-accent" : ""}`}
+                        onClick={() => onViewModeChange("grouped")}
+                        title="그룹 뷰"
+                    >
+                        <LayoutList className="h-4 w-4" />
+                    </Button>
+                </div>
+            )}
 
             {/* 분배순서 필터 */}
             {maxDistributionOrder && maxDistributionOrder > 0 && (
