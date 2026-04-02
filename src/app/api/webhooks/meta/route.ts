@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, records, partitions, workspaces } from "@/lib/db/schema";
+import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, records, partitions, workspaces, organizations } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
@@ -252,14 +252,28 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
     // 8. 필드 기본값 적용
     const finalRecordData = await applyFieldDefaults(integration.partitionId!, recordData);
 
-    // 9. 레코드 생성
+    // 9. 통합코드 생성 + 레코드 생성
     try {
+        const [org] = await db
+            .select({ prefix: organizations.integratedCodePrefix, seq: organizations.integratedCodeSeq })
+            .from(organizations)
+            .where(eq(organizations.id, integration.orgId));
+
+        const newSeq = (org?.seq ?? 0) + 1;
+        const integratedCode = `${org?.prefix || "SALES"}-${newSeq}`;
+
+        await db
+            .update(organizations)
+            .set({ integratedCodeSeq: newSeq })
+            .where(eq(organizations.id, integration.orgId));
+
         const [newRecord] = await db
             .insert(records)
             .values({
                 orgId: integration.orgId,
                 workspaceId: partitionRow.workspaceId,
                 partitionId: integration.partitionId,
+                integratedCode,
                 data: finalRecordData,
                 registeredAt: new Date(),
             })
