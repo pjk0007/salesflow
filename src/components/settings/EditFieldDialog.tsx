@@ -77,6 +77,7 @@ export default function EditFieldDialog({
     const [optionColors, setOptionColors] = useState<Record<string, string>>({});
     const [optionStyle, setOptionStyle] = useState<"pill" | "square">("pill");
     const [newOption, setNewOption] = useState("");
+    const [textColor, setTextColor] = useState("");
     const [isSortable, setIsSortable] = useState(false);
     const [defaultValue, setDefaultValue] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,6 +93,7 @@ export default function EditFieldDialog({
             setOptions(field.options ?? []);
             setOptionColors(field.optionColors ?? {});
             setOptionStyle(field.optionStyle ?? "pill");
+            setTextColor(field.cellClassName ?? "");
             setNewOption("");
         }
     }, [open, field]);
@@ -127,6 +129,7 @@ export default function EditFieldDialog({
                 options: field.fieldType === "select" ? options : undefined,
                 optionColors: field.fieldType === "select" ? optionColors : undefined,
                 optionStyle: field.fieldType === "select" ? optionStyle : undefined,
+                cellClassName: textColor || undefined,
             });
             if (result.success) {
                 toast.success("속성이 수정되었습니다.");
@@ -240,6 +243,36 @@ export default function EditFieldDialog({
                                 />
                             )}
                         </div>
+
+                        {(field.fieldType === "datetime" || field.fieldType === "date") && (
+                            <div className="space-y-1.5">
+                                <Label>텍스트 색상</Label>
+                                <div className="flex items-center gap-2">
+                                    {[
+                                        { label: "기본", value: "", color: undefined },
+                                        { label: "빨강", value: "text-red-500 font-semibold", color: "#ef4444" },
+                                        { label: "주황", value: "text-orange-500 font-semibold", color: "#f97316" },
+                                        { label: "파랑", value: "text-blue-500 font-semibold", color: "#3b82f6" },
+                                        { label: "초록", value: "text-green-500 font-semibold", color: "#22c55e" },
+                                        { label: "보라", value: "text-purple-500 font-semibold", color: "#8b5cf6" },
+                                    ].map((c) => (
+                                        <button
+                                            key={c.label}
+                                            type="button"
+                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors ${textColor === c.value ? "border-foreground bg-accent" : "border-border hover:bg-muted"}`}
+                                            onClick={() => setTextColor(c.value)}
+                                        >
+                                            {c.color ? (
+                                                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: c.color }} />
+                                            ) : (
+                                                <span className="h-3 w-3 rounded-full bg-muted-foreground/30" />
+                                            )}
+                                            {c.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {field.fieldType === "select" && (
                             <div className="space-y-2">

@@ -54,6 +54,7 @@ export default function CreateFieldDialog({
     const [defaultValue, setDefaultValue] = useState("");
     const [options, setOptions] = useState<string[]>([]);
     const [newOption, setNewOption] = useState("");
+    const [textColor, setTextColor] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const resetForm = () => {
@@ -66,6 +67,7 @@ export default function CreateFieldDialog({
         setDefaultValue("");
         setOptions([]);
         setNewOption("");
+        setTextColor("");
     };
 
     const handleOpenChange = (open: boolean) => {
@@ -115,6 +117,7 @@ export default function CreateFieldDialog({
                 isSortable,
                 defaultValue: defaultValue.trim() || undefined,
                 options: fieldType === "select" ? options : undefined,
+                cellClassName: textColor || undefined,
             });
             if (result.success) {
                 toast.success("속성이 추가되었습니다.");
@@ -233,6 +236,36 @@ export default function CreateFieldDialog({
                                 />
                             )}
                         </div>
+
+                        {(fieldType === "datetime" || fieldType === "date") && (
+                            <div className="space-y-1.5">
+                                <Label>텍스트 색상</Label>
+                                <div className="flex items-center gap-2">
+                                    {[
+                                        { label: "기본", value: "", color: undefined },
+                                        { label: "빨강", value: "text-red-500 font-semibold", color: "#ef4444" },
+                                        { label: "주황", value: "text-orange-500 font-semibold", color: "#f97316" },
+                                        { label: "파랑", value: "text-blue-500 font-semibold", color: "#3b82f6" },
+                                        { label: "초록", value: "text-green-500 font-semibold", color: "#22c55e" },
+                                        { label: "보라", value: "text-purple-500 font-semibold", color: "#8b5cf6" },
+                                    ].map((c) => (
+                                        <button
+                                            key={c.label}
+                                            type="button"
+                                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border text-xs transition-colors ${textColor === c.value ? "border-foreground bg-accent" : "border-border hover:bg-muted"}`}
+                                            onClick={() => setTextColor(c.value)}
+                                        >
+                                            {c.color ? (
+                                                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: c.color }} />
+                                            ) : (
+                                                <span className="h-3 w-3 rounded-full bg-muted-foreground/30" />
+                                            )}
+                                            {c.label}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {fieldType === "select" && (
                             <div className="space-y-2">

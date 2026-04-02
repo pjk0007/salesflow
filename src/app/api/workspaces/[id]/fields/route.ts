@@ -77,7 +77,7 @@ export async function POST(
         return NextResponse.json({ success: false, error: "워크스페이스 ID가 필요합니다." }, { status: 400 });
     }
 
-    const { key, label, fieldType, category, isRequired, options } = await req.json();
+    const { key, label, fieldType, category, isRequired, options, cellClassName } = await req.json();
 
     if (!key || !key.trim()) {
         return NextResponse.json({ success: false, error: "key를 입력해주세요." }, { status: 400 });
@@ -126,6 +126,7 @@ export async function POST(
                 defaultWidth: 120,
                 minWidth: 80,
                 options: fieldType === "select" && options?.length ? options : null,
+                cellClassName: cellClassName?.trim() || null,
             })
             .returning({
                 id: fieldDefinitions.id,

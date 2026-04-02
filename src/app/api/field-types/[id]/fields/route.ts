@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, fieldTypes, fieldDefinitions } from "@/lib/db";
-import { eq, and, asc, max } from "drizzle-orm";
+import { db, fieldTypes, fieldDefinitions, partitions, workspaces } from "@/lib/db";
+import { eq, and, asc, max, or, isNull } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 const FIELD_TYPE_TO_CELL_TYPE: Record<string, string> = {
@@ -75,7 +75,7 @@ export async function POST(
         return NextResponse.json({ success: false, error: "타입을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options } = await req.json();
+    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options, cellClassName } = await req.json();
 
     if (!key?.trim() || !label?.trim()) {
         return NextResponse.json({ success: false, error: "key와 라벨을 입력해주세요." }, { status: 400 });
@@ -113,8 +113,48 @@ export async function POST(
                 minWidth: 80,
                 defaultValue: defaultValue?.trim() || null,
                 options: fieldType === "select" && options?.length ? options : null,
+                cellClassName: cellClassName?.trim() || null,
             })
             .returning({ id: fieldDefinitions.id, key: fieldDefinitions.key, label: fieldDefinitions.label });
+
+        // 이 타입을 사용하는 파티션들의 visibleFields에 새 key 추가
+        const newKey = key.trim();
+
+        // 1. fieldTypeId가 직접 이 타입인 파티션
+        // 2. fieldTypeId가 null이고 워크스페이스의 defaultFieldTypeId가 이 타입인 파티션
+        const affectedWorkspaces = await db
+            .select({ id: workspaces.id })
+            .from(workspaces)
+            .where(and(eq(workspaces.defaultFieldTypeId, typeId), eq(workspaces.orgId, user.orgId)));
+
+        const wsIds = affectedWorkspaces.map(w => w.id);
+
+        const partitionList = await db
+            .select({ id: partitions.id, visibleFields: partitions.visibleFields })
+            .from(partitions)
+            .where(
+                or(
+                    eq(partitions.fieldTypeId, typeId),
+                    ...(wsIds.length > 0
+                        ? wsIds.map(wsId =>
+                            and(eq(partitions.workspaceId, wsId), isNull(partitions.fieldTypeId))
+                        )
+                        : [])
+                )
+            );
+
+        for (const p of partitionList) {
+            const currentFields = (p.visibleFields as string[]) || [];
+            if (!currentFields.includes(newKey)) {
+                await db
+                    .update(partitions)
+                    .set({
+                        visibleFields: [...currentFields, newKey],
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(partitions.id, p.id));
+            }
+        }
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error: unknown) {

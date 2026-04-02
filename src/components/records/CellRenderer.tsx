@@ -36,9 +36,13 @@ export default function CellRenderer({ field, value }: CellRendererProps) {
 
         case "datetime":
             try {
-                return <span>{format(new Date(String(value)), "yyyy-MM-dd HH:mm")}</span>;
+                return (
+                    <span className={field.cellClassName || ""}>
+                        {format(new Date(String(value)), "yyyy-MM-dd HH:mm")}
+                    </span>
+                );
             } catch {
-                return <span>{String(value)}</span>;
+                return <span className={field.cellClassName || ""}>{String(value)}</span>;
             }
 
         case "select": {

@@ -280,6 +280,7 @@ export interface CreateFieldInput {
     isSortable?: boolean;
     defaultValue?: string;
     options?: string[];
+    cellClassName?: string;
 }
 
 // 필드 수정 입력
@@ -292,6 +293,7 @@ export interface UpdateFieldInput {
     options?: string[];
     optionColors?: Record<string, string>;
     optionStyle?: "pill" | "square";
+    cellClassName?: string;
     defaultWidth?: number;
 }
 

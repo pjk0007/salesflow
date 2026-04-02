@@ -13,8 +13,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown } from "lucide-react";
-import type { FieldType } from "@/types";
+import { ChevronDown, X } from "lucide-react";
 import CellRenderer from "./CellRenderer";
 import type { FieldDefinition } from "@/types";
 
@@ -114,6 +113,36 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
         );
     }
 
+    // datetime 타입 — datetime-local input + 삭제 버튼
+    if (field.fieldType === "datetime") {
+        const dtVal = value ? String(value) : "";
+        // ISO → datetime-local 포맷 변환
+        const localVal = dtVal ? dtVal.slice(0, 16) : "";
+        return (
+            <div className="flex items-center gap-0.5 group">
+                <Input
+                    type="datetime-local"
+                    value={localVal}
+                    onChange={(e) => {
+                        const v = e.target.value;
+                        onSave(v ? new Date(v).toISOString() : null);
+                    }}
+                    className={`h-7 border-0 shadow-none focus-visible:ring-1 px-1 text-xs ${localVal ? (field.cellClassName || "") : ""}`}
+                />
+                {dtVal && (
+                    <button
+                        type="button"
+                        onClick={() => onSave(null)}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive shrink-0 transition-opacity"
+                        title="삭제"
+                    >
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                )}
+            </div>
+        );
+    }
+
     // 편집 모드
     if (editing) {
         return (
@@ -130,7 +159,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
                 onChange={(e) => setEditValue(e.target.value)}
                 onBlur={handleSave}
                 onKeyDown={handleKeyDown}
-                className="h-7 border-0 shadow-none focus-visible:ring-1 px-1"
+                className={`h-7 border-0 shadow-none focus-visible:ring-1 px-1 ${field.cellClassName || ""}`}
             />
         );
     }
