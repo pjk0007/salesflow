@@ -107,22 +107,40 @@ export async function callGeminiWithSearch(
     userPrompt: string,
     jsonPattern: RegExp
 ): Promise<WebSearchResult> {
-    const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
-        {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                system_instruction: { parts: [{ text: systemPrompt }] },
-                contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-                tools: [{ google_search: {} }],
-            }),
-        }
-    );
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`;
+    const headers = { "Content-Type": "application/json" };
 
+    let response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+            tools: [{ google_search: {} }],
+        }),
+    });
+
+    // 검색 그라운딩 quota 초과 시 검색 없이 fallback
+    let usedSearch = true;
     if (!response.ok) {
         const error = await response.json().catch(() => ({}));
-        throw new Error(error?.error?.message || "Gemini API 호출에 실패했습니다.");
+        const msg = error?.error?.message || "";
+        if (response.status === 429 || msg.includes("quota") || msg.includes("rate")) {
+            console.warn("[AI] 검색 그라운딩 quota 초과, 검색 없이 재시도");
+            usedSearch = false;
+            response = await fetch(url, {
+                method: "POST",
+                headers,
+                body: JSON.stringify({
+                    system_instruction: { parts: [{ text: systemPrompt }] },
+                    contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+                }),
+            });
+        }
+        if (!response.ok) {
+            const fallbackError = usedSearch ? msg : (await response.json().catch(() => ({}))).error?.message;
+            throw new Error(fallbackError || "Gemini API 호출에 실패했습니다.");
+        }
     }
 
     const data = await response.json();
@@ -135,11 +153,13 @@ export async function callGeminiWithSearch(
     const parsed = extractJson(content, jsonPattern);
 
     const sources: Array<{ url: string; title: string }> = [];
-    const grounding = candidate?.groundingMetadata;
-    if (grounding?.groundingChunks) {
-        for (const chunk of grounding.groundingChunks) {
-            if (chunk.web?.uri) {
-                sources.push({ url: chunk.web.uri, title: chunk.web.title || chunk.web.uri });
+    if (usedSearch) {
+        const grounding = candidate?.groundingMetadata;
+        if (grounding?.groundingChunks) {
+            for (const chunk of grounding.groundingChunks) {
+                if (chunk.web?.uri) {
+                    sources.push({ url: chunk.web.uri, title: chunk.web.title || chunk.web.uri });
+                }
             }
         }
     }
