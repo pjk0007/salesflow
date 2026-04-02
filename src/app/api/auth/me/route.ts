@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
         success: true,
         user: {
             ...user,
+            isSuperAdmin: user.isSuperAdmin ?? false,
             onboardingCompleted: org?.onboardingCompleted ?? false,
             organizations: myOrgs,
         },

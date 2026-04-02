@@ -21,6 +21,7 @@ import {
     PanelLeftOpen,
     X,
     History,
+    ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,6 +104,12 @@ function NavLinks({
                 <>
                     <div className="mt-auto border-t pt-2" />
                     {bottomNavItems.map(renderItem)}
+                </>
+            )}
+            {user?.isSuperAdmin && (
+                <>
+                    <div className="border-t pt-2" />
+                    {renderItem({ href: "/admin", label: "Super Admin", icon: ShieldCheck })}
                 </>
             )}
         </nav>

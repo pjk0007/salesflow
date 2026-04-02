@@ -8,6 +8,7 @@ export interface JWTPayload {
   email: string;
   name: string;
   role: OrgRole;
+  isSuperAdmin?: boolean;
 }
 
 // API 응답 타입

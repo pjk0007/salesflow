@@ -58,6 +58,7 @@ export const users = pgTable(
         role: varchar("role", { length: 20 }).default("member").notNull(), // owner | admin | member
         phone: varchar("phone", { length: 20 }),
         isActive: integer("is_active").default(1).notNull(),
+        isSuperAdmin: integer("is_super_admin").default(0).notNull(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },

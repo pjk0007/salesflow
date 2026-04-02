@@ -24,6 +24,7 @@ interface SessionUser {
     name: string;
     email: string;
     role: OrgRole;
+    isSuperAdmin: boolean;
     onboardingCompleted: boolean;
     organizations: SessionOrg[];
 }
@@ -61,6 +62,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                     name: data.user.name,
                     email: data.user.email,
                     role: data.user.role,
+                    isSuperAdmin: data.user.isSuperAdmin === true,
                     onboardingCompleted: data.user.onboardingCompleted ?? false,
                     organizations: data.user.organizations?.map((o: { organizationId: string; orgName: string; orgSlug: string; role: string }) => ({
                         id: o.organizationId,

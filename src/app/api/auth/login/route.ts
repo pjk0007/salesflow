@@ -78,6 +78,7 @@ export async function POST(req: NextRequest) {
             email: user.email,
             name: user.name,
             role: selectedOrg.role as "owner" | "admin" | "member",
+            ...(user.isSuperAdmin === 1 && { isSuperAdmin: true }),
         };
 
         const token = generateToken(payload);
