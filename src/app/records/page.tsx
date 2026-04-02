@@ -135,6 +135,18 @@ export default function RecordsPage() {
         localStorage.removeItem("records_last_partition");
     }, []);
 
+    // 파티션 미선택 시 첫 번째 파티션 자동 선택
+    useEffect(() => {
+        if (partitionId || !partitionTree) return;
+        const allPartitions = [
+            ...partitionTree.ungrouped,
+            ...partitionTree.folders.flatMap((f) => f.partitions),
+        ];
+        if (allPartitions.length > 0) {
+            handlePartitionSelect(allPartitions[0].id);
+        }
+    }, [partitionId, partitionTree]);
+
     // 파티션 변경 시 초기화
     const handlePartitionSelect = useCallback((id: number) => {
         setPartitionId(id);
