@@ -1,5 +1,4 @@
 import { format } from "date-fns";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { FieldDefinition } from "@/types";
 
@@ -42,15 +41,22 @@ export default function CellRenderer({ field, value }: CellRendererProps) {
                 return <span>{String(value)}</span>;
             }
 
-        case "select":
-            if (field.cellType === "selectWithStatusBg") {
-                return (
-                    <Badge variant="secondary">
-                        {String(value)}
-                    </Badge>
-                );
-            }
-            return <span>{String(value)}</span>;
+        case "select": {
+            const strVal = String(value);
+            const color = field.optionColors?.[strVal];
+            const isSquare = field.optionStyle === "square";
+            return (
+                <span
+                    className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${isSquare ? "rounded" : "rounded-full"}`}
+                    style={{
+                        backgroundColor: color || "#6b7280",
+                        color: "#fff",
+                    }}
+                >
+                    {strVal}
+                </span>
+            );
+        }
 
         case "number":
             return <span className="tabular-nums">{Number(value).toLocaleString()}</span>;

@@ -7,7 +7,13 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown } from "lucide-react";
 import type { FieldType } from "@/types";
 import CellRenderer from "./CellRenderer";
 import type { FieldDefinition } from "@/types";
@@ -70,6 +76,25 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
 
     // Select 타입
     if (field.fieldType === "select" && field.options) {
+        const colors = field.optionColors;
+        const currentColor = colors?.[String(value ?? "")];
+        const hasColors = colors && Object.keys(colors).length > 0;
+
+        // 색상이 있으면 Popover로 배지 드롭다운
+        if (hasColors) {
+            return (
+                <SelectBadgeDropdown
+                    value={String(value ?? "")}
+                    options={field.options}
+                    colors={colors}
+                    currentColor={currentColor}
+                    isSquare={field.optionStyle === "square"}
+                    onSelect={(v) => onSave(v)}
+                />
+            );
+        }
+
+        // 색상 없으면 기본 Select
         return (
             <Select
                 value={String(value ?? "")}
@@ -121,5 +146,77 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
         >
             <CellRenderer field={field} value={value} />
         </div>
+    );
+}
+
+function SelectBadgeDropdown({
+    value,
+    options,
+    colors,
+    currentColor,
+    isSquare,
+    onSelect,
+}: {
+    value: string;
+    options: string[];
+    colors: Record<string, string>;
+    currentColor?: string;
+    isSquare?: boolean;
+    onSelect: (v: string) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const badgeRadius = isSquare ? "rounded" : "rounded-full";
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button
+                    type="button"
+                    className="flex items-center gap-1 px-1 py-0.5 min-h-[28px] rounded hover:bg-muted/50 w-full"
+                >
+                    {value ? (
+                        <span
+                            className={`inline-flex items-center ${badgeRadius} px-2 py-0.5 text-xs font-medium whitespace-nowrap`}
+                            style={{
+                                backgroundColor: currentColor || "#6b7280",
+                                color: "#fff",
+                            }}
+                        >
+                            {value}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                    <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0 ml-auto" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto min-w-[120px] p-1" align="start">
+                <div className="flex flex-col gap-0.5">
+                    {options.map((opt) => {
+                        const optColor = colors[opt];
+                        return (
+                            <button
+                                key={opt}
+                                type="button"
+                                className="flex items-center px-2 py-1.5 rounded hover:bg-muted/50 text-left"
+                                onClick={() => {
+                                    onSelect(opt);
+                                    setOpen(false);
+                                }}
+                            >
+                                <span
+                                    className={`inline-flex items-center ${badgeRadius} px-2 py-0.5 text-xs font-medium`}
+                                    style={{
+                                        backgroundColor: optColor || "#6b7280",
+                                        color: "#fff",
+                                    }}
+                                >
+                                    {opt}
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            </PopoverContent>
+        </Popover>
     );
 }

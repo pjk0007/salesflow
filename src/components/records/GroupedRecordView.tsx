@@ -39,7 +39,7 @@ interface GroupedRecordViewProps {
     onCreateWithStatus?: (statusValue: string) => void;
 }
 
-// 상태 옵션별 기본 색상 (options에 색상이 없을 때)
+// 색상이 지정되지 않은 옵션의 기본 색상
 const DEFAULT_COLORS = [
     "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444",
     "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
@@ -50,6 +50,7 @@ function groupRecordsByStatus(
     field: FieldDefinition,
 ): StatusGroup[] {
     const options = field.options ?? [];
+    const colors = field.optionColors ?? {};
     const fieldKey = field.key;
 
     // 옵션별 그룹 초기화
@@ -67,7 +68,6 @@ function groupRecordsByStatus(
         if (val && groupMap.has(val)) {
             groupMap.get(val)!.push(record);
         } else if (val) {
-            // options에 없는 값
             if (!groupMap.has(val)) groupMap.set(val, []);
             groupMap.get(val)!.push(record);
         } else {
@@ -77,7 +77,7 @@ function groupRecordsByStatus(
 
     const groups: StatusGroup[] = [];
 
-    // 옵션 순서대로 그룹 생성
+    // 옵션 순서대로 그룹 생성 (optionColors 우선, 없으면 기본 팔레트)
     for (let i = 0; i < options.length; i++) {
         const opt = options[i];
         const recs = groupMap.get(opt) ?? [];
@@ -85,7 +85,7 @@ function groupRecordsByStatus(
         groups.push({
             statusValue: opt,
             statusLabel: opt,
-            statusColor: DEFAULT_COLORS[i % DEFAULT_COLORS.length],
+            statusColor: colors[opt] || DEFAULT_COLORS[i % DEFAULT_COLORS.length],
             records: recs,
             count: recs.length,
         });
@@ -97,7 +97,7 @@ function groupRecordsByStatus(
         groups.push({
             statusValue: val,
             statusLabel: val,
-            statusColor: "#9ca3af",
+            statusColor: colors[val] || "#9ca3af",
             records: recs,
             count: recs.length,
         });
@@ -186,6 +186,7 @@ export default function GroupedRecordView({
                         onSortChange={onSortChange}
                         duplicateHighlight={duplicateHighlight}
                         onCreateWithStatus={onCreateWithStatus}
+                        isSquare={groupByField.optionStyle === "square"}
                     />
                 ))}
             </div>

@@ -131,6 +131,8 @@ export const fieldDefinitions = pgTable(
         cellClassName: varchar("cell_class_name", { length: 100 }),
         // Select/Status 옵션
         options: jsonb("options").$type<string[]>(),
+        optionColors: jsonb("option_colors").$type<Record<string, string>>(),
+        optionStyle: varchar("option_style", { length: 10 }), // "pill" | "square"
         statusOptionCategoryId: integer("status_option_category_id"),
         // 기본값 (레코드 생성 시 자동 적용)
         defaultValue: varchar("default_value", { length: 500 }),

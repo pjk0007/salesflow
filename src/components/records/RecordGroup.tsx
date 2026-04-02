@@ -25,6 +25,7 @@ interface RecordGroupProps {
     duplicateHighlight?: { color: string; ids: Set<number> } | null;
     onCreateWithStatus?: (statusValue: string) => void;
     defaultCollapsed?: boolean;
+    isSquare?: boolean;
 }
 
 export default function RecordGroup({
@@ -45,6 +46,7 @@ export default function RecordGroup({
     duplicateHighlight,
     onCreateWithStatus,
     defaultCollapsed = false,
+    isSquare,
 }: RecordGroupProps) {
     const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
@@ -62,10 +64,14 @@ export default function RecordGroup({
                     <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
                 <span
-                    className="h-2.5 w-2.5 rounded-full shrink-0"
-                    style={{ backgroundColor: statusColor || "#9ca3af" }}
-                />
-                <span className="font-medium text-sm">{statusLabel}</span>
+                    className={`inline-flex items-center px-2.5 py-0.5 text-xs font-medium ${isSquare ? "rounded" : "rounded-full"}`}
+                    style={{
+                        backgroundColor: statusColor || "#9ca3af",
+                        color: "#fff",
+                    }}
+                >
+                    {statusLabel}
+                </span>
                 <span className="text-xs text-muted-foreground">{count}</span>
             </button>
 

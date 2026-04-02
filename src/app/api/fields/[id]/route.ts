@@ -42,7 +42,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 필드 ID입니다." }, { status: 400 });
     }
 
-    const { label, category, isRequired, isSortable, defaultValue, options, defaultWidth } = await req.json();
+    const { label, category, isRequired, isSortable, defaultValue, options, optionColors, optionStyle, defaultWidth } = await req.json();
 
     try {
         const access = await verifyOwnership(fieldId, user.orgId);
@@ -66,6 +66,12 @@ export async function PATCH(
         }
         if (options !== undefined) {
             updates.options = Array.isArray(options) && options.length > 0 ? options : null;
+        }
+        if (optionColors !== undefined) {
+            updates.optionColors = optionColors && typeof optionColors === "object" ? optionColors : null;
+        }
+        if (optionStyle !== undefined) {
+            updates.optionStyle = optionStyle === "pill" || optionStyle === "square" ? optionStyle : null;
         }
         if (defaultWidth !== undefined) {
             updates.defaultWidth = Math.max(40, Number(defaultWidth) || 120);

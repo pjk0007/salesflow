@@ -18,9 +18,27 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { X } from "lucide-react";
+import { X, Palette } from "lucide-react";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { toast } from "sonner";
 import type { FieldDefinition, UpdateFieldInput } from "@/types";
+
+const OPTION_COLOR_PALETTE = [
+    { label: "회색", value: "#9ca3af" },
+    { label: "빨강", value: "#ef4444" },
+    { label: "주황", value: "#f97316" },
+    { label: "노랑", value: "#f59e0b" },
+    { label: "초록", value: "#22c55e" },
+    { label: "청록", value: "#06b6d4" },
+    { label: "파랑", value: "#3b82f6" },
+    { label: "남색", value: "#6366f1" },
+    { label: "보라", value: "#8b5cf6" },
+    { label: "분홍", value: "#ec4899" },
+];
 
 const FIELD_TYPE_LABELS: Record<string, string> = {
     text: "텍스트",
@@ -56,6 +74,8 @@ export default function EditFieldDialog({
     const [defaultWidth, setDefaultWidth] = useState(120);
     const [isRequired, setIsRequired] = useState(false);
     const [options, setOptions] = useState<string[]>([]);
+    const [optionColors, setOptionColors] = useState<Record<string, string>>({});
+    const [optionStyle, setOptionStyle] = useState<"pill" | "square">("pill");
     const [newOption, setNewOption] = useState("");
     const [isSortable, setIsSortable] = useState(false);
     const [defaultValue, setDefaultValue] = useState("");
@@ -70,6 +90,8 @@ export default function EditFieldDialog({
             setIsSortable(!!field.isSortable);
             setDefaultValue(field.defaultValue ?? "");
             setOptions(field.options ?? []);
+            setOptionColors(field.optionColors ?? {});
+            setOptionStyle(field.optionStyle ?? "pill");
             setNewOption("");
         }
     }, [open, field]);
@@ -103,6 +125,8 @@ export default function EditFieldDialog({
                 defaultValue: defaultValue.trim() || undefined,
                 defaultWidth,
                 options: field.fieldType === "select" ? options : undefined,
+                optionColors: field.fieldType === "select" ? optionColors : undefined,
+                optionStyle: field.fieldType === "select" ? optionStyle : undefined,
             });
             if (result.success) {
                 toast.success("속성이 수정되었습니다.");
@@ -219,7 +243,25 @@ export default function EditFieldDialog({
 
                         {field.fieldType === "select" && (
                             <div className="space-y-2">
-                                <Label>옵션</Label>
+                                <div className="flex items-center justify-between">
+                                    <Label>옵션</Label>
+                                    <div className="flex items-center gap-1 border rounded-md p-0.5">
+                                        <button
+                                            type="button"
+                                            className={`px-2 py-0.5 text-xs rounded transition-colors ${optionStyle === "pill" ? "bg-accent font-medium" : "hover:bg-muted"}`}
+                                            onClick={() => setOptionStyle("pill")}
+                                        >
+                                            <span className="inline-flex items-center rounded-full bg-foreground/15 px-1.5 py-px text-[10px]">둥근</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className={`px-2 py-0.5 text-xs rounded transition-colors ${optionStyle === "square" ? "bg-accent font-medium" : "hover:bg-muted"}`}
+                                            onClick={() => setOptionStyle("square")}
+                                        >
+                                            <span className="inline-flex items-center rounded bg-foreground/15 px-1.5 py-px text-[10px]">네모</span>
+                                        </button>
+                                    </div>
+                                </div>
                                 <div className="flex gap-2">
                                     <Input
                                         value={newOption}
@@ -241,8 +283,45 @@ export default function EditFieldDialog({
                                         {options.map((opt, i) => (
                                             <span
                                                 key={i}
-                                                className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-sm"
+                                                className={`inline-flex items-center gap-1 px-2 py-1 text-sm ${optionStyle === "square" ? "rounded" : "rounded-full"}`}
+                                                style={{
+                                                    backgroundColor: optionColors[opt] || "#6b7280",
+                                                    color: "#fff",
+                                                }}
                                             >
+                                                <Popover>
+                                                    <PopoverTrigger asChild>
+                                                        <button
+                                                            type="button"
+                                                            className="shrink-0 rounded-full border border-border hover:scale-110 transition-transform"
+                                                            style={{
+                                                                width: 14,
+                                                                height: 14,
+                                                                backgroundColor: optionColors[opt] || "#9ca3af",
+                                                            }}
+                                                            title="색상 변경"
+                                                        />
+                                                    </PopoverTrigger>
+                                                    <PopoverContent className="w-auto p-2" align="start">
+                                                        <div className="grid grid-cols-5 gap-1.5">
+                                                            {OPTION_COLOR_PALETTE.map((c) => (
+                                                                <button
+                                                                    key={c.value}
+                                                                    type="button"
+                                                                    className="w-6 h-6 rounded-full border-2 hover:scale-110 transition-transform"
+                                                                    style={{
+                                                                        backgroundColor: c.value,
+                                                                        borderColor: optionColors[opt] === c.value ? "var(--foreground)" : "transparent",
+                                                                    }}
+                                                                    title={c.label}
+                                                                    onClick={() =>
+                                                                        setOptionColors((prev) => ({ ...prev, [opt]: c.value }))
+                                                                    }
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    </PopoverContent>
+                                                </Popover>
                                                 {opt}
                                                 <button
                                                     type="button"

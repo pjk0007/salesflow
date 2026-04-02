@@ -86,6 +86,8 @@ export interface FieldDefinition {
   cellType: CellType | null;
   cellClassName: string | null;
   options: string[] | null;
+  optionColors: Record<string, string> | null;
+  optionStyle: "pill" | "square" | null;
   statusOptionCategoryId: number | null;
   defaultValue: string | null;
   formulaConfig: FormulaConfig | null;
@@ -288,6 +290,8 @@ export interface UpdateFieldInput {
     isSortable?: boolean;
     defaultValue?: string;
     options?: string[];
+    optionColors?: Record<string, string>;
+    optionStyle?: "pill" | "square";
     defaultWidth?: number;
 }
 
