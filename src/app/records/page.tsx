@@ -272,6 +272,22 @@ export default function RecordsPage() {
           ].find((p) => p.id === partitionId)
         : null;
 
+    // 컬럼 표시/숨기기 토글
+    const handleToggleColumn = useCallback(async (fieldKey: string, visible: boolean) => {
+        if (!partitionId || !currentPartition) return;
+        const currentFields = (currentPartition.visibleFields as string[]) || fields.map(f => f.key);
+        const newFields = visible
+            ? [...currentFields, fieldKey]
+            : currentFields.filter(k => k !== fieldKey);
+        const res = await fetch(`/api/partitions/${partitionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", "x-session-id": sessionIdRef.current },
+            body: JSON.stringify({ visibleFields: newFields }),
+        });
+        const json = await res.json();
+        if (json.success) mutatePartitions();
+    }, [partitionId, currentPartition, fields, mutatePartitions]);
+
     // 폴더 목록 (CreatePartitionDialog용)
     const folderList = partitionTree?.folders.map((f) => ({ id: f.id, name: f.name })) ?? [];
 
@@ -362,6 +378,9 @@ export default function RecordsPage() {
                                 viewMode={viewMode}
                                 onViewModeChange={handleViewModeChange}
                                 hasStatusField={!!statusField}
+                                visibleFieldKeys={currentPartition?.visibleFields ?? null}
+                                allFields={fields}
+                                onToggleColumn={handleToggleColumn}
                             />
                             {viewMode === "grouped" && statusField ? (
                                 <GroupedRecordView

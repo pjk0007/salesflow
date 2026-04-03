@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from "lucide-react";
 import InlineEditCell from "./InlineEditCell";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
@@ -61,6 +61,12 @@ export default function RecordTable({
         }
         return fields;
     }, [fields, visibleFieldKeys]);
+
+    // 열기 버튼이 들어갈 첫 번째 text 필드 key
+    const openBtnFieldKey = useMemo(() =>
+        displayFields.find(f => f.fieldType === "text")?.key ?? null,
+        [displayFields]
+    );
 
     const allSelected = records.length > 0 && records.every((r) => selectedIds.has(r.id));
 
@@ -141,8 +147,11 @@ export default function RecordTable({
                             {displayFields.map((field) => (
                                 <TableHead
                                     key={field.key}
-                                    style={{ minWidth: field.minWidth, width: field.defaultWidth }}
-                                    className={!!field.isSortable ? "cursor-pointer select-none" : undefined}
+                                    style={{
+                                        minWidth: field.key === openBtnFieldKey ? (field.minWidth || 80) + 60 : field.minWidth,
+                                        width: field.key === openBtnFieldKey ? (field.defaultWidth || 120) + 60 : field.defaultWidth,
+                                    }}
+                                    className={!!field.isSortable ? "cursor-pointer select-none" : "select-none"}
                                     onClick={!!field.isSortable ? () => handleSort(field.key) : undefined}
                                 >
                                     <span className="flex items-center gap-1">
@@ -156,10 +165,12 @@ export default function RecordTable({
                     <TableBody>
                         {records.map((record) => {
                             const data = record.data as Record<string, unknown>;
+                            let openBtnPlaced = false;
                             return (
                                 <TableRow
                                     key={record.id}
                                     data-state={selectedIds.has(record.id) ? "selected" : undefined}
+                                    className="group"
                                     style={
                                         duplicateHighlight?.ids.has(record.id)
                                             ? { backgroundColor: duplicateHighlight.color + "33" }
@@ -178,15 +189,33 @@ export default function RecordTable({
                                     >
                                         {record.integratedCode}
                                     </TableCell>
-                                    {displayFields.map((field) => (
-                                        <TableCell key={field.key} className="p-1">
-                                            <InlineEditCell
-                                                field={field}
-                                                value={data[field.key]}
-                                                onSave={(val) => handleCellSave(record.id, field.key, val)}
-                                            />
-                                        </TableCell>
-                                    ))}
+                                    {displayFields.map((field) => {
+                                        const isOpenTarget = field.fieldType === "text" && !openBtnPlaced;
+                                        if (isOpenTarget) openBtnPlaced = true;
+                                        return (
+                                            <TableCell
+                                                key={field.key}
+                                                className={`p-1 ${isOpenTarget ? "relative" : ""}`}
+                                                style={isOpenTarget ? { minWidth: (field.minWidth || 80) + 60, width: (field.defaultWidth || 120) + 60 } : undefined}
+                                            >
+                                                <InlineEditCell
+                                                    field={field}
+                                                    value={data[field.key]}
+                                                    onSave={(val) => handleCellSave(record.id, field.key, val)}
+                                                />
+                                                {isOpenTarget && (
+                                                    <button
+                                                        type="button"
+                                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-md bg-muted border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
+                                                        onClick={() => onRecordClick?.(record)}
+                                                    >
+                                                        <ExternalLink className="h-3.5 w-3.5" />
+                                                        열기
+                                                    </button>
+                                                )}
+                                            </TableCell>
+                                        );
+                                    })}
                                 </TableRow>
                             );
                         })}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Trash2, MessageSquare, Mail, Download, Upload, List, LayoutList } from "lucide-react";
+import { Search, Plus, Trash2, MessageSquare, Mail, Download, Upload, List, LayoutList, SlidersHorizontal, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,11 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import FilterBuilder from "./FilterBuilder";
 import type { FieldDefinition, FilterCondition } from "@/types";
 
@@ -31,6 +36,10 @@ interface RecordToolbarProps {
     viewMode?: "flat" | "grouped";
     onViewModeChange?: (mode: "flat" | "grouped") => void;
     hasStatusField?: boolean;
+    // 컬럼 표시 관리
+    visibleFieldKeys: string[] | null;
+    allFields: FieldDefinition[];
+    onToggleColumn?: (fieldKey: string, visible: boolean) => void;
 }
 
 export default function RecordToolbar({
@@ -51,6 +60,9 @@ export default function RecordToolbar({
     viewMode,
     onViewModeChange,
     hasStatusField,
+    visibleFieldKeys,
+    allFields,
+    onToggleColumn,
 }: RecordToolbarProps) {
     const [searchInput, setSearchInput] = useState("");
 
@@ -104,6 +116,15 @@ export default function RecordToolbar({
                         <LayoutList className="h-4 w-4" />
                     </Button>
                 </div>
+            )}
+
+            {/* 테이블 설정 */}
+            {onToggleColumn && (
+                <TableSettingsPopover
+                    allFields={allFields}
+                    visibleFieldKeys={visibleFieldKeys}
+                    onToggleColumn={onToggleColumn}
+                />
             )}
 
             {/* 분배순서 필터 */}
@@ -197,5 +218,74 @@ export default function RecordToolbar({
                 추가
             </Button>
         </div>
+    );
+}
+
+function TableSettingsPopover({
+    allFields,
+    visibleFieldKeys,
+    onToggleColumn,
+}: {
+    allFields: FieldDefinition[];
+    visibleFieldKeys: string[] | null;
+    onToggleColumn: (fieldKey: string, visible: boolean) => void;
+}) {
+    const [view, setView] = useState<"menu" | "columns">("menu");
+
+    return (
+        <Popover onOpenChange={(open) => { if (!open) setView("menu"); }}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="h-8 w-8" title="테이블 설정">
+                    <SlidersHorizontal className="h-4 w-4" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64 p-0" align="start">
+                {view === "menu" ? (
+                    <div className="py-1">
+                        <button
+                            type="button"
+                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted/50"
+                            onClick={() => setView("columns")}
+                        >
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                            속성 표시 여부
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex items-center gap-2 px-3 py-2 border-b">
+                            <button
+                                type="button"
+                                className="text-muted-foreground hover:text-foreground"
+                                onClick={() => setView("menu")}
+                            >
+                                ←
+                            </button>
+                            <p className="text-sm font-medium">속성 표시 여부</p>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto py-1">
+                            {allFields.map((f) => {
+                                const isVisible = !visibleFieldKeys || visibleFieldKeys.includes(f.key);
+                                return (
+                                    <button
+                                        key={f.key}
+                                        type="button"
+                                        className="flex items-center justify-between w-full px-3 py-1.5 text-sm hover:bg-muted/50"
+                                        onClick={() => onToggleColumn(f.key, !isVisible)}
+                                    >
+                                        <span className="truncate">{f.label}</span>
+                                        {isVisible ? (
+                                            <Eye className="h-4 w-4 text-muted-foreground shrink-0" />
+                                        ) : (
+                                            <EyeOff className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                                        )}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </>
+                )}
+            </PopoverContent>
+        </Popover>
     );
 }
