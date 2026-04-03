@@ -148,8 +148,8 @@ export default function RecordTable({
                                 <TableHead
                                     key={field.key}
                                     style={{
-                                        minWidth: field.key === openBtnFieldKey ? (field.minWidth || 80) + 60 : field.minWidth,
-                                        width: field.key === openBtnFieldKey ? (field.defaultWidth || 120) + 60 : field.defaultWidth,
+                                        minWidth: field.key === openBtnFieldKey ? 200 : field.minWidth,
+                                        width: field.key === openBtnFieldKey ? Math.max(field.defaultWidth || 120, 200) : field.defaultWidth,
                                     }}
                                     className={!!field.isSortable ? "cursor-pointer select-none" : "select-none"}
                                     onClick={!!field.isSortable ? () => handleSort(field.key) : undefined}
@@ -195,37 +195,47 @@ export default function RecordTable({
                                         return (
                                             <TableCell
                                                 key={field.key}
-                                                className={`p-1 ${isOpenTarget ? "relative" : ""}`}
-                                                style={isOpenTarget ? { minWidth: (field.minWidth || 80) + 60, width: (field.defaultWidth || 120) + 60 } : undefined}
+                                                className="p-1"
+                                                style={isOpenTarget ? { minWidth: 200 } : undefined}
                                             >
-                                                <InlineEditCell
-                                                    field={field}
-                                                    value={data[field.key]}
-                                                    onSave={(val) => handleCellSave(record.id, field.key, val)}
-                                                />
-                                                {isOpenTarget && (
-                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                                                        {(() => {
-                                                            const mc = (record as Record<string, unknown>).memoCount as number;
-                                                            return mc > 0 ? (
-                                                                <span
-                                                                    className="inline-flex items-center gap-0.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground"
-                                                                    onClick={() => onRecordClick?.(record)}
-                                                                >
-                                                                    <MessageSquareText className="h-3.5 w-3.5" />
-                                                                    {mc}
-                                                                </span>
-                                                            ) : null;
-                                                        })()}
-                                                        <button
-                                                            type="button"
-                                                            className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-md bg-muted border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
-                                                            onClick={() => onRecordClick?.(record)}
-                                                        >
-                                                            <ExternalLink className="h-3.5 w-3.5" />
-                                                            열기
-                                                        </button>
+                                                {isOpenTarget ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="flex-1 min-w-0">
+                                                            <InlineEditCell
+                                                                field={field}
+                                                                value={data[field.key]}
+                                                                onSave={(val) => handleCellSave(record.id, field.key, val)}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center gap-1 shrink-0">
+                                                            {(() => {
+                                                                const mc = (record as Record<string, unknown>).memoCount as number;
+                                                                return mc > 0 ? (
+                                                                    <span
+                                                                        className="inline-flex items-center gap-0.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground"
+                                                                        onClick={() => onRecordClick?.(record)}
+                                                                    >
+                                                                        <MessageSquareText className="h-3.5 w-3.5" />
+                                                                        {mc}
+                                                                    </span>
+                                                                ) : null;
+                                                            })()}
+                                                            <button
+                                                                type="button"
+                                                                className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-md bg-muted border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
+                                                                onClick={() => onRecordClick?.(record)}
+                                                            >
+                                                                <ExternalLink className="h-3.5 w-3.5" />
+                                                                열기
+                                                            </button>
+                                                        </div>
                                                     </div>
+                                                ) : (
+                                                    <InlineEditCell
+                                                        field={field}
+                                                        value={data[field.key]}
+                                                        onSave={(val) => handleCellSave(record.id, field.key, val)}
+                                                    />
                                                 )}
                                             </TableCell>
                                         );

@@ -5,9 +5,10 @@ import type { FieldDefinition } from "@/types";
 interface CellRendererProps {
     field: FieldDefinition;
     value: unknown;
+    fullText?: boolean;
 }
 
-export default function CellRenderer({ field, value }: CellRendererProps) {
+export default function CellRenderer({ field, value, fullText }: CellRendererProps) {
     if (value === null || value === undefined || value === "") {
         return <span className="text-muted-foreground">-</span>;
     }
@@ -90,7 +91,7 @@ export default function CellRenderer({ field, value }: CellRendererProps) {
 
         case "textarea":
             return (
-                <span className="truncate block max-w-[200px]" title={String(value)}>
+                <span className={fullText ? "block whitespace-pre-wrap" : "truncate block max-w-75"} title={String(value)}>
                     {String(value)}
                 </span>
             );

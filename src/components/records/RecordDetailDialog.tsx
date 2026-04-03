@@ -82,7 +82,7 @@ export default function RecordDetailDialog({
                                         {field.label}
                                     </span>
                                     <span className="col-span-2 text-sm">
-                                        <CellRenderer field={field} value={data[field.key]} />
+                                        <CellRenderer field={field} value={data[field.key]} fullText />
                                     </span>
                                 </div>
                             ))}
