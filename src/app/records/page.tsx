@@ -426,6 +426,7 @@ export default function RecordsPage() {
                                     pageSize={pageSize}
                                     onPageChange={setPage}
                                     duplicateHighlight={duplicateHighlight}
+                                    onMemoChange={() => mutateRecords()}
                                 />
                             )}
                         </>

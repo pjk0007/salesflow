@@ -3,8 +3,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, MessageSquareText } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from "lucide-react";
 import InlineEditCell from "./InlineEditCell";
+import MemoPopover from "./MemoPopover";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
@@ -31,6 +32,8 @@ interface RecordTableProps {
     duplicateHighlight?: { color: string; ids: Set<number> } | null;
     // 그룹 뷰에서 사용 시 페이지네이션 숨김
     compact?: boolean;
+    // 댓글 변경 시 목록 리프레시
+    onMemoChange?: () => void;
 }
 
 export default function RecordTable({
@@ -52,6 +55,7 @@ export default function RecordTable({
     onPageChange,
     duplicateHighlight,
     compact,
+    onMemoChange,
 }: RecordTableProps) {
     // 표시할 필드 결정 (순서는 fields의 sortOrder 기준)
     const displayFields = useMemo(() => {
@@ -207,17 +211,15 @@ export default function RecordTable({
                                                                 onSave={(val) => handleCellSave(record.id, field.key, val)}
                                                             />
                                                         </div>
-                                                        <div className="flex items-center gap-1 shrink-0">
+                                                        <div className="flex items-center gap-2.5 shrink-0">
                                                             {(() => {
                                                                 const mc = (record as Record<string, unknown>).memoCount as number;
                                                                 return mc > 0 ? (
-                                                                    <span
-                                                                        className="inline-flex items-center gap-0.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground"
-                                                                        onClick={() => onRecordClick?.(record)}
-                                                                    >
-                                                                        <MessageSquareText className="h-3.5 w-3.5" />
-                                                                        {mc}
-                                                                    </span>
+                                                                    <MemoPopover
+                                                                        recordId={record.id}
+                                                                        memoCount={mc}
+                                                                        onMemoChange={onMemoChange}
+                                                                    />
                                                                 ) : null;
                                                             })()}
                                                             <button
