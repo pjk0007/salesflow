@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces, organizations, fieldDefinitions } from "@/lib/db";
+import { db, records, partitions, workspaces, organizations, fieldDefinitions, memos } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
@@ -162,10 +162,29 @@ export async function GET(
             .where(whereClause);
         const total = totalResult?.value ?? 0;
 
-        // 레코드 목록
+        // 레코드 목록 (댓글 수 포함)
+        const memoCountSq = db
+            .select({ recordId: memos.recordId, cnt: count().as("cnt") })
+            .from(memos)
+            .groupBy(memos.recordId)
+            .as("memo_count");
+
         const data = await db
-            .select()
+            .select({
+                id: records.id,
+                orgId: records.orgId,
+                workspaceId: records.workspaceId,
+                partitionId: records.partitionId,
+                integratedCode: records.integratedCode,
+                data: records.data,
+                distributionOrder: records.distributionOrder,
+                registeredAt: records.registeredAt,
+                createdAt: records.createdAt,
+                updatedAt: records.updatedAt,
+                memoCount: sql<number>`COALESCE(${memoCountSq.cnt}, 0)`.as("memo_count"),
+            })
             .from(records)
+            .leftJoin(memoCountSq, eq(records.id, memoCountSq.recordId))
             .where(whereClause)
             .orderBy(orderBy)
             .limit(pageSize)

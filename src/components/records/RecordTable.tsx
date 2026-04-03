@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, MessageSquareText } from "lucide-react";
 import InlineEditCell from "./InlineEditCell";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
@@ -204,14 +204,28 @@ export default function RecordTable({
                                                     onSave={(val) => handleCellSave(record.id, field.key, val)}
                                                 />
                                                 {isOpenTarget && (
-                                                    <button
-                                                        type="button"
-                                                        className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-md bg-muted border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
-                                                        onClick={() => onRecordClick?.(record)}
-                                                    >
-                                                        <ExternalLink className="h-3.5 w-3.5" />
-                                                        열기
-                                                    </button>
+                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                                                        {(() => {
+                                                            const mc = (record as Record<string, unknown>).memoCount as number;
+                                                            return mc > 0 ? (
+                                                                <span
+                                                                    className="inline-flex items-center gap-0.5 text-xs text-muted-foreground cursor-pointer hover:text-foreground"
+                                                                    onClick={() => onRecordClick?.(record)}
+                                                                >
+                                                                    <MessageSquareText className="h-3.5 w-3.5" />
+                                                                    {mc}
+                                                                </span>
+                                                            ) : null;
+                                                        })()}
+                                                        <button
+                                                            type="button"
+                                                            className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-md bg-muted border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
+                                                            onClick={() => onRecordClick?.(record)}
+                                                        >
+                                                            <ExternalLink className="h-3.5 w-3.5" />
+                                                            열기
+                                                        </button>
+                                                    </div>
                                                 )}
                                             </TableCell>
                                         );

@@ -19,9 +19,10 @@ import { useMemos, type MemoItem } from "../hooks/useMemos";
 
 interface MemoSectionProps {
     recordId: number;
+    onMemoChange?: () => void;
 }
 
-export default function MemoSection({ recordId }: MemoSectionProps) {
+export default function MemoSection({ recordId, onMemoChange }: MemoSectionProps) {
     const { memos, isLoading, addMemo, deleteMemo } = useMemos(recordId);
     const [content, setContent] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,6 +35,7 @@ export default function MemoSection({ recordId }: MemoSectionProps) {
             await addMemo(content.trim());
             setContent("");
             toast.success("메모가 추가되었습니다.");
+            onMemoChange?.();
         } catch {
             toast.error("메모 추가에 실패했습니다.");
         } finally {
@@ -47,6 +49,7 @@ export default function MemoSection({ recordId }: MemoSectionProps) {
             await deleteMemo(deleteTarget.id);
             setDeleteTarget(null);
             toast.success("메모가 삭제되었습니다.");
+            onMemoChange?.();
         } catch {
             toast.error("메모 삭제에 실패했습니다.");
         }

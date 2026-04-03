@@ -99,7 +99,7 @@ export default function RecordDetailDialog({
                         )}
 
                         {/* 메모 */}
-                        <MemoSection recordId={record.id} />
+                        <MemoSection recordId={record.id} onMemoChange={() => onRecordUpdated?.()} />
 
                         {/* 발송 이력 */}
                         <div className="space-y-2">
