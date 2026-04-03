@@ -47,7 +47,8 @@ export default function RecordsPage() {
     const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
     const [viewMode, setViewMode] = useState<"flat" | "grouped">(() => {
         if (typeof window === "undefined") return "flat";
-        return (localStorage.getItem("records_view_mode") as "flat" | "grouped") || "flat";
+        const saved = localStorage.getItem("records_view_mode") as "flat" | "grouped" | null;
+        return saved || "flat";
     });
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -258,6 +259,13 @@ export default function RecordsPage() {
         fields.find(f => f.isGroupable && f.fieldType === "select" && f.options && f.options.length > 0),
         [fields]
     );
+
+    // isGroupable 필드가 있으면 그룹 뷰 기본
+    useEffect(() => {
+        if (!localStorage.getItem("records_view_mode") && statusField) {
+            setViewMode("grouped");
+        }
+    }, [statusField]);
 
     const handleViewModeChange = useCallback((mode: "flat" | "grouped") => {
         setViewMode(mode);
