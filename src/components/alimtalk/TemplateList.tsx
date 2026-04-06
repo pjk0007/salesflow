@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useState, useMemo } from "react";
+import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
-import { useAlimtalkConfig } from "@/hooks/useAlimtalkConfig";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
+import { defaultFetcher } from "@/lib/swr-fetcher";
+import type { NhnTemplate } from "@/lib/nhn-alimtalk";
 import {
     Select,
     SelectContent,
@@ -45,7 +47,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy } from "lucide-react";
+import { Eye, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy } from "lucide-react";
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TestSendDialog from "./TestSendDialog";
 
@@ -60,18 +62,28 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 export default function TemplateList() {
     const router = useRouter();
     const { senders } = useAlimtalkSenders();
-    const { config } = useAlimtalkConfig();
-    const [selectedSenderKey, setSelectedSenderKey] = useState<string | null>(null);
-    const { templates, isLoading } = useAlimtalkTemplates(selectedSenderKey);
+    const [selectedSenderKey, setSelectedSenderKey] = useState<string>("__all__");
+    const isAll = selectedSenderKey === "__all__";
+    const singleSenderKey = isAll ? null : selectedSenderKey;
 
-    // 기본 발신프로필 자동 선택
-    useEffect(() => {
-        if (selectedSenderKey) return;
-        if (config?.defaultSenderKey && senders.some((s) => s.senderKey === config.defaultSenderKey)) {
-            setSelectedSenderKey(config.defaultSenderKey);
+    // 단일 발신프로필 선택 시
+    const { templates: singleTemplates, isLoading: singleLoading } = useAlimtalkTemplates(singleSenderKey);
+
+    // 전체 선택 시 — 모든 sender 병렬 조회
+    const allSenderKeys = useMemo(() => senders.map((s) => s.senderKey), [senders]);
+    const { data: allData, isLoading: allLoading } = useSWR(
+        isAll && allSenderKeys.length > 0
+            ? allSenderKeys.map((k) => `/api/alimtalk/templates?senderKey=${encodeURIComponent(k)}`)
+            : null,
+        async (urls: string[]) => {
+            const results = await Promise.all(urls.map((url) => defaultFetcher(url)));
+            return results.flatMap((r: { data?: { templates: NhnTemplate[] } }) => r.data?.templates ?? []);
         }
-    }, [config?.defaultSenderKey, senders, selectedSenderKey]);
-    const { deleteTemplate, commentTemplate } = useAlimtalkTemplateManage(selectedSenderKey);
+    );
+    const templates = isAll ? (allData ?? []) : singleTemplates;
+    const isLoading = isAll ? allLoading : singleLoading;
+
+    const { deleteTemplate, commentTemplate } = useAlimtalkTemplateManage(singleSenderKey);
 
     const [detailTemplate, setDetailTemplate] = useState<{
         senderKey: string;
@@ -86,26 +98,26 @@ export default function TemplateList() {
     } | null>(null);
 
     // 삭제 확인
-    const [deleteTarget, setDeleteTarget] = useState<{ templateCode: string; templateName: string } | null>(null);
+    const [deleteTarget, setDeleteTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
     const [deleting, setDeleting] = useState(false);
 
     // 검수 요청
-    const [commentTarget, setCommentTarget] = useState<{ templateCode: string; templateName: string } | null>(null);
+    const [commentTarget, setCommentTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
     const [commentText, setCommentText] = useState("");
     const [commenting, setCommenting] = useState(false);
 
     const handleDelete = async () => {
-        if (!deleteTarget || !selectedSenderKey) return;
+        if (!deleteTarget) return;
         setDeleting(true);
-        await deleteTemplate(deleteTarget.templateCode, selectedSenderKey);
+        await deleteTemplate(deleteTarget.templateCode, deleteTarget.senderKey);
         setDeleting(false);
         setDeleteTarget(null);
     };
 
     const handleComment = async () => {
-        if (!commentTarget || !selectedSenderKey || !commentText.trim()) return;
+        if (!commentTarget || !commentText.trim()) return;
         setCommenting(true);
-        await commentTemplate(commentTarget.templateCode, selectedSenderKey, commentText);
+        await commentTemplate(commentTarget.templateCode, commentTarget.senderKey, commentText);
         setCommenting(false);
         setCommentTarget(null);
         setCommentText("");
@@ -116,19 +128,20 @@ export default function TemplateList() {
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">템플릿 목록</h3>
                 <div className="flex items-center gap-2">
-                    {selectedSenderKey && (
+                    {!isAll && (
                         <Button onClick={() => router.push(`/alimtalk/templates/new?senderKey=${encodeURIComponent(selectedSenderKey)}`)}>
                             <Plus className="h-4 w-4 mr-1" /> 템플릿 등록
                         </Button>
                     )}
                     <Select
-                        value={selectedSenderKey || ""}
-                        onValueChange={(v) => setSelectedSenderKey(v || null)}
+                        value={selectedSenderKey}
+                        onValueChange={setSelectedSenderKey}
                     >
                         <SelectTrigger className="w-[280px]">
-                            <SelectValue placeholder="발신프로필 선택" />
+                            <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
+                            <SelectItem value="__all__">전체</SelectItem>
                             {senders.map((sender) => (
                                 <SelectItem key={sender.senderKey} value={sender.senderKey}>
                                     {sender.plusFriendId} ({sender.senderKey.slice(0, 8)}...)
@@ -139,12 +152,7 @@ export default function TemplateList() {
                 </div>
             </div>
 
-            {!selectedSenderKey ? (
-                <div className="flex flex-col items-center justify-center p-12 text-muted-foreground border rounded-lg border-dashed">
-                    <MessageSquare className="h-10 w-10 mb-3" />
-                    <p>발신프로필을 선택하면 템플릿 목록이 표시됩니다.</p>
-                </div>
-            ) : isLoading ? (
+            {isLoading ? (
                 <div className="space-y-3">
                     {Array.from({ length: 5 }).map((_, i) => (
                         <Skeleton key={i} className="h-12 w-full" />
@@ -198,7 +206,7 @@ export default function TemplateList() {
                                                     className="h-8 w-8"
                                                     onClick={() =>
                                                         setDetailTemplate({
-                                                            senderKey: selectedSenderKey,
+                                                            senderKey: tpl.senderKey,
                                                             templateCode: tpl.templateCode,
                                                         })
                                                     }
@@ -214,26 +222,26 @@ export default function TemplateList() {
                                                     <DropdownMenuContent align="end">
                                                         <DropdownMenuItem
                                                             disabled={!canEdit}
-                                                            onClick={() => router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(selectedSenderKey)}`)}
+                                                            onClick={() => router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(tpl.senderKey)}`)}
                                                         >
                                                             <Pencil className="h-4 w-4 mr-2" /> 수정
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             disabled={!canDelete}
-                                                            onClick={() => setDeleteTarget({ templateCode: tpl.templateCode, templateName: tpl.templateName })}
+                                                            onClick={() => setDeleteTarget({ senderKey: tpl.senderKey, templateCode: tpl.templateCode, templateName: tpl.templateName })}
                                                         >
                                                             <Trash className="h-4 w-4 mr-2" /> 삭제
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             disabled={!canComment}
-                                                            onClick={() => setCommentTarget({ templateCode: tpl.templateCode, templateName: tpl.templateName })}
+                                                            onClick={() => setCommentTarget({ senderKey: tpl.senderKey, templateCode: tpl.templateCode, templateName: tpl.templateName })}
                                                         >
                                                             <Send className="h-4 w-4 mr-2" /> 검수 요청
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             onClick={() => {
                                                                 const params = new URLSearchParams({
-                                                                    senderKey: selectedSenderKey!,
+                                                                    senderKey: tpl.senderKey,
                                                                     cloneFrom: tpl.templateCode,
                                                                 });
                                                                 router.push(`/alimtalk/templates/new?${params.toString()}`);
@@ -244,7 +252,7 @@ export default function TemplateList() {
                                                         <DropdownMenuItem
                                                             disabled={!isApproved}
                                                             onClick={() => setTestSendTemplate({
-                                                                senderKey: selectedSenderKey!,
+                                                                senderKey: tpl.senderKey,
                                                                 templateCode: tpl.templateCode,
                                                                 templateContent: tpl.templateContent,
                                                             })}
@@ -269,8 +277,8 @@ export default function TemplateList() {
                     onOpenChange={() => setDetailTemplate(null)}
                     senderKey={detailTemplate.senderKey}
                     templateCode={detailTemplate.templateCode}
-                    onEdit={(tpl) => { setDetailTemplate(null); router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(selectedSenderKey!)}`); }}
-                    onDelete={(code) => { setDetailTemplate(null); setDeleteTarget({ templateCode: code, templateName: code }); }}
+                    onEdit={(tpl) => { setDetailTemplate(null); router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(detailTemplate.senderKey)}`); }}
+                    onDelete={(code) => { setDetailTemplate(null); setDeleteTarget({ senderKey: detailTemplate.senderKey, templateCode: code, templateName: code }); }}
                 />
             )}
 

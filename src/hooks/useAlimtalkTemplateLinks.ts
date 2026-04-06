@@ -8,9 +8,13 @@ interface TemplateLinksResponse {
 }
 
 
-export function useAlimtalkTemplateLinks(partitionId: number | null) {
+export function useAlimtalkTemplateLinks(partitionId: number | null | "all") {
     const { data, error, isLoading, mutate } = useSWR<TemplateLinksResponse>(
-        partitionId ? `/api/alimtalk/template-links?partitionId=${partitionId}` : null,
+        partitionId === "all"
+            ? "/api/alimtalk/template-links"
+            : partitionId
+                ? `/api/alimtalk/template-links?partitionId=${partitionId}`
+                : null,
         defaultFetcher
     );
 

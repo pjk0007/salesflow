@@ -32,13 +32,16 @@ const TRIGGER_LABELS: Record<string, string> = {
 
 export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplateLinkListProps) {
     const router = useRouter();
-    const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
-        partitions.length > 0 ? partitions[0].id : null
-    );
+    const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const { templateLinks, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
 
+    const partitionMap = useMemo(
+        () => Object.fromEntries(partitions.map((p) => [p.id, p.name])),
+        [partitions]
+    );
+
     const handleCreate = () => {
-        if (selectedPartitionId) {
+        if (selectedPartitionId !== "all") {
             router.push(`/alimtalk/links/new?partitionId=${selectedPartitionId}`);
         }
     };
@@ -58,7 +61,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">연결 관리</h3>
-                <Button onClick={handleCreate} disabled={!selectedPartitionId}>
+                <Button onClick={handleCreate} disabled={selectedPartitionId === "all"}>
                     <Plus className="h-4 w-4 mr-2" />
                     새 연결
                 </Button>
@@ -67,13 +70,14 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
             <div className="space-y-2">
                 <Label>파티션 선택</Label>
                 <Select
-                    value={selectedPartitionId ? String(selectedPartitionId) : ""}
-                    onValueChange={(v) => setSelectedPartitionId(Number(v))}
+                    value={String(selectedPartitionId)}
+                    onValueChange={(v) => setSelectedPartitionId(v === "all" ? "all" : Number(v))}
                 >
                     <SelectTrigger className="w-[250px]">
-                        <SelectValue placeholder="파티션을 선택하세요" />
+                        <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
                         {partitions.map((p) => (
                             <SelectItem key={p.id} value={String(p.id)}>
                                 {p.name}
@@ -96,6 +100,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
                     <TableHeader>
                         <TableRow>
                             <TableHead>이름</TableHead>
+                            {selectedPartitionId === "all" && <TableHead>파티션</TableHead>}
                             <TableHead>수신 필드</TableHead>
                             <TableHead>발송 방식</TableHead>
                             <TableHead>후속</TableHead>
@@ -112,6 +117,11 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
                                         <Badge variant="outline" className="ml-2 text-orange-600 border-orange-300">중복방지</Badge>
                                     )}
                                 </TableCell>
+                                {selectedPartitionId === "all" && (
+                                    <TableCell className="text-muted-foreground text-sm">
+                                        {(link as Record<string, unknown>).partitionName as string || partitionMap[link.partitionId] || link.partitionId}
+                                    </TableCell>
+                                )}
                                 <TableCell className="text-muted-foreground">{link.recipientField}</TableCell>
                                 <TableCell>
                                     <Badge variant={link.triggerType === "manual" ? "outline" : "default"}>

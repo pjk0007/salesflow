@@ -10,27 +10,56 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const partitionId = Number(req.nextUrl.searchParams.get("partitionId"));
-        if (!partitionId) {
-            return NextResponse.json({ success: false, error: "partitionId는 필수입니다." }, { status: 400 });
+        const partitionIdParam = req.nextUrl.searchParams.get("partitionId");
+        const partitionId = partitionIdParam ? Number(partitionIdParam) : null;
+
+        if (partitionId) {
+            // 특정 파티션 조회
+            const [partition] = await db
+                .select({ id: partitions.id })
+                .from(partitions)
+                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+                .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)))
+                .limit(1);
+
+            if (!partition) {
+                return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
+            }
+
+            const links = await db
+                .select()
+                .from(alimtalkTemplateLinks)
+                .where(eq(alimtalkTemplateLinks.partitionId, partitionId))
+                .orderBy(alimtalkTemplateLinks.createdAt);
+
+            return NextResponse.json({ success: true, data: links });
         }
 
-        // 파티션 소유권 확인
-        const [partition] = await db
-            .select({ id: partitions.id })
-            .from(partitions)
-            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-            .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)))
-            .limit(1);
-
-        if (!partition) {
-            return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-        }
-
+        // 전체 조회 — org 소속 파티션의 모든 연결
         const links = await db
-            .select()
+            .select({
+                id: alimtalkTemplateLinks.id,
+                partitionId: alimtalkTemplateLinks.partitionId,
+                name: alimtalkTemplateLinks.name,
+                senderKey: alimtalkTemplateLinks.senderKey,
+                templateCode: alimtalkTemplateLinks.templateCode,
+                templateName: alimtalkTemplateLinks.templateName,
+                triggerType: alimtalkTemplateLinks.triggerType,
+                triggerCondition: alimtalkTemplateLinks.triggerCondition,
+                repeatConfig: alimtalkTemplateLinks.repeatConfig,
+                recipientField: alimtalkTemplateLinks.recipientField,
+                variableMappings: alimtalkTemplateLinks.variableMappings,
+                isActive: alimtalkTemplateLinks.isActive,
+                followupConfig: alimtalkTemplateLinks.followupConfig,
+                preventDuplicate: alimtalkTemplateLinks.preventDuplicate,
+                createdAt: alimtalkTemplateLinks.createdAt,
+                createdBy: alimtalkTemplateLinks.createdBy,
+                partitionName: partitions.name,
+            })
             .from(alimtalkTemplateLinks)
-            .where(eq(alimtalkTemplateLinks.partitionId, partitionId))
+            .innerJoin(partitions, eq(partitions.id, alimtalkTemplateLinks.partitionId))
+            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+            .where(eq(workspaces.orgId, user.orgId))
             .orderBy(alimtalkTemplateLinks.createdAt);
 
         return NextResponse.json({ success: true, data: links });
