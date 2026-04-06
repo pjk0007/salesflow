@@ -41,9 +41,8 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
     );
 
     const handleCreate = () => {
-        if (selectedPartitionId !== "all") {
-            router.push(`/alimtalk/links/new?partitionId=${selectedPartitionId}`);
-        }
+        const params = selectedPartitionId !== "all" ? `?partitionId=${selectedPartitionId}` : "";
+        router.push(`/alimtalk/links/new${params}`);
     };
 
     const handleEdit = (id: number) => {
@@ -61,7 +60,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">연결 관리</h3>
-                <Button onClick={handleCreate} disabled={selectedPartitionId === "all"}>
+                <Button onClick={handleCreate}>
                     <Plus className="h-4 w-4 mr-2" />
                     새 연결
                 </Button>

@@ -6,8 +6,16 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import TemplateFormEditor, { type TemplateFormState } from "@/components/alimtalk/TemplateFormEditor";
 import TemplatePreview from "@/components/alimtalk/TemplatePreview";
 import AiAlimtalkPanel from "@/components/alimtalk/AiAlimtalkPanel";
+import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
 import { Button } from "@/components/ui/button";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { PageContainer } from "@/components/common/page-container";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import type { NhnTemplateButton } from "@/lib/nhn-alimtalk";
@@ -37,8 +45,11 @@ const DEFAULT_FORM: TemplateFormState = {
 function NewAlimtalkTemplateContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const senderKey = searchParams.get("senderKey");
+    const senderKeyParam = searchParams.get("senderKey");
     const cloneFrom = searchParams.get("cloneFrom");
+    const { senders } = useAlimtalkSenders();
+    const [selectedSenderKey, setSelectedSenderKey] = useState<string | null>(senderKeyParam);
+    const senderKey = selectedSenderKey;
     const [form, setForm] = useState<TemplateFormState>(DEFAULT_FORM);
     const [showAi, setShowAi] = useState(false);
 
@@ -144,11 +155,29 @@ function NewAlimtalkTemplateContent() {
 
     if (!senderKey) {
         return (
-            <WorkspaceLayout>
-                <div className="flex items-center justify-center h-64 text-muted-foreground">
-                    발신프로필 정보가 없습니다.
+            <PageContainer>
+                <div className="flex items-center gap-3 mb-6">
+                    <Button variant="ghost" size="icon" onClick={() => router.push("/alimtalk?tab=templates")}>
+                        <ArrowLeft className="h-4 w-4" />
+                    </Button>
+                    <h2 className="text-lg font-semibold">알림톡 템플릿 등록</h2>
                 </div>
-            </WorkspaceLayout>
+                <div className="flex flex-col items-center justify-center p-12 border rounded-lg border-dashed gap-4">
+                    <p className="text-muted-foreground">템플릿을 등록할 발신프로필을 선택하세요.</p>
+                    <Select onValueChange={setSelectedSenderKey}>
+                        <SelectTrigger className="w-[300px]">
+                            <SelectValue placeholder="발신프로필 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {senders.map((s) => (
+                                <SelectItem key={s.senderKey} value={s.senderKey}>
+                                    {s.plusFriendId} ({s.senderKey.slice(0, 8)}...)
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </PageContainer>
         );
     }
 

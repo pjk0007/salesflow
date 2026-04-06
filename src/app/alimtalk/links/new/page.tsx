@@ -36,7 +36,11 @@ const TRIGGER_LABELS: Record<string, string> = {
 function NewAlimtalkLinkContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const partitionId = Number(searchParams.get("partitionId"));
+    const partitionIdParam = searchParams.get("partitionId");
+    const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
+        partitionIdParam ? Number(partitionIdParam) : null
+    );
+    const partitionId = selectedPartitionId ?? 0;
 
     const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
     const workspaceId = (allPartitionsData?.data as Array<{ id: number; workspaceId: number }>)
@@ -113,11 +117,30 @@ function NewAlimtalkLinkContent() {
         }
     };
 
-    if (!partitionId) {
+    if (!selectedPartitionId) {
+        const partitionList = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number }>) ?? [];
         return (
             <WorkspaceLayout>
                 <PageContainer>
-                    <div className="text-center text-muted-foreground py-12">파티션 정보가 없습니다.</div>
+                    <div className="flex items-center gap-3 mb-6">
+                        <Button variant="ghost" size="icon" onClick={() => router.push("/alimtalk?tab=links")}>
+                            <ArrowLeft className="h-5 w-5" />
+                        </Button>
+                        <h1 className="text-xl font-semibold">새 알림톡 연결</h1>
+                    </div>
+                    <div className="flex flex-col items-center justify-center p-12 border rounded-lg border-dashed gap-4">
+                        <p className="text-muted-foreground">연결할 파티션을 선택하세요.</p>
+                        <Select onValueChange={(v) => setSelectedPartitionId(Number(v))}>
+                            <SelectTrigger className="w-[300px]">
+                                <SelectValue placeholder="파티션 선택" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {partitionList.map((p) => (
+                                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
                 </PageContainer>
             </WorkspaceLayout>
         );

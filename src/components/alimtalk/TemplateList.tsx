@@ -128,11 +128,12 @@ export default function TemplateList() {
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">템플릿 목록</h3>
                 <div className="flex items-center gap-2">
-                    {!isAll && (
-                        <Button onClick={() => router.push(`/alimtalk/templates/new?senderKey=${encodeURIComponent(selectedSenderKey)}`)}>
-                            <Plus className="h-4 w-4 mr-1" /> 템플릿 등록
-                        </Button>
-                    )}
+                    <Button onClick={() => {
+                        const params = isAll ? "" : `?senderKey=${encodeURIComponent(selectedSenderKey)}`;
+                        router.push(`/alimtalk/templates/new${params}`);
+                    }}>
+                        <Plus className="h-4 w-4 mr-1" /> 템플릿 등록
+                    </Button>
                     <Select
                         value={selectedSenderKey}
                         onValueChange={setSelectedSenderKey}
