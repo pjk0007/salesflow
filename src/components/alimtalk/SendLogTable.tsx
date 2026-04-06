@@ -15,12 +15,20 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import type { AlimtalkSendLog } from "@/lib/db";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
     pending: { label: "대기", variant: "secondary" },
@@ -40,6 +48,7 @@ export default function SendLogTable() {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
     const [syncing, setSyncing] = useState(false);
+    const [selectedLog, setSelectedLog] = useState<AlimtalkSendLog | null>(null);
 
     const { logs, total, totalPages, isLoading, syncResults } = useAlimtalkLogs({
         page,
@@ -133,7 +142,7 @@ export default function SendLogTable() {
                                         variant: "secondary" as const,
                                     };
                                     return (
-                                        <TableRow key={log.id}>
+                                        <TableRow key={log.id} className="cursor-pointer" onClick={() => setSelectedLog(log)}>
                                             <TableCell className="text-sm">
                                                 {new Date(log.sentAt).toLocaleString("ko-KR")}
                                             </TableCell>
@@ -196,6 +205,92 @@ export default function SendLogTable() {
                     )}
                 </>
             )}
+
+            {/* 상세 보기 Sheet */}
+            <Sheet open={selectedLog !== null} onOpenChange={(open) => { if (!open) setSelectedLog(null); }}>
+                <SheetContent className="sm:max-w-lg overflow-y-auto">
+                    {selectedLog && (() => {
+                        const statusInfo = STATUS_MAP[selectedLog.status] || { label: selectedLog.status, variant: "secondary" as const };
+                        const triggerInfo = TRIGGER_TYPE_MAP[selectedLog.triggerType || "manual"] || { label: selectedLog.triggerType, variant: "outline" as const };
+
+                        return (
+                            <>
+                                <SheetHeader>
+                                    <SheetTitle>발송 상세</SheetTitle>
+                                    <SheetDescription>{selectedLog.recipientNo}</SheetDescription>
+                                </SheetHeader>
+
+                                <div className="space-y-4 px-4">
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                            <span className="text-sm text-muted-foreground">수신번호</span>
+                                            <span className="col-span-2 text-sm font-mono">{selectedLog.recipientNo}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                            <span className="text-sm text-muted-foreground">템플릿</span>
+                                            <span className="col-span-2 text-sm">{selectedLog.templateName || selectedLog.templateCode}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                            <span className="text-sm text-muted-foreground">상태</span>
+                                            <span className="col-span-2">
+                                                <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                            <span className="text-sm text-muted-foreground">방식</span>
+                                            <span className="col-span-2">
+                                                <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
+                                            </span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                            <span className="text-sm text-muted-foreground">발송일시</span>
+                                            <span className="col-span-2 text-sm">
+                                                {new Date(selectedLog.sentAt).toLocaleString("ko-KR")}
+                                            </span>
+                                        </div>
+                                        {selectedLog.completedAt && (
+                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                                <span className="text-sm text-muted-foreground">완료일시</span>
+                                                <span className="col-span-2 text-sm">
+                                                    {new Date(selectedLog.completedAt).toLocaleString("ko-KR")}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {selectedLog.resultCode && (
+                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                                <span className="text-sm text-muted-foreground">결과코드</span>
+                                                <span className="col-span-2 text-sm font-mono">{selectedLog.resultCode}</span>
+                                            </div>
+                                        )}
+                                        {selectedLog.resultMessage && (
+                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                                <span className="text-sm text-muted-foreground">결과</span>
+                                                <span className="col-span-2 text-sm text-muted-foreground">{selectedLog.resultMessage}</span>
+                                            </div>
+                                        )}
+                                        {selectedLog.requestId && (
+                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                                <span className="text-sm text-muted-foreground">요청 ID</span>
+                                                <span className="col-span-2 text-xs font-mono break-all">{selectedLog.requestId}</span>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 본문 */}
+                                    {selectedLog.content && (
+                                        <div className="space-y-2">
+                                            <h4 className="text-sm font-medium text-muted-foreground">본문</h4>
+                                            <div className="border rounded-lg p-4 bg-muted/30 whitespace-pre-wrap text-sm">
+                                                {selectedLog.content}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        );
+                    })()}
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }
