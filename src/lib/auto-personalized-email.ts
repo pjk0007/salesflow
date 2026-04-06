@@ -1,4 +1,4 @@
-import { db, emailAutoPersonalizedLinks, emailSendLogs, records, products } from "@/lib/db";
+import { db, emailAutoPersonalizedLinks, emailSendLogs, emailSenderProfiles, emailSignatures, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
@@ -122,14 +122,33 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             if (!emailClient) { console.log(`[AutoEmail] Rule ${link.id}: no email client`); continue; }
             const emailConfig = await getEmailConfig(orgId);
 
-            // 6-1. 발신자 프로필 결정 (기본 프로필 → 레거시 fallback)
-            const sender = await resolveDefaultSender(orgId, emailConfig);
-            if (!sender.fromEmail) continue;
-            const senderFromEmail = sender.fromEmail;
-            const senderFromName = sender.fromName;
+            // 6-1. 발신자 프로필 결정 (규칙 지정 → 기본 프로필 → 레거시 fallback)
+            let senderFromEmail: string | null = null;
+            let senderFromName: string | undefined;
+            if ((link as Record<string, unknown>).senderProfileId) {
+                const [profile] = await db.select().from(emailSenderProfiles)
+                    .where(and(eq(emailSenderProfiles.id, (link as Record<string, unknown>).senderProfileId as number), eq(emailSenderProfiles.orgId, orgId)))
+                    .limit(1);
+                if (profile) { senderFromEmail = profile.fromEmail; senderFromName = profile.fromName; }
+            }
+            if (!senderFromEmail) {
+                const sender = await resolveDefaultSender(orgId, emailConfig);
+                senderFromEmail = sender.fromEmail;
+                senderFromName = sender.fromName;
+            }
+            if (!senderFromEmail) continue;
 
-            // 6-2. 서명 결정 (기본 서명 → 레거시 fallback)
-            const signatureJson = await resolveDefaultSignature(orgId, emailConfig);
+            // 6-2. 서명 결정 (규칙 지정 → 기본 서명 → 레거시 fallback)
+            let signatureJson: string | null = null;
+            if ((link as Record<string, unknown>).signatureId) {
+                const [sig] = await db.select().from(emailSignatures)
+                    .where(and(eq(emailSignatures.id, (link as Record<string, unknown>).signatureId as number), eq(emailSignatures.orgId, orgId)))
+                    .limit(1);
+                if (sig) signatureJson = sig.signature;
+            }
+            if (!signatureJson) {
+                signatureJson = await resolveDefaultSignature(orgId, emailConfig);
+            }
 
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
             let recordData = { ...data };

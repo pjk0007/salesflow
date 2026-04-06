@@ -82,6 +82,8 @@ export async function POST(req: NextRequest) {
             followupConfig,
             isActive,
             preventDuplicate = 0,
+            senderProfileId,
+            signatureId,
         } = await req.json();
 
         if (!partitionId || !recipientField || !companyField) {
@@ -133,6 +135,8 @@ export async function POST(req: NextRequest) {
                 followupConfig: followupConfig || null,
                 ...(isActive !== undefined && { isActive }),
                 preventDuplicate: preventDuplicate ? 1 : 0,
+                senderProfileId: senderProfileId || null,
+                signatureId: signatureId || null,
             })
             .returning();
 

@@ -260,6 +260,13 @@
       "when": 1770949900000,
       "tag": "0036_alimtalk_followup",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1770950000000,
+      "tag": "0037_ai_email_sender_fields",
+      "breakpoints": true
     }
   ]
 }

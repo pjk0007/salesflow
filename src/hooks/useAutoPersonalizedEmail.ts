@@ -51,6 +51,8 @@ interface CreateInput {
     } | null;
     isActive?: number;
     preventDuplicate?: number;
+    senderProfileId?: number | null;
+    signatureId?: number | null;
 }
 
 interface UpdateInput {
@@ -71,6 +73,8 @@ interface UpdateInput {
     } | null;
     isActive?: number;
     preventDuplicate?: number;
+    senderProfileId?: number | null;
+    signatureId?: number | null;
 }
 
 export function useAutoPersonalizedEmail(partitionId: number | null) {

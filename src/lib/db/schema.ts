@@ -647,6 +647,8 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
         onOpened?: { prompt: string };
         onNotOpened?: { prompt: string };
     } | null>(),
+    senderProfileId: integer("sender_profile_id"),
+    signatureId: integer("signature_id"),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),

@@ -38,6 +38,9 @@ import { useFields } from "@/hooks/useFields";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import useSWR from "swr";
 
+interface SenderProfile { id: number; name: string; fromName: string; fromEmail: string; isDefault: boolean; }
+interface EmailSignature { id: number; name: string; isDefault: boolean; }
+
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const FORMAT_OPTIONS = [
@@ -89,6 +92,10 @@ function NewAiAutoPageContent() {
     const { createLink } = useAutoPersonalizedEmail(partitionId || null);
     const { products } = useProducts({ activeOnly: true });
     const { fields } = useFields(workspaceId);
+    const { data: senderProfilesData } = useSWR("/api/email/sender-profiles", fetcher);
+    const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
+    const senderProfiles: SenderProfile[] = senderProfilesData?.data ?? [];
+    const signatures: EmailSignature[] = signaturesData?.data ?? [];
 
     const [saving, setSaving] = useState(false);
     const [productId, setProductId] = useState<number | null>(null);
@@ -107,6 +114,8 @@ function NewAiAutoPageContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
     const [preventDuplicate, setPreventDuplicate] = useState(0);
+    const [senderProfileId, setSenderProfileId] = useState<number | null>(null);
+    const [signatureId, setSignatureId] = useState<number | null>(null);
 
     const selectedProduct = products.find((p) => p.id === productId);
 
@@ -135,6 +144,8 @@ function NewAiAutoPageContent() {
                 triggerCondition,
                 followupConfig: followupConfig || null,
                 preventDuplicate,
+                senderProfileId,
+                signatureId,
             });
             if (result.success) {
                 toast.success("규칙이 생성되었습니다.");
@@ -356,7 +367,55 @@ function NewAiAutoPageContent() {
                                 </CardContent>
                             </Card>
 
-                            {/* Card 3: 발송 조건 */}
+                            {/* Card 3: 발신 설정 */}
+                            <Card id="section-sender">
+                                <CardHeader>
+                                    <CardTitle>발신 설정</CardTitle>
+                                    <CardDescription>발신 이메일과 서명 선택 (미선택 시 기본값 사용)</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>발신 프로필</Label>
+                                        <Select
+                                            value={senderProfileId ? String(senderProfileId) : "default"}
+                                            onValueChange={(v) => setSenderProfileId(v === "default" ? null : Number(v))}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="default">기본 발신 프로필</SelectItem>
+                                                {senderProfiles.map((p) => (
+                                                    <SelectItem key={p.id} value={String(p.id)}>
+                                                        {p.fromName} &lt;{p.fromEmail}&gt;{p.isDefault ? " (기본)" : ""}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>서명</Label>
+                                        <Select
+                                            value={signatureId ? String(signatureId) : "default"}
+                                            onValueChange={(v) => setSignatureId(v === "default" ? null : Number(v))}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="default">기본 서명</SelectItem>
+                                                {signatures.map((s) => (
+                                                    <SelectItem key={s.id} value={String(s.id)}>
+                                                        {s.name}{s.isDefault ? " (기본)" : ""}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
+                            {/* Card 4: 발송 조건 */}
                             <Card id="section-condition">
                                 <CardHeader>
                                     <CardTitle>발송 조건</CardTitle>
