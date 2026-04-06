@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
             triggerType = "manual",
             triggerCondition,
             repeatConfig,
+            followupConfig,
             preventDuplicate,
         } = await req.json();
 
@@ -93,6 +94,7 @@ export async function POST(req: NextRequest) {
                 triggerType,
                 triggerCondition: triggerCondition || null,
                 repeatConfig: repeatConfig || null,
+                followupConfig: followupConfig || null,
                 preventDuplicate: preventDuplicate ? 1 : 0,
                 createdBy: user.userId,
             })

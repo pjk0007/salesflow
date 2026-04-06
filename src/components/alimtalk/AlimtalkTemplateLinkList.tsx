@@ -1,29 +1,18 @@
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
-import { useFields } from "@/hooks/useFields";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import AlimtalkTemplateLinkDialog from "./AlimtalkTemplateLinkDialog";
-import type { AlimtalkTemplateLink } from "@/lib/db";
 
 interface Partition {
     id: number;
@@ -42,26 +31,20 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplateLinkListProps) {
+    const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
         partitions.length > 0 ? partitions[0].id : null
     );
-    const selectedWorkspaceId = useMemo(() => {
-        const p = partitions.find((p) => p.id === selectedPartitionId);
-        return p?.workspaceId ?? null;
-    }, [partitions, selectedPartitionId]);
-    const { fields } = useFields(selectedWorkspaceId);
     const { templateLinks, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [editingLink, setEditingLink] = useState<AlimtalkTemplateLink | null>(null);
 
     const handleCreate = () => {
-        setEditingLink(null);
-        setDialogOpen(true);
+        if (selectedPartitionId) {
+            router.push(`/alimtalk/links/new?partitionId=${selectedPartitionId}`);
+        }
     };
 
-    const handleEdit = (link: AlimtalkTemplateLink) => {
-        setEditingLink(link);
-        setDialogOpen(true);
+    const handleEdit = (id: number) => {
+        router.push(`/alimtalk/links/${id}`);
     };
 
     const handleDelete = async (id: number) => {
@@ -102,9 +85,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
 
             {isLoading ? (
                 <div className="space-y-3">
-                    {[1, 2].map((i) => (
-                        <Skeleton key={i} className="h-12 w-full" />
-                    ))}
+                    {[1, 2].map((i) => (<Skeleton key={i} className="h-12 w-full" />))}
                 </div>
             ) : templateLinks.length === 0 ? (
                 <div className="text-center text-muted-foreground py-12">
@@ -117,14 +98,20 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
                             <TableHead>이름</TableHead>
                             <TableHead>수신 필드</TableHead>
                             <TableHead>발송 방식</TableHead>
+                            <TableHead>후속</TableHead>
                             <TableHead>상태</TableHead>
-                            <TableHead className="w-[100px]">작업</TableHead>
+                            <TableHead className="w-[60px]"></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {templateLinks.map((link) => (
-                            <TableRow key={link.id}>
-                                <TableCell className="font-medium">{link.name}</TableCell>
+                            <TableRow key={link.id} className="cursor-pointer" onClick={() => handleEdit(link.id)}>
+                                <TableCell className="font-medium">
+                                    {link.name}
+                                    {link.preventDuplicate === 1 && (
+                                        <Badge variant="outline" className="ml-2 text-orange-600 border-orange-300">중복방지</Badge>
+                                    )}
+                                </TableCell>
                                 <TableCell className="text-muted-foreground">{link.recipientField}</TableCell>
                                 <TableCell>
                                     <Badge variant={link.triggerType === "manual" ? "outline" : "default"}>
@@ -132,34 +119,28 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
+                                    {link.followupConfig ? (
+                                        <Badge variant="secondary">
+                                            {(link.followupConfig as { delayDays: number }).delayDays}일 후
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-muted-foreground text-xs">—</span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
                                     <Badge variant={link.isActive ? "default" : "secondary"}>
                                         {link.isActive ? "활성" : "비활성"}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
-                                    <div className="flex items-center gap-1">
-                                        <Button variant="ghost" size="icon" onClick={() => handleEdit(link)}>
-                                            <Pencil className="h-4 w-4" />
-                                        </Button>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDelete(link.id)}>
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
+                                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDelete(link.id); }}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>
                 </Table>
-            )}
-
-            {selectedPartitionId && (
-                <AlimtalkTemplateLinkDialog
-                    open={dialogOpen}
-                    onOpenChange={setDialogOpen}
-                    partitionId={selectedPartitionId}
-                    link={editingLink}
-                    fields={fields}
-                />
             )}
         </div>
     );

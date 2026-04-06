@@ -397,11 +397,34 @@ export const alimtalkTemplateLinks = pgTable("alimtalk_template_links", {
     } | null>(),
     recipientField: varchar("recipient_field", { length: 100 }).notNull(),
     variableMappings: jsonb("variable_mappings").$type<Record<string, string>>(),
+    followupConfig: jsonb("followup_config").$type<{
+        delayDays: number;
+        templateCode: string;
+        templateName?: string;
+    } | null>(),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+// ============================================
+// 알림톡 후속발송 큐
+// ============================================
+export const alimtalkFollowupQueue = pgTable("alimtalk_followup_queue", {
+    id: serial("id").primaryKey(),
+    parentLogId: integer("parent_log_id")
+        .references(() => alimtalkSendLogs.id, { onDelete: "cascade" })
+        .notNull(),
+    templateLinkId: integer("template_link_id")
+        .references(() => alimtalkTemplateLinks.id, { onDelete: "cascade" })
+        .notNull(),
+    orgId: uuid("org_id").notNull(),
+    sendAt: timestamptz("send_at").notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    processedAt: timestamptz("processed_at"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
 });
 
 // ============================================

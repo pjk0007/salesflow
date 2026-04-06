@@ -253,6 +253,13 @@
       "when": 1770949800000,
       "tag": "0035_field_groupable",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1770949900000,
+      "tag": "0036_alimtalk_followup",
+      "breakpoints": true
     }
   ]
 }

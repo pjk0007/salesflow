@@ -25,6 +25,7 @@ export function useAlimtalkTemplateLinks(partitionId: number | null) {
         triggerType?: string;
         triggerCondition?: Record<string, unknown> | null;
         repeatConfig?: Record<string, unknown> | null;
+        followupConfig?: Record<string, unknown> | null;
         preventDuplicate?: boolean;
     }) => {
         const res = await fetch("/api/alimtalk/template-links", {
@@ -47,6 +48,7 @@ export function useAlimtalkTemplateLinks(partitionId: number | null) {
             triggerType?: string;
             triggerCondition?: Record<string, unknown> | null;
             repeatConfig?: Record<string, unknown> | null;
+            followupConfig?: Record<string, unknown> | null;
             preventDuplicate?: boolean;
         }
     ) => {
