@@ -408,7 +408,7 @@ export async function processAlimtalkFollowupQueue(): Promise<{
                 continue;
             }
 
-            const config = link.followupConfig as { delayDays: number; templateCode: string; templateName?: string };
+            const config = link.followupConfig as { delayDays: number; templateCode: string; templateName?: string; variableMappings?: Record<string, string> };
 
             // 레코드 조회
             const [record] = await db
@@ -424,11 +424,12 @@ export async function processAlimtalkFollowupQueue(): Promise<{
                 continue;
             }
 
-            // 후속 알림톡 발송 — followup 템플릿으로 발송
+            // 후속 알림톡 발송 — followup 템플릿 + 전용 변수 매핑
             const followupLink = {
                 ...link,
                 templateCode: config.templateCode,
                 templateName: config.templateName || null,
+                variableMappings: config.variableMappings || link.variableMappings,
             };
             const logId = await sendSingle(followupLink, record, item.orgId, "followup");
 

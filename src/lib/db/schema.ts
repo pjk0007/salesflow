@@ -401,6 +401,7 @@ export const alimtalkTemplateLinks = pgTable("alimtalk_template_links", {
         delayDays: number;
         templateCode: string;
         templateName?: string;
+        variableMappings?: Record<string, string>;
     } | null>(),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),

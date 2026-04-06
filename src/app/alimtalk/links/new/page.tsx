@@ -67,9 +67,12 @@ function NewAlimtalkLinkContent() {
     const [followupSenderKey, setFollowupSenderKey] = useState("");
     const { templates: followupTemplates } = useAlimtalkTemplates(followupSenderKey || senderKey || null);
     const [followupTemplateCode, setFollowupTemplateCode] = useState("");
+    const [followupVariableMappings, setFollowupVariableMappings] = useState<Record<string, string>>({});
 
     const selectedTemplate = templates.find((t) => t.templateCode === templateCode);
     const templateVariables = selectedTemplate?.templateContent?.match(/#\{[^}]+\}/g) || [];
+    const selectedFollowupTemplate = followupTemplates.find((t) => t.templateCode === followupTemplateCode);
+    const followupTemplateVariables = selectedFollowupTemplate?.templateContent?.match(/#\{[^}]+\}/g) || [];
 
     const handleSave = async () => {
         if (!name || !senderKey || !templateCode || !recipientField) {
@@ -82,6 +85,7 @@ function NewAlimtalkLinkContent() {
                 delayDays: followupDelayDays,
                 templateCode: followupTemplateCode,
                 templateName: followupTemplates.find((t) => t.templateCode === followupTemplateCode)?.templateName,
+                ...(Object.keys(followupVariableMappings).length > 0 && { variableMappings: followupVariableMappings }),
             } : null;
 
             const result = await createLink({
@@ -285,7 +289,7 @@ function NewAlimtalkLinkContent() {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>후속 알림톡 템플릿</Label>
-                                                    <Select value={followupTemplateCode} onValueChange={setFollowupTemplateCode}>
+                                                    <Select value={followupTemplateCode} onValueChange={(v) => { setFollowupTemplateCode(v); setFollowupVariableMappings({}); }}>
                                                         <SelectTrigger><SelectValue placeholder="템플릿 선택" /></SelectTrigger>
                                                         <SelectContent>
                                                             {followupTemplates.map((t) => (
@@ -294,6 +298,28 @@ function NewAlimtalkLinkContent() {
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
+                                                {followupTemplateVariables.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <Label>후속 템플릿 변수 매핑</Label>
+                                                        {followupTemplateVariables.map((v) => (
+                                                            <div key={v} className="flex items-center gap-2">
+                                                                <span className="text-sm font-mono w-[140px] shrink-0">{v}</span>
+                                                                <span className="text-muted-foreground">&rarr;</span>
+                                                                <Select
+                                                                    value={followupVariableMappings[v] || ""}
+                                                                    onValueChange={(val) => setFollowupVariableMappings((prev) => ({ ...prev, [v]: val }))}
+                                                                >
+                                                                    <SelectTrigger className="flex-1"><SelectValue placeholder="필드 선택" /></SelectTrigger>
+                                                                    <SelectContent>
+                                                                        {fields.map((f) => (
+                                                                            <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                                                                        ))}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </>
                                         )}
                                     </div>
