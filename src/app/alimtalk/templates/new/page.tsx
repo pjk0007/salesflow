@@ -190,6 +190,9 @@ function NewAlimtalkTemplateContent() {
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <h2 className="text-lg font-semibold">알림톡 템플릿 등록</h2>
+                    <span className="text-sm text-muted-foreground">
+                        {senders.find((s) => s.senderKey === senderKey)?.plusFriendId || senderKey}
+                    </span>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button
