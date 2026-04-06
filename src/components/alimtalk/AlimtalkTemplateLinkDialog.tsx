@@ -136,12 +136,12 @@ export default function AlimtalkTemplateLinkDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>{link ? "연결 편집" : "새 연결"}</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div className="space-y-4 overflow-y-auto flex-1 pr-1">
                     <div className="space-y-2">
                         <Label>연결 이름</Label>
                         <Input
@@ -160,7 +160,7 @@ export default function AlimtalkTemplateLinkDialog({
                             <SelectTrigger>
                                 <SelectValue placeholder="발신프로필 선택" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="max-h-60">
                                 {senders.map((s) => (
                                     <SelectItem key={s.senderKey} value={s.senderKey}>
                                         {s.plusFriendId}
@@ -180,7 +180,7 @@ export default function AlimtalkTemplateLinkDialog({
                             <SelectTrigger>
                                 <SelectValue placeholder={senderKey ? "템플릿 선택" : "발신프로필을 먼저 선택하세요"} />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="max-h-60">
                                 {templates.map((t) => (
                                     <SelectItem key={t.templateCode} value={t.templateCode}>
                                         {t.templateName}
@@ -199,7 +199,7 @@ export default function AlimtalkTemplateLinkDialog({
                             <SelectTrigger>
                                 <SelectValue placeholder="필드 선택" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="max-h-60">
                                 {fields.map((f) => (
                                     <SelectItem key={f.key} value={f.key}>
                                         {f.label}
@@ -250,7 +250,7 @@ export default function AlimtalkTemplateLinkDialog({
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper">
                                     <SelectItem value="manual">수동</SelectItem>
                                     <SelectItem value="on_create">생성 시</SelectItem>
                                     <SelectItem value="on_update">수정 시</SelectItem>

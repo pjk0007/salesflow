@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { useAlimtalkTemplateCategories } from "@/hooks/useAlimtalkTemplateCategories";
 import ButtonEditor from "./ButtonEditor";
 import QuickReplyEditor from "./QuickReplyEditor";
+import ImageUpload from "./ImageUpload";
 import { Plus, Trash2 } from "lucide-react";
 import type { NhnTemplateButton, NhnTemplateQuickReply } from "@/lib/nhn-alimtalk";
 
@@ -198,27 +199,16 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                 </div>
             )}
 
-            {/* IMAGE 강조 시 이미지 URL/파일명 */}
+            {/* IMAGE 강조 시 이미지 업로드 */}
             {showImage && (
                 <div className="space-y-2 pl-2 border-l-2 border-blue-200">
-                    <div className="space-y-1">
-                        <Label htmlFor="templateImageUrl">이미지 URL</Label>
-                        <Input
-                            id="templateImageUrl"
-                            placeholder="이미지 URL"
-                            value={value.templateImageUrl}
-                            onChange={(e) => update({ templateImageUrl: e.target.value })}
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="templateImageName">파일명</Label>
-                        <Input
-                            id="templateImageName"
-                            placeholder="파일명"
-                            value={value.templateImageName}
-                            onChange={(e) => update({ templateImageName: e.target.value })}
-                        />
-                    </div>
+                    <Label>강조 이미지</Label>
+                    <ImageUpload
+                        value={value.templateImageUrl}
+                        onChange={(url, fileName) =>
+                            update({ templateImageUrl: url, templateImageName: fileName || "" })
+                        }
+                    />
                 </div>
             )}
 
@@ -256,19 +246,18 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                                 maxLength={19}
                             />
                         </div>
-                        <div className="space-y-1">
-                            <Input
-                                placeholder="이미지 URL (선택)"
-                                value={value.templateItemHighlight?.imageUrl ?? ""}
-                                onChange={(e) => update({
-                                    templateItemHighlight: {
-                                        title: value.templateItemHighlight?.title ?? "",
-                                        description: value.templateItemHighlight?.description ?? "",
-                                        imageUrl: e.target.value || undefined,
-                                    },
-                                })}
-                            />
-                        </div>
+                        <ImageUpload
+                            value={value.templateItemHighlight?.imageUrl ?? ""}
+                            onChange={(url) => update({
+                                templateItemHighlight: {
+                                    title: value.templateItemHighlight?.title ?? "",
+                                    description: value.templateItemHighlight?.description ?? "",
+                                    imageUrl: url || undefined,
+                                },
+                            })}
+                            label="하이라이트 이미지 (선택)"
+                            aspect="aspect-square w-20"
+                        />
                     </div>
 
                     {/* 아이템 리스트 */}

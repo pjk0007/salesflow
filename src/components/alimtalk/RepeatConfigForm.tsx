@@ -89,7 +89,7 @@ export default function RepeatConfigForm({
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper" className="max-h-60">
                                     {INTERVAL_OPTIONS.map((opt) => (
                                         <SelectItem key={opt.value} value={opt.value}>
                                             {opt.label}
@@ -110,7 +110,7 @@ export default function RepeatConfigForm({
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper">
                                     {MAX_REPEAT_OPTIONS.map((opt) => (
                                         <SelectItem key={opt.value} value={opt.value}>
                                             {opt.label}
@@ -136,7 +136,7 @@ export default function RepeatConfigForm({
                                 <SelectTrigger>
                                     <SelectValue placeholder="필드" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper" className="max-h-60">
                                     {fields.map((f) => (
                                         <SelectItem key={f.key} value={f.key}>
                                             {f.label}
@@ -160,7 +160,7 @@ export default function RepeatConfigForm({
                                 <SelectTrigger>
                                     <SelectValue />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper">
                                     <SelectItem value="eq">같음 (=)</SelectItem>
                                     <SelectItem value="ne">다름 (≠)</SelectItem>
                                 </SelectContent>

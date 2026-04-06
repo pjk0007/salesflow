@@ -150,7 +150,7 @@ export default function TemplateLinkDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>
                         {mode === "create" ? "템플릿-파티션 연결" : "연결 수정"}
@@ -160,7 +160,7 @@ export default function TemplateLinkDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div className="space-y-4 overflow-y-auto flex-1 pr-1">
                     <div className="space-y-2">
                         <Label>연결 이름</Label>
                         <Input
@@ -180,7 +180,7 @@ export default function TemplateLinkDialog({
                                 <SelectTrigger>
                                     <SelectValue placeholder="파티션 선택" />
                                 </SelectTrigger>
-                                <SelectContent>
+                                <SelectContent position="popper" className="max-h-60">
                                     {allPartitions.map((p) => (
                                         <SelectItem key={p.id} value={String(p.id)}>
                                             {p.name}
@@ -200,7 +200,7 @@ export default function TemplateLinkDialog({
                             <SelectTrigger>
                                 <SelectValue placeholder="수신번호로 사용할 필드" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="max-h-60">
                                 {phoneFields.map((field) => (
                                     <SelectItem key={field.key} value={field.key}>
                                         {field.label} ({field.fieldType})
@@ -223,7 +223,7 @@ export default function TemplateLinkDialog({
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper">
                                 <SelectItem value="manual">수동 발송</SelectItem>
                                 <SelectItem value="on_create">레코드 생성 시</SelectItem>
                                 <SelectItem value="on_update">레코드 수정 시</SelectItem>

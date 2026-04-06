@@ -72,7 +72,7 @@ export default function TriggerConditionForm({
                             <SelectTrigger>
                                 <SelectValue placeholder="필드" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper" className="max-h-60">
                                 {fields.map((f) => (
                                     <SelectItem key={f.key} value={f.key}>
                                         {f.label}
@@ -90,7 +90,7 @@ export default function TriggerConditionForm({
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent position="popper">
                                 {OPERATOR_OPTIONS.map((op) => (
                                     <SelectItem key={op.value} value={op.value}>
                                         {op.label}
