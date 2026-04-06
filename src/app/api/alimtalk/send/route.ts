@@ -110,6 +110,10 @@ export async function POST(req: NextRequest) {
             }, { status: 400 });
         }
 
+        // 템플릿 본문 조회 (content 저장용)
+        const templateDetail = await client.getTemplate(templateLink.senderKey, templateLink.templateCode);
+        const templateContent = templateDetail?.template?.templateContent || "";
+
         // NHN Cloud 발송 API 호출
         const nhnResult = await client.sendMessages({
             senderKey: templateLink.senderKey,
@@ -145,6 +149,14 @@ export async function POST(req: NextRequest) {
             if (isSuccess) successCount++;
             else failCount++;
 
+            // 변수 치환된 본문 생성
+            let content = templateContent;
+            if (recipient.templateParameter) {
+                for (const [key, value] of Object.entries(recipient.templateParameter)) {
+                    content = content.replaceAll(`#{${key}}`, value);
+                }
+            }
+
             return {
                 orgId: user.orgId,
                 templateLinkId: templateLink.id,
@@ -159,6 +171,7 @@ export async function POST(req: NextRequest) {
                 status: isSuccess ? "sent" : "failed",
                 resultCode: String(result.resultCode),
                 resultMessage: result.resultMessage,
+                content,
                 triggerType: "manual",
                 sentBy: user.userId,
             };

@@ -108,6 +108,15 @@ async function sendSingle(
         }
     }
 
+    // 템플릿 본문 조회 + 변수 치환
+    const templateDetail = await client.getTemplate(link.senderKey, link.templateCode);
+    let content = templateDetail?.template?.templateContent || "";
+    if (templateParameter) {
+        for (const [key, value] of Object.entries(templateParameter)) {
+            content = content.replaceAll(`#{${key}}`, value);
+        }
+    }
+
     const nhnResult = await client.sendMessages({
         senderKey: link.senderKey,
         templateCode: link.templateCode,
@@ -131,6 +140,7 @@ async function sendSingle(
         status: isSuccess ? "sent" : "failed",
         resultCode: sendResult ? String(sendResult.resultCode) : null,
         resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        content,
         triggerType,
         sentAt: new Date(),
     }).returning({ id: alimtalkSendLogs.id });
