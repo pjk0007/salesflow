@@ -45,9 +45,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, Link2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy } from "lucide-react";
+import { Eye, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy } from "lucide-react";
 import TemplateDetailDialog from "./TemplateDetailDialog";
-import TemplateLinkDialog from "./TemplateLinkDialog";
 import TestSendDialog from "./TestSendDialog";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -77,13 +76,6 @@ export default function TemplateList() {
     const [detailTemplate, setDetailTemplate] = useState<{
         senderKey: string;
         templateCode: string;
-    } | null>(null);
-
-    const [linkTemplate, setLinkTemplate] = useState<{
-        senderKey: string;
-        templateCode: string;
-        templateName: string;
-        templateContent: string;
     } | null>(null);
 
     // 테스트 발송
@@ -213,22 +205,6 @@ export default function TemplateList() {
                                                 >
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8"
-                                                    disabled={!isApproved}
-                                                    onClick={() =>
-                                                        setLinkTemplate({
-                                                            senderKey: selectedSenderKey,
-                                                            templateCode: tpl.templateCode,
-                                                            templateName: tpl.templateName,
-                                                            templateContent: tpl.templateContent,
-                                                        })
-                                                    }
-                                                >
-                                                    <Link2 className="h-4 w-4" />
-                                                </Button>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
                                                         <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -295,18 +271,6 @@ export default function TemplateList() {
                     templateCode={detailTemplate.templateCode}
                     onEdit={(tpl) => { setDetailTemplate(null); router.push(`/alimtalk/templates/${encodeURIComponent(tpl.templateCode)}?senderKey=${encodeURIComponent(selectedSenderKey!)}`); }}
                     onDelete={(code) => { setDetailTemplate(null); setDeleteTarget({ templateCode: code, templateName: code }); }}
-                />
-            )}
-
-            {linkTemplate && (
-                <TemplateLinkDialog
-                    open={!!linkTemplate}
-                    onOpenChange={() => setLinkTemplate(null)}
-                    senderKey={linkTemplate.senderKey}
-                    templateCode={linkTemplate.templateCode}
-                    templateName={linkTemplate.templateName}
-                    templateContent={linkTemplate.templateContent}
-                    mode="create"
                 />
             )}
 
