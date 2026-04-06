@@ -62,7 +62,7 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
                     onClick={(e) => e.stopPropagation()}
                 >
                     <MessageSquareText className="h-3.5 w-3.5" />
-                    {memoCount}
+                    {memoCount > 0 && memoCount}
                 </span>
             </PopoverTrigger>
             <PopoverContent

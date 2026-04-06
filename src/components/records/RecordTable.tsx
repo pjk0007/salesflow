@@ -212,16 +212,11 @@ export default function RecordTable({
                                                             />
                                                         </div>
                                                         <div className="flex items-center gap-2.5 shrink-0">
-                                                            {(() => {
-                                                                const mc = (record as Record<string, unknown>).memoCount as number;
-                                                                return mc > 0 ? (
-                                                                    <MemoPopover
-                                                                        recordId={record.id}
-                                                                        memoCount={mc}
-                                                                        onMemoChange={onMemoChange}
-                                                                    />
-                                                                ) : null;
-                                                            })()}
+                                                            <MemoPopover
+                                                                recordId={record.id}
+                                                                memoCount={(record as Record<string, unknown>).memoCount as number ?? 0}
+                                                                onMemoChange={onMemoChange}
+                                                            />
                                                             <button
                                                                 type="button"
                                                                 className="opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-1 rounded-md bg-muted border border-border px-2 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-accent shadow-sm"
