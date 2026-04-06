@@ -7,10 +7,11 @@ interface ImageUploadProps {
     value: string;
     onChange: (url: string, fileName?: string) => void;
     label?: string;
+    hint?: string;
     aspect?: string;
 }
 
-export default function ImageUpload({ value, onChange, label, aspect = "aspect-[2/1]" }: ImageUploadProps) {
+export default function ImageUpload({ value, onChange, label, hint, aspect = "aspect-[2/1]" }: ImageUploadProps) {
     const [uploading, setUploading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -86,11 +87,8 @@ export default function ImageUpload({ value, onChange, label, aspect = "aspect-[
                 ) : (
                     <>
                         <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                        <div className="flex items-center gap-1.5">
-                            <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">클릭 또는 드래그하여 업로드</span>
-                        </div>
-                        <span className="text-[10px] text-muted-foreground">JPG, PNG, GIF, WebP (최대 5MB)</span>
+                        <span className="text-xs text-muted-foreground">클릭 또는 드래그</span>
+                        {hint && <span className="text-[10px] text-muted-foreground">{hint}</span>}
                     </>
                 )}
             </div>

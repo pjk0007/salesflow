@@ -208,6 +208,8 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                         onChange={(url, fileName) =>
                             update({ templateImageUrl: url, templateImageName: fileName || "" })
                         }
+                        hint="800×400px 권장 (2:1, 최대 10MB)"
+                        aspect="aspect-[2/1]"
                     />
                 </div>
             )}
@@ -255,8 +257,9 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                                     imageUrl: url || undefined,
                                 },
                             })}
-                            label="하이라이트 이미지 (선택)"
-                            aspect="aspect-square w-20"
+                            label="이미지 (선택)"
+                            hint="JPG, PNG (최대 5MB)"
+                            aspect="aspect-square w-28"
                         />
                     </div>
 
