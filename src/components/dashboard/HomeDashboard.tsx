@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AnalyticsSection from "./AnalyticsSection";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -169,7 +170,7 @@ export default function HomeDashboard() {
     const { summary, isLoading } = useDashboardSummary();
 
     return (
-        <div className="space-y-6">
+        <div className="p-6 space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard
                     label="전체 레코드"
@@ -218,6 +219,8 @@ export default function HomeDashboard() {
             </div>
 
             <QuickActions />
+
+            <AnalyticsSection />
         </div>
     );
 }
