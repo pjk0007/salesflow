@@ -26,7 +26,7 @@ export default function FeaturesSection() {
                             </div>
                             <h3 className="text-2xl font-bold text-slate-900">고객 관리 CRM</h3>
                             <p className="text-slate-600 leading-relaxed">
-                                모든 연락처와 거래 내역을 한 눈에 확인하세요. 파이프라인 관리가 그 어느 때보다 쉬워집니다.
+                                모든 연락처와 고객 정보를 한 눈에 확인하세요. 커스텀 필드로 팀에 맞는 CRM을 구성할 수 있습니다.
                             </p>
                         </div>
                         <div className="md:w-1/2 rounded-xl border border-slate-100 overflow-hidden">
@@ -100,10 +100,10 @@ export default function FeaturesSection() {
                                 <Sparkles className="h-6 w-6 text-white" />
                             </div>
                             <h3 className="text-2xl font-bold text-white">AI 어시스턴트</h3>
-                            <p className="text-slate-400">AI가 고객 응답을 분석하고 최적의 영업 시점과 멘트를 제안해 드립니다.</p>
+                            <p className="text-slate-400">이메일 작성, 기업 조사, 대시보드 생성까지 AI가 도와줍니다.</p>
                             <ul className="space-y-2 text-sm text-slate-300">
-                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-400" /> 맞춤형 메일 초안 작성</li>
-                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-400" /> 거래 성사 확률 분석</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-400" /> AI 맞춤형 이메일 자동 생성</li>
+                                <li className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-400" /> 기업 정보 웹 검색 자동 조사</li>
                             </ul>
                         </div>
                         <div className="md:w-1/2 h-full min-h-[200px] flex items-center justify-center">

@@ -23,7 +23,7 @@ const PLANS = [
         name: "Enterprise",
         price: "₩99,000",
         period: "/월",
-        features: ["Pro의 모든 기능 포함", "무제한 워크스페이스", "전담 계정 관리자", "맞춤형 API 연동", "SSO 보안 설정"],
+        features: ["Pro의 모든 기능 포함", "무제한 워크스페이스", "무제한 레코드", "외부 REST API 연동", "멤버 무제한"],
         cta: "영업팀에 문의",
         highlighted: false,
     },

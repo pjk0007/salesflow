@@ -4,10 +4,10 @@ import { useRef, useEffect, useState } from "react";
 import { useCountUp } from "@/hooks/useCountUp";
 
 const METRICS = [
-    { end: 1000, suffix: "+", label: "기업 고객", duration: 2000 },
-    { end: 50, suffix: "%", label: "업무 시간 절약", duration: 1600 },
-    { end: 10, suffix: "초", label: "AI 응답 속도", duration: 1200 },
-    { end: 99.9, suffix: "%", label: "가동률", duration: 2200, decimals: 1 },
+    { end: 6, suffix: "가지", label: "AI 자동화 기능", duration: 1200 },
+    { end: 3, suffix: "채널", label: "이메일 · 알림톡 · 웹폼", duration: 1400 },
+    { end: 5, suffix: "분", label: "온보딩 소요 시간", duration: 1600 },
+    { end: 24, suffix: "/7", label: "자동 발송 지원", duration: 1800 },
 ];
 
 function CountUpCard({
@@ -87,7 +87,7 @@ export default function SocialProofSection() {
                                 suffix={m.suffix}
                                 label={m.label}
                                 duration={m.duration}
-                                decimals={m.decimals}
+                                decimals={0}
                                 inView={inView}
                                 delay={i * 150}
                             />
