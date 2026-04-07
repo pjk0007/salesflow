@@ -158,7 +158,7 @@ function NewAlimtalkLinkContent() {
                         </Button>
                         <h1 className="text-xl font-semibold">새 알림톡 연결</h1>
                         <span className="text-sm text-muted-foreground">
-                            {(allPartitionsData?.data as Array<{ id: number; name: string }>)?.find((p) => p.id === partitionId)?.name || `파티션 #${partitionId}`}
+                            {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
                         </span>
                     </div>
                     <Button onClick={handleSave} disabled={saving || !name || !senderKey || !templateCode || !recipientField}>

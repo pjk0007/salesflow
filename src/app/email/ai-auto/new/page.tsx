@@ -204,7 +204,7 @@ function NewAiAutoPageContent() {
                             </Button>
                             <h1 className="text-xl font-semibold">AI 개인화 발송 규칙 추가</h1>
                             <span className="text-sm text-muted-foreground">
-                                {(allPartitionsData?.data as Array<{ id: number; name: string }>)?.find((p) => p.id === partitionId)?.name || ""}
+                                {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
                             </span>
                         </div>
                         <Button onClick={handleSave} disabled={saving || !recipientField || !companyField}>
