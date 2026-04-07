@@ -4,6 +4,7 @@ import { useSession } from "@/contexts/SessionContext";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import LandingPage from "@/components/landing/LandingPage";
 import { Loader2 } from "lucide-react";
+import HomeDashboard from "@/components/dashboard/HomeDashboard";
 
 export default function HomePage() {
     const { user, isLoading } = useSession();
@@ -22,7 +23,7 @@ export default function HomePage() {
 
     return (
         <WorkspaceLayout>
-            <div />
+            <HomeDashboard />
         </WorkspaceLayout>
     );
 }
