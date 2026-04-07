@@ -217,6 +217,9 @@ export default function ApiTokensTab() {
             {/* API 문서 */}
             <ApiDocsCard />
 
+            {/* MCP 연동 가이드 */}
+            <McpGuideCard />
+
             {/* 생성 다이얼로그 */}
             <ApiTokenCreateDialog
                 open={createDialogOpen}
@@ -422,6 +425,134 @@ function CodeBlock({ children }: { children: string }) {
         <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto whitespace-pre">
             {children}
         </pre>
+    );
+}
+
+function McpGuideCard() {
+    const [copied, setCopied] = useState(false);
+
+    const mcpConfig = `{
+  "mcpServers": {
+    "salesflow": {
+      "type": "streamable-http",
+      "url": "${typeof window !== "undefined" ? window.location.origin : "https://sendb.kr"}/api/mcp",
+      "headers": {
+        "Authorization": "Bearer <위에서 생성한 API 토큰>"
+      }
+    }
+  }
+}`;
+
+    const handleCopy = async () => {
+        await navigator.clipboard.writeText(mcpConfig);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                    MCP 연동
+                    <Badge variant="secondary" className="text-xs">Model Context Protocol</Badge>
+                </CardTitle>
+                <CardDescription>
+                    Claude Desktop, Claude Code 등 AI 도구에서 SalesFlow 데이터에 직접 접근할 수 있습니다.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">1. API 토큰 생성</h4>
+                    <p className="text-sm text-muted-foreground">
+                        위에서 API 토큰을 생성합니다. MCP를 통해 접근할 워크스페이스/파티션에 대한 권한(scope)을 설정해주세요.
+                    </p>
+                </div>
+
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">2. MCP 설정 추가</h4>
+                    <p className="text-sm text-muted-foreground">
+                        아래 설정을 AI 도구의 MCP 설정 파일에 추가합니다.
+                    </p>
+                    <div className="relative">
+                        <CodeBlock>{mcpConfig}</CodeBlock>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="absolute top-2 right-2 h-7 px-2"
+                            onClick={handleCopy}
+                        >
+                            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">설정 파일 위치</h4>
+                    <div className="rounded-md border text-xs">
+                        <table className="w-full">
+                            <tbody>
+                                <tr className="border-b">
+                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">Claude Desktop</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground font-mono">
+                                        ~/Library/Application Support/Claude/claude_desktop_config.json
+                                    </td>
+                                </tr>
+                                <tr className="border-b">
+                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">Claude Code</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground font-mono">
+                                        ~/.claude/settings.json
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">VS Code (Copilot)</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground font-mono">
+                                        .vscode/mcp.json
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <Collapsible>
+                    <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-semibold hover:text-foreground/80 group">
+                        사용 가능한 도구 (10개)
+                        <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-2">
+                        <div className="rounded-md border text-xs">
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="border-b bg-muted/50">
+                                        <th className="px-2 py-1.5 text-left font-medium">도구</th>
+                                        <th className="px-2 py-1.5 text-left font-medium">설명</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {[
+                                        { name: "list_workspaces", desc: "워크스페이스 목록 조회" },
+                                        { name: "list_partitions", desc: "파티션 목록 조회" },
+                                        { name: "list_records", desc: "레코드 목록 조회/검색" },
+                                        { name: "get_record", desc: "레코드 상세 조회" },
+                                        { name: "create_record", desc: "레코드 생성" },
+                                        { name: "update_record", desc: "레코드 수정" },
+                                        { name: "delete_record", desc: "레코드 삭제" },
+                                        { name: "list_email_logs", desc: "이메일 발송 이력 조회" },
+                                        { name: "list_alimtalk_logs", desc: "알림톡 발송 이력 조회" },
+                                        { name: "get_analytics", desc: "오늘의 발송 통계 조회" },
+                                    ].map((t) => (
+                                        <tr key={t.name} className="border-b last:border-0">
+                                            <td className="px-2 py-1.5 font-mono font-medium whitespace-nowrap">{t.name}</td>
+                                            <td className="px-2 py-1.5 text-muted-foreground">{t.desc}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CollapsibleContent>
+                </Collapsible>
+            </CardContent>
+        </Card>
     );
 }
 
