@@ -174,6 +174,9 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                             <ArrowLeft className="h-5 w-5" />
                         </Button>
                         <h1 className="text-xl font-semibold">알림톡 연결 수정</h1>
+                        <span className="text-sm text-muted-foreground">
+                            {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
+                        </span>
                         <Badge variant={isActive ? "default" : "secondary"}>{isActive ? "활성" : "비활성"}</Badge>
                     </div>
                     <div className="flex items-center gap-2">

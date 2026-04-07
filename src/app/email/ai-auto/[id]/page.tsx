@@ -213,6 +213,9 @@ function EditAiAutoPageContent() {
                                 <ArrowLeft className="h-5 w-5" />
                             </Button>
                             <h1 className="text-xl font-semibold">AI 개인화 발송 규칙 수정</h1>
+                            <span className="text-sm text-muted-foreground">
+                                {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
+                            </span>
                         </div>
                         <Button onClick={handleSave} disabled={saving || !recipientField || !companyField}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}

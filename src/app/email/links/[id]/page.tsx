@@ -173,6 +173,9 @@ function EditLinkPageContent() {
                                 <ArrowLeft className="h-5 w-5" />
                             </Button>
                             <h1 className="text-xl font-semibold">연결 편집</h1>
+                            <span className="text-sm text-muted-foreground">
+                                {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
+                            </span>
                         </div>
                         <Button onClick={handleSave} disabled={saving || !name || !emailTemplateId || !recipientField}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
