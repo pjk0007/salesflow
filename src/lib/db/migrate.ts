@@ -41,6 +41,11 @@ const INCORRECTLY_SEEDED = [
     "0027_duplicate_prevention",
 ];
 
+// DB에 직접 적용(push)되었지만 마이그레이션 기록이 없는 것 — 기록만 삽입
+const MANUALLY_APPLIED = [
+    { hash: "0037_ai_email_sender_fields", created_at: 1770949000000 },
+];
+
 async function seedMigrationHistory(client: postgres.Sql) {
     // 실제 테이블이 존재하는지 확인 (drizzle-kit push로 이미 적용된 DB인지)
     const tableCheck = await client`
@@ -78,6 +83,14 @@ async function seedMigrationHistory(client: postgres.Sql) {
             const del = await client`DELETE FROM "drizzle"."__drizzle_migrations" WHERE hash = ${hash}`;
             if (del.count > 0) {
                 console.log(`[migrate] 잘못 시딩된 기록 제거: ${hash}`);
+            }
+        }
+        // DB에 직접 적용되었지만 기록이 없는 마이그레이션 삽입
+        for (const m of MANUALLY_APPLIED) {
+            const exists = await client`SELECT 1 FROM "drizzle"."__drizzle_migrations" WHERE hash = ${m.hash} LIMIT 1`;
+            if (exists.length === 0) {
+                await client`INSERT INTO "drizzle"."__drizzle_migrations" (hash, created_at) VALUES (${m.hash}, ${m.created_at})`;
+                console.log(`[migrate] 수동 적용 기록 추가: ${m.hash}`);
             }
         }
         return;
