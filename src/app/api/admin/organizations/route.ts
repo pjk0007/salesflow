@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { db, organizations, organizationMembers, subscriptions, plans, records, emailSendLogs, alimtalkSendLogs, workspaces, partitions } from "@/lib/db";
-import { sql, eq, ilike, or, count, max } from "drizzle-orm";
+import { sql, ilike, or } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -24,88 +24,56 @@ export async function GET(req: NextRequest) {
         .from(organizations)
         .where(where);
 
-    const orgs = await db
-        .select({
-            id: organizations.id,
-            name: organizations.name,
-            slug: organizations.slug,
-            createdAt: organizations.createdAt,
-        })
-        .from(organizations)
-        .where(where)
-        .orderBy(organizations.createdAt)
-        .limit(limit)
-        .offset(offset);
+    // 단일 쿼리로 모든 정보 조회
+    const rows = await db.execute<{
+        id: string;
+        name: string;
+        slug: string;
+        created_at: string;
+        member_count: number;
+        plan_name: string | null;
+        record_count: number;
+        email_count: number;
+        alimtalk_count: number;
+        last_activity: string | null;
+    }>(sql`
+        SELECT
+            o.id,
+            o.name,
+            o.slug,
+            o.created_at,
+            COALESCE((SELECT count(*)::int FROM ${organizationMembers} om WHERE om.organization_id = o.id), 0) as member_count,
+            (SELECT p.name FROM ${subscriptions} s JOIN ${plans} p ON p.id = s.plan_id WHERE s.org_id = o.id LIMIT 1) as plan_name,
+            COALESCE((SELECT count(*)::int FROM ${records} r JOIN ${partitions} pt ON pt.id = r.partition_id JOIN ${workspaces} w ON w.id = pt.workspace_id WHERE w.org_id = o.id), 0) as record_count,
+            COALESCE((SELECT count(*)::int FROM ${emailSendLogs} e WHERE e.org_id = o.id), 0) as email_count,
+            COALESCE((SELECT count(*)::int FROM ${alimtalkSendLogs} a WHERE a.org_id = o.id), 0) as alimtalk_count,
+            GREATEST(
+                (SELECT max(r.created_at) FROM ${records} r JOIN ${partitions} pt ON pt.id = r.partition_id JOIN ${workspaces} w ON w.id = pt.workspace_id WHERE w.org_id = o.id),
+                (SELECT max(e.sent_at) FROM ${emailSendLogs} e WHERE e.org_id = o.id),
+                (SELECT max(a.sent_at) FROM ${alimtalkSendLogs} a WHERE a.org_id = o.id)
+            ) as last_activity
+        FROM ${organizations} o
+        ${search ? sql`WHERE o.name ILIKE ${"%" + search + "%"} OR o.slug ILIKE ${"%" + search + "%"}` : sql``}
+        ORDER BY o.created_at
+        LIMIT ${limit} OFFSET ${offset}
+    `);
 
-    // 각 조직의 멤버 수 + 플랜명 조회
-    const rows = await Promise.all(
-        orgs.map(async (org) => {
-            const [mc] = await db
-                .select({ count: count() })
-                .from(organizationMembers)
-                .where(eq(organizationMembers.organizationId, org.id));
-
-            const [sub] = await db
-                .select({ planName: plans.name })
-                .from(subscriptions)
-                .innerJoin(plans, eq(plans.id, subscriptions.planId))
-                .where(eq(subscriptions.orgId, org.id))
-                .limit(1);
-
-            // 레코드 수
-            const [rc] = await db
-                .select({ count: sql<number>`count(*)::int` })
-                .from(records)
-                .innerJoin(partitions, eq(partitions.id, records.partitionId))
-                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-                .where(eq(workspaces.orgId, org.id));
-
-            // 이메일 발송 수
-            const [ec] = await db
-                .select({ count: sql<number>`count(*)::int` })
-                .from(emailSendLogs)
-                .where(eq(emailSendLogs.orgId, org.id));
-
-            // 알림톡 발송 수
-            const [ac] = await db
-                .select({ count: sql<number>`count(*)::int` })
-                .from(alimtalkSendLogs)
-                .where(eq(alimtalkSendLogs.orgId, org.id));
-
-            // 마지막 활동 (레코드 생성/이메일/알림톡 중 최신)
-            const [lastRecord] = await db
-                .select({ at: max(records.createdAt) })
-                .from(records)
-                .innerJoin(partitions, eq(partitions.id, records.partitionId))
-                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-                .where(eq(workspaces.orgId, org.id));
-            const [lastEmail] = await db
-                .select({ at: max(emailSendLogs.sentAt) })
-                .from(emailSendLogs)
-                .where(eq(emailSendLogs.orgId, org.id));
-            const [lastAlimtalk] = await db
-                .select({ at: max(alimtalkSendLogs.sentAt) })
-                .from(alimtalkSendLogs)
-                .where(eq(alimtalkSendLogs.orgId, org.id));
-
-            const dates = [lastRecord?.at, lastEmail?.at, lastAlimtalk?.at].filter(Boolean) as Date[];
-            const lastActivity = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : null;
-
-            return {
-                ...org,
-                memberCount: mc?.count ?? 0,
-                planName: sub?.planName ?? null,
-                recordCount: rc?.count ?? 0,
-                emailCount: ec?.count ?? 0,
-                alimtalkCount: ac?.count ?? 0,
-                lastActivity,
-            };
-        })
-    );
+    const data = rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        slug: r.slug,
+        createdAt: r.created_at,
+        memberCount: r.member_count,
+        planName: r.plan_name,
+        recordCount: r.record_count,
+        emailCount: r.email_count,
+        alimtalkCount: r.alimtalk_count,
+        lastActivity: r.last_activity,
+    }));
 
     return NextResponse.json({
         success: true,
-        data: rows,
+        data,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
 }
