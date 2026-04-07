@@ -431,11 +431,11 @@ function CodeBlock({ children }: { children: string }) {
 function McpGuideCard() {
     const [copied, setCopied] = useState(false);
 
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://sendb.kr";
     const mcpConfig = `{
   "mcpServers": {
     "salesflow": {
-      "type": "streamable-http",
-      "url": "${typeof window !== "undefined" ? window.location.origin : "https://sendb.kr"}/api/mcp",
+      "url": "${baseUrl}/api/mcp",
       "headers": {
         "Authorization": "Bearer <위에서 생성한 API 토큰>"
       }
@@ -484,6 +484,13 @@ function McpGuideCard() {
                             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                         </Button>
                     </div>
+                </div>
+
+                <div className="rounded-md bg-muted/50 border p-3 space-y-1">
+                    <p className="text-xs font-semibold">연결이 안 되나요?</p>
+                    <p className="text-xs text-muted-foreground">
+                        Claude Desktop을 최신 버전으로 업데이트해주세요. (Help → Check for Updates)
+                    </p>
                 </div>
 
                 <div className="space-y-2">
