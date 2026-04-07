@@ -2,9 +2,6 @@
 
 import { useSession } from "@/contexts/SessionContext";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
-import { PageContainer } from "@/components/common/page-container";
-import { PageHeader } from "@/components/common/page-header";
-import HomeDashboard from "@/components/dashboard/HomeDashboard";
 import LandingPage from "@/components/landing/LandingPage";
 import { Loader2 } from "lucide-react";
 
@@ -25,13 +22,7 @@ export default function HomePage() {
 
     return (
         <WorkspaceLayout>
-            <PageContainer>
-                <PageHeader
-                    title="홈"
-                    description="전체 현황을 한눈에 확인하세요."
-                />
-                <HomeDashboard />
-            </PageContainer>
+            <div />
         </WorkspaceLayout>
     );
 }

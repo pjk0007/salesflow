@@ -27,8 +27,6 @@ import { useBreadcrumbOverrides } from "./breadcrumb-context";
 
 const BREADCRUMB_LABELS: Record<string, string> = {
     records: "레코드",
-    dashboards: "대시보드",
-    dashboard: "대시보드",
     email: "이메일",
     alimtalk: "알림톡",
     products: "제품",

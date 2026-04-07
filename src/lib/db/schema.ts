@@ -842,55 +842,6 @@ export const webFormFields = pgTable("web_form_fields", {
 });
 
 // ============================================
-// 대시보드
-// ============================================
-export const dashboards = pgTable("dashboards", {
-    id: serial("id").primaryKey(),
-    orgId: uuid("org_id")
-        .references(() => organizations.id, { onDelete: "cascade" })
-        .notNull(),
-    workspaceId: integer("workspace_id")
-        .references(() => workspaces.id, { onDelete: "cascade" })
-        .notNull(),
-    name: varchar("name", { length: 200 }).notNull(),
-    slug: varchar("slug", { length: 100 }).unique().notNull(),
-    description: text("description"),
-    partitionIds: jsonb("partition_ids").$type<number[]>(),
-    globalFilters: jsonb("global_filters").$type<DashboardFilter[]>(),
-    refreshInterval: integer("refresh_interval").default(60).notNull(),
-    isPublic: integer("is_public").default(0).notNull(),
-    createdBy: uuid("created_by").references(() => users.id),
-    createdAt: timestamptz("created_at").defaultNow().notNull(),
-    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
-});
-
-export const dashboardWidgets = pgTable("dashboard_widgets", {
-    id: serial("id").primaryKey(),
-    dashboardId: integer("dashboard_id")
-        .references(() => dashboards.id, { onDelete: "cascade" })
-        .notNull(),
-    title: varchar("title", { length: 200 }).notNull(),
-    widgetType: varchar("widget_type", { length: 20 }).notNull(),
-    dataColumn: varchar("data_column", { length: 100 }).notNull(),
-    aggregation: varchar("aggregation", { length: 20 }).default("count").notNull(),
-    groupByColumn: varchar("group_by_column", { length: 100 }),
-    stackByColumn: varchar("stack_by_column", { length: 100 }),
-    widgetFilters: jsonb("widget_filters").$type<DashboardFilter[]>(),
-    layoutX: integer("layout_x").default(0).notNull(),
-    layoutY: integer("layout_y").default(0).notNull(),
-    layoutW: integer("layout_w").default(4).notNull(),
-    layoutH: integer("layout_h").default(3).notNull(),
-    createdAt: timestamptz("created_at").defaultNow().notNull(),
-    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
-});
-
-export interface DashboardFilter {
-    field: string;
-    operator: "eq" | "ne" | "gt" | "gte" | "lt" | "lte" | "like" | "in" | "date_preset";
-    value: string;
-}
-
-// ============================================
 // 요금제 플랜
 // ============================================
 export const plans = pgTable("plans", {
@@ -1145,10 +1096,6 @@ export type WebForm = typeof webForms.$inferSelect;
 export type NewWebForm = typeof webForms.$inferInsert;
 export type WebFormField = typeof webFormFields.$inferSelect;
 export type NewWebFormField = typeof webFormFields.$inferInsert;
-export type Dashboard = typeof dashboards.$inferSelect;
-export type NewDashboard = typeof dashboards.$inferInsert;
-export type DashboardWidget = typeof dashboardWidgets.$inferSelect;
-export type NewDashboardWidget = typeof dashboardWidgets.$inferInsert;
 export type Plan = typeof plans.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type Payment = typeof payments.$inferSelect;

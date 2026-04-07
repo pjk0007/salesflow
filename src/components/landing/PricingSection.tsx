@@ -7,7 +7,7 @@ const PLANS = [
         name: "Free",
         price: "₩0",
         period: "/월",
-        features: ["워크스페이스 1개", "레코드 500건", "멤버 2명", "기본 대시보드"],
+        features: ["워크스페이스 1개", "레코드 500건", "멤버 2명", "이메일/알림톡 발송"],
         cta: "무료로 시작하기",
         highlighted: false,
     },

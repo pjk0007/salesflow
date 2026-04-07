@@ -1,4 +1,4 @@
-import { Users, Mail, BarChart3, Sparkles, Check } from "lucide-react";
+import { Users, Mail, MessageSquare, Sparkles, Check } from "lucide-react";
 import AnimateOnScroll from "./AnimateOnScroll";
 
 export default function FeaturesSection() {
@@ -65,29 +65,25 @@ export default function FeaturesSection() {
                         </div>
                     </AnimateOnScroll>
 
-                    {/* Dashboard — medium */}
+                    {/* Alimtalk — medium */}
                     <AnimateOnScroll delay={200} className="lg:col-span-5 bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col justify-between group">
                         <div className="space-y-4 mb-8">
                             <div className="w-12 h-12 rounded-xl bg-violet-100 text-violet-600 flex items-center justify-center">
-                                <BarChart3 className="h-6 w-6" />
+                                <MessageSquare className="h-6 w-6" />
                             </div>
-                            <h3 className="text-2xl font-bold text-slate-900">대시보드 리포트</h3>
+                            <h3 className="text-2xl font-bold text-slate-900">알림톡 자동화</h3>
                             <p className="text-slate-600 leading-relaxed">
-                                매주, 매월 영업 성과를 실시간 대시보드로 분석하여 인사이트를 도출하세요.
+                                카카오 알림톡을 조건에 따라 자동 발송하세요. 템플릿 변수 매핑으로 개인화된 메시지를 보냅니다.
                             </p>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                             {[
-                                { label: "월간 매출", bars: [40, 65, 80, 55, 90] },
-                                { label: "신규 고객", bars: [30, 50, 45, 70, 60] },
-                            ].map((chart) => (
-                                <div key={chart.label} className="rounded-xl border border-slate-100 p-3 bg-slate-50">
-                                    <p className="text-[10px] text-slate-400 mb-2">{chart.label}</p>
-                                    <div className="flex items-end gap-1 h-14">
-                                        {chart.bars.map((h, i) => (
-                                            <div key={i} className="flex-1 rounded-sm bg-violet-200" style={{ height: `${h}%` }} />
-                                        ))}
-                                    </div>
+                                { label: "발송 성공", value: "98.2%", color: "text-green-600" },
+                                { label: "자동 발송", value: "1,240건", color: "text-violet-600" },
+                            ].map((stat) => (
+                                <div key={stat.label} className="rounded-xl border border-slate-100 p-4 bg-slate-50 text-center">
+                                    <p className="text-[10px] text-slate-400 mb-1">{stat.label}</p>
+                                    <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
                                 </div>
                             ))}
                         </div>
@@ -100,7 +96,7 @@ export default function FeaturesSection() {
                                 <Sparkles className="h-6 w-6 text-white" />
                             </div>
                             <h3 className="text-2xl font-bold text-white">AI 어시스턴트</h3>
-                            <p className="text-slate-400">이메일 작성, 기업 조사, 대시보드 생성까지 AI가 도와줍니다.</p>
+                            <p className="text-slate-400">이메일 작성, 기업 조사, 웹 폼 생성까지 AI가 도와줍니다.</p>
                             <ul className="space-y-2 text-sm text-slate-300">
                                 <li className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-400" /> AI 맞춤형 이메일 자동 생성</li>
                                 <li className="flex items-center gap-2"><Check className="h-4 w-4 text-blue-400" /> 기업 정보 웹 검색 자동 조사</li>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Users, Mail, BarChart3, Sparkles } from "lucide-react";
+import { Users, Mail, MessageSquare, Sparkles } from "lucide-react";
 import AnimateOnScroll from "./AnimateOnScroll";
 
 const TABS = [
@@ -30,15 +30,15 @@ const TABS = [
         ],
     },
     {
-        id: "dashboard",
-        icon: BarChart3,
-        label: "대시보드",
-        title: "실시간 데이터 시각화",
-        description: "드래그 앤 드롭으로 대시보드를 구성하고 영업 현황을 한눈에 파악하세요.",
+        id: "alimtalk",
+        icon: MessageSquare,
+        label: "알림톡",
+        title: "카카오 알림톡 자동 발송",
+        description: "레코드 생성/수정 시 조건에 맞춰 알림톡을 자동 발송합니다.",
         bullets: [
-            "다양한 위젯으로 자유 배치",
-            "AI 자동 대시보드 생성",
-            "파티션별 데이터 범위 설정",
+            "조건 기반 자동 발송 설정",
+            "템플릿 변수 매핑으로 개인화",
+            "발송 이력과 결과 추적",
         ],
     },
     {
@@ -46,11 +46,11 @@ const TABS = [
         icon: Sparkles,
         label: "AI 도우미",
         title: "AI가 돕는 영업 활동",
-        description: "이메일 작성, 기업 조사, 위젯 설정까지 AI가 도와줍니다.",
+        description: "이메일 작성, 기업 조사, 웹 폼 생성까지 AI가 도와줍니다.",
         bullets: [
             "자연어로 이메일 자동 생성",
             "기업 정보 자동 조사",
-            "AI 대시보드 위젯 추천",
+            "AI 웹 폼 필드 추천",
         ],
     },
 ];
@@ -105,20 +105,20 @@ function EmailMockup() {
     );
 }
 
-function DashboardMockup() {
+function AlimtalkMockup() {
     return (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-2 text-[11px]">
             {[
-                { label: "월간 매출", bars: [40, 65, 80, 55, 90] },
-                { label: "신규 고객", bars: [30, 50, 45, 70, 60] },
-            ].map((chart) => (
-                <div key={chart.label} className="rounded-lg border p-3">
-                    <p className="text-[10px] text-muted-foreground mb-2">{chart.label}</p>
-                    <div className="flex items-end gap-1 h-16">
-                        {chart.bars.map((h, i) => (
-                            <div key={i} className="flex-1 rounded-sm bg-primary/20" style={{ height: `${h}%` }} />
-                        ))}
+                { name: "김민수", template: "가입 환영", status: "성공", color: "text-green-600" },
+                { name: "이서연", template: "결제 안내", status: "성공", color: "text-green-600" },
+                { name: "박지훈", template: "배송 알림", status: "대기", color: "text-yellow-600" },
+            ].map((log) => (
+                <div key={log.name} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                    <div className="flex items-center gap-2">
+                        <span className="font-medium">{log.name}</span>
+                        <span className="text-muted-foreground">{log.template}</span>
                     </div>
+                    <span className={`text-xs font-medium ${log.color}`}>{log.status}</span>
                 </div>
             ))}
         </div>
@@ -149,7 +149,7 @@ function AiMockup() {
 const MOCKUPS: Record<string, () => React.ReactNode> = {
     crm: CrmMockup,
     email: EmailMockup,
-    dashboard: DashboardMockup,
+    alimtalk: AlimtalkMockup,
     ai: AiMockup,
 };
 

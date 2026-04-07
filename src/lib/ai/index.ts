@@ -17,10 +17,6 @@ export { generateFieldEnrichment } from "./search";
 // Web form
 export { generateWebForm } from "./form";
 
-// Dashboard & widget
-export { generateDashboard } from "./dashboard";
-export { generateWidget } from "./dashboard";
-
 // Alimtalk
 export { generateAlimtalk } from "./alimtalk";
 
