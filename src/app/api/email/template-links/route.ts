@@ -10,27 +10,42 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const partitionId = Number(req.nextUrl.searchParams.get("partitionId"));
-        if (!partitionId) {
-            return NextResponse.json({ success: false, error: "partitionId는 필수입니다." }, { status: 400 });
+        const partitionIdParam = req.nextUrl.searchParams.get("partitionId");
+        const partitionId = partitionIdParam ? Number(partitionIdParam) : null;
+
+        if (partitionId) {
+            // 특정 파티션
+            const [partition] = await db
+                .select()
+                .from(partitions)
+                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+                .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)))
+                .limit(1);
+
+            if (!partition) {
+                return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+            }
+
+            const links = await db
+                .select()
+                .from(emailTemplateLinks)
+                .where(eq(emailTemplateLinks.partitionId, partitionId));
+
+            return NextResponse.json({ success: true, data: links });
         }
 
-        // 소유권 확인
-        const [partition] = await db
-            .select()
-            .from(partitions)
-            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-            .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)))
-            .limit(1);
-
-        if (!partition) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
-        }
-
-        const links = await db
-            .select()
+        // 전체 조회
+        const rows = await db
+            .select({
+                link: emailTemplateLinks,
+                partitionName: partitions.name,
+            })
             .from(emailTemplateLinks)
-            .where(eq(emailTemplateLinks.partitionId, partitionId));
+            .innerJoin(partitions, eq(partitions.id, emailTemplateLinks.partitionId))
+            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+            .where(eq(workspaces.orgId, user.orgId));
+
+        const links = rows.map((r) => ({ ...r.link, partitionName: r.partitionName }));
 
         return NextResponse.json({ success: true, data: links });
     } catch (error) {

@@ -77,9 +77,13 @@ interface UpdateInput {
     signatureId?: number | null;
 }
 
-export function useAutoPersonalizedEmail(partitionId: number | null) {
+export function useAutoPersonalizedEmail(partitionId: number | null | "all") {
     const { data, error, isLoading, mutate } = useSWR(
-        partitionId ? `/api/email/auto-personalized?partitionId=${partitionId}` : null,
+        partitionId === "all"
+            ? "/api/email/auto-personalized"
+            : partitionId
+                ? `/api/email/auto-personalized?partitionId=${partitionId}`
+                : null,
         defaultFetcher
     );
 

@@ -8,9 +8,13 @@ interface TemplateLinksResponse {
 }
 
 
-export function useEmailTemplateLinks(partitionId: number | null) {
+export function useEmailTemplateLinks(partitionId: number | null | "all") {
     const { data, error, isLoading, mutate } = useSWR<TemplateLinksResponse>(
-        partitionId ? `/api/email/template-links?partitionId=${partitionId}` : null,
+        partitionId === "all"
+            ? "/api/email/template-links"
+            : partitionId
+                ? `/api/email/template-links?partitionId=${partitionId}`
+                : null,
         defaultFetcher
     );
 

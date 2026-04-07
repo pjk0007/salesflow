@@ -10,48 +10,60 @@ export async function GET(req: NextRequest) {
     }
 
     try {
-        const partitionId = Number(req.nextUrl.searchParams.get("partitionId"));
-        if (!partitionId) {
-            return NextResponse.json({ success: false, error: "partitionId는 필수입니다." }, { status: 400 });
+        const partitionIdParam = req.nextUrl.searchParams.get("partitionId");
+        const partitionId = partitionIdParam ? Number(partitionIdParam) : null;
+
+        const selectFields = {
+            id: emailAutoPersonalizedLinks.id,
+            orgId: emailAutoPersonalizedLinks.orgId,
+            partitionId: emailAutoPersonalizedLinks.partitionId,
+            productId: emailAutoPersonalizedLinks.productId,
+            productName: products.name,
+            recipientField: emailAutoPersonalizedLinks.recipientField,
+            companyField: emailAutoPersonalizedLinks.companyField,
+            prompt: emailAutoPersonalizedLinks.prompt,
+            tone: emailAutoPersonalizedLinks.tone,
+            format: emailAutoPersonalizedLinks.format,
+            triggerType: emailAutoPersonalizedLinks.triggerType,
+            triggerCondition: emailAutoPersonalizedLinks.triggerCondition,
+            autoResearch: emailAutoPersonalizedLinks.autoResearch,
+            useSignaturePersona: emailAutoPersonalizedLinks.useSignaturePersona,
+            followupConfig: emailAutoPersonalizedLinks.followupConfig,
+            preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
+            isActive: emailAutoPersonalizedLinks.isActive,
+            createdAt: emailAutoPersonalizedLinks.createdAt,
+            updatedAt: emailAutoPersonalizedLinks.updatedAt,
+        };
+
+        if (partitionId) {
+            const [partition] = await db
+                .select()
+                .from(partitions)
+                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+                .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)))
+                .limit(1);
+
+            if (!partition) {
+                return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+            }
+
+            const links = await db
+                .select(selectFields)
+                .from(emailAutoPersonalizedLinks)
+                .leftJoin(products, eq(products.id, emailAutoPersonalizedLinks.productId))
+                .where(eq(emailAutoPersonalizedLinks.partitionId, partitionId));
+
+            return NextResponse.json({ success: true, data: links });
         }
 
-        // 소유권 확인
-        const [partition] = await db
-            .select()
-            .from(partitions)
-            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-            .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)))
-            .limit(1);
-
-        if (!partition) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
-        }
-
+        // 전체 조회
         const links = await db
-            .select({
-                id: emailAutoPersonalizedLinks.id,
-                orgId: emailAutoPersonalizedLinks.orgId,
-                partitionId: emailAutoPersonalizedLinks.partitionId,
-                productId: emailAutoPersonalizedLinks.productId,
-                productName: products.name,
-                recipientField: emailAutoPersonalizedLinks.recipientField,
-                companyField: emailAutoPersonalizedLinks.companyField,
-                prompt: emailAutoPersonalizedLinks.prompt,
-                tone: emailAutoPersonalizedLinks.tone,
-                format: emailAutoPersonalizedLinks.format,
-                triggerType: emailAutoPersonalizedLinks.triggerType,
-                triggerCondition: emailAutoPersonalizedLinks.triggerCondition,
-                autoResearch: emailAutoPersonalizedLinks.autoResearch,
-                useSignaturePersona: emailAutoPersonalizedLinks.useSignaturePersona,
-                followupConfig: emailAutoPersonalizedLinks.followupConfig,
-                preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
-                isActive: emailAutoPersonalizedLinks.isActive,
-                createdAt: emailAutoPersonalizedLinks.createdAt,
-                updatedAt: emailAutoPersonalizedLinks.updatedAt,
-            })
+            .select({ ...selectFields, partitionName: partitions.name })
             .from(emailAutoPersonalizedLinks)
             .leftJoin(products, eq(products.id, emailAutoPersonalizedLinks.productId))
-            .where(eq(emailAutoPersonalizedLinks.partitionId, partitionId));
+            .innerJoin(partitions, eq(partitions.id, emailAutoPersonalizedLinks.partitionId))
+            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+            .where(eq(workspaces.orgId, user.orgId));
 
         return NextResponse.json({ success: true, data: links });
     } catch (error) {

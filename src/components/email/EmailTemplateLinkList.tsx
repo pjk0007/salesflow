@@ -44,14 +44,13 @@ const TRIGGER_LABELS: Record<string, string> = {
 
 export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkListProps) {
     const router = useRouter();
-    const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
-        partitions[0]?.id ?? null
-    );
+    const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
     const { templateLinks, isLoading, updateLink, deleteLink } = useEmailTemplateLinks(selectedPartitionId);
-    const selectedPartition = partitions.find((p) => p.id === selectedPartitionId);
+    const selectedPartition = selectedPartitionId !== "all" ? partitions.find((p) => p.id === selectedPartitionId) : null;
     const { fields } = useFields(selectedPartition?.workspaceId ?? null);
+    const partitionMap = useMemo(() => Object.fromEntries(partitions.map((p) => [p.id, p.name])), [partitions]);
     const fieldLabelMap = useMemo(() => {
         const map: Record<string, string> = {};
         for (const f of fields) map[f.key] = f.label;
@@ -59,12 +58,13 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
     }, [fields]);
 
     const handleCreate = () => {
-        if (!selectedPartitionId) return;
-        router.push(`/email/links/new?partitionId=${selectedPartitionId}`);
+        const params = selectedPartitionId !== "all" ? `?partitionId=${selectedPartitionId}` : "";
+        router.push(`/email/links/new${params}`);
     };
 
-    const handleEdit = (linkId: number) => {
-        router.push(`/email/links/${linkId}?partitionId=${selectedPartitionId}`);
+    const handleEdit = (linkId: number, partId?: number) => {
+        const pId = partId || (selectedPartitionId !== "all" ? selectedPartitionId : null);
+        router.push(`/email/links/${linkId}?partitionId=${pId}`);
     };
 
     const handleToggleActive = async (link: { id: number; isActive: number }) => {
@@ -89,13 +89,14 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                     <CardTitle>템플릿 자동발송</CardTitle>
                     <div className="flex items-center gap-2">
                         <Select
-                            value={selectedPartitionId?.toString() ?? ""}
-                            onValueChange={(v) => setSelectedPartitionId(Number(v))}
+                            value={String(selectedPartitionId)}
+                            onValueChange={(v) => setSelectedPartitionId(v === "all" ? "all" : Number(v))}
                         >
                             <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="파티션 선택" />
+                                <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="all">전체</SelectItem>
                                 {partitions.map((p) => (
                                     <SelectItem key={p.id} value={p.id.toString()}>
                                         {p.name}
@@ -103,7 +104,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Button size="sm" onClick={handleCreate} disabled={!selectedPartitionId}>
+                        <Button size="sm" onClick={handleCreate}>
                             <Plus className="h-4 w-4 mr-1" />
                             규칙 추가
                         </Button>
@@ -111,9 +112,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                 </div>
             </CardHeader>
             <CardContent>
-                {!selectedPartitionId ? (
-                    <p className="text-sm text-muted-foreground">파티션을 선택해주세요.</p>
-                ) : isLoading ? (
+                {isLoading ? (
                     <div className="flex justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
@@ -133,6 +132,11 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                         <Badge variant={link.isActive ? "default" : "secondary"}>
                                             {link.name}
                                         </Badge>
+                                        {selectedPartitionId === "all" && (
+                                            <Badge variant="secondary" className="text-xs">
+                                                {(link as Record<string, unknown>).partitionName as string || partitionMap[link.partitionId] || ""}
+                                            </Badge>
+                                        )}
                                         <Badge variant="outline">
                                             {TRIGGER_LABELS[link.triggerType] || link.triggerType}
                                         </Badge>
@@ -160,7 +164,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                         variant="ghost"
                                         size="icon"
                                         title="수정"
-                                        onClick={() => handleEdit(link.id)}
+                                        onClick={() => handleEdit(link.id, link.partitionId)}
                                     >
                                         <Pencil className="h-4 w-4" />
                                     </Button>

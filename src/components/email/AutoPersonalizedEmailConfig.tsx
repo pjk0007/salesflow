@@ -49,9 +49,7 @@ export default function AutoPersonalizedEmailConfig({
     partitions,
 }: AutoPersonalizedEmailConfigProps) {
     const router = useRouter();
-    const [selectedPartitionId, setSelectedPartitionId] = useState<number | null>(
-        partitions[0]?.id ?? null
-    );
+    const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
     const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
@@ -59,18 +57,20 @@ export default function AutoPersonalizedEmailConfig({
         useAutoPersonalizedEmail(selectedPartitionId);
 
     const handleCreate = () => {
-        if (!selectedPartitionId) return;
-        router.push(`/email/ai-auto/new?partitionId=${selectedPartitionId}`);
+        const params = selectedPartitionId !== "all" ? `?partitionId=${selectedPartitionId}` : "";
+        router.push(`/email/ai-auto/new${params}`);
     };
 
-    const handleEdit = (linkId: number) => {
-        router.push(`/email/ai-auto/${linkId}?partitionId=${selectedPartitionId}`);
+    const handleEdit = (linkId: number, partId?: number) => {
+        const pId = partId || (selectedPartitionId !== "all" ? selectedPartitionId : null);
+        router.push(`/email/ai-auto/${linkId}?partitionId=${pId}`);
     };
 
     const handleDuplicate = async (link: AutoPersonalizedLink) => {
-        if (!selectedPartitionId) return;
+        const dupPartitionId = selectedPartitionId !== "all" ? selectedPartitionId : link.partitionId;
+        if (!dupPartitionId) return;
         const result = await createLink({
-            partitionId: selectedPartitionId,
+            partitionId: dupPartitionId,
             productId: link.productId,
             recipientField: link.recipientField,
             companyField: link.companyField,
@@ -105,13 +105,14 @@ export default function AutoPersonalizedEmailConfig({
                     <CardTitle>AI 개인화 이메일 자동 발송</CardTitle>
                     <div className="flex items-center gap-2">
                         <Select
-                            value={selectedPartitionId?.toString() ?? ""}
-                            onValueChange={(v) => setSelectedPartitionId(Number(v))}
+                            value={String(selectedPartitionId)}
+                            onValueChange={(v) => setSelectedPartitionId(v === "all" ? "all" : Number(v))}
                         >
                             <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="파티션 선택" />
+                                <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
+                                <SelectItem value="all">전체</SelectItem>
                                 {partitions.map((p) => (
                                     <SelectItem key={p.id} value={p.id.toString()}>
                                         {p.name}
@@ -119,7 +120,7 @@ export default function AutoPersonalizedEmailConfig({
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Button size="sm" onClick={handleCreate} disabled={!selectedPartitionId}>
+                        <Button size="sm" onClick={handleCreate}>
                             <Plus className="h-4 w-4 mr-1" />
                             규칙 추가
                         </Button>
@@ -127,9 +128,7 @@ export default function AutoPersonalizedEmailConfig({
                 </div>
             </CardHeader>
             <CardContent>
-                {!selectedPartitionId ? (
-                    <p className="text-sm text-muted-foreground">파티션을 선택해주세요.</p>
-                ) : isLoading ? (
+                {isLoading ? (
                     <div className="flex justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
@@ -149,6 +148,11 @@ export default function AutoPersonalizedEmailConfig({
                                         <Badge variant={link.isActive === 1 ? "default" : "secondary"}>
                                             {link.productName || "제품 미지정"}
                                         </Badge>
+                                        {selectedPartitionId === "all" && (
+                                            <Badge variant="secondary" className="text-xs">
+                                                {(link as unknown as { partitionName?: string }).partitionName || ""}
+                                            </Badge>
+                                        )}
                                         <Badge variant="outline">
                                             {link.triggerType === "on_create" ? "생성 시" : "수정 시"}
                                         </Badge>
@@ -195,7 +199,7 @@ export default function AutoPersonalizedEmailConfig({
                                         variant="ghost"
                                         size="icon"
                                         title="수정"
-                                        onClick={() => handleEdit(link.id)}
+                                        onClick={() => handleEdit(link.id, link.partitionId)}
                                     >
                                         <Pencil className="h-4 w-4" />
                                     </Button>
