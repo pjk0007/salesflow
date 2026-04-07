@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { db, organizations, organizationMembers, users, workspaces, subscriptions, plans, payments } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, organizations, organizationMembers, users, workspaces, subscriptions, plans, payments, records, partitions, emailSendLogs, alimtalkSendLogs, aiUsageLogs } from "@/lib/db";
+import { eq, and, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = getUserFromNextRequest(req);
@@ -53,8 +53,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         .orderBy(payments.createdAt)
         .limit(20);
 
+    // 활동 요약
+    const [rc] = await db.select({ count: sql<number>`count(*)::int` }).from(records)
+        .innerJoin(partitions, eq(partitions.id, records.partitionId))
+        .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+        .where(eq(workspaces.orgId, orgId));
+    const [ec] = await db.select({ count: sql<number>`count(*)::int` }).from(emailSendLogs).where(eq(emailSendLogs.orgId, orgId));
+    const [ac] = await db.select({ count: sql<number>`count(*)::int` }).from(alimtalkSendLogs).where(eq(alimtalkSendLogs.orgId, orgId));
+    const [ai] = await db.select({ total: sql<number>`coalesce(sum(${aiUsageLogs.promptTokens} + ${aiUsageLogs.completionTokens}), 0)::int` }).from(aiUsageLogs).where(eq(aiUsageLogs.orgId, orgId));
+
+    const activity = {
+        recordCount: rc?.count ?? 0,
+        emailCount: ec?.count ?? 0,
+        alimtalkCount: ac?.count ?? 0,
+        aiTokens: ai?.total ?? 0,
+    };
+
     return NextResponse.json({
         success: true,
-        data: { organization: org, members, workspaces: ws, subscriptions: subs, payments: paymentHistory },
+        data: { organization: org, members, workspaces: ws, subscriptions: subs, payments: paymentHistory, activity },
     });
 }

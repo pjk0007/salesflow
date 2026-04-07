@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { db, users, organizations, subscriptions, plans } from "@/lib/db";
+import { db, users, organizations, subscriptions, plans, records, emailSendLogs, alimtalkSendLogs, aiUsageLogs, workspaces, partitions } from "@/lib/db";
 import { sql, eq, gte } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
@@ -41,6 +41,19 @@ export async function GET(req: NextRequest) {
         .groupBy(sql`date_trunc('day', ${users.createdAt})`)
         .orderBy(sql`date_trunc('day', ${users.createdAt})`);
 
+    // 활동 통계
+    const [recordCount] = await db.select({ count: sql<number>`count(*)::int` }).from(records);
+    const [emailCount] = await db.select({ count: sql<number>`count(*)::int` }).from(emailSendLogs);
+    const [alimtalkCount] = await db.select({ count: sql<number>`count(*)::int` }).from(alimtalkSendLogs);
+    const [aiTokens] = await db.select({ total: sql<number>`coalesce(sum(${aiUsageLogs.promptTokens} + ${aiUsageLogs.completionTokens}), 0)::int` }).from(aiUsageLogs);
+    const [workspaceCount] = await db.select({ count: sql<number>`count(*)::int` }).from(workspaces);
+    const [partitionCount] = await db.select({ count: sql<number>`count(*)::int` }).from(partitions);
+
+    // 최근 30일 활동
+    const [emailsMonth] = await db.select({ count: sql<number>`count(*)::int` }).from(emailSendLogs).where(gte(emailSendLogs.sentAt, thirtyDaysAgo));
+    const [alimtalkMonth] = await db.select({ count: sql<number>`count(*)::int` }).from(alimtalkSendLogs).where(gte(alimtalkSendLogs.sentAt, thirtyDaysAgo));
+    const [recordsMonth] = await db.select({ count: sql<number>`count(*)::int` }).from(records).where(gte(records.createdAt, thirtyDaysAgo));
+
     return NextResponse.json({
         success: true,
         data: {
@@ -51,6 +64,16 @@ export async function GET(req: NextRequest) {
             newUsersWeek: newUsersWeek.count,
             subscriptionsByPlan: subStats,
             signupTrend,
+            // 활동 요약
+            totalRecords: recordCount.count,
+            totalWorkspaces: workspaceCount.count,
+            totalPartitions: partitionCount.count,
+            totalEmails: emailCount.count,
+            totalAlimtalk: alimtalkCount.count,
+            totalAiTokens: aiTokens.total,
+            emailsMonth: emailsMonth.count,
+            alimtalkMonth: alimtalkMonth.count,
+            recordsMonth: recordsMonth.count,
         },
     });
 }

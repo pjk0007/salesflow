@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { db, organizations, organizationMembers, subscriptions, plans } from "@/lib/db";
-import { sql, eq, ilike, or, count } from "drizzle-orm";
+import { db, organizations, organizationMembers, subscriptions, plans, records, emailSendLogs, alimtalkSendLogs, workspaces, partitions } from "@/lib/db";
+import { sql, eq, ilike, or, count, max } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -52,10 +52,53 @@ export async function GET(req: NextRequest) {
                 .where(eq(subscriptions.orgId, org.id))
                 .limit(1);
 
+            // 레코드 수
+            const [rc] = await db
+                .select({ count: sql<number>`count(*)::int` })
+                .from(records)
+                .innerJoin(partitions, eq(partitions.id, records.partitionId))
+                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+                .where(eq(workspaces.orgId, org.id));
+
+            // 이메일 발송 수
+            const [ec] = await db
+                .select({ count: sql<number>`count(*)::int` })
+                .from(emailSendLogs)
+                .where(eq(emailSendLogs.orgId, org.id));
+
+            // 알림톡 발송 수
+            const [ac] = await db
+                .select({ count: sql<number>`count(*)::int` })
+                .from(alimtalkSendLogs)
+                .where(eq(alimtalkSendLogs.orgId, org.id));
+
+            // 마지막 활동 (레코드 생성/이메일/알림톡 중 최신)
+            const [lastRecord] = await db
+                .select({ at: max(records.createdAt) })
+                .from(records)
+                .innerJoin(partitions, eq(partitions.id, records.partitionId))
+                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+                .where(eq(workspaces.orgId, org.id));
+            const [lastEmail] = await db
+                .select({ at: max(emailSendLogs.sentAt) })
+                .from(emailSendLogs)
+                .where(eq(emailSendLogs.orgId, org.id));
+            const [lastAlimtalk] = await db
+                .select({ at: max(alimtalkSendLogs.sentAt) })
+                .from(alimtalkSendLogs)
+                .where(eq(alimtalkSendLogs.orgId, org.id));
+
+            const dates = [lastRecord?.at, lastEmail?.at, lastAlimtalk?.at].filter(Boolean) as Date[];
+            const lastActivity = dates.length > 0 ? new Date(Math.max(...dates.map(d => d.getTime()))) : null;
+
             return {
                 ...org,
                 memberCount: mc?.count ?? 0,
                 planName: sub?.planName ?? null,
+                recordCount: rc?.count ?? 0,
+                emailCount: ec?.count ?? 0,
+                alimtalkCount: ac?.count ?? 0,
+                lastActivity,
             };
         })
     );

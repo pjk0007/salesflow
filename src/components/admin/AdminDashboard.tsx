@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { Building2, Users, UserPlus, TrendingUp } from "lucide-react";
+import { Building2, Users, UserPlus, TrendingUp, Database, Mail, MessageSquare, Cpu, Layers } from "lucide-react";
 
 const fetcher = (url: string) => fetch(url).then(r => r.json());
 
@@ -20,6 +20,14 @@ export default function AdminDashboard() {
         { label: "최근 30일 가입", value: stats.newUsersMonth, icon: UserPlus },
     ];
 
+    const activityCards = [
+        { label: "전체 레코드", value: stats.totalRecords, sub: `최근 30일 +${stats.recordsMonth?.toLocaleString()}`, icon: Database },
+        { label: "워크스페이스", value: stats.totalWorkspaces, sub: `파티션 ${stats.totalPartitions}개`, icon: Layers },
+        { label: "이메일 발송", value: stats.totalEmails, sub: `최근 30일 ${stats.emailsMonth?.toLocaleString()}건`, icon: Mail },
+        { label: "알림톡 발송", value: stats.totalAlimtalk, sub: `최근 30일 ${stats.alimtalkMonth?.toLocaleString()}건`, icon: MessageSquare },
+        { label: "AI 토큰 사용", value: stats.totalAiTokens, icon: Cpu },
+    ];
+
     return (
         <div className="space-y-8">
             {/* 통계 카드 */}
@@ -33,6 +41,22 @@ export default function AdminDashboard() {
                             <span className="text-sm text-muted-foreground">{c.label}</span>
                         </div>
                         <p className="text-3xl font-bold">{c.value?.toLocaleString()}</p>
+                    </div>
+                ))}
+            </div>
+
+            {/* 활동 요약 */}
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                {activityCards.map((c) => (
+                    <div key={c.label} className="bg-white rounded-xl border p-5">
+                        <div className="flex items-center gap-3 mb-2">
+                            <div className="rounded-lg bg-emerald-50 p-2">
+                                <c.icon className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <span className="text-sm text-muted-foreground">{c.label}</span>
+                        </div>
+                        <p className="text-3xl font-bold">{c.value?.toLocaleString()}</p>
+                        {c.sub && <p className="text-xs text-muted-foreground mt-1">{c.sub}</p>}
                     </div>
                 ))}
             </div>

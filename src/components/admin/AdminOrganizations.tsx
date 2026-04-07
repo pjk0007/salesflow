@@ -30,6 +30,28 @@ export default function AdminOrganizations() {
                     <h3 className="text-lg font-bold mb-1">{d.organization.name}</h3>
                     <p className="text-sm text-muted-foreground mb-4">{d.organization.slug} · {d.organization.id}</p>
 
+                    {/* 활동 요약 */}
+                    {d.activity && (
+                        <div className="grid grid-cols-4 gap-4 mb-6">
+                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                <p className="text-2xl font-bold">{d.activity.recordCount.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground">레코드</p>
+                            </div>
+                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                <p className="text-2xl font-bold">{d.activity.emailCount.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground">이메일</p>
+                            </div>
+                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                <p className="text-2xl font-bold">{d.activity.alimtalkCount.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground">알림톡</p>
+                            </div>
+                            <div className="text-center p-3 bg-slate-50 rounded-lg">
+                                <p className="text-2xl font-bold">{d.activity.aiTokens.toLocaleString()}</p>
+                                <p className="text-xs text-muted-foreground">AI 토큰</p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="grid md:grid-cols-2 gap-6">
                         <div>
                             <h4 className="font-semibold mb-2">멤버 ({d.members.length})</h4>
@@ -85,28 +107,37 @@ export default function AdminOrganizations() {
                     <thead className="bg-slate-50 text-left">
                         <tr>
                             <th className="px-4 py-3 font-medium">조직명</th>
-                            <th className="px-4 py-3 font-medium">Slug</th>
                             <th className="px-4 py-3 font-medium">멤버</th>
                             <th className="px-4 py-3 font-medium">플랜</th>
-                            <th className="px-4 py-3 font-medium">생성일</th>
+                            <th className="px-4 py-3 font-medium">레코드</th>
+                            <th className="px-4 py-3 font-medium">이메일</th>
+                            <th className="px-4 py-3 font-medium">알림톡</th>
+                            <th className="px-4 py-3 font-medium">마지막 활동</th>
                         </tr>
                     </thead>
                     <tbody>
                         {isLoading ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">로딩 중...</td></tr>
+                            <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">로딩 중...</td></tr>
                         ) : orgs.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">조직이 없습니다.</td></tr>
-                        ) : orgs.map((org: { id: string; name: string; slug: string; memberCount: number; planName: string | null; createdAt: string }) => (
+                            <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">조직이 없습니다.</td></tr>
+                        ) : orgs.map((org: { id: string; name: string; slug: string; memberCount: number; planName: string | null; createdAt: string; recordCount: number; emailCount: number; alimtalkCount: number; lastActivity: string | null }) => (
                             <tr key={org.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedId(org.id)}>
-                                <td className="px-4 py-3 font-medium">{org.name}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{org.slug}</td>
+                                <td className="px-4 py-3">
+                                    <div className="font-medium">{org.name}</div>
+                                    <div className="text-xs text-muted-foreground">{org.slug}</div>
+                                </td>
                                 <td className="px-4 py-3">{org.memberCount}</td>
                                 <td className="px-4 py-3">
                                     <span className={`text-xs px-2 py-0.5 rounded ${org.planName ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
                                         {org.planName || "Free"}
                                     </span>
                                 </td>
-                                <td className="px-4 py-3 text-muted-foreground">{new Date(org.createdAt).toLocaleDateString("ko")}</td>
+                                <td className="px-4 py-3 text-muted-foreground">{org.recordCount.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-muted-foreground">{org.emailCount.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-muted-foreground">{org.alimtalkCount.toLocaleString()}</td>
+                                <td className="px-4 py-3 text-muted-foreground text-xs">
+                                    {org.lastActivity ? new Date(org.lastActivity).toLocaleDateString("ko") : "—"}
+                                </td>
                             </tr>
                         ))}
                     </tbody>
