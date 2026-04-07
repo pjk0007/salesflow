@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplates } from "@/lib/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
-/** NHN categoryId → 로컬 email_categories.id 변환 (없으면 null) */
-async function resolveLocalCategoryId(nhnCategoryId: number | null | undefined, orgId: string): Promise<number | null> {
-    if (!nhnCategoryId) return null;
-    const rows = await db.execute(
-        sql`SELECT id FROM email_categories WHERE nhn_category_id = ${nhnCategoryId} AND org_id = ${orgId} LIMIT 1`
-    ) as { id: number }[];
-    return rows[0]?.id ?? null;
-}
 
 export async function GET(
     req: NextRequest,
@@ -83,7 +75,7 @@ export async function PUT(
         if (templateType !== undefined) updateData.templateType = templateType;
         if (isActive !== undefined) updateData.isActive = isActive;
         if (status !== undefined) updateData.status = status;
-        if (categoryId !== undefined) updateData.categoryId = await resolveLocalCategoryId(categoryId, user.orgId);
+        if (categoryId !== undefined) updateData.categoryId = categoryId || null;
 
         const [updated] = await db
             .update(emailTemplates)

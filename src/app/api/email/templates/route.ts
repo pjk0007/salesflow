@@ -3,14 +3,6 @@ import { db, emailTemplates } from "@/lib/db";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
-/** NHN categoryId → 로컬 email_categories.id 변환 (없으면 null) */
-async function resolveLocalCategoryId(nhnCategoryId: number | null | undefined, orgId: string): Promise<number | null> {
-    if (!nhnCategoryId) return null;
-    const rows = await db.execute(
-        sql`SELECT id FROM email_categories WHERE nhn_category_id = ${nhnCategoryId} AND org_id = ${orgId} LIMIT 1`
-    ) as { id: number }[];
-    return rows[0]?.id ?? null;
-}
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -65,8 +57,6 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "name, subject, htmlBody는 필수입니다." }, { status: 400 });
         }
 
-        const localCategoryId = await resolveLocalCategoryId(categoryId, user.orgId);
-
         const [created] = await db
             .insert(emailTemplates)
             .values({
@@ -75,7 +65,7 @@ export async function POST(req: NextRequest) {
                 subject: subject || "",
                 htmlBody: htmlBody || "",
                 templateType: templateType || null,
-                categoryId: localCategoryId,
+                categoryId: categoryId || null,
                 status: status || "published",
             })
             .returning();
