@@ -26,13 +26,25 @@ import { MobileSidebarToggle } from "./sidebar";
 import { useBreadcrumbOverrides } from "./breadcrumb-context";
 
 const BREADCRUMB_LABELS: Record<string, string> = {
+    records: "레코드",
+    dashboards: "대시보드",
+    dashboard: "대시보드",
+    email: "이메일",
     alimtalk: "알림톡",
+    products: "제품",
+    "web-forms": "웹 폼",
+    logs: "로그",
+    users: "사용자",
     settings: "설정",
     profile: "프로필",
     organization: "조직 설정",
     workspace: "워크스페이스",
     billing: "요금제",
-    users: "사용자",
+    admin: "관리자",
+    templates: "템플릿",
+    links: "연결",
+    "ai-auto": "AI 자동발송",
+    new: "새로 만들기",
 };
 
 const UUID_RE =
