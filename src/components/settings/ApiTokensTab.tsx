@@ -434,7 +434,7 @@ function McpGuideCard() {
     const baseUrl = typeof window !== "undefined" ? window.location.origin : "https://sendb.kr";
     const mcpConfig = `{
   "mcpServers": {
-    "salesflow": {
+    "sendb": {
       "url": "${baseUrl}/api/mcp",
       "headers": {
         "Authorization": "Bearer <위에서 생성한 API 토큰>"
