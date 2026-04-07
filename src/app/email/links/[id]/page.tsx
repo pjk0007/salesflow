@@ -33,7 +33,7 @@ import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
-import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { extractEmailVariables } from "@/lib/email-utils";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
@@ -69,13 +69,10 @@ function EditLinkPageContent() {
     const partitionId = Number(searchParams.get("partitionId"));
 
     const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
-    const workspaceId = (allPartitionsData?.data as Array<{ id: number; workspaceId: number }>)
-        ?.find((p) => p.id === partitionId)?.workspaceId ?? null;
-
     const { templates: allTemplates } = useEmailTemplates();
     const templates = allTemplates.filter((t) => t.status !== "draft");
     const { templateLinks, isLoading, updateLink } = useEmailTemplateLinks(partitionId || null);
-    const { fields } = useFields(workspaceId);
+    const { fields } = useResolvedFields(partitionId || null);
     const link = templateLinks.find((l) => l.id === linkId);
 
     const [saving, setSaving] = useState(false);

@@ -34,7 +34,7 @@ import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoPersonalizedEmail } from "@/hooks/useAutoPersonalizedEmail";
 import { useProducts } from "@/hooks/useProducts";
-import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import useSWR from "swr";
 
@@ -88,12 +88,9 @@ function EditAiAutoPageContent() {
     const partitionId = Number(searchParams.get("partitionId"));
 
     const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
-    const workspaceId = (allPartitionsData?.data as Array<{ id: number; workspaceId: number }>)
-        ?.find((p) => p.id === partitionId)?.workspaceId ?? null;
-
     const { links, isLoading, updateLink } = useAutoPersonalizedEmail(partitionId || null);
     const { products } = useProducts({ activeOnly: true });
-    const { fields } = useFields(workspaceId);
+    const { fields } = useResolvedFields(partitionId || null);
     const { data: senderProfilesData } = useSWR("/api/email/sender-profiles", fetcher);
     const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
     const senderProfiles: SenderProfile[] = senderProfilesData?.data ?? [];

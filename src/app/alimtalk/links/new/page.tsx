@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
 import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
-import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import useSWR from "swr";
@@ -43,14 +43,11 @@ function NewAlimtalkLinkContent() {
     const partitionId = selectedPartitionId ?? 0;
 
     const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
-    const workspaceId = (allPartitionsData?.data as Array<{ id: number; workspaceId: number }>)
-        ?.find((p) => p.id === partitionId)?.workspaceId ?? null;
-
     const { senders } = useAlimtalkSenders();
     const [senderKey, setSenderKey] = useState("");
     const { templates } = useAlimtalkTemplates(senderKey || null);
     const { createLink } = useAlimtalkTemplateLinks(partitionId || null);
-    const { fields } = useFields(workspaceId);
+    const { fields } = useResolvedFields(partitionId || null);
 
     const [saving, setSaving] = useState(false);
     const [name, setName] = useState("");
