@@ -22,6 +22,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@tosspayments/tosspayments-sdk": "^2.5.0",
     "@types/node": "^25.2.3",
