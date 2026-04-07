@@ -118,7 +118,9 @@ function NewAlimtalkLinkContent() {
     };
 
     if (!selectedPartitionId) {
-        const partitionList = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number }>) ?? [];
+        const rawPartitions = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? [];
+        const hasMultiWs = new Set(rawPartitions.map((p) => p.workspaceId)).size > 1;
+        const partitionList = rawPartitions.map((p) => ({ ...p, name: hasMultiWs ? `[${p.workspaceName}] ${p.name}` : p.name }));
         return (
             <WorkspaceLayout>
                 <PageContainer>
