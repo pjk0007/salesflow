@@ -5,6 +5,7 @@ import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, u
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
+import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 import type { DbRecord } from "@/lib/db";
 
 // ============================================
@@ -241,18 +242,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 finalBody = appendSignature(finalBody, signatureJson);
             }
 
-            const nhnResult = await emailClient.sendEachMail({
-                senderAddress: senderFromEmail!,
-                senderName: senderFromName,
-                title: emailResult.subject,
-                body: finalBody,
-                receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-            });
-
-            const sendResult = nhnResult.data?.results?.[0];
-            const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
-
-            // 10. 발송 로그 기록
+            // 10. 로그 먼저 insert → 트래킹 URL 삽입 → 발송 → status 업데이트
             const [inserted] = await db.insert(emailSendLogs).values({
                 orgId,
                 partitionId,
@@ -260,13 +250,32 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 recipientEmail: email,
                 subject: emailResult.subject,
                 body: finalBody,
-                requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
-                resultCode: sendResult ? String(sendResult.resultCode) : null,
-                resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+                status: "pending",
                 triggerType: "ai_auto",
                 sentAt: new Date(),
             }).returning({ id: emailSendLogs.id });
+
+            const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
+
+            const nhnResult = await emailClient.sendEachMail({
+                senderAddress: senderFromEmail!,
+                senderName: senderFromName,
+                title: emailResult.subject,
+                body: trackedBody,
+                receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
+            });
+
+            const sendResult = nhnResult.data?.results?.[0];
+            const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+
+            await db.update(emailSendLogs)
+                .set({
+                    requestId: nhnResult.data?.requestId,
+                    status: isSuccess ? "sent" : "failed",
+                    resultCode: sendResult ? String(sendResult.resultCode) : null,
+                    resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+                })
+                .where(eq(emailSendLogs.id, inserted.id));
             console.log(`[AutoEmail] Rule ${link.id}: ${isSuccess ? "sent" : "failed"} to ${email}`);
 
             // 11. 후속 발송 큐 등록

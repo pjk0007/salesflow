@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailSendLogs } from "@/lib/db";
+import { db, emailSendLogs, emailClickLogs } from "@/lib/db";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -50,7 +50,29 @@ export async function GET(req: NextRequest) {
             .where(and(...conditions));
 
         const logs = await db
-            .select()
+            .select({
+                id: emailSendLogs.id,
+                orgId: emailSendLogs.orgId,
+                templateLinkId: emailSendLogs.templateLinkId,
+                partitionId: emailSendLogs.partitionId,
+                recordId: emailSendLogs.recordId,
+                emailTemplateId: emailSendLogs.emailTemplateId,
+                recipientEmail: emailSendLogs.recipientEmail,
+                subject: emailSendLogs.subject,
+                body: emailSendLogs.body,
+                requestId: emailSendLogs.requestId,
+                status: emailSendLogs.status,
+                resultCode: emailSendLogs.resultCode,
+                resultMessage: emailSendLogs.resultMessage,
+                triggerType: emailSendLogs.triggerType,
+                sentBy: emailSendLogs.sentBy,
+                sentAt: emailSendLogs.sentAt,
+                completedAt: emailSendLogs.completedAt,
+                isOpened: emailSendLogs.isOpened,
+                openedAt: emailSendLogs.openedAt,
+                parentLogId: emailSendLogs.parentLogId,
+                clickCount: sql<number>`(SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`.as("click_count"),
+            })
             .from(emailSendLogs)
             .where(and(...conditions))
             .orderBy(desc(emailSendLogs.sentAt))

@@ -592,6 +592,25 @@ export const emailSendLogs = pgTable("email_send_logs", {
 });
 
 // ============================================
+// 이메일 클릭 추적
+// ============================================
+export const emailClickLogs = pgTable("email_click_logs", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").notNull(),
+    sendLogId: integer("send_log_id")
+        .references(() => emailSendLogs.id, { onDelete: "cascade" })
+        .notNull(),
+    url: text("url").notNull(),
+    clickedAt: timestamptz("clicked_at").defaultNow().notNull(),
+    ip: varchar("ip", { length: 50 }),
+    userAgent: text("user_agent"),
+}, (table) => [
+    index("email_click_logs_send_log_idx").on(table.sendLogId),
+]);
+
+export type EmailClickLog = typeof emailClickLogs.$inferSelect;
+
+// ============================================
 // 이메일 자동 발송 큐
 // ============================================
 export const emailAutomationQueue = pgTable(

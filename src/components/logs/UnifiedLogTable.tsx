@@ -166,6 +166,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                     <TableHead>제목</TableHead>
                                     <TableHead>상태</TableHead>
                                     <TableHead>읽음</TableHead>
+                                    <TableHead>클릭</TableHead>
                                     {!compact && <TableHead>방식</TableHead>}
                                     <TableHead>발송일시</TableHead>
                                     {!compact && <TableHead>결과</TableHead>}
@@ -209,6 +210,13 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                                     ) : (
                                                         <Badge variant="outline" className="text-xs">안읽음</Badge>
                                                     )
+                                                ) : null}
+                                            </TableCell>
+                                            <TableCell>
+                                                {log.channel === "email" && log.clickCount ? (
+                                                    <Badge variant="secondary" className="text-xs">
+                                                        {log.clickCount}회
+                                                    </Badge>
                                                 ) : null}
                                             </TableCell>
                                             {!compact && (

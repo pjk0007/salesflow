@@ -405,6 +405,7 @@ export interface UnifiedLog {
     completedAt: string | null;
     isOpened: number;
     openedAt: string | null;
+    clickCount?: number;
 }
 
 // ============================================

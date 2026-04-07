@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
             const recipientCol = type === "alimtalk" ? "recipient_no" : "recipient_email";
             const titleCol = type === "alimtalk" ? "template_name" : "subject";
             const openedCols = type === "email"
-                ? `is_opened as "isOpened", opened_at as "openedAt"`
-                : `0 as "isOpened", NULL::timestamptz as "openedAt"`;
+                ? `is_opened as "isOpened", opened_at as "openedAt", (SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${table}.id) as "clickCount"`
+                : `0 as "isOpened", NULL::timestamptz as "openedAt", 0 as "clickCount"`;
 
             let q = sql`
                 SELECT id, ${sql.raw(`'${type}'`)}::text as channel,

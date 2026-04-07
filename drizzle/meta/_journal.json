@@ -267,6 +267,13 @@
       "when": 1770950000000,
       "tag": "0037_ai_email_sender_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1770950100000,
+      "tag": "0038_email_click_tracking",
+      "breakpoints": true
     }
   ]
 }

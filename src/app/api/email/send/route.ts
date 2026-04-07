@@ -3,6 +3,7 @@ import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partiti
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
+import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -148,18 +149,8 @@ export async function POST(req: NextRequest) {
                 finalBody = appendSignature(finalBody, signatureJson);
             }
 
-            const nhnResult = await client.sendEachMail({
-                senderAddress: senderFromEmail!,
-                senderName: senderFromName,
-                title: substitutedSubject,
-                body: finalBody,
-                receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-            });
-
-            const sendResult = nhnResult.data?.results?.[0];
-            const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
-
-            await db.insert(emailSendLogs).values({
+            // 로그 먼저 insert → logId 획득 → 트래킹 URL 삽입 → 발송 → status 업데이트
+            const [logEntry] = await db.insert(emailSendLogs).values({
                 orgId: user.orgId,
                 templateLinkId: templateLink.id,
                 partitionId: templateLink.partitionId,
@@ -168,13 +159,32 @@ export async function POST(req: NextRequest) {
                 recipientEmail: email,
                 subject: substitutedSubject,
                 body: finalBody,
-                requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
-                resultCode: sendResult ? String(sendResult.resultCode) : null,
-                resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+                status: "pending",
                 triggerType: "manual",
                 sentBy: user.userId,
+            }).returning({ id: emailSendLogs.id });
+
+            const trackedBody = wrapTrackingUrls(finalBody, logEntry.id);
+
+            const nhnResult = await client.sendEachMail({
+                senderAddress: senderFromEmail!,
+                senderName: senderFromName,
+                title: substitutedSubject,
+                body: trackedBody,
+                receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
             });
+
+            const sendResult = nhnResult.data?.results?.[0];
+            const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+
+            await db.update(emailSendLogs)
+                .set({
+                    requestId: nhnResult.data?.requestId,
+                    status: isSuccess ? "sent" : "failed",
+                    resultCode: sendResult ? String(sendResult.resultCode) : null,
+                    resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+                })
+                .where(eq(emailSendLogs.id, logEntry.id));
 
             if (isSuccess) successCount++;
             else failCount++;

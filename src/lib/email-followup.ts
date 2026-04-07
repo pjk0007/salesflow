@@ -12,6 +12,7 @@ import { eq, and, lte } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
+import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 
 // ============================================
 // 타입 정의
@@ -281,18 +282,7 @@ async function handleTemplateFollowup(
     const client = await getEmailClient(item.orgId);
     if (!client) return false;
 
-    const nhnResult = await client.sendEachMail({
-        senderAddress: sender.fromEmail,
-        senderName: sender.fromName,
-        title: subject,
-        body,
-        receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
-    });
-
-    const sendResult = nhnResult.data?.results?.[0];
-    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
-
-    // 8. 로그 기록
+    // 8. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
     const [inserted] = await db.insert(emailSendLogs).values({
         orgId: item.orgId,
         templateLinkId: link.id,
@@ -302,14 +292,33 @@ async function handleTemplateFollowup(
         recipientEmail: parentLog.recipientEmail,
         subject,
         body,
-        requestId: nhnResult.data?.requestId,
-        status: isSuccess ? "sent" : "failed",
-        resultCode: sendResult ? String(sendResult.resultCode) : null,
-        resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        status: "pending",
         triggerType: "followup",
         parentLogId: parentLog.id,
         sentAt: new Date(),
     }).returning({ id: emailSendLogs.id });
+
+    const trackedBody = wrapTrackingUrls(body, inserted.id);
+
+    const nhnResult = await client.sendEachMail({
+        senderAddress: sender.fromEmail,
+        senderName: sender.fromName,
+        title: subject,
+        body: trackedBody,
+        receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
+    });
+
+    const sendResult = nhnResult.data?.results?.[0];
+    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+
+    await db.update(emailSendLogs)
+        .set({
+            requestId: nhnResult.data?.requestId,
+            status: isSuccess ? "sent" : "failed",
+            resultCode: sendResult ? String(sendResult.resultCode) : null,
+            resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        })
+        .where(eq(emailSendLogs.id, inserted.id));
 
     // 9. 체인: 다음 step이 있으면 큐 등록
     if (isSuccess && inserted?.id) {
@@ -442,18 +451,7 @@ async function handleAiFollowup(
     const emailClient = await getEmailClient(item.orgId);
     if (!emailClient) return false;
 
-    const nhnResult = await emailClient.sendEachMail({
-        senderAddress: sender.fromEmail,
-        senderName: sender.fromName,
-        title: emailResult.subject,
-        body: finalBody,
-        receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
-    });
-
-    const sendResult = nhnResult.data?.results?.[0];
-    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
-
-    // 10. 로그 기록
+    // 10. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
     const [inserted] = await db.insert(emailSendLogs).values({
         orgId: item.orgId,
         partitionId: parentLog.partitionId,
@@ -461,14 +459,33 @@ async function handleAiFollowup(
         recipientEmail: parentLog.recipientEmail,
         subject: emailResult.subject,
         body: finalBody,
-        requestId: nhnResult.data?.requestId,
-        status: isSuccess ? "sent" : "failed",
-        resultCode: sendResult ? String(sendResult.resultCode) : null,
-        resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        status: "pending",
         triggerType: "ai_followup",
         parentLogId: parentLog.id,
         sentAt: new Date(),
     }).returning({ id: emailSendLogs.id });
+
+    const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
+
+    const nhnResult = await emailClient.sendEachMail({
+        senderAddress: sender.fromEmail,
+        senderName: sender.fromName,
+        title: emailResult.subject,
+        body: trackedBody,
+        receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
+    });
+
+    const sendResult = nhnResult.data?.results?.[0];
+    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+
+    await db.update(emailSendLogs)
+        .set({
+            requestId: nhnResult.data?.requestId,
+            status: isSuccess ? "sent" : "failed",
+            resultCode: sendResult ? String(sendResult.resultCode) : null,
+            resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        })
+        .where(eq(emailSendLogs.id, inserted.id));
 
     // 11. 체인: 다음 step이 있으면 큐 등록
     if (isSuccess && inserted?.id) {

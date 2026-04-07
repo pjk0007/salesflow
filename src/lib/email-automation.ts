@@ -4,6 +4,7 @@ import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } 
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
+import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 
 // ============================================
@@ -100,17 +101,6 @@ async function sendEmailSingle(
         finalBody = appendSignature(finalBody, signatureJson);
     }
 
-    const nhnResult = await client.sendEachMail({
-        senderAddress: senderFromEmail,
-        senderName: senderFromName,
-        title: substitutedSubject,
-        body: finalBody,
-        receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-    });
-
-    const sendResult = nhnResult.data?.results?.[0];
-    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
-
     const [inserted] = await db.insert(emailSendLogs).values({
         orgId,
         templateLinkId: link.id,
@@ -120,13 +110,32 @@ async function sendEmailSingle(
         recipientEmail: email,
         subject: substitutedSubject,
         body: finalBody,
-        requestId: nhnResult.data?.requestId,
-        status: isSuccess ? "sent" : "failed",
-        resultCode: sendResult ? String(sendResult.resultCode) : null,
-        resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        status: "pending",
         triggerType,
         sentAt: new Date(),
     }).returning({ id: emailSendLogs.id });
+
+    const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
+
+    const nhnResult = await client.sendEachMail({
+        senderAddress: senderFromEmail,
+        senderName: senderFromName,
+        title: substitutedSubject,
+        body: trackedBody,
+        receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
+    });
+
+    const sendResult = nhnResult.data?.results?.[0];
+    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+
+    await db.update(emailSendLogs)
+        .set({
+            requestId: nhnResult.data?.requestId,
+            status: isSuccess ? "sent" : "failed",
+            resultCode: sendResult ? String(sendResult.resultCode) : null,
+            resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
+        })
+        .where(eq(emailSendLogs.id, inserted.id));
 
     return { success: isSuccess, logId: inserted?.id };
 }
