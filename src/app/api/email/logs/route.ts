@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
                 isOpened: emailSendLogs.isOpened,
                 openedAt: emailSendLogs.openedAt,
                 parentLogId: emailSendLogs.parentLogId,
-                clickCount: sql<number>`(SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`.as("click_count"),
+                clickCount: sql<number>`(SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`.as("clickCount"),
             })
             .from(emailSendLogs)
             .where(and(...conditions))
