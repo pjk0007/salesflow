@@ -5,9 +5,10 @@ import {
     records,
     alimtalkSendLogs,
     emailSendLogs,
+    emailClickLogs,
     folders,
 } from "@/lib/db";
-import { eq, and, desc, gte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, sql, inArray } from "drizzle-orm";
 import type { ApiTokenInfo } from "@/lib/auth";
 import { checkTokenAccess } from "@/lib/auth";
 
@@ -314,7 +315,20 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
             }).from(emailSendLogs).where(whereClause)
                 .orderBy(desc(emailSendLogs.sentAt)).limit(pageSize).offset((page - 1) * pageSize);
 
-            return ok({ totalCount: countResult?.count ?? 0, page, pageSize, logs });
+            const logIds = logs.map(l => l.id);
+            let clickCounts: Record<number, number> = {};
+            if (logIds.length > 0) {
+                const clicks = await db
+                    .select({ sendLogId: emailClickLogs.sendLogId, count: sql<number>`count(*)::int` })
+                    .from(emailClickLogs)
+                    .where(inArray(emailClickLogs.sendLogId, logIds))
+                    .groupBy(emailClickLogs.sendLogId);
+                for (const c of clicks) clickCounts[c.sendLogId] = c.count;
+            }
+
+            const logsWithClicks = logs.map(l => ({ ...l, clickCount: clickCounts[l.id] || 0 }));
+
+            return ok({ totalCount: countResult?.count ?? 0, page, pageSize, logs: logsWithClicks });
         },
 
         list_alimtalk_logs: async (args, tokenInfo) => {
