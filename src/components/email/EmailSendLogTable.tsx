@@ -47,6 +47,7 @@ export default function EmailSendLogTable() {
     const [page, setPage] = useState(1);
     const [triggerType, setTriggerType] = useState<string>("");
     const [isOpened, setIsOpened] = useState<string>("");
+    const [isClicked, setIsClicked] = useState<string>("");
     const [period, setPeriod] = useState<string>("");
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<EmailSendLog | null>(null);
@@ -66,6 +67,7 @@ export default function EmailSendLogTable() {
         page,
         triggerType: triggerType || undefined,
         isOpened: isOpened || undefined,
+        isClicked: isClicked || undefined,
         ...dateRange,
     });
 
@@ -128,6 +130,16 @@ export default function EmailSendLogTable() {
                         <SelectItem value="0">안읽음</SelectItem>
                     </SelectContent>
                 </Select>
+                <Select value={isClicked || "all"} onValueChange={(v) => { setIsClicked(v === "all" ? "" : v); setPage(1); }}>
+                    <SelectTrigger className="w-[130px]">
+                        <SelectValue placeholder="클릭 여부" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">전체</SelectItem>
+                        <SelectItem value="1">클릭</SelectItem>
+                        <SelectItem value="0">미클릭</SelectItem>
+                    </SelectContent>
+                </Select>
                 <Select value={period || "all"} onValueChange={(v) => { setPeriod(v === "all" ? "" : v); setPage(1); }}>
                     <SelectTrigger className="w-[130px]">
                         <SelectValue placeholder="발송일" />
@@ -160,6 +172,7 @@ export default function EmailSendLogTable() {
                                 <TableHead>제목</TableHead>
                                 <TableHead>상태</TableHead>
                                 <TableHead>읽음</TableHead>
+                                <TableHead>클릭</TableHead>
                                 <TableHead>방식</TableHead>
                                 <TableHead>발송일</TableHead>
                             </TableRow>
@@ -194,6 +207,13 @@ export default function EmailSendLogTable() {
                                                 ) : (
                                                     <Badge variant="outline">안읽음</Badge>
                                                 )
+                                            ) : null}
+                                        </TableCell>
+                                        <TableCell>
+                                            {(log as Record<string, unknown>).clickCount ? (
+                                                <Badge variant="secondary" className="text-xs">
+                                                    {(log as Record<string, unknown>).clickCount as number}회
+                                                </Badge>
                                             ) : null}
                                         </TableCell>
                                         <TableCell>

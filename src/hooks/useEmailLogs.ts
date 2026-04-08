@@ -9,11 +9,12 @@ interface LogsResponse {
 }
 
 
-export function useEmailLogs(params?: { partitionId?: number; triggerType?: string; isOpened?: string; startDate?: string; endDate?: string; page?: number }) {
+export function useEmailLogs(params?: { partitionId?: number; triggerType?: string; isOpened?: string; isClicked?: string; startDate?: string; endDate?: string; page?: number }) {
     const qs = new URLSearchParams();
     if (params?.partitionId) qs.set("partitionId", String(params.partitionId));
     if (params?.triggerType) qs.set("triggerType", params.triggerType);
     if (params?.isOpened) qs.set("isOpened", params.isOpened);
+    if (params?.isClicked) qs.set("isClicked", params.isClicked);
     if (params?.startDate) qs.set("startDate", params.startDate);
     if (params?.endDate) qs.set("endDate", params.endDate);
     if (params?.page) qs.set("page", String(params.page));

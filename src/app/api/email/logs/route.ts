@@ -43,6 +43,13 @@ export async function GET(req: NextRequest) {
             conditions.push(eq(emailSendLogs.isOpened, 0));
             conditions.push(eq(emailSendLogs.status, "sent"));
         }
+        const isClicked = searchParams.get("isClicked");
+        if (isClicked === "1") {
+            conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`);
+        } else if (isClicked === "0") {
+            conditions.push(sql`NOT EXISTS (SELECT 1 FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`);
+            conditions.push(eq(emailSendLogs.status, "sent"));
+        }
 
         const [countResult] = await db
             .select({ count: sql<number>`count(*)` })
