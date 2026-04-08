@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs, emailClickLogs } from "@/lib/db";
-import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -57,38 +57,38 @@ export async function GET(req: NextRequest) {
             .where(and(...conditions));
 
         const logs = await db
-            .select({
-                id: emailSendLogs.id,
-                orgId: emailSendLogs.orgId,
-                templateLinkId: emailSendLogs.templateLinkId,
-                partitionId: emailSendLogs.partitionId,
-                recordId: emailSendLogs.recordId,
-                emailTemplateId: emailSendLogs.emailTemplateId,
-                recipientEmail: emailSendLogs.recipientEmail,
-                subject: emailSendLogs.subject,
-                body: emailSendLogs.body,
-                requestId: emailSendLogs.requestId,
-                status: emailSendLogs.status,
-                resultCode: emailSendLogs.resultCode,
-                resultMessage: emailSendLogs.resultMessage,
-                triggerType: emailSendLogs.triggerType,
-                sentBy: emailSendLogs.sentBy,
-                sentAt: emailSendLogs.sentAt,
-                completedAt: emailSendLogs.completedAt,
-                isOpened: emailSendLogs.isOpened,
-                openedAt: emailSendLogs.openedAt,
-                parentLogId: emailSendLogs.parentLogId,
-                clickCount: sql<number>`(SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`.as("clickCount"),
-            })
+            .select()
             .from(emailSendLogs)
             .where(and(...conditions))
             .orderBy(desc(emailSendLogs.sentAt))
             .limit(pageSize)
             .offset(offset);
 
+        // 클릭 수 조회
+        const logIds = logs.map(l => l.id);
+        let clickCounts: Record<number, number> = {};
+        if (logIds.length > 0) {
+            const clicks = await db
+                .select({
+                    sendLogId: emailClickLogs.sendLogId,
+                    count: sql<number>`count(*)::int`,
+                })
+                .from(emailClickLogs)
+                .where(inArray(emailClickLogs.sendLogId, logIds))
+                .groupBy(emailClickLogs.sendLogId);
+            for (const c of clicks) {
+                clickCounts[c.sendLogId] = c.count;
+            }
+        }
+
+        const logsWithClicks = logs.map(log => ({
+            ...log,
+            clickCount: clickCounts[log.id] || 0,
+        }));
+
         return NextResponse.json({
             success: true,
-            data: logs,
+            data: logsWithClicks,
             totalCount: Number(countResult.count),
         });
     } catch (error) {
