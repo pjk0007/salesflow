@@ -213,10 +213,14 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                                 ) : null}
                                             </TableCell>
                                             <TableCell>
-                                                {log.channel === "email" && log.clickCount ? (
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        {log.clickCount}회
-                                                    </Badge>
+                                                {log.channel === "email" && log.status === "sent" ? (
+                                                    log.clickCount ? (
+                                                        <Badge variant="default" className="bg-blue-600 text-xs">
+                                                            {log.clickCount}회
+                                                        </Badge>
+                                                    ) : (
+                                                        <span className="text-xs text-muted-foreground">-</span>
+                                                    )
                                                 ) : null}
                                             </TableCell>
                                             {!compact && (

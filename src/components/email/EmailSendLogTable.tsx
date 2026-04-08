@@ -210,10 +210,14 @@ export default function EmailSendLogTable() {
                                             ) : null}
                                         </TableCell>
                                         <TableCell>
-                                            {(log as Record<string, unknown>).clickCount ? (
-                                                <Badge variant="secondary" className="text-xs">
-                                                    {(log as Record<string, unknown>).clickCount as number}회
-                                                </Badge>
+                                            {log.status === "sent" ? (
+                                                (log as Record<string, unknown>).clickCount ? (
+                                                    <Badge variant="default" className="bg-blue-600 text-xs">
+                                                        {(log as Record<string, unknown>).clickCount as number}회
+                                                    </Badge>
+                                                ) : (
+                                                    <span className="text-xs text-muted-foreground">-</span>
+                                                )
                                             ) : null}
                                         </TableCell>
                                         <TableCell>
