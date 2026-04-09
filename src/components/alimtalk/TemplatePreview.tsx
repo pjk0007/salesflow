@@ -85,7 +85,7 @@ export default function TemplatePreview({
                     {/* 헤더 */}
                     {templateHeader && (
                         <>
-                            <div className="text-sm font-bold">{templateHeader}</div>
+                            <div className="text-sm font-bold" dangerouslySetInnerHTML={{ __html: highlightVariables(templateHeader) }} />
                             <div className="border-t my-2" />
                         </>
                     )}
@@ -95,10 +95,10 @@ export default function TemplatePreview({
                         <>
                             <div className="mb-2">
                                 {templateTitle && (
-                                    <div className="text-base font-bold leading-tight">{templateTitle}</div>
+                                    <div className="text-base font-bold leading-tight" dangerouslySetInnerHTML={{ __html: highlightVariables(templateTitle) }} />
                                 )}
                                 {templateSubtitle && (
-                                    <div className="text-xs text-muted-foreground mt-0.5">{templateSubtitle}</div>
+                                    <div className="text-xs text-muted-foreground mt-0.5" dangerouslySetInnerHTML={{ __html: highlightVariables(templateSubtitle) }} />
                                 )}
                             </div>
                             <div className="border-t my-2" />
@@ -131,10 +131,10 @@ export default function TemplatePreview({
                             <div className="mb-2 flex gap-2 items-start">
                                 <div className="min-w-0 flex-1">
                                     {templateItemHighlight.title && (
-                                        <div className="text-sm font-bold leading-tight truncate">{templateItemHighlight.title}</div>
+                                        <div className="text-sm font-bold leading-tight truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(templateItemHighlight.title) }} />
                                     )}
                                     {templateItemHighlight.description && (
-                                        <div className="text-xs text-muted-foreground mt-0.5 truncate">{templateItemHighlight.description}</div>
+                                        <div className="text-xs text-muted-foreground mt-0.5 truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(templateItemHighlight.description) }} />
                                     )}
                                 </div>
                                 {templateItemHighlight.imageUrl && (
@@ -154,16 +154,16 @@ export default function TemplatePreview({
                             <div className="space-y-1">
                                 {templateItem.list.map((item, i) => (
                                     <div key={i} className="flex justify-between text-xs">
-                                        <span className="text-muted-foreground truncate">{item.title || `항목 ${i + 1}`}</span>
-                                        <span className="font-medium truncate ml-2">{item.description}</span>
+                                        <span className="text-muted-foreground truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(item.title || `항목 ${i + 1}`) }} />
+                                        <span className="font-medium truncate ml-2" dangerouslySetInnerHTML={{ __html: highlightVariables(item.description) }} />
                                     </div>
                                 ))}
                                 {templateItem.summary && (templateItem.summary.title || templateItem.summary.description) && (
                                     <>
                                         <div className="border-t my-1" />
                                         <div className="flex justify-between text-xs font-bold">
-                                            <span>{templateItem.summary.title}</span>
-                                            <span>{templateItem.summary.description}</span>
+                                            <span dangerouslySetInnerHTML={{ __html: highlightVariables(templateItem.summary.title || "") }} />
+                                            <span dangerouslySetInnerHTML={{ __html: highlightVariables(templateItem.summary.description || "") }} />
                                         </div>
                                     </>
                                 )}
@@ -184,9 +184,7 @@ export default function TemplatePreview({
                     {showExtra && (
                         <>
                             <div className="border-t my-2" />
-                            <div className="text-xs text-muted-foreground whitespace-pre-wrap">
-                                {templateExtra}
-                            </div>
+                            <div className="text-xs text-muted-foreground whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: highlightVariables(templateExtra!) }} />
                         </>
                     )}
 
