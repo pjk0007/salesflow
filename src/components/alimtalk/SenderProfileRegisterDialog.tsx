@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkCategories } from "@/hooks/useAlimtalkCategories";
+import type { NhnSenderCategory } from "@/lib/nhn-alimtalk";
 import {
     Dialog,
     DialogContent,
@@ -26,6 +27,23 @@ interface SenderProfileRegisterDialogProps {
     onOpenChange: (open: boolean) => void;
 }
 
+/** 재귀적으로 최하위 카테고리(리프)만 추출 */
+function flattenLeafCategories(
+    cats: NhnSenderCategory[],
+    path: string[] = []
+): { code: string; label: string }[] {
+    const result: { code: string; label: string }[] = [];
+    for (const cat of cats) {
+        const currentPath = [...path, cat.name];
+        if (!cat.subCategories || cat.subCategories.length === 0) {
+            result.push({ code: cat.code, label: currentPath.join(" > ") });
+        } else {
+            result.push(...flattenLeafCategories(cat.subCategories, currentPath));
+        }
+    }
+    return result;
+}
+
 export default function SenderProfileRegisterDialog({
     open,
     onOpenChange,
@@ -38,19 +56,13 @@ export default function SenderProfileRegisterDialog({
     // Step 1
     const [plusFriendId, setPlusFriendId] = useState("");
     const [phoneNo, setPhoneNo] = useState("");
-    const [mainCategoryCode, setMainCategoryCode] = useState("");
     const [categoryCode, setCategoryCode] = useState("");
+    const [categorySearch, setCategorySearch] = useState("");
 
-    const subCategories = categories.find(
-        (c) => c.code === mainCategoryCode
-    )?.subCategories ?? [];
-
-    const handleMainCategoryChange = (code: string) => {
-        setMainCategoryCode(code);
-        const subs = categories.find((c) => c.code === code)?.subCategories ?? [];
-        // 서브 카테고리가 없으면 메인 카테고리 코드를 사용
-        setCategoryCode(subs.length === 0 ? code : "");
-    };
+    const leafCategories = flattenLeafCategories(categories);
+    const filteredCategories = categorySearch
+        ? leafCategories.filter((c) => c.label.toLowerCase().includes(categorySearch.toLowerCase()))
+        : leafCategories;
 
     // Step 2
     const [token, setToken] = useState("");
@@ -58,6 +70,10 @@ export default function SenderProfileRegisterDialog({
     const handleRegister = async () => {
         if (!plusFriendId || !phoneNo || !categoryCode) {
             toast.error("모든 필드를 입력해주세요.");
+            return;
+        }
+        if (categoryCode.length !== 11) {
+            toast.error("유효한 카테고리를 선택해주세요.");
             return;
         }
         setLoading(true);
@@ -93,11 +109,13 @@ export default function SenderProfileRegisterDialog({
         setStep(1);
         setPlusFriendId("");
         setPhoneNo("");
-        setMainCategoryCode("");
         setCategoryCode("");
+        setCategorySearch("");
         setToken("");
         onOpenChange(false);
     };
+
+    const selectedCategoryLabel = leafCategories.find((c) => c.code === categoryCode)?.label;
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
@@ -136,42 +154,43 @@ export default function SenderProfileRegisterDialog({
                         <div className="space-y-2">
                             <Label>카테고리</Label>
                             <Select
-                                value={mainCategoryCode}
-                                onValueChange={handleMainCategoryChange}
+                                value={categoryCode}
+                                onValueChange={setCategoryCode}
                                 disabled={categoriesLoading}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder={categoriesLoading ? "로딩 중..." : "메인 카테고리 선택"} />
+                                    <SelectValue placeholder={categoriesLoading ? "로딩 중..." : "카테고리 선택"}>
+                                        {selectedCategoryLabel && (
+                                            <span className="truncate">{selectedCategoryLabel}</span>
+                                        )}
+                                    </SelectValue>
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {categories.map((cat) => (
-                                        <SelectItem key={cat.code} value={cat.code}>
-                                            {cat.name}
-                                        </SelectItem>
-                                    ))}
+                                    <div className="px-2 pb-2">
+                                        <Input
+                                            placeholder="카테고리 검색..."
+                                            value={categorySearch}
+                                            onChange={(e) => setCategorySearch(e.target.value)}
+                                            className="h-8 text-sm"
+                                            onKeyDown={(e) => e.stopPropagation()}
+                                        />
+                                    </div>
+                                    <div className="max-h-[200px] overflow-y-auto">
+                                        {filteredCategories.length === 0 ? (
+                                            <div className="text-sm text-muted-foreground text-center py-4">
+                                                검색 결과가 없습니다.
+                                            </div>
+                                        ) : (
+                                            filteredCategories.map((cat) => (
+                                                <SelectItem key={cat.code} value={cat.code}>
+                                                    <span className="text-sm">{cat.label}</span>
+                                                </SelectItem>
+                                            ))
+                                        )}
+                                    </div>
                                 </SelectContent>
                             </Select>
                         </div>
-                        {mainCategoryCode && subCategories.length > 0 && (
-                            <div className="space-y-2">
-                                <Label>서브 카테고리</Label>
-                                <Select
-                                    value={categoryCode}
-                                    onValueChange={setCategoryCode}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="서브 카테고리 선택" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {subCategories.map((sub) => (
-                                            <SelectItem key={sub.code} value={sub.code}>
-                                                {sub.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
                         <Button
                             className="w-full"
                             onClick={handleRegister}
