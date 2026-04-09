@@ -47,7 +47,9 @@ export default function SenderProfileRegisterDialog({
 
     const handleMainCategoryChange = (code: string) => {
         setMainCategoryCode(code);
-        setCategoryCode("");
+        const subs = categories.find((c) => c.code === code)?.subCategories ?? [];
+        // 서브 카테고리가 없으면 메인 카테고리 코드를 사용
+        setCategoryCode(subs.length === 0 ? code : "");
     };
 
     // Step 2
