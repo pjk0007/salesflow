@@ -330,6 +330,32 @@ export class NhnAlimtalkClient {
         };
     }
 
+    async uploadTemplateImage(file: Buffer, fileName: string, contentType: string, type: "image" | "item-highlight" = "image") {
+        const suffix = type === "item-highlight" ? "/item-highlight" : "";
+        const url = `${this.baseUrl}/alimtalk/v2.3/appkeys/${this.appKey}/template-image${suffix}`;
+        const formData = new FormData();
+        formData.append("file", new Blob([new Uint8Array(file)], { type: contentType }), fileName);
+
+        const res = await fetch(url, {
+            method: "POST",
+            headers: { "X-Secret-Key": this.secretKey },
+            body: formData,
+        });
+
+        if (!res.ok) {
+            return {
+                header: { resultCode: res.status, resultMessage: `HTTP ${res.status}`, isSuccessful: false },
+                templateImage: null,
+            };
+        }
+
+        const data = await res.json();
+        return {
+            header: data.header as NhnApiHeader,
+            templateImage: data.templateImage as { templateImageName: string; templateImageUrl: string } | null,
+        };
+    }
+
     async registerTemplate(senderKey: string, data: NhnRegisterTemplateRequest) {
         const result = await this.request(
             "POST",

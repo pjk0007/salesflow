@@ -9,9 +9,10 @@ interface ImageUploadProps {
     label?: string;
     hint?: string;
     aspect?: string;
+    uploadUrl?: string;
 }
 
-export default function ImageUpload({ value, onChange, label, hint, aspect = "aspect-[2/1]" }: ImageUploadProps) {
+export default function ImageUpload({ value, onChange, label, hint, aspect = "aspect-[2/1]", uploadUrl = "/api/upload" }: ImageUploadProps) {
     const [uploading, setUploading] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -21,7 +22,7 @@ export default function ImageUpload({ value, onChange, label, hint, aspect = "as
             const formData = new FormData();
             formData.append("file", file);
 
-            const res = await fetch("/api/upload", { method: "POST", body: formData });
+            const res = await fetch(uploadUrl, { method: "POST", body: formData });
             const result = await res.json();
 
             if (result.success) {

@@ -210,6 +210,7 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                         }
                         hint="800×400px 권장 (2:1, 최대 10MB)"
                         aspect="aspect-[2/1]"
+                        uploadUrl="/api/alimtalk/template-image"
                     />
                 </div>
             )}
@@ -260,6 +261,7 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                             label="이미지 (선택)"
                             hint="JPG, PNG (최대 5MB)"
                             aspect="aspect-square w-28"
+                            uploadUrl="/api/alimtalk/template-image?type=item-highlight"
                         />
                     </div>
 
