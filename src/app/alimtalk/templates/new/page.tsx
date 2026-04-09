@@ -17,7 +17,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/common/page-container";
-import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
+import { ArrowLeft, Sparkles, Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
 import type { NhnTemplateButton } from "@/lib/nhn-alimtalk";
 
 const DEFAULT_FORM: TemplateFormState = {
@@ -47,6 +48,7 @@ function NewAlimtalkTemplateContent() {
     const searchParams = useSearchParams();
     const senderKeyParam = searchParams.get("senderKey");
     const cloneFrom = searchParams.get("cloneFrom");
+    const draftId = searchParams.get("draftId");
     const { senders } = useAlimtalkSenders();
     const [selectedSenderKey, setSelectedSenderKey] = useState<string | null>(senderKeyParam);
     const senderKey = selectedSenderKey;
@@ -85,7 +87,22 @@ function NewAlimtalkTemplateContent() {
                 });
             });
     }, [cloneFrom, senderKey]);
+
+    // 임시저장 불러오기
+    useEffect(() => {
+        if (!draftId) return;
+        fetch(`/api/alimtalk/template-drafts/${draftId}`)
+            .then((res) => res.json())
+            .then((result) => {
+                if (!result.success || !result.data) return;
+                const draft = result.data;
+                if (!selectedSenderKey) setSelectedSenderKey(draft.senderKey);
+                setForm({ ...DEFAULT_FORM, ...(draft.formData as TemplateFormState) });
+            });
+    }, [draftId]);
+
     const [submitting, setSubmitting] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { createTemplate } = useAlimtalkTemplateManage(senderKey);
 
@@ -104,6 +121,38 @@ function NewAlimtalkTemplateContent() {
             interactionType: "buttons",
         }));
         setShowAi(false);
+    };
+
+    const handleSaveDraft = async () => {
+        if (!form.templateCode || !form.templateName) {
+            toast.error("템플릿 코드와 이름은 필수입니다.");
+            return;
+        }
+        if (!senderKey) return;
+
+        setSaving(true);
+        try {
+            const res = await fetch("/api/alimtalk/template-drafts", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    senderKey,
+                    templateCode: form.templateCode,
+                    templateName: form.templateName,
+                    formData: form,
+                }),
+            });
+            const result = await res.json();
+            if (result.success) {
+                toast.success(result.message || "임시저장되었습니다.");
+            } else {
+                toast.error(result.error || "임시저장에 실패했습니다.");
+            }
+        } catch {
+            toast.error("임시저장 중 오류가 발생했습니다.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleSubmit = async () => {
@@ -142,6 +191,10 @@ function NewAlimtalkTemplateContent() {
 
             const result = await createTemplate(payload);
             if (result.success) {
+                // 임시저장이 있으면 삭제
+                if (draftId) {
+                    fetch(`/api/alimtalk/template-drafts/${draftId}`, { method: "DELETE" }).catch(() => {});
+                }
                 router.push("/alimtalk?tab=templates");
             } else {
                 setError(result.error || "등록에 실패했습니다.");
@@ -203,11 +256,15 @@ function NewAlimtalkTemplateContent() {
                         <Sparkles className="h-4 w-4 mr-1" />
                         AI 생성
                     </Button>
-                    <Button variant="outline" onClick={() => router.push("/alimtalk?tab=templates")} disabled={submitting}>
+                    <Button variant="outline" onClick={() => router.push("/alimtalk?tab=templates")} disabled={submitting || saving}>
                         취소
                     </Button>
-                    <Button onClick={handleSubmit} disabled={submitting}>
-                        {submitting ? "등록 중..." : "등록"}
+                    <Button variant="outline" onClick={handleSaveDraft} disabled={submitting || saving}>
+                        {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
+                        임시저장
+                    </Button>
+                    <Button onClick={handleSubmit} disabled={submitting || saving}>
+                        {submitting ? "검수 요청 중..." : "검수 요청"}
                     </Button>
                 </div>
             </div>

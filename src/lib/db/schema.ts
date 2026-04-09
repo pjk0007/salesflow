@@ -429,6 +429,24 @@ export const alimtalkFollowupQueue = pgTable("alimtalk_followup_queue", {
 });
 
 // ============================================
+// 알림톡 템플릿 임시저장
+// ============================================
+export const alimtalkTemplateDrafts = pgTable("alimtalk_template_drafts", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    senderKey: varchar("sender_key", { length: 200 }).notNull(),
+    templateCode: varchar("template_code", { length: 100 }).notNull(),
+    templateName: varchar("template_name", { length: 200 }).notNull(),
+    formData: jsonb("form_data").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+export type AlimtalkTemplateDraft = typeof alimtalkTemplateDrafts.$inferSelect;
+
+// ============================================
 // 알림톡 발송 로그
 // ============================================
 export const alimtalkSendLogs = pgTable("alimtalk_send_logs", {

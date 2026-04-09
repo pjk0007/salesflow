@@ -6,6 +6,7 @@ import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 import type { NhnTemplate } from "@/lib/nhn-alimtalk";
+import type { AlimtalkTemplateDraft } from "@/lib/db";
 import {
     Select,
     SelectContent,
@@ -47,7 +48,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Eye, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy } from "lucide-react";
+import { Eye, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy, FileEdit, X } from "lucide-react";
+import { toast } from "sonner";
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TestSendDialog from "./TestSendDialog";
 
@@ -84,6 +86,22 @@ export default function TemplateList() {
     const isLoading = isAll ? allLoading : singleLoading;
 
     const { deleteTemplate, commentTemplate } = useAlimtalkTemplateManage(singleSenderKey);
+
+    // 임시저장 목록
+    const { data: draftsData, mutate: mutateDrafts } = useSWR<{ success: boolean; data: AlimtalkTemplateDraft[] }>(
+        "/api/alimtalk/template-drafts",
+        defaultFetcher
+    );
+    const drafts = draftsData?.data ?? [];
+
+    const handleDeleteDraft = async (id: number) => {
+        const res = await fetch(`/api/alimtalk/template-drafts/${id}`, { method: "DELETE" });
+        const result = await res.json();
+        if (result.success) {
+            toast.success("임시저장이 삭제되었습니다.");
+            mutateDrafts();
+        }
+    };
 
     const [detailTemplate, setDetailTemplate] = useState<{
         senderKey: string;
@@ -152,6 +170,48 @@ export default function TemplateList() {
                     </Select>
                 </div>
             </div>
+
+            {/* 임시저장 목록 */}
+            {drafts.length > 0 && (
+                <div className="space-y-2">
+                    <h4 className="text-sm font-medium text-muted-foreground">임시저장 ({drafts.length})</h4>
+                    <div className="grid gap-2">
+                        {drafts.map((draft) => {
+                            const sender = senders.find(s => s.senderKey === draft.senderKey);
+                            return (
+                                <div key={draft.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                                    <div className="flex items-center gap-3">
+                                        <FileEdit className="h-4 w-4 text-muted-foreground" />
+                                        <div>
+                                            <p className="text-sm font-medium">{draft.templateName}</p>
+                                            <p className="text-xs text-muted-foreground">
+                                                {draft.templateCode} · {sender?.plusFriendId || draft.senderKey.slice(0, 8)} · {new Date(draft.updatedAt).toLocaleString("ko-KR")}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => router.push(`/alimtalk/templates/new?draftId=${draft.id}`)}
+                                        >
+                                            이어서 작성
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8"
+                                            onClick={() => handleDeleteDraft(draft.id)}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
 
             {isLoading ? (
                 <div className="space-y-3">

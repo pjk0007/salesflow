@@ -274,6 +274,13 @@
       "when": 1770950100000,
       "tag": "0038_email_click_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1770950200000,
+      "tag": "0039_alimtalk_template_drafts",
+      "breakpoints": true
     }
   ]
 }
