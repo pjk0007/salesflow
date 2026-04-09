@@ -28,17 +28,20 @@ interface SenderProfileRegisterDialogProps {
 }
 
 /** 재귀적으로 최하위 카테고리(리프)만 추출 */
+/** 재귀적으로 최하위 카테고리(리프)만 추출, 코드는 각 depth의 코드를 연결 (예: 001+0001+0001 = 00100010001) */
 function flattenLeafCategories(
     cats: NhnSenderCategory[],
-    path: string[] = []
+    pathNames: string[] = [],
+    pathCodes: string[] = [],
 ): { code: string; label: string }[] {
     const result: { code: string; label: string }[] = [];
     for (const cat of cats) {
-        const currentPath = [...path, cat.name];
+        const names = [...pathNames, cat.name];
+        const codes = [...pathCodes, cat.code];
         if (!cat.subCategories || cat.subCategories.length === 0) {
-            result.push({ code: cat.code, label: currentPath.join(" > ") });
+            result.push({ code: codes.join(""), label: names.join(" > ") });
         } else {
-            result.push(...flattenLeafCategories(cat.subCategories, currentPath));
+            result.push(...flattenLeafCategories(cat.subCategories, names, codes));
         }
     }
     return result;
