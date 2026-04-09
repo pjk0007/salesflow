@@ -215,54 +215,68 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                 </div>
             )}
 
-            {/* ITEM_LIST 강조 시 하이라이트 + 아이템 리스트 */}
+            {/* ITEM_LIST 강조 시 이미지 + 하이라이트 + 아이템 리스트 */}
             {showItemList && (
                 <div className="space-y-3 pl-2 border-l-2 border-blue-200">
+                    {/* 강조 이미지 (2:1) */}
+                    <div className="space-y-2">
+                        <Label>강조 이미지 (선택)</Label>
+                        <ImageUpload
+                            value={value.templateImageUrl}
+                            onChange={(url, fileName) =>
+                                update({ templateImageUrl: url, templateImageName: fileName || "" })
+                            }
+                            hint="800×400px 권장 (2:1, 최대 10MB)"
+                            aspect="aspect-[2/1]"
+                            uploadUrl="/api/alimtalk/template-image"
+                        />
+                    </div>
+
                     {/* 아이템 하이라이트 */}
                     <div className="space-y-2">
                         <Label className="text-sm font-medium">아이템 하이라이트</Label>
-                        <div className="space-y-1">
-                            <Input
-                                placeholder="제목 (최대 30자)"
-                                value={value.templateItemHighlight?.title ?? ""}
-                                onChange={(e) => update({
-                                    templateItemHighlight: {
-                                        title: e.target.value,
-                                        description: value.templateItemHighlight?.description ?? "",
-                                        imageUrl: value.templateItemHighlight?.imageUrl,
-                                    },
-                                })}
-                                maxLength={30}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <Input
-                                placeholder="설명 (최대 19자)"
-                                value={value.templateItemHighlight?.description ?? ""}
-                                onChange={(e) => update({
+                        <div className="flex gap-3">
+                            <div className="flex-1 space-y-1">
+                                <Input
+                                    placeholder="제목 (최대 30자)"
+                                    value={value.templateItemHighlight?.title ?? ""}
+                                    onChange={(e) => update({
+                                        templateItemHighlight: {
+                                            title: e.target.value,
+                                            description: value.templateItemHighlight?.description ?? "",
+                                            imageUrl: value.templateItemHighlight?.imageUrl,
+                                        },
+                                    })}
+                                    maxLength={30}
+                                />
+                                <Input
+                                    placeholder="설명 (최대 19자)"
+                                    value={value.templateItemHighlight?.description ?? ""}
+                                    onChange={(e) => update({
+                                        templateItemHighlight: {
+                                            title: value.templateItemHighlight?.title ?? "",
+                                            description: e.target.value,
+                                            imageUrl: value.templateItemHighlight?.imageUrl,
+                                        },
+                                    })}
+                                    maxLength={19}
+                                />
+                            </div>
+                            <ImageUpload
+                                value={value.templateItemHighlight?.imageUrl ?? ""}
+                                onChange={(url) => update({
                                     templateItemHighlight: {
                                         title: value.templateItemHighlight?.title ?? "",
-                                        description: e.target.value,
-                                        imageUrl: value.templateItemHighlight?.imageUrl,
+                                        description: value.templateItemHighlight?.description ?? "",
+                                        imageUrl: url || undefined,
                                     },
                                 })}
-                                maxLength={19}
+                                label="1:1 이미지"
+                                hint="선택"
+                                aspect="aspect-square w-20"
+                                uploadUrl="/api/alimtalk/template-image?type=item-highlight"
                             />
                         </div>
-                        <ImageUpload
-                            value={value.templateItemHighlight?.imageUrl ?? ""}
-                            onChange={(url) => update({
-                                templateItemHighlight: {
-                                    title: value.templateItemHighlight?.title ?? "",
-                                    description: value.templateItemHighlight?.description ?? "",
-                                    imageUrl: url || undefined,
-                                },
-                            })}
-                            label="이미지 (선택)"
-                            hint="JPG, PNG (최대 5MB)"
-                            aspect="aspect-square w-28"
-                            uploadUrl="/api/alimtalk/template-image?type=item-highlight"
-                        />
                     </div>
 
                     {/* 아이템 리스트 */}
@@ -333,7 +347,7 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                                             title: e.target.value,
                                             description: value.templateItem?.summary?.description ?? "",
                                         };
-                                        update({ templateItem: { ...value.templateItem!, summary } });
+                                        update({ templateItem: { list: value.templateItem?.list ?? [], summary } });
                                     }}
                                     maxLength={6}
                                     className="flex-1"
@@ -346,7 +360,7 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                                             title: value.templateItem?.summary?.title ?? "",
                                             description: e.target.value,
                                         };
-                                        update({ templateItem: { ...value.templateItem!, summary } });
+                                        update({ templateItem: { list: value.templateItem?.list ?? [], summary } });
                                     }}
                                     maxLength={14}
                                     className="flex-1"
