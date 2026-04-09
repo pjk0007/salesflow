@@ -235,33 +235,31 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                     {/* 아이템 하이라이트 */}
                     <div className="space-y-2">
                         <Label className="text-sm font-medium">아이템 하이라이트</Label>
-                        <div className="flex gap-3">
-                            <div className="flex-1 space-y-1">
-                                <Input
-                                    placeholder="제목 (최대 30자)"
-                                    value={value.templateItemHighlight?.title ?? ""}
-                                    onChange={(e) => update({
-                                        templateItemHighlight: {
-                                            title: e.target.value,
-                                            description: value.templateItemHighlight?.description ?? "",
-                                            imageUrl: value.templateItemHighlight?.imageUrl,
-                                        },
-                                    })}
-                                    maxLength={30}
-                                />
-                                <Input
-                                    placeholder="설명 (최대 19자)"
-                                    value={value.templateItemHighlight?.description ?? ""}
-                                    onChange={(e) => update({
-                                        templateItemHighlight: {
-                                            title: value.templateItemHighlight?.title ?? "",
-                                            description: e.target.value,
-                                            imageUrl: value.templateItemHighlight?.imageUrl,
-                                        },
-                                    })}
-                                    maxLength={19}
-                                />
-                            </div>
+                        <div className="space-y-1">
+                            <Input
+                                placeholder="제목 (최대 30자)"
+                                value={value.templateItemHighlight?.title ?? ""}
+                                onChange={(e) => update({
+                                    templateItemHighlight: {
+                                        title: e.target.value,
+                                        description: value.templateItemHighlight?.description ?? "",
+                                        imageUrl: value.templateItemHighlight?.imageUrl,
+                                    },
+                                })}
+                                maxLength={30}
+                            />
+                            <Input
+                                placeholder="설명 (최대 19자)"
+                                value={value.templateItemHighlight?.description ?? ""}
+                                onChange={(e) => update({
+                                    templateItemHighlight: {
+                                        title: value.templateItemHighlight?.title ?? "",
+                                        description: e.target.value,
+                                        imageUrl: value.templateItemHighlight?.imageUrl,
+                                    },
+                                })}
+                                maxLength={19}
+                            />
                             <ImageUpload
                                 value={value.templateItemHighlight?.imageUrl ?? ""}
                                 onChange={(url) => update({
@@ -271,9 +269,9 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
                                         imageUrl: url || undefined,
                                     },
                                 })}
-                                label="1:1 이미지"
-                                hint="선택"
-                                aspect="aspect-square w-20"
+                                label="하이라이트 이미지 (선택, 1:1)"
+                                hint="JPG, PNG"
+                                aspect="aspect-square w-24"
                                 uploadUrl="/api/alimtalk/template-image?type=item-highlight"
                             />
                         </div>
