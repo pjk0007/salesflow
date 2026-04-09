@@ -1,6 +1,6 @@
 import type { NhnTemplateButton, NhnTemplateQuickReply } from "@/lib/nhn-alimtalk";
 
-interface TemplatePreviewProps {
+export interface TemplatePreviewProps {
     templateContent: string;
     templateMessageType: string;
     templateEmphasizeType: string;
@@ -125,7 +125,26 @@ export default function TemplatePreview({
                         </>
                     )}
 
-                    {/* 강조 (ITEM_LIST 타입) — 하이라이트 → 아이템 리스트 → 본문 순 */}
+                    {/* 강조 이미지 (ITEM_LIST 타입) */}
+                    {showItemList && templateImageUrl && (
+                        <>
+                            <div className="mb-2 rounded overflow-hidden bg-gray-100 aspect-2/1 flex items-center justify-center">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={templateImageUrl}
+                                    alt="강조 이미지"
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = "none";
+                                        (e.target as HTMLImageElement).parentElement!.innerHTML =
+                                            '<span class="text-xs text-muted-foreground">이미지 미리보기</span>';
+                                    }}
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {/* 하이라이트 (ITEM_LIST 타입) — 하이라이트 → 아이템 리스트 → 본문 순 */}
                     {showItemList && (templateItemHighlight?.title || templateItemHighlight?.description) && (
                         <>
                             <div className="mb-2 flex gap-2 items-start">

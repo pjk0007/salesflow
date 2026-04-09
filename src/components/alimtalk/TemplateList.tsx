@@ -51,6 +51,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Eye, Plus, MoreHorizontal, Pencil, Trash, Send, SendHorizontal, Copy, FileEdit, X } from "lucide-react";
 import { toast } from "sonner";
 import TemplateDetailDialog from "./TemplateDetailDialog";
+import TemplatePreview, { type TemplatePreviewProps } from "./TemplatePreview";
 import TestSendDialog from "./TestSendDialog";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
@@ -118,6 +119,9 @@ export default function TemplateList() {
     // 삭제 확인
     const [deleteTarget, setDeleteTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
     const [deleting, setDeleting] = useState(false);
+
+    // 임시저장 미리보기
+    const [draftPreview, setDraftPreview] = useState<AlimtalkTemplateDraft | null>(null);
 
     // 검수 요청
     const [commentTarget, setCommentTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
@@ -196,6 +200,24 @@ export default function TemplateList() {
                                             onClick={() => router.push(`/alimtalk/templates/new?draftId=${draft.id}`)}
                                         >
                                             이어서 작성
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setDraftPreview(draft)}
+                                        >
+                                            <Eye className="h-4 w-4 mr-1" /> 미리보기
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setCommentTarget({
+                                                senderKey: draft.senderKey,
+                                                templateCode: draft.templateCode,
+                                                templateName: draft.templateName,
+                                            })}
+                                        >
+                                            <Send className="h-4 w-4 mr-1" /> 검수요청
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -370,6 +392,37 @@ export default function TemplateList() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* 임시저장 미리보기 다이얼로그 */}
+            <Dialog open={!!draftPreview} onOpenChange={() => setDraftPreview(null)}>
+                <DialogContent className="sm:max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>미리보기 — {draftPreview?.templateName}</DialogTitle>
+                    </DialogHeader>
+                    {draftPreview && (() => {
+                        const fd = draftPreview.formData as Record<string, unknown>;
+                        return (
+                            <TemplatePreview
+                                templateContent={(fd.templateContent as string) ?? ""}
+                                templateMessageType={(fd.templateMessageType as string) ?? "BA"}
+                                templateEmphasizeType={(fd.templateEmphasizeType as string) ?? "NONE"}
+                                templateTitle={(fd.templateTitle as string) ?? ""}
+                                templateSubtitle={(fd.templateSubtitle as string) ?? ""}
+                                templateHeader={(fd.templateHeader as string) ?? ""}
+                                templateExtra={(fd.templateExtra as string) ?? ""}
+                                templateImageUrl={(fd.templateImageUrl as string) ?? ""}
+                                templateImageName={(fd.templateImageName as string) ?? ""}
+                                templateItemHighlight={fd.templateItemHighlight as TemplatePreviewProps["templateItemHighlight"]}
+                                templateItem={fd.templateItem as TemplatePreviewProps["templateItem"]}
+                                templateRepresentLink={fd.templateRepresentLink as TemplatePreviewProps["templateRepresentLink"]}
+                                buttons={(fd.buttons as TemplatePreviewProps["buttons"]) ?? []}
+                                quickReplies={(fd.quickReplies as TemplatePreviewProps["quickReplies"]) ?? []}
+                                interactionType={(fd.interactionType as "buttons" | "quickReplies") ?? "buttons"}
+                            />
+                        );
+                    })()}
+                </DialogContent>
+            </Dialog>
 
             {/* 검수 요청 다이얼로그 */}
             <Dialog open={!!commentTarget} onOpenChange={() => { setCommentTarget(null); setCommentText(""); }}>
