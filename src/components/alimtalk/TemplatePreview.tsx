@@ -125,17 +125,11 @@ export default function TemplatePreview({
                         </>
                     )}
 
-                    {/* 강조 (ITEM_LIST 타입) */}
+                    {/* 강조 (ITEM_LIST 타입) — 하이라이트 → 아이템 리스트 → 본문 순 */}
                     {showItemList && (templateItemHighlight?.title || templateItemHighlight?.description) && (
                         <>
                             <div className="mb-2 flex gap-2 items-start">
-                                {templateItemHighlight.imageUrl && (
-                                    <div className="w-10 h-10 rounded bg-gray-100 shrink-0 overflow-hidden">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={templateItemHighlight.imageUrl} alt="" className="w-full h-full object-cover" />
-                                    </div>
-                                )}
-                                <div className="min-w-0">
+                                <div className="min-w-0 flex-1">
                                     {templateItemHighlight.title && (
                                         <div className="text-sm font-bold leading-tight truncate">{templateItemHighlight.title}</div>
                                     )}
@@ -143,23 +137,20 @@ export default function TemplatePreview({
                                         <div className="text-xs text-muted-foreground mt-0.5 truncate">{templateItemHighlight.description}</div>
                                     )}
                                 </div>
+                                {templateItemHighlight.imageUrl && (
+                                    <div className="w-10 h-10 rounded bg-gray-100 shrink-0 overflow-hidden">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img src={templateItemHighlight.imageUrl} alt="" className="w-full h-full object-cover" />
+                                    </div>
+                                )}
                             </div>
                             <div className="border-t my-2" />
                         </>
                     )}
 
-                    {/* 본문 */}
-                    <div
-                        className="text-sm whitespace-pre-wrap leading-relaxed"
-                        dangerouslySetInnerHTML={{
-                            __html: highlightVariables(templateContent || "(본문을 입력하세요)"),
-                        }}
-                    />
-
                     {/* 아이템 리스트 */}
                     {showItemList && templateItem && templateItem.list.length > 0 && (
                         <>
-                            <div className="border-t my-2" />
                             <div className="space-y-1">
                                 {templateItem.list.map((item, i) => (
                                     <div key={i} className="flex justify-between text-xs">
@@ -177,8 +168,17 @@ export default function TemplatePreview({
                                     </>
                                 )}
                             </div>
+                            <div className="border-t my-2" />
                         </>
                     )}
+
+                    {/* 본문 */}
+                    <div
+                        className="text-sm whitespace-pre-wrap leading-relaxed"
+                        dangerouslySetInnerHTML={{
+                            __html: highlightVariables(templateContent || "(본문을 입력하세요)"),
+                        }}
+                    />
 
                     {/* 부가정보 */}
                     {showExtra && (
