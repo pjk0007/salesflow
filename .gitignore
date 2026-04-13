@@ -50,3 +50,4 @@ docs/.pdca-snapshots
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+data/
