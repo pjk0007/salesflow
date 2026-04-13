@@ -34,6 +34,7 @@ export default function TemplateRanking({ data }: TemplateRankingProps) {
                     <TableHead className="w-[70px] text-right">실패</TableHead>
                     <TableHead className="w-[70px] text-right">읽음</TableHead>
                     <TableHead className="w-[80px] text-right">성공률</TableHead>
+                    <TableHead className="w-[80px] text-right">클릭률</TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -62,6 +63,9 @@ export default function TemplateRanking({ data }: TemplateRankingProps) {
                         </TableCell>
                         <TableCell className="text-right font-medium">
                             {item.successRate}%
+                        </TableCell>
+                        <TableCell className="text-right text-blue-500">
+                            {item.channel === "email" ? `${item.clickRate}%` : "-"}
                         </TableCell>
                     </TableRow>
                 ))}

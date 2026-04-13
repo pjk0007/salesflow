@@ -31,7 +31,9 @@ export interface TemplatePerformance {
     sent: number;
     failed: number;
     opened: number;
+    clicked: number;
     successRate: number;
+    clickRate: number;
 }
 
 export type Period = "7d" | "30d" | "90d";

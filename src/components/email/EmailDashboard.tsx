@@ -19,6 +19,7 @@ import {
     XCircle,
     Clock,
     Eye,
+    MousePointerClick,
     Settings,
     Loader2,
 } from "lucide-react";
@@ -119,6 +120,13 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
             icon: Eye,
             color: "text-purple-600",
         },
+        {
+            label: "클릭률",
+            value: email ? `${email.clickRate}%` : "0%",
+            sub: email ? `${email.clicked}/${email.opened}` : undefined,
+            icon: MousePointerClick,
+            color: "text-blue-500",
+        },
     ];
 
     return (
@@ -138,7 +146,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
             </div>
 
             {/* 요약 카드 */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 {cards.map((card) => (
                     <Card key={card.label}>
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -173,6 +181,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                     <TableHead className="text-right">실패</TableHead>
                                     <TableHead className="text-right">성공률</TableHead>
                                     <TableHead className="text-right">읽음률</TableHead>
+                                    <TableHead className="text-right">클릭률</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -186,6 +195,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                         <TableCell className="text-right">{row.failed}</TableCell>
                                         <TableCell className="text-right">{row.successRate}%</TableCell>
                                         <TableCell className="text-right">{row.openRate}%</TableCell>
+                                        <TableCell className="text-right">{row.clickRate}%</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>

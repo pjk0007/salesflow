@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, alimtalkSendLogs, emailSendLogs, emailTemplateLinks, partitions } from "@/lib/db";
+import { db, alimtalkSendLogs, emailSendLogs, emailTemplateLinks, emailClickLogs, partitions } from "@/lib/db";
 import { eq, and, gte, lte, sql, isNotNull } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
                     opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
+                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
                 .innerJoin(emailTemplateLinks, eq(emailSendLogs.templateLinkId, emailTemplateLinks.id))
@@ -74,6 +75,7 @@ export async function GET(req: NextRequest) {
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
                     opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
+                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
                 .innerJoin(partitions, eq(emailSendLogs.partitionId, partitions.id))
@@ -97,7 +99,9 @@ export async function GET(req: NextRequest) {
                 sent: t.sent,
                 failed: t.failed,
                 opened: 0,
+                clicked: 0,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
+                clickRate: 0,
             })),
             ...emailByLink.map(t => ({
                 name: t.name || "(이름 없음)",
@@ -107,7 +111,9 @@ export async function GET(req: NextRequest) {
                 sent: t.sent,
                 failed: t.failed,
                 opened: t.opened,
+                clicked: t.clicked,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
+                clickRate: t.opened > 0 ? Math.round((t.clicked / t.opened) * 1000) / 10 : 0,
             })),
             ...emailByAiAuto.map(t => ({
                 name: `AI: ${t.partitionName}`,
@@ -117,7 +123,9 @@ export async function GET(req: NextRequest) {
                 sent: t.sent,
                 failed: t.failed,
                 opened: t.opened,
+                clicked: t.clicked,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
+                clickRate: t.opened > 0 ? Math.round((t.clicked / t.opened) * 1000) / 10 : 0,
             })),
         ]
             .sort((a, b) => b.total - a.total)

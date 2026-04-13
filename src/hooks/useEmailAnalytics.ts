@@ -8,6 +8,8 @@ interface EmailStats {
     pending: number;
     opened: number;
     openRate: number;
+    clicked: number;
+    clickRate: number;
 }
 
 interface AlimtalkStats {
@@ -23,8 +25,10 @@ interface TriggerBreakdownItem {
     sent: number;
     failed: number;
     opened: number;
+    clicked: number;
     successRate: number;
     openRate: number;
+    clickRate: number;
 }
 
 interface SummaryData {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, alimtalkSendLogs, emailSendLogs } from "@/lib/db";
+import { db, records, alimtalkSendLogs, emailSendLogs, emailClickLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
-function aggregateStats(rows: Array<{ status: string; count: number; opened: number }>) {
+function aggregateStats(rows: Array<{ status: string; count: number; opened: number }>, clicked: number) {
     let total = 0, sent = 0, failed = 0, pending = 0, opened = 0;
     for (const row of rows) {
         total += row.count;
@@ -13,7 +13,8 @@ function aggregateStats(rows: Array<{ status: string; count: number; opened: num
         else if (row.status === "pending") pending = row.count;
     }
     const openRate = sent > 0 ? Math.round((opened / sent) * 1000) / 10 : 0;
-    return { total, sent, failed, pending, opened, openRate };
+    const clickRate = opened > 0 ? Math.round((clicked / opened) * 1000) / 10 : 0;
+    return { total, sent, failed, pending, opened, openRate, clicked, clickRate };
 }
 
 function aggregateAlimtalkStats(rows: Array<{ status: string; count: number }>) {
@@ -52,7 +53,7 @@ export async function GET(req: NextRequest) {
             lte(emailSendLogs.sentAt, end),
         );
 
-        const [alimtalkStats, emailStats, newRecordsCount, triggerBreakdown] = await Promise.all([
+        const [alimtalkStats, emailStats, newRecordsCount, triggerBreakdown, totalClicked] = await Promise.all([
             // 알림톡 상태별 카운트
             db.select({
                 status: alimtalkSendLogs.status,
@@ -85,17 +86,26 @@ export async function GET(req: NextRequest) {
                     lte(records.createdAt, end),
                 )),
 
-            // triggerType별 breakdown
+            // triggerType별 breakdown (클릭 수 포함)
             db.select({
                 triggerType: emailSendLogs.triggerType,
                 total: sql<number>`count(*)::int`,
                 sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`,
                 failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`,
                 opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`,
+                clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`,
             })
                 .from(emailSendLogs)
                 .where(emailWhere)
                 .groupBy(emailSendLogs.triggerType),
+
+            // 전체 클릭된 이메일 수 (읽음 대비 클릭률 계산용)
+            db.select({
+                count: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`,
+            })
+                .from(emailClickLogs)
+                .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
+                .where(emailWhere),
         ]);
 
         const triggerData = triggerBreakdown.map((t) => ({
@@ -104,15 +114,17 @@ export async function GET(req: NextRequest) {
             sent: t.sent,
             failed: t.failed,
             opened: t.opened,
+            clicked: t.clicked,
             successRate: t.total > 0 ? Math.round((t.sent / t.total) * 1000) / 10 : 0,
             openRate: t.sent > 0 ? Math.round((t.opened / t.sent) * 1000) / 10 : 0,
+            clickRate: t.opened > 0 ? Math.round((t.clicked / t.opened) * 1000) / 10 : 0,
         }));
 
         return NextResponse.json({
             success: true,
             data: {
                 alimtalk: aggregateAlimtalkStats(alimtalkStats),
-                email: aggregateStats(emailStats),
+                email: aggregateStats(emailStats, totalClicked[0]?.count ?? 0),
                 newRecordsInPeriod: newRecordsCount[0]?.count ?? 0,
                 triggerBreakdown: triggerData,
             },
