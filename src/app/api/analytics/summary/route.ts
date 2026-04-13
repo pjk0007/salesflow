@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
             lte(emailSendLogs.sentAt, end),
         );
 
-        const [alimtalkStats, emailStats, newRecordsCount, triggerBreakdown, totalClicked] = await Promise.all([
+        const [alimtalkStats, emailStats, newRecordsCount, triggerBreakdown, clicksByTrigger, totalClicked] = await Promise.all([
             // 알림톡 상태별 카운트
             db.select({
                 status: alimtalkSendLogs.status,
@@ -86,16 +86,25 @@ export async function GET(req: NextRequest) {
                     lte(records.createdAt, end),
                 )),
 
-            // triggerType별 breakdown (클릭 수 포함)
+            // triggerType별 breakdown
             db.select({
                 triggerType: emailSendLogs.triggerType,
                 total: sql<number>`count(*)::int`,
                 sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`,
                 failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`,
                 opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`,
-                clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`,
             })
                 .from(emailSendLogs)
+                .where(emailWhere)
+                .groupBy(emailSendLogs.triggerType),
+
+            // triggerType별 클릭된 이메일 수 (별도 쿼리)
+            db.select({
+                triggerType: emailSendLogs.triggerType,
+                clicked: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`,
+            })
+                .from(emailClickLogs)
+                .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
                 .where(emailWhere)
                 .groupBy(emailSendLogs.triggerType),
 
@@ -108,17 +117,22 @@ export async function GET(req: NextRequest) {
                 .where(emailWhere),
         ]);
 
-        const triggerData = triggerBreakdown.map((t) => ({
-            triggerType: t.triggerType || "unknown",
-            total: t.total,
-            sent: t.sent,
-            failed: t.failed,
-            opened: t.opened,
-            clicked: t.clicked,
-            successRate: t.total > 0 ? Math.round((t.sent / t.total) * 1000) / 10 : 0,
-            openRate: t.sent > 0 ? Math.round((t.opened / t.sent) * 1000) / 10 : 0,
-            clickRate: t.opened > 0 ? Math.round((t.clicked / t.opened) * 1000) / 10 : 0,
-        }));
+        const clickMap = new Map(clicksByTrigger.map(c => [c.triggerType, c.clicked]));
+
+        const triggerData = triggerBreakdown.map((t) => {
+            const clicked = clickMap.get(t.triggerType) ?? 0;
+            return {
+                triggerType: t.triggerType || "unknown",
+                total: t.total,
+                sent: t.sent,
+                failed: t.failed,
+                opened: t.opened,
+                clicked,
+                successRate: t.total > 0 ? Math.round((t.sent / t.total) * 1000) / 10 : 0,
+                openRate: t.sent > 0 ? Math.round((t.opened / t.sent) * 1000) / 10 : 0,
+                clickRate: t.opened > 0 ? Math.round((clicked / t.opened) * 1000) / 10 : 0,
+            };
+        });
 
         return NextResponse.json({
             success: true,

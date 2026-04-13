@@ -48,14 +48,15 @@ export async function GET(req: NextRequest) {
             await db
                 .select({
                     name: emailTemplateLinks.name,
-                    total: sql<number>`count(*)::int`.as("total"),
-                    sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
-                    failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
-                    opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
-                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`.as("clicked"),
+                    total: sql<number>`count(distinct ${emailSendLogs.id})::int`.as("total"),
+                    sent: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
+                    failed: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    opened: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
+                    clicked: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
                 .innerJoin(emailTemplateLinks, eq(emailSendLogs.templateLinkId, emailTemplateLinks.id))
+                .leftJoin(emailClickLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
                 .where(and(
                     eq(emailSendLogs.orgId, orgId),
                     gte(emailSendLogs.sentAt, start),
@@ -63,7 +64,7 @@ export async function GET(req: NextRequest) {
                     isNotNull(emailSendLogs.templateLinkId),
                 ))
                 .groupBy(emailTemplateLinks.name)
-                .orderBy(sql`count(*) desc`)
+                .orderBy(sql`count(distinct ${emailSendLogs.id}) desc`)
                 .limit(limit);
 
         // AI 자동발송 파티션 기준 집계
@@ -71,14 +72,15 @@ export async function GET(req: NextRequest) {
             await db
                 .select({
                     partitionName: partitions.name,
-                    total: sql<number>`count(*)::int`.as("total"),
-                    sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
-                    failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
-                    opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
-                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`.as("clicked"),
+                    total: sql<number>`count(distinct ${emailSendLogs.id})::int`.as("total"),
+                    sent: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
+                    failed: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    opened: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
+                    clicked: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
                 .innerJoin(partitions, eq(emailSendLogs.partitionId, partitions.id))
+                .leftJoin(emailClickLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
                 .where(and(
                     eq(emailSendLogs.orgId, orgId),
                     eq(emailSendLogs.triggerType, "ai_auto"),
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
                     lte(emailSendLogs.sentAt, end),
                 ))
                 .groupBy(partitions.name)
-                .orderBy(sql`count(*) desc`)
+                .orderBy(sql`count(distinct ${emailSendLogs.id}) desc`)
                 .limit(limit);
 
         // 합산 + 정렬
