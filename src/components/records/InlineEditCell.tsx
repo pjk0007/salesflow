@@ -13,7 +13,8 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown } from "lucide-react";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import CellRenderer from "./CellRenderer";
 import type { FieldDefinition } from "@/types";
 
@@ -113,33 +114,15 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
         );
     }
 
-    // datetime 타입 — datetime-local input + 삭제 버튼
+    // datetime 타입 — shadcn 캘린더 + 시간 입력 (UTC ISO 저장 / 로컬 표시)
     if (field.fieldType === "datetime") {
-        const dtVal = value ? String(value) : "";
-        // ISO → datetime-local 포맷 변환
-        const localVal = dtVal ? dtVal.slice(0, 16) : "";
+        const dtVal = value ? String(value) : null;
         return (
-            <div className="flex items-center gap-0.5 group">
-                <Input
-                    type="datetime-local"
-                    value={localVal}
-                    onChange={(e) => {
-                        const v = e.target.value;
-                        onSave(v ? new Date(v).toISOString() : null);
-                    }}
-                    className={`h-7 border-0 shadow-none focus-visible:ring-1 px-1 text-xs ${localVal ? (field.cellClassName || "") : ""}`}
-                />
-                {dtVal && (
-                    <button
-                        type="button"
-                        onClick={() => onSave(null)}
-                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive shrink-0 transition-opacity"
-                        title="삭제"
-                    >
-                        <X className="h-3.5 w-3.5" />
-                    </button>
-                )}
-            </div>
+            <DateTimePicker
+                value={dtVal}
+                onChange={(v) => onSave(v)}
+                valueClassName={dtVal ? field.cellClassName ?? undefined : undefined}
+            />
         );
     }
 

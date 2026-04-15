@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { toast } from "sonner";
 
@@ -162,10 +163,9 @@ export default function CreateRecordDialog({
 
             case "datetime":
                 return (
-                    <Input
-                        type="datetime-local"
-                        value={String(value ?? "")}
-                        onChange={(e) => setValue(field.key, e.target.value)}
+                    <DateTimePicker
+                        value={value ? String(value) : null}
+                        onChange={(v) => setValue(field.key, v)}
                     />
                 );
 
