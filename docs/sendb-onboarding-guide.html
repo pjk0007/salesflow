@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sendb 시작 가이드 — 처음 사용자를 위한 단계별 안내</title>
+<style>
+  :root { --primary: #2563eb; --bg: #f8fafc; --card: #fff; --border: #e2e8f0; --text: #1e293b; --muted: #64748b; --accent: #f1f5f9; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+  .container { max-width: 780px; margin: 0 auto; padding: 40px 24px 80px; }
+  h1 { font-size: 2rem; font-weight: 800; color: var(--primary); }
+  h1 small { display: block; font-size: 1rem; font-weight: 500; color: var(--muted); margin-top: 6px; }
+  .intro { margin: 24px 0 40px; font-size: 1.05rem; color: #334155; }
+
+  /* 스텝 카드 */
+  .step { position: relative; margin: 0 0 36px; padding-left: 56px; }
+  .step::before { content: ''; position: absolute; left: 19px; top: 40px; bottom: -36px; width: 2px; background: var(--border); }
+  .step:last-child::before { display: none; }
+  .step-number { position: absolute; left: 0; top: 0; width: 40px; height: 40px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 800; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 8px rgba(37,99,235,0.25); }
+  .step-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .step-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 4px; }
+  .step-time { font-size: 0.8rem; color: var(--muted); margin-bottom: 12px; }
+  .step-body { font-size: 0.93rem; }
+  .step-body p { margin: 6px 0; }
+  .step-body ul { padding-left: 18px; margin: 6px 0; }
+  .step-body li { margin: 3px 0; }
+
+  .path { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 0.82rem; font-family: monospace; background: #eff6ff; color: var(--primary); font-weight: 600; }
+  .btn-label { display: inline-flex; align-items: center; gap: 3px; padding: 2px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; background: var(--primary); color: #fff; }
+  .btn-outline { display: inline-flex; align-items: center; gap: 3px; padding: 2px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--border); background: var(--card); }
+  .tip { background: #f0fdf4; border-left: 4px solid #22c55e; padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.88rem; }
+  .warn { background: #fefce8; border-left: 4px solid #eab308; padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.88rem; }
+  .checklist { list-style: none; padding-left: 0; }
+  .checklist li { padding: 4px 0 4px 24px; position: relative; }
+  .checklist li::before { content: ''; position: absolute; left: 0; top: 8px; width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 4px; }
+
+  .flow-diagram { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 20px 0; }
+  .flow-box { padding: 6px 14px; border-radius: 8px; font-size: 0.85rem; font-weight: 600; background: var(--accent); white-space: nowrap; }
+  .flow-box.active { background: var(--primary); color: #fff; }
+  .flow-arrow { color: var(--muted); font-size: 1.1rem; }
+
+  .section-divider { text-align: center; margin: 48px 0 12px; color: var(--muted); font-size: 0.85rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  @media (max-width: 640px) { .step { padding-left: 48px; } .container { padding: 24px 16px 60px; } h1 { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>Sendb 시작 가이드
+<small>처음 사용자를 위한 단계별 안내 &mdash; 약 30분이면 모든 설정을 완료할 수 있습니다</small>
+</h1>
+
+<p class="intro">
+Sendb는 고객 데이터 관리부터 이메일&middot;알림톡 자동발송까지 하나의 화면에서 해결하는 영업 CRM입니다.<br>
+아래 순서대로 따라하면 서비스의 핵심 기능을 빠르게 경험할 수 있습니다.
+</p>
+
+<div class="flow-diagram">
+  <span class="flow-box active">가입</span><span class="flow-arrow">&rarr;</span>
+  <span class="flow-box">온보딩</span><span class="flow-arrow">&rarr;</span>
+  <span class="flow-box">레코드 등록</span><span class="flow-arrow">&rarr;</span>
+  <span class="flow-box">이메일 설정</span><span class="flow-arrow">&rarr;</span>
+  <span class="flow-box">첫 이메일 발송</span><span class="flow-arrow">&rarr;</span>
+  <span class="flow-box">자동화 연결</span><span class="flow-arrow">&rarr;</span>
+  <span class="flow-box">분석 확인</span>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-divider">기본 설정</div>
+
+<!-- STEP 1 -->
+<div class="step">
+  <div class="step-number">1</div>
+  <div class="step-card">
+    <div class="step-title">회원가입 &amp; 온보딩</div>
+    <div class="step-time">약 3분</div>
+    <div class="step-body">
+      <p><span class="path">/signup</span> 에서 이름, 이메일, 비밀번호를 입력하고 가입합니다.</p>
+      <p>가입 즉시 <strong>온보딩 마법사</strong>가 시작됩니다 (5단계):</p>
+      <ol>
+        <li><strong>조직 정보</strong> &mdash; 회사 이름, 업종, 규모를 입력합니다. 나중에 설정에서 수정 가능하니 대략 입력해도 됩니다.</li>
+        <li><strong>워크스페이스 생성</strong> &mdash; 첫 번째 워크스페이스 이름을 정합니다 (예: "영업관리", "마케팅"). 아이콘도 골라보세요.</li>
+        <li><strong>속성(필드) 템플릿</strong> &mdash; 업종별 추천 필드 세트를 선택합니다. 고객 관리에 필요한 필드(이름, 이메일, 회사, 직책 등)가 한번에 만들어집니다.</li>
+        <li><strong>팀원 초대</strong> &mdash; 함께 사용할 팀원 이메일을 입력합니다. 나중에 해도 됩니다.</li>
+        <li><strong>완료</strong> &mdash; 결과 확인 후 <span class="btn-label">시작하기</span> 클릭!</li>
+      </ol>
+      <div class="tip">급하다면 상단의 "건너뛰기"로 온보딩을 생략할 수 있습니다. 설정은 언제든 <span class="path">워크스페이스 설정</span>과 <span class="path">조직 설정</span>에서 수정 가능합니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 2 -->
+<div class="step">
+  <div class="step-number">2</div>
+  <div class="step-card">
+    <div class="step-title">파티션 만들기 &amp; 첫 레코드 등록</div>
+    <div class="step-time">약 5분</div>
+    <div class="step-body">
+      <p><span class="path">/records</span> (사이드바 "레코드") 페이지로 이동합니다.</p>
+
+      <p><strong>파티션이란?</strong> 고객 데이터를 목적별로 나눈 공간입니다. 예를 들어:</p>
+      <ul>
+        <li>"신규 리드" &mdash; 아직 연락하지 않은 잠재 고객</li>
+        <li>"미팅 진행중" &mdash; 상담 중인 고객</li>
+        <li>"계약 완료" &mdash; 성사된 거래</li>
+      </ul>
+
+      <p><strong>해볼 것:</strong></p>
+      <ol>
+        <li>좌측 패널에서 <span class="btn-label">+ 파티션 추가</span> 클릭 → 이름 입력 → 생성</li>
+        <li>필요하면 <span class="btn-outline">+ 폴더 추가</span>로 파티션을 폴더로 묶을 수도 있습니다</li>
+        <li>상단 <span class="btn-label">+ 레코드 추가</span> 클릭 → 고객 정보 입력 → 저장</li>
+      </ol>
+
+      <div class="tip"><strong>한꺼번에 등록하려면?</strong> 상단 <span class="btn-outline">CSV 가져오기</span>로 엑셀/CSV 파일을 업로드하세요. 필드 매핑을 확인하고 일괄 등록됩니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="step">
+  <div class="step-number">3</div>
+  <div class="step-card">
+    <div class="step-title">레코드 다뤄보기</div>
+    <div class="step-time">약 3분</div>
+    <div class="step-body">
+      <p>등록한 레코드로 기본 기능을 체험해봅니다:</p>
+      <ul>
+        <li><strong>셀 클릭 → 인라인 편집</strong> &mdash; 테이블에서 바로 값을 수정해보세요</li>
+        <li><strong>행 클릭 → 상세 보기</strong> &mdash; 전체 필드, 메모, 발송이력을 한눈에 확인</li>
+        <li><strong>체크박스 선택</strong> &mdash; 여러 레코드를 선택하면 상단에 일괄 삭제, 알림톡/이메일 발송 버튼이 나타납니다</li>
+        <li><strong>검색 &amp; 필터</strong> &mdash; 키워드 검색, 필드 조건 필터(같음, 포함, 비어있음 등)를 사용해보세요</li>
+        <li><strong>정렬</strong> &mdash; 컬럼 헤더를 클릭하면 오름/내림차순 정렬됩니다</li>
+        <li><strong>뷰 모드</strong> &mdash; 그룹화 가능한 필드(select 타입)가 있으면 그룹 뷰로 전환해보세요</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-divider">이메일 발송 시작하기</div>
+
+<!-- STEP 4 -->
+<div class="step">
+  <div class="step-number">4</div>
+  <div class="step-card">
+    <div class="step-title">이메일 API 연동</div>
+    <div class="step-time">약 5분</div>
+    <div class="step-body">
+      <p>Sendb는 <strong>NHN Cloud Email</strong>을 통해 이메일을 발송합니다. API 키를 등록해야 합니다.</p>
+      <ol>
+        <li><span class="path">/email</span> (사이드바 "이메일") 이동</li>
+        <li>우측 상단 톱니바퀴(⚙) 아이콘 클릭 → 설정 탭 진입</li>
+        <li>NHN Cloud 콘솔에서 발급받은 <strong>Appkey</strong>와 <strong>Secret Key</strong>를 입력 → 저장</li>
+        <li>같은 설정 페이지에서 <strong>발신자 프로필</strong>을 등록합니다 (이름 + 이메일 주소)</li>
+      </ol>
+      <div class="warn">NHN Cloud Email 서비스에 먼저 가입하고, 발신 도메인 인증을 완료해야 합니다. NHN Cloud 콘솔 → Notification → Email에서 진행합니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 5 -->
+<div class="step">
+  <div class="step-number">5</div>
+  <div class="step-card">
+    <div class="step-title">이메일 템플릿 만들기</div>
+    <div class="step-time">약 5분</div>
+    <div class="step-body">
+      <ol>
+        <li><span class="path">/email</span> → "템플릿" 탭 → <span class="btn-label">+ 새 템플릿</span></li>
+        <li>제목 입력 (예: "서비스 소개 안내")</li>
+        <li><strong>비주얼 에디터</strong>에서 본문 작성. 일반 워드 편집처럼 텍스트를 입력하면 됩니다</li>
+        <li>수신자 맞춤 내용이 필요하면 <code>#{이름}</code>, <code>#{회사}</code> 같은 변수를 삽입합니다. 발송 시 레코드 데이터로 자동 치환됩니다</li>
+        <li>우측 미리보기로 결과를 확인합니다</li>
+        <li><span class="btn-label">발행</span> 버튼으로 저장합니다</li>
+      </ol>
+      <div class="tip"><strong>AI 활용 팁:</strong> 에디터 내 AI 패널에서 "B2B SaaS 소개 이메일 작성해줘"처럼 프롬프트를 입력하면 AI가 초안을 생성해줍니다. 조직 설정 → AI 탭에서 API 키 등록이 필요합니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 6 -->
+<div class="step">
+  <div class="step-number">6</div>
+  <div class="step-card">
+    <div class="step-title">첫 이메일 발송해보기</div>
+    <div class="step-time">약 2분</div>
+    <div class="step-body">
+      <p>두 가지 방법이 있습니다:</p>
+      <p><strong>방법 A: 레코드 페이지에서 직접 발송</strong></p>
+      <ol>
+        <li><span class="path">/records</span>에서 발송할 레코드를 체크박스로 선택</li>
+        <li>상단 <span class="btn-label">이메일 발송</span> 클릭</li>
+        <li>발신자 선택 → 템플릿 선택 → 수신 이메일 필드 지정 → 발송</li>
+      </ol>
+      <p><strong>방법 B: 레코드 상세에서 개별 발송</strong></p>
+      <ol>
+        <li>레코드 행 클릭 → 상세 다이얼로그에서 이메일 발송</li>
+      </ol>
+      <div class="tip">발송 후 <span class="path">/email</span> → "발송 이력" 탭에서 상태(대기/성공/실패), 읽음 여부, 클릭 수를 확인할 수 있습니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-divider">자동화 설정</div>
+
+<!-- STEP 7 -->
+<div class="step">
+  <div class="step-number">7</div>
+  <div class="step-card">
+    <div class="step-title">이메일 자동발송 연결하기</div>
+    <div class="step-time">약 5분</div>
+    <div class="step-body">
+      <p>레코드가 생성/수정될 때 이메일이 자동으로 발송되도록 설정합니다.</p>
+      <ol>
+        <li><span class="path">/email</span> → "템플릿 자동발송" 탭 → <span class="btn-label">+ 연결 추가</span></li>
+        <li>연결명 입력 (예: "신규 리드 환영 이메일")</li>
+        <li>대상 파티션 선택 (예: "신규 리드")</li>
+        <li>사용할 이메일 템플릿 선택</li>
+        <li>트리거 선택:
+          <ul>
+            <li><strong>레코드 생성 시</strong> &mdash; 새 고객이 등록되면 자동 발송</li>
+            <li><strong>레코드 수정 시</strong> &mdash; 특정 필드가 변경되면 발송</li>
+            <li><strong>반복 발송</strong> &mdash; 주기적으로 발송</li>
+          </ul>
+        </li>
+        <li>수신 이메일 필드 지정 (어떤 필드에 수신자 이메일이 있는지)</li>
+        <li>필요하면 조건 추가 (예: 상태가 "신규"일 때만)</li>
+        <li>저장 → 활성화</li>
+      </ol>
+      <div class="tip"><strong>클릭 추적:</strong> 연결 설정에서 "클릭 추적"을 ON으로 하면 이메일 내 링크 클릭 횟수를 추적할 수 있습니다.</div>
+      <div class="tip"><strong>후속 이메일:</strong> "후속 이메일 설정"을 켜면 수신자가 이메일을 읽은 후 N일 뒤에 자동으로 후속 이메일을 보낼 수 있습니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 8 -->
+<div class="step">
+  <div class="step-number">8</div>
+  <div class="step-card">
+    <div class="step-title">웹 폼으로 리드 자동 수집</div>
+    <div class="step-time">약 5분</div>
+    <div class="step-body">
+      <p>웹사이트에 폼을 달아서 방문자의 정보를 자동으로 레코드에 저장합니다.</p>
+      <ol>
+        <li><span class="path">/web-forms</span> (사이드바 "웹 폼") → <span class="btn-label">+ 새 폼 만들기</span></li>
+        <li>폼 이름 입력, 대상 파티션 선택</li>
+        <li>필드 추가: 이름, 이메일, 전화번호, 문의내용 등</li>
+        <li>각 폼 필드를 레코드 속성에 매핑 (폼의 "이메일" → 레코드의 "email" 필드)</li>
+        <li>저장 후 <span class="btn-outline">링크</span> 버튼 클릭 → 공유 URL 또는 iframe 코드를 복사</li>
+        <li>홈페이지에 삽입하거나 URL을 공유</li>
+      </ol>
+      <div class="tip"><strong>자동화 시너지:</strong> 웹 폼으로 레코드가 생성되면 → Step 7에서 설정한 자동발송이 트리거되어 환영 이메일이 자동 전송됩니다!</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<div class="section-divider">더 활용하기</div>
+
+<!-- STEP 9 -->
+<div class="step">
+  <div class="step-number">9</div>
+  <div class="step-card">
+    <div class="step-title">알림톡 연동 (선택)</div>
+    <div class="step-time">약 10분</div>
+    <div class="step-body">
+      <p>카카오 알림톡으로도 메시지를 보낼 수 있습니다.</p>
+      <ol>
+        <li><span class="path">/alimtalk</span> → "설정" 탭에서 NHN Cloud 알림톡 API 키 등록</li>
+        <li>"발신프로필" 탭에서 카카오톡 채널 확인</li>
+        <li>"템플릿" 탭 → <span class="btn-label">+ 템플릿 등록</span>으로 메시지 템플릿 작성</li>
+        <li>템플릿은 카카오 검수를 통과해야 발송 가능합니다 (보통 1~2영업일)</li>
+        <li>승인된 템플릿으로 "연결 관리"에서 자동발송 설정 가능</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 10 -->
+<div class="step">
+  <div class="step-number">10</div>
+  <div class="step-card">
+    <div class="step-title">AI 기능 활성화 (선택)</div>
+    <div class="step-time">약 3분</div>
+    <div class="step-body">
+      <p>AI 기능을 사용하면 이메일 작성, 제품 정보 생성, 기업 조사를 자동화할 수 있습니다.</p>
+      <ol>
+        <li><span class="path">/settings/organization</span> → "AI" 탭</li>
+        <li>OpenAI 또는 Anthropic API 키 입력 → 저장</li>
+        <li>기본 AI 제공사 선택</li>
+      </ol>
+      <p><strong>활성화 후 사용 가능한 AI 기능:</strong></p>
+      <ul>
+        <li><strong>AI 이메일 생성</strong> &mdash; 템플릿 에디터에서 프롬프트로 이메일 초안 작성</li>
+        <li><strong>AI 알림톡 생성</strong> &mdash; 알림톡 템플릿 자동 생성</li>
+        <li><strong>AI 자동발송</strong> &mdash; 레코드 데이터 기반 맞춤 이메일 자동 생성+발송</li>
+        <li><strong>AI 제품 정보 생성</strong> &mdash; 제품 관리에서 웹 검색 기반 자동 생성</li>
+        <li><strong>AI 기업 조사</strong> &mdash; 레코드 상세에서 회사 정보 자동 수집</li>
+        <li><strong>AI 웹 폼 필드 생성</strong> &mdash; 프롬프트로 폼 필드 자동 구성</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 11 -->
+<div class="step">
+  <div class="step-number">11</div>
+  <div class="step-card">
+    <div class="step-title">제품/서비스 등록 (선택)</div>
+    <div class="step-time">약 3분</div>
+    <div class="step-body">
+      <p>홍보할 제품이나 서비스를 등록하면 AI 이메일 작성 시 자동으로 참고합니다.</p>
+      <ol>
+        <li><span class="path">/products</span> (사이드바 "제품 관리") → <span class="btn-label">+ 제품 추가</span></li>
+        <li>제품명, 카테고리, 가격, 소개, 상세 설명 입력</li>
+        <li>AI가 켜져 있으면 "AI 생성" 버튼으로 웹 검색 기반 자동 작성도 가능</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 12 -->
+<div class="step">
+  <div class="step-number">12</div>
+  <div class="step-card">
+    <div class="step-title">대시보드에서 성과 확인</div>
+    <div class="step-time">수시</div>
+    <div class="step-body">
+      <p>발송이 진행되면 대시보드에서 성과를 확인합니다.</p>
+      <ul>
+        <li><span class="path">/</span> <strong>홈 대시보드</strong> &mdash; 전체 요약 (레코드, 발송 현황, 최근 이력, 기간별 분석)</li>
+        <li><span class="path">/email</span> <strong>이메일 대시보드</strong> &mdash; 읽음률, 클릭률, 발송유형별 성과, 일별 추세</li>
+        <li><span class="path">/logs</span> <strong>통합 발송 이력</strong> &mdash; 알림톡+이메일 전체 이력을 한 곳에서 확인</li>
+      </ul>
+      <div class="tip"><strong>핵심 지표:</strong> 읽음률(이메일을 열어본 비율)과 클릭률(읽은 이메일에서 링크를 클릭한 비율)을 주기적으로 확인하세요. 템플릿과 발송 타이밍을 조정하는 데 중요한 기준이 됩니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<hr>
+
+<h2 style="font-size:1.2rem; margin-top:32px;">체크리스트</h2>
+<p style="color:var(--muted); margin-bottom:16px;">아래 항목을 순서대로 완료하면 Sendb를 충분히 활용할 수 있습니다.</p>
+
+<ul class="checklist">
+  <li>회원가입 완료</li>
+  <li>온보딩 마법사 완료 (조직 + 워크스페이스 + 필드)</li>
+  <li>파티션 1개 이상 생성</li>
+  <li>레코드 5개 이상 등록 (수동 또는 CSV)</li>
+  <li>이메일 API 키 등록</li>
+  <li>발신자 프로필 등록</li>
+  <li>이메일 템플릿 1개 생성</li>
+  <li>첫 이메일 발송 성공</li>
+  <li>자동발송 연결 1개 설정</li>
+  <li>웹 폼 1개 생성 + 테스트 제출</li>
+  <li>(선택) AI API 키 등록</li>
+  <li>(선택) 알림톡 API 키 등록 + 템플릿 생성</li>
+  <li>(선택) 제품 1개 등록</li>
+  <li>(선택) 팀원 1명 초대</li>
+</ul>
+
+<hr>
+
+<p style="text-align:center; color: var(--muted); font-size: 0.85rem; margin-top: 32px;">
+  Sendb 시작 가이드 &middot; 최종 업데이트: 2026-04-14
+</p>
+
+</div>
+</body>
+</html>
