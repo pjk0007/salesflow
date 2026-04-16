@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useEmailLogs } from "@/hooks/useEmailLogs";
 import {
     Table,
@@ -9,13 +9,6 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
-import {
     Sheet,
     SheetContent,
     SheetHeader,
@@ -24,8 +17,9 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, RefreshCw, Loader2, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import type { EmailSendLog } from "@/lib/db";
 
@@ -41,14 +35,50 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     auto: { label: "자동", variant: "default" },
     repeat: { label: "반복", variant: "secondary" },
     ai_auto: { label: "AI 자동", variant: "default" },
+    ai_followup: { label: "후속발송", variant: "secondary" },
 };
+
+type FilterChip = { key: string; value: string; label: string };
+
+const PERIOD_OPTIONS = [
+    { value: "7", label: "7일" },
+    { value: "30", label: "30일" },
+    { value: "90", label: "90일" },
+];
+
+const STATUS_OPTIONS = [
+    { value: "sent", label: "발송" },
+    { value: "failed", label: "실패" },
+    { value: "pending", label: "대기" },
+];
+
+const TRIGGER_OPTIONS = [
+    { value: "manual", label: "수동" },
+    { value: "auto", label: "자동" },
+    { value: "repeat", label: "반복" },
+    { value: "ai_auto", label: "AI 자동" },
+    { value: "ai_followup", label: "후속발송" },
+];
+
+const READ_OPTIONS = [
+    { value: "1", label: "읽음" },
+    { value: "0", label: "안읽음" },
+];
+
+const CLICK_OPTIONS = [
+    { value: "1", label: "클릭" },
+    { value: "0", label: "미클릭" },
+];
 
 export default function EmailSendLogTable() {
     const [page, setPage] = useState(1);
-    const [triggerType, setTriggerType] = useState<string>("");
-    const [isOpened, setIsOpened] = useState<string>("");
-    const [isClicked, setIsClicked] = useState<string>("");
-    const [period, setPeriod] = useState<string>("");
+    const [search, setSearch] = useState("");
+    const [searchInput, setSearchInput] = useState("");
+    const [status, setStatus] = useState("");
+    const [triggerType, setTriggerType] = useState("");
+    const [isOpened, setIsOpened] = useState("");
+    const [isClicked, setIsClicked] = useState("");
+    const [period, setPeriod] = useState("");
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<EmailSendLog | null>(null);
 
@@ -65,6 +95,8 @@ export default function EmailSendLogTable() {
 
     const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
         page,
+        search: search || undefined,
+        status: status || undefined,
         triggerType: triggerType || undefined,
         isOpened: isOpened || undefined,
         isClicked: isClicked || undefined,
@@ -84,6 +116,45 @@ export default function EmailSendLogTable() {
         }
     };
 
+    const handleSearch = useCallback(() => {
+        setSearch(searchInput);
+        setPage(1);
+    }, [searchInput]);
+
+    const toggleFilter = useCallback((setter: (v: string) => void, current: string, value: string) => {
+        setter(current === value ? "" : value);
+        setPage(1);
+    }, []);
+
+    const activeFilters: FilterChip[] = [];
+    if (period) activeFilters.push({ key: "period", value: period, label: `최근 ${period}일` });
+    if (status) activeFilters.push({ key: "status", value: status, label: STATUS_MAP[status]?.label || status });
+    if (triggerType) activeFilters.push({ key: "triggerType", value: triggerType, label: TRIGGER_TYPE_MAP[triggerType]?.label || triggerType });
+    if (isOpened) activeFilters.push({ key: "isOpened", value: isOpened, label: isOpened === "1" ? "읽음" : "안읽음" });
+    if (isClicked) activeFilters.push({ key: "isClicked", value: isClicked, label: isClicked === "1" ? "클릭" : "미클릭" });
+    if (search) activeFilters.push({ key: "search", value: search, label: `"${search}"` });
+
+    const clearFilter = useCallback((key: string) => {
+        if (key === "period") setPeriod("");
+        if (key === "status") setStatus("");
+        if (key === "triggerType") setTriggerType("");
+        if (key === "isOpened") setIsOpened("");
+        if (key === "isClicked") setIsClicked("");
+        if (key === "search") { setSearch(""); setSearchInput(""); }
+        setPage(1);
+    }, []);
+
+    const clearAll = useCallback(() => {
+        setPeriod("");
+        setStatus("");
+        setTriggerType("");
+        setIsOpened("");
+        setIsClicked("");
+        setSearch("");
+        setSearchInput("");
+        setPage(1);
+    }, []);
+
     const formatDate = (dateStr: string) => {
         const d = new Date(dateStr);
         return `${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -95,64 +166,146 @@ export default function EmailSendLogTable() {
 
     return (
         <div className="space-y-4">
+            {/* 헤더 */}
             <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">발송 이력</h3>
-                <Button variant="outline" onClick={handleSync} disabled={syncing}>
-                    {syncing ? (
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    ) : (
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    결과 동기화
+                <h3 className="text-lg font-medium">
+                    발송 이력
+                    <span className="text-sm font-normal text-muted-foreground ml-2">{totalCount.toLocaleString()}건</span>
+                </h3>
+                <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+                    {syncing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
+                    동기화
                 </Button>
             </div>
 
-            <div className="flex items-center gap-3">
-                <Select value={triggerType || "all"} onValueChange={(v) => { setTriggerType(v === "all" ? "" : v); setPage(1); }}>
-                    <SelectTrigger className="w-[130px]">
-                        <SelectValue placeholder="방식" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        <SelectItem value="manual">수동</SelectItem>
-                        <SelectItem value="auto">자동</SelectItem>
-                        <SelectItem value="repeat">반복</SelectItem>
-                        <SelectItem value="ai_auto">AI 자동</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={isOpened || "all"} onValueChange={(v) => { setIsOpened(v === "all" ? "" : v); setPage(1); }}>
-                    <SelectTrigger className="w-[130px]">
-                        <SelectValue placeholder="읽음 상태" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        <SelectItem value="1">읽음</SelectItem>
-                        <SelectItem value="0">안읽음</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={isClicked || "all"} onValueChange={(v) => { setIsClicked(v === "all" ? "" : v); setPage(1); }}>
-                    <SelectTrigger className="w-[130px]">
-                        <SelectValue placeholder="클릭 여부" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">전체</SelectItem>
-                        <SelectItem value="1">클릭</SelectItem>
-                        <SelectItem value="0">미클릭</SelectItem>
-                    </SelectContent>
-                </Select>
-                <Select value={period || "all"} onValueChange={(v) => { setPeriod(v === "all" ? "" : v); setPage(1); }}>
-                    <SelectTrigger className="w-[130px]">
-                        <SelectValue placeholder="발송일" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">전체 기간</SelectItem>
-                        <SelectItem value="7">최근 7일</SelectItem>
-                        <SelectItem value="30">최근 30일</SelectItem>
-                        <SelectItem value="90">최근 90일</SelectItem>
-                    </SelectContent>
-                </Select>
+            {/* 검색 */}
+            <div className="flex gap-2">
+                <div className="relative flex-1 max-w-sm">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        placeholder="수신자 이메일 또는 제목 검색..."
+                        value={searchInput}
+                        onChange={(e) => setSearchInput(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                        className="pl-9"
+                    />
+                </div>
+                <Button variant="outline" size="icon" onClick={handleSearch}>
+                    <Search className="h-4 w-4" />
+                </Button>
             </div>
 
+            {/* 필터 칩 그룹 */}
+            <div className="space-y-2">
+                {/* 기간 */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-medium text-muted-foreground w-10 shrink-0">기간</span>
+                    {PERIOD_OPTIONS.map((opt) => (
+                        <button
+                            key={opt.value}
+                            onClick={() => toggleFilter(setPeriod, period, opt.value)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                period === opt.value
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+
+                    <span className="text-xs text-muted-foreground mx-1">|</span>
+
+                    {/* 상태 */}
+                    <span className="text-xs font-medium text-muted-foreground w-10 shrink-0">상태</span>
+                    {STATUS_OPTIONS.map((opt) => (
+                        <button
+                            key={opt.value}
+                            onClick={() => toggleFilter(setStatus, status, opt.value)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                status === opt.value
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* 방식 */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-medium text-muted-foreground w-10 shrink-0">방식</span>
+                    {TRIGGER_OPTIONS.map((opt) => (
+                        <button
+                            key={opt.value}
+                            onClick={() => toggleFilter(setTriggerType, triggerType, opt.value)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                triggerType === opt.value
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+
+                    <span className="text-xs text-muted-foreground mx-1">|</span>
+
+                    {/* 읽음/클릭 */}
+                    {READ_OPTIONS.map((opt) => (
+                        <button
+                            key={`read-${opt.value}`}
+                            onClick={() => toggleFilter(setIsOpened, isOpened, opt.value)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                isOpened === opt.value
+                                    ? "bg-green-600 text-white"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                    {CLICK_OPTIONS.map((opt) => (
+                        <button
+                            key={`click-${opt.value}`}
+                            onClick={() => toggleFilter(setIsClicked, isClicked, opt.value)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                                isClicked === opt.value
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                            }`}
+                        >
+                            {opt.label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* 적용된 필터 요약 + 초기화 */}
+                {activeFilters.length > 0 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        {activeFilters.map((f) => (
+                            <Badge
+                                key={f.key}
+                                variant="secondary"
+                                className="gap-1 cursor-pointer hover:bg-destructive/10 hover:text-destructive transition-colors"
+                                onClick={() => clearFilter(f.key)}
+                            >
+                                {f.label}
+                                <X className="h-3 w-3" />
+                            </Badge>
+                        ))}
+                        <button
+                            onClick={clearAll}
+                            className="text-xs text-muted-foreground hover:text-destructive ml-1"
+                        >
+                            전체 초기화
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* 테이블 */}
             {isLoading ? (
                 <div className="space-y-3">
                     {[1, 2, 3, 4, 5].map((i) => (
@@ -161,7 +314,7 @@ export default function EmailSendLogTable() {
                 </div>
             ) : logs.length === 0 ? (
                 <div className="text-center text-muted-foreground py-12">
-                    발송 이력이 없습니다.
+                    {activeFilters.length > 0 ? "조건에 맞는 이력이 없습니다." : "발송 이력이 없습니다."}
                 </div>
             ) : (
                 <>

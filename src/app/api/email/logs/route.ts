@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs, emailClickLogs } from "@/lib/db";
-import { eq, and, desc, sql, gte, lte, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lte, inArray, or, ilike } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -17,6 +17,19 @@ export async function GET(req: NextRequest) {
 
         const conditions = [eq(emailSendLogs.orgId, user.orgId)];
 
+        const search = searchParams.get("search");
+        if (search) {
+            conditions.push(
+                or(
+                    ilike(emailSendLogs.recipientEmail, `%${search}%`),
+                    ilike(emailSendLogs.subject, `%${search}%`),
+                )!
+            );
+        }
+        const status = searchParams.get("status");
+        if (status) {
+            conditions.push(eq(emailSendLogs.status, status));
+        }
         const partitionId = searchParams.get("partitionId");
         if (partitionId) {
             conditions.push(eq(emailSendLogs.partitionId, Number(partitionId)));

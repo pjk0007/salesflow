@@ -37,6 +37,8 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     manual: { label: "수동", variant: "outline" },
     auto: { label: "자동", variant: "default" },
     repeat: { label: "반복", variant: "secondary" },
+    ai_auto: { label: "AI 자동", variant: "default" },
+    ai_followup: { label: "후속발송", variant: "secondary" },
 };
 
 interface UnifiedLogTableProps {

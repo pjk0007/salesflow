@@ -39,10 +39,10 @@ interface EmailDashboardProps {
 
 const TRIGGER_LABELS: Record<string, string> = {
     manual: "수동 발송",
-    on_create: "자동화 (생성)",
-    on_update: "자동화 (수정)",
+    auto: "자동 발송",
     repeat: "반복 발송",
-    auto_personalized: "AI 자동발송",
+    ai_auto: "AI 자동발송",
+    ai_followup: "후속발송",
     unknown: "기타",
 };
 
