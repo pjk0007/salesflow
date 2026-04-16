@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
 
         const daysBack = Number(req.nextUrl.searchParams.get("days")) || 7;
         const pageSize = 100;
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
         const since = new Date();
         since.setDate(since.getDate() - daysBack);
         const endDate = new Date();
@@ -60,6 +61,9 @@ export async function POST(req: NextRequest) {
                     }
 
                     for (const mail of result.data) {
+                        // 정상 발송 + 안읽음 → DB 변경 없으므로 스킵
+                        if (mail.mailStatusCode === "SST2" && !mail.isOpened) continue;
+
                         // 실패 상태 보정 (sent → failed)
                         if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST7") {
                             const rows = await db.update(emailSendLogs).set({
@@ -79,7 +83,7 @@ export async function POST(req: NextRequest) {
                             continue;
                         }
 
-                        // 읽음 업데이트 (isOpened=true인데 DB에 아직 0인 건)
+                        // 읽음 업데이트
                         if (mail.isOpened) {
                             const rows = await db.update(emailSendLogs).set({
                                 isOpened: 1,
@@ -94,33 +98,14 @@ export async function POST(req: NextRequest) {
                             ).returning({ id: emailSendLogs.id });
                             totalReadUpdated += rows.length;
                         }
-
-                        // pending → sent/failed 보정
-                        if (mail.mailStatusCode === "SST2") {
-                            const rows = await db.update(emailSendLogs).set({
-                                status: "sent",
-                                resultCode: mail.resultCode,
-                                resultMessage: mail.resultCodeName,
-                                completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
-                                isOpened: mail.isOpened ? 1 : 0,
-                                openedAt: mail.openedDate ? new Date(mail.openedDate) : null,
-                            }).where(
-                                and(
-                                    eq(emailSendLogs.orgId, config.orgId),
-                                    eq(emailSendLogs.requestId, mail.requestId),
-                                    eq(emailSendLogs.recipientEmail, mail.receiveMailAddr),
-                                    eq(emailSendLogs.status, "pending"),
-                                )
-                            ).returning({ id: emailSendLogs.id });
-                            totalStatusCorrected += rows.length;
-                        }
                     }
 
-                    // 다음 페이지
-                    if (result.data.length < pageSize || pageNum * pageSize >= result.totalCount) {
-                        hasMore = false;
-                    } else {
+                    // 페이지 간 100ms 대기 (DB 부하 분산)
+                    if (result.data.length >= pageSize && pageNum * pageSize < result.totalCount) {
                         pageNum++;
+                        await sleep(100);
+                    } else {
+                        hasMore = false;
                     }
                 } catch (err) {
                     console.error(`[cron/email-read-sync] API 에러 (page=${pageNum}):`, err);
