@@ -1,5 +1,8 @@
 import { useState, useCallback } from "react";
+import useSWR from "swr";
 import { useEmailLogs } from "@/hooks/useEmailLogs";
+import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 import {
     Table,
     TableBody,
@@ -8,6 +11,13 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import {
     Sheet,
     SheetContent,
@@ -76,11 +86,20 @@ export default function EmailSendLogTable() {
     const [searchInput, setSearchInput] = useState("");
     const [status, setStatus] = useState("");
     const [triggerType, setTriggerType] = useState("");
+    const [ruleFilter, setRuleFilter] = useState("");  // "link:ID" or "ai:ID"
     const [isOpened, setIsOpened] = useState("");
     const [isClicked, setIsClicked] = useState("");
     const [period, setPeriod] = useState("");
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<EmailSendLog | null>(null);
+
+    // 연결 규칙 + AI 규칙 목록
+    const { templateLinks } = useEmailTemplateLinks("all");
+    const { data: aiRulesData } = useSWR<{ success: boolean; data?: Array<{ id: number; name: string | null; partitionName?: string; prompt?: string | null }> }>(
+        "/api/email/auto-personalized",
+        defaultFetcher
+    );
+    const aiRules = aiRulesData?.data ?? [];
 
     const dateRange = (() => {
         if (!period) return {};
@@ -93,11 +112,21 @@ export default function EmailSendLogTable() {
         };
     })();
 
+    // ruleFilter → templateLinkId / autoPersonalizedLinkId 변환
+    const ruleParams = (() => {
+        if (!ruleFilter) return {};
+        const [type, id] = ruleFilter.split(":");
+        if (type === "link") return { templateLinkId: Number(id) };
+        if (type === "ai") return { autoPersonalizedLinkId: Number(id) };
+        return {};
+    })();
+
     const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
         page,
         search: search || undefined,
         status: status || undefined,
         triggerType: triggerType || undefined,
+        ...ruleParams,
         isOpened: isOpened || undefined,
         isClicked: isClicked || undefined,
         ...dateRange,
@@ -130,6 +159,18 @@ export default function EmailSendLogTable() {
     if (period) activeFilters.push({ key: "period", value: period, label: `최근 ${period}일` });
     if (status) activeFilters.push({ key: "status", value: status, label: STATUS_MAP[status]?.label || status });
     if (triggerType) activeFilters.push({ key: "triggerType", value: triggerType, label: TRIGGER_TYPE_MAP[triggerType]?.label || triggerType });
+    if (ruleFilter) {
+        const [type, id] = ruleFilter.split(":");
+        let ruleLabel = ruleFilter;
+        if (type === "link") {
+            const link = templateLinks.find(l => l.id === Number(id));
+            ruleLabel = link ? `연결: ${link.name}` : `연결 #${id}`;
+        } else if (type === "ai") {
+            const rule = aiRules.find(r => r.id === Number(id));
+            ruleLabel = rule?.name || rule?.partitionName ? `AI: ${rule.name || rule.partitionName}` : `AI 규칙 #${id}`;
+        }
+        activeFilters.push({ key: "ruleFilter", value: ruleFilter, label: ruleLabel });
+    }
     if (isOpened) activeFilters.push({ key: "isOpened", value: isOpened, label: isOpened === "1" ? "읽음" : "안읽음" });
     if (isClicked) activeFilters.push({ key: "isClicked", value: isClicked, label: isClicked === "1" ? "클릭" : "미클릭" });
     if (search) activeFilters.push({ key: "search", value: search, label: `"${search}"` });
@@ -138,6 +179,7 @@ export default function EmailSendLogTable() {
         if (key === "period") setPeriod("");
         if (key === "status") setStatus("");
         if (key === "triggerType") setTriggerType("");
+        if (key === "ruleFilter") setRuleFilter("");
         if (key === "isOpened") setIsOpened("");
         if (key === "isClicked") setIsClicked("");
         if (key === "search") { setSearch(""); setSearchInput(""); }
@@ -148,6 +190,7 @@ export default function EmailSendLogTable() {
         setPeriod("");
         setStatus("");
         setTriggerType("");
+        setRuleFilter("");
         setIsOpened("");
         setIsClicked("");
         setSearch("");
@@ -249,6 +292,40 @@ export default function EmailSendLogTable() {
                             {opt.label}
                         </button>
                     ))}
+
+                    <span className="text-xs text-muted-foreground mx-1">|</span>
+
+                    {/* 발송 규칙 */}
+                    {(templateLinks.length > 0 || aiRules.length > 0) && (
+                        <Select value={ruleFilter || "__all__"} onValueChange={(v) => { setRuleFilter(v === "__all__" ? "" : v); setPage(1); }}>
+                            <SelectTrigger className="h-7 w-auto min-w-[100px] max-w-[180px] text-xs">
+                                <SelectValue placeholder="발송 규칙" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__all__">전체 규칙</SelectItem>
+                                {templateLinks.length > 0 && (
+                                    <>
+                                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">템플릿 자동발송</div>
+                                        {templateLinks.map((link) => (
+                                            <SelectItem key={`link:${link.id}`} value={`link:${link.id}`}>
+                                                {link.name}
+                                            </SelectItem>
+                                        ))}
+                                    </>
+                                )}
+                                {aiRules.length > 0 && (
+                                    <>
+                                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">AI 자동발송</div>
+                                        {aiRules.map((rule) => (
+                                            <SelectItem key={`ai:${rule.id}`} value={`ai:${rule.id}`}>
+                                                {rule.name || rule.partitionName || `AI 규칙 #${rule.id}`}
+                                            </SelectItem>
+                                        ))}
+                                    </>
+                                )}
+                            </SelectContent>
+                        </Select>
+                    )}
 
                     <span className="text-xs text-muted-foreground mx-1">|</span>
 

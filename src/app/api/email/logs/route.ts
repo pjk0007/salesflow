@@ -34,6 +34,14 @@ export async function GET(req: NextRequest) {
         if (partitionId) {
             conditions.push(eq(emailSendLogs.partitionId, Number(partitionId)));
         }
+        const templateLinkId = searchParams.get("templateLinkId");
+        if (templateLinkId) {
+            conditions.push(eq(emailSendLogs.templateLinkId, Number(templateLinkId)));
+        }
+        const autoPersonalizedLinkId = searchParams.get("autoPersonalizedLinkId");
+        if (autoPersonalizedLinkId) {
+            conditions.push(eq(emailSendLogs.autoPersonalizedLinkId, Number(autoPersonalizedLinkId)));
+        }
         const triggerType = searchParams.get("triggerType");
         if (triggerType) {
             conditions.push(eq(emailSendLogs.triggerType, triggerType));

@@ -33,6 +33,7 @@ export interface AutoPersonalizedLink {
 }
 
 interface CreateInput {
+    name?: string;
     partitionId: number;
     productId?: number | null;
     recipientField: string;
@@ -56,6 +57,7 @@ interface CreateInput {
 }
 
 interface UpdateInput {
+    name?: string;
     productId?: number | null;
     recipientField?: string;
     companyField?: string;

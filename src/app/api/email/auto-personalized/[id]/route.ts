@@ -29,6 +29,7 @@ export async function PUT(
 
         const body = await req.json();
         const {
+            name,
             productId,
             recipientField,
             companyField,
@@ -59,6 +60,7 @@ export async function PUT(
         }
 
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
+        if (name !== undefined) updateData.name = name || null;
         if (productId !== undefined) updateData.productId = productId;
         if (recipientField !== undefined) updateData.recipientField = recipientField;
         if (companyField !== undefined) updateData.companyField = companyField;

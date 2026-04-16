@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
         const selectFields = {
             id: emailAutoPersonalizedLinks.id,
             orgId: emailAutoPersonalizedLinks.orgId,
+            name: emailAutoPersonalizedLinks.name,
             partitionId: emailAutoPersonalizedLinks.partitionId,
             productId: emailAutoPersonalizedLinks.productId,
             productName: products.name,
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
 
     try {
         const {
+            name,
             partitionId,
             productId,
             recipientField,
@@ -133,6 +135,7 @@ export async function POST(req: NextRequest) {
             .insert(emailAutoPersonalizedLinks)
             .values({
                 orgId: user.orgId,
+                name: name || null,
                 partitionId,
                 productId: productId || null,
                 recipientField,

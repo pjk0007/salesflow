@@ -252,6 +252,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 body: finalBody,
                 status: "pending",
                 triggerType: "ai_auto",
+                autoPersonalizedLinkId: link.id,
                 sentAt: new Date(),
             }).returning({ id: emailSendLogs.id });
 

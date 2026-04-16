@@ -607,6 +607,10 @@ export const emailSendLogs = pgTable("email_send_logs", {
     isOpened: integer("is_opened").default(0).notNull(),
     openedAt: timestamptz("opened_at"),
     parentLogId: integer("parent_log_id"),
+    autoPersonalizedLinkId: integer("auto_personalized_link_id").references(
+        () => emailAutoPersonalizedLinks.id,
+        { onDelete: "set null" }
+    ),
 });
 
 // ============================================
@@ -662,6 +666,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     orgId: uuid("org_id")
         .references(() => organizations.id, { onDelete: "cascade" })
         .notNull(),
+    name: varchar("name", { length: 100 }),
     partitionId: integer("partition_id")
         .references(() => partitions.id, { onDelete: "cascade" })
         .notNull(),

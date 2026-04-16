@@ -99,6 +99,7 @@ function NewAiAutoPageContent() {
     const signatures: EmailSignature[] = signaturesData?.data ?? [];
 
     const [saving, setSaving] = useState(false);
+    const [name, setName] = useState("");
     const [productId, setProductId] = useState<number | null>(null);
     const [triggerType, setTriggerType] = useState<"on_create" | "on_update">("on_create");
     const [recipientField, setRecipientField] = useState("");
@@ -132,6 +133,7 @@ function NewAiAutoPageContent() {
                 : null;
 
             const result = await createLink({
+                name: name || undefined,
                 partitionId,
                 productId,
                 triggerType,
@@ -220,6 +222,15 @@ function NewAiAutoPageContent() {
                                     <CardDescription>제품, 트리거, 수신자 설정</CardDescription>
                                 </CardHeader>
                                 <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>규칙명 <HelpTip text="발송 이력에서 이 규칙을 식별하기 위한 이름입니다." /></Label>
+                                        <Input
+                                            placeholder="예: 신규 리드 콜드메일"
+                                            value={name}
+                                            onChange={(e) => setName(e.target.value)}
+                                            maxLength={100}
+                                        />
+                                    </div>
                                     <div className="space-y-2">
                                         <Label>
                                             제품
