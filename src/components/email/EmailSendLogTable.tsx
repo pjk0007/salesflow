@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { useEmailLogs } from "@/hooks/useEmailLogs";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
@@ -82,8 +82,8 @@ const CLICK_OPTIONS = [
 
 export default function EmailSendLogTable() {
     const [page, setPage] = useState(1);
-    const [search, setSearch] = useState("");
     const [searchInput, setSearchInput] = useState("");
+    const [debouncedSearch, setDebouncedSearch] = useState("");
     const [status, setStatus] = useState("");
     const [triggerType, setTriggerType] = useState("");
     const [ruleFilter, setRuleFilter] = useState("");  // "link:ID" or "ai:ID"
@@ -112,6 +112,16 @@ export default function EmailSendLogTable() {
         };
     })();
 
+    // 검색 debounce (300ms)
+    const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+    useEffect(() => {
+        debounceRef.current = setTimeout(() => {
+            setDebouncedSearch(searchInput);
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(debounceRef.current);
+    }, [searchInput]);
+
     // ruleFilter → templateLinkId / autoPersonalizedLinkId 변환
     const ruleParams = (() => {
         if (!ruleFilter) return {};
@@ -123,7 +133,7 @@ export default function EmailSendLogTable() {
 
     const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
         page,
-        search: search || undefined,
+        search: debouncedSearch || undefined,
         status: status || undefined,
         triggerType: triggerType || undefined,
         ...ruleParams,
@@ -144,11 +154,6 @@ export default function EmailSendLogTable() {
             toast.error(result.error || "동기화에 실패했습니다.");
         }
     };
-
-    const handleSearch = useCallback(() => {
-        setSearch(searchInput);
-        setPage(1);
-    }, [searchInput]);
 
     const toggleFilter = useCallback((setter: (v: string) => void, current: string, value: string) => {
         setter(current === value ? "" : value);
@@ -173,7 +178,7 @@ export default function EmailSendLogTable() {
     }
     if (isOpened) activeFilters.push({ key: "isOpened", value: isOpened, label: isOpened === "1" ? "읽음" : "안읽음" });
     if (isClicked) activeFilters.push({ key: "isClicked", value: isClicked, label: isClicked === "1" ? "클릭" : "미클릭" });
-    if (search) activeFilters.push({ key: "search", value: search, label: `"${search}"` });
+    if (debouncedSearch) activeFilters.push({ key: "search", value: debouncedSearch, label: `"${debouncedSearch}"` });
 
     const clearFilter = useCallback((key: string) => {
         if (key === "period") setPeriod("");
@@ -182,7 +187,7 @@ export default function EmailSendLogTable() {
         if (key === "ruleFilter") setRuleFilter("");
         if (key === "isOpened") setIsOpened("");
         if (key === "isClicked") setIsClicked("");
-        if (key === "search") { setSearch(""); setSearchInput(""); }
+        if (key === "search") { setSearchInput(""); setDebouncedSearch(""); }
         setPage(1);
     }, []);
 
@@ -193,8 +198,8 @@ export default function EmailSendLogTable() {
         setRuleFilter("");
         setIsOpened("");
         setIsClicked("");
-        setSearch("");
         setSearchInput("");
+        setDebouncedSearch("");
         setPage(1);
     }, []);
 
@@ -221,21 +226,47 @@ export default function EmailSendLogTable() {
                 </Button>
             </div>
 
-            {/* 검색 */}
-            <div className="flex gap-2">
+            {/* 검색 + 발송 규칙 */}
+            <div className="flex gap-2 items-center">
                 <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="수신자 이메일 또는 제목 검색..."
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                         className="pl-9"
                     />
                 </div>
-                <Button variant="outline" size="icon" onClick={handleSearch}>
-                    <Search className="h-4 w-4" />
-                </Button>
+                {(templateLinks.length > 0 || aiRules.length > 0) && (
+                    <Select value={ruleFilter || "__all__"} onValueChange={(v) => { setRuleFilter(v === "__all__" ? "" : v); setPage(1); }}>
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="발송 규칙" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="__all__">전체 규칙</SelectItem>
+                            {templateLinks.length > 0 && (
+                                <>
+                                    <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">템플릿 자동발송</div>
+                                    {templateLinks.map((link) => (
+                                        <SelectItem key={`link:${link.id}`} value={`link:${link.id}`}>
+                                            {link.name}
+                                        </SelectItem>
+                                    ))}
+                                </>
+                            )}
+                            {aiRules.length > 0 && (
+                                <>
+                                    <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">AI 자동발송</div>
+                                    {aiRules.map((rule) => (
+                                        <SelectItem key={`ai:${rule.id}`} value={`ai:${rule.id}`}>
+                                            {rule.name || rule.partitionName || `AI 규칙 #${rule.id}`}
+                                        </SelectItem>
+                                    ))}
+                                </>
+                            )}
+                        </SelectContent>
+                    </Select>
+                )}
             </div>
 
             {/* 필터 칩 그룹 */}
@@ -292,40 +323,6 @@ export default function EmailSendLogTable() {
                             {opt.label}
                         </button>
                     ))}
-
-                    <span className="text-xs text-muted-foreground mx-1">|</span>
-
-                    {/* 발송 규칙 */}
-                    {(templateLinks.length > 0 || aiRules.length > 0) && (
-                        <Select value={ruleFilter || "__all__"} onValueChange={(v) => { setRuleFilter(v === "__all__" ? "" : v); setPage(1); }}>
-                            <SelectTrigger className="h-7 w-auto min-w-[100px] max-w-[180px] text-xs">
-                                <SelectValue placeholder="발송 규칙" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="__all__">전체 규칙</SelectItem>
-                                {templateLinks.length > 0 && (
-                                    <>
-                                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">템플릿 자동발송</div>
-                                        {templateLinks.map((link) => (
-                                            <SelectItem key={`link:${link.id}`} value={`link:${link.id}`}>
-                                                {link.name}
-                                            </SelectItem>
-                                        ))}
-                                    </>
-                                )}
-                                {aiRules.length > 0 && (
-                                    <>
-                                        <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">AI 자동발송</div>
-                                        {aiRules.map((rule) => (
-                                            <SelectItem key={`ai:${rule.id}`} value={`ai:${rule.id}`}>
-                                                {rule.name || rule.partitionName || `AI 규칙 #${rule.id}`}
-                                            </SelectItem>
-                                        ))}
-                                    </>
-                                )}
-                            </SelectContent>
-                        </Select>
-                    )}
 
                     <span className="text-xs text-muted-foreground mx-1">|</span>
 
