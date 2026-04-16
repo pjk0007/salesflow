@@ -18,8 +18,10 @@ export async function POST(req: NextRequest) {
         // 이메일 설정이 있는 모든 조직 조회
         const configs = await db.select({ orgId: emailConfigs.orgId }).from(emailConfigs);
 
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        const daysBack = Number(req.nextUrl.searchParams.get("days")) || 7;
+        const maxApiCalls = Number(req.nextUrl.searchParams.get("limit")) || 500;
+        const since = new Date();
+        since.setDate(since.getDate() - daysBack);
 
         let totalReadUpdated = 0;
         let totalStatusCorrected = 0;
@@ -87,7 +89,7 @@ export async function POST(req: NextRequest) {
                         eq(emailSendLogs.orgId, config.orgId),
                         eq(emailSendLogs.status, "sent"),
                         eq(emailSendLogs.isOpened, 0),
-                        gte(emailSendLogs.sentAt, thirtyDaysAgo)
+                        gte(emailSendLogs.sentAt, since)
                     )
                 );
 
@@ -99,7 +101,10 @@ export async function POST(req: NextRequest) {
                 else logsByRequestId.set(log.requestId, [log]);
             }
 
+            let apiCallCount = 0;
             for (const [requestId, logs] of logsByRequestId) {
+                if (apiCallCount >= maxApiCalls) break;
+                apiCallCount++;
                 try {
                     const result = await client.queryMails({ requestId });
                     if (!result.header.isSuccessful || !result.data) continue;
