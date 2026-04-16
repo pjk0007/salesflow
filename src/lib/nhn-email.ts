@@ -208,6 +208,46 @@ export class NhnEmailClient {
             `/email/v2.1/appKeys/{appKey}/sender/update-mails?${qs.toString()}`
         );
     }
+
+    // --- 기간 기반 발송 조회 (페이징 + totalCount) ---
+
+    async queryMailsPaged(params: {
+        startSendDate: string;
+        endSendDate: string;
+        pageNum: number;
+        pageSize: number;
+    }): Promise<{
+        header: NhnEmailApiHeader;
+        data: NhnEmailQueryResult[] | null;
+        totalCount: number;
+    }> {
+        const qs = new URLSearchParams();
+        qs.set("startSendDate", params.startSendDate);
+        qs.set("endSendDate", params.endSendDate);
+        qs.set("pageNum", String(params.pageNum));
+        qs.set("pageSize", String(params.pageSize));
+        const url = `${this.baseUrl}/email/v2.1/appKeys/${this.appKey}/sender/mails?${qs.toString()}`;
+        const res = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Secret-Key": this.secretKey,
+            },
+        });
+        if (!res.ok) {
+            return {
+                header: { resultCode: res.status, resultMessage: `HTTP ${res.status}`, isSuccessful: false },
+                data: null,
+                totalCount: 0,
+            };
+        }
+        const json = await res.json();
+        return {
+            header: json.header,
+            data: json.body?.data ?? null,
+            totalCount: json.body?.totalCount ?? 0,
+        };
+    }
 }
 
 // ============================================
