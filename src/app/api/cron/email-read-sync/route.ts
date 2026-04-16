@@ -19,9 +19,9 @@ export async function POST(req: NextRequest) {
         const configs = await db.select({ orgId: emailConfigs.orgId }).from(emailConfigs);
 
         const daysBack = Number(req.nextUrl.searchParams.get("days")) || 7;
-        const maxApiCalls = Number(req.nextUrl.searchParams.get("limit")) || 500;
         const since = new Date();
         since.setDate(since.getDate() - daysBack);
+        const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
         let totalReadUpdated = 0;
         let totalStatusCorrected = 0;
@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
 
             let apiCallCount = 0;
             for (const [requestId, logs] of logsByRequestId) {
-                if (apiCallCount >= maxApiCalls) break;
+                // 10건마다 50ms 대기 (NHN API rate limit 방지)
+                if (apiCallCount > 0 && apiCallCount % 10 === 0) await sleep(50);
                 apiCallCount++;
                 try {
                     const result = await client.queryMails({ requestId });
