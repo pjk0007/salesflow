@@ -128,7 +128,7 @@ export default function NewWebFormPage() {
                             <div className="space-y-2">
                                 <Label>워크스페이스</Label>
                                 <Select
-                                    value={workspaceId ? String(workspaceId) : ""}
+                                    value={workspaceId ? String(workspaceId) : undefined}
                                     onValueChange={(v) => {
                                         setWorkspaceId(Number(v));
                                         setPartitionId(null);
@@ -165,21 +165,27 @@ export default function NewWebFormPage() {
                         </div>
                         <div className="space-y-2">
                             <Label>연결 파티션</Label>
-                            <Select
-                                value={partitionId ? String(partitionId) : ""}
-                                onValueChange={(v) => setPartitionId(Number(v))}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="파티션 선택" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {allPartitions.map((p) => (
-                                        <SelectItem key={p.id} value={String(p.id)}>
-                                            {p.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            {allPartitions.length === 0 ? (
+                                <p className="text-sm text-muted-foreground py-2">
+                                    {workspaceId ? "파티션이 없습니다. 레코드 페이지에서 파티션을 먼저 생성해주세요." : "워크스페이스를 선택해주세요."}
+                                </p>
+                            ) : (
+                                <Select
+                                    value={partitionId ? String(partitionId) : undefined}
+                                    onValueChange={(v) => setPartitionId(Number(v))}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="파티션 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {allPartitions.map((p) => (
+                                            <SelectItem key={p.id} value={String(p.id)}>
+                                                {p.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
                         <div className="space-y-2">
                             <Label className="flex items-center gap-1">
