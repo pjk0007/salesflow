@@ -151,6 +151,12 @@ function SortableFieldItem({
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="_none">연결 안 함</SelectItem>
+                                {workspaceFields.length === 0 && (
+                                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                        워크스페이스에 속성이 없습니다.
+                                        워크스페이스 설정에서 속성을 추가해주세요.
+                                    </div>
+                                )}
                                 {workspaceFields.map((wf) => (
                                     <SelectItem key={wf.key} value={wf.key}>
                                         {wf.label} ({wf.key})
