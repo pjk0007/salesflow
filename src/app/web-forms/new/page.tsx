@@ -6,7 +6,7 @@ import Link from "next/link";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
-import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { useWebForms } from "@/hooks/useWebForms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,13 +27,13 @@ export default function NewWebFormPage() {
     const router = useRouter();
     const { workspaces } = useWorkspaces();
     const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+    const [partitionId, setPartitionId] = useState<number | null>(null);
     const { partitionTree } = usePartitions(workspaceId);
-    const { fields: workspaceFields } = useFields(workspaceId);
+    const { fields: workspaceFields } = useResolvedFields(partitionId);
     const { createForm, updateForm } = useWebForms(workspaceId);
 
     const [name, setName] = useState("");
     const [title, setTitle] = useState("");
-    const [partitionId, setPartitionId] = useState<number | null>(null);
     const [creating, setCreating] = useState(false);
     const [aiPrompt, setAiPrompt] = useState("");
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
-import { useFields } from "@/hooks/useFields";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { useWebForms } from "@/hooks/useWebForms";
 import FormBuilder, { type FormFieldItem } from "@/components/web-forms/FormBuilder";
 import FormPreview from "@/components/web-forms/FormPreview";
@@ -26,6 +26,7 @@ export default function EditWebFormPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [wsId, setWsId] = useState<number | null>(null);
+    const [partitionId, setPartitionId] = useState<number | null>(null);
 
     // 폼 빌더 상태
     const [formName, setFormName] = useState("");
@@ -47,7 +48,7 @@ export default function EditWebFormPage() {
     const [aiPrompt, setAiPrompt] = useState("");
     const [aiGenerating, setAiGenerating] = useState(false);
 
-    const { fields: workspaceFields } = useFields(wsId);
+    const { fields: workspaceFields } = useResolvedFields(partitionId);
     const { updateForm } = useWebForms(wsId);
 
     useEffect(() => {
@@ -59,6 +60,7 @@ export default function EditWebFormPage() {
                 if (json.success) {
                     const form = json.data;
                     setWsId(form.workspaceId);
+                    setPartitionId(form.partitionId);
                     setFormName(form.name);
                     setFormTitle(form.title);
                     setFormDescription(form.description || "");
