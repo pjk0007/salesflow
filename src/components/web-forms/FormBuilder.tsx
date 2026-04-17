@@ -76,6 +76,15 @@ const FIELD_TYPES = [
     { value: "date", label: "날짜" },
 ];
 
+function mapFieldType(dbType: string): string {
+    const map: Record<string, string> = {
+        text: "text", email: "email", phone: "phone", textarea: "textarea",
+        select: "select", checkbox: "checkbox", date: "date",
+        number: "text", url: "text",
+    };
+    return map[dbType] || "text";
+}
+
 function SortableFieldItem({
     field,
     index,
@@ -118,48 +127,37 @@ function SortableFieldItem({
                             placeholder="필드 이름"
                             className="flex-1"
                         />
-                        <Select
-                            value={field.fieldType}
-                            onValueChange={(v) =>
-                                onUpdate(index, { ...field, fieldType: v })
-                            }
-                        >
-                            <SelectTrigger className="w-[130px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {FIELD_TYPES.map((ft) => (
-                                    <SelectItem key={ft.value} value={ft.value}>
-                                        {ft.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <span className="text-xs text-muted-foreground shrink-0 w-[60px] text-right">
+                            {FIELD_TYPES.find((ft) => ft.value === field.fieldType)?.label || field.fieldType}
+                        </span>
                     </div>
                     <div className="flex items-center gap-3">
                         <Select
                             value={field.linkedFieldKey || "_none"}
-                            onValueChange={(v) =>
+                            onValueChange={(v) => {
+                                const linked = workspaceFields.find((wf) => wf.key === v);
+                                const fieldType = linked ? mapFieldType(linked.fieldType) : field.fieldType;
                                 onUpdate(index, {
                                     ...field,
                                     linkedFieldKey: v === "_none" ? "" : v,
-                                })
-                            }
+                                    fieldType,
+                                });
+                            }}
                         >
                             <SelectTrigger className="flex-1">
-                                <SelectValue placeholder="연결 필드 선택" />
+                                <SelectValue placeholder="연결 속성 선택" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="_none">연결 안 함</SelectItem>
                                 {workspaceFields.length === 0 && (
                                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                        워크스페이스에 속성이 없습니다.
-                                        워크스페이스 설정에서 속성을 추가해주세요.
+                                        파티션에 속성이 없습니다.
+                                        워크스페이스 설정에서 속성 타입을 추가해주세요.
                                     </div>
                                 )}
                                 {workspaceFields.map((wf) => (
                                     <SelectItem key={wf.key} value={wf.key}>
-                                        {wf.label} ({wf.key})
+                                        {wf.label} ({FIELD_TYPES.find((ft) => ft.value === mapFieldType(wf.fieldType))?.label || wf.fieldType})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
