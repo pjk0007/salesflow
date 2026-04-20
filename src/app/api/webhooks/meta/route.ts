@@ -4,6 +4,7 @@ import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, records, parti
 import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
+import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 
 // GET: Meta Webhook 검증
 export async function GET(req: NextRequest) {
@@ -287,6 +288,17 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
             rawData: leadData,
             status: "success",
         });
+
+        // 10. 자동화 트리거 (이메일/알림톡)
+        const [fullRecord] = await db.select().from(records).where(eq(records.id, newRecord.id));
+        if (fullRecord) {
+            dispatchAutoTriggers({
+                record: fullRecord,
+                partitionId: integration.partitionId!,
+                triggerType: "on_create",
+                orgId: integration.orgId,
+            });
+        }
     } catch (err) {
         await db.insert(adLeadLogs).values({
             integrationId: integration.id,
