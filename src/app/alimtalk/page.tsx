@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
@@ -14,8 +15,33 @@ import SendLogTable from "@/components/alimtalk/SendLogTable";
 import AlimtalkConfigForm from "@/components/alimtalk/AlimtalkConfigForm";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 
+const VALID_TABS = ["dashboard", "senders", "templates", "links", "logs", "settings"] as const;
+
 export default function AlimtalkPage() {
-    const [activeTab, setActiveTab] = useState("dashboard");
+    const searchParams = useSearchParams();
+    const tabFromUrl = searchParams.get("tab");
+    const initialTab = tabFromUrl && (VALID_TABS as readonly string[]).includes(tabFromUrl) ? tabFromUrl : "dashboard";
+    const [activeTab, setActiveTab] = useState(initialTab);
+
+    useEffect(() => {
+        if (tabFromUrl && (VALID_TABS as readonly string[]).includes(tabFromUrl) && tabFromUrl !== activeTab) {
+            setActiveTab(tabFromUrl);
+        }
+    }, [tabFromUrl, activeTab]);
+
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        const params = new URLSearchParams(window.location.search);
+        if (value === "dashboard") {
+            params.delete("tab");
+        } else {
+            params.set("tab", value);
+        }
+        const qs = params.toString();
+        const newUrl = qs ? `/alimtalk?${qs}` : "/alimtalk";
+        window.history.replaceState(null, "", newUrl);
+    };
+
     const { data: allPartitionsData } = useSWR("/api/partitions", defaultFetcher);
 
     const partitions = useMemo(() => {
@@ -36,7 +62,7 @@ export default function AlimtalkPage() {
                     description="카카오 알림톡을 발송하고 관리합니다."
                 />
 
-                <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <Tabs value={activeTab} onValueChange={handleTabChange}>
                     <TabsList>
                         <TabsTrigger value="dashboard">대시보드</TabsTrigger>
                         <TabsTrigger value="senders">발신프로필</TabsTrigger>
@@ -47,7 +73,7 @@ export default function AlimtalkPage() {
                     </TabsList>
 
                     <TabsContent value="dashboard" className="mt-6">
-                        <AlimtalkDashboard onTabChange={setActiveTab} />
+                        <AlimtalkDashboard onTabChange={handleTabChange} />
                     </TabsContent>
 
                     <TabsContent value="senders" className="mt-6">

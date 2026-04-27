@@ -80,13 +80,15 @@ export default function TemplateDetailDialog({
                         {/* 카카오톡 스타일 미리보기 */}
                         <div className="bg-[#B2C7D9] rounded-lg p-4">
                             <div className="bg-white rounded-lg shadow-sm max-w-[280px] overflow-hidden">
-                                {/* 이미지 강조 */}
-                                {template.templateEmphasizeType === "IMAGE" && template.templateImageUrl && (
-                                    <img
-                                        src={template.templateImageUrl}
-                                        alt="강조 이미지"
-                                        className="w-full aspect-[2/1] object-cover"
-                                    />
+                                {/* 이미지 강조 (IMAGE / ITEM_LIST 둘 다 노출) */}
+                                {(template.templateEmphasizeType === "IMAGE" || template.templateEmphasizeType === "ITEM_LIST") && template.templateImageUrl && (
+                                    <div className="mx-3 mt-3 rounded overflow-hidden bg-gray-100 aspect-2/1 flex items-center justify-center">
+                                        <img
+                                            src={template.templateImageUrl}
+                                            alt="강조 이미지"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
                                 )}
 
                                 <div className="p-3">
@@ -94,48 +96,63 @@ export default function TemplateDetailDialog({
                                     {template.templateEmphasizeType === "TEXT" && (
                                         <div className="mb-2">
                                             {template.templateTitle && (
-                                                <p className="text-base font-bold leading-tight">{template.templateTitle}</p>
+                                                <div className="text-base font-bold leading-tight" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateTitle) }} />
                                             )}
                                             {template.templateSubtitle && (
-                                                <p className="text-xs text-muted-foreground">{template.templateSubtitle}</p>
+                                                <div className="text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateSubtitle) }} />
                                             )}
                                         </div>
                                     )}
 
                                     {/* 헤더 */}
                                     {template.templateHeader && (
-                                        <p className="text-xs text-muted-foreground mb-1">{template.templateHeader}</p>
+                                        <div className="text-xs text-muted-foreground mb-1" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateHeader) }} />
                                     )}
 
                                     {/* 아이템 하이라이트 */}
-                                    {template.templateEmphasizeType === "ITEM_LIST" && template.templateItemHighlight && (
-                                        <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded">
-                                            {template.templateItemHighlight.imageUrl && (
-                                                <img src={template.templateItemHighlight.imageUrl} alt="" className="w-10 h-10 rounded object-cover" />
-                                            )}
-                                            <div>
-                                                <p className="text-sm font-bold">{template.templateItemHighlight.title}</p>
-                                                <p className="text-xs text-muted-foreground">{template.templateItemHighlight.description}</p>
+                                    {template.templateEmphasizeType === "ITEM_LIST" && template.templateItemHighlight && (template.templateItemHighlight.title || template.templateItemHighlight.description) && (
+                                        <>
+                                            <div className="mb-2 flex gap-2 items-start">
+                                                <div className="min-w-0 flex-1">
+                                                    {template.templateItemHighlight.title && (
+                                                        <div className="text-sm font-bold leading-tight truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItemHighlight.title) }} />
+                                                    )}
+                                                    {template.templateItemHighlight.description && (
+                                                        <div className="text-xs text-muted-foreground mt-0.5 truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItemHighlight.description) }} />
+                                                    )}
+                                                </div>
+                                                {template.templateItemHighlight.imageUrl && (
+                                                    <div className="w-10 h-10 rounded bg-gray-100 shrink-0 overflow-hidden">
+                                                        <img src={template.templateItemHighlight.imageUrl} alt="" className="w-full h-full object-cover" />
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
+                                            <div className="border-t my-2" />
+                                        </>
                                     )}
 
                                     {/* 아이템 리스트 */}
                                     {template.templateItem?.list && template.templateItem.list.length > 0 && (
-                                        <div className="mb-2 text-xs space-y-1 border-t border-b py-1">
-                                            {template.templateItem.list.map((item, i) => (
-                                                <div key={i} className="flex justify-between">
-                                                    <span className="text-muted-foreground">{item.title}</span>
-                                                    <span>{item.description}</span>
-                                                </div>
-                                            ))}
-                                            {template.templateItem.summary && (
-                                                <div className="flex justify-between font-bold pt-1 border-t">
-                                                    <span>{template.templateItem.summary.title}</span>
-                                                    <span>{template.templateItem.summary.description}</span>
-                                                </div>
-                                            )}
-                                        </div>
+                                        <>
+                                            <div className="space-y-1">
+                                                {template.templateItem.list.map((item, i) => (
+                                                    <div key={i} className="flex justify-between text-xs">
+                                                        <span className="text-muted-foreground truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(item.title || `항목 ${i + 1}`) }} />
+                                                        <span className="font-medium truncate ml-2" dangerouslySetInnerHTML={{ __html: highlightVariables(item.description) }} />
+                                                    </div>
+                                                ))}
+                                                {template.templateItem.summary && (template.templateItem.summary.title || template.templateItem.summary.description) && (
+                                                    <>
+                                                        <div className="border-t my-1" />
+                                                        <div className="flex justify-between text-xs font-bold">
+                                                            <span dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItem.summary.title || "") }} />
+                                                            <span dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItem.summary.description || "") }} />
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                            <div className="border-t my-2" />
+                                        </>
                                     )}
 
                                     {/* 본문 */}
@@ -148,9 +165,10 @@ export default function TemplateDetailDialog({
 
                                     {/* 부가정보 */}
                                     {template.templateExtra && (
-                                        <div className="mt-2 pt-2 border-t text-xs text-muted-foreground whitespace-pre-wrap">
-                                            {template.templateExtra}
-                                        </div>
+                                        <div
+                                            className="mt-2 pt-2 border-t text-xs text-muted-foreground whitespace-pre-wrap"
+                                            dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateExtra) }}
+                                        />
                                     )}
 
                                     {/* 버튼 */}
