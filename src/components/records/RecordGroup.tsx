@@ -1,54 +1,157 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { ChevronDown, ChevronRight, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecordTable from "./RecordTable";
-import type { FieldDefinition } from "@/types";
+import { useGroupRecords } from "./hooks/useGroupRecords";
+import { useInfiniteScroll } from "./hooks/useInfiniteScroll";
+import type { FieldDefinition, FilterCondition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
+const GROUP_PAGE_SIZE = 50;
+
 interface RecordGroupProps {
-    statusValue: string;
+    partitionId: number;
+    groupBy: string;
+    statusValue: string;          // "" → 미분류
     statusLabel: string;
     statusColor?: string;
-    count: number;
-    records: DbRecord[];
+    count: number;                // 그룹 전체 개수
     fields: FieldDefinition[];
     visibleFieldKeys: string[] | null;
     selectedIds: Set<number>;
     onSelectionChange: (ids: Set<number>) => void;
-    onUpdateRecord: (id: number, data: Record<string, unknown>) => void;
+    onUpdateRecord: (id: number, data: Record<string, unknown>) => Promise<{ success: boolean } | void> | void;
     onRecordClick?: (record: DbRecord) => void;
+    search?: string;
+    filters?: FilterCondition[];
+    distributionOrder?: number;
     sortField: string;
     sortOrder: "asc" | "desc";
     onSortChange: (field: string, order: "asc" | "desc") => void;
-    duplicateHighlight?: { color: string; ids: Set<number> } | null;
     onCreateWithStatus?: (statusValue: string) => void;
+    /** status 필드가 변경되어 그룹 간 이동이 일어났을 때 부모가 전체 invalidate */
+    onGroupChanged?: () => void;
     defaultCollapsed?: boolean;
     isSquare?: boolean;
 }
 
 export default function RecordGroup({
+    partitionId,
+    groupBy,
     statusValue,
     statusLabel,
     statusColor,
     count,
-    records,
     fields,
     visibleFieldKeys,
     selectedIds,
     onSelectionChange,
     onUpdateRecord,
     onRecordClick,
+    search,
+    filters,
+    distributionOrder,
     sortField,
     sortOrder,
     onSortChange,
-    duplicateHighlight,
     onCreateWithStatus,
+    onGroupChanged,
     defaultCollapsed = false,
     isSquare,
 }: RecordGroupProps) {
     const [collapsed, setCollapsed] = useState(defaultCollapsed);
+    const [currentPage, setCurrentPage] = useState(1);
+    // 누적된 page 1..N의 records (id 기준 dedupe + 정렬 안정성을 위해 단일 배열로 보관)
+    const [accumulated, setAccumulated] = useState<DbRecord[]>([]);
+
+    const filtersKey = filters ? JSON.stringify(filters) : "";
+
+    // 검색/필터/정렬 변경 시 누적 리셋 (+ page=1부터 다시)
+    useEffect(() => {
+        setCurrentPage(1);
+        setAccumulated([]);
+    }, [search, filtersKey, distributionOrder, sortField, sortOrder, partitionId, groupBy, statusValue]);
+
+    // 현재 page만 fetch — 이전 page들은 accumulated에 보관
+    const {
+        records: pageRecords,
+        total,
+        isLoading,
+        mutate: pageMutate,
+    } = useGroupRecords({
+        partitionId,
+        groupBy,
+        groupValue: statusValue,
+        page: currentPage,
+        pageSize: GROUP_PAGE_SIZE,
+        search,
+        distributionOrder,
+        filters,
+        sortField,
+        sortOrder,
+        enabled: !collapsed,
+    });
+
+    // page fetch 결과를 누적에 합침
+    const lastAppendedKeyRef = useRef<string>("");
+    useEffect(() => {
+        if (collapsed) return;
+        if (pageRecords.length === 0) return;
+        // 같은 page 결과가 두 번 적용되지 않도록 가드
+        const key = `${currentPage}:${pageRecords.map((r) => r.id).join(",")}`;
+        if (lastAppendedKeyRef.current === key) return;
+        lastAppendedKeyRef.current = key;
+
+        setAccumulated((prev) => {
+            if (currentPage === 1) {
+                // page=1은 항상 처음부터 (필터 변경 후 첫 페이지 도착)
+                return pageRecords;
+            }
+            // 중복 제거하면서 append
+            const seen = new Set(prev.map((r) => r.id));
+            const newOnes = pageRecords.filter((r) => !seen.has(r.id));
+            return [...prev, ...newOnes];
+        });
+    }, [pageRecords, currentPage, collapsed]);
+
+    // 표시용 records — 새 page 로딩 중엔 누적분 그대로 표시
+    const displayRecords = useMemo(() => {
+        // page=1 도착 전엔 빈 배열 (펼친 직후 첫 로딩)
+        if (accumulated.length > 0) return accumulated;
+        return pageRecords;
+    }, [accumulated, pageRecords]);
+
+    const effectiveTotal = total || count;
+    const hasMore = displayRecords.length < effectiveTotal;
+    const isLoadingMore = isLoading && currentPage > 1;
+    const isInitialLoading = isLoading && displayRecords.length === 0;
+
+    const handleLoadMore = useCallback(() => {
+        if (isLoading || !hasMore) return;
+        setCurrentPage((p) => p + 1);
+    }, [isLoading, hasMore]);
+
+    const sentinelRef = useInfiniteScroll<HTMLDivElement>({
+        enabled: !collapsed && hasMore && !isLoading,
+        onLoadMore: handleLoadMore,
+    });
+
+    // 레코드 업데이트 래퍼: groupBy 필드가 바뀌면 그룹 간 이동 → 전체 invalidate
+    const handleUpdateRecord = useCallback(
+        async (id: number, data: Record<string, unknown>) => {
+            const willChangeGroup = Object.prototype.hasOwnProperty.call(data, groupBy);
+            await onUpdateRecord(id, data);
+            if (willChangeGroup) {
+                onGroupChanged?.();
+            } else {
+                // 현재 페이지만 갱신 (누적분 일부 갱신은 SSE/globalMutate 경로에서 처리됨)
+                pageMutate();
+            }
+        },
+        [groupBy, onUpdateRecord, onGroupChanged, pageMutate],
+    );
 
     return (
         <div className="mb-4">
@@ -72,36 +175,65 @@ export default function RecordGroup({
                 >
                     {statusLabel}
                 </span>
-                <span className="text-xs text-muted-foreground">{count}</span>
+                <span className="text-xs text-muted-foreground">{count.toLocaleString()}</span>
             </button>
 
             {/* 그룹 바디 */}
             {!collapsed && (
                 <div className="border-x border-b rounded-b">
-                    {records.length > 0 ? (
+                    {displayRecords.length > 0 ? (
                         <RecordTable
-                            records={records}
+                            records={displayRecords}
                             fields={fields}
                             visibleFieldKeys={visibleFieldKeys}
                             isLoading={false}
                             selectedIds={selectedIds}
                             onSelectionChange={onSelectionChange}
-                            onUpdateRecord={onUpdateRecord}
+                            onUpdateRecord={handleUpdateRecord}
                             onRecordClick={onRecordClick}
                             sortField={sortField}
                             sortOrder={sortOrder}
                             onSortChange={onSortChange}
                             page={1}
                             totalPages={1}
-                            total={count}
-                            pageSize={count}
+                            total={displayRecords.length}
+                            pageSize={displayRecords.length}
                             onPageChange={() => {}}
-                            duplicateHighlight={duplicateHighlight}
+                            duplicateHighlight={null}
                             compact
+                            onMemoChange={pageMutate}
                         />
+                    ) : isInitialLoading ? (
+                        <div className="flex items-center justify-center px-4 py-6 text-sm text-muted-foreground gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            불러오는 중...
+                        </div>
                     ) : (
                         <div className="px-4 py-3 text-sm text-muted-foreground">
                             레코드가 없습니다
+                        </div>
+                    )}
+
+                    {/* 더 보기 + 무한 스크롤 sentinel */}
+                    {hasMore && displayRecords.length > 0 && (
+                        <div className="border-t">
+                            <div ref={sentinelRef} aria-hidden className="h-px" />
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="w-full justify-center gap-1.5 text-muted-foreground hover:text-foreground rounded-none h-9"
+                                onClick={handleLoadMore}
+                                disabled={isLoadingMore}
+                            >
+                                {isLoadingMore ? (
+                                    <>
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        불러오는 중...
+                                    </>
+                                ) : (
+                                    <>더 보기 ({(effectiveTotal - displayRecords.length).toLocaleString()}건 남음)</>
+                                )}
+                            </Button>
                         </div>
                     )}
 

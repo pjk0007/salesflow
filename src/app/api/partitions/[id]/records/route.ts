@@ -45,13 +45,15 @@ export async function GET(
 
         const searchParams = req.nextUrl.searchParams;
         const page = Math.max(1, Number(searchParams.get("page")) || 1);
-        const pageSize = Math.min(200, Math.max(1, Number(searchParams.get("pageSize")) || 50));
+        const pageSize = Math.min(1000, Math.max(1, Number(searchParams.get("pageSize")) || 50));
         const search = searchParams.get("search") || "";
         const distributionOrder = searchParams.get("distributionOrder")
             ? Number(searchParams.get("distributionOrder"))
             : undefined;
         const sortField = searchParams.get("sortField") || "registeredAt";
         const sortOrder = searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
+        const groupBy = searchParams.get("groupBy");
+        const groupValue = searchParams.get("groupValue");
 
         // filters 파싱
         let filters: Array<{ field: string; operator: string; value: unknown; valueTo?: unknown }> = [];
@@ -73,6 +75,16 @@ export async function GET(
 
         if (distributionOrder !== undefined) {
             conditions.push(eq(records.distributionOrder, distributionOrder));
+        }
+
+        // 그룹 필터 (그룹뷰: 특정 그룹의 레코드만 페이징)
+        if (groupBy) {
+            if (!groupValue) {
+                // 미분류: NULL 또는 빈 문자열
+                conditions.push(sql`(${records.data}->>${groupBy} IS NULL OR ${records.data}->>${groupBy} = '')`);
+            } else {
+                conditions.push(sql`${records.data}->>${groupBy} = ${groupValue}`);
+            }
         }
 
         // 필드별 필터 조건

@@ -23,6 +23,7 @@ import { useFields } from "@/hooks/useFields";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { useRecords } from "@/hooks/useRecords";
 import { useSSE } from "@/hooks/useSSE";
+import { mutate as globalMutate } from "swr";
 import { toast } from "sonner";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition } from "@/types";
@@ -115,10 +116,24 @@ export default function RecordsPage() {
         sessionId: sessionIdRef.current,
     });
 
-    // SSE 실시간 동기화
+    // SSE 실시간 동기화 — viewMode에 따라 mutate 대상 분기
+    const handleSSEChange = useCallback(() => {
+        if (viewMode === "grouped" && partitionId) {
+            // 그룹뷰: 모든 그룹 records + group-counts SWR 키 일괄 invalidate
+            globalMutate(
+                (key) =>
+                    typeof key === "string" &&
+                    (key.startsWith(`/api/partitions/${partitionId}/records?`) ||
+                        key.startsWith(`/api/partitions/${partitionId}/records/group-counts?`)),
+            );
+        } else {
+            mutateRecords();
+        }
+    }, [viewMode, partitionId, mutateRecords]);
+
     useSSE({
         partitionId,
-        onAnyChange: () => mutateRecords(),
+        onAnyChange: handleSSEChange,
     });
 
     // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째)
@@ -195,10 +210,43 @@ export default function RecordsPage() {
             const result = await updateRecord(id, data);
             if (!result.success) {
                 toast.error(result.error || "수정에 실패했습니다.");
+                return result;
             }
+            // 그룹뷰는 그룹별 SWR 키가 분리되어 있어 추가 invalidate 필요
+            if (viewMode === "grouped") handleSSEChange();
+            return result;
         },
-        [updateRecord]
+        [updateRecord, viewMode, handleSSEChange]
     );
+
+    const handleCreateRecord = useCallback(
+        async (recordData: Record<string, unknown>) => {
+            const result = await createRecord(recordData);
+            if (result?.success && viewMode === "grouped") handleSSEChange();
+            return result;
+        },
+        [createRecord, viewMode, handleSSEChange],
+    );
+
+    const handleBulkImport = useCallback(
+        async (
+            importRecords: Array<Record<string, unknown>>,
+            duplicateAction: "skip" | "error" = "skip",
+        ) => {
+            const result = await bulkImport(importRecords, duplicateAction);
+            if (result?.success && viewMode === "grouped") handleSSEChange();
+            return result;
+        },
+        [bulkImport, viewMode, handleSSEChange],
+    );
+
+    const handleRecordUpdated = useCallback(() => {
+        if (viewMode === "grouped") {
+            handleSSEChange();
+        } else {
+            mutateRecords();
+        }
+    }, [viewMode, handleSSEChange, mutateRecords]);
 
     const handleBulkDelete = useCallback(async () => {
         const ids = Array.from(selectedIds);
@@ -207,10 +255,11 @@ export default function RecordsPage() {
             toast.success(result.message);
             setSelectedIds(new Set());
             setDeleteDialogOpen(false);
+            if (viewMode === "grouped") handleSSEChange();
         } else {
             toast.error(result.error || "삭제에 실패했습니다.");
         }
-    }, [selectedIds, bulkDelete]);
+    }, [selectedIds, bulkDelete, viewMode, handleSSEChange]);
 
     // 파티션/폴더 관리 핸들러
     const handleRenameSubmit = useCallback(async (name: string) => {
@@ -390,27 +439,23 @@ export default function RecordsPage() {
                                 allFields={fields}
                                 onToggleColumn={handleToggleColumn}
                             />
-                            {viewMode === "grouped" && statusField ? (
+                            {viewMode === "grouped" && statusField && partitionId ? (
                                 <GroupedRecordView
-                                    records={records}
+                                    partitionId={partitionId}
+                                    groupByField={statusField}
                                     fields={fields}
-                                    visibleFieldKeys={currentPartition?.visibleFields ?? null}
-                                    isLoading={recordsLoading}
+                                    visibleFieldKeys={(currentPartition?.visibleFields as string[] | null) ?? null}
                                     selectedIds={selectedIds}
                                     onSelectionChange={setSelectedIds}
                                     onUpdateRecord={handleUpdateRecord}
                                     onRecordClick={handleRecordClick}
-                                    groupByField={statusField}
+                                    search={search || undefined}
+                                    filters={filters.length > 0 ? filters : undefined}
+                                    distributionOrder={distributionOrder}
                                     sortField={sortField}
                                     sortOrder={sortOrder}
                                     onSortChange={handleSortChange}
-                                    page={currentPage}
-                                    totalPages={totalPages}
-                                    total={total}
-                                    pageSize={pageSize}
-                                    onPageChange={setPage}
-                                    duplicateHighlight={duplicateHighlight}
-                                    onCreateWithStatus={(statusValue) => {
+                                    onCreateWithStatus={() => {
                                         // TODO: CreateRecordDialog에 기본 상태값 전달
                                         setCreateDialogOpen(true);
                                     }}
@@ -457,7 +502,7 @@ export default function RecordsPage() {
                     open={createDialogOpen}
                     onOpenChange={setCreateDialogOpen}
                     partitionId={partitionId}
-                    onSubmit={createRecord}
+                    onSubmit={handleCreateRecord}
                 />
             )}
             <DeleteConfirmDialog
@@ -487,7 +532,7 @@ export default function RecordsPage() {
                 onOpenChange={setImportDialogOpen}
                 fields={fields}
                 duplicateCheckField={currentPartition?.duplicateCheckField ?? undefined}
-                onImport={bulkImport}
+                onImport={handleBulkImport}
             />
             <RecordDetailDialog
                 open={detailRecord !== null}
@@ -495,7 +540,7 @@ export default function RecordsPage() {
                 record={detailRecord}
                 fields={fields}
                 partitionId={partitionId!}
-                onRecordUpdated={() => mutateRecords()}
+                onRecordUpdated={handleRecordUpdated}
             />
 
             {/* 파티션/폴더 관리 다이얼로그 */}

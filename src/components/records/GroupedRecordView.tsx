@@ -1,149 +1,125 @@
 "use client";
 
 import { useMemo } from "react";
-import { Button } from "@/components/ui/button";
+import { mutate as globalMutate } from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import RecordGroup from "./RecordGroup";
-import type { FieldDefinition } from "@/types";
+import { useGroupCounts } from "./hooks/useGroupCounts";
+import type { FieldDefinition, FilterCondition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
-interface StatusGroup {
-    statusValue: string;
+interface StatusGroupMeta {
+    statusValue: string;       // "" → 미분류
     statusLabel: string;
-    statusColor?: string;
-    records: DbRecord[];
+    statusColor: string;
     count: number;
 }
 
 interface GroupedRecordViewProps {
-    records: DbRecord[];
+    partitionId: number;
+    groupByField: FieldDefinition;
     fields: FieldDefinition[];
     visibleFieldKeys: string[] | null;
-    isLoading: boolean;
     selectedIds: Set<number>;
     onSelectionChange: (ids: Set<number>) => void;
-    onUpdateRecord: (id: number, data: Record<string, unknown>) => void;
+    onUpdateRecord: (id: number, data: Record<string, unknown>) => Promise<{ success: boolean } | void> | void;
     onRecordClick?: (record: DbRecord) => void;
-    groupByField: FieldDefinition;
+    search?: string;
+    filters?: FilterCondition[];
+    distributionOrder?: number;
     sortField: string;
     sortOrder: "asc" | "desc";
     onSortChange: (field: string, order: "asc" | "desc") => void;
-    // 페이지네이션
-    page: number;
-    totalPages: number;
-    total: number;
-    pageSize: number;
-    onPageChange: (page: number) => void;
-    duplicateHighlight?: { color: string; ids: Set<number> } | null;
     onCreateWithStatus?: (statusValue: string) => void;
 }
 
-// 색상이 지정되지 않은 옵션의 기본 색상
 const DEFAULT_COLORS = [
     "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444",
     "#ec4899", "#06b6d4", "#84cc16", "#f97316", "#6366f1",
 ];
 
-function groupRecordsByStatus(
-    records: DbRecord[],
-    field: FieldDefinition,
-): StatusGroup[] {
-    const options = field.options ?? [];
-    const colors = field.optionColors ?? {};
-    const fieldKey = field.key;
-
-    // 옵션별 그룹 초기화
-    const groupMap = new Map<string, DbRecord[]>();
-    for (const opt of options) {
-        groupMap.set(opt, []);
-    }
-
-    const uncategorized: DbRecord[] = [];
-
-    for (const record of records) {
-        const data = record.data as Record<string, unknown>;
-        const val = data[fieldKey] != null ? String(data[fieldKey]) : "";
-
-        if (val && groupMap.has(val)) {
-            groupMap.get(val)!.push(record);
-        } else if (val) {
-            if (!groupMap.has(val)) groupMap.set(val, []);
-            groupMap.get(val)!.push(record);
-        } else {
-            uncategorized.push(record);
-        }
-    }
-
-    const groups: StatusGroup[] = [];
-
-    // 옵션 순서대로 그룹 생성 (optionColors 우선, 없으면 기본 팔레트)
-    for (let i = 0; i < options.length; i++) {
-        const opt = options[i];
-        const recs = groupMap.get(opt) ?? [];
-        if (recs.length === 0) continue;
-        groups.push({
-            statusValue: opt,
-            statusLabel: opt,
-            statusColor: colors[opt] || DEFAULT_COLORS[i % DEFAULT_COLORS.length],
-            records: recs,
-            count: recs.length,
-        });
-    }
-
-    // options에 없는 값들의 그룹 추가
-    for (const [val, recs] of groupMap) {
-        if (options.includes(val) || recs.length === 0) continue;
-        groups.push({
-            statusValue: val,
-            statusLabel: val,
-            statusColor: colors[val] || "#9ca3af",
-            records: recs,
-            count: recs.length,
-        });
-    }
-
-    // 미분류 그룹
-    if (uncategorized.length > 0) {
-        groups.push({
-            statusValue: "",
-            statusLabel: "미분류",
-            statusColor: "#d1d5db",
-            records: uncategorized,
-            count: uncategorized.length,
-        });
-    }
-
-    return groups;
-}
-
 export default function GroupedRecordView({
-    records,
+    partitionId,
+    groupByField,
     fields,
     visibleFieldKeys,
-    isLoading,
     selectedIds,
     onSelectionChange,
     onUpdateRecord,
     onRecordClick,
-    groupByField,
+    search,
+    filters,
+    distributionOrder,
     sortField,
     sortOrder,
     onSortChange,
-    page,
-    totalPages,
-    total,
-    pageSize,
-    onPageChange,
-    duplicateHighlight,
     onCreateWithStatus,
 }: GroupedRecordViewProps) {
-    const groups = useMemo(
-        () => groupRecordsByStatus(records, groupByField),
-        [records, groupByField],
-    );
+    const {
+        counts,
+        uncategorized,
+        total,
+        isLoading: countsLoading,
+        mutate: countsMutate,
+    } = useGroupCounts({
+        partitionId,
+        groupBy: groupByField.key,
+        search,
+        distributionOrder,
+        filters,
+    });
 
-    if (isLoading) {
+    const groups = useMemo<StatusGroupMeta[]>(() => {
+        const options = groupByField.options ?? [];
+        const colors = groupByField.optionColors ?? {};
+        const result: StatusGroupMeta[] = [];
+
+        // 옵션 순서대로
+        for (let i = 0; i < options.length; i++) {
+            const opt = options[i];
+            const cnt = counts[opt] ?? 0;
+            if (cnt === 0) continue;
+            result.push({
+                statusValue: opt,
+                statusLabel: opt,
+                statusColor: colors[opt] || DEFAULT_COLORS[i % DEFAULT_COLORS.length],
+                count: cnt,
+            });
+        }
+
+        // options에 없는 값 (옵션 변경 후 남아있는 레거시 값)
+        for (const [val, cnt] of Object.entries(counts)) {
+            if (options.includes(val) || cnt === 0) continue;
+            result.push({
+                statusValue: val,
+                statusLabel: val,
+                statusColor: colors[val] || "#9ca3af",
+                count: cnt,
+            });
+        }
+
+        // 미분류
+        if (uncategorized > 0) {
+            result.push({
+                statusValue: "",
+                statusLabel: "미분류",
+                statusColor: "#d1d5db",
+                count: uncategorized,
+            });
+        }
+
+        return result;
+    }, [counts, uncategorized, groupByField]);
+
+    // status 필드 변경 시: 모든 그룹 + 카운트 일괄 invalidate
+    const handleGroupChanged = () => {
+        countsMutate();
+        globalMutate(
+            (key) => typeof key === "string" && key.startsWith(`/api/partitions/${partitionId}/records?`),
+        );
+    };
+
+    if (countsLoading) {
         return (
             <div className="p-4 space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -153,7 +129,7 @@ export default function GroupedRecordView({
         );
     }
 
-    if (records.length === 0) {
+    if (total === 0) {
         return (
             <div className="flex-1 flex items-center justify-center p-12">
                 <div className="text-center text-muted-foreground">
@@ -169,60 +145,31 @@ export default function GroupedRecordView({
             <div className="flex-1 min-h-0 overflow-auto p-4">
                 {groups.map((group) => (
                     <RecordGroup
-                        key={group.statusValue}
+                        key={group.statusValue || "__uncategorized__"}
+                        partitionId={partitionId}
+                        groupBy={groupByField.key}
                         statusValue={group.statusValue}
                         statusLabel={group.statusLabel}
                         statusColor={group.statusColor}
                         count={group.count}
-                        records={group.records}
                         fields={fields}
                         visibleFieldKeys={visibleFieldKeys}
                         selectedIds={selectedIds}
                         onSelectionChange={onSelectionChange}
                         onUpdateRecord={onUpdateRecord}
                         onRecordClick={onRecordClick}
+                        search={search}
+                        filters={filters}
+                        distributionOrder={distributionOrder}
                         sortField={sortField}
                         sortOrder={sortOrder}
                         onSortChange={onSortChange}
-                        duplicateHighlight={duplicateHighlight}
                         onCreateWithStatus={onCreateWithStatus}
+                        onGroupChanged={handleGroupChanged}
                         isSquare={groupByField.optionStyle === "square"}
                     />
                 ))}
             </div>
-
-            {/* 페이지네이션 */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-between px-4 py-3 border-t">
-                    <p className="text-sm text-muted-foreground">
-                        총 {total.toLocaleString()}건 중 {((page - 1) * pageSize + 1).toLocaleString()}-
-                        {Math.min(page * pageSize, total).toLocaleString()}건
-                    </p>
-                    <div className="flex items-center gap-1">
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={page <= 1}
-                            onClick={() => onPageChange(page - 1)}
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </Button>
-                        <span className="text-sm px-2">
-                            {page} / {totalPages}
-                        </span>
-                        <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-8 w-8"
-                            disabled={page >= totalPages}
-                            onClick={() => onPageChange(page + 1)}
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </Button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
