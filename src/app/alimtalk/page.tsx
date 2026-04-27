@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
@@ -17,7 +17,7 @@ import { defaultFetcher } from "@/lib/swr-fetcher";
 
 const VALID_TABS = ["dashboard", "senders", "templates", "links", "logs", "settings"] as const;
 
-export default function AlimtalkPage() {
+function AlimtalkPageContent() {
     const searchParams = useSearchParams();
     const tabFromUrl = searchParams.get("tab");
     const initialTab = tabFromUrl && (VALID_TABS as readonly string[]).includes(tabFromUrl) ? tabFromUrl : "dashboard";
@@ -98,5 +98,13 @@ export default function AlimtalkPage() {
                 </Tabs>
             </PageContainer>
         </WorkspaceLayout>
+    );
+}
+
+export default function AlimtalkPage() {
+    return (
+        <Suspense fallback={null}>
+            <AlimtalkPageContent />
+        </Suspense>
     );
 }
