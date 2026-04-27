@@ -18,7 +18,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                             onToggle={() => setCollapsed((prev) => !prev)}
                         />
                         <MobileSidebar />
-                        <div className="flex flex-1 flex-col overflow-hidden">
+                        <div className="flex flex-1 flex-col overflow-hidden min-w-0">
                             <Header />
                             <main className="flex-1 overflow-auto bg-muted/30">
                                 {children}

@@ -45,18 +45,18 @@ function StatCard({
 }) {
     return (
         <Card>
-            <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                    <div>
+            <CardContent className="p-3 md:p-4">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
                         <p className="text-xs text-muted-foreground">{label}</p>
-                        <p className={`text-2xl font-bold ${color}`}>
+                        <p className={`text-xl md:text-2xl font-bold ${color} truncate`}>
                             {isLoading ? "-" : value}
                         </p>
                         {subtitle && (
-                            <p className="text-xs text-muted-foreground">{subtitle}</p>
+                            <p className="text-xs text-muted-foreground truncate">{subtitle}</p>
                         )}
                     </div>
-                    <Icon className={`h-8 w-8 ${color} opacity-20`} />
+                    <Icon className={`h-6 w-6 md:h-8 md:w-8 ${color} opacity-20 shrink-0`} />
                 </div>
             </CardContent>
         </Card>
@@ -81,16 +81,17 @@ function RecentLogsCard({
     type: "alimtalk" | "email";
 }) {
     return (
-        <Card>
+        <Card className="min-w-0">
             <CardHeader>
                 <CardTitle className="text-base">{title}</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="px-0 md:px-6">
                 {logs.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-6">
                         아직 발송 이력이 없습니다.
                     </p>
                 ) : (
+                    <div className="overflow-x-auto px-6 md:px-0">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -135,6 +136,7 @@ function RecentLogsCard({
                             })}
                         </TableBody>
                     </Table>
+                    </div>
                 )}
             </CardContent>
         </Card>
@@ -170,8 +172,8 @@ export default function HomeDashboard() {
     const { summary, isLoading } = useDashboardSummary();
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
                 <StatCard
                     label="전체 레코드"
                     value={summary.recordCount.toLocaleString()}
@@ -205,7 +207,7 @@ export default function HomeDashboard() {
                 />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-6">
+            <div className="grid md:grid-cols-2 gap-4 md:gap-6">
                 <RecentLogsCard
                     title="최근 알림톡"
                     logs={summary.recentAlimtalkLogs}

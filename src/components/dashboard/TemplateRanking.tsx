@@ -23,6 +23,7 @@ export default function TemplateRanking({ data }: TemplateRankingProps) {
     }
 
     return (
+        <div className="overflow-x-auto">
         <Table>
             <TableHeader>
                 <TableRow>
@@ -71,5 +72,6 @@ export default function TemplateRanking({ data }: TemplateRankingProps) {
                 ))}
             </TableBody>
         </Table>
+        </div>
     );
 }

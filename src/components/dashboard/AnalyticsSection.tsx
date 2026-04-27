@@ -21,12 +21,12 @@ export default function AnalyticsSection() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                     <BarChart3 className="h-5 w-5" />
                     발송 분석
                 </h2>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <div className="flex gap-1">
                         {(["7d", "30d", "90d"] as const).map((p) => (
                             <Button
@@ -52,13 +52,13 @@ export default function AnalyticsSection() {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 <Card>
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
+                    <CardContent className="p-3 md:p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                                 <p className="text-xs text-muted-foreground">알림톡</p>
-                                <p className="text-2xl font-bold text-green-600">
+                                <p className="text-xl md:text-2xl font-bold text-green-600 truncate">
                                     {isLoading ? "-" : summary.alimtalk.total.toLocaleString()}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
@@ -67,16 +67,16 @@ export default function AnalyticsSection() {
                                         ` · ${Math.round((summary.alimtalk.sent / summary.alimtalk.total) * 100)}%`}
                                 </p>
                             </div>
-                            <MessageSquare className="h-8 w-8 text-green-600 opacity-20" />
+                            <MessageSquare className="h-6 w-6 md:h-8 md:w-8 text-green-600 opacity-20 shrink-0" />
                         </div>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
+                    <CardContent className="p-3 md:p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                                 <p className="text-xs text-muted-foreground">이메일</p>
-                                <p className="text-2xl font-bold text-blue-600">
+                                <p className="text-xl md:text-2xl font-bold text-blue-600 truncate">
                                     {isLoading ? "-" : summary.email.total.toLocaleString()}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
@@ -85,27 +85,27 @@ export default function AnalyticsSection() {
                                         ` · ${Math.round((summary.email.sent / summary.email.total) * 100)}%`}
                                 </p>
                             </div>
-                            <Mail className="h-8 w-8 text-blue-600 opacity-20" />
+                            <Mail className="h-6 w-6 md:h-8 md:w-8 text-blue-600 opacity-20 shrink-0" />
                         </div>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
+                    <CardContent className="p-3 md:p-4">
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                                 <p className="text-xs text-muted-foreground">신규 레코드</p>
-                                <p className="text-2xl font-bold text-purple-600">
+                                <p className="text-xl md:text-2xl font-bold text-purple-600 truncate">
                                     {isLoading ? "-" : summary.newRecordsInPeriod.toLocaleString()}
                                 </p>
                                 <p className="text-xs text-muted-foreground">선택 기간 내</p>
                             </div>
-                            <TrendingUp className="h-8 w-8 text-purple-600 opacity-20" />
+                            <TrendingUp className="h-6 w-6 md:h-8 md:w-8 text-purple-600 opacity-20 shrink-0" />
                         </div>
                     </CardContent>
                 </Card>
             </div>
 
-            <Card>
+            <Card className="min-w-0">
                 <CardHeader>
                     <CardTitle className="text-base">일별 발송 추이</CardTitle>
                 </CardHeader>
@@ -120,15 +120,17 @@ export default function AnalyticsSection() {
                 </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
                 <CardHeader>
                     <CardTitle className="text-base">발송 규칙별 성과 (Top 10)</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="px-0 md:px-6">
                     {isLoading ? (
                         <p className="text-sm text-muted-foreground text-center py-6">로딩 중...</p>
                     ) : (
-                        <TemplateRanking data={templates} />
+                        <div className="px-6 md:px-0">
+                            <TemplateRanking data={templates} />
+                        </div>
                     )}
                 </CardContent>
             </Card>
