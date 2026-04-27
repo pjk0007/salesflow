@@ -3,6 +3,29 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
+import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
+import type { ReactNode } from "react";
+
+/** breadcrumb 컨텍스트 안에서만 동작 (WorkspaceLayout 자식). */
+function MobileBreadcrumbBridge({
+    partitionNav,
+    subtitle,
+    closeOnChange,
+}: {
+    partitionNav: ReactNode;
+    subtitle: string | null;
+    closeOnChange: number | null;
+}) {
+    const { setMobileSheetOpen } = useBreadcrumbOverrides();
+    useMobileSheet(partitionNav);
+    useMobileSubtitle(subtitle);
+    // 파티션이 바뀌면 시트 자동 닫기
+    useEffect(() => {
+        if (closeOnChange != null) setMobileSheetOpen(false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [closeOnChange]);
+    return null;
+}
 import RecordToolbar from "@/components/records/RecordToolbar";
 import RecordTable from "@/components/records/RecordTable";
 import GroupedRecordView from "@/components/records/GroupedRecordView";
@@ -329,6 +352,7 @@ export default function RecordsPage() {
           ].find((p) => p.id === partitionId)
         : null;
 
+
     // 컬럼 표시/숨기기 토글
     const handleToggleColumn = useCallback(async (fieldKey: string, visible: boolean) => {
         if (!partitionId || !currentPartition) return;
@@ -387,27 +411,68 @@ export default function RecordsPage() {
         }
     }, [exportCsv, search, filters, sortField, sortOrder, currentPartition]);
 
+    const mobilePartitionNav = useMemo(
+        () => (
+            <PartitionNav
+                workspaceId={workspaceId}
+                selectedPartitionId={partitionId}
+                partitionTree={partitionTree}
+                isLoading={ptLoading}
+                onWorkspaceChange={handleWorkspaceChange}
+                onPartitionSelect={handlePartitionSelect}
+                onCreatePartition={() => setCreatePartitionOpen(true)}
+                onCreateFolder={() => setCreateFolderOpen(true)}
+                onRenamePartition={(id, name) => setRenameTarget({ type: "partition", id, name })}
+                onRenameFolder={(id, name) => setRenameTarget({ type: "folder", id, name })}
+                onDeletePartition={(id, name) => setDeletePartitionTarget({ id, name })}
+                onDeleteFolder={handleDeleteFolder}
+                onMovePartition={handleMovePartition}
+                onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
+                onMutatePartitions={mutatePartitions}
+                className="w-full border-r-0 bg-transparent"
+            />
+        ),
+        [
+            workspaceId,
+            partitionId,
+            partitionTree,
+            ptLoading,
+            handleWorkspaceChange,
+            handlePartitionSelect,
+            handleDeleteFolder,
+            handleMovePartition,
+            mutatePartitions,
+        ],
+    );
+
     return (
         <WorkspaceLayout>
+            <MobileBreadcrumbBridge
+                partitionNav={mobilePartitionNav}
+                subtitle={currentPartition?.name ?? null}
+                closeOnChange={partitionId}
+            />
             <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
-                {/* 좌측: 파티션 네비게이션 */}
-                <PartitionNav
-                    workspaceId={workspaceId}
-                    selectedPartitionId={partitionId}
-                    partitionTree={partitionTree}
-                    isLoading={ptLoading}
-                    onWorkspaceChange={handleWorkspaceChange}
-                    onPartitionSelect={handlePartitionSelect}
-                    onCreatePartition={() => setCreatePartitionOpen(true)}
-                    onCreateFolder={() => setCreateFolderOpen(true)}
-                    onRenamePartition={(id, name) => setRenameTarget({ type: "partition", id, name })}
-                    onRenameFolder={(id, name) => setRenameTarget({ type: "folder", id, name })}
-                    onDeletePartition={(id, name) => setDeletePartitionTarget({ id, name })}
-                    onDeleteFolder={handleDeleteFolder}
-                    onMovePartition={handleMovePartition}
-                    onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
-                    onMutatePartitions={mutatePartitions}
-                />
+                {/* 좌측: 파티션 네비게이션 (데스크톱 전용) */}
+                <div className="hidden md:flex">
+                    <PartitionNav
+                        workspaceId={workspaceId}
+                        selectedPartitionId={partitionId}
+                        partitionTree={partitionTree}
+                        isLoading={ptLoading}
+                        onWorkspaceChange={handleWorkspaceChange}
+                        onPartitionSelect={handlePartitionSelect}
+                        onCreatePartition={() => setCreatePartitionOpen(true)}
+                        onCreateFolder={() => setCreateFolderOpen(true)}
+                        onRenamePartition={(id, name) => setRenameTarget({ type: "partition", id, name })}
+                        onRenameFolder={(id, name) => setRenameTarget({ type: "folder", id, name })}
+                        onDeletePartition={(id, name) => setDeletePartitionTarget({ id, name })}
+                        onDeleteFolder={handleDeleteFolder}
+                        onMovePartition={handleMovePartition}
+                        onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
+                        onMutatePartitions={mutatePartitions}
+                    />
+                </div>
 
                 {/* 우측: 레코드 영역 */}
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">

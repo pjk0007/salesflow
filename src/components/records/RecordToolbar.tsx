@@ -75,9 +75,9 @@ export default function RecordToolbar({
     }, [searchInput, onSearch]);
 
     return (
-        <div className="flex items-center gap-2 p-3 border-b">
+        <div className="flex flex-wrap items-center gap-2 p-3 border-b">
             {/* 검색 */}
-            <div className="relative flex-1 max-w-sm">
+            <div className="relative flex-1 min-w-40 max-w-sm">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                     placeholder="검색..."
@@ -148,7 +148,8 @@ export default function RecordToolbar({
                 </Select>
             )}
 
-            <div className="flex-1" />
+            {/* 모바일: 줄바꿈 / 데스크톱: 좌우 분리용 spacer */}
+            <div className="basis-full md:basis-auto md:flex-1" />
 
             {/* 내보내기/가져오기 */}
             {onExportClick && (

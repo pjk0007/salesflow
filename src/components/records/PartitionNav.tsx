@@ -48,6 +48,8 @@ interface PartitionNavProps {
     onMovePartition?: (partitionId: number, folderId: number | null) => void;
     onMutatePartitions?: () => void;
     onDistributionSettings?: (id: number, name: string) => void;
+    /** 외부에서 root에 클래스 덮어쓰기 (모바일 사이드바 통합용) */
+    className?: string;
 }
 
 export default function PartitionNav({
@@ -66,6 +68,7 @@ export default function PartitionNav({
     onMovePartition,
     onDistributionSettings,
     onMutatePartitions,
+    className,
 }: PartitionNavProps) {
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
     const { fieldTypes: types } = useFieldTypes();
@@ -105,7 +108,7 @@ export default function PartitionNav({
     };
 
     return (
-        <div className="w-60 border-r bg-muted/30 flex flex-col">
+        <div className={cn("w-60 border-r bg-muted/30 flex flex-col", className)}>
             {/* 워크스페이스 선택 */}
             <div className="p-3 border-b">
                 {wsLoading ? (
