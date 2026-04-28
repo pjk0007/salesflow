@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, Copy } from "lucide-react";
 import { toast } from "sonner";
 
 export default function AlimtalkConfigForm() {
@@ -103,9 +103,22 @@ export default function AlimtalkConfigForm() {
                 {config?.defaultSenderKey && (
                     <div className="space-y-2">
                         <Label>기본 발신프로필</Label>
-                        <p className="text-sm text-muted-foreground">
-                            {config.defaultSenderKey}
-                        </p>
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                try {
+                                    await navigator.clipboard.writeText(config.defaultSenderKey!);
+                                    toast.success("발신프로필 키가 복사되었습니다.");
+                                } catch {
+                                    toast.error("복사에 실패했습니다.");
+                                }
+                            }}
+                            className="flex w-full items-center gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+                            title={config.defaultSenderKey}
+                        >
+                            <span className="truncate flex-1 text-left font-mono">{config.defaultSenderKey}</span>
+                            <Copy className="h-4 w-4 shrink-0" />
+                        </button>
                     </div>
                 )}
 

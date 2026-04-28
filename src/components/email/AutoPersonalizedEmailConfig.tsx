@@ -101,14 +101,14 @@ export default function AutoPersonalizedEmailConfig({
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
-                    <CardTitle>AI 개인화 이메일 자동 발송</CardTitle>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle className="whitespace-nowrap">AI 개인화 이메일 자동 발송</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
                         <Select
                             value={String(selectedPartitionId)}
                             onValueChange={(v) => setSelectedPartitionId(v === "all" ? "all" : Number(v))}
                         >
-                            <SelectTrigger className="w-[180px]">
+                            <SelectTrigger className="w-full sm:w-45">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -120,7 +120,7 @@ export default function AutoPersonalizedEmailConfig({
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Button size="sm" onClick={handleCreate}>
+                        <Button size="sm" onClick={handleCreate} className="shrink-0">
                             <Plus className="h-4 w-4 mr-1" />
                             규칙 추가
                         </Button>
@@ -141,10 +141,10 @@ export default function AutoPersonalizedEmailConfig({
                         {links.map((link) => (
                             <div
                                 key={link.id}
-                                className="border rounded-lg p-4 flex items-start justify-between gap-4"
+                                className="border rounded-lg p-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
                             >
-                                <div className="flex-1 space-y-1">
-                                    <div className="flex items-center gap-2">
+                                <div className="flex-1 space-y-1 min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
                                         <Badge variant={link.isActive === 1 ? "default" : "secondary"}>
                                             {link.productName || "제품 미지정"}
                                         </Badge>
@@ -174,7 +174,7 @@ export default function AutoPersonalizedEmailConfig({
                                         {link.tone && ` | 톤: ${TONE_OPTIONS.find((t) => t.value === link.tone)?.label || link.tone}`}
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2 shrink-0">
                                     <Switch
                                         checked={link.isActive === 1}
                                         onCheckedChange={() => handleToggleActive(link)}

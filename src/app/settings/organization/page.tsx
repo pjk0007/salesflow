@@ -44,35 +44,32 @@ function OrganizationSettingsContent() {
     return (
         <WorkspaceLayout>
             <PageContainer>
-                <PageHeader
-                    title="조직 설정"
-                    description="조직 정보와 팀을 관리합니다."
-                />
+                <PageHeader title="조직 설정" description="조직 정보와 팀을 관리합니다." />
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
-                    <TabsList variant="line" className="w-full justify-start [&>button]:flex-none">
-                        <TabsTrigger value="general">
-                            <Building2 className="mr-2 h-4 w-4" />
-                            일반
-                        </TabsTrigger>
-                        <TabsTrigger value="team">
-                            <Users className="mr-2 h-4 w-4" />
-                            팀멤버
-                        </TabsTrigger>
-                        <TabsTrigger value="ai">
-                            <Bot className="mr-2 h-4 w-4" />
-                            AI
-                        </TabsTrigger>
-                        <TabsTrigger value="api-tokens">
-                            <Key className="mr-2 h-4 w-4" />
-                            API 토큰
-                        </TabsTrigger>
-                        <TabsTrigger value="ad-integration">
-                            <Megaphone className="mr-2 h-4 w-4" />
-                            광고 연동
-                        </TabsTrigger>
-                    </TabsList>
+                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
+                        <TabsList variant="line" className="w-full justify-start [&>button]:flex-none">
+                            <TabsTrigger value="general">
+                                <Building2 className="mr-2 h-4 w-4" />
+                                일반
+                            </TabsTrigger>
+                            <TabsTrigger value="team">
+                                <Users className="mr-2 h-4 w-4" />
+                                팀멤버
+                            </TabsTrigger>
+                            <TabsTrigger value="ai">
+                                <Bot className="mr-2 h-4 w-4" />
+                                AI
+                            </TabsTrigger>
+                            <TabsTrigger value="api-tokens">
+                                <Key className="mr-2 h-4 w-4" />
+                                API 토큰
+                            </TabsTrigger>
+                            <TabsTrigger value="ad-integration">
+                                <Megaphone className="mr-2 h-4 w-4" />
+                                광고 연동
+                            </TabsTrigger>
+                        </TabsList>
                     </div>
 
                     <TabsContent value="general" className="mt-6">

@@ -147,9 +147,9 @@ export default function TemplateList() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <h3 className="text-lg font-medium">템플릿 목록</h3>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <Button onClick={() => {
                         const params = isAll ? "" : `?senderKey=${encodeURIComponent(selectedSenderKey)}`;
                         router.push(`/alimtalk/templates/new${params}`);
@@ -160,7 +160,7 @@ export default function TemplateList() {
                         value={selectedSenderKey}
                         onValueChange={setSelectedSenderKey}
                     >
-                        <SelectTrigger className="w-[280px]">
+                        <SelectTrigger className="w-full sm:w-70">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -183,17 +183,26 @@ export default function TemplateList() {
                         {drafts.map((draft) => {
                             const sender = senders.find(s => s.senderKey === draft.senderKey);
                             return (
-                                <div key={draft.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                                    <div className="flex items-center gap-3">
-                                        <FileEdit className="h-4 w-4 text-muted-foreground" />
-                                        <div>
-                                            <p className="text-sm font-medium">{draft.templateName}</p>
-                                            <p className="text-xs text-muted-foreground">
+                                <div key={draft.id} className="flex flex-col gap-3 p-3 border rounded-lg bg-muted/30 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-start gap-3 min-w-0">
+                                        <FileEdit className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-sm font-medium truncate">{draft.templateName}</p>
+                                            <p className="text-xs text-muted-foreground wrap-break-word">
                                                 {draft.templateCode} · {sender?.plusFriendId || draft.senderKey.slice(0, 8)} · {new Date(draft.updatedAt).toLocaleString("ko-KR")}
                                             </p>
                                         </div>
+                                        {/* 모바일에선 우측 상단 고정, 데스크톱에선 액션 그룹에 합류 */}
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 shrink-0 md:hidden"
+                                            onClick={() => handleDeleteDraft(draft.id)}
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </Button>
                                     </div>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex flex-wrap items-center gap-1 shrink-0">
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -222,7 +231,7 @@ export default function TemplateList() {
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            className="h-8 w-8"
+                                            className="h-8 w-8 hidden md:inline-flex"
                                             onClick={() => handleDeleteDraft(draft.id)}
                                         >
                                             <X className="h-4 w-4" />
@@ -247,7 +256,7 @@ export default function TemplateList() {
                     <p className="text-sm">NHN Cloud 콘솔에서 템플릿을 등록해주세요.</p>
                 </div>
             ) : (
-                <div className="border rounded-lg">
+                <div className="border rounded-lg overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>

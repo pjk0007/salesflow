@@ -59,9 +59,9 @@ export default function EmailTemplateList() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <h3 className="text-lg font-medium">이메일 템플릿</h3>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
+                    <h3 className="text-lg font-medium whitespace-nowrap">이메일 템플릿</h3>
                     {categories.length > 0 && (
                         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                             <SelectTrigger className="w-40 h-8 text-sm">
@@ -79,7 +79,7 @@ export default function EmailTemplateList() {
                         </Select>
                     )}
                 </div>
-                <Button onClick={() => router.push("/email/templates/new")}>
+                <Button onClick={() => router.push("/email/templates/new")} className="shrink-0">
                     <Plus className="h-4 w-4 mr-2" />
                     새 템플릿
                 </Button>
@@ -90,6 +90,7 @@ export default function EmailTemplateList() {
                     등록된 템플릿이 없습니다.
                 </div>
             ) : (
+                <div className="overflow-x-auto">
                 <Table>
                     <TableHeader>
                         <TableRow>
@@ -148,6 +149,7 @@ export default function EmailTemplateList() {
                         ))}
                     </TableBody>
                 </Table>
+                </div>
             )}
 
             {testSendTemplate && (

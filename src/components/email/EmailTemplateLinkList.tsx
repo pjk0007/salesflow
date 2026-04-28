@@ -85,14 +85,14 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
-                    <CardTitle>템플릿 자동발송</CardTitle>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <CardTitle className="whitespace-nowrap">템플릿 자동발송</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
                         <Select
                             value={String(selectedPartitionId)}
                             onValueChange={(v) => setSelectedPartitionId(v === "all" ? "all" : Number(v))}
                         >
-                            <SelectTrigger className="w-[180px]">
+                            <SelectTrigger className="w-full sm:w-45">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -104,7 +104,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                 ))}
                             </SelectContent>
                         </Select>
-                        <Button size="sm" onClick={handleCreate}>
+                        <Button size="sm" onClick={handleCreate} className="shrink-0">
                             <Plus className="h-4 w-4 mr-1" />
                             규칙 추가
                         </Button>

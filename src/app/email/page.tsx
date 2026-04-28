@@ -99,7 +99,8 @@ function EmailPageContent() {
                     </div>
                 ) : (
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                        <TabsList>
+                        <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
+                        <TabsList className="[&>button]:flex-none">
                             <TabsTrigger value="dashboard">대시보드</TabsTrigger>
                             <TabsTrigger value="templates">템플릿</TabsTrigger>
                             <TabsTrigger value="links">템플릿 자동발송</TabsTrigger>
@@ -107,6 +108,7 @@ function EmailPageContent() {
                             <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
                             <TabsTrigger value="logs">발송 이력</TabsTrigger>
                         </TabsList>
+                        </div>
 
                         <TabsContent value="dashboard" className="mt-6">
                             <EmailDashboard onTabChange={setActiveTab} />

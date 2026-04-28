@@ -63,7 +63,8 @@ function AlimtalkPageContent() {
                 />
 
                 <Tabs value={activeTab} onValueChange={handleTabChange}>
-                    <TabsList>
+                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 sm:overflow-visible">
+                    <TabsList className="[&>button]:flex-none">
                         <TabsTrigger value="dashboard">대시보드</TabsTrigger>
                         <TabsTrigger value="senders">발신프로필</TabsTrigger>
                         <TabsTrigger value="templates">템플릿</TabsTrigger>
@@ -71,6 +72,7 @@ function AlimtalkPageContent() {
                         <TabsTrigger value="logs">발송 이력</TabsTrigger>
                         <TabsTrigger value="settings">설정</TabsTrigger>
                     </TabsList>
+                    </div>
 
                     <TabsContent value="dashboard" className="mt-6">
                         <AlimtalkDashboard onTabChange={handleTabChange} />

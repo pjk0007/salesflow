@@ -215,20 +215,20 @@ export default function EmailSendLogTable() {
     return (
         <div className="space-y-4">
             {/* 헤더 */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-lg font-medium">
                     발송 이력
                     <span className="text-sm font-normal text-muted-foreground ml-2">{totalCount.toLocaleString()}건</span>
                 </h3>
-                <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+                <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing} className="shrink-0">
                     {syncing ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
                     동기화
                 </Button>
             </div>
 
             {/* 검색 + 발송 규칙 */}
-            <div className="flex gap-2 items-center">
-                <div className="relative flex-1 max-w-sm">
+            <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <div className="relative flex-1 sm:max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder="수신자 이메일 또는 제목 검색..."
@@ -239,7 +239,7 @@ export default function EmailSendLogTable() {
                 </div>
                 {(templateLinks.length > 0 || aiRules.length > 0) && (
                     <Select value={ruleFilter || "__all__"} onValueChange={(v) => { setRuleFilter(v === "__all__" ? "" : v); setPage(1); }}>
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full sm:w-45">
                             <SelectValue placeholder="발송 규칙" />
                         </SelectTrigger>
                         <SelectContent>
@@ -392,6 +392,7 @@ export default function EmailSendLogTable() {
                 </div>
             ) : (
                 <>
+                    <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -458,6 +459,7 @@ export default function EmailSendLogTable() {
                             })}
                         </TableBody>
                     </Table>
+                    </div>
 
                     {totalPages > 1 && (
                         <div className="flex items-center justify-center gap-2 pt-2">
