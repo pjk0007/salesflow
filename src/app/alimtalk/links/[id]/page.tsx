@@ -15,7 +15,6 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
@@ -24,6 +23,7 @@ import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
+import FollowupStepsForm, { type FollowupStepUI } from "@/components/alimtalk/FollowupStepsForm";
 import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
 import useSWR from "swr";
 
@@ -64,15 +64,7 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
     const [isActive, setIsActive] = useState(1);
 
     const [useFollowup, setUseFollowup] = useState(false);
-    const [followupDelayValue, setFollowupDelayValue] = useState(3);
-    const [followupDelayUnit, setFollowupDelayUnit] = useState<"hours" | "days">("days");
-    const [followupSenderKey, setFollowupSenderKey] = useState("");
-    const { templates: followupTemplates } = useAlimtalkTemplates(followupSenderKey || senderKey || null);
-    const [followupTemplateCode, setFollowupTemplateCode] = useState("");
-    const [followupVariableMappings, setFollowupVariableMappings] = useState<Record<string, string>>({});
-
-    const selectedFollowupTemplate = followupTemplates.find((t) => t.templateCode === followupTemplateCode);
-    const followupTemplateVariables = extractAllTemplateVariables(selectedFollowupTemplate ?? null);
+    const [followupSteps, setFollowupSteps] = useState<FollowupStepUI[]>([]);
 
     // 기존 데이터 로드
     useEffect(() => {
@@ -92,28 +84,30 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                 setUseRepeat(true);
                 setRepeatConfig(link.repeatConfig);
             }
-            const fc = link.followupConfig as {
+            type FollowupStepRaw = {
                 delayDays?: number;
                 delayHours?: number;
                 delayMinutes?: number;
                 templateCode: string;
                 variableMappings?: Record<string, string>;
-            } | null;
-            if (fc) {
+            };
+            const fc = link.followupConfig as FollowupStepRaw | FollowupStepRaw[] | null;
+            const rawSteps: FollowupStepRaw[] = !fc
+                ? []
+                : Array.isArray(fc)
+                  ? fc
+                  : [fc];
+            if (rawSteps.length > 0) {
                 setUseFollowup(true);
-                if (fc.delayHours != null) {
-                    setFollowupDelayUnit("hours");
-                    setFollowupDelayValue(fc.delayHours);
-                } else if (fc.delayMinutes != null) {
-                    // 분 단위 데이터는 시간으로 환산 (최소 1시간)
-                    setFollowupDelayUnit("hours");
-                    setFollowupDelayValue(Math.max(1, Math.round(fc.delayMinutes / 60)));
-                } else {
-                    setFollowupDelayUnit("days");
-                    setFollowupDelayValue(fc.delayDays ?? 1);
-                }
-                setFollowupTemplateCode(fc.templateCode);
-                if (fc.variableMappings) setFollowupVariableMappings(fc.variableMappings);
+                setFollowupSteps(rawSteps.map((s): FollowupStepUI => {
+                    if (s.delayHours != null) {
+                        return { delayValue: s.delayHours, delayUnit: "hours", senderKey: "", templateCode: s.templateCode, variableMappings: s.variableMappings ?? {} };
+                    }
+                    if (s.delayMinutes != null) {
+                        return { delayValue: Math.max(1, Math.round(s.delayMinutes / 60)), delayUnit: "hours", senderKey: "", templateCode: s.templateCode, variableMappings: s.variableMappings ?? {} };
+                    }
+                    return { delayValue: s.delayDays ?? 1, delayUnit: "days", senderKey: "", templateCode: s.templateCode, variableMappings: s.variableMappings ?? {} };
+                }));
             }
             setLoaded(true);
         }
@@ -143,13 +137,17 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
     const handleSave = async () => {
         setSaving(true);
         try {
-            const followupConfig = useFollowup && followupTemplateCode ? {
-                ...(followupDelayUnit === "hours" && { delayHours: followupDelayValue }),
-                ...(followupDelayUnit === "days" && { delayDays: followupDelayValue }),
-                templateCode: followupTemplateCode,
-                templateName: followupTemplates.find((t) => t.templateCode === followupTemplateCode)?.templateName,
-                ...(Object.keys(followupVariableMappings).length > 0 && { variableMappings: followupVariableMappings }),
-            } : null;
+            const validSteps = useFollowup
+                ? followupSteps.filter((s) => s.templateCode)
+                : [];
+            const followupConfig = validSteps.length > 0
+                ? validSteps.map((s) => ({
+                    ...(s.delayUnit === "hours" && { delayHours: s.delayValue }),
+                    ...(s.delayUnit === "days" && { delayDays: s.delayValue }),
+                    templateCode: s.templateCode,
+                    ...(Object.keys(s.variableMappings).length > 0 && { variableMappings: s.variableMappings }),
+                }))
+                : null;
 
             const result = await updateLink(linkId, {
                 name,
@@ -306,76 +304,28 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                                 ) : (
                                     <div className="space-y-4">
                                         <div className="flex items-center gap-2">
-                                            <Switch checked={useFollowup} onCheckedChange={(v) => { setUseFollowup(v); if (v) setUseRepeat(false); }} />
+                                            <Switch
+                                                checked={useFollowup}
+                                                onCheckedChange={(v) => {
+                                                    setUseFollowup(v);
+                                                    if (v) {
+                                                        setUseRepeat(false);
+                                                        if (followupSteps.length === 0) {
+                                                            setFollowupSteps([{ delayValue: 3, delayUnit: "hours", senderKey: "", templateCode: "", variableMappings: {} }]);
+                                                        }
+                                                    }
+                                                }}
+                                            />
                                             <Label>후속 발송 사용</Label>
                                         </div>
                                         {useFollowup && (
-                                            <>
-                                                <div className="space-y-2">
-                                                    <Label>대기 기간</Label>
-                                                    <div className="flex items-center gap-2">
-                                                        <Input
-                                                            type="number"
-                                                            min={1}
-                                                            max={followupDelayUnit === "hours" ? 720 : 30}
-                                                            value={followupDelayValue}
-                                                            onChange={(e) => setFollowupDelayValue(Number(e.target.value))}
-                                                            className="w-24"
-                                                        />
-                                                        <ToggleGroup
-                                                            type="single"
-                                                            value={followupDelayUnit}
-                                                            onValueChange={(v) => v && setFollowupDelayUnit(v as "hours" | "days")}
-                                                            variant="outline"
-                                                            size="sm"
-                                                        >
-                                                            <ToggleGroupItem value="hours" className="px-4">시간</ToggleGroupItem>
-                                                            <ToggleGroupItem value="days" className="px-4">일</ToggleGroupItem>
-                                                        </ToggleGroup>
-                                                    </div>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        발송 후 {followupDelayValue}{followupDelayUnit === "hours" ? "시간" : "일"} 뒤 후속 발송됩니다
-                                                    </p>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>발신 프로필 (후속)</Label>
-                                                    <Select value={followupSenderKey || senderKey} onValueChange={setFollowupSenderKey}>
-                                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {senders.map((s) => (<SelectItem key={s.senderKey} value={s.senderKey}>{s.plusFriendId || s.senderKey}</SelectItem>))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label>후속 알림톡 템플릿</Label>
-                                                    <Select value={followupTemplateCode} onValueChange={(v) => { setFollowupTemplateCode(v); setFollowupVariableMappings({}); }}>
-                                                        <SelectTrigger><SelectValue placeholder="템플릿 선택" /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {followupTemplates.map((t) => (<SelectItem key={t.templateCode} value={t.templateCode}>{t.templateName || t.templateCode}</SelectItem>))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                </div>
-                                                {followupTemplateVariables.length > 0 && (
-                                                    <div className="space-y-2">
-                                                        <Label>후속 템플릿 변수 매핑</Label>
-                                                        {followupTemplateVariables.map((v) => (
-                                                            <div key={v} className="flex items-center gap-2">
-                                                                <span className="text-sm font-mono w-[140px] shrink-0">{v}</span>
-                                                                <span className="text-muted-foreground">&rarr;</span>
-                                                                <Select
-                                                                    value={followupVariableMappings[v] || ""}
-                                                                    onValueChange={(val) => setFollowupVariableMappings((prev) => ({ ...prev, [v]: val }))}
-                                                                >
-                                                                    <SelectTrigger className="flex-1"><SelectValue placeholder="필드 선택" /></SelectTrigger>
-                                                                    <SelectContent>
-                                                                        {fields.map((f) => (<SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>))}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </>
+                                            <FollowupStepsForm
+                                                senderKey={senderKey}
+                                                senders={senders}
+                                                fields={fields}
+                                                steps={followupSteps}
+                                                onChange={setFollowupSteps}
+                                            />
                                         )}
                                     </div>
                                 )}
@@ -400,7 +350,7 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">후속 발송</span>
-                                        {useFollowup && followupTemplateCode ? <Badge>{followupDelayValue}{followupDelayUnit === "hours" ? "시간" : "일"} 후</Badge> : <Badge variant="outline">OFF</Badge>}
+                                        {useFollowup && followupSteps.some((s) => s.templateCode) ? <Badge>{followupSteps.filter((s) => s.templateCode).length}단계</Badge> : <Badge variant="outline">OFF</Badge>}
                                     </div>
                                 </CardContent>
                             </Card>

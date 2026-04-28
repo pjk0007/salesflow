@@ -288,6 +288,13 @@
       "when": 1770950300000,
       "tag": "0040_ai_auto_rule_name",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1770950400000,
+      "tag": "0041_alimtalk_followup_multistep",
+      "breakpoints": true
     }
   ]
 }

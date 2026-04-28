@@ -30,15 +30,25 @@ const TRIGGER_LABELS: Record<string, string> = {
     on_update: "수정 시",
 };
 
-function formatFollowupDelay(cfg: {
+interface FollowupStepCfg {
     delayDays?: number;
     delayHours?: number;
     delayMinutes?: number;
-}): string {
-    if (cfg.delayMinutes != null) return `${cfg.delayMinutes}분 후`;
-    if (cfg.delayHours != null) return `${cfg.delayHours}시간 후`;
-    if (cfg.delayDays != null) return `${cfg.delayDays}일 후`;
-    return "—";
+}
+
+function formatStepDelay(s: FollowupStepCfg): string {
+    if (s.delayMinutes != null) return `${s.delayMinutes}분`;
+    if (s.delayHours != null) return `${s.delayHours}시간`;
+    if (s.delayDays != null) return `${s.delayDays}일`;
+    return "?";
+}
+
+function formatFollowupDelay(cfg: FollowupStepCfg | FollowupStepCfg[] | null): string {
+    if (!cfg) return "—";
+    const steps = Array.isArray(cfg) ? cfg : [cfg];
+    if (steps.length === 0) return "—";
+    if (steps.length <= 3) return steps.map(formatStepDelay).join(" → ");
+    return steps.slice(0, 3).map(formatStepDelay).join(" → ") + ` +${steps.length - 3}`;
 }
 
 export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplateLinkListProps) {
@@ -141,11 +151,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
                                 <TableCell>
                                     {link.followupConfig ? (
                                         <Badge variant="secondary">
-                                            {formatFollowupDelay(link.followupConfig as {
-                                                delayDays?: number;
-                                                delayHours?: number;
-                                                delayMinutes?: number;
-                                            })}
+                                            {formatFollowupDelay(link.followupConfig as FollowupStepCfg | FollowupStepCfg[])}
                                         </Badge>
                                     ) : (
                                         <span className="text-muted-foreground text-xs">—</span>

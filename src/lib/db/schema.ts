@@ -397,14 +397,25 @@ export const alimtalkTemplateLinks = pgTable("alimtalk_template_links", {
     } | null>(),
     recipientField: varchar("recipient_field", { length: 100 }).notNull(),
     variableMappings: jsonb("variable_mappings").$type<Record<string, string>>(),
-    followupConfig: jsonb("followup_config").$type<{
-        delayDays?: number;
-        delayHours?: number;
-        delayMinutes?: number;
-        templateCode: string;
-        templateName?: string;
-        variableMappings?: Record<string, string>;
-    } | null>(),
+    followupConfig: jsonb("followup_config").$type<
+        | Array<{
+              delayDays?: number;
+              delayHours?: number;
+              delayMinutes?: number;
+              templateCode: string;
+              templateName?: string;
+              variableMappings?: Record<string, string>;
+          }>
+        | {
+              delayDays?: number;
+              delayHours?: number;
+              delayMinutes?: number;
+              templateCode: string;
+              templateName?: string;
+              variableMappings?: Record<string, string>;
+          }
+        | null
+    >(),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),
@@ -415,20 +426,32 @@ export const alimtalkTemplateLinks = pgTable("alimtalk_template_links", {
 // ============================================
 // 알림톡 후속발송 큐
 // ============================================
-export const alimtalkFollowupQueue = pgTable("alimtalk_followup_queue", {
-    id: serial("id").primaryKey(),
-    parentLogId: integer("parent_log_id")
-        .references(() => alimtalkSendLogs.id, { onDelete: "cascade" })
-        .notNull(),
-    templateLinkId: integer("template_link_id")
-        .references(() => alimtalkTemplateLinks.id, { onDelete: "cascade" })
-        .notNull(),
-    orgId: uuid("org_id").notNull(),
-    sendAt: timestamptz("send_at").notNull(),
-    status: varchar("status", { length: 20 }).default("pending").notNull(),
-    processedAt: timestamptz("processed_at"),
-    createdAt: timestamptz("created_at").defaultNow().notNull(),
-});
+export const alimtalkFollowupQueue = pgTable(
+    "alimtalk_followup_queue",
+    {
+        id: serial("id").primaryKey(),
+        parentLogId: integer("parent_log_id")
+            .references(() => alimtalkSendLogs.id, { onDelete: "cascade" })
+            .notNull(),
+        templateLinkId: integer("template_link_id")
+            .references(() => alimtalkTemplateLinks.id, { onDelete: "cascade" })
+            .notNull(),
+        orgId: uuid("org_id").notNull(),
+        sendAt: timestamptz("send_at").notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(),
+        // 후속발송 단계 인덱스 (0부터)
+        stepIndex: integer("step_index").default(0).notNull(),
+        processedAt: timestamptz("processed_at"),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        // 같은 parent_log + step 조합 중복 방지 (체인 등록 멱등성)
+        parentLogStepIdx: uniqueIndex("alfq_parent_log_step_idx").on(
+            table.parentLogId,
+            table.stepIndex
+        ),
+    })
+);
 
 // ============================================
 // 알림톡 템플릿 임시저장
@@ -471,6 +494,8 @@ export const alimtalkSendLogs = pgTable("alimtalk_send_logs", {
     resultMessage: text("result_message"),
     content: text("content"),
     triggerType: varchar("trigger_type", { length: 30 }),
+    // 후속발송 단계: auto/repeat=0, followup step N = N+1 (1번째 후속이 1)
+    stepIndex: integer("step_index").default(0).notNull(),
     sentBy: uuid("sent_by").references(() => users.id),
     sentAt: timestamptz("sent_at").defaultNow().notNull(),
     completedAt: timestamptz("completed_at"),

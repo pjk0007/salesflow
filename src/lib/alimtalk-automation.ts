@@ -41,6 +41,52 @@ async function closeQueueItem(id: number, status: "sent" | "failed") {
 }
 
 // ============================================
+// 후속발송 다단계 (multistep) 헬퍼
+// ============================================
+
+interface FollowupStep {
+    delayDays?: number;
+    delayHours?: number;
+    delayMinutes?: number;
+    templateCode: string;
+    templateName?: string;
+    variableMappings?: Record<string, string>;
+}
+
+/** followupConfig를 배열로 정규화 (단일 객체 → 1개짜리 배열) */
+function normalizeFollowupConfig(config: unknown): FollowupStep[] {
+    if (!config) return [];
+    if (Array.isArray(config)) return config as FollowupStep[];
+    return [config as FollowupStep];
+}
+
+/** 후속발송 큐에 step 등록 (UNIQUE INDEX로 같은 parent+step 중복 방지) */
+async function enqueueFollowupStep(params: {
+    parentLogId: number;
+    templateLinkId: number;
+    orgId: string;
+    baseAt: Date;
+    step: FollowupStep;
+    stepIndex: number;
+}): Promise<void> {
+    const sendAt = computeFollowupSendAt(params.baseAt, params.step);
+    await db
+        .insert(alimtalkFollowupQueue)
+        .values({
+            parentLogId: params.parentLogId,
+            templateLinkId: params.templateLinkId,
+            orgId: params.orgId,
+            sendAt,
+            stepIndex: params.stepIndex,
+            status: "pending",
+        })
+        .onConflictDoNothing();
+    console.log(
+        `[alimtalk] followup step ${params.stepIndex} enqueued for log ${params.parentLogId}, sendAt: ${sendAt.toISOString()}`
+    );
+}
+
+// ============================================
 // 조건 평가
 // ============================================
 
@@ -111,7 +157,8 @@ async function sendSingle(
     link: AlimtalkTemplateLink,
     record: DbRecord,
     orgId: string,
-    triggerType: "auto" | "repeat" | "followup"
+    triggerType: "auto" | "repeat" | "followup",
+    stepIndex: number = 0
 ): Promise<number | null> {
     const client = await getAlimtalkClient(orgId);
     if (!client) {
@@ -179,6 +226,7 @@ async function sendSingle(
         resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
         content,
         triggerType,
+        stepIndex,
         sentAt: new Date(),
     }).returning({ id: alimtalkSendLogs.id });
 
@@ -253,23 +301,19 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
         // 발송
         const logId = await sendSingle(link, record, orgId, "auto");
 
-        // 후속발송 큐 등록
-        if (logId && link.followupConfig) {
-            const config = link.followupConfig as {
-                delayDays?: number;
-                delayHours?: number;
-                delayMinutes?: number;
-                templateCode: string;
-            };
-            const sendAt = computeFollowupSendAt(new Date(), config);
-            await db.insert(alimtalkFollowupQueue).values({
-                parentLogId: logId,
-                templateLinkId: link.id,
-                orgId,
-                sendAt,
-                status: "pending",
-            });
-            console.log(`[alimtalk] followup enqueued for log ${logId}, sendAt: ${sendAt.toISOString()}`);
+        // 후속발송 큐 등록 (다단계: 첫 step만 등록, 다음 step은 발송 후 체인)
+        if (logId) {
+            const steps = normalizeFollowupConfig(link.followupConfig);
+            if (steps.length > 0) {
+                await enqueueFollowupStep({
+                    parentLogId: logId,
+                    templateLinkId: link.id,
+                    orgId,
+                    baseAt: new Date(),
+                    step: steps[0],
+                    stepIndex: 0,
+                });
+            }
         }
 
         // 반복 발송 큐 등록
@@ -450,6 +494,7 @@ export async function processAlimtalkFollowupQueue(): Promise<FollowupQueueStats
             org_id: string;
             send_at: Date;
             status: string;
+            step_index: number;
             processed_at: Date | null;
             created_at: Date;
         }>(sql`
@@ -476,6 +521,7 @@ export async function processAlimtalkFollowupQueue(): Promise<FollowupQueueStats
             orgId: row.org_id,
             sendAt: row.send_at,
             status: row.status,
+            stepIndex: row.step_index ?? 0,
             processedAt: row.processed_at,
             createdAt: row.created_at,
         }));
@@ -543,7 +589,19 @@ async function processFollowupItem(
             return;
         }
 
-        // [3] 멱등성 체크: 직전 1시간 내 같은 (record, link, followup) 발송 이력 있으면 skip
+        // [3] 다단계: 현재 step 정보 조회
+        const steps = normalizeFollowupConfig(link.followupConfig);
+        const currentStep = steps[item.stepIndex];
+        if (!currentStep) {
+            // 사용자가 step 삭제 등으로 설정이 줄어든 경우
+            await closeQueueItem(item.id, "failed");
+            stats.failed++;
+            console.log(`[alimtalk-followup] skip item ${item.id}: step ${item.stepIndex} not found in config`);
+            return;
+        }
+
+        // [4] 멱등성 체크 (step 단위): 직전 1시간 내 같은 (record, link, step) 발송 이력 있으면 skip
+        const targetStepIndex = item.stepIndex + 1; // send_logs는 1부터 (auto=0)
         const idempotencyCutoff = new Date(Date.now() - IDEMPOTENCY_WINDOW_MS);
         const [recentSent] = await db
             .select({ id: alimtalkSendLogs.id })
@@ -553,6 +611,7 @@ async function processFollowupItem(
                     eq(alimtalkSendLogs.recordId, parentLog.recordId),
                     eq(alimtalkSendLogs.templateLinkId, link.id),
                     eq(alimtalkSendLogs.triggerType, "followup"),
+                    eq(alimtalkSendLogs.stepIndex, targetStepIndex),
                     gte(alimtalkSendLogs.sentAt, idempotencyCutoff),
                     inArray(alimtalkSendLogs.status, ["sent", "pending"])
                 )
@@ -562,11 +621,11 @@ async function processFollowupItem(
         if (recentSent) {
             await closeQueueItem(item.id, "sent");
             stats.skipped++;
-            console.log(`[alimtalk-followup] skip item ${item.id}: already sent within window`);
+            console.log(`[alimtalk-followup] skip item ${item.id}: step ${item.stepIndex} already sent within window`);
             return;
         }
 
-        // [4] 레코드 조회
+        // [5] 레코드 조회
         const [record] = await db
             .select()
             .from(records)
@@ -578,25 +637,38 @@ async function processFollowupItem(
             return;
         }
 
-        // [5] 후속발송용 링크 가공
-        const config = link.followupConfig as {
-            templateCode: string;
-            templateName?: string;
-            variableMappings?: Record<string, string>;
-        };
+        // [6] 후속발송용 링크 가공 (현재 step의 templateCode/매핑 사용)
         const followupLink = {
             ...link,
-            templateCode: config.templateCode,
-            templateName: config.templateName || null,
-            variableMappings: config.variableMappings || link.variableMappings,
+            templateCode: currentStep.templateCode,
+            templateName: currentStep.templateName || null,
+            variableMappings: currentStep.variableMappings || link.variableMappings,
         };
 
-        // [6] 발송
-        const logId = await sendSingle(followupLink, record, item.orgId, "followup");
+        // [7] 발송 (send_logs.stepIndex = item.stepIndex + 1)
+        const logId = await sendSingle(followupLink, record, item.orgId, "followup", targetStepIndex);
         await closeQueueItem(item.id, logId ? "sent" : "failed");
 
-        if (logId) stats.sent++;
-        else stats.failed++;
+        if (logId) {
+            stats.sent++;
+
+            // [8] 다음 step 체인: 발송 성공 시에만 다음 step 큐 등록
+            const nextStepIndex = item.stepIndex + 1;
+            const nextStep = steps[nextStepIndex];
+            if (nextStep) {
+                await enqueueFollowupStep({
+                    parentLogId: logId, // 이번 발송 로그가 다음 후속의 부모
+                    templateLinkId: link.id,
+                    orgId: item.orgId,
+                    baseAt: new Date(),
+                    step: nextStep,
+                    stepIndex: nextStepIndex,
+                });
+            }
+        } else {
+            stats.failed++;
+            // 발송 실패 시 체인 중단
+        }
     } catch (err) {
         console.error(`[alimtalk-followup] item ${item.id} error:`, err);
         await closeQueueItem(item.id, "failed");
