@@ -254,6 +254,25 @@ export default function EditFieldDialog({
                                         ))}
                                     </SelectContent>
                                 </Select>
+                            ) : field.fieldType === "date" ? (
+                                <Input
+                                    type="date"
+                                    value={defaultValue}
+                                    onChange={(e) => setDefaultValue(e.target.value)}
+                                />
+                            ) : field.fieldType === "datetime" ? (
+                                <Input
+                                    type="datetime-local"
+                                    value={defaultValue}
+                                    onChange={(e) => setDefaultValue(e.target.value)}
+                                />
+                            ) : field.fieldType === "number" || field.fieldType === "currency" ? (
+                                <Input
+                                    type="number"
+                                    value={defaultValue}
+                                    onChange={(e) => setDefaultValue(e.target.value)}
+                                    placeholder="레코드 생성 시 자동 입력될 값 (선택사항)"
+                                />
                             ) : (
                                 <Input
                                     value={defaultValue}
