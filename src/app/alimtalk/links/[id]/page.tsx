@@ -15,6 +15,7 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
@@ -62,7 +63,8 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
     const [isActive, setIsActive] = useState(1);
 
     const [useFollowup, setUseFollowup] = useState(false);
-    const [followupDelayDays, setFollowupDelayDays] = useState(3);
+    const [followupDelayValue, setFollowupDelayValue] = useState(3);
+    const [followupDelayUnit, setFollowupDelayUnit] = useState<"hours" | "days">("days");
     const [followupSenderKey, setFollowupSenderKey] = useState("");
     const { templates: followupTemplates } = useAlimtalkTemplates(followupSenderKey || senderKey || null);
     const [followupTemplateCode, setFollowupTemplateCode] = useState("");
@@ -89,10 +91,26 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                 setUseRepeat(true);
                 setRepeatConfig(link.repeatConfig);
             }
-            const fc = link.followupConfig as { delayDays: number; templateCode: string; variableMappings?: Record<string, string> } | null;
+            const fc = link.followupConfig as {
+                delayDays?: number;
+                delayHours?: number;
+                delayMinutes?: number;
+                templateCode: string;
+                variableMappings?: Record<string, string>;
+            } | null;
             if (fc) {
                 setUseFollowup(true);
-                setFollowupDelayDays(fc.delayDays);
+                if (fc.delayHours != null) {
+                    setFollowupDelayUnit("hours");
+                    setFollowupDelayValue(fc.delayHours);
+                } else if (fc.delayMinutes != null) {
+                    // 분 단위 데이터는 시간으로 환산 (최소 1시간)
+                    setFollowupDelayUnit("hours");
+                    setFollowupDelayValue(Math.max(1, Math.round(fc.delayMinutes / 60)));
+                } else {
+                    setFollowupDelayUnit("days");
+                    setFollowupDelayValue(fc.delayDays ?? 1);
+                }
                 setFollowupTemplateCode(fc.templateCode);
                 if (fc.variableMappings) setFollowupVariableMappings(fc.variableMappings);
             }
@@ -125,7 +143,8 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
         setSaving(true);
         try {
             const followupConfig = useFollowup && followupTemplateCode ? {
-                delayDays: followupDelayDays,
+                ...(followupDelayUnit === "hours" && { delayHours: followupDelayValue }),
+                ...(followupDelayUnit === "days" && { delayDays: followupDelayValue }),
                 templateCode: followupTemplateCode,
                 templateName: followupTemplates.find((t) => t.templateCode === followupTemplateCode)?.templateName,
                 ...(Object.keys(followupVariableMappings).length > 0 && { variableMappings: followupVariableMappings }),
@@ -292,8 +311,30 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                                         {useFollowup && (
                                             <>
                                                 <div className="space-y-2">
-                                                    <Label>대기 기간 (일)</Label>
-                                                    <Input type="number" min={1} max={30} value={followupDelayDays} onChange={(e) => setFollowupDelayDays(Number(e.target.value))} />
+                                                    <Label>대기 기간</Label>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            max={followupDelayUnit === "hours" ? 720 : 30}
+                                                            value={followupDelayValue}
+                                                            onChange={(e) => setFollowupDelayValue(Number(e.target.value))}
+                                                            className="w-24"
+                                                        />
+                                                        <ToggleGroup
+                                                            type="single"
+                                                            value={followupDelayUnit}
+                                                            onValueChange={(v) => v && setFollowupDelayUnit(v as "hours" | "days")}
+                                                            variant="outline"
+                                                            size="sm"
+                                                        >
+                                                            <ToggleGroupItem value="hours" className="px-4">시간</ToggleGroupItem>
+                                                            <ToggleGroupItem value="days" className="px-4">일</ToggleGroupItem>
+                                                        </ToggleGroup>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        발송 후 {followupDelayValue}{followupDelayUnit === "hours" ? "시간" : "일"} 뒤 후속 발송됩니다
+                                                    </p>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>발신 프로필 (후속)</Label>
@@ -358,7 +399,7 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                                     </div>
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">후속 발송</span>
-                                        {useFollowup && followupTemplateCode ? <Badge>{followupDelayDays}일 후</Badge> : <Badge variant="outline">OFF</Badge>}
+                                        {useFollowup && followupTemplateCode ? <Badge>{followupDelayValue}{followupDelayUnit === "hours" ? "시간" : "일"} 후</Badge> : <Badge variant="outline">OFF</Badge>}
                                     </div>
                                 </CardContent>
                             </Card>

@@ -30,6 +30,17 @@ const TRIGGER_LABELS: Record<string, string> = {
     on_update: "수정 시",
 };
 
+function formatFollowupDelay(cfg: {
+    delayDays?: number;
+    delayHours?: number;
+    delayMinutes?: number;
+}): string {
+    if (cfg.delayMinutes != null) return `${cfg.delayMinutes}분 후`;
+    if (cfg.delayHours != null) return `${cfg.delayHours}시간 후`;
+    if (cfg.delayDays != null) return `${cfg.delayDays}일 후`;
+    return "—";
+}
+
 export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplateLinkListProps) {
     const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
@@ -130,7 +141,11 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
                                 <TableCell>
                                     {link.followupConfig ? (
                                         <Badge variant="secondary">
-                                            {(link.followupConfig as { delayDays: number }).delayDays}일 후
+                                            {formatFollowupDelay(link.followupConfig as {
+                                                delayDays?: number;
+                                                delayHours?: number;
+                                                delayMinutes?: number;
+                                            })}
                                         </Badge>
                                     ) : (
                                         <span className="text-muted-foreground text-xs">—</span>

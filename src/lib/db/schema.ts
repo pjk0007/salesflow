@@ -398,7 +398,9 @@ export const alimtalkTemplateLinks = pgTable("alimtalk_template_links", {
     recipientField: varchar("recipient_field", { length: 100 }).notNull(),
     variableMappings: jsonb("variable_mappings").$type<Record<string, string>>(),
     followupConfig: jsonb("followup_config").$type<{
-        delayDays: number;
+        delayDays?: number;
+        delayHours?: number;
+        delayMinutes?: number;
         templateCode: string;
         templateName?: string;
         variableMappings?: Record<string, string>;

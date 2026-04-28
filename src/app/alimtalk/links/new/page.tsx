@@ -15,6 +15,7 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
@@ -64,7 +65,8 @@ function NewAlimtalkLinkContent() {
 
     // 후속발송
     const [useFollowup, setUseFollowup] = useState(false);
-    const [followupDelayDays, setFollowupDelayDays] = useState(3);
+    const [followupDelayValue, setFollowupDelayValue] = useState(3);
+    const [followupDelayUnit, setFollowupDelayUnit] = useState<"hours" | "days">("days");
     const [followupSenderKey, setFollowupSenderKey] = useState("");
     const { templates: followupTemplates } = useAlimtalkTemplates(followupSenderKey || senderKey || null);
     const [followupTemplateCode, setFollowupTemplateCode] = useState("");
@@ -83,7 +85,8 @@ function NewAlimtalkLinkContent() {
         setSaving(true);
         try {
             const followupConfig = useFollowup && followupTemplateCode ? {
-                delayDays: followupDelayDays,
+                ...(followupDelayUnit === "hours" && { delayHours: followupDelayValue }),
+                ...(followupDelayUnit === "days" && { delayDays: followupDelayValue }),
                 templateCode: followupTemplateCode,
                 templateName: followupTemplates.find((t) => t.templateCode === followupTemplateCode)?.templateName,
                 ...(Object.keys(followupVariableMappings).length > 0 && { variableMappings: followupVariableMappings }),
@@ -297,9 +300,30 @@ function NewAlimtalkLinkContent() {
                                         {useFollowup && (
                                             <>
                                                 <div className="space-y-2">
-                                                    <Label>대기 기간 (일)</Label>
-                                                    <Input type="number" min={1} max={30} value={followupDelayDays}
-                                                        onChange={(e) => setFollowupDelayDays(Number(e.target.value))} />
+                                                    <Label>대기 기간</Label>
+                                                    <div className="flex items-center gap-2">
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            max={followupDelayUnit === "hours" ? 720 : 30}
+                                                            value={followupDelayValue}
+                                                            onChange={(e) => setFollowupDelayValue(Number(e.target.value))}
+                                                            className="w-24"
+                                                        />
+                                                        <ToggleGroup
+                                                            type="single"
+                                                            value={followupDelayUnit}
+                                                            onValueChange={(v) => v && setFollowupDelayUnit(v as "hours" | "days")}
+                                                            variant="outline"
+                                                            size="sm"
+                                                        >
+                                                            <ToggleGroupItem value="hours" className="px-4">시간</ToggleGroupItem>
+                                                            <ToggleGroupItem value="days" className="px-4">일</ToggleGroupItem>
+                                                        </ToggleGroup>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        발송 후 {followupDelayValue}{followupDelayUnit === "hours" ? "시간" : "일"} 뒤 후속 발송됩니다
+                                                    </p>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>발신 프로필 (후속)</Label>
@@ -375,7 +399,7 @@ function NewAlimtalkLinkContent() {
                                     <div className="flex justify-between items-center">
                                         <span className="text-muted-foreground">후속 발송</span>
                                         {useFollowup && followupTemplateCode ? (
-                                            <Badge>{followupDelayDays}일 후</Badge>
+                                            <Badge>{followupDelayValue}{followupDelayUnit === "hours" ? "시간" : "일"} 후</Badge>
                                         ) : (
                                             <Badge variant="outline">OFF</Badge>
                                         )}
