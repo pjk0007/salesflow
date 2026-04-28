@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Switch } from "@/components/ui/switch";
 import {
     Select,
@@ -255,11 +256,7 @@ export default function EditFieldDialog({
                                     </SelectContent>
                                 </Select>
                             ) : field.fieldType === "date" ? (
-                                <Input
-                                    type="date"
-                                    value={defaultValue}
-                                    onChange={(e) => setDefaultValue(e.target.value)}
-                                />
+                                <DatePicker value={defaultValue} onChange={setDefaultValue} />
                             ) : field.fieldType === "datetime" ? (
                                 <Input
                                     type="datetime-local"
