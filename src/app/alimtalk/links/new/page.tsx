@@ -24,6 +24,7 @@ import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
+import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
 import useSWR from "swr";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -73,9 +74,9 @@ function NewAlimtalkLinkContent() {
     const [followupVariableMappings, setFollowupVariableMappings] = useState<Record<string, string>>({});
 
     const selectedTemplate = templates.find((t) => t.templateCode === templateCode);
-    const templateVariables = selectedTemplate?.templateContent?.match(/#\{[^}]+\}/g) || [];
+    const templateVariables = extractAllTemplateVariables(selectedTemplate ?? null);
     const selectedFollowupTemplate = followupTemplates.find((t) => t.templateCode === followupTemplateCode);
-    const followupTemplateVariables = selectedFollowupTemplate?.templateContent?.match(/#\{[^}]+\}/g) || [];
+    const followupTemplateVariables = extractAllTemplateVariables(selectedFollowupTemplate ?? null);
 
     const handleSave = async () => {
         if (!name || !senderKey || !templateCode || !recipientField) {

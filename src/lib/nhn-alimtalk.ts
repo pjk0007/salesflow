@@ -496,8 +496,5 @@ export function normalizePhoneNumber(phone: string): string {
     return phone.replace(/[^0-9]/g, "");
 }
 
-export function extractTemplateVariables(content: string): string[] {
-    const matches = content.match(/#\{([^}]+)\}/g);
-    if (!matches) return [];
-    return [...new Set(matches)];
-}
+// 변수 추출 유틸은 client-safe 모듈로 분리됨
+export { extractTemplateVariables, extractAllTemplateVariables } from "./alimtalk-template-utils";
