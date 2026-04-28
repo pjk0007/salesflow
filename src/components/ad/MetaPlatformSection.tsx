@@ -350,15 +350,15 @@ function MetaConnected({
     return (
         <Card>
             <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="flex items-start gap-3 min-w-0">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/40">
                             <Facebook className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
                                 <CardTitle className="text-lg">Meta (Facebook/Instagram)</CardTitle>
-                                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge.className}`}>
+                                <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge.className}`}>
                                     {statusBadge.label}
                                 </span>
                             </div>
@@ -367,7 +367,7 @@ function MetaConnected({
                             </CardDescription>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                         <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
                             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                             계정 동기화
@@ -387,10 +387,12 @@ function MetaConnected({
                             className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50"
                             onClick={() => setShowWebhookInfo(!showWebhookInfo)}
                         >
-                            <div className="flex items-center gap-2">
-                                {showWebhookInfo ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                                <span className="font-medium text-sm">Webhook 설정</span>
-                                <span className="text-xs text-muted-foreground">리드 자동 수집을 위해 Meta Developer에서 설정 필요</span>
+                            <div className="flex items-start gap-2 min-w-0">
+                                {showWebhookInfo ? <ChevronDown className="h-4 w-4 shrink-0 mt-0.5" /> : <ChevronRight className="h-4 w-4 shrink-0 mt-0.5" />}
+                                <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2 min-w-0">
+                                    <span className="font-medium text-sm shrink-0">Webhook 설정</span>
+                                    <span className="text-xs text-muted-foreground">리드 자동 수집을 위해 Meta Developer에서 설정 필요</span>
+                                </div>
                             </div>
                         </div>
                         {showWebhookInfo && (

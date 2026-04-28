@@ -496,23 +496,23 @@ function McpGuideCard() {
                 <div className="space-y-2">
                     <h4 className="text-sm font-semibold">설정 파일 위치</h4>
                     <div className="rounded-md border text-xs">
-                        <table className="w-full">
+                        <table className="w-full table-fixed">
                             <tbody>
                                 <tr className="border-b">
-                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">Claude Desktop</td>
-                                    <td className="px-2 py-1.5 text-muted-foreground font-mono">
+                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap w-32 align-top">Claude Desktop</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground font-mono break-all">
                                         ~/Library/Application Support/Claude/claude_desktop_config.json
                                     </td>
                                 </tr>
                                 <tr className="border-b">
-                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">Claude Code</td>
-                                    <td className="px-2 py-1.5 text-muted-foreground font-mono">
+                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap w-32 align-top">Claude Code</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground font-mono break-all">
                                         ~/.claude/settings.json
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap">VS Code (Copilot)</td>
-                                    <td className="px-2 py-1.5 text-muted-foreground font-mono">
+                                    <td className="px-2 py-1.5 font-medium whitespace-nowrap w-32 align-top">VS Code (Copilot)</td>
+                                    <td className="px-2 py-1.5 text-muted-foreground font-mono break-all">
                                         .vscode/mcp.json
                                     </td>
                                 </tr>

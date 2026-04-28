@@ -342,17 +342,17 @@ export default function ProfileTab() {
                 </CardHeader>
                 <CardContent>
                     {paymentMethod?.cardInfo ? (
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-3 min-w-0">
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
                                     <CreditCard className="h-5 w-5" />
                                 </div>
-                                <div>
-                                    <p className="font-medium">{paymentMethod.cardInfo.cardCompany}</p>
-                                    <p className="text-sm text-muted-foreground">{paymentMethod.cardInfo.cardNumber}</p>
+                                <div className="min-w-0">
+                                    <p className="font-medium truncate">{paymentMethod.cardInfo.cardCompany}</p>
+                                    <p className="text-sm text-muted-foreground truncate">{paymentMethod.cardInfo.cardNumber}</p>
                                 </div>
                             </div>
-                            <div className="flex gap-2">
+                            <div className="flex gap-2 shrink-0">
                                 <Button
                                     variant="outline"
                                     size="sm"

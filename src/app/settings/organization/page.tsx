@@ -50,7 +50,8 @@ function OrganizationSettingsContent() {
                 />
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
-                    <TabsList variant="line" className="w-full justify-start">
+                    <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
+                    <TabsList variant="line" className="w-full justify-start [&>button]:flex-none">
                         <TabsTrigger value="general">
                             <Building2 className="mr-2 h-4 w-4" />
                             일반
@@ -72,6 +73,7 @@ function OrganizationSettingsContent() {
                             광고 연동
                         </TabsTrigger>
                     </TabsList>
+                    </div>
 
                     <TabsContent value="general" className="mt-6">
                         <OrgGeneralTab />
