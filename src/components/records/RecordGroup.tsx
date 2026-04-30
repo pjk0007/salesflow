@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChevronDown, ChevronRight, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import RecordTable from "./RecordTable";
@@ -95,24 +95,25 @@ export default function RecordGroup({
     });
 
     // page fetch 결과를 누적에 합침
-    const lastAppendedKeyRef = useRef<string>("");
     useEffect(() => {
         if (collapsed) return;
         if (pageRecords.length === 0) return;
-        // 같은 page 결과가 두 번 적용되지 않도록 가드
-        const key = `${currentPage}:${pageRecords.map((r) => r.id).join(",")}`;
-        if (lastAppendedKeyRef.current === key) return;
-        lastAppendedKeyRef.current = key;
 
         setAccumulated((prev) => {
             if (currentPage === 1) {
-                // page=1은 항상 처음부터 (필터 변경 후 첫 페이지 도착)
+                // page=1은 항상 최신 page 데이터로 교체 (인라인 편집 후 재반영 포함)
                 return pageRecords;
             }
-            // 중복 제거하면서 append
-            const seen = new Set(prev.map((r) => r.id));
+            // page>=2: 새 record append + 기존 record는 최신 데이터로 교체 (낙관적 업데이트 반영)
+            const pageIds = new Set(pageRecords.map((r) => r.id));
+            const refreshedPrev = prev.map((r) => {
+                if (!pageIds.has(r.id)) return r;
+                const updated = pageRecords.find((p) => p.id === r.id);
+                return updated ?? r;
+            });
+            const seen = new Set(refreshedPrev.map((r) => r.id));
             const newOnes = pageRecords.filter((r) => !seen.has(r.id));
-            return [...prev, ...newOnes];
+            return [...refreshedPrev, ...newOnes];
         });
     }, [pageRecords, currentPage, collapsed]);
 

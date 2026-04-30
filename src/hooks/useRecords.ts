@@ -1,4 +1,4 @@
-import useSWR from "swr";
+import useSWR, { mutate as globalMutate } from "swr";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition, ImportResult } from "@/types";
 import { defaultFetcher } from "@/lib/swr-fetcher";
@@ -65,13 +65,41 @@ export function useRecords(params: UseRecordsParams) {
     };
 
     const updateRecord = async (id: number, recordData: Record<string, unknown>) => {
+        // 낙관적 업데이트: 같은 파티션의 모든 records SWR 캐시에서 해당 레코드를 즉시 갱신
+        // (그룹뷰의 useGroupRecords 키도 동일 prefix를 사용하므로 한 번에 처리)
+        const cachePrefix = `/api/partitions/${params.partitionId}/records?`;
+        globalMutate(
+            (key) => typeof key === "string" && key.startsWith(cachePrefix),
+            (current: RecordsResponse | undefined) =>
+                current && {
+                    ...current,
+                    data: current.data.map((r) =>
+                        r.id === id
+                            ? {
+                                ...r,
+                                data: {
+                                    ...(r.data as Record<string, unknown>),
+                                    ...recordData,
+                                },
+                            }
+                            : r,
+                    ),
+                },
+            { revalidate: false },
+        );
+
         const res = await fetch(`/api/records/${id}`, {
             method: "PATCH",
             headers: jsonHeaders(),
             body: JSON.stringify({ data: recordData }),
         });
         const result = await res.json();
-        if (result.success) mutate();
+
+        // 최종 동기화 (서버측 가공/실패 시 롤백 포함)
+        globalMutate(
+            (key) => typeof key === "string" && key.startsWith(cachePrefix),
+        );
+
         return result;
     };
 
