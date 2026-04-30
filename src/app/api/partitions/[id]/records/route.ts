@@ -13,7 +13,7 @@ async function verifyPartitionAccess(partitionId: number, orgId: string) {
     const result = await db
         .select({
             partition: partitions,
-            workspaceOrgId: workspaces.orgId,
+            workspace: workspaces,
         })
         .from(partitions)
         .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
@@ -150,10 +150,19 @@ export async function GET(
             orderBy = sortOrder === "asc" ? asc(records.createdAt) : desc(records.createdAt);
         } else {
             // JSONB data 필드: 타입에 따라 캐스팅하여 정렬
+            // 파티션 fieldTypeId → 워크스페이스 defaultFieldTypeId → workspaceId 폴백
+            const resolvedTypeId = access.partition.fieldTypeId ?? access.workspace.defaultFieldTypeId;
             const [fieldDef] = await db
                 .select({ fieldType: fieldDefinitions.fieldType })
                 .from(fieldDefinitions)
-                .where(and(eq(fieldDefinitions.workspaceId, access.partition.workspaceId), eq(fieldDefinitions.key, sortField)));
+                .where(
+                    and(
+                        resolvedTypeId
+                            ? eq(fieldDefinitions.fieldTypeId, resolvedTypeId)
+                            : eq(fieldDefinitions.workspaceId, access.partition.workspaceId),
+                        eq(fieldDefinitions.key, sortField)
+                    )
+                );
 
             let jsonField;
             const ft = fieldDef?.fieldType;
