@@ -121,8 +121,8 @@ function NewAiAutoPageContent() {
 
     const selectedProduct = products.find((p) => p.id === productId);
 
-    const handleSave = async () => {
-        if (!recipientField || !companyField) {
+    const handleSave = async (asDraft = false) => {
+        if (!asDraft && (!recipientField || !companyField)) {
             toast.error("필수 항목을 입력해주세요.");
             return;
         }
@@ -149,9 +149,10 @@ function NewAiAutoPageContent() {
                 preventDuplicate,
                 senderProfileId,
                 signatureId,
+                isDraft: asDraft ? 1 : 0,
             });
             if (result.success) {
-                toast.success("규칙이 생성되었습니다.");
+                toast.success(asDraft ? "임시저장되었습니다." : "규칙이 생성되었습니다.");
                 router.push("/email?tab=ai-auto");
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
@@ -206,10 +207,16 @@ function NewAiAutoPageContent() {
                                 {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
                             </span>
                         </div>
-                        <Button onClick={handleSave} disabled={saving || !recipientField || !companyField}>
-                            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            저장
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={() => handleSave(true)} disabled={saving}>
+                                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                임시저장
+                            </Button>
+                            <Button onClick={() => handleSave(false)} disabled={saving || !recipientField || !companyField}>
+                                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                저장
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex gap-6">

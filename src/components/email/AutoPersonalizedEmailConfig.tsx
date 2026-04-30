@@ -145,6 +145,11 @@ export default function AutoPersonalizedEmailConfig({
                             >
                                 <div className="flex-1 space-y-1 min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
+                                        {link.isDraft === 1 && (
+                                            <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50">
+                                                임시저장
+                                            </Badge>
+                                        )}
                                         <Badge variant={link.isActive === 1 ? "default" : "secondary"}>
                                             {link.productName || "제품 미지정"}
                                         </Badge>
@@ -178,6 +183,7 @@ export default function AutoPersonalizedEmailConfig({
                                     <Switch
                                         checked={link.isActive === 1}
                                         onCheckedChange={() => handleToggleActive(link)}
+                                        disabled={link.isDraft === 1}
                                     />
                                     <Button
                                         variant="ghost"

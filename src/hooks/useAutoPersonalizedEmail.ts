@@ -28,6 +28,7 @@ export interface AutoPersonalizedLink {
         onNotOpened?: { prompt: string };
     } | null;
     isActive: number;
+    isDraft?: number;
     createdAt: string;
     updatedAt: string;
 }
@@ -36,6 +37,7 @@ interface CreateInput {
     name?: string;
     partitionId: number;
     productId?: number | null;
+    // draft 상태에서는 비어있을 수 있음
     recipientField: string;
     companyField: string;
     prompt?: string;
@@ -51,6 +53,7 @@ interface CreateInput {
         onNotOpened?: { prompt: string };
     } | null;
     isActive?: number;
+    isDraft?: number;
     preventDuplicate?: number;
     senderProfileId?: number | null;
     signatureId?: number | null;
@@ -75,6 +78,7 @@ interface UpdateInput {
         onNotOpened?: { prompt: string };
     } | null;
     isActive?: number;
+    isDraft?: number;
     preventDuplicate?: number;
     senderProfileId?: number | null;
     signatureId?: number | null;

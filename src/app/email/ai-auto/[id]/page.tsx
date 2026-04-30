@@ -213,8 +213,8 @@ function EditAiAutoPageContent() {
         }
     }, [link, loaded]);
 
-    const handleSave = async () => {
-        if (!recipientField || !companyField) {
+    const handleSave = async (asDraft = false) => {
+        if (!asDraft && (!recipientField || !companyField)) {
             toast.error("필수 항목을 입력해주세요.");
             return;
         }
@@ -241,9 +241,10 @@ function EditAiAutoPageContent() {
                 preventDuplicate,
                 senderProfileId,
                 signatureId,
+                isDraft: asDraft ? 1 : 0,
             });
             if (result.success) {
-                toast.success("규칙이 수정되었습니다.");
+                toast.success(asDraft ? "임시저장되었습니다." : "규칙이 수정되었습니다.");
                 router.push("/email?tab=ai-auto");
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
@@ -299,10 +300,18 @@ function EditAiAutoPageContent() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <Button onClick={handleSave} disabled={saving || !recipientField || !companyField}>
-                            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                            수정
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            {(link as unknown as { isDraft?: number })?.isDraft === 1 && (
+                                <Button variant="outline" onClick={() => handleSave(true)} disabled={saving}>
+                                    {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                    임시저장
+                                </Button>
+                            )}
+                            <Button onClick={() => handleSave(false)} disabled={saving || !recipientField || !companyField}>
+                                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                {(link as unknown as { isDraft?: number })?.isDraft === 1 ? "정식 저장" : "수정"}
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex gap-6">

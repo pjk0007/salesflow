@@ -720,6 +720,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     signatureId: integer("signature_id"),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
+    isDraft: integer("is_draft").default(0).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });

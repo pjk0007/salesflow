@@ -42,6 +42,7 @@ export async function PUT(
             autoResearch,
             useSignaturePersona,
             isActive,
+            isDraft,
             followupConfig,
             preventDuplicate,
             senderProfileId,
@@ -87,6 +88,12 @@ export async function PUT(
         if (autoResearch !== undefined) updateData.autoResearch = autoResearch;
         if (useSignaturePersona !== undefined) updateData.useSignaturePersona = useSignaturePersona;
         if (isActive !== undefined) updateData.isActive = isActive;
+        if (isDraft !== undefined) {
+            updateData.isDraft = isDraft ? 1 : 0;
+            // draft 전환 시 자동 비활성화, draft 해제 시는 isActive를 명시적으로 받지 않으면 1로
+            if (isDraft) updateData.isActive = 0;
+            else if (isActive === undefined) updateData.isActive = 1;
+        }
         if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
         if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;
         if (senderProfileId !== undefined) updateData.senderProfileId = senderProfileId || null;

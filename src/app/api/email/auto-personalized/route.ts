@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
             followupConfig: emailAutoPersonalizedLinks.followupConfig,
             preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
             isActive: emailAutoPersonalizedLinks.isActive,
+            isDraft: emailAutoPersonalizedLinks.isDraft,
             createdAt: emailAutoPersonalizedLinks.createdAt,
             updatedAt: emailAutoPersonalizedLinks.updatedAt,
         };
@@ -95,15 +96,26 @@ export async function POST(req: NextRequest) {
             useSignaturePersona = 0,
             followupConfig,
             isActive,
+            isDraft,
             preventDuplicate = 0,
             senderProfileId,
             signatureId,
         } = await req.json();
 
-        if (!partitionId || !recipientField || !companyField) {
+        const isDraftFlag = isDraft ? 1 : 0;
+
+        if (!partitionId) {
             return NextResponse.json({
                 success: false,
-                error: "partitionId, recipientField, companyField는 필수입니다.",
+                error: "partitionId는 필수입니다.",
+            }, { status: 400 });
+        }
+
+        // draft가 아닐 때만 필수 필드 검증
+        if (!isDraftFlag && (!recipientField || !companyField)) {
+            return NextResponse.json({
+                success: false,
+                error: "recipientField, companyField는 필수입니다.",
             }, { status: 400 });
         }
 
@@ -138,8 +150,8 @@ export async function POST(req: NextRequest) {
                 name: name || null,
                 partitionId,
                 productId: productId || null,
-                recipientField,
-                companyField,
+                recipientField: recipientField || "",
+                companyField: companyField || "",
                 prompt: prompt || null,
                 tone: tone || null,
                 format: format || "plain",
@@ -148,7 +160,9 @@ export async function POST(req: NextRequest) {
                 autoResearch: autoResearch ?? 1,
                 useSignaturePersona: useSignaturePersona ?? 0,
                 followupConfig: followupConfig || null,
-                ...(isActive !== undefined && { isActive }),
+                // draft는 자동으로 isActive=0
+                isActive: isDraftFlag ? 0 : (isActive ?? 1),
+                isDraft: isDraftFlag,
                 preventDuplicate: preventDuplicate ? 1 : 0,
                 senderProfileId: senderProfileId || null,
                 signatureId: signatureId || null,
