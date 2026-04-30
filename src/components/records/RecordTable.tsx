@@ -67,7 +67,11 @@ export default function RecordTable({
         return fields;
     }, [fields, visibleFieldKeys]);
 
-    const showRegisteredAt = isSystemColumnVisible(visibleFieldKeys, SYSTEM_COLUMN_KEYS.registeredAt);
+    const showRegisteredAt = isSystemColumnVisible(
+        visibleFieldKeys,
+        SYSTEM_COLUMN_KEYS.registeredAt,
+        fields,
+    );
 
     // 열기 버튼이 들어갈 첫 번째 text 필드 key
     const openBtnFieldKey = useMemo(() =>

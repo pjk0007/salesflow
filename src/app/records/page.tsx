@@ -29,7 +29,7 @@ function MobileBreadcrumbBridge({
 import RecordToolbar from "@/components/records/RecordToolbar";
 import RecordTable from "@/components/records/RecordTable";
 import GroupedRecordView from "@/components/records/GroupedRecordView";
-import { SYSTEM_COLUMNS } from "@/components/records/system-columns";
+import { getVisibleSystemColumns } from "@/components/records/system-columns";
 import CreateRecordDialog from "@/components/records/CreateRecordDialog";
 import DeleteConfirmDialog from "@/components/records/DeleteConfirmDialog";
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
@@ -360,7 +360,7 @@ export default function RecordsPage() {
         // null(전체 표시) 상태에서 처음 토글하면 모든 필드 + 시스템 컬럼을 명시적으로 풀어둔다
         const currentFields =
             (currentPartition.visibleFields as string[]) ||
-            [...SYSTEM_COLUMNS.map((c) => c.key), ...fields.map((f) => f.key)];
+            [...getVisibleSystemColumns(fields).map((c) => c.key), ...fields.map((f) => f.key)];
         const newFields = visible
             ? [...currentFields, fieldKey]
             : currentFields.filter(k => k !== fieldKey);
