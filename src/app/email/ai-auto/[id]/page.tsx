@@ -30,6 +30,16 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAutoPersonalizedEmail } from "@/hooks/useAutoPersonalizedEmail";
@@ -85,12 +95,14 @@ function EditAiAutoPageContent() {
     const params = useParams();
     const searchParams = useSearchParams();
     const linkId = Number(params.id);
-    const partitionId = Number(searchParams.get("partitionId"));
+    const initialPartitionId = Number(searchParams.get("partitionId"));
+    const [currentPartitionId, setCurrentPartitionId] = useState<number>(initialPartitionId);
 
     const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
-    const { links, isLoading, updateLink } = useAutoPersonalizedEmail(partitionId || null);
+    // 초기 로드는 URL의 partitionId로 (link 조회용), 이후 화면 표시는 currentPartitionId 기반
+    const { links, isLoading, updateLink } = useAutoPersonalizedEmail(initialPartitionId || null);
     const { products } = useProducts({ activeOnly: true });
-    const { fields } = useResolvedFields(partitionId || null);
+    const { fields } = useResolvedFields(currentPartitionId || null);
     const { data: senderProfilesData } = useSWR("/api/email/sender-profiles", fetcher);
     const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
     const senderProfiles: SenderProfile[] = senderProfilesData?.data ?? [];
@@ -119,7 +131,61 @@ function EditAiAutoPageContent() {
     const [senderProfileId, setSenderProfileId] = useState<number | null>(null);
     const [signatureId, setSignatureId] = useState<number | null>(null);
 
+    // DB(파티션) 변경 confirm dialog
+    const [pendingPartitionId, setPendingPartitionId] = useState<number | null>(null);
+    const { fields: pendingFields } = useResolvedFields(pendingPartitionId);
+
     const selectedProduct = products.find((p) => p.id === productId);
+
+    // pending DB로 바꾸면 비워질 필드 키 목록
+    const fieldsToReset = (() => {
+        if (!pendingPartitionId || pendingFields.length === 0) return [];
+        const keySet = new Set(pendingFields.map((f) => f.key));
+        const candidates: { key: string; label: string }[] = [];
+        const lookupLabel = (key: string) =>
+            fields.find((f) => f.key === key)?.label ?? key;
+        if (recipientField && !keySet.has(recipientField)) {
+            candidates.push({ key: "수신자 이메일", label: lookupLabel(recipientField) });
+        }
+        if (companyField && !keySet.has(companyField)) {
+            candidates.push({ key: "회사명", label: lookupLabel(companyField) });
+        }
+        if (conditionEnabled && conditionField && !keySet.has(conditionField)) {
+            candidates.push({ key: "트리거 조건", label: lookupLabel(conditionField) });
+        }
+        return candidates;
+    })();
+
+    const partitionItems = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? [];
+    const hasMultiWs = new Set(partitionItems.map((p) => p.workspaceId)).size > 1;
+
+    const handlePartitionSelectChange = (newId: number) => {
+        if (newId === currentPartitionId) return;
+        setPendingPartitionId(newId);
+    };
+
+    const confirmPartitionChange = () => {
+        if (!pendingPartitionId) return;
+        const keySet = new Set(pendingFields.map((f) => f.key));
+        // 비호환 필드 초기화
+        if (recipientField && !keySet.has(recipientField)) setRecipientField("");
+        if (companyField && !keySet.has(companyField)) setCompanyField("");
+        if (conditionEnabled && conditionField && !keySet.has(conditionField)) {
+            setConditionField("");
+            setConditionValue("");
+        }
+        setCurrentPartitionId(pendingPartitionId);
+        if (fieldsToReset.length > 0) {
+            toast.warning(
+                `다음 항목이 초기화되었습니다: ${fieldsToReset.map((f) => f.key).join(", ")}`,
+            );
+        } else {
+            toast.success("DB가 변경되었습니다.");
+        }
+        setPendingPartitionId(null);
+    };
+
+    const cancelPartitionChange = () => setPendingPartitionId(null);
 
     useEffect(() => {
         if (link && !loaded) {
@@ -160,6 +226,7 @@ function EditAiAutoPageContent() {
 
             const result = await updateLink(linkId, {
                 name: name || undefined,
+                partitionId: currentPartitionId,
                 productId,
                 triggerType,
                 recipientField,
@@ -216,9 +283,21 @@ function EditAiAutoPageContent() {
                                 <ArrowLeft className="h-5 w-5" />
                             </Button>
                             <h1 className="text-xl font-semibold">AI 개인화 발송 규칙 수정</h1>
-                            <span className="text-sm text-muted-foreground">
-                                {(() => { const items = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? []; const p = items.find((x) => x.id === partitionId); if (!p) return ""; const multi = new Set(items.map((x) => x.workspaceId)).size > 1; return multi ? `[${p.workspaceName}] ${p.name}` : p.name; })()}
-                            </span>
+                            <Select
+                                value={String(currentPartitionId)}
+                                onValueChange={(v) => handlePartitionSelectChange(Number(v))}
+                            >
+                                <SelectTrigger className="w-65 h-8 text-sm">
+                                    <SelectValue placeholder="DB 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {partitionItems.map((p) => (
+                                        <SelectItem key={p.id} value={String(p.id)}>
+                                            {hasMultiWs ? `[${p.workspaceName}] ${p.name}` : p.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <Button onClick={handleSave} disabled={saving || !recipientField || !companyField}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
@@ -618,6 +697,33 @@ function EditAiAutoPageContent() {
                         </div>
                     </div>
                 </PageContainer>
+
+                <AlertDialog open={pendingPartitionId !== null} onOpenChange={(open) => { if (!open) cancelPartitionChange(); }}>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>DB를 변경하시겠습니까?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                {fieldsToReset.length === 0
+                                    ? "기존 설정이 모두 호환됩니다. 그대로 적용됩니다."
+                                    : "새 DB에 동일한 필드가 없어 다음 항목이 초기화됩니다. 변경 후 다시 선택해주세요."}
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        {fieldsToReset.length > 0 && (
+                            <ul className="text-sm text-foreground bg-muted/50 rounded p-3 space-y-1">
+                                {fieldsToReset.map((f) => (
+                                    <li key={f.key}>
+                                        • <span className="font-medium">{f.key}</span>
+                                        <span className="text-muted-foreground"> (기존: {f.label})</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                        <AlertDialogFooter>
+                            <AlertDialogCancel onClick={cancelPartitionChange}>취소</AlertDialogCancel>
+                            <AlertDialogAction onClick={confirmPartitionChange}>변경</AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </TooltipProvider>
         </WorkspaceLayout>
     );

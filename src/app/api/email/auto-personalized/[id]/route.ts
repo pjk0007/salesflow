@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailAutoPersonalizedLinks, products } from "@/lib/db";
+import { db, emailAutoPersonalizedLinks, products, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -30,6 +30,7 @@ export async function PUT(
         const body = await req.json();
         const {
             name,
+            partitionId,
             productId,
             recipientField,
             companyField,
@@ -59,8 +60,22 @@ export async function PUT(
             }
         }
 
+        // 파티션 변경 시 소유권 확인 (워크스페이스 → 조직)
+        if (partitionId !== undefined && partitionId !== existing.partitionId) {
+            const [access] = await db
+                .select({ partitionId: partitions.id })
+                .from(partitions)
+                .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
+                .where(and(eq(partitions.id, Number(partitionId)), eq(workspaces.orgId, user.orgId)))
+                .limit(1);
+            if (!access) {
+                return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+            }
+        }
+
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
         if (name !== undefined) updateData.name = name || null;
+        if (partitionId !== undefined) updateData.partitionId = Number(partitionId);
         if (productId !== undefined) updateData.productId = productId;
         if (recipientField !== undefined) updateData.recipientField = recipientField;
         if (companyField !== undefined) updateData.companyField = companyField;

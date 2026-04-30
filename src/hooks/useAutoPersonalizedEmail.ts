@@ -58,6 +58,7 @@ interface CreateInput {
 
 interface UpdateInput {
     name?: string;
+    partitionId?: number;
     productId?: number | null;
     recipientField?: string;
     companyField?: string;
