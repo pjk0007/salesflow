@@ -54,7 +54,7 @@ export async function GET(
     try {
         // 파티션 접근 검증
         const [access] = await db
-            .select({ partition: partitions, workspaceOrgId: workspaces.orgId })
+            .select({ partition: partitions, workspace: workspaces })
             .from(partitions)
             .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
             .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)));
@@ -65,12 +65,18 @@ export async function GET(
 
         const partition = access.partition;
 
-        // 필드 목록
+        // 필드 목록 — 파티션의 fieldTypeId(또는 워크스페이스 defaultFieldTypeId) 우선,
+        // 없으면 워크스페이스 기반으로 폴백
+        const resolvedTypeId = partition.fieldTypeId ?? access.workspace.defaultFieldTypeId;
         const allFields = await db
             .select()
             .from(fieldDefinitions)
-            .where(eq(fieldDefinitions.workspaceId, partition.workspaceId))
-            .orderBy(asc(fieldDefinitions.sortOrder));
+            .where(
+                resolvedTypeId
+                    ? eq(fieldDefinitions.fieldTypeId, resolvedTypeId)
+                    : eq(fieldDefinitions.workspaceId, partition.workspaceId)
+            )
+            .orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
 
         const exportFields = allFields.filter(f => !EXCLUDED_TYPES.includes(f.fieldType));
 
@@ -154,10 +160,7 @@ export async function GET(
         } else if (sortField === "createdAt") {
             orderBy = sortOrder === "asc" ? asc(records.createdAt) : desc(records.createdAt);
         } else {
-            const [fieldDef] = await db
-                .select({ fieldType: fieldDefinitions.fieldType })
-                .from(fieldDefinitions)
-                .where(and(eq(fieldDefinitions.workspaceId, access.partition.workspaceId), eq(fieldDefinitions.key, sortField)));
+            const fieldDef = allFields.find(f => f.key === sortField);
 
             let jsonField;
             const ft = fieldDef?.fieldType;
