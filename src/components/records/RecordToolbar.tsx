@@ -15,6 +15,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import FilterBuilder from "./FilterBuilder";
+import { SYSTEM_COLUMNS } from "./system-columns";
 import type { FieldDefinition, FilterCondition } from "@/types";
 
 interface RecordToolbarProps {
@@ -265,7 +266,7 @@ function TableSettingsPopover({
                             <p className="text-sm font-medium">속성 표시 여부</p>
                         </div>
                         <div className="max-h-64 overflow-y-auto py-1">
-                            {allFields.map((f) => {
+                            {[...SYSTEM_COLUMNS, ...allFields].map((f) => {
                                 const isVisible = !visibleFieldKeys || visibleFieldKeys.includes(f.key);
                                 return (
                                     <button

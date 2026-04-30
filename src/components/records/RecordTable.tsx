@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from "lucide-react";
 import InlineEditCell from "./InlineEditCell";
 import MemoPopover from "./MemoPopover";
+import { SYSTEM_COLUMN_KEYS, isSystemColumnVisible } from "./system-columns";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
@@ -65,6 +66,8 @@ export default function RecordTable({
         }
         return fields;
     }, [fields, visibleFieldKeys]);
+
+    const showRegisteredAt = isSystemColumnVisible(visibleFieldKeys, SYSTEM_COLUMN_KEYS.registeredAt);
 
     // 열기 버튼이 들어갈 첫 번째 text 필드 key
     const openBtnFieldKey = useMemo(() =>
@@ -148,6 +151,18 @@ export default function RecordTable({
                                     {renderSortIcon("integratedCode")}
                                 </span>
                             </TableHead>
+                            {showRegisteredAt && (
+                                <TableHead
+                                    className="cursor-pointer select-none"
+                                    style={{ minWidth: 130, width: 150 }}
+                                    onClick={() => handleSort("registeredAt")}
+                                >
+                                    <span className="flex items-center gap-1">
+                                        등록일
+                                        {renderSortIcon("registeredAt")}
+                                    </span>
+                                </TableHead>
+                            )}
                             {displayFields.map((field) => (
                                 <TableHead
                                     key={field.key}
@@ -193,6 +208,19 @@ export default function RecordTable({
                                     >
                                         {record.integratedCode}
                                     </TableCell>
+                                    {showRegisteredAt && (
+                                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                            {record.registeredAt
+                                                ? new Date(record.registeredAt).toLocaleString("ko-KR", {
+                                                    year: "numeric",
+                                                    month: "2-digit",
+                                                    day: "2-digit",
+                                                    hour: "2-digit",
+                                                    minute: "2-digit",
+                                                })
+                                                : "-"}
+                                        </TableCell>
+                                    )}
                                     {displayFields.map((field) => {
                                         const isOpenTarget = field.fieldType === "text" && !openBtnPlaced;
                                         if (isOpenTarget) openBtnPlaced = true;
