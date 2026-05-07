@@ -85,10 +85,19 @@ export default function PublicFormPage() {
             setSubmitting(true);
 
             try {
+                // 트래커 visitor_id 가져오기 (sendb tracker.js가 head에 있을 때만)
+                let visitorId: string | undefined;
+                try {
+                    const sendb = (window as unknown as { sendb?: { getVisitorId?: () => string } }).sendb;
+                    if (sendb?.getVisitorId) {
+                        visitorId = sendb.getVisitorId();
+                    }
+                } catch {}
+
                 const res = await fetch(`/api/public/forms/${slug}/submit`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ data: values }),
+                    body: JSON.stringify({ data: values, visitor_id: visitorId }),
                 });
                 const result = await res.json();
                 if (result.success) {

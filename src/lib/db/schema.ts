@@ -11,6 +11,7 @@ import {
     jsonb,
     index,
     uniqueIndex,
+    numeric,
 } from "drizzle-orm/pg-core";
 import type { FormulaConfig } from "@/types";
 
@@ -653,8 +654,10 @@ export const emailClickLogs = pgTable("email_click_logs", {
     clickedAt: timestamptz("clicked_at").defaultNow().notNull(),
     ip: varchar("ip", { length: 50 }),
     userAgent: text("user_agent"),
+    clickId: varchar("click_id", { length: 64 }),  // 트래커 매칭용 토큰 (sendb_cid)
 }, (table) => [
     index("email_click_logs_send_log_idx").on(table.sendLogId),
+    uniqueIndex("email_click_logs_click_id_idx").on(table.clickId),
 ]);
 
 export type EmailClickLog = typeof emailClickLogs.$inferSelect;
@@ -1180,3 +1183,134 @@ export type AdLeadIntegration = typeof adLeadIntegrations.$inferSelect;
 export type NewAdLeadIntegration = typeof adLeadIntegrations.$inferInsert;
 export type AdLeadLog = typeof adLeadLogs.$inferSelect;
 export type NewAdLeadLog = typeof adLeadLogs.$inferInsert;
+
+// ============================================
+// 트래커 (Visitor Behavior Tracker)
+// ============================================
+export const trackerSites = pgTable("tracker_sites", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    workspaceId: integer("workspace_id")
+        .references(() => workspaces.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    apiKey: varchar("api_key", { length: 64 }).notNull().unique(),
+    domains: jsonb("domains").$type<string[]>().notNull().default([]),
+    isActive: integer("is_active").default(1).notNull(),
+    // records 시스템 통합 (visitor 데이터를 records 테이블에도 mirror)
+    fieldTypeId: integer("field_type_id"),
+    partitionId: integer("partition_id"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => [
+    unique("tracker_sites_workspace_unique").on(table.workspaceId),
+    uniqueIndex("tracker_sites_api_key_idx").on(table.apiKey),
+]);
+
+export const trackerVisitors = pgTable("tracker_visitors", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    siteId: integer("site_id")
+        .references(() => trackerSites.id, { onDelete: "cascade" })
+        .notNull(),
+    visitorId: varchar("visitor_id", { length: 64 }).notNull(),
+    // soft FK (records 삭제 시 NULLify는 application 책임)
+    recordId: integer("record_id"),
+    email: varchar("email", { length: 200 }),
+    name: varchar("name", { length: 100 }),
+    phone: varchar("phone", { length: 20 }),
+    firstSeenAt: timestamptz("first_seen_at").defaultNow().notNull(),
+    lastSeenAt: timestamptz("last_seen_at").defaultNow().notNull(),
+    totalVisits: integer("total_visits").default(1).notNull(),
+    totalPageviews: integer("total_pageviews").default(0).notNull(),
+    totalEvents: integer("total_events").default(0).notNull(),
+    deviceType: varchar("device_type", { length: 20 }),
+    browser: varchar("browser", { length: 50 }),
+    os: varchar("os", { length: 50 }),
+    firstUtmSource: varchar("first_utm_source", { length: 100 }),
+    firstUtmMedium: varchar("first_utm_medium", { length: 100 }),
+    firstUtmCampaign: varchar("first_utm_campaign", { length: 200 }),
+    lastUtmSource: varchar("last_utm_source", { length: 100 }),
+    lastUtmMedium: varchar("last_utm_medium", { length: 100 }),
+    lastUtmCampaign: varchar("last_utm_campaign", { length: 200 }),
+    firstReferrer: text("first_referrer"),
+    lastReferrer: text("last_referrer"),
+    lastPage: text("last_page"),
+    lastEvent: varchar("last_event", { length: 100 }),
+    lastEventAt: timestamptz("last_event_at"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex("tracker_visitors_site_visitor_idx").on(table.siteId, table.visitorId),
+    index("tracker_visitors_record_id_idx").on(table.recordId),
+    index("tracker_visitors_email_idx").on(table.email),
+    index("tracker_visitors_site_last_seen_idx").on(table.siteId, table.lastSeenAt),
+]);
+
+export const trackerSessions = pgTable("tracker_sessions", {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id")
+        .references(() => trackerSites.id, { onDelete: "cascade" })
+        .notNull(),
+    visitorId: integer("visitor_id")
+        .references(() => trackerVisitors.id, { onDelete: "cascade" })
+        .notNull(),
+    sessionKey: varchar("session_key", { length: 64 }).notNull(),
+    startedAt: timestamptz("started_at").defaultNow().notNull(),
+    endedAt: timestamptz("ended_at"),
+    duration: integer("duration"),
+    landingPage: text("landing_page"),
+    exitPage: text("exit_page"),
+    pageCount: integer("page_count").default(0).notNull(),
+    trafficSource: varchar("traffic_source", { length: 20 }),
+    referrer: text("referrer"),
+    utmSource: varchar("utm_source", { length: 100 }),
+    utmMedium: varchar("utm_medium", { length: 100 }),
+    utmCampaign: varchar("utm_campaign", { length: 200 }),
+    utmTerm: varchar("utm_term", { length: 200 }),
+    utmContent: varchar("utm_content", { length: 200 }),
+    clickId: varchar("click_id", { length: 64 }),
+    isFirstVisit: integer("is_first_visit").default(0).notNull(),
+}, (table) => [
+    uniqueIndex("tracker_sessions_session_key_idx").on(table.siteId, table.sessionKey),
+    index("tracker_sessions_visitor_idx").on(table.visitorId),
+    index("tracker_sessions_started_idx").on(table.siteId, table.startedAt),
+    index("tracker_sessions_click_id_idx").on(table.clickId),
+]);
+
+export const trackerEvents = pgTable("tracker_events", {
+    id: serial("id").primaryKey(),
+    siteId: integer("site_id")
+        .references(() => trackerSites.id, { onDelete: "cascade" })
+        .notNull(),
+    sessionId: integer("session_id")
+        .references(() => trackerSessions.id, { onDelete: "cascade" })
+        .notNull(),
+    visitorId: integer("visitor_id")
+        .references(() => trackerVisitors.id, { onDelete: "cascade" })
+        .notNull(),
+    eventType: varchar("event_type", { length: 30 }).notNull(),
+    eventName: varchar("event_name", { length: 100 }),
+    pageUrl: text("page_url"),
+    pageTitle: text("page_title"),
+    properties: jsonb("properties"),
+    revenue: numeric("revenue", { precision: 14, scale: 2 }),
+    occurredAt: timestamptz("occurred_at").defaultNow().notNull(),
+}, (table) => [
+    index("tracker_events_visitor_occurred_idx").on(table.visitorId, table.occurredAt),
+    index("tracker_events_site_occurred_idx").on(table.siteId, table.occurredAt),
+    index("tracker_events_type_idx").on(table.siteId, table.eventType),
+]);
+
+export type TrackerSite = typeof trackerSites.$inferSelect;
+export type NewTrackerSite = typeof trackerSites.$inferInsert;
+export type TrackerVisitor = typeof trackerVisitors.$inferSelect;
+export type NewTrackerVisitor = typeof trackerVisitors.$inferInsert;
+export type TrackerSession = typeof trackerSessions.$inferSelect;
+export type NewTrackerSession = typeof trackerSessions.$inferInsert;
+export type TrackerEvent = typeof trackerEvents.$inferSelect;
+export type NewTrackerEvent = typeof trackerEvents.$inferInsert;

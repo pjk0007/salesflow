@@ -6,6 +6,7 @@ import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
+import { linkVisitorByFormSubmit } from "@/lib/tracker/match-record";
 
 export async function POST(
     req: NextRequest,
@@ -16,7 +17,9 @@ export async function POST(
         return NextResponse.json({ success: false, error: "slug가 필요합니다." }, { status: 400 });
     }
 
-    const { data: submitData } = await req.json();
+    const reqBody = await req.json();
+    const submitData = reqBody?.data;
+    const visitorId: string | undefined = typeof reqBody?.visitor_id === "string" ? reqBody.visitor_id : undefined;
     if (!submitData || typeof submitData !== "object") {
         return NextResponse.json({ success: false, error: "제출 데이터가 필요합니다." }, { status: 400 });
     }
@@ -134,6 +137,24 @@ export async function POST(
             partitionId: form.partitionId,
             recordId: result.id,
         });
+
+        // 트래커 visitor 연결 (있을 때만, 실패해도 무시)
+        if (visitorId) {
+            linkVisitorByFormSubmit({
+                workspaceId: form.workspaceId,
+                visitorId,
+                recordId: result.id,
+                email: typeof result.data === "object" && result.data && "email" in result.data
+                    ? (result.data as Record<string, unknown>).email as string | undefined
+                    : null,
+                name: typeof result.data === "object" && result.data && "name" in result.data
+                    ? (result.data as Record<string, unknown>).name as string | undefined
+                    : null,
+                phone: typeof result.data === "object" && result.data && "phone" in result.data
+                    ? (result.data as Record<string, unknown>).phone as string | undefined
+                    : null,
+            }).catch((err) => console.error("Visitor link error:", err));
+        }
 
         return NextResponse.json({ success: true }, { status: 201 });
     } catch (error) {

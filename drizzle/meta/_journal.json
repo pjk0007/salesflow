@@ -302,6 +302,20 @@
       "when": 1770950500000,
       "tag": "0042_ai_auto_is_draft",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1770950600000,
+      "tag": "0043_tracker",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1770950700000,
+      "tag": "0044_tracker_partition",
+      "breakpoints": true
     }
   ]
 }

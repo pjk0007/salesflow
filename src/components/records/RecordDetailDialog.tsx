@@ -12,6 +12,7 @@ import { MessageSquare, Mail } from "lucide-react";
 import CellRenderer from "./CellRenderer";
 import CompanyResearchSection from "./CompanyResearchSection";
 import MemoSection from "./ui/MemoSection";
+import { RecordVisitorActivity } from "@/components/tracker/ui/RecordVisitorActivity";
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
 import SendEmailDialog from "./SendEmailDialog";
 import UnifiedLogTable from "@/components/logs/UnifiedLogTable";
@@ -100,6 +101,9 @@ export default function RecordDetailDialog({
 
                         {/* 메모 */}
                         <MemoSection recordId={record.id} onMemoChange={() => onRecordUpdated?.()} />
+
+                        {/* 행동 정보 (트래커) */}
+                        <RecordVisitorActivity recordId={record.id} />
 
                         {/* 발송 이력 */}
                         <div className="space-y-2">

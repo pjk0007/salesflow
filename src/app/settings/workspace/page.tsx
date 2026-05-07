@@ -6,11 +6,12 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Layers, ListTree, Sparkles } from "lucide-react";
+import { Layers, ListTree, Sparkles, Activity } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import WorkspaceSettingsTab from "@/components/settings/WorkspaceSettingsTab";
 import FieldTypeManagementTab from "@/components/settings/FieldTypeManagementTab";
 import AutoEnrichTab from "@/components/settings/AutoEnrichTab";
+import TrackerSettingsTab from "@/components/tracker/ui/TrackerSettingsTab";
 
 function WorkspaceSettingsContent() {
     const router = useRouter();
@@ -61,6 +62,10 @@ function WorkspaceSettingsContent() {
                             <Sparkles className="mr-2 h-4 w-4" />
                             자동화
                         </TabsTrigger>
+                        <TabsTrigger value="tracker">
+                            <Activity className="mr-2 h-4 w-4" />
+                            트래커
+                        </TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="workspace" className="mt-6">
@@ -73,6 +78,10 @@ function WorkspaceSettingsContent() {
 
 <TabsContent value="automation" className="mt-6">
                         <AutoEnrichTab />
+                    </TabsContent>
+
+                    <TabsContent value="tracker" className="mt-6">
+                        <TrackerSettingsTab />
                     </TabsContent>
                 </Tabs>
             </PageContainer>

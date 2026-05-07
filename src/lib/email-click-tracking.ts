@@ -1,7 +1,22 @@
 import { db, emailClickLogs, emailSendLogs } from "@/lib/db";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://sendb.kr";
+
+/**
+ * HTML href 속성 값에 들어있는 엔티티(&amp; 등)를 진짜 문자로 변환.
+ * 그래야 redirect 시 URL이 깨지지 않음.
+ */
+function decodeHtmlEntities(s: string): string {
+    return s
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&apos;/g, "'");
+}
 
 /**
  * 이메일 HTML 본문의 <a href="..."> 링크를 트래킹 URL로 치환합니다.
@@ -16,22 +31,24 @@ export function wrapTrackingUrls(html: string, sendLogId: number): string {
             if (/^(mailto:|tel:|#|javascript:)/i.test(url)) {
                 return `${prefix}${url}${suffix}`;
             }
-            const trackingUrl = `${BASE_URL}/api/track/click?id=${sendLogId}&url=${encodeURIComponent(url)}`;
+            // HTML 엔티티 디코딩 (&amp; → &)
+            const decoded = decodeHtmlEntities(url);
+            const trackingUrl = `${BASE_URL}/api/track/click?id=${sendLogId}&url=${encodeURIComponent(decoded)}`;
             return `${prefix}${trackingUrl}${suffix}`;
         }
     );
 }
 
 /**
- * 클릭 로그를 기록합니다.
+ * 클릭 로그를 기록하고 click_id 토큰을 발급합니다.
+ * 발급된 click_id는 트래커가 사이트 행동을 sendb 리드와 연결하는 키로 사용됩니다.
  */
 export async function recordClick(
     sendLogId: number,
     url: string,
     ip?: string,
     userAgent?: string,
-): Promise<string | null> {
-    // sendLog 존재 확인 및 orgId 조회
+): Promise<{ clickId: string } | null> {
     const [log] = await db
         .select({ orgId: emailSendLogs.orgId })
         .from(emailSendLogs)
@@ -40,13 +57,31 @@ export async function recordClick(
 
     if (!log) return null;
 
+    const clickId = `clk_${nanoid(21)}`;
+
     await db.insert(emailClickLogs).values({
         orgId: log.orgId,
         sendLogId,
         url,
+        clickId,
         ip: ip || null,
         userAgent: userAgent || null,
     });
 
-    return url;
+    return { clickId };
+}
+
+/**
+ * redirect 도착지 URL에 sendb_cid 파라미터를 부착합니다.
+ * 트래커가 이 값을 보고 방문자를 sendb 리드와 자동 연결합니다.
+ */
+export function appendSendbCid(targetUrl: string, clickId: string): string {
+    try {
+        const url = new URL(targetUrl);
+        url.searchParams.set("sendb_cid", clickId);
+        return url.toString();
+    } catch {
+        // 잘못된 URL이면 원본 그대로 반환
+        return targetUrl;
+    }
 }
