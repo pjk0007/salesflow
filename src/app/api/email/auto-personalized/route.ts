@@ -31,6 +31,8 @@ export async function GET(req: NextRequest) {
             autoResearch: emailAutoPersonalizedLinks.autoResearch,
             useSignaturePersona: emailAutoPersonalizedLinks.useSignaturePersona,
             followupConfig: emailAutoPersonalizedLinks.followupConfig,
+            senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
+            signatureId: emailAutoPersonalizedLinks.signatureId,
             preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
             isActive: emailAutoPersonalizedLinks.isActive,
             isDraft: emailAutoPersonalizedLinks.isDraft,

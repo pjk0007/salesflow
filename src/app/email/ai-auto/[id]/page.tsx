@@ -204,8 +204,8 @@ function EditAiAutoPageContent() {
             setUseSignaturePersona(link.useSignaturePersona === 1);
             setFollowupConfig(link.followupConfig ?? null);
             setPreventDuplicate(link.preventDuplicate ?? 0);
-            setSenderProfileId((link as unknown as { senderProfileId?: number | null }).senderProfileId ?? null);
-            setSignatureId((link as unknown as { signatureId?: number | null }).signatureId ?? null);
+            setSenderProfileId(link.senderProfileId ?? null);
+            setSignatureId(link.signatureId ?? null);
             if (link.triggerCondition?.field) {
                 setConditionEnabled(true);
                 setConditionField(link.triggerCondition.field);

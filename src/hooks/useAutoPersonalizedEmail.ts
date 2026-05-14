@@ -29,6 +29,8 @@ export interface AutoPersonalizedLink {
         onOpened?: { prompt: string };
         onNotOpened?: { prompt: string };
     } | null;
+    senderProfileId: number | null;
+    signatureId: number | null;
     isActive: number;
     isDraft?: number;
     createdAt: string;
