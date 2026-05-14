@@ -144,6 +144,9 @@ export default function AutoPersonalizedEmailConfig({
                                 className="border rounded-lg p-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between"
                             >
                                 <div className="flex-1 space-y-1 min-w-0">
+                                    {link.name && (
+                                        <p className="text-sm font-semibold truncate">{link.name}</p>
+                                    )}
                                     <div className="flex flex-wrap items-center gap-2">
                                         {link.isDraft === 1 && (
                                             <Badge variant="outline" className="border-amber-400 text-amber-700 bg-amber-50">

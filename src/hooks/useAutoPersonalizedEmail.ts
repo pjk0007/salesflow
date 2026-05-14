@@ -5,6 +5,7 @@ import { defaultFetcher } from "@/lib/swr-fetcher";
 export interface AutoPersonalizedLink {
     id: number;
     orgId: string;
+    name: string | null;
     partitionId: number;
     productId: number | null;
     productName: string | null;
