@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
             product,
             recordData,
             tone: link.tone || undefined,
-            ctaUrl: product?.url || undefined,
+            ctaUrl: link.ctaUrl || product?.url || undefined,
             format: (link.format as "plain" | "designed") || "plain",
             senderPersona,
         });

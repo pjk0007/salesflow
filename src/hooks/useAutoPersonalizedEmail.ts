@@ -11,6 +11,7 @@ export interface AutoPersonalizedLink {
     productName: string | null;
     recipientField: string;
     companyField: string;
+    ctaUrl: string | null;
     prompt: string | null;
     tone: string | null;
     format: string;
@@ -41,6 +42,7 @@ interface CreateInput {
     // draft 상태에서는 비어있을 수 있음
     recipientField: string;
     companyField: string;
+    ctaUrl?: string;
     prompt?: string;
     tone?: string;
     format?: string;
@@ -66,6 +68,7 @@ interface UpdateInput {
     productId?: number | null;
     recipientField?: string;
     companyField?: string;
+    ctaUrl?: string;
     prompt?: string;
     tone?: string;
     format?: string;

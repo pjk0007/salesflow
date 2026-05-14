@@ -217,7 +217,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 product,
                 recordData,
                 tone: link.tone || undefined,
-                ctaUrl: product?.url || undefined,
+                ctaUrl: link.ctaUrl || product?.url || undefined,
                 format: (link.format as "plain" | "designed") || "plain",
                 senderPersona,
             });

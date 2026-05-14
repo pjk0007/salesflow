@@ -113,6 +113,7 @@ function EditAiAutoPageContent() {
     const [loaded, setLoaded] = useState(false);
     const [name, setName] = useState("");
     const [productId, setProductId] = useState<number | null>(null);
+    const [ctaUrl, setCtaUrl] = useState("");
     const [triggerType, setTriggerType] = useState<"on_create" | "on_update">("on_create");
     const [recipientField, setRecipientField] = useState("");
     const [companyField, setCompanyField] = useState("");
@@ -191,6 +192,7 @@ function EditAiAutoPageContent() {
         if (link && !loaded) {
             setName((link as unknown as { name?: string }).name || "");
             setProductId(link.productId);
+            setCtaUrl(link.ctaUrl || "");
             setTriggerType(link.triggerType as "on_create" | "on_update");
             setRecipientField(link.recipientField);
             setCompanyField(link.companyField);
@@ -228,6 +230,7 @@ function EditAiAutoPageContent() {
                 name: name || undefined,
                 partitionId: currentPartitionId,
                 productId,
+                ctaUrl: ctaUrl.trim(),
                 triggerType,
                 recipientField,
                 companyField,
@@ -354,6 +357,22 @@ function EditAiAutoPageContent() {
                                                 ))}
                                             </SelectContent>
                                         </Select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>
+                                            CTA 링크 URL
+                                            <HelpTip text="이메일 본문에 사용할 CTA 링크입니다. UTM 파라미터까지 직접 작성하세요. 비워두면 제품의 기본 URL이 사용됩니다." />
+                                        </Label>
+                                        <Input
+                                            placeholder={selectedProduct?.url || "https://example.com/?utm_source=owned&utm_medium=email&utm_campaign=cold"}
+                                            value={ctaUrl}
+                                            onChange={(e) => setCtaUrl(e.target.value)}
+                                            maxLength={500}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            입력한 URL이 그대로 사용됩니다 (UTM 자동 부착 없음). 비워두면 제품 URL 사용.
+                                        </p>
                                     </div>
 
                                     <div className="space-y-2">

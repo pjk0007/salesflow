@@ -128,16 +128,7 @@ export async function generateEmail(
     input: GenerateEmailInput
 ): Promise<GenerateEmailResult> {
     const systemPrompt = buildSystemPrompt(input);
-    const result = await callGeminiEmail(client, systemPrompt, input.prompt);
-
-    const ctaUrl = input.ctaUrl || input.product?.url;
-    if (ctaUrl && result.htmlBody) {
-        const utm = "utm_source=email&utm_medium=sales&utm_campaign=outreach";
-        const urlWithUtm = ctaUrl + (ctaUrl.includes("?") ? "&" : "?") + utm;
-        result.htmlBody = result.htmlBody.replaceAll(ctaUrl, urlWithUtm);
-    }
-
-    return result;
+    return callGeminiEmail(client, systemPrompt, input.prompt);
 }
 
 export function buildEmailSystemPrompt(input: GenerateEmailInput): string {
