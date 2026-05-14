@@ -41,6 +41,136 @@ function normalizeFollowupConfig(config: unknown): FollowupConfig[] {
 }
 
 // ============================================
+// AI 후속 메일 생성 (테스트/미리보기용)
+// ============================================
+
+export interface GenerateAiFollowupPreviewInput {
+    linkId: number;
+    parentLogId: number;
+    stepIndex: number; // 0-based
+    isOpened: boolean;
+}
+
+export async function generateAiFollowupPreview(
+    input: GenerateAiFollowupPreviewInput,
+    orgId: string
+): Promise<
+    | { success: true; subject: string; htmlBody: string }
+    | { success: false; error: string }
+> {
+    const [link] = await db
+        .select()
+        .from(emailAutoPersonalizedLinks)
+        .where(
+            and(
+                eq(emailAutoPersonalizedLinks.id, input.linkId),
+                eq(emailAutoPersonalizedLinks.orgId, orgId)
+            )
+        )
+        .limit(1);
+
+    if (!link) return { success: false, error: "규칙을 찾을 수 없습니다." };
+    if (!link.followupConfig) return { success: false, error: "후속 발송 설정이 없습니다." };
+
+    const steps = normalizeFollowupConfig(link.followupConfig);
+    const currentStep = steps[input.stepIndex] as AiFollowupStep | undefined;
+    if (!currentStep) return { success: false, error: "해당 후속 단계가 없습니다." };
+
+    const action = input.isOpened ? currentStep.onOpened : currentStep.onNotOpened;
+    if (!action?.prompt) {
+        return {
+            success: false,
+            error: `이 단계의 ${input.isOpened ? "읽음" : "안읽음"} 분기에 프롬프트가 설정되어 있지 않습니다.`,
+        };
+    }
+
+    const [parentLog] = await db
+        .select()
+        .from(emailSendLogs)
+        .where(and(eq(emailSendLogs.id, input.parentLogId), eq(emailSendLogs.orgId, orgId)))
+        .limit(1);
+    if (!parentLog) return { success: false, error: "이전 발송 로그를 찾을 수 없습니다." };
+
+    const aiClient = getAiClient();
+    if (!aiClient) return { success: false, error: "AI 클라이언트가 구성되지 않았습니다." };
+
+    const quota = await checkTokenQuota(orgId);
+    if (!quota.allowed) return { success: false, error: "AI 토큰 한도를 초과했습니다." };
+
+    const emailConfig = await getEmailConfig(orgId);
+    const signatureJson = await resolveDefaultSignature(orgId, emailConfig);
+
+    let recordData: Record<string, unknown> = {};
+    if (parentLog.recordId) {
+        const [record] = await db
+            .select()
+            .from(records)
+            .where(eq(records.id, parentLog.recordId))
+            .limit(1);
+        if (record) recordData = record.data as Record<string, unknown>;
+    }
+
+    let product = null;
+    if (link.productId) {
+        const [p] = await db.select().from(products).where(eq(products.id, link.productId)).limit(1);
+        product = p ?? null;
+    }
+
+    const followupPrompt = substitutePromptVariables(action.prompt, recordData);
+    const previousEmailContext = [
+        `[최우선 지시사항]`,
+        `${followupPrompt}`,
+        ``,
+        `[참고: 이전 발송 이메일]`,
+        `- 제목: ${parentLog.subject || "(없음)"}`,
+        `- 본문 요약: ${(parentLog.body || "").substring(0, 300)}`,
+        `- 읽음 여부: ${input.isOpened ? "읽음" : "읽지 않음"}`,
+        `- 후속 단계: ${input.stepIndex + 1}단계`,
+        ``,
+        `위 지시사항을 반드시 따르되, 이전 이메일은 맥락 파악용으로만 참고하세요. 이전 이메일의 내용을 반복하지 마세요.`,
+    ].join("\n");
+
+    let senderPersona: { name: string; title?: string; company?: string } | null = null;
+    if (link.useSignaturePersona === 1 && signatureJson) {
+        try {
+            const sig = JSON.parse(signatureJson);
+            if (sig && typeof sig === "object" && sig.name) {
+                senderPersona = { name: sig.name, title: sig.title || undefined, company: sig.company || undefined };
+            }
+        } catch { /* skip */ }
+    }
+
+    const emailResult = await generateEmail(aiClient, {
+        prompt: previousEmailContext,
+        product,
+        recordData,
+        tone: link.tone || undefined,
+        ctaUrl: link.ctaUrl || product?.url || undefined,
+        format: (link.format as "plain" | "designed") || "plain",
+        senderPersona,
+    });
+
+    const tokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
+    await updateTokenUsage(orgId, tokens);
+    await logAiUsage({
+        orgId,
+        userId: null,
+        provider: "gemini",
+        model: aiClient.model,
+        promptTokens: emailResult.usage.promptTokens,
+        completionTokens: emailResult.usage.completionTokens,
+        purpose: "followup_email_test",
+    });
+
+    let finalBody = emailResult.htmlBody;
+    if (signatureJson) {
+        finalBody = appendSignature(finalBody, signatureJson);
+    }
+
+    return { success: true, subject: emailResult.subject, htmlBody: finalBody };
+}
+
+// ============================================
 // 후속 발송 큐 등록
 // ============================================
 

@@ -25,8 +25,9 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Pencil, Trash2, Copy, Send } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, Copy, Send, Repeat2 } from "lucide-react";
 import AiAutoTestSendDialog from "./AiAutoTestSendDialog";
+import AiFollowupTestDialog from "./AiFollowupTestDialog";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -52,6 +53,7 @@ export default function AutoPersonalizedEmailConfig({
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
     const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
+    const [followupTestTarget, setFollowupTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
     const { links, isLoading, createLink, updateLink, deleteLink } =
         useAutoPersonalizedEmail(selectedPartitionId);
@@ -196,6 +198,16 @@ export default function AutoPersonalizedEmailConfig({
                                     >
                                         <Send className="h-4 w-4" />
                                     </Button>
+                                    {link.followupConfig && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            title="후속 메일 테스트"
+                                            onClick={() => setFollowupTestTarget(link)}
+                                        >
+                                            <Repeat2 className="h-4 w-4" />
+                                        </Button>
+                                    )}
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -252,6 +264,16 @@ export default function AutoPersonalizedEmailConfig({
                     linkName={testTarget.productName || "제품 미지정"}
                     recipientField={testTarget.recipientField}
                     companyField={testTarget.companyField}
+                />
+            )}
+
+            {/* 후속 메일 테스트 */}
+            {followupTestTarget && (
+                <AiFollowupTestDialog
+                    open={!!followupTestTarget}
+                    onOpenChange={(open) => !open && setFollowupTestTarget(null)}
+                    linkId={followupTestTarget.id}
+                    linkName={followupTestTarget.name || followupTestTarget.productName || "제품 미지정"}
                 />
             )}
         </Card>
