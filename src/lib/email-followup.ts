@@ -13,6 +13,7 @@ import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } 
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { substitutePromptVariables } from "@/lib/email-utils";
 
 // ============================================
 // 타입 정의
@@ -396,9 +397,11 @@ async function handleAiFollowup(
     }
 
     // 6. AI 프롬프트 구성 (사용자 지시 우선, 이전 이메일 컨텍스트 참고용)
+    // 후속 발송 프롬프트의 ##필드명## 변수도 레코드 값으로 치환
+    const followupPrompt = substitutePromptVariables(action.prompt, recordData);
     const previousEmailContext = [
         `[최우선 지시사항]`,
-        `${action.prompt}`,
+        `${followupPrompt}`,
         ``,
         `[참고: 이전 발송 이메일]`,
         `- 제목: ${parentLog.subject || "(없음)"}`,

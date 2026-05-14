@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { PromptWithVariableInsert } from "@/components/email/PromptWithVariableInsert";
 import {
     Card,
     CardContent,
@@ -444,13 +445,14 @@ function EditAiAutoPageContent() {
                                     <div className="space-y-2">
                                         <Label>
                                             AI 지시사항
-                                            <HelpTip text="직접 입력하면 형식/톤 설정 대신 이 내용이 사용됩니다" />
+                                            <HelpTip text="직접 입력하면 형식/톤 설정 대신 이 내용이 사용됩니다. ##필드명## 형태로 수신자 정보를 끼워 넣을 수 있습니다." />
                                         </Label>
-                                        <Textarea
+                                        <PromptWithVariableInsert
                                             value={prompt}
-                                            onChange={(e) => setPrompt(e.target.value)}
-                                            placeholder="직접 지시사항을 입력하면 아래 형식/톤 설정 대신 이 내용이 사용됩니다."
-                                            rows={3}
+                                            onChange={setPrompt}
+                                            fields={fields.map((f) => ({ key: f.key, label: f.label }))}
+                                            placeholder="직접 지시사항을 입력하면 아래 형식/톤 설정 대신 이 내용이 사용됩니다. 우측 '변수 삽입' 버튼으로 수신자 정보를 끼워넣을 수 있어요."
+                                            rows={5}
                                         />
                                         {prompt.trim() && (
                                             <p className="text-xs text-muted-foreground">직접 지시사항이 입력되어 형식/톤 설정은 무시됩니다.</p>

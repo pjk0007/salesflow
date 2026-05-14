@@ -5,6 +5,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
+import { substitutePromptVariables } from "@/lib/email-utils";
 
 // POST /api/email/auto-personalized/test-send
 // body: { linkId: number, testEmail: string, recordId?: number }
@@ -126,8 +127,9 @@ export async function POST(req: NextRequest) {
             } catch { /* skip */ }
         }
 
-        // 8. AI 이메일 생성
-        const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
+        // 8. AI 이메일 생성 — 프롬프트의 ##필드명## 변수를 레코드 값으로 치환
+        const rawPrompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
+        const prompt = substitutePromptVariables(rawPrompt, recordData);
         const emailResult = await generateEmail(aiClient, {
             prompt,
             product,
