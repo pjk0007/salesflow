@@ -162,7 +162,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
                 <DialogHeader>
                     <DialogTitle>후속 메일 테스트</DialogTitle>
                     <DialogDescription>
@@ -183,8 +183,8 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                         이 규칙으로 발송된 이력이 없습니다. 먼저 본 메일이 1건 이상 발송되어야 후속 테스트가 가능합니다.
                     </p>
                 ) : (
-                    <div className="space-y-4">
-                        <div className="space-y-2">
+                    <div className="space-y-4 min-w-0">
+                        <div className="space-y-2 min-w-0">
                             <div className="flex items-center justify-between">
                                 <Label>이전 발송 로그</Label>
                                 <span className="text-xs text-muted-foreground">
@@ -229,8 +229,8 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                                                     )}
                                                 </div>
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-medium truncate">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <span className="font-medium truncate min-w-0">
                                                             {log.identifier || log.recipientEmail}
                                                         </span>
                                                         <span className="ml-auto shrink-0 text-xs text-muted-foreground">
@@ -320,10 +320,10 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                         </div>
 
                         {preview && (
-                            <div className="space-y-2">
+                            <div className="space-y-2 min-w-0">
                                 <Label>생성된 후속 메일 미리보기</Label>
-                                <div className="rounded-md border p-3 space-y-2">
-                                    <p className="text-sm font-medium">제목: {preview.subject}</p>
+                                <div className="rounded-md border p-3 space-y-2 min-w-0">
+                                    <p className="text-sm font-medium wrap-break-word">제목: {preview.subject}</p>
                                     <div className="border-t pt-2">
                                         <iframe
                                             srcDoc={preview.htmlBody}
@@ -335,7 +335,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                                 {preview.recordData && (
                                     <details className="text-xs text-muted-foreground">
                                         <summary className="cursor-pointer">치환에 사용된 레코드 데이터 보기</summary>
-                                        <pre className="mt-2 p-2 bg-muted rounded overflow-x-auto">
+                                        <pre className="mt-2 p-2 bg-muted rounded whitespace-pre-wrap break-all">
                                             {JSON.stringify(preview.recordData, null, 2)}
                                         </pre>
                                     </details>
