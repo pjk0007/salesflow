@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs } from "@/lib/db";
 import { eq, and, gte } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getEmailClient } from "@/lib/nhn-email";
+import { getEmailClient, parseNhnDate } from "@/lib/nhn-email";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -58,9 +58,9 @@ export async function POST(req: NextRequest) {
                                 status: newStatus,
                                 resultCode: mail.resultCode,
                                 resultMessage: mail.resultCodeName,
-                                completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
+                                completedAt: parseNhnDate(mail.resultDate) ?? new Date(),
                                 isOpened: mail.isOpened ? 1 : 0,
-                                openedAt: mail.openedDate ? new Date(mail.openedDate) : null,
+                                openedAt: parseNhnDate(mail.openedDate),
                             })
                             .where(eq(emailSendLogs.id, log.id));
                         updated++;
@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
                                     status: "failed",
                                     resultCode: mail.resultCode,
                                     resultMessage: mail.resultCodeName,
-                                    completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
+                                    completedAt: parseNhnDate(mail.resultDate) ?? new Date(),
                                 })
                                 .where(eq(emailSendLogs.id, log.id));
                             statusCorrected++;
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
                                 .update(emailSendLogs)
                                 .set({
                                     isOpened: 1,
-                                    openedAt: mail.openedDate ? new Date(mail.openedDate) : new Date(),
+                                    openedAt: parseNhnDate(mail.openedDate) ?? new Date(),
                                 })
                                 .where(eq(emailSendLogs.id, log.id));
                             readUpdated++;

@@ -9,7 +9,7 @@ import {
     products,
 } from "@/lib/db";
 import { eq, and, lte } from "drizzle-orm";
-import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
+import { getEmailClient, getEmailConfig, substituteVariables, appendSignature, parseNhnDate } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
@@ -338,7 +338,7 @@ async function syncReadStatus(log: typeof emailSendLogs.$inferSelect) {
                     .update(emailSendLogs)
                     .set({
                         isOpened: 1,
-                        openedAt: mail.openedDate ? new Date(mail.openedDate) : new Date(),
+                        openedAt: parseNhnDate(mail.openedDate) ?? new Date(),
                     })
                     .where(eq(emailSendLogs.id, log.id));
                 break;
