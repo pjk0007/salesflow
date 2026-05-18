@@ -46,6 +46,18 @@
         }
     }
 
+    // 크로스도메인 인계: URL에 sendb_vid 있으면 그 visitor_id를 채택.
+    // 다른 등록 도메인에서 넘어온 동일 방문자를 익명 단계에서도 이어줌.
+    function adoptVisitorIdFromUrl() {
+        try {
+            var sp = new URLSearchParams(location.search);
+            var fromUrl = sp.get("sendb_vid");
+            if (fromUrl) {
+                localStorage.setItem(STORAGE_VISITOR, fromUrl);
+            }
+        } catch (e) {}
+    }
+
     // ── Session Management ──
 
     function getSessionKey() {
@@ -202,7 +214,17 @@
                     keepalive: true,
                     mode: "cors",
                     credentials: "omit",
-                }).catch(function () {});
+                })
+                    .then(function (res) {
+                        return res.json();
+                    })
+                    .then(function (json) {
+                        // 등록 도메인 목록 수신 → 크로스도메인 링킹에 사용
+                        if (json && json.domains && !config.domains) {
+                            config.domains = json.domains;
+                        }
+                    })
+                    .catch(function () {});
                 return;
             }
         } catch (e) {}
@@ -296,6 +318,81 @@
         }
     }
 
+    // ── Cross-domain Linking ──
+    // 등록된 다른 도메인으로 가는 링크에 sendb_cid 자동 부착.
+    // 이메일로 식별된 방문자가 다른 사이트(데모 등)로 이동해도 동일인으로 추적.
+
+    function isTrackedDomain(hostname) {
+        if (!config.domains || !config.domains.length) return false;
+        var host = hostname.toLowerCase();
+        for (var i = 0; i < config.domains.length; i++) {
+            var d = String(config.domains[i]).toLowerCase();
+            if (host === d || host === "www." + d || "www." + host === d) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function decorateLink(href) {
+        try {
+            var url = new URL(href, location.href);
+            // 같은 도메인이면 localStorage 공유되므로 부착 불필요
+            if (url.hostname === location.hostname) return null;
+            // 등록 안 된 도메인이면 무시
+            if (!isTrackedDomain(url.hostname)) return null;
+            // 이미 인계 파라미터가 있으면 건드리지 않음
+            if (url.searchParams.has("sendb_vid")) return null;
+
+            // visitor_id 전파 — 익명 포함 동일인 인계
+            url.searchParams.set("sendb_vid", getVisitorId());
+            // 이메일 클릭 ID도 있으면 같이 전파 (식별 정보 유지)
+            if (config.clickId) {
+                url.searchParams.set("sendb_cid", config.clickId);
+            }
+            return url.toString();
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function setupCrossDomainLinking() {
+        document.addEventListener(
+            "click",
+            function (e) {
+                // 이미 다른 핸들러가 막았거나 보조키 클릭이면 무시
+                if (e.defaultPrevented) return;
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                if (e.button !== 0) return;
+
+                var el = e.target;
+                while (el && el.tagName !== "A") {
+                    el = el.parentElement;
+                }
+                if (!el) return;
+
+                var rawHref = el.getAttribute("href") || el.href;
+                if (!rawHref) return;
+
+                var decorated = decorateLink(rawHref);
+                if (!decorated) return;
+
+                // 우리가 직접 네비게이션 — el.href만 바꾸면
+                // Next.js <Link> 등이 원래 href로 가버리므로 클릭 자체를 가로챔
+                e.preventDefault();
+                e.stopPropagation();
+
+                var target = el.getAttribute("target");
+                if (target === "_blank") {
+                    window.open(decorated, "_blank", "noopener");
+                } else {
+                    window.location.href = decorated;
+                }
+            },
+            true, // capture 단계 — Next.js Link 핸들러보다 먼저 잡음
+        );
+    }
+
     // ── Public API ──
 
     window.sendb = {
@@ -373,11 +470,15 @@
 
         config.clickId = getClickId();
 
+        // URL로 넘어온 visitor_id 우선 채택 (크로스도메인 인계)
+        adoptVisitorIdFromUrl();
+
         getVisitorId();
         getSessionKey();
         trackPageView();
         setupSpaTracking();
         setupHeartbeat();
+        setupCrossDomainLinking();
     }
 
     if (document.readyState === "loading") {

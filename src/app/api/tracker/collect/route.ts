@@ -247,6 +247,8 @@ export async function POST(req: NextRequest) {
                 ok: true,
                 visitor_id: result.visitor.id,
                 record_id: result.visitor.recordId,
+                // 크로스도메인 링킹용 — 등록된 도메인 목록
+                domains: site.domains,
             },
             origin,
         );
