@@ -34,6 +34,7 @@ export async function PUT(
             productId,
             recipientField,
             companyField,
+            ctaUrl,
             prompt,
             tone,
             format,
@@ -80,6 +81,7 @@ export async function PUT(
         if (productId !== undefined) updateData.productId = productId;
         if (recipientField !== undefined) updateData.recipientField = recipientField;
         if (companyField !== undefined) updateData.companyField = companyField;
+        if (ctaUrl !== undefined) updateData.ctaUrl = ctaUrl || null;
         if (prompt !== undefined) updateData.prompt = prompt || null;
         if (tone !== undefined) updateData.tone = tone || null;
         if (format !== undefined) updateData.format = format || "plain";

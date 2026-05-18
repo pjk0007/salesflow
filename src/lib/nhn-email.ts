@@ -45,6 +45,21 @@ export interface NhnEmailQueryResult {
     openedDate?: string;
 }
 
+/**
+ * NHN Cloud Email API의 날짜 문자열을 Date로 파싱한다.
+ * sentMail list 응답의 resultDate/openedDate는 타임존 정보 없는 KST 문자열
+ * (예: "2026-05-18 18:59:00") 이므로, +09:00을 명시해 UTC로 정확히 변환한다.
+ * new Date(문자열)을 그대로 쓰면 실행 환경 타임존으로 오해석되어 시간이 어긋난다.
+ */
+export function parseNhnDate(s: string | null | undefined): Date | null {
+    if (!s) return null;
+    // 이미 타임존 오프셋이 포함된 ISO 문자열이면 그대로 파싱
+    if (/[+-]\d{2}:?\d{2}$|Z$/.test(s.trim())) {
+        return new Date(s);
+    }
+    return new Date(s.trim().replace(" ", "T") + "+09:00");
+}
+
 // ============================================
 // NHN Cloud Email API 클라이언트
 // ============================================

@@ -703,6 +703,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     productId: integer("product_id"),
     recipientField: varchar("recipient_field", { length: 100 }).notNull(),
     companyField: varchar("company_field", { length: 100 }).notNull(),
+    ctaUrl: varchar("cta_url", { length: 500 }),
     prompt: text("prompt"),
     tone: varchar("tone", { length: 50 }),
     format: varchar("format", { length: 20 }).default("plain").notNull(),

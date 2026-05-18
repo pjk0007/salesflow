@@ -71,6 +71,9 @@ subject는 반드시 plain text만 사용하세요. HTML 태그(<b>, <u> 등)를
 - 미팅 예약, 캘린더 링크 등 실제로 지원하지 않는 기능을 CTA로 쓰지 마세요.`;
     }
 
+    prompt += `\n\n[변수 치환 안내]
+사용자의 지시문에 등장하는 수신자 정보(회사명, 이름, 채널명 등)는 이미 실제 값으로 치환된 상태입니다. 그대로 사용하세요. 본문에 ##필드명## 같은 미치환 토큰이 절대 남아 있어선 안 됩니다.`;
+
     if (input.recordData) {
         const companyResearch = input.recordData._companyResearch as Record<string, unknown> | undefined;
         if (companyResearch && typeof companyResearch === "object") {
@@ -128,16 +131,7 @@ export async function generateEmail(
     input: GenerateEmailInput
 ): Promise<GenerateEmailResult> {
     const systemPrompt = buildSystemPrompt(input);
-    const result = await callGeminiEmail(client, systemPrompt, input.prompt);
-
-    const ctaUrl = input.ctaUrl || input.product?.url;
-    if (ctaUrl && result.htmlBody) {
-        const utm = "utm_source=email&utm_medium=sales&utm_campaign=outreach";
-        const urlWithUtm = ctaUrl + (ctaUrl.includes("?") ? "&" : "?") + utm;
-        result.htmlBody = result.htmlBody.replaceAll(ctaUrl, urlWithUtm);
-    }
-
-    return result;
+    return callGeminiEmail(client, systemPrompt, input.prompt);
 }
 
 export function buildEmailSystemPrompt(input: GenerateEmailInput): string {

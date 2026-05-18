@@ -307,14 +307,21 @@
       "idx": 43,
       "version": "7",
       "when": 1770950600000,
-      "tag": "0043_tracker",
+      "tag": "0043_ai_auto_cta_url",
       "breakpoints": true
     },
     {
       "idx": 44,
       "version": "7",
       "when": 1770950700000,
-      "tag": "0044_tracker_partition",
+      "tag": "0044_tracker",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1770950800000,
+      "tag": "0045_tracker_partition",
       "breakpoints": true
     }
   ]

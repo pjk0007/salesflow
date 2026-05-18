@@ -6,6 +6,7 @@ import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
 
 // ============================================
@@ -210,14 +211,15 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 } catch { /* legacy plain text signature — skip */ }
             }
 
-            // 8-2. AI 이메일 생성
-            const prompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
+            // 8-2. AI 이메일 생성 — 프롬프트의 ##필드명## 변수를 레코드 값으로 치환
+            const rawPrompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
+            const prompt = substitutePromptVariables(rawPrompt, recordData);
             const emailResult = await generateEmail(aiClient, {
                 prompt,
                 product,
                 recordData,
                 tone: link.tone || undefined,
-                ctaUrl: product?.url || undefined,
+                ctaUrl: link.ctaUrl || product?.url || undefined,
                 format: (link.format as "plain" | "designed") || "plain",
                 senderPersona,
             });

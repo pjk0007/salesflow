@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { PromptWithVariableInsert } from "@/components/email/PromptWithVariableInsert";
 import {
     Card,
     CardContent,
@@ -113,6 +114,7 @@ function EditAiAutoPageContent() {
     const [loaded, setLoaded] = useState(false);
     const [name, setName] = useState("");
     const [productId, setProductId] = useState<number | null>(null);
+    const [ctaUrl, setCtaUrl] = useState("");
     const [triggerType, setTriggerType] = useState<"on_create" | "on_update">("on_create");
     const [recipientField, setRecipientField] = useState("");
     const [companyField, setCompanyField] = useState("");
@@ -191,6 +193,7 @@ function EditAiAutoPageContent() {
         if (link && !loaded) {
             setName((link as unknown as { name?: string }).name || "");
             setProductId(link.productId);
+            setCtaUrl(link.ctaUrl || "");
             setTriggerType(link.triggerType as "on_create" | "on_update");
             setRecipientField(link.recipientField);
             setCompanyField(link.companyField);
@@ -201,8 +204,8 @@ function EditAiAutoPageContent() {
             setUseSignaturePersona(link.useSignaturePersona === 1);
             setFollowupConfig(link.followupConfig ?? null);
             setPreventDuplicate(link.preventDuplicate ?? 0);
-            setSenderProfileId((link as unknown as { senderProfileId?: number | null }).senderProfileId ?? null);
-            setSignatureId((link as unknown as { signatureId?: number | null }).signatureId ?? null);
+            setSenderProfileId(link.senderProfileId ?? null);
+            setSignatureId(link.signatureId ?? null);
             if (link.triggerCondition?.field) {
                 setConditionEnabled(true);
                 setConditionField(link.triggerCondition.field);
@@ -228,6 +231,7 @@ function EditAiAutoPageContent() {
                 name: name || undefined,
                 partitionId: currentPartitionId,
                 productId,
+                ctaUrl: ctaUrl.trim(),
                 triggerType,
                 recipientField,
                 companyField,
@@ -358,6 +362,22 @@ function EditAiAutoPageContent() {
 
                                     <div className="space-y-2">
                                         <Label>
+                                            CTA 링크 URL
+                                            <HelpTip text="이메일 본문에 사용할 CTA 링크입니다. UTM 파라미터까지 직접 작성하세요. 비워두면 제품의 기본 URL이 사용됩니다." />
+                                        </Label>
+                                        <Input
+                                            placeholder={selectedProduct?.url || "https://example.com/?utm_source=owned&utm_medium=email&utm_campaign=cold"}
+                                            value={ctaUrl}
+                                            onChange={(e) => setCtaUrl(e.target.value)}
+                                            maxLength={500}
+                                        />
+                                        <p className="text-xs text-muted-foreground">
+                                            입력한 URL이 그대로 사용됩니다 (UTM 자동 부착 없음). 비워두면 제품 URL 사용.
+                                        </p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label>
                                             트리거
                                             <HelpTip text="레코드가 생성되거나 수정될 때 자동으로 이메일을 발송합니다" />
                                         </Label>
@@ -425,13 +445,14 @@ function EditAiAutoPageContent() {
                                     <div className="space-y-2">
                                         <Label>
                                             AI 지시사항
-                                            <HelpTip text="직접 입력하면 형식/톤 설정 대신 이 내용이 사용됩니다" />
+                                            <HelpTip text="직접 입력하면 형식/톤 설정 대신 이 내용이 사용됩니다. ##필드명## 형태로 수신자 정보를 끼워 넣을 수 있습니다." />
                                         </Label>
-                                        <Textarea
+                                        <PromptWithVariableInsert
                                             value={prompt}
-                                            onChange={(e) => setPrompt(e.target.value)}
-                                            placeholder="직접 지시사항을 입력하면 아래 형식/톤 설정 대신 이 내용이 사용됩니다."
-                                            rows={3}
+                                            onChange={setPrompt}
+                                            fields={fields.map((f) => ({ key: f.key, label: f.label }))}
+                                            placeholder="직접 지시사항을 입력하면 아래 형식/톤 설정 대신 이 내용이 사용됩니다. 우측 '변수 삽입' 버튼으로 수신자 정보를 끼워넣을 수 있어요."
+                                            rows={5}
                                         />
                                         {prompt.trim() && (
                                             <p className="text-xs text-muted-foreground">직접 지시사항이 입력되어 형식/톤 설정은 무시됩니다.</p>

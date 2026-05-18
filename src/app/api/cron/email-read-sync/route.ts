@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs, emailConfigs } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getEmailClient } from "@/lib/nhn-email";
+import { getEmailClient, parseNhnDate } from "@/lib/nhn-email";
 
 function formatDate(d: Date): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
                                 status: "failed",
                                 resultCode: mail.resultCode,
                                 resultMessage: mail.resultCodeName,
-                                completedAt: mail.resultDate ? new Date(mail.resultDate) : new Date(),
+                                completedAt: parseNhnDate(mail.resultDate) ?? new Date(),
                             }).where(
                                 and(
                                     eq(emailSendLogs.orgId, config.orgId),
@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
                         if (mail.isOpened) {
                             const rows = await db.update(emailSendLogs).set({
                                 isOpened: 1,
-                                openedAt: mail.openedDate ? new Date(mail.openedDate) : new Date(),
+                                openedAt: parseNhnDate(mail.openedDate) ?? new Date(),
                             }).where(
                                 and(
                                     eq(emailSendLogs.orgId, config.orgId),

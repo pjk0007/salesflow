@@ -5,11 +5,13 @@ import { defaultFetcher } from "@/lib/swr-fetcher";
 export interface AutoPersonalizedLink {
     id: number;
     orgId: string;
+    name: string | null;
     partitionId: number;
     productId: number | null;
     productName: string | null;
     recipientField: string;
     companyField: string;
+    ctaUrl: string | null;
     prompt: string | null;
     tone: string | null;
     format: string;
@@ -27,6 +29,8 @@ export interface AutoPersonalizedLink {
         onOpened?: { prompt: string };
         onNotOpened?: { prompt: string };
     } | null;
+    senderProfileId: number | null;
+    signatureId: number | null;
     isActive: number;
     isDraft?: number;
     createdAt: string;
@@ -40,6 +44,7 @@ interface CreateInput {
     // draft 상태에서는 비어있을 수 있음
     recipientField: string;
     companyField: string;
+    ctaUrl?: string;
     prompt?: string;
     tone?: string;
     format?: string;
@@ -65,6 +70,7 @@ interface UpdateInput {
     productId?: number | null;
     recipientField?: string;
     companyField?: string;
+    ctaUrl?: string;
     prompt?: string;
     tone?: string;
     format?: string;
