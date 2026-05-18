@@ -92,26 +92,31 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                                     key={s.id}
                                     className="rounded border p-3 grid grid-cols-2 gap-x-4 gap-y-1"
                                 >
-                                    <div>
+                                    <div className="min-w-0">
                                         <span className="text-muted-foreground">시작: </span>
                                         {formatDate(s.startedAt)}
                                     </div>
-                                    <div>
+                                    <div className="min-w-0">
                                         <span className="text-muted-foreground">페이지: </span>
                                         {s.pageCount}개
                                     </div>
-                                    <div>
+                                    <div className="min-w-0">
                                         <span className="text-muted-foreground">체류: </span>
                                         {formatDuration(s.duration)}
                                     </div>
-                                    <div>
+                                    <div className="min-w-0 truncate">
                                         <span className="text-muted-foreground">유입: </span>
                                         {s.utmSource ?? "-"}
                                         {s.utmCampaign ? ` / ${s.utmCampaign}` : ""}
                                     </div>
-                                    <div>
-                                        <span className="text-muted-foreground">착륙: </span>
-                                        <span className="truncate">{s.landingPage ?? "-"}</span>
+                                    <div className="col-span-2 flex gap-1">
+                                        <span className="shrink-0 text-muted-foreground">착륙: </span>
+                                        <span
+                                            className="line-clamp-1 break-all"
+                                            title={s.landingPage ?? undefined}
+                                        >
+                                            {s.landingPage ?? "-"}
+                                        </span>
                                     </div>
                                 </li>
                             ))}
@@ -132,15 +137,18 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                             {events.map((e) => (
                                 <li
                                     key={e.id}
-                                    className="flex items-center gap-3 border-b py-1 last:border-0"
+                                    className="flex items-center gap-3 border-b py-1.5 last:border-0"
                                 >
-                                    <span className="text-xs text-muted-foreground shrink-0 w-32">
+                                    <span className="w-32 shrink-0 text-xs text-muted-foreground">
                                         {formatDate(e.occurredAt)}
                                     </span>
-                                    <Badge variant="outline" className="text-xs">
+                                    <Badge variant="outline" className="shrink-0 text-xs">
                                         {e.eventType}
                                     </Badge>
-                                    <span className="truncate">
+                                    <span
+                                        className="line-clamp-1 flex-1 break-all text-muted-foreground"
+                                        title={e.eventName ?? e.pageUrl ?? undefined}
+                                    >
                                         {e.eventName ?? e.pageUrl ?? "-"}
                                     </span>
                                 </li>

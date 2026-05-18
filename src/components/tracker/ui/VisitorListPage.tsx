@@ -22,13 +22,28 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Users, UserCheck, Eye, Settings } from "lucide-react";
 
+const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
+
 export function VisitorListPage() {
     const { workspaces } = useWorkspaces();
-    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
+    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(() => {
+        if (typeof window === "undefined") return null;
+        const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+        return saved ? Number(saved) : null;
+    });
 
     const workspaceId = useMemo(() => {
-        return selectedWorkspaceId ?? workspaces?.[0]?.id ?? null;
+        // 저장된 워크스페이스가 유효하면 사용, 아니면 첫 번째
+        if (selectedWorkspaceId && workspaces?.some((w) => w.id === selectedWorkspaceId)) {
+            return selectedWorkspaceId;
+        }
+        return workspaces?.[0]?.id ?? null;
     }, [selectedWorkspaceId, workspaces]);
+
+    const changeWorkspace = (id: number) => {
+        setSelectedWorkspaceId(id);
+        localStorage.setItem(WORKSPACE_STORAGE_KEY, String(id));
+    };
 
     const { site, isLoading: siteLoading, mutate: mutateSite } = useTrackerSite(workspaceId);
 
@@ -58,7 +73,7 @@ export function VisitorListPage() {
     const workspaceSelector = (
         <Select
             value={workspaceId ? String(workspaceId) : ""}
-            onValueChange={(v) => setSelectedWorkspaceId(Number(v))}
+            onValueChange={(v) => changeWorkspace(Number(v))}
         >
             <SelectTrigger className="w-56">
                 <SelectValue placeholder="워크스페이스 선택" />
