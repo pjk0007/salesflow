@@ -2,12 +2,12 @@
 
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
-import type { TrackerVisitor } from "../types";
+import type { TrackerVisitorRow } from "../types";
 
 type Response =
     | {
           success: true;
-          data: TrackerVisitor[];
+          data: TrackerVisitorRow[];
           page: number;
           pageSize: number;
           total: number;

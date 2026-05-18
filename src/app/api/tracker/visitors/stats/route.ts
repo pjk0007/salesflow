@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, trackerSites, trackerVisitors } from "@/lib/db";
-import { eq, and, count, sum, isNotNull, sql } from "drizzle-orm";
+import { db, trackerSites } from "@/lib/db";
+import { eq, and, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 /**
  * 트래커 방문자 전체 집계 통계.
- * 목록 페이지네이션과 무관하게 site 전체 기준으로 계산.
+ * "사람" 단위 — record 있으면 record로 묶고, 없으면 visitor 단독.
  */
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -27,23 +27,35 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const [stats] = await db
-        .select({
-            totalVisitors: count(),
-            identifiedVisitors: count(
-                sql`CASE WHEN ${trackerVisitors.recordId} IS NOT NULL THEN 1 END`,
-            ),
-            totalPageviews: sum(trackerVisitors.totalPageviews),
-        })
-        .from(trackerVisitors)
-        .where(eq(trackerVisitors.siteId, site.id));
+    // 사람 단위 그룹: record 있으면 r{id}, 없으면 v{id}
+    const rows = (await db.execute(sql`
+        SELECT
+            COUNT(*)::int AS total_visitors,
+            COUNT(*) FILTER (WHERE has_record)::int AS identified_visitors,
+            COALESCE(SUM(pageviews), 0)::int AS total_pageviews
+        FROM (
+            SELECT
+                COALESCE('r' || record_id, 'v' || id::text) AS gk,
+                bool_or(record_id IS NOT NULL) AS has_record,
+                SUM(total_pageviews) AS pageviews
+            FROM tracker_visitors
+            WHERE site_id = ${siteId}
+            GROUP BY COALESCE('r' || record_id, 'v' || id::text)
+        ) g
+    `)) as unknown as Array<{
+        total_visitors: number;
+        identified_visitors: number;
+        total_pageviews: number;
+    }>;
+
+    const s = rows[0];
 
     return NextResponse.json({
         success: true,
         data: {
-            totalVisitors: Number(stats.totalVisitors) || 0,
-            identifiedVisitors: Number(stats.identifiedVisitors) || 0,
-            totalPageviews: Number(stats.totalPageviews) || 0,
+            totalVisitors: s?.total_visitors ?? 0,
+            identifiedVisitors: s?.identified_visitors ?? 0,
+            totalPageviews: s?.total_pageviews ?? 0,
         },
     });
 }

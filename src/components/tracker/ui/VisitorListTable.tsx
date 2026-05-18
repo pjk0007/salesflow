@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Monitor, Smartphone, Tablet, Users } from "lucide-react";
-import type { TrackerVisitor } from "../types";
+import type { TrackerVisitorRow } from "../types";
 
-export function VisitorListTable({ visitors }: { visitors: TrackerVisitor[] }) {
+export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }) {
     if (visitors.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
@@ -47,7 +47,11 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitor[] }) {
                         <TableRow key={v.id}>
                             <TableCell>
                                 <Link
-                                    href={`/tracker/visitors/${v.id}`}
+                                    href={
+                                        v.recordId
+                                            ? `/records?id=${v.recordId}`
+                                            : `/tracker/visitors/${v.id}`
+                                    }
                                     className="font-medium text-foreground hover:text-primary hover:underline"
                                 >
                                     {v.email ?? v.name ?? (
@@ -70,6 +74,11 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitor[] }) {
                                 <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
                                     <DeviceIcon type={v.deviceType} />
                                     {v.browser ?? "-"}
+                                    {v.deviceCount > 1 && (
+                                        <span className="text-xs text-muted-foreground/70">
+                                            외 {v.deviceCount - 1}
+                                        </span>
+                                    )}
                                 </span>
                             </TableCell>
                             <TableCell>

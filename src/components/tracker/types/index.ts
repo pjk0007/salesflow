@@ -10,6 +10,29 @@ export type TrackerSite = {
     updatedAt: string;
 };
 
+/** 방문자 목록 행 — record 단위로 그룹핑된 "사람" 1명 */
+export type TrackerVisitorRow = {
+    id: number;
+    recordId: number | null;
+    visitorId: string;
+    email: string | null;
+    name: string | null;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    totalVisits: number;
+    totalPageviews: number;
+    totalEvents: number;
+    deviceCount: number;
+    deviceType: string | null;
+    browser: string | null;
+    os: string | null;
+    lastUtmSource: string | null;
+    lastUtmCampaign: string | null;
+    lastPage: string | null;
+    lastEvent: string | null;
+    lastEventAt: string | null;
+};
+
 export type TrackerVisitor = {
     id: number;
     orgId: string;
