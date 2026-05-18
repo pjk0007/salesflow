@@ -5,6 +5,33 @@ import { getUserFromNextRequest } from "@/lib/auth";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { broadcastToPartition } from "@/lib/sse";
 
+export async function GET(
+    req: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const user = getUserFromNextRequest(req);
+    if (!user) {
+        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const recordId = Number(id);
+    if (!recordId) {
+        return NextResponse.json({ success: false, error: "레코드 ID가 필요합니다." }, { status: 400 });
+    }
+
+    const [record] = await db
+        .select()
+        .from(records)
+        .where(and(eq(records.id, recordId), eq(records.orgId, user.orgId)));
+
+    if (!record) {
+        return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: record });
+}
+
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }

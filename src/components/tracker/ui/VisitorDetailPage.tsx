@@ -30,6 +30,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
     }
 
     const { visitor, sessions, events } = data.data;
+    const totalDuration = sessions.reduce((sum, s) => sum + (s.duration ?? 0), 0);
 
     return (
         <div className="space-y-6">
@@ -43,6 +44,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                         <Item label="이름" value={visitor.name ?? "-"} />
                         <Item label="총 방문" value={String(visitor.totalVisits)} />
                         <Item label="페이지뷰" value={String(visitor.totalPageviews)} />
+                        <Item label="총 체류시간" value={formatDuration(totalDuration)} />
                         <Item
                             label="디바이스"
                             value={`${visitor.deviceType ?? "-"} / ${visitor.browser ?? "-"} / ${visitor.os ?? "-"}`}
@@ -97,6 +99,10 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                                     <div>
                                         <span className="text-muted-foreground">페이지: </span>
                                         {s.pageCount}개
+                                    </div>
+                                    <div>
+                                        <span className="text-muted-foreground">체류: </span>
+                                        {formatDuration(s.duration)}
                                     </div>
                                     <div>
                                         <span className="text-muted-foreground">유입: </span>
@@ -166,4 +172,15 @@ function formatDate(s: string): string {
         hour: "2-digit",
         minute: "2-digit",
     });
+}
+
+/** 초 단위 duration을 사람이 읽는 형태로 (예: 1분 42초, 2시간 5분) */
+function formatDuration(seconds: number | null): string {
+    if (!seconds || seconds <= 0) return "-";
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}시간 ${m}분`;
+    if (m > 0) return `${m}분 ${s}초`;
+    return `${s}초`;
 }

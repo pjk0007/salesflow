@@ -316,13 +316,6 @@
       "when": 1770950700000,
       "tag": "0044_tracker",
       "breakpoints": true
-    },
-    {
-      "idx": 45,
-      "version": "7",
-      "when": 1770950800000,
-      "tag": "0045_tracker_partition",
-      "breakpoints": true
     }
   ]
 }

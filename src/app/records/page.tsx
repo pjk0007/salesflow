@@ -180,9 +180,44 @@ export default function RecordsPage() {
         localStorage.removeItem("records_last_partition");
     }, []);
 
+    // URL ?id= 로 진입 시 해당 레코드 자동 열기 (트래커 → 레코드 점프 등)
+    const deeplinkHandledRef = useRef(false);
+    useEffect(() => {
+        if (deeplinkHandledRef.current) return;
+        const params = new URLSearchParams(window.location.search);
+        const idParam = params.get("id");
+        if (!idParam) {
+            deeplinkHandledRef.current = true;
+            return;
+        }
+        deeplinkHandledRef.current = true;
+
+        (async () => {
+            try {
+                const res = await fetch(`/api/records/${idParam}`);
+                const json = await res.json();
+                if (!json.success) {
+                    toast.error(json.error || "레코드를 찾을 수 없습니다.");
+                    return;
+                }
+                const rec: DbRecord = json.data;
+                // 해당 레코드의 워크스페이스/파티션으로 전환
+                setWorkspaceId(rec.workspaceId);
+                setPartitionId(rec.partitionId);
+                localStorage.setItem("records_last_workspace", String(rec.workspaceId));
+                localStorage.setItem("records_last_partition", String(rec.partitionId));
+                setDetailRecord(rec);
+            } catch {
+                toast.error("레코드를 불러오지 못했습니다.");
+            }
+        })();
+    }, []);
+
     // 파티션 미선택 시 첫 번째 파티션 자동 선택
     useEffect(() => {
         if (partitionId || !partitionTree) return;
+        // 딥링크 진입 시엔 자동 선택 건너뜀 (위 effect가 파티션 지정)
+        if (new URLSearchParams(window.location.search).get("id")) return;
         const allPartitions = [
             ...partitionTree.ungrouped,
             ...partitionTree.folders.flatMap((f) => f.partitions),

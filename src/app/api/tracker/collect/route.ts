@@ -12,7 +12,6 @@ import { eq, and, sql } from "drizzle-orm";
 import { collectEventSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
 import { rateLimit } from "@/lib/tracker/rate-limit";
-import { mirrorVisitorToRecord } from "@/lib/tracker/mirror-record";
 
 function corsHeaders(origin: string) {
     return {
@@ -238,16 +237,6 @@ export async function POST(req: NextRequest) {
                 .set(updates)
                 .where(eq(trackerVisitors.id, visitor.id))
                 .returning();
-
-            // records mirror도 같은 트랜잭션에서 처리 (트래커 파티션이 설정된 경우)
-            if (site.partitionId) {
-                await mirrorVisitorToRecord(tx, {
-                    orgId: site.orgId,
-                    workspaceId: site.workspaceId,
-                    partitionId: site.partitionId,
-                    visitor: refreshed,
-                });
-            }
 
             return { visitor: refreshed, sessionId: trackerSession.id };
         });

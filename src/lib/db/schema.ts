@@ -1200,9 +1200,6 @@ export const trackerSites = pgTable("tracker_sites", {
     apiKey: varchar("api_key", { length: 64 }).notNull().unique(),
     domains: jsonb("domains").$type<string[]>().notNull().default([]),
     isActive: integer("is_active").default(1).notNull(),
-    // records 시스템 통합 (visitor 데이터를 records 테이블에도 mirror)
-    fieldTypeId: integer("field_type_id"),
-    partitionId: integer("partition_id"),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 }, (table) => [

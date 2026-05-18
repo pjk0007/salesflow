@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerVisitors } from "@/lib/db";
-import { eq, and, desc, lt, isNotNull, isNull, ilike, or } from "drizzle-orm";
+import { eq, and, desc, isNotNull, isNull, ilike, or, count, sum } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
 const PAGE_SIZE = 50;
@@ -26,17 +26,11 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const cursor = sp.get("cursor"); // ISO string of lastSeenAt of last item
+    const page = Math.max(1, Number(sp.get("page")) || 1);
     const q = sp.get("q")?.trim();
     const hasRecord = sp.get("hasRecord"); // "true" | "false" | null
 
     const conditions = [eq(trackerVisitors.siteId, site.id)];
-    if (cursor) {
-        const date = new Date(cursor);
-        if (!isNaN(date.getTime())) {
-            conditions.push(lt(trackerVisitors.lastSeenAt, date));
-        }
-    }
     if (hasRecord === "true") {
         conditions.push(isNotNull(trackerVisitors.recordId));
     } else if (hasRecord === "false") {
@@ -52,16 +46,32 @@ export async function GET(req: NextRequest) {
         if (search) conditions.push(search);
     }
 
-    const rows = await db
+    const where = and(...conditions);
+
+    // 필터 적용된 전체 개수
+    const [{ total }] = await db
+        .select({ total: count() })
+        .from(trackerVisitors)
+        .where(where);
+
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const offset = (safePage - 1) * PAGE_SIZE;
+
+    const data = await db
         .select()
         .from(trackerVisitors)
-        .where(and(...conditions))
+        .where(where)
         .orderBy(desc(trackerVisitors.lastSeenAt))
-        .limit(PAGE_SIZE + 1);
+        .limit(PAGE_SIZE)
+        .offset(offset);
 
-    const hasMore = rows.length > PAGE_SIZE;
-    const data = hasMore ? rows.slice(0, PAGE_SIZE) : rows;
-    const nextCursor = hasMore ? data[data.length - 1].lastSeenAt.toISOString() : null;
-
-    return NextResponse.json({ success: true, data, nextCursor });
+    return NextResponse.json({
+        success: true,
+        data,
+        page: safePage,
+        pageSize: PAGE_SIZE,
+        total,
+        totalPages,
+    });
 }

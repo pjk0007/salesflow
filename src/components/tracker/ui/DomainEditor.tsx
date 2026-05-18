@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import { updateTrackerSite } from "../api/trackerSites";
+import { normalizeDomain } from "../utils/normalizeDomain";
 
 export function DomainEditor({
     siteId,
@@ -21,7 +22,7 @@ export function DomainEditor({
     const [saving, setSaving] = useState(false);
 
     const handleAdd = async () => {
-        const trimmed = newDomain.trim().toLowerCase().replace(/^https?:\/\//, "");
+        const trimmed = normalizeDomain(newDomain);
         if (!trimmed) return;
         if (domains.includes(trimmed)) {
             toast.error("이미 등록된 도메인입니다.");

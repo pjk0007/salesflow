@@ -1,6 +1,10 @@
 (function () {
     "use strict";
 
+    // 자기 자신(<script> 태그)을 즉시 캡처. defer 환경에서도 동작.
+    // 다른 트래커(GA, adion 등)가 같은 페이지에 있어도 자기 태그만 정확히 찾기 위함.
+    var SELF_SCRIPT = document.currentScript;
+
     var STORAGE_VISITOR = "sendb_vid";
     var STORAGE_SESSION = "sendb_sid";
     var STORAGE_SESSION_TS = "sendb_sts";
@@ -337,16 +341,29 @@
 
     // ── Init ──
 
-    function init() {
+    function findSelfScript() {
+        // 1순위: 캡처해둔 currentScript
+        if (SELF_SCRIPT && SELF_SCRIPT.getAttribute("data-endpoint")) {
+            return SELF_SCRIPT;
+        }
+        // 2순위: src에 sendb tracker.js를 포함하고 data-endpoint를 가진 script
         var scripts = document.getElementsByTagName("script");
         for (var i = 0; i < scripts.length; i++) {
             var s = scripts[i];
-            if (s.getAttribute("data-api-key")) {
-                config.apiKey = s.getAttribute("data-api-key") || "";
-                config.endpoint = s.getAttribute("data-endpoint") || "";
-                config.identifyEndpoint = s.getAttribute("data-identify-endpoint") || "";
-                break;
+            var src = s.getAttribute("src") || "";
+            if (src.indexOf("/tracker.js") !== -1 && s.getAttribute("data-endpoint")) {
+                return s;
             }
+        }
+        return null;
+    }
+
+    function init() {
+        var self = findSelfScript();
+        if (self) {
+            config.apiKey = self.getAttribute("data-api-key") || "";
+            config.endpoint = self.getAttribute("data-endpoint") || "";
+            config.identifyEndpoint = self.getAttribute("data-identify-endpoint") || "";
         }
         if (!config.apiKey || !config.endpoint) return;
         if (!config.identifyEndpoint) {

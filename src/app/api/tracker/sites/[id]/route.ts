@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, trackerSites, partitions, fieldTypes, fieldDefinitions } from "@/lib/db";
+import { db, trackerSites } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { updateSiteSchema } from "@/lib/tracker/validations";
@@ -87,17 +87,7 @@ export async function DELETE(
         return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    // 자동 생성된 파티션/field_type/field_definitions까지 정리
-    await db.transaction(async (tx) => {
-        await tx.delete(trackerSites).where(eq(trackerSites.id, site.id));
-        if (site.partitionId) {
-            await tx.delete(partitions).where(eq(partitions.id, site.partitionId));
-        }
-        if (site.fieldTypeId) {
-            await tx.delete(fieldDefinitions).where(eq(fieldDefinitions.fieldTypeId, site.fieldTypeId));
-            await tx.delete(fieldTypes).where(eq(fieldTypes.id, site.fieldTypeId));
-        }
-    });
+    await db.delete(trackerSites).where(eq(trackerSites.id, site.id));
 
     return NextResponse.json({ success: true });
 }
