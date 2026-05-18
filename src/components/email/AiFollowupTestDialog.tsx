@@ -22,6 +22,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Eye, Send, Search, Check, MailOpen, Mail } from "lucide-react";
 import { toast } from "sonner";
 
@@ -162,14 +163,16 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto overflow-x-hidden">
-                <DialogHeader>
+            <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col gap-0 p-0">
+                <DialogHeader className="px-6 pt-6 pb-4">
                     <DialogTitle>후속 메일 테스트</DialogTitle>
                     <DialogDescription>
                         &quot;{linkName}&quot; 규칙의 후속 메일을 실제 발송 데이터 기준으로 미리 생성하거나 테스트 발송합니다.
                     </DialogDescription>
                 </DialogHeader>
 
+                <ScrollArea className="flex-1 min-h-0">
+                    <div className="px-6 pb-4">
                 {isLoading ? (
                     <div className="flex items-center justify-center py-12">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -344,8 +347,10 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                         )}
                     </div>
                 )}
+                    </div>
+                </ScrollArea>
 
-                <DialogFooter>
+                <DialogFooter className="px-6 py-4 border-t">
                     <Button variant="outline" onClick={() => handleClose(false)} disabled={working}>
                         닫기
                     </Button>
