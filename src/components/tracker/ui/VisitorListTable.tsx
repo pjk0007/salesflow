@@ -47,11 +47,7 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }
                         <TableRow key={v.id}>
                             <TableCell>
                                 <Link
-                                    href={
-                                        v.recordId
-                                            ? `/records?id=${v.recordId}`
-                                            : `/tracker/visitors/${v.id}`
-                                    }
+                                    href={`/tracker/visitors/${v.id}`}
                                     className="font-medium text-foreground hover:text-primary hover:underline"
                                 >
                                     {v.email ?? v.name ?? (

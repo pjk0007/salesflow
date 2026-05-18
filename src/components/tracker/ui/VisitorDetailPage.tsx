@@ -8,10 +8,32 @@ import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import type { TrackerVisitor, TrackerSession, TrackerEvent } from "../types";
 
+type Summary = {
+    totalVisits: number;
+    totalPageviews: number;
+    totalEvents: number;
+    deviceCount: number;
+    firstSeenAt: string | null;
+    lastSeenAt: string | null;
+    devices: Array<{
+        id: number;
+        visitorId: string;
+        deviceType: string | null;
+        browser: string | null;
+        os: string | null;
+        lastSeenAt: string;
+    }>;
+};
+
 type Response =
     | {
           success: true;
-          data: { visitor: TrackerVisitor; sessions: TrackerSession[]; events: TrackerEvent[] };
+          data: {
+              visitor: TrackerVisitor;
+              summary: Summary;
+              sessions: TrackerSession[];
+              events: TrackerEvent[];
+          };
       }
     | { success: false; error: string };
 
@@ -29,8 +51,9 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
         return <p className="text-sm text-muted-foreground">방문자를 찾을 수 없습니다.</p>;
     }
 
-    const { visitor, sessions, events } = data.data;
+    const { visitor, summary, sessions, events } = data.data;
     const totalDuration = sessions.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+    const primaryDevice = summary.devices[0];
 
     return (
         <div className="space-y-6">
@@ -42,15 +65,28 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                     <dl className="grid grid-cols-2 gap-4 text-sm">
                         <Item label="이메일" value={visitor.email ?? "-"} />
                         <Item label="이름" value={visitor.name ?? "-"} />
-                        <Item label="총 방문" value={String(visitor.totalVisits)} />
-                        <Item label="페이지뷰" value={String(visitor.totalPageviews)} />
+                        <Item label="총 방문" value={String(summary.totalVisits)} />
+                        <Item label="페이지뷰" value={String(summary.totalPageviews)} />
                         <Item label="총 체류시간" value={formatDuration(totalDuration)} />
                         <Item
                             label="디바이스"
-                            value={`${visitor.deviceType ?? "-"} / ${visitor.browser ?? "-"} / ${visitor.os ?? "-"}`}
+                            value={
+                                primaryDevice
+                                    ? `${primaryDevice.deviceType ?? "-"} / ${primaryDevice.browser ?? "-"} / ${primaryDevice.os ?? "-"}` +
+                                      (summary.deviceCount > 1
+                                          ? ` 외 ${summary.deviceCount - 1}`
+                                          : "")
+                                    : "-"
+                            }
                         />
-                        <Item label="첫 방문" value={formatDate(visitor.firstSeenAt)} />
-                        <Item label="마지막 방문" value={formatDate(visitor.lastSeenAt)} />
+                        <Item
+                            label="첫 방문"
+                            value={summary.firstSeenAt ? formatDate(summary.firstSeenAt) : "-"}
+                        />
+                        <Item
+                            label="마지막 방문"
+                            value={summary.lastSeenAt ? formatDate(summary.lastSeenAt) : "-"}
+                        />
                         <Item
                             label="유입"
                             value={
