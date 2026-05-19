@@ -172,7 +172,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/v1/records
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
     const tokenInfo = await authenticateExternalRequest(req);
     if (!tokenInfo) {
         return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
@@ -323,4 +323,26 @@ export async function POST(req: NextRequest) {
         console.error("External record create error:", error);
         return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
     }
+}
+
+// ── CORS ──
+// 외부 사이트(고객사)가 브라우저에서 직접 호출하는 공개 API라 CORS 허용.
+
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+};
+
+export async function OPTIONS() {
+    return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
+export async function POST(req: NextRequest) {
+    const res = await handlePost(req);
+    for (const [k, v] of Object.entries(CORS_HEADERS)) {
+        res.headers.set(k, v);
+    }
+    return res;
 }

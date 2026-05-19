@@ -7,6 +7,7 @@ import {
     trackerEvents,
     emailClickLogs,
     emailSendLogs,
+    records,
 } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { collectEventSchema } from "@/lib/tracker/validations";
@@ -105,13 +106,18 @@ export async function POST(req: NextRequest) {
                     .select({
                         recordId: emailSendLogs.recordId,
                         recipientEmail: emailSendLogs.recipientEmail,
+                        recordWorkspaceId: records.workspaceId,
                     })
                     .from(emailClickLogs)
                     .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
+                    .innerJoin(records, eq(emailSendLogs.recordId, records.id))
                     .where(eq(emailClickLogs.clickId, click_id))
                     .limit(1);
 
-                if (match?.recordId) {
+                // 같은 워크스페이스의 메일 클릭일 때만 연결.
+                // 다른 워크스페이스 메일의 click_id가 (localStorage 등으로)
+                // 흘러들어와도 엉뚱한 record에 엮이지 않도록 격리.
+                if (match?.recordId && match.recordWorkspaceId === site.workspaceId) {
                     await tx
                         .update(trackerVisitors)
                         .set({

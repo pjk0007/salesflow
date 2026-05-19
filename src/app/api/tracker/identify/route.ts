@@ -64,9 +64,9 @@ export async function POST(req: NextRequest) {
             return cors(404, { error: "Visitor not found" }, origin);
         }
 
-        // 같은 워크스페이스 안에서 이메일로 record 매칭
+        // 같은 워크스페이스 안에서 record 매칭 — 이메일 우선, 없으면 전화번호
         let recordId = visitor.recordId;
-        if (email && !recordId) {
+        if (!recordId && email) {
             const matched = (await db.execute(sql`
                 SELECT id FROM records
                 WHERE workspace_id = ${site.workspaceId}
@@ -75,6 +75,21 @@ export async function POST(req: NextRequest) {
             `)) as unknown as Array<{ id: number }>;
             if (matched[0]) {
                 recordId = matched[0].id;
+            }
+        }
+        if (!recordId && phone) {
+            // 전화번호는 형식이 제각각이라 숫자만 비교
+            const digits = phone.replace(/\D/g, "");
+            if (digits.length >= 8) {
+                const matched = (await db.execute(sql`
+                    SELECT id FROM records
+                    WHERE workspace_id = ${site.workspaceId}
+                      AND regexp_replace(COALESCE(data->>'phone', ''), '\\D', '', 'g') = ${digits}
+                    LIMIT 1
+                `)) as unknown as Array<{ id: number }>;
+                if (matched[0]) {
+                    recordId = matched[0].id;
+                }
             }
         }
 
