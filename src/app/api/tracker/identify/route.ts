@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const parsed = identifyPayloadSchema.safeParse(rawBody);
     if (!parsed.success) return cors(400, { error: "Invalid payload" }, origin);
 
-    const { visitor_id, email, name, phone } = parsed.data;
+    const { visitor_id, email, name, phone, user_id } = parsed.data;
 
     try {
         const visitor = await db.query.trackerVisitors.findFirst({
@@ -64,8 +64,26 @@ export async function POST(req: NextRequest) {
             return cors(404, { error: "Visitor not found" }, origin);
         }
 
-        // 같은 워크스페이스 안에서 record 매칭 — 이메일 우선, 없으면 전화번호
+        // record 매칭 우선순위:
+        //  1) 트래커에 지정된 커스텀 매칭 필드 (site.matchField) — user_id 값으로
+        //  2) email
+        //  3) phone
         let recordId = visitor.recordId;
+
+        // 1) 커스텀 매칭 필드
+        if (!recordId && site.matchField && user_id) {
+            const matched = (await db.execute(sql`
+                SELECT id FROM records
+                WHERE workspace_id = ${site.workspaceId}
+                  AND data->>${site.matchField} = ${user_id}
+                LIMIT 1
+            `)) as unknown as Array<{ id: number }>;
+            if (matched[0]) {
+                recordId = matched[0].id;
+            }
+        }
+
+        // 같은 워크스페이스 안에서 record 매칭 — 이메일 우선, 없으면 전화번호
         if (!recordId && email) {
             const matched = (await db.execute(sql`
                 SELECT id FROM records

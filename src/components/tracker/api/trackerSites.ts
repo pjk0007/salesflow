@@ -13,6 +13,7 @@ export async function createTrackerSite(input: {
     workspaceId: number;
     name: string;
     domains: string[];
+    matchField?: string | null;
 }): Promise<TrackerSite> {
     const res = await fetch(`/api/tracker/sites`, {
         method: "POST",
@@ -26,7 +27,12 @@ export async function createTrackerSite(input: {
 
 export async function updateTrackerSite(
     id: number,
-    input: { name?: string; domains?: string[]; isActive?: 0 | 1 },
+    input: {
+        name?: string;
+        domains?: string[];
+        isActive?: 0 | 1;
+        matchField?: string | null;
+    },
 ): Promise<TrackerSite> {
     const res = await fetch(`/api/tracker/sites/${id}`, {
         method: "PATCH",

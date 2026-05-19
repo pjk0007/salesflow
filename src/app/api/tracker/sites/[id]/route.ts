@@ -59,6 +59,9 @@ export async function PATCH(
     if (parsed.data.name !== undefined) updates.name = parsed.data.name;
     if (parsed.data.domains !== undefined) updates.domains = parsed.data.domains;
     if (parsed.data.isActive !== undefined) updates.isActive = parsed.data.isActive;
+    if (parsed.data.matchField !== undefined) {
+        updates.matchField = parsed.data.matchField || null;
+    }
 
     const [updated] = await db
         .update(trackerSites)

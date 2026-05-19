@@ -1200,6 +1200,8 @@ export const trackerSites = pgTable("tracker_sites", {
     apiKey: varchar("api_key", { length: 64 }).notNull().unique(),
     domains: jsonb("domains").$type<string[]>().notNull().default([]),
     isActive: integer("is_active").default(1).notNull(),
+    // identify 매칭 필드 — NULL이면 email/phone 기본
+    matchField: varchar("match_field", { length: 100 }),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 }, (table) => [

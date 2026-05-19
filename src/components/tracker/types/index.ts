@@ -6,6 +6,7 @@ export type TrackerSite = {
     apiKey: string;
     domains: string[];
     isActive: number;
+    matchField: string | null;
     createdAt: string;
     updatedAt: string;
 };

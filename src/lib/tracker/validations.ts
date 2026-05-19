@@ -73,6 +73,8 @@ export const createSiteSchema = z.object({
         .array(z.string().min(1).max(253))
         .min(1, "도메인을 최소 1개 등록해주세요.")
         .max(20),
+    // identify 매칭 필드 (선택) — 비우면 email/phone 기본
+    matchField: z.string().max(100).optional().nullable(),
 });
 
 export type CreateSitePayload = z.infer<typeof createSiteSchema>;
@@ -84,6 +86,7 @@ export const updateSiteSchema = z.object({
     name: z.string().min(1).max(200).optional(),
     domains: z.array(z.string().min(1).max(253)).max(20).optional(),
     isActive: z.union([z.literal(0), z.literal(1)]).optional(),
+    matchField: z.string().max(100).optional().nullable(),
 });
 
 export type UpdateSitePayload = z.infer<typeof updateSiteSchema>;

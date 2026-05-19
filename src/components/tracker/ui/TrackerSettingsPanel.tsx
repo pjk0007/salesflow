@@ -2,6 +2,7 @@
 
 import { EmbedScriptCard } from "./EmbedScriptCard";
 import { DomainEditor } from "./DomainEditor";
+import { MatchFieldCard } from "./MatchFieldCard";
 import type { TrackerSite } from "../types";
 
 /**
@@ -21,6 +22,12 @@ export function TrackerSettingsPanel({
             <DomainEditor
                 siteId={site.id}
                 domains={site.domains}
+                onUpdated={onUpdated}
+            />
+            <MatchFieldCard
+                siteId={site.id}
+                workspaceId={site.workspaceId}
+                matchField={site.matchField}
                 onUpdated={onUpdated}
             />
         </div>

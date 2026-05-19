@@ -89,6 +89,7 @@ export async function POST(req: NextRequest) {
                     name: parsed.data.name,
                     apiKey,
                     domains: parsed.data.domains,
+                    matchField: parsed.data.matchField ?? null,
                 })
                 .returning();
 

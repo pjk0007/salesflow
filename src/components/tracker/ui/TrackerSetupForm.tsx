@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Plus, X, MousePointerClick, Route, UserCheck, Activity } from "lucide-react";
 import { createTrackerSite } from "../api/trackerSites";
 import { normalizeDomain } from "../utils/normalizeDomain";
+import { MatchFieldSelect } from "./MatchFieldSelect";
 
 const STEPS = [
     {
@@ -37,6 +38,7 @@ export function TrackerSetupForm({
     const [name, setName] = useState("");
     const [domains, setDomains] = useState<string[]>([]);
     const [domainInput, setDomainInput] = useState("");
+    const [matchField, setMatchField] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
 
     const addDomain = () => {
@@ -61,7 +63,12 @@ export function TrackerSetupForm({
         }
         setSaving(true);
         try {
-            await createTrackerSite({ workspaceId, name: name.trim(), domains: finalDomains });
+            await createTrackerSite({
+                workspaceId,
+                name: name.trim(),
+                domains: finalDomains,
+                matchField,
+            });
             toast.success("트래커가 생성되었습니다.");
             onCreated();
         } catch (err) {
@@ -173,6 +180,12 @@ export function TrackerSetupForm({
                             추적할 사이트의 도메인을 입력하세요. 여러 개 등록할 수 있습니다.
                         </p>
                     </div>
+
+                    <MatchFieldSelect
+                        workspaceId={workspaceId}
+                        value={matchField}
+                        onChange={setMatchField}
+                    />
 
                     <Button onClick={submit} disabled={saving} className="w-full">
                         {saving ? "생성 중..." : "트래커 만들기"}
