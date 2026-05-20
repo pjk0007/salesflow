@@ -82,6 +82,7 @@ export default function EditFieldDialog({
     const [isGroupable, setIsGroupable] = useState(false);
     const [isSortable, setIsSortable] = useState(false);
     const [defaultValue, setDefaultValue] = useState("");
+    const [trackHistory, setTrackHistory] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
@@ -97,6 +98,7 @@ export default function EditFieldDialog({
             setOptionStyle(field.optionStyle ?? "pill");
             setTextColor(field.cellClassName ?? "");
             setIsGroupable(!!field.isGroupable);
+            setTrackHistory(!!field.trackHistory);
             setNewOption("");
         }
     }, [open, field]);
@@ -134,6 +136,7 @@ export default function EditFieldDialog({
                 optionStyle: field.fieldType === "select" ? optionStyle : undefined,
                 isGroupable: field.fieldType === "select" ? isGroupable : undefined,
                 cellClassName: textColor || undefined,
+                trackHistory: field.fieldType === "select" ? trackHistory : undefined,
             });
             if (result.success) {
                 toast.success("속성이 수정되었습니다.");
@@ -242,6 +245,22 @@ export default function EditFieldDialog({
                                     id="editIsGroupable"
                                     checked={isGroupable}
                                     onCheckedChange={setIsGroupable}
+                                />
+                            </div>
+                        )}
+
+                        {field.fieldType === "select" && (
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <Label htmlFor="editTrackHistory" className="cursor-pointer">
+                                        변경 이력 추적
+                                    </Label>
+                                    <p className="text-xs text-muted-foreground">값이 바뀌면 변경 이력(타임라인)에 기록합니다</p>
+                                </div>
+                                <Switch
+                                    id="editTrackHistory"
+                                    checked={trackHistory}
+                                    onCheckedChange={setTrackHistory}
                                 />
                             </div>
                         )}

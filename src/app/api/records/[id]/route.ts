@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records } from "@/lib/db";
+import { db, records, fieldDefinitions, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { broadcastToPartition } from "@/lib/sse";
+import { insertRecordEvent } from "@/lib/record-events";
 
 export async function GET(
     req: NextRequest,
@@ -69,14 +70,61 @@ export async function PATCH(
             delete sanitized[k];
         }
 
-        // 기존 data와 병합
-        const mergedData = { ...(existing.data as Record<string, unknown>), ...sanitized };
+        // 변경 이력 추적 대상 필드 조회 (track_history=1)
+        // partition.fieldTypeId → 없으면 workspace.defaultFieldTypeId 폴백
+        const [partition] = await db
+            .select({ fieldTypeId: partitions.fieldTypeId, workspaceId: partitions.workspaceId })
+            .from(partitions)
+            .where(eq(partitions.id, existing.partitionId));
+        let resolvedTypeId = partition?.fieldTypeId ?? null;
+        if (!resolvedTypeId && partition) {
+            const [ws] = await db
+                .select({ defaultFieldTypeId: workspaces.defaultFieldTypeId })
+                .from(workspaces)
+                .where(eq(workspaces.id, partition.workspaceId));
+            resolvedTypeId = ws?.defaultFieldTypeId ?? null;
+        }
+        const trackedFields = resolvedTypeId
+            ? await db
+                .select({ key: fieldDefinitions.key })
+                .from(fieldDefinitions)
+                .where(and(eq(fieldDefinitions.fieldTypeId, resolvedTypeId), eq(fieldDefinitions.trackHistory, 1)))
+            : [];
 
-        const [updated] = await db
-            .update(records)
-            .set({ data: mergedData, updatedAt: new Date() })
-            .where(eq(records.id, recordId))
-            .returning();
+        // 기존 data와 병합
+        const before = existing.data as Record<string, unknown>;
+        const mergedData = { ...before, ...sanitized };
+
+        const updated = await db.transaction(async (tx) => {
+            const [row] = await tx
+                .update(records)
+                .set({ data: mergedData, updatedAt: new Date() })
+                .where(eq(records.id, recordId))
+                .returning();
+
+            // 추적 필드 중 값이 바뀐 것만 record_events에 기록
+            for (const { key } of trackedFields) {
+                if (!(key in sanitized)) continue;
+                const fromVal = before[key];
+                const toVal = sanitized[key];
+                if (toVal === fromVal || toVal === undefined) continue;
+                await insertRecordEvent(
+                    {
+                        orgId: existing.orgId,
+                        recordId,
+                        event: {
+                            type: key,
+                            label: String(toVal ?? ""),
+                            occurredAt: new Date(),
+                            meta: { field: key, from: fromVal ?? null, to: toVal ?? null, by: user.userId },
+                        },
+                    },
+                    tx
+                );
+            }
+
+            return row;
+        });
 
         dispatchAutoTriggers({
             record: updated,

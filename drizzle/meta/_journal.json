@@ -344,6 +344,13 @@
       "when": 1770951100000,
       "tag": "0048_convert_registered_at_to_system",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1770951200000,
+      "tag": "0049_field_track_history",
+      "breakpoints": true
     }
   ]
 }

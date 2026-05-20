@@ -142,6 +142,8 @@ export const fieldDefinitions = pgTable(
         formulaConfig: jsonb("formula_config").$type<FormulaConfig>(),
         // 시스템 컬럼 매핑 (NULL=커스텀, 'registeredAt'|'createdAt'|'updatedAt'=시스템)
         systemColumn: varchar("system_column", { length: 50 }),
+        // 변경 이력 추적 (1이면 값 변경 시 record_events에 기록)
+        trackHistory: integer("track_history").default(0).notNull(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },

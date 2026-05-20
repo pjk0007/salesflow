@@ -59,6 +59,7 @@ export default function CreateFieldDialog({
     const [options, setOptions] = useState<string[]>([]);
     const [newOption, setNewOption] = useState("");
     const [textColor, setTextColor] = useState("");
+    const [trackHistory, setTrackHistory] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const resetForm = () => {
@@ -74,6 +75,7 @@ export default function CreateFieldDialog({
         setOptions([]);
         setNewOption("");
         setTextColor("");
+        setTrackHistory(false);
     };
 
     const handleOpenChange = (open: boolean) => {
@@ -136,6 +138,7 @@ export default function CreateFieldDialog({
                         defaultValue: defaultValue.trim() || undefined,
                         options: fieldType === "select" ? options : undefined,
                         cellClassName: textColor || undefined,
+                        trackHistory: fieldType === "select" ? trackHistory : undefined,
                     }
             );
             if (result.success) {
@@ -377,6 +380,19 @@ export default function CreateFieldDialog({
                                         ))}
                                     </div>
                                 )}
+                                <div className="flex items-center gap-2 pt-1">
+                                    <Checkbox
+                                        id="trackHistory"
+                                        checked={trackHistory}
+                                        onCheckedChange={(c) => setTrackHistory(c === true)}
+                                    />
+                                    <Label htmlFor="trackHistory" className="cursor-pointer">
+                                        변경 이력 추적
+                                    </Label>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    이 필드가 바뀌면 레코드의 변경 이력(타임라인)에 기록됩니다.
+                                </p>
                             </div>
                         )}
                         </>)}

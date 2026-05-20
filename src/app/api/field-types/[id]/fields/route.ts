@@ -76,7 +76,7 @@ export async function POST(
         return NextResponse.json({ success: false, error: "타입을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options, cellClassName, systemColumn } = await req.json();
+    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options, cellClassName, systemColumn, trackHistory } = await req.json();
 
     const isSystemField = !!systemColumn;
 
@@ -131,6 +131,8 @@ export async function POST(
                 defaultValue: isSystemField ? null : (defaultValue?.trim() || null),
                 options: !isSystemField && fieldType === "select" && options?.length ? options : null,
                 cellClassName: isSystemField ? null : (cellClassName?.trim() || null),
+                // 변경 이력 추적 — select 커스텀 필드만
+                trackHistory: !isSystemField && fieldType === "select" && trackHistory ? 1 : 0,
             })
             .returning({ id: fieldDefinitions.id, key: fieldDefinitions.key, label: fieldDefinitions.label });
 

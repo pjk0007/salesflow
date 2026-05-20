@@ -93,6 +93,7 @@ export interface FieldDefinition {
   defaultValue: string | null;
   formulaConfig: FormulaConfig | null;
   systemColumn: string | null;
+  trackHistory: boolean;
 }
 
 // 필터 연산자
@@ -284,6 +285,7 @@ export interface CreateFieldInput {
     options?: string[];
     cellClassName?: string;
     systemColumn?: string;
+    trackHistory?: boolean;
 }
 
 // 필드 수정 입력
@@ -299,6 +301,7 @@ export interface UpdateFieldInput {
     isGroupable?: boolean;
     cellClassName?: string;
     defaultWidth?: number;
+    trackHistory?: boolean;
 }
 
 // 필드 순서 변경 입력
