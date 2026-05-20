@@ -65,13 +65,14 @@ export async function POST(req: NextRequest) {
         }
 
         // record 매칭 우선순위:
-        //  1) 트래커에 지정된 커스텀 매칭 필드 (site.matchField) — user_id 값으로
+        //  1) 커스텀 매칭 필드 (site.matchField) — user_id 값으로. 가장 신뢰.
         //  2) email
-        //  3) phone
+        //  3) phone (단, matchField 지정 site는 제외 — 번호 공유로 오연결 잦음)
         let recordId = visitor.recordId;
 
-        // 1) 커스텀 매칭 필드
-        if (!recordId && site.matchField && user_id) {
+        // 1) 커스텀 매칭 필드 — 이미 recordId가 있어도 항상 재시도하여 덮어쓴다.
+        //    가입 직후 record가 늦게 생기거나, 초기에 fallback으로 잘못 박힌 경우를 교정.
+        if (site.matchField && user_id) {
             const matched = (await db.execute(sql`
                 SELECT id FROM records
                 WHERE workspace_id = ${site.workspaceId}
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 같은 워크스페이스 안에서 record 매칭 — 이메일 우선, 없으면 전화번호
+        // 2) email fallback — recordId 없을 때만. (이메일은 거의 고유)
         if (!recordId && email) {
             const matched = (await db.execute(sql`
                 SELECT id FROM records
@@ -95,7 +96,10 @@ export async function POST(req: NextRequest) {
                 recordId = matched[0].id;
             }
         }
-        if (!recordId && phone) {
+
+        // 3) phone fallback — recordId 없고, matchField가 지정되지 않은 site만.
+        //    전화번호는 가족/회사 공유로 충돌이 잦아 matchField 기반 site에선 신뢰하지 않는다.
+        if (!recordId && !site.matchField && phone) {
             // 전화번호는 형식이 제각각이라 숫자만 비교
             const digits = phone.replace(/\D/g, "");
             if (digits.length >= 8) {
