@@ -158,6 +158,11 @@ export default function EditFieldDialog({
                         <DialogTitle>속성 수정</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
+                        {field.systemColumn && (
+                            <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                                시스템 필드입니다. 시스템이 자동 기록하는 값을 표시하며(읽기 전용), 라벨만 수정할 수 있습니다.
+                            </p>
+                        )}
                         <div className="space-y-1.5">
                             <Label>Key</Label>
                             <Input value={field.key} disabled className="bg-muted" />

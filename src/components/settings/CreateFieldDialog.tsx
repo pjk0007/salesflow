@@ -21,6 +21,7 @@ import {
 import { X } from "lucide-react";
 import { toast } from "sonner";
 import type { CreateFieldInput, FieldType } from "@/types";
+import { SYSTEM_FIELD_COLUMNS, type SystemFieldColumn } from "@/components/records/system-columns";
 
 const FIELD_TYPE_OPTIONS: { value: FieldType; label: string }[] = [
     { value: "text", label: "텍스트" },
@@ -46,6 +47,8 @@ export default function CreateFieldDialog({
     onOpenChange,
     onSubmit,
 }: CreateFieldDialogProps) {
+    const [fieldKind, setFieldKind] = useState<"custom" | "system">("custom");
+    const [systemColumn, setSystemColumn] = useState<SystemFieldColumn>("registeredAt");
     const [key, setKey] = useState("");
     const [label, setLabel] = useState("");
     const [fieldType, setFieldType] = useState<FieldType>("text");
@@ -59,6 +62,8 @@ export default function CreateFieldDialog({
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const resetForm = () => {
+        setFieldKind("custom");
+        setSystemColumn("registeredAt");
         setKey("");
         setLabel("");
         setFieldType("text");
@@ -90,36 +95,49 @@ export default function CreateFieldDialog({
 
     const handleSubmit = async () => {
         if (isSubmitting) return;
-        if (!key.trim()) {
-            toast.error("key를 입력해주세요.");
-            return;
-        }
         if (!label.trim()) {
             toast.error("라벨을 입력해주세요.");
             return;
         }
-        if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key.trim())) {
-            toast.error("key는 영문으로 시작하고 영문과 숫자만 사용 가능합니다.");
-            return;
-        }
-        if (fieldType === "select" && options.length === 0) {
-            toast.error("선택 타입은 옵션을 1개 이상 추가해주세요.");
-            return;
+
+        const isSystem = fieldKind === "system";
+        if (!isSystem) {
+            if (!key.trim()) {
+                toast.error("key를 입력해주세요.");
+                return;
+            }
+            if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key.trim())) {
+                toast.error("key는 영문으로 시작하고 영문과 숫자만 사용 가능합니다.");
+                return;
+            }
+            if (fieldType === "select" && options.length === 0) {
+                toast.error("선택 타입은 옵션을 1개 이상 추가해주세요.");
+                return;
+            }
         }
 
         setIsSubmitting(true);
         try {
-            const result = await onSubmit({
-                key: key.trim(),
-                label: label.trim(),
-                fieldType,
-                category: category.trim() || undefined,
-                isRequired,
-                isSortable,
-                defaultValue: defaultValue.trim() || undefined,
-                options: fieldType === "select" ? options : undefined,
-                cellClassName: textColor || undefined,
-            });
+            const result = await onSubmit(
+                isSystem
+                    ? {
+                        key: systemColumn,
+                        label: label.trim(),
+                        fieldType: "datetime",
+                        systemColumn,
+                    }
+                    : {
+                        key: key.trim(),
+                        label: label.trim(),
+                        fieldType,
+                        category: category.trim() || undefined,
+                        isRequired,
+                        isSortable,
+                        defaultValue: defaultValue.trim() || undefined,
+                        options: fieldType === "select" ? options : undefined,
+                        cellClassName: textColor || undefined,
+                    }
+            );
             if (result.success) {
                 toast.success("속성이 추가되었습니다.");
                 resetForm();
@@ -142,6 +160,56 @@ export default function CreateFieldDialog({
                         <DialogTitle>새 속성 추가</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
+                        {/* 필드 종류 */}
+                        <div className="space-y-1.5">
+                            <Label>
+                                필드 종류 <span className="text-destructive">*</span>
+                            </Label>
+                            <Select value={fieldKind} onValueChange={(v) => setFieldKind(v as "custom" | "system")}>
+                                <SelectTrigger className="w-full">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="custom">커스텀 필드</SelectItem>
+                                    <SelectItem value="system">시스템 필드</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                시스템 필드는 등록일/생성일/수정일 등 시스템이 자동 기록하는 값을 표시합니다 (읽기 전용).
+                            </p>
+                        </div>
+
+                        {fieldKind === "system" && (
+                            <div className="space-y-1.5">
+                                <Label>
+                                    시스템 항목 <span className="text-destructive">*</span>
+                                </Label>
+                                <Select value={systemColumn} onValueChange={(v) => setSystemColumn(v as SystemFieldColumn)}>
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {SYSTEM_FIELD_COLUMNS.map((c) => (
+                                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
+                        {/* 라벨 (공통) */}
+                        <div className="space-y-1.5">
+                            <Label>
+                                라벨 <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                                value={label}
+                                onChange={(e) => setLabel(e.target.value)}
+                                placeholder="예: 등록일"
+                            />
+                        </div>
+
+                        {fieldKind === "custom" && (<>
                         <div className="space-y-1.5">
                             <Label>
                                 Key (영문) <span className="text-destructive">*</span>
@@ -150,18 +218,6 @@ export default function CreateFieldDialog({
                                 value={key}
                                 onChange={(e) => setKey(e.target.value)}
                                 placeholder="예: customerType"
-                                autoFocus
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>
-                                라벨 <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                value={label}
-                                onChange={(e) => setLabel(e.target.value)}
-                                placeholder="예: 고객 유형"
                             />
                         </div>
 
@@ -323,6 +379,7 @@ export default function CreateFieldDialog({
                                 )}
                             </div>
                         )}
+                        </>)}
                     </div>
                     <DialogFooter>
                         <Button

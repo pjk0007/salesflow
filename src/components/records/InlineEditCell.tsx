@@ -21,10 +21,11 @@ import type { FieldDefinition } from "@/types";
 interface InlineEditCellProps {
     field: FieldDefinition;
     value: unknown;
-    onSave: (value: unknown) => void;
+    onSave?: (value: unknown) => void;
+    readOnly?: boolean;
 }
 
-export default function InlineEditCell({ field, value, onSave }: InlineEditCellProps) {
+export default function InlineEditCell({ field, value, onSave, readOnly }: InlineEditCellProps) {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(String(value ?? ""));
     const inputRef = useRef<HTMLInputElement>(null);
@@ -42,7 +43,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
             ? editValue === "" ? null : Number(editValue)
             : editValue;
         if (newVal !== value) {
-            onSave(newVal);
+            onSave?.(newVal);
         }
     }, [editValue, field.fieldType, onSave, value]);
 
@@ -57,6 +58,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
 
     // 읽기 전용 필드
     if (
+        readOnly ||
         field.cellType === "readonly" ||
         field.cellType === "formula" ||
         field.fieldType === "formula"
@@ -69,7 +71,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
         return (
             <Checkbox
                 checked={Boolean(value)}
-                onCheckedChange={(checked) => onSave(checked)}
+                onCheckedChange={(checked) => onSave?.(checked)}
             />
         );
     }
@@ -89,7 +91,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
                     colors={colors}
                     currentColor={currentColor}
                     isSquare={field.optionStyle === "square"}
-                    onSelect={(v) => onSave(v)}
+                    onSelect={(v) => onSave?.(v)}
                 />
             );
         }
@@ -98,7 +100,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
         return (
             <Select
                 value={String(value ?? "")}
-                onValueChange={(v) => onSave(v)}
+                onValueChange={(v) => onSave?.(v)}
             >
                 <SelectTrigger size="sm" className="h-7 border-0 shadow-none">
                     <SelectValue />
@@ -120,7 +122,7 @@ export default function InlineEditCell({ field, value, onSave }: InlineEditCellP
         return (
             <DateTimePicker
                 value={dtVal}
-                onChange={(v) => onSave(v)}
+                onChange={(v) => onSave?.(v)}
                 valueClassName={dtVal ? field.cellClassName ?? undefined : undefined}
             />
         );

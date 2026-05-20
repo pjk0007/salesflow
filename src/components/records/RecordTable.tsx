@@ -6,7 +6,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from "lucide-react";
 import InlineEditCell from "./InlineEditCell";
 import MemoPopover from "./MemoPopover";
-import { SYSTEM_COLUMN_KEYS, isSystemColumnVisible } from "./system-columns";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
@@ -66,12 +65,6 @@ export default function RecordTable({
         }
         return fields;
     }, [fields, visibleFieldKeys]);
-
-    const showRegisteredAt = isSystemColumnVisible(
-        visibleFieldKeys,
-        SYSTEM_COLUMN_KEYS.registeredAt,
-        fields,
-    );
 
     // 열기 버튼이 들어갈 첫 번째 text 필드 key
     const openBtnFieldKey = useMemo(() =>
@@ -155,18 +148,6 @@ export default function RecordTable({
                                     {renderSortIcon("integratedCode")}
                                 </span>
                             </TableHead>
-                            {showRegisteredAt && (
-                                <TableHead
-                                    className="cursor-pointer select-none"
-                                    style={{ minWidth: 130, width: 150 }}
-                                    onClick={() => handleSort("registeredAt")}
-                                >
-                                    <span className="flex items-center gap-1">
-                                        등록일
-                                        {renderSortIcon("registeredAt")}
-                                    </span>
-                                </TableHead>
-                            )}
                             {displayFields.map((field) => (
                                 <TableHead
                                     key={field.key}
@@ -212,22 +193,17 @@ export default function RecordTable({
                                     >
                                         {record.integratedCode}
                                     </TableCell>
-                                    {showRegisteredAt && (
-                                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                                            {record.registeredAt
-                                                ? new Date(record.registeredAt).toLocaleString("ko-KR", {
-                                                    year: "numeric",
-                                                    month: "2-digit",
-                                                    day: "2-digit",
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                })
-                                                : "-"}
-                                        </TableCell>
-                                    )}
                                     {displayFields.map((field) => {
                                         const isOpenTarget = field.fieldType === "text" && !openBtnPlaced;
                                         if (isOpenTarget) openBtnPlaced = true;
+                                        // 시스템 매핑 필드는 records의 시스템 컬럼 값을 읽고 읽기 전용
+                                        const isSystemField = !!field.systemColumn;
+                                        const cellValue = isSystemField
+                                            ? (record as unknown as Record<string, unknown>)[field.systemColumn as string]
+                                            : data[field.key];
+                                        const cellSave = isSystemField
+                                            ? undefined
+                                            : (val: unknown) => handleCellSave(record.id, field.key, val);
                                         return (
                                             <TableCell
                                                 key={field.key}
@@ -239,8 +215,9 @@ export default function RecordTable({
                                                         <div className="flex-1 min-w-0">
                                                             <InlineEditCell
                                                                 field={field}
-                                                                value={data[field.key]}
-                                                                onSave={(val) => handleCellSave(record.id, field.key, val)}
+                                                                value={cellValue}
+                                                                readOnly={isSystemField}
+                                                                onSave={cellSave}
                                                             />
                                                         </div>
                                                         <div className="flex items-center gap-2.5 shrink-0">
@@ -262,8 +239,9 @@ export default function RecordTable({
                                                 ) : (
                                                     <InlineEditCell
                                                         field={field}
-                                                        value={data[field.key]}
-                                                        onSave={(val) => handleCellSave(record.id, field.key, val)}
+                                                        value={cellValue}
+                                                        readOnly={isSystemField}
+                                                        onSave={cellSave}
                                                     />
                                                 )}
                                             </TableCell>

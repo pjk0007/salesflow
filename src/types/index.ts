@@ -92,6 +92,7 @@ export interface FieldDefinition {
   statusOptionCategoryId: number | null;
   defaultValue: string | null;
   formulaConfig: FormulaConfig | null;
+  systemColumn: string | null;
 }
 
 // 필터 연산자
@@ -282,6 +283,7 @@ export interface CreateFieldInput {
     defaultValue?: string;
     options?: string[];
     cellClassName?: string;
+    systemColumn?: string;
 }
 
 // 필드 수정 입력

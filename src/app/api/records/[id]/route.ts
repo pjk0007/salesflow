@@ -63,8 +63,14 @@ export async function PATCH(
             return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
         }
 
+        // 시스템 매핑 필드 key는 data에 저장하지 않음 (읽기 전용 — records의 시스템 컬럼이 단일 진실원천)
+        const sanitized = { ...(newData as Record<string, unknown>) };
+        for (const k of ["registeredAt", "createdAt", "updatedAt"]) {
+            delete sanitized[k];
+        }
+
         // 기존 data와 병합
-        const mergedData = { ...(existing.data as Record<string, unknown>), ...newData };
+        const mergedData = { ...(existing.data as Record<string, unknown>), ...sanitized };
 
         const [updated] = await db
             .update(records)

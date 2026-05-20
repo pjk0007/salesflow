@@ -140,6 +140,8 @@ export const fieldDefinitions = pgTable(
         defaultValue: varchar("default_value", { length: 500 }),
         // 수식 설정
         formulaConfig: jsonb("formula_config").$type<FormulaConfig>(),
+        // 시스템 컬럼 매핑 (NULL=커스텀, 'registeredAt'|'createdAt'|'updatedAt'=시스템)
+        systemColumn: varchar("system_column", { length: 50 }),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },

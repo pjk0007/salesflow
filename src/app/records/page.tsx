@@ -29,7 +29,6 @@ function MobileBreadcrumbBridge({
 import RecordToolbar from "@/components/records/RecordToolbar";
 import RecordTable from "@/components/records/RecordTable";
 import GroupedRecordView from "@/components/records/GroupedRecordView";
-import { getVisibleSystemColumns } from "@/components/records/system-columns";
 import CreateRecordDialog from "@/components/records/CreateRecordDialog";
 import DeleteConfirmDialog from "@/components/records/DeleteConfirmDialog";
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
@@ -392,10 +391,10 @@ export default function RecordsPage() {
     // 컬럼 표시/숨기기 토글
     const handleToggleColumn = useCallback(async (fieldKey: string, visible: boolean) => {
         if (!partitionId || !currentPartition) return;
-        // null(전체 표시) 상태에서 처음 토글하면 모든 필드 + 시스템 컬럼을 명시적으로 풀어둔다
+        // null(전체 표시) 상태에서 처음 토글하면 모든 필드를 명시적으로 풀어둔다
         const currentFields =
             (currentPartition.visibleFields as string[]) ||
-            [...getVisibleSystemColumns(fields).map((c) => c.key), ...fields.map((f) => f.key)];
+            fields.map((f) => f.key);
         const newFields = visible
             ? [...currentFields, fieldKey]
             : currentFields.filter(k => k !== fieldKey);

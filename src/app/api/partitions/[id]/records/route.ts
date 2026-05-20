@@ -148,6 +148,8 @@ export async function GET(
             orderBy = sortOrder === "asc" ? asc(records.integratedCode) : desc(records.integratedCode);
         } else if (sortField === "createdAt") {
             orderBy = sortOrder === "asc" ? asc(records.createdAt) : desc(records.createdAt);
+        } else if (sortField === "updatedAt") {
+            orderBy = sortOrder === "asc" ? asc(records.updatedAt) : desc(records.updatedAt);
         } else {
             // JSONB data 필드: 타입에 따라 캐스팅하여 정렬
             // 파티션 fieldTypeId → 워크스페이스 defaultFieldTypeId → workspaceId 폴백

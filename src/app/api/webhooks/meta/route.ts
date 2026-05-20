@@ -224,10 +224,7 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
     if (adName) recordData.adName = adName;
     if (campaignName) recordData.campaignName = campaignName;
 
-    // 등록일 자동 설정
-    if (!recordData.registeredAt) {
-        recordData.registeredAt = new Date().toISOString();
-    }
+    // 등록일은 records.registered_at(시스템 컬럼)이 단일 진실원천 — data에 별도 저장하지 않음
 
     // 7. 파티션의 워크스페이스 정보 조회
     const [partitionRow] = await db

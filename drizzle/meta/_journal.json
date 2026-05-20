@@ -330,6 +330,13 @@
       "when": 1770950900000,
       "tag": "0046_record_events",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1770951000000,
+      "tag": "0047_field_system_column",
+      "breakpoints": true
     }
   ]
 }

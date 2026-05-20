@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, fieldTypes, fieldDefinitions, partitions, workspaces } from "@/lib/db";
 import { eq, and, asc, max, or, isNull } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { isValidSystemColumn } from "@/components/records/system-columns";
 
 const FIELD_TYPE_TO_CELL_TYPE: Record<string, string> = {
     text: "editable",
@@ -75,16 +76,27 @@ export async function POST(
         return NextResponse.json({ success: false, error: "타입을 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options, cellClassName } = await req.json();
+    const { key, label, fieldType, category, isRequired, isSortable, defaultValue, options, cellClassName, systemColumn } = await req.json();
 
-    if (!key?.trim() || !label?.trim()) {
-        return NextResponse.json({ success: false, error: "key와 라벨을 입력해주세요." }, { status: 400 });
+    const isSystemField = !!systemColumn;
+
+    if (isSystemField && !isValidSystemColumn(systemColumn)) {
+        return NextResponse.json({ success: false, error: "유효하지 않은 시스템 항목입니다." }, { status: 400 });
     }
-    if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key.trim())) {
-        return NextResponse.json({ success: false, error: "key는 영문으로 시작하고 영문과 숫자만 사용 가능합니다." }, { status: 400 });
+    if (!label?.trim()) {
+        return NextResponse.json({ success: false, error: "라벨을 입력해주세요." }, { status: 400 });
     }
-    if (!fieldType || !VALID_FIELD_TYPES.includes(fieldType)) {
-        return NextResponse.json({ success: false, error: "유효하지 않은 필드 타입입니다." }, { status: 400 });
+    if (!isSystemField) {
+        // 커스텀 필드만 key/타입 검증 (시스템 필드는 systemColumn으로 결정)
+        if (!key?.trim()) {
+            return NextResponse.json({ success: false, error: "key를 입력해주세요." }, { status: 400 });
+        }
+        if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key.trim())) {
+            return NextResponse.json({ success: false, error: "key는 영문으로 시작하고 영문과 숫자만 사용 가능합니다." }, { status: 400 });
+        }
+        if (!fieldType || !VALID_FIELD_TYPES.includes(fieldType)) {
+            return NextResponse.json({ success: false, error: "유효하지 않은 필드 타입입니다." }, { status: 400 });
+        }
     }
 
     try {
@@ -94,31 +106,36 @@ export async function POST(
             .where(eq(fieldDefinitions.fieldTypeId, typeId));
 
         const nextSortOrder = (maxResult?.maxSort ?? -1) + 1;
-        const cellType = FIELD_TYPE_TO_CELL_TYPE[fieldType] || "editable";
+
+        // 시스템 필드: key=systemColumn, datetime, readonly. 커스텀: 기존대로
+        const finalKey = isSystemField ? systemColumn : key.trim();
+        const finalFieldType = isSystemField ? "datetime" : fieldType;
+        const cellType = isSystemField ? "readonly" : (FIELD_TYPE_TO_CELL_TYPE[fieldType] || "editable");
 
         const [created] = await db
             .insert(fieldDefinitions)
             .values({
                 fieldTypeId: typeId,
-                key: key.trim(),
+                key: finalKey,
                 label: label.trim(),
-                fieldType,
+                fieldType: finalFieldType,
                 cellType,
-                category: category?.trim() || null,
-                isRequired: isRequired ? 1 : 0,
-                isSortable: isSortable ? 1 : 0,
-                isSystem: 0,
+                category: isSystemField ? null : (category?.trim() || null),
+                isRequired: 0,
+                isSortable: isSystemField ? 1 : (isSortable ? 1 : 0),
+                isSystem: isSystemField ? 1 : 0,
+                systemColumn: isSystemField ? systemColumn : null,
                 sortOrder: nextSortOrder,
                 defaultWidth: 120,
                 minWidth: 80,
-                defaultValue: defaultValue?.trim() || null,
-                options: fieldType === "select" && options?.length ? options : null,
-                cellClassName: cellClassName?.trim() || null,
+                defaultValue: isSystemField ? null : (defaultValue?.trim() || null),
+                options: !isSystemField && fieldType === "select" && options?.length ? options : null,
+                cellClassName: isSystemField ? null : (cellClassName?.trim() || null),
             })
             .returning({ id: fieldDefinitions.id, key: fieldDefinitions.key, label: fieldDefinitions.label });
 
         // 이 타입을 사용하는 파티션들의 visibleFields에 새 key 추가
-        const newKey = key.trim();
+        const newKey = finalKey;
 
         // 1. fieldTypeId가 직접 이 타입인 파티션
         // 2. fieldTypeId가 null이고 워크스페이스의 defaultFieldTypeId가 이 타입인 파티션
