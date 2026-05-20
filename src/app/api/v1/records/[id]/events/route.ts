@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, recordEvents } from "@/lib/db";
+import { db, records } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
     getApiTokenFromNextRequest,
     resolveApiToken,
     checkTokenAccess,
 } from "@/lib/auth";
+import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
 
 // 외부 고객사(디하 server 등)가 record에 비즈니스 이벤트(단계 변경 등)를
 // append-only로 기록할 때 호출. record_events 테이블에 한 줄 INSERT.
@@ -48,55 +49,16 @@ async function handlePost(req: NextRequest, recordId: number) {
     }
 
     const body = await req.json();
-    const type = typeof body.type === "string" ? body.type.trim() : "";
-    const label = typeof body.label === "string" ? body.label.trim() : "";
-    if (!type || type.length > 50) {
-        return NextResponse.json(
-            { success: false, error: "type is required (max 50 chars)." },
-            { status: 400 }
-        );
-    }
-    if (!label || label.length > 100) {
-        return NextResponse.json(
-            { success: false, error: "label is required (max 100 chars)." },
-            { status: 400 }
-        );
+    const parsed = parseEventInput(body);
+    if (!parsed.ok) {
+        return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
     }
 
-    let occurredAt = new Date();
-    if (body.occurredAt !== undefined && body.occurredAt !== null) {
-        const parsed = new Date(body.occurredAt);
-        if (isNaN(parsed.getTime())) {
-            return NextResponse.json(
-                { success: false, error: "occurredAt is invalid." },
-                { status: 400 }
-            );
-        }
-        occurredAt = parsed;
-    }
-
-    let meta: Record<string, unknown> | null = null;
-    if (body.meta !== undefined && body.meta !== null) {
-        if (typeof body.meta !== "object" || Array.isArray(body.meta)) {
-            return NextResponse.json(
-                { success: false, error: "meta must be an object." },
-                { status: 400 }
-            );
-        }
-        meta = body.meta as Record<string, unknown>;
-    }
-
-    const [event] = await db
-        .insert(recordEvents)
-        .values({
-            orgId: record.orgId,
-            recordId,
-            type,
-            label,
-            occurredAt,
-            meta,
-        })
-        .returning();
+    const event = await insertRecordEvent({
+        orgId: record.orgId,
+        recordId,
+        event: parsed.value,
+    });
 
     return NextResponse.json({ success: true, data: event }, { status: 201 });
 }

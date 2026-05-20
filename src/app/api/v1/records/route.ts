@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces, organizations, fieldDefinitions } from "@/lib/db";
+import { db, records, recordEvents, partitions, workspaces, organizations, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getApiTokenFromNextRequest, resolveApiToken, checkTokenAccess } from "@/lib/auth";
 import type { ApiTokenInfo } from "@/lib/auth";
@@ -9,6 +9,7 @@ import { processAutoEnrich } from "@/lib/auto-enrich";
 import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
+import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -179,7 +180,7 @@ async function handlePost(req: NextRequest) {
     }
 
     try {
-        const { partitionId, data: recordData } = await req.json();
+        const { partitionId, data: recordData, event } = await req.json();
 
         if (!partitionId || typeof partitionId !== "number") {
             return NextResponse.json({ success: false, error: "partitionId is required." }, { status: 400 });
@@ -187,6 +188,13 @@ async function handlePost(req: NextRequest) {
         if (!recordData || typeof recordData !== "object") {
             return NextResponse.json({ success: false, error: "data is required." }, { status: 400 });
         }
+
+        // event 사전 검증 — record 만들기 전에. 실패 시 record 생성 안 함.
+        const eventParsed = event != null ? parseEventInput(event) : null;
+        if (eventParsed && !eventParsed.ok) {
+            return NextResponse.json({ success: false, error: eventParsed.error }, { status: 400 });
+        }
+        const eventInput = eventParsed?.ok ? eventParsed.value : null;
 
         const hasAccess = await checkTokenAccess(tokenInfo, partitionId, "create");
         if (!hasAccess) {
@@ -248,7 +256,10 @@ async function handlePost(req: NextRequest) {
                                 .set({ data: mergedData, updatedAt: new Date() })
                                 .where(eq(records.id, duplicate.id))
                                 .returning();
-                            return NextResponse.json({ success: true, data: merged, merged: true });
+                            const mergedEvent = eventInput
+                                ? await insertRecordEvent({ orgId: tokenInfo.orgId, recordId: merged.id, event: eventInput })
+                                : null;
+                            return NextResponse.json({ success: true, data: merged, merged: true, event: mergedEvent ?? null });
                         }
 
                         case "delete_old":
@@ -296,18 +307,27 @@ async function handlePost(req: NextRequest) {
                 })
                 .returning();
 
-            return newRecord;
+            // record 생성과 이벤트를 같은 트랜잭션에 (원자적)
+            let createdEvent = null;
+            if (eventInput) {
+                createdEvent = await insertRecordEvent(
+                    { orgId: tokenInfo.orgId, recordId: newRecord.id, event: eventInput },
+                    tx
+                );
+            }
+
+            return { record: newRecord, event: createdEvent };
         });
 
         dispatchAutoTriggers({
-            record: result,
+            record: result.record,
             partitionId,
             triggerType: "on_create",
             orgId: tokenInfo.orgId,
         });
 
         processAutoEnrich({
-            record: result,
+            record: result.record,
             partitionId,
             triggerType: "on_create",
             orgId: tokenInfo.orgId,
@@ -315,10 +335,10 @@ async function handlePost(req: NextRequest) {
 
         broadcastToPartition(partitionId, "record:created", {
             partitionId,
-            recordId: result.id,
+            recordId: result.record.id,
         }, "");
 
-        return NextResponse.json({ success: true, data: result }, { status: 201 });
+        return NextResponse.json({ success: true, data: result.record, event: result.event ?? null }, { status: 201 });
     } catch (error) {
         console.error("External record create error:", error);
         return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });

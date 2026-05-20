@@ -5,6 +5,7 @@ import { getApiTokenFromNextRequest, resolveApiToken, checkTokenAccess } from "@
 import type { ApiTokenInfo } from "@/lib/auth";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { broadcastToPartition } from "@/lib/sse";
+import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -67,10 +68,17 @@ export async function PUT(
     }
 
     try {
-        const { data: newData } = await req.json();
+        const { data: newData, event } = await req.json();
         if (!newData || typeof newData !== "object") {
             return NextResponse.json({ success: false, error: "data is required." }, { status: 400 });
         }
+
+        // event 사전 검증 — record 수정 전
+        const eventParsed = event != null ? parseEventInput(event) : null;
+        if (eventParsed && !eventParsed.ok) {
+            return NextResponse.json({ success: false, error: eventParsed.error }, { status: 400 });
+        }
+        const eventInput = eventParsed?.ok ? eventParsed.value : null;
 
         const [existing] = await db
             .select()
@@ -94,6 +102,11 @@ export async function PUT(
             .where(eq(records.id, recordId))
             .returning();
 
+        // 이벤트 같이 기록
+        const updatedEvent = eventInput
+            ? await insertRecordEvent({ orgId: tokenInfo.orgId, recordId, event: eventInput })
+            : null;
+
         dispatchAutoTriggers({
             record: updated,
             partitionId: updated.partitionId,
@@ -106,7 +119,7 @@ export async function PUT(
             recordId: updated.id,
         }, "");
 
-        return NextResponse.json({ success: true, data: updated });
+        return NextResponse.json({ success: true, data: updated, event: updatedEvent ?? null });
     } catch (error) {
         console.error("External record update error:", error);
         return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
