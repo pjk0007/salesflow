@@ -337,8 +337,8 @@ const ENDPOINTS = [
     {
         method: "POST",
         path: "/api/v1/records",
-        title: "레코드 생성",
-        desc: "새 레코드를 생성합니다. 자동 배분·자동 발송 트리거가 실행됩니다.",
+        title: "레코드 생성 (+ 이벤트 동시 기록)",
+        desc: "새 레코드를 생성합니다. 자동 배분·자동 발송 트리거가 실행됩니다. event를 함께 보내면 레코드 생성과 동시에 변경 이력(record_events)에 한 줄 기록됩니다.",
         params: null,
         body: `{
   "partitionId": 1,
@@ -346,11 +346,18 @@ const ENDPOINTS = [
     "이름": "홍길동",
     "이메일": "hong@example.com",
     "전화번호": "010-1234-5678"
+  },
+  "event": {                       // 선택 — 이력 동시 기록
+    "type": "consult",            // 이벤트 종류 (자유, 필수)
+    "label": "도입상담 신청",      // 표시 라벨 (필수)
+    "occurredAt": "2026-05-20T00:00:00Z",  // 선택, 없으면 현재 시각
+    "meta": { "source": "website" }         // 선택, 부가 정보
   }
 }`,
         response: `{
   "success": true,
-  "data": { "id": 42, "data": { ... }, ... }
+  "data": { "id": 42, "data": { ... }, ... },
+  "event": { "id": 1, "type": "consult", "label": "도입상담 신청", ... }
 }`,
     },
     {
@@ -368,18 +375,24 @@ const ENDPOINTS = [
     {
         method: "PUT",
         path: "/api/v1/records/:id",
-        title: "레코드 수정",
-        desc: "레코드 데이터를 부분 업데이트합니다. 기존 데이터와 병합됩니다.",
+        title: "레코드 수정 (+ 이벤트 동시 기록)",
+        desc: "레코드 데이터를 부분 업데이트합니다. 기존 데이터와 병합됩니다. event를 함께 보내면 수정과 동시에 변경 이력(record_events)에 기록됩니다.",
         params: null,
         body: `{
   "data": {
     "상태": "계약완료",
     "메모": "3월 계약 체결"
+  },
+  "event": {                       // 선택 — 이력 동시 기록
+    "type": "status",
+    "label": "계약완료",
+    "meta": { "from": "협상중", "to": "계약완료" }
   }
 }`,
         response: `{
   "success": true,
-  "data": { "id": 42, "data": { ... }, ... }
+  "data": { "id": 42, "data": { ... }, ... },
+  "event": { "id": 2, "type": "status", "label": "계약완료", ... }
 }`,
     },
     {
@@ -392,6 +405,23 @@ const ENDPOINTS = [
         response: `{
   "success": true,
   "message": "Record deleted."
+}`,
+    },
+    {
+        method: "POST",
+        path: "/api/v1/records/:id/events",
+        title: "레코드 이벤트 추가",
+        desc: "이미 존재하는 레코드에 비즈니스 이벤트(이력)를 추가합니다. 데이터 변경 없이 이벤트만 기록할 때 사용합니다. (생성/수정과 동시에 기록하려면 POST/PUT의 event 옵션을 쓰세요.)",
+        params: null,
+        body: `{
+  "type": "match_stage",       // 이벤트 종류 (자유, 필수)
+  "label": "구독중",            // 표시 라벨 (필수)
+  "occurredAt": "2026-05-20T00:00:00Z",  // 선택
+  "meta": { "from": "테스트", "to": "구독중" }  // 선택
+}`,
+        response: `{
+  "success": true,
+  "data": { "id": 3, "recordId": 42, "type": "match_stage", "label": "구독중", ... }
 }`,
     },
 ];
@@ -586,6 +616,24 @@ function ApiDocsCard() {
                 <div className="space-y-2">
                     <h4 className="text-sm font-semibold">베이스 URL</h4>
                     <CodeBlock>{`${typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}`}</CodeBlock>
+                </div>
+
+                {/* 이벤트(변경 이력) */}
+                <div className="space-y-2">
+                    <h4 className="text-sm font-semibold">이벤트 (변경 이력)</h4>
+                    <p className="text-sm text-muted-foreground">
+                        레코드 생성·수정 시 <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">event</code>를
+                        함께 보내면 그 레코드의 <strong>변경 이력(타임라인)</strong>이 시간순으로 쌓입니다.
+                        단계 변경(예: 테스트→구독중), 도입상담 신청 같은 비즈니스 이벤트를 기록할 때 사용합니다.
+                    </p>
+                    <ul className="text-sm text-muted-foreground list-disc pl-5 space-y-0.5">
+                        <li><code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">POST /records</code> · <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">PUT /records/:id</code> — 레코드 작업과 <strong>동시에</strong> 이력 기록 (한 번의 호출)</li>
+                        <li><code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">POST /records/:id/events</code> — 데이터 변경 없이 <strong>이력만</strong> 추가</li>
+                    </ul>
+                    <p className="text-xs text-muted-foreground">
+                        event 구조: <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">{`{ type, label, occurredAt?, meta? }`}</code>
+                        — <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">type</code>/<code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">label</code>은 필수, 의미는 직접 정의합니다.
+                    </p>
                 </div>
 
                 {/* 엔드포인트 */}
