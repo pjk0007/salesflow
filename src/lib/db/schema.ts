@@ -1314,3 +1314,25 @@ export type TrackerSession = typeof trackerSessions.$inferSelect;
 export type NewTrackerSession = typeof trackerSessions.$inferInsert;
 export type TrackerEvent = typeof trackerEvents.$inferSelect;
 export type NewTrackerEvent = typeof trackerEvents.$inferInsert;
+
+// ============================================
+// 레코드 이벤트 (비즈니스 이벤트 이력, append-only)
+// ============================================
+export const recordEvents = pgTable("record_events", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").notNull(),
+    recordId: integer("record_id")
+        .references(() => records.id, { onDelete: "cascade" })
+        .notNull(),
+    type: varchar("type", { length: 50 }).notNull(),
+    label: varchar("label", { length: 100 }).notNull(),
+    occurredAt: timestamptz("occurred_at").defaultNow().notNull(),
+    meta: jsonb("meta").$type<Record<string, unknown>>(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+}, (table) => [
+    index("record_events_record_occurred_idx").on(table.recordId, table.occurredAt),
+    index("record_events_org_type_idx").on(table.orgId, table.type),
+]);
+
+export type RecordEvent = typeof recordEvents.$inferSelect;
+export type NewRecordEvent = typeof recordEvents.$inferInsert;
