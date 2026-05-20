@@ -99,12 +99,20 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                             label="리드 연결"
                             value={
                                 visitor.recordId ? (
-                                    <Link
-                                        href={`/records?id=${visitor.recordId}`}
-                                        className="text-primary hover:underline"
-                                    >
-                                        record #{visitor.recordId}
-                                    </Link>
+                                    <span className="inline-flex items-center gap-2">
+                                        <Link
+                                            href={`/records?id=${visitor.recordId}`}
+                                            className="text-primary hover:underline"
+                                        >
+                                            record #{visitor.recordId}
+                                        </Link>
+                                        <Link
+                                            href={`/records/${visitor.recordId}/journey`}
+                                            className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                                        >
+                                            여정 보기
+                                        </Link>
+                                    </span>
                                 ) : (
                                     <Badge variant="outline">익명</Badge>
                                 )

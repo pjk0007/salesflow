@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     Sheet,
     SheetContent,
@@ -8,7 +9,7 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Mail } from "lucide-react";
+import { MessageSquare, Mail, Route } from "lucide-react";
 import CellRenderer from "./CellRenderer";
 import CompanyResearchSection from "./CompanyResearchSection";
 import MemoSection from "./ui/MemoSection";
@@ -38,6 +39,7 @@ export default function RecordDetailDialog({
 }: RecordDetailDialogProps) {
     const [alimtalkOpen, setAlimtalkOpen] = useState(false);
     const [emailOpen, setEmailOpen] = useState(false);
+    const router = useRouter();
     if (!record) return null;
 
     const data = record.data as Record<string, unknown>;
@@ -49,6 +51,15 @@ export default function RecordDetailDialog({
                     <SheetHeader>
                         <SheetTitle>{record.integratedCode}</SheetTitle>
                         <SheetDescription>레코드 상세 정보</SheetDescription>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 w-fit"
+                            onClick={() => router.push(`/records/${record.id}/journey`)}
+                        >
+                            <Route className="mr-1 h-4 w-4" />
+                            고객 여정 보기
+                        </Button>
                     </SheetHeader>
 
                     <div className="space-y-6 px-4">
