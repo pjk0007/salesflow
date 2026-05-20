@@ -337,6 +337,13 @@
       "when": 1770951000000,
       "tag": "0047_field_system_column",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1770951100000,
+      "tag": "0048_convert_registered_at_to_system",
+      "breakpoints": true
     }
   ]
 }
