@@ -20,7 +20,8 @@ function laneOf(channel: string): string {
     return "단계";
 }
 function timeLabel(iso: string): string {
-    return new Date(iso).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    const d = new Date(iso);
+    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 function dateLabel(key: string): string {
     const d = new Date(key + "T00:00:00");
@@ -64,7 +65,6 @@ export function ChannelSwimlane({
     if (events.length === 0) return null;
     const dayCols = columns.filter((c) => c.type === "day") as { events: JourneyEvent[] }[];
     const maxCount = Math.max(...dayCols.map((c) => c.events.length));
-    const MAX_DOTS = 4; // 칸당 표시 최대 점
 
     return (
         <div className="rounded-lg border bg-card p-4 overflow-x-auto">
@@ -93,7 +93,7 @@ export function ChannelSwimlane({
                                 {col.days}일 무반응
                             </div>
                         ) : (
-                            <div key={i} className="flex-1 min-w-[110px] text-center">
+                            <div key={i} className={`flex-1 min-w-[120px] text-center ${i > 0 ? "border-l border-dashed" : ""}`}>
                                 <div className={`text-xs font-medium ${col.events.length === maxCount && maxCount > 1 ? "text-orange-600 dark:text-orange-400" : ""}`}>
                                     {dateLabel(col.key)}
                                 </div>
@@ -128,36 +128,57 @@ export function ChannelSwimlane({
                                     );
                                 }
                                 const laneEvents = col.events.filter((e) => laneOf(e.channel) === lane.key);
-                                const shown = laneEvents.slice(0, MAX_DOTS);
-                                const extra = laneEvents.length - shown.length;
-                                return (
-                                    <div key={i} className="relative flex-1 min-w-[110px] py-4">
-                                        {/* 레인 라인 */}
-                                        <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
-                                        <div className="relative flex items-center justify-around h-full">
-                                            {shown.map((e, j) => (
-                                                <button
-                                                    key={j}
-                                                    type="button"
-                                                    onClick={() => onSelect?.(e)}
-                                                    onMouseEnter={() => onHover?.(e)}
-                                                    onMouseLeave={() => onHover?.(null)}
-                                                    className="group flex flex-col items-center"
-                                                    title={e.label}
-                                                >
-                                                    <span
-                                                        className={`h-3.5 w-3.5 rounded-full ring-2 ring-card bg-card border-2 group-hover:scale-125 transition-transform`}
-                                                        style={{ borderColor: lane.color }}
-                                                    />
-                                                    <span className="absolute top-[calc(50%+10px)] text-[9px] tabular-nums text-muted-foreground whitespace-nowrap">
-                                                        {timeLabel(e.at)}
-                                                    </span>
-                                                </button>
-                                            ))}
-                                            {extra > 0 && (
-                                                <span className="text-[10px] font-semibold text-muted-foreground">+{extra}</span>
-                                            )}
+                                if (laneEvents.length === 0) {
+                                    return (
+                                        <div key={i} className={`relative flex-1 min-w-[120px] py-5 ${i > 0 ? "border-l border-dashed" : ""}`}>
+                                            <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
                                         </div>
+                                    );
+                                }
+                                // 하루 = 점 1개(왼쪽, 시작시각). 여러 건이면 마지막 시각은 칸 오른쪽 끝에.
+                                const first = laneEvents[0];
+                                const last = laneEvents[laneEvents.length - 1];
+                                const multi = laneEvents.length > 1;
+                                // 점이 가리키는 대상: 1건이면 그 이벤트, 여러건이면 그날 그 채널 묶음(카드에 다 표시)
+                                // 묶음은 type을 "group"으로 명시 — first의 type("session" 등)이 새지 않게.
+                                const groupLabel = lane.key === "사이트"
+                                    ? `사이트 방문 ${laneEvents.length}회`
+                                    : `${lane.label} ${laneEvents.length}건`;
+                                const target: JourneyEvent = multi
+                                    ? {
+                                        ...first,
+                                        type: "group",
+                                        label: groupLabel,
+                                        children: laneEvents,
+                                        groupCount: laneEvents.length,
+                                    }
+                                    : first;
+                                return (
+                                    <div key={i} className={`relative flex-1 min-w-[120px] py-5 ${i > 0 ? "border-l border-dashed" : ""}`}>
+                                        <div className="absolute left-0 right-0 top-1/2 h-px bg-border" />
+                                        {/* 점 (왼쪽) + 시작시각 */}
+                                        <button
+                                            type="button"
+                                            onClick={() => onSelect?.(target)}
+                                            onMouseEnter={() => onHover?.(target)}
+                                            onMouseLeave={() => onHover?.(null)}
+                                            className="group absolute left-3 top-1/2 -translate-y-1/2 flex flex-col items-center p-1"
+                                            title={multi ? `${laneEvents.length}건 (${timeLabel(first.at)}~${timeLabel(last.at)})` : first.label}
+                                        >
+                                            <span
+                                                className="h-3.5 w-3.5 rounded-full ring-2 ring-card border-2 bg-card transition-colors group-hover:bg-current"
+                                                style={{ borderColor: lane.color, color: lane.color }}
+                                            />
+                                            <span className="absolute top-[calc(50%+9px)] text-[9px] tabular-nums text-muted-foreground whitespace-nowrap">
+                                                {timeLabel(first.at)}
+                                            </span>
+                                        </button>
+                                        {/* 마지막 시각 (칸 오른쪽 끝) */}
+                                        {multi && (
+                                            <span className="absolute right-3 top-[calc(50%+9px)] text-[9px] tabular-nums text-muted-foreground whitespace-nowrap">
+                                                {timeLabel(last.at)}
+                                            </span>
+                                        )}
                                     </div>
                                 );
                             })}

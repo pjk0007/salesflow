@@ -66,7 +66,10 @@ export function JourneyPage({ recordId }: { recordId: number }) {
                     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_340px]">
                         {/* 좌: 선택 이벤트 + 세로 타임라인 */}
                         <div className="space-y-4 min-w-0">
-                            {preview && <JourneyEventDetail event={preview} />}
+                            {/* min-height 고정 — hover로 카드 내용 바뀌어도 높이 불변(스크롤/떨림 방지) */}
+                            <div className="min-h-[180px]">
+                                {preview && <JourneyEventDetail event={preview} />}
+                            </div>
                             <ChannelFilter selected={channels} onChange={setChannels} />
                             <JourneyTimeline events={filteredEvents} onSelect={setSelected} />
                         </div>

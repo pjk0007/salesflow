@@ -28,29 +28,33 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 </p>
             )}
 
-            {/* 사이트: 방문 페이지 칩 */}
-            {event.children && event.children.length > 0 && (
-                <div className="space-y-1.5">
-                    <p className="text-xs text-muted-foreground">방문 페이지 {event.children.length}개</p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {event.children.map((c, i) => {
-                            const path = String((c.meta?.pageUrl as string) ?? "").replace(/^https?:\/\/[^/]+/, "") || "/";
-                            return (
-                                <span key={i} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px]">
-                                    <span className="font-mono text-muted-foreground">{path}</span>
-                                    <span className="text-foreground/70">{c.label !== path ? c.label : ""}</span>
-                                </span>
-                            );
-                        })}
-                    </div>
-                </div>
+            {/* 단일 사이트 세션: 방문 페이지를 경로별 집계 */}
+            {event.type === "session" && event.children && event.children.length > 0 && (
+                <PagePathSummary pages={event.children} />
+            )}
+
+            {/* 사이트 세션 묶음(그날 세션 여러 개): 모든 세션의 페이지를 경로별 집계 */}
+            {event.type === "group" && event.source === "tracker" && event.children && event.children.length > 0 && (
+                <PagePathSummary sessions={event.children} />
+            )}
+
+            {/* 그 외 묶음(메일 등 여러 건): 각 항목 시각 + 라벨 */}
+            {event.type === "group" && event.source !== "tracker" && event.children && event.children.length > 0 && (
+                <ul className="space-y-1">
+                    {event.children.map((c, i) => (
+                        <li key={i} className="flex items-baseline gap-2 text-xs">
+                            <span className="tabular-nums text-muted-foreground shrink-0">{formatDateTime(c.at).slice(-5)}</span>
+                            <span className="text-foreground">{c.label}</span>
+                        </li>
+                    ))}
+                </ul>
             )}
 
             {/* 메일: 제목/CTA/URL */}
             {event.source === "email" && (
                 <div className="space-y-0.5 text-xs text-muted-foreground">
                     {meta.subject != null && <p>제목 · {String(meta.subject)}</p>}
-                    {meta.url != null && <p>링크 · <span className="font-mono">{String(meta.url)}</span></p>}
+                    {meta.url != null && <p>링크 · <span className="font-mono">{String(meta.url).replace(/^https?:\/\//, "").split("?")[0]}</span></p>}
                 </div>
             )}
 
@@ -61,6 +65,67 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 {meta.by != null && <span>수정자 · {String(meta.by).slice(0, 8)}</span>}
                 {meta.trigger != null && <span>경로 · {String(meta.trigger)}</span>}
             </div>
+        </div>
+    );
+}
+
+function pathOf(e: JourneyEvent): string {
+    const raw = String((e.meta?.pageUrl as string) ?? "");
+    return raw.replace(/^https?:\/\/[^/]+/, "").split("?")[0] || "/";
+}
+
+// 페이지 표시명: 타이틀 우선("구독 신청 | 디하" → "구독 신청"), 없으면 경로
+function titleOf(e: JourneyEvent, path: string): string {
+    const t = String(e.label ?? "").split("|")[0].split(" - ")[0].trim();
+    return t && t !== path ? t : path;
+}
+
+// 대시보드/홈성 경로 — 의미가 옅어 뒤로 보냄 (영업 신호가 약함)
+function isLowSignalPath(p: string): boolean {
+    return p === "/" || p === "/main/" || p === "/login/" || p === "/main";
+}
+
+/**
+ * 방문 페이지를 경로별로 집계해 표시 (경로 + 방문횟수).
+ * pages: 페이지 이벤트 배열(단일 세션) / sessions: 세션 배열(children에 페이지, 묶음).
+ * 신청·요금제 같은 의미있는 경로 우선, 홈/대시보드는 뒤로. 8개 초과는 +N 축약.
+ */
+function PagePathSummary({ pages, sessions }: { pages?: JourneyEvent[]; sessions?: JourneyEvent[] }) {
+    const flat: JourneyEvent[] = pages ?? (sessions ?? []).flatMap((s) => s.children ?? []);
+    const MAX = 8;
+    // 경로를 키로 집계, 표시는 타이틀
+    const order: string[] = [];
+    const counts = new Map<string, number>();
+    const titles = new Map<string, string>();
+    for (const e of flat) {
+        const p = pathOf(e);
+        if (!counts.has(p)) {
+            order.push(p);
+            titles.set(p, titleOf(e, p));
+        }
+        counts.set(p, (counts.get(p) ?? 0) + 1);
+    }
+    // 의미있는 페이지 먼저, 홈/대시보드는 뒤로 (각 그룹 내 등장순서 유지)
+    const sorted = [...order].sort((a, b) => Number(isLowSignalPath(a)) - Number(isLowSignalPath(b)));
+    const shown = sorted.slice(0, MAX);
+    const rest = sorted.length - shown.length;
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {shown.map((path) => {
+                const n = counts.get(path)!;
+                const low = isLowSignalPath(path);
+                return (
+                    <span
+                        key={path}
+                        className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] ${low ? "bg-muted/50" : "bg-muted"}`}
+                        title={path}
+                    >
+                        <span className={low ? "text-muted-foreground/60" : "text-foreground/80"}>{titles.get(path)}</span>
+                        {n > 1 && <span className="font-medium text-foreground/70">×{n}</span>}
+                    </span>
+                );
+            })}
+            {rest > 0 && <span className="text-[11px] text-muted-foreground">+{rest}</span>}
         </div>
     );
 }
