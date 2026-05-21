@@ -19,10 +19,35 @@ import type {
     JourneyEvent,
     JourneySummary,
     StageDuration,
+    JourneyAttribution,
+    AttributionTouch,
+    NextAction,
 } from "@/components/journey/types";
+import { classifyInflow } from "@/components/journey/utils/referrer";
+
+// 두 시각 사이 간격을 사람이 읽는 텍스트로 ("3일 7시간")
+function gapText(fromIso: string, toIso: string): string {
+    const ms = new Date(toIso).getTime() - new Date(fromIso).getTime();
+    const days = Math.floor(ms / DAY_MS);
+    const hours = Math.floor((ms % DAY_MS) / (60 * 60 * 1000));
+    const mins = Math.floor((ms % (60 * 60 * 1000)) / 60000);
+    if (days > 0) return `${days}일 ${hours}시간`;
+    if (hours > 0) return `${hours}시간 ${mins}분`;
+    return `${mins}분`;
+}
 
 const STALE_DAYS = 14;
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+// "로/으로" 조사 선택: 받침 없거나 ㄹ받침이면 "로", 그 외 받침이면 "으로"
+function josaRo(s: string): string {
+    if (!s) return "로";
+    const last = s.charCodeAt(s.length - 1);
+    if (last < 0xac00 || last > 0xd7a3) return "로";
+    const jong = (last - 0xac00) % 28;
+    // jong 0 = 받침없음, 8 = ㄹ → "로"
+    return jong === 0 || jong === 8 ? "로" : "으로";
+}
 
 // record_events.type → 채널 라벨
 function businessChannel(type: string): string {
@@ -180,16 +205,18 @@ export async function GET(
                 label: ev.pageTitle ?? ev.pageUrl ?? ev.eventType,
                 meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
             }));
+            const inflow = classifyInflow(s.referrer, s.landingPage);
             events.push({
                 at: s.startedAt.toISOString(),
                 source: "tracker",
                 channel: "사이트",
                 type: "session",
-                label: `사이트 방문 ${children.length}페이지`,
+                label: `${inflow}${josaRo(inflow)} 사이트 방문 ${children.length}페이지`,
                 meta: {
                     duration: s.duration,
                     landingPage: s.landingPage,
                     referrer: s.referrer,
+                    inflowChannel: inflow,
                 },
                 children,
                 groupCount: children.length,
@@ -251,8 +278,10 @@ export async function GET(
         filtered.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
 
         const summary = await buildSummary(filtered, record, user.orgId, trkSessions, sendLogs, clickLogs);
+        const attribution = buildAttribution(filtered, summary);
+        const nextActions = buildNextActions(filtered, summary);
 
-        return NextResponse.json({ success: true, data: { summary, events: filtered } });
+        return NextResponse.json({ success: true, data: { summary, events: filtered, attribution, nextActions } });
     } catch (error) {
         console.error("Journey fetch error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
@@ -292,12 +321,15 @@ async function buildSummary(
     const currentStage = (stageFieldKey && (data[stageFieldKey] as string)) ||
         (stageEvents.length ? stageEvents[stageEvents.length - 1].label : null);
 
-    // 전환 = 퍼널 마지막 단계 도달 (stageOrder 있을 때)
+    // 전환 = 퍼널 마지막 단계 도달. stageOrder 없으면 도달 단계의 마지막을 전환으로 폴백.
     let convertedAt: string | null = null;
-    if (stageOrder.length) {
-        const lastStage = stageOrder[stageOrder.length - 1];
-        const hit = stageEvents.find((e) => e.label === lastStage);
-        convertedAt = hit?.at ?? null;
+    const lastStage = stageOrder.length
+        ? stageOrder[stageOrder.length - 1]
+        : (reachedStages.length ? reachedStages[reachedStages.length - 1] : null);
+    if (lastStage) {
+        // 그 단계의 가장 마지막 도달 이벤트
+        const hits = stageEvents.filter((e) => e.label === lastStage);
+        convertedAt = hits.length ? hits[hits.length - 1].at : null;
     }
     const daysToConvert =
         firstSeenAt && convertedAt
@@ -336,10 +368,10 @@ async function buildSummary(
         daysToConvert,
         totalEvents: events.length,
         currentStage,
-        stages: stageOrder,
+        stages: stageOrder.length ? stageOrder : reachedStages,
         reachedStages,
         stageDurations,
-        firstChannel: events.length ? events[0].channel : null,
+        firstChannel: firstInflowChannel(events) ?? (events.length ? events[0].channel : null),
         channels,
         density: {
             visits,
@@ -386,4 +418,77 @@ async function loadStageOrder(
     // 첫 추적 select 필드를 퍼널 기준으로 사용
     const f = tracked[0];
     return { stageOrder: (f?.options as string[]) ?? [], stageFieldKey: f?.key ?? null };
+}
+
+// 첫 사이트 세션의 유입채널 (meta.inflowChannel)
+function firstInflowChannel(events: JourneyEvent[]): string | null {
+    const firstSite = events.find((e) => e.source === "tracker" && e.type === "session");
+    return (firstSite?.meta?.inflowChannel as string) ?? null;
+}
+
+// 어트리뷰션: 마케팅 터치(사이트 유입/메일)만 추려 First/Last/전환 + 간격
+function buildAttribution(events: JourneyEvent[], summary: JourneySummary): JourneyAttribution {
+    const touches: AttributionTouch[] = [];
+    for (const e of events) {
+        if (e.source === "tracker" && e.type === "session") {
+            touches.push({ channel: (e.meta?.inflowChannel as string) ?? "사이트", at: e.at });
+        } else if (e.source === "email" && (e.type === "email_sent" || e.type === "email_click")) {
+            touches.push({ channel: "메일", at: e.at });
+        }
+    }
+    // 간격 텍스트
+    for (let i = 1; i < touches.length; i++) {
+        touches[i].gapText = gapText(touches[i - 1].at, touches[i].at);
+    }
+    const conversionAt = summary.convertedAt
+        ?? events.find((e) => e.type === "signup")?.at
+        ?? null;
+    return {
+        firstTouch: touches[0] ?? null,
+        lastTouch: touches.length ? touches[touches.length - 1] : null,
+        conversionAt,
+        path: touches,
+    };
+}
+
+// 다음 액션 제안 (간단한 룰)
+function buildNextActions(events: JourneyEvent[], summary: JourneySummary): NextAction[] {
+    const actions: NextAction[] = [];
+    const now = Date.now();
+
+    // 가입 직후 48시간 & 아직 단계 미진행 → 온보딩 콜
+    const signup = events.find((e) => e.type === "signup");
+    if (signup) {
+        const since = now - new Date(signup.at).getTime();
+        const hasStage = events.some((e) => e.channel === "단계");
+        if (since <= 48 * 60 * 60 * 1000 && !hasStage) {
+            actions.push({ label: "온보딩 콜 제안", reason: "가입 직후 48시간 골든타임", level: "urgent" });
+        }
+    }
+
+    // 요금제 페이지 2회+ 방문 → 결정 기준 확인
+    let pricingViews = 0;
+    for (const e of events) {
+        if (e.children) {
+            pricingViews += e.children.filter((c) =>
+                String((c.meta?.pageUrl as string) ?? "").includes("pricing") ||
+                c.label.includes("요금제")
+            ).length;
+        }
+    }
+    if (pricingViews >= 2) {
+        actions.push({ label: "결정 기준 확인 · 사례 발송", reason: `요금제 페이지 ${pricingViews}회 방문`, level: "important" });
+    }
+
+    // 무활동 → 재접촉
+    if (summary.inactivity.isStale) {
+        actions.push({ label: "재접촉 메일 발송", reason: `${summary.inactivity.daysSince}일 무활동`, level: "info" });
+    }
+
+    // 구독중 → 업셀/후기
+    if (summary.currentStage === "구독중") {
+        actions.push({ label: "후기 요청 · 업셀 검토", reason: "구독 전환 완료", level: "info" });
+    }
+
+    return actions;
 }

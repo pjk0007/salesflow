@@ -1,55 +1,66 @@
-import { X } from "lucide-react";
 import type { JourneyEvent } from "../types";
 import { formatDateTime, channelStyle } from "../utils/format";
 
 /**
- * L4 — 선택한 이벤트의 meta 전체 (전문가용 상세).
+ * 선택/호버 이벤트 상세 카드. 채널별로 의미있는 메타만 정리해서 표시.
  */
-export function JourneyEventDetail({
-    event,
-    onClose,
-}: {
-    event: JourneyEvent;
-    onClose: () => void;
-}) {
+export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: () => void }) {
     const style = channelStyle(event.channel);
+    const meta = event.meta ?? {};
+
     return (
         <div className="rounded-lg border bg-card p-4 space-y-3">
             <div className="flex items-start justify-between">
-                <div>
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium`}>
                         <span className={`h-2 w-2 rounded-full ${style.dot}`} />
-                        <span className="text-xs text-muted-foreground">{event.channel}</span>
-                    </div>
-                    <p className="mt-1 text-sm font-medium">{event.label}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(event.at)}</p>
+                        {event.channel}
+                    </span>
+                    <span className="text-base font-semibold">{event.label}</span>
                 </div>
-                <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground">
-                    <X className="h-4 w-4" />
-                </button>
+                <span className="text-xs text-muted-foreground tabular-nums">{formatDateTime(event.at)}</span>
             </div>
 
+            {/* 전환 강조 (가입/단계) */}
+            {(event.channel === "가입" || event.source === "business") && meta.from != null && (
+                <p className="text-sm text-foreground/80">
+                    {String(meta.from)} → <span className="font-semibold">{String(meta.to ?? event.label)}</span>
+                </p>
+            )}
+
+            {/* 사이트: 방문 페이지 칩 */}
             {event.children && event.children.length > 0 && (
-                <div className="space-y-1">
-                    <p className="text-xs font-semibold text-muted-foreground">방문 페이지 ({event.children.length})</p>
-                    <ul className="space-y-0.5">
-                        {event.children.map((c, i) => (
-                            <li key={i} className="text-xs text-muted-foreground truncate">
-                                · {c.label}
-                            </li>
-                        ))}
-                    </ul>
+                <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground">방문 페이지 {event.children.length}개</p>
+                    <div className="flex flex-wrap gap-1.5">
+                        {event.children.map((c, i) => {
+                            const path = String((c.meta?.pageUrl as string) ?? "").replace(/^https?:\/\/[^/]+/, "") || "/";
+                            return (
+                                <span key={i} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px]">
+                                    <span className="font-mono text-muted-foreground">{path}</span>
+                                    <span className="text-foreground/70">{c.label !== path ? c.label : ""}</span>
+                                </span>
+                            );
+                        })}
+                    </div>
                 </div>
             )}
 
-            {Object.keys(event.meta).length > 0 && (
-                <div className="space-y-1">
-                    <p className="text-xs font-semibold text-muted-foreground">상세</p>
-                    <pre className="rounded-md bg-muted p-2 text-xs overflow-x-auto">
-                        {JSON.stringify(event.meta, null, 2)}
-                    </pre>
+            {/* 메일: 제목/CTA/URL */}
+            {event.source === "email" && (
+                <div className="space-y-0.5 text-xs text-muted-foreground">
+                    {meta.subject != null && <p>제목 · {String(meta.subject)}</p>}
+                    {meta.url != null && <p>링크 · <span className="font-mono">{String(meta.url)}</span></p>}
                 </div>
             )}
+
+            {/* 하단 메타: 유입/디바이스/UTM */}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+                {meta.inflowChannel != null && <span>유입 · {String(meta.inflowChannel)}</span>}
+                {meta.referrer != null && !meta.inflowChannel && <span>출처 · {String(meta.referrer)}</span>}
+                {meta.by != null && <span>수정자 · {String(meta.by).slice(0, 8)}</span>}
+                {meta.trigger != null && <span>경로 · {String(meta.trigger)}</span>}
+            </div>
         </div>
     );
 }

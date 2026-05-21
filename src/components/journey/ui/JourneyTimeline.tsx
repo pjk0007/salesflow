@@ -24,13 +24,41 @@ export function JourneyTimeline({
         );
     }
 
+    // 날짜별 그룹
+    const groups: { key: string; label: string; events: JourneyEvent[] }[] = [];
+    for (const e of events) {
+        const key = e.at.slice(0, 10);
+        let g = groups.find((x) => x.key === key);
+        if (!g) {
+            const d = new Date(key + "T00:00:00");
+            const wd = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+            g = { key, label: `${d.getMonth() + 1}/${d.getDate()} (${wd})`, events: [] };
+            groups.push(g);
+        }
+        g.events.push(e);
+    }
+    const maxCount = Math.max(...groups.map((g) => g.events.length));
+
     return (
-        <div className="rounded-lg border bg-card p-4">
-            <ol className="relative space-y-3 before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-px before:bg-border">
-                {events.map((e, i) => (
-                    <TimelineItem key={i} event={e} onSelect={onSelect} />
-                ))}
-            </ol>
+        <div className="rounded-lg border bg-card divide-y">
+            {groups.map((g) => {
+                const isPeak = g.events.length === maxCount && maxCount > 2;
+                return (
+                    <div key={g.key} className="p-4">
+                        <div className="mb-2 flex items-center gap-2">
+                            <span className="text-xs font-semibold">{g.label}</span>
+                            <span className={`text-[11px] ${isPeak ? "text-orange-600 dark:text-orange-400 font-medium" : "text-muted-foreground"}`}>
+                                {g.events.length}개{isPeak ? " · 활동 집중일" : ""}
+                            </span>
+                        </div>
+                        <ol className="relative space-y-3 before:absolute before:left-[5px] before:top-1 before:bottom-1 before:w-px before:bg-border">
+                            {g.events.map((e, i) => (
+                                <TimelineItem key={i} event={e} onSelect={onSelect} />
+                            ))}
+                        </ol>
+                    </div>
+                );
+            })}
         </div>
     );
 }

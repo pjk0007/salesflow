@@ -56,7 +56,28 @@ export interface JourneySummary {
     dailyActivity: JourneyDailyActivity[];
 }
 
+export interface AttributionTouch {
+    channel: string;
+    at: string;
+    gapText?: string; // 이전 터치와의 간격 ("3일 7시간")
+}
+
+export interface JourneyAttribution {
+    firstTouch: AttributionTouch | null;
+    lastTouch: AttributionTouch | null;
+    conversionAt: string | null;
+    path: AttributionTouch[];
+}
+
+export interface NextAction {
+    label: string;
+    reason: string;
+    level: "urgent" | "important" | "info";
+}
+
 export interface JourneyData {
     summary: JourneySummary;
     events: JourneyEvent[];
+    attribution: JourneyAttribution;
+    nextActions: NextAction[];
 }
