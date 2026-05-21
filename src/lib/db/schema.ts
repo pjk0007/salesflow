@@ -1320,6 +1320,29 @@ export type TrackerEvent = typeof trackerEvents.$inferSelect;
 export type NewTrackerEvent = typeof trackerEvents.$inferInsert;
 
 // ============================================
+// 방문자 ↔ 레코드 다중 연결 (N:M)
+// ============================================
+export const visitorRecordLinks = pgTable("visitor_record_links", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").notNull(),
+    visitorId: integer("visitor_id")
+        .references(() => trackerVisitors.id, { onDelete: "cascade" })
+        .notNull(),
+    recordId: integer("record_id")
+        .references(() => records.id, { onDelete: "cascade" })
+        .notNull(),
+    source: varchar("source", { length: 30 }).default("identify_match").notNull(),
+    linkedAt: timestamptz("linked_at").defaultNow().notNull(),
+}, (table) => [
+    unique().on(table.visitorId, table.recordId),
+    index("vrl_visitor_idx").on(table.visitorId),
+    index("vrl_record_idx").on(table.recordId),
+]);
+
+export type VisitorRecordLink = typeof visitorRecordLinks.$inferSelect;
+export type NewVisitorRecordLink = typeof visitorRecordLinks.$inferInsert;
+
+// ============================================
 // 레코드 이벤트 (비즈니스 이벤트 이력, append-only)
 // ============================================
 export const recordEvents = pgTable("record_events", {

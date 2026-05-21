@@ -4,6 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { identifyPayloadSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
 import { rateLimit } from "@/lib/tracker/rate-limit";
+import { linkVisitorRecord } from "@/lib/visitor-links";
 
 function corsHeaders(origin: string) {
     return {
@@ -69,6 +70,8 @@ export async function POST(req: NextRequest) {
         //  2) email
         //  3) phone (단, matchField 지정 site는 제외 — 번호 공유로 오연결 잦음)
         let recordId = visitor.recordId;
+        // 신뢰 매칭(matchField/email)으로 잡힌 record는 링크에 누적, phone은 제외(오연결 방지)
+        let trustMatchedRecordId: number | null = null;
 
         // 1) 커스텀 매칭 필드 — 이미 recordId가 있어도 항상 재시도하여 덮어쓴다.
         //    가입 직후 record가 늦게 생기거나, 초기에 fallback으로 잘못 박힌 경우를 교정.
@@ -81,6 +84,7 @@ export async function POST(req: NextRequest) {
             `)) as unknown as Array<{ id: number }>;
             if (matched[0]) {
                 recordId = matched[0].id;
+                trustMatchedRecordId = matched[0].id;
             }
         }
 
@@ -94,11 +98,13 @@ export async function POST(req: NextRequest) {
             `)) as unknown as Array<{ id: number }>;
             if (matched[0]) {
                 recordId = matched[0].id;
+                trustMatchedRecordId = matched[0].id;
             }
         }
 
         // 3) phone fallback — recordId 없고, matchField가 지정되지 않은 site만.
         //    전화번호는 가족/회사 공유로 충돌이 잦아 matchField 기반 site에선 신뢰하지 않는다.
+        //    phone 매칭은 대표 record_id만 갱신하고 링크에는 누적하지 않는다.
         if (!recordId && !site.matchField && phone) {
             // 전화번호는 형식이 제각각이라 숫자만 비교
             const digits = phone.replace(/\D/g, "");
@@ -113,6 +119,16 @@ export async function POST(req: NextRequest) {
                     recordId = matched[0].id;
                 }
             }
+        }
+
+        // 신뢰 매칭 record는 링크에 누적 (멱등) — visitor가 거쳐간 record 보존
+        if (trustMatchedRecordId) {
+            await linkVisitorRecord({
+                orgId: site.orgId,
+                visitorId: visitor.id,
+                recordId: trustMatchedRecordId,
+                source: "identify_match",
+            });
         }
 
         await db

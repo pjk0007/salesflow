@@ -11,6 +11,7 @@ import {
     fieldDefinitions,
     partitions,
     workspaces,
+    visitorRecordLinks,
 } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
@@ -28,12 +29,13 @@ function businessChannel(type: string): string {
     if (type === "match_stage") return "단계";
     if (type === "status") return "상태";
     if (type === "consult") return "상담";
+    if (type === "signup") return "가입";
     return type;
 }
 
 // 비즈니스 이벤트가 "단계성"인지 (퍼널 계단/소요시간 계산 대상)
 function isStageEvent(channel: string): boolean {
-    return channel === "단계" || channel === "상태" || channel === "상담";
+    return channel === "단계" || channel === "상태" || channel === "상담" || channel === "가입";
 }
 
 export async function GET(
@@ -69,25 +71,62 @@ export async function GET(
         }
 
         const want = (s: string) => channelFilter.length === 0 || channelFilter.includes(s);
+        const merge = sp.get("merge") !== "none";
 
-        // 병렬 조회
+        // 통합 모드: 이 record에 연결된 visitor들 → 그 visitor들이 연결된 모든 record (1-hop)
+        // 그 record들의 이벤트를 한 여정으로. (파티션 경계 넘어 통합)
+        let recordIds = [recordId];
+        if (merge) {
+            const directVisitors = await db
+                .select({ visitorId: visitorRecordLinks.visitorId })
+                .from(visitorRecordLinks)
+                .where(eq(visitorRecordLinks.recordId, recordId));
+            // tracker_visitors.record_id 직접 연결분(대표)도 visitor 후보에 포함
+            const repVisitors = await db
+                .select({ id: trackerVisitors.id })
+                .from(trackerVisitors)
+                .where(and(eq(trackerVisitors.recordId, recordId), eq(trackerVisitors.orgId, user.orgId)));
+            const vIds = [...new Set([...directVisitors.map((v) => v.visitorId), ...repVisitors.map((v) => v.id)])];
+            if (vIds.length) {
+                const linked = await db
+                    .select({ recordId: visitorRecordLinks.recordId })
+                    .from(visitorRecordLinks)
+                    .where(inArray(visitorRecordLinks.visitorId, vIds));
+                const candidateIds = [...new Set([recordId, ...linked.map((l) => l.recordId)])];
+                // orgId 격리: 같은 org의 record만
+                const orgRecords = await db
+                    .select({ id: records.id })
+                    .from(records)
+                    .where(and(inArray(records.id, candidateIds), eq(records.orgId, user.orgId)));
+                recordIds = orgRecords.map((r) => r.id);
+            }
+        }
+
+        // 병렬 조회 (recordIds 기반)
         const [bizEvents, visitors, sendLogs] = await Promise.all([
             want("business")
-                ? db.select().from(recordEvents).where(eq(recordEvents.recordId, recordId))
+                ? db.select().from(recordEvents).where(inArray(recordEvents.recordId, recordIds))
                 : Promise.resolve([]),
             want("tracker")
                 ? db.select({ id: trackerVisitors.id }).from(trackerVisitors).where(
-                    and(eq(trackerVisitors.recordId, recordId), eq(trackerVisitors.orgId, user.orgId))
+                    and(inArray(trackerVisitors.recordId, recordIds), eq(trackerVisitors.orgId, user.orgId))
                 )
                 : Promise.resolve([]),
             want("email")
                 ? db.select().from(emailSendLogs).where(
-                    and(eq(emailSendLogs.recordId, recordId), eq(emailSendLogs.orgId, user.orgId))
+                    and(inArray(emailSendLogs.recordId, recordIds), eq(emailSendLogs.orgId, user.orgId))
                 )
                 : Promise.resolve([]),
         ]);
 
-        const visitorIds = visitors.map((v) => v.id);
+        // tracker: record_id 직접 연결 + 링크로 연결된 visitor 모두
+        const linkedVisitors = want("tracker")
+            ? await db
+                .select({ visitorId: visitorRecordLinks.visitorId })
+                .from(visitorRecordLinks)
+                .where(inArray(visitorRecordLinks.recordId, recordIds))
+            : [];
+        const visitorIds = [...new Set([...visitors.map((v) => v.id), ...linkedVisitors.map((v) => v.visitorId)])];
         const [trkEvents, trkSessions, clickLogs] = await Promise.all([
             visitorIds.length
                 ? db.select().from(trackerEvents).where(inArray(trackerEvents.visitorId, visitorIds))

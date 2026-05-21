@@ -8,6 +8,7 @@ import {
     emailClickLogs,
     emailSendLogs,
     records,
+    visitorRecordLinks,
 } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { collectEventSchema } from "@/lib/tracker/validations";
@@ -100,8 +101,8 @@ export async function POST(req: NextRequest) {
                 visitor = created;
             }
 
-            // 2. click_id로 record 자동 매칭 (visitor에 recordId가 비어 있을 때만)
-            if (click_id && !visitor.recordId) {
+            // 2. click_id로 record 자동 매칭 (click_id 있으면 항상 시도 — 링크 누적)
+            if (click_id) {
                 const [match] = await tx
                     .select({
                         recordId: emailSendLogs.recordId,
@@ -118,16 +119,32 @@ export async function POST(req: NextRequest) {
                 // 다른 워크스페이스 메일의 click_id가 (localStorage 등으로)
                 // 흘러들어와도 엉뚱한 record에 엮이지 않도록 격리.
                 if (match?.recordId && match.recordWorkspaceId === site.workspaceId) {
+                    // 링크 누적 (신뢰 키 click_id) — 멱등
                     await tx
-                        .update(trackerVisitors)
-                        .set({
+                        .insert(visitorRecordLinks)
+                        .values({
+                            orgId: site.orgId,
+                            visitorId: visitor.id,
                             recordId: match.recordId,
-                            email: visitor.email ?? match.recipientEmail,
-                            updatedAt: new Date(),
+                            source: "click_id",
                         })
-                        .where(eq(trackerVisitors.id, visitor.id));
-                    visitor.recordId = match.recordId;
-                    visitor.email = visitor.email ?? match.recipientEmail;
+                        .onConflictDoNothing({
+                            target: [visitorRecordLinks.visitorId, visitorRecordLinks.recordId],
+                        });
+
+                    // 대표 record_id는 비어 있을 때만 set (덮어쓰기 X)
+                    if (!visitor.recordId) {
+                        await tx
+                            .update(trackerVisitors)
+                            .set({
+                                recordId: match.recordId,
+                                email: visitor.email ?? match.recipientEmail,
+                                updatedAt: new Date(),
+                            })
+                            .where(eq(trackerVisitors.id, visitor.id));
+                        visitor.recordId = match.recordId;
+                        visitor.email = visitor.email ?? match.recipientEmail;
+                    }
                 }
             }
 

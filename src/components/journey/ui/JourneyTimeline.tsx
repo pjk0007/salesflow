@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { JourneyEvent } from "../types";
-import { formatDateTime, channelStyle } from "../utils/format";
+import { formatDateTime, channelStyle, isEmphasizedChannel } from "../utils/format";
 
 /**
  * L2 — 시간순 통합 타임라인. 채널별 색/점, 세션 묶음은 펼치기.
@@ -44,7 +44,7 @@ function TimelineItem({
 }) {
     const [open, setOpen] = useState(false);
     const style = channelStyle(event.channel);
-    const isStage = event.channel === "단계";
+    const isStage = isEmphasizedChannel(event.channel);
     const hasChildren = !!event.children && event.children.length > 0;
 
     return (
