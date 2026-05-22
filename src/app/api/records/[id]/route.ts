@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, fieldDefinitions, partitions, workspaces } from "@/lib/db";
+import { db, records, fieldDefinitions, partitions, workspaces, trackerVisitors } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
@@ -169,6 +169,13 @@ export async function DELETE(
         if (!existing) {
             return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
         }
+
+        // 트래커 visitor 연결 해제(익명으로 되돌림) — 방문 기록은 record와 수명이 다르므로 보존.
+        // record_events / visitor_record_links / memos는 FK CASCADE로 자동 정리됨.
+        await db
+            .update(trackerVisitors)
+            .set({ recordId: null })
+            .where(and(eq(trackerVisitors.recordId, recordId), eq(trackerVisitors.orgId, user.orgId)));
 
         await db.delete(records).where(eq(records.id, recordId));
 
