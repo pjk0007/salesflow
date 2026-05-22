@@ -7,6 +7,7 @@ import {
     checkTokenAccess,
 } from "@/lib/auth";
 import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
+import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 
 // 외부 고객사(디하 server 등)가 record에 비즈니스 이벤트(단계 변경 등)를
 // append-only로 기록할 때 호출. record_events 테이블에 한 줄 INSERT.
@@ -59,6 +60,14 @@ async function handlePost(req: NextRequest, recordId: number) {
         recordId,
         event: parsed.value,
     });
+
+    // 가입 등 전환 이벤트 수신 시 미연결 트래커 visitor 역매칭
+    rematchVisitorsByRecord({
+        orgId: record.orgId,
+        workspaceId: record.workspaceId,
+        recordId,
+        data: record.data as Record<string, unknown>,
+    }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
 
     return NextResponse.json({ success: true, data: event }, { status: 201 });
 }

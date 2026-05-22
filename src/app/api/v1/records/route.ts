@@ -10,6 +10,7 @@ import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
+import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -259,6 +260,12 @@ async function handlePost(req: NextRequest) {
                             const mergedEvent = eventInput
                                 ? await insertRecordEvent({ orgId: tokenInfo.orgId, recordId: merged.id, event: eventInput })
                                 : null;
+                            rematchVisitorsByRecord({
+                                orgId: tokenInfo.orgId,
+                                workspaceId: partition.workspaceId,
+                                recordId: merged.id,
+                                data: merged.data as Record<string, unknown>,
+                            }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
                             return NextResponse.json({ success: true, data: merged, merged: true, event: mergedEvent ?? null });
                         }
 
@@ -337,6 +344,14 @@ async function handlePost(req: NextRequest) {
             partitionId,
             recordId: result.record.id,
         }, "");
+
+        // 미연결 트래커 visitor 역매칭 (fire-after-commit, 실패해도 응답엔 영향 없음)
+        rematchVisitorsByRecord({
+            orgId: tokenInfo.orgId,
+            workspaceId: partition.workspaceId,
+            recordId: result.record.id,
+            data: result.record.data as Record<string, unknown>,
+        }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
 
         return NextResponse.json({ success: true, data: result.record, event: result.event ?? null }, { status: 201 });
     } catch (error) {

@@ -1224,6 +1224,8 @@ export const trackerVisitors = pgTable("tracker_visitors", {
     visitorId: varchar("visitor_id", { length: 64 }).notNull(),
     // soft FK (records 삭제 시 NULLify는 application 책임)
     recordId: integer("record_id"),
+    // identify로 받은 식별자 값 (site.matchField에 대응) — 역매칭 키로 보존
+    matchValue: varchar("match_value", { length: 200 }),
     email: varchar("email", { length: 200 }),
     name: varchar("name", { length: 100 }),
     phone: varchar("phone", { length: 20 }),
@@ -1251,6 +1253,7 @@ export const trackerVisitors = pgTable("tracker_visitors", {
 }, (table) => [
     uniqueIndex("tracker_visitors_site_visitor_idx").on(table.siteId, table.visitorId),
     index("tracker_visitors_record_id_idx").on(table.recordId),
+    index("tracker_visitors_match_value_idx").on(table.siteId, table.matchValue),
     index("tracker_visitors_email_idx").on(table.email),
     index("tracker_visitors_site_last_seen_idx").on(table.siteId, table.lastSeenAt),
 ]);

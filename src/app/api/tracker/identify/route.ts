@@ -135,6 +135,8 @@ export async function POST(req: NextRequest) {
             .update(trackerVisitors)
             .set({
                 recordId,
+                // 식별자(user_id = site.matchField 값) 보존 — record가 늦게 생겨도 역매칭 가능하게
+                matchValue: user_id ?? visitor.matchValue,
                 email: email ?? visitor.email,
                 name: name ?? visitor.name,
                 phone: phone ?? visitor.phone,

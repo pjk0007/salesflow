@@ -6,6 +6,7 @@ import type { ApiTokenInfo } from "@/lib/auth";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { broadcastToPartition } from "@/lib/sse";
 import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
+import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -118,6 +119,14 @@ export async function PUT(
             partitionId: updated.partitionId,
             recordId: updated.id,
         }, "");
+
+        // 미연결 트래커 visitor 역매칭 (수정으로 email/식별자가 채워졌을 수 있음)
+        rematchVisitorsByRecord({
+            orgId: tokenInfo.orgId,
+            workspaceId: updated.workspaceId,
+            recordId: updated.id,
+            data: updated.data as Record<string, unknown>,
+        }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
 
         return NextResponse.json({ success: true, data: updated, event: updatedEvent ?? null });
     } catch (error) {
