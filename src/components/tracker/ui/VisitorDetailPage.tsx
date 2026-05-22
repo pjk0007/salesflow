@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import type { TrackerVisitor, TrackerSession, TrackerEvent } from "../types";
+import { parseInflowDetail } from "../utils/inflowDetail";
 
 type Summary = {
     totalVisits: number;
@@ -131,29 +132,62 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                         <p className="text-sm text-muted-foreground">세션 기록 없음</p>
                     ) : (
                         <ul className="space-y-2 text-sm">
-                            {sessions.map((s) => (
+                            {sessions.map((s) => {
+                                const inflow = parseInflowDetail(s.referrer, s.landingPage);
+                                return (
                                 <li
                                     key={s.id}
-                                    className="rounded border p-3 grid grid-cols-2 gap-x-4 gap-y-1"
+                                    className="rounded border p-3 space-y-2"
                                 >
-                                    <div className="min-w-0">
-                                        <span className="text-muted-foreground">시작: </span>
-                                        {formatDate(s.startedAt)}
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                                        <div className="min-w-0">
+                                            <span className="text-muted-foreground">시작: </span>
+                                            {formatDate(s.startedAt)}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-muted-foreground">페이지: </span>
+                                            {s.pageCount}개
+                                        </div>
+                                        <div className="min-w-0">
+                                            <span className="text-muted-foreground">체류: </span>
+                                            {formatDuration(s.duration)}
+                                        </div>
+                                        <div className="min-w-0 flex items-center gap-1.5">
+                                            <span className="text-muted-foreground">유입: </span>
+                                            <span className="font-medium">{inflow.channel}</span>
+                                            {inflow.isPaid && (
+                                                <Badge variant="secondary" className="h-4 px-1 text-[10px]">광고</Badge>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div className="min-w-0">
-                                        <span className="text-muted-foreground">페이지: </span>
-                                        {s.pageCount}개
-                                    </div>
-                                    <div className="min-w-0">
-                                        <span className="text-muted-foreground">체류: </span>
-                                        {formatDuration(s.duration)}
-                                    </div>
-                                    <div className="min-w-0 truncate">
-                                        <span className="text-muted-foreground">유입: </span>
-                                        {s.utmSource ?? "-"}
-                                        {s.utmCampaign ? ` / ${s.utmCampaign}` : ""}
-                                    </div>
-                                    <div className="col-span-2 flex gap-1">
+
+                                    {/* 검색/광고 상세 */}
+                                    {(inflow.searchQuery || inflow.adKeyword || inflow.adContent || inflow.referrerHost) && (
+                                        <div className="flex flex-wrap gap-1.5 border-t pt-2">
+                                            {inflow.searchQuery && (
+                                                <Badge variant="outline" className="text-[11px] font-normal">
+                                                    검색어 · {inflow.searchQuery}
+                                                </Badge>
+                                            )}
+                                            {inflow.adKeyword && (
+                                                <Badge variant="outline" className="text-[11px] font-normal">
+                                                    광고키워드 · {inflow.adKeyword}
+                                                </Badge>
+                                            )}
+                                            {inflow.adContent && (
+                                                <Badge variant="outline" className="text-[11px] font-normal">
+                                                    소재 · {inflow.adContent}
+                                                </Badge>
+                                            )}
+                                            {inflow.referrerHost && (
+                                                <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">
+                                                    출처 · {inflow.referrerHost}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-1 text-xs">
                                         <span className="shrink-0 text-muted-foreground">착륙: </span>
                                         <span
                                             className="line-clamp-1 break-all"
@@ -163,7 +197,8 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
                                         </span>
                                     </div>
                                 </li>
-                            ))}
+                                );
+                            })}
                         </ul>
                     )}
                 </CardContent>

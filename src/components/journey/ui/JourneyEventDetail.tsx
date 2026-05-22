@@ -1,5 +1,6 @@
 import type { JourneyEvent } from "../types";
 import { formatDateTime, channelStyle } from "../utils/format";
+import { parseInflowDetail } from "@/components/tracker/utils/inflowDetail";
 
 /**
  * 선택/호버 이벤트 상세 카드. 채널별로 의미있는 메타만 정리해서 표시.
@@ -28,9 +29,12 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 </p>
             )}
 
-            {/* 단일 사이트 세션: 방문 페이지를 경로별 집계 */}
-            {event.type === "session" && event.children && event.children.length > 0 && (
-                <PagePathSummary pages={event.children} />
+            {/* 단일 사이트 세션: 유입 상세(검색어/광고) + 방문 페이지 경로별 집계 */}
+            {event.type === "session" && (
+                <>
+                    <InflowDetailBlock referrer={meta.referrer as string | null} landingPage={meta.landingPage as string | null} />
+                    {event.children && event.children.length > 0 && <PagePathSummary pages={event.children} />}
+                </>
             )}
 
             {/* 사이트 세션 묶음(그날 세션 여러 개): 모든 세션의 페이지를 경로별 집계 */}
@@ -58,13 +62,43 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 </div>
             )}
 
-            {/* 하단 메타: 유입/디바이스/UTM */}
-            <div className="flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
-                {meta.inflowChannel != null && <span>유입 · {String(meta.inflowChannel)}</span>}
-                {meta.referrer != null && !meta.inflowChannel && <span>출처 · {String(meta.referrer)}</span>}
-                {meta.by != null && <span>수정자 · {String(meta.by).slice(0, 8)}</span>}
-                {meta.trigger != null && <span>경로 · {String(meta.trigger)}</span>}
+            {/* 하단 메타: 수정자/경로 (사이트 유입은 위 InflowDetailBlock에서 표시) */}
+            {(meta.by != null || meta.trigger != null) && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
+                    {meta.by != null && <span>수정자 · {String(meta.by).slice(0, 8)}</span>}
+                    {meta.trigger != null && <span>경로 · {String(meta.trigger)}</span>}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/** 사이트 세션 유입 상세 — 채널/검색어/광고키워드/소재. (트래커 방문자 상세와 동일 파서) */
+function InflowDetailBlock({ referrer, landingPage }: { referrer: string | null; landingPage: string | null }) {
+    if (!referrer && !landingPage) return null;
+    const inflow = parseInflowDetail(referrer ?? null, landingPage ?? null);
+    return (
+        <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5 text-sm">
+                <span className="text-muted-foreground">유입</span>
+                <span className="font-medium">{inflow.channel}</span>
+                {inflow.isPaid && (
+                    <span className="rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">광고</span>
+                )}
             </div>
+            {(inflow.searchQuery || inflow.adKeyword || inflow.adContent) && (
+                <div className="flex flex-wrap gap-1.5">
+                    {inflow.searchQuery && (
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-[11px]">검색어 · {inflow.searchQuery}</span>
+                    )}
+                    {inflow.adKeyword && (
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-[11px]">광고키워드 · {inflow.adKeyword}</span>
+                    )}
+                    {inflow.adContent && (
+                        <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">소재 · {inflow.adContent}</span>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
