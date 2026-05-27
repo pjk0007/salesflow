@@ -77,7 +77,7 @@
 | Phase | 상태 | PDCA | 비고 |
 |------|------|------|------|
 | 0 (overview) | ✅ 완료 | tracker-overview | 2026-05-27 아카이브 |
-| 1 (marketing-v1) | ⏳ 대기 | tracker-marketing-v1 | 다음 시작 |
+| 1 (marketing-v1) | ✅ 완료 | tracker-marketing-v1 | 2026-05-27 아카이브 → [archive/2026-05/tracker-marketing-v1](../../archive/2026-05/tracker-marketing-v1/tracker-marketing-v1.report.md) |
 | 2 (funnels-v1) | ⏳ 대기 | tracker-funnels-v1 | Phase 1 완료 후 |
 | 3 (편의) | 🛑 보류 | - | 필요 시 재개 |
 

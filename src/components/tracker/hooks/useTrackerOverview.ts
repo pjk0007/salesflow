@@ -4,9 +4,21 @@ import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 import type { OverviewResponse } from "../types/overview";
 
-export function useTrackerOverview(args: { siteId: number | null; from: string; to: string }) {
+export function useTrackerOverview(args: {
+    siteId: number | null;
+    from: string;
+    to: string;
+    device?: string | null;
+    channel?: string | null;
+}) {
     const key = args.siteId
-        ? `/api/tracker/analytics/overview?siteId=${args.siteId}&from=${args.from}&to=${args.to}`
+        ? `/api/tracker/analytics/overview?` + new URLSearchParams({
+            siteId: String(args.siteId),
+            from: args.from,
+            to: args.to,
+            ...(args.device ? { device: args.device } : {}),
+            ...(args.channel ? { channel: args.channel } : {}),
+        }).toString()
         : null;
     const { data, isLoading, error, mutate } = useSWR<OverviewResponse>(key, defaultFetcher);
     return {

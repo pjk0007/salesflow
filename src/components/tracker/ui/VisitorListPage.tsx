@@ -11,6 +11,7 @@ import { TrackerInstallGuide } from "./TrackerInstallGuide";
 import { TrackerSettingsPanel } from "./TrackerSettingsPanel";
 import { TrackerPagination } from "./TrackerPagination";
 import { OverviewTab } from "./OverviewTab";
+import { MarketingTab } from "./MarketingTab";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -21,7 +22,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Users, UserCheck, Eye, Settings, BarChart3 } from "lucide-react";
+import { Search, Users, UserCheck, Eye, Settings, BarChart3, Megaphone } from "lucide-react";
 import type { TrackerSite } from "../types";
 
 const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
@@ -107,6 +108,10 @@ export function VisitorListPage() {
                         <BarChart3 className="mr-1.5 h-4 w-4" />
                         개요
                     </TabsTrigger>
+                    <TabsTrigger value="marketing">
+                        <Megaphone className="mr-1.5 h-4 w-4" />
+                        마케팅
+                    </TabsTrigger>
                     <TabsTrigger value="visitors">
                         <Users className="mr-1.5 h-4 w-4" />
                         방문자
@@ -119,6 +124,10 @@ export function VisitorListPage() {
 
                 <TabsContent value="overview" className="mt-4">
                     <OverviewTab siteId={site.id} />
+                </TabsContent>
+
+                <TabsContent value="marketing" className="mt-4">
+                    <MarketingTab siteId={site.id} />
                 </TabsContent>
 
                 <TabsContent value="visitors" className="mt-4 space-y-4">

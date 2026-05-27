@@ -1208,6 +1208,8 @@ export const trackerSites = pgTable("tracker_sites", {
     matchField: varchar("match_field", { length: 100 }),
     // 분석에서 제외할 경로 prefix 배열 (예: ["/main/", "/login/"]) — 로그인 후 영역 제외용
     excludePaths: jsonb("exclude_paths").$type<string[]>().notNull().default([]),
+    // 전환 완료 단계명 (record.data[matchStep] 값과 매칭) — 디하=구독중. NULL이면 깔때기 3단까지만
+    conversionStage: varchar("conversion_stage", { length: 100 }),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 }, (table) => [

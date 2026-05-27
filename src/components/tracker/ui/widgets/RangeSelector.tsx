@@ -1,5 +1,6 @@
 "use client";
 
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Range, RangePreset } from "../../types/overview";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -28,22 +29,33 @@ const PRESETS: Array<{ key: RangePreset; label: string }> = [
 
 export function RangeSelector({ value, onChange }: Props) {
     return (
-        <div className="inline-flex items-center gap-1 rounded-md border p-0.5">
-            {PRESETS.map((p) => {
-                const active = value.preset === p.key;
-                return (
-                    <button
-                        key={p.key}
-                        type="button"
-                        onClick={() => onChange(presetRange(p.key))}
-                        className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
-                            active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                        {p.label}
-                    </button>
-                );
-            })}
+        <div className="inline-flex items-center gap-2">
+            <div className="inline-flex items-center gap-1 rounded-md border p-0.5">
+                {PRESETS.map((p) => {
+                    const active = value.preset === p.key;
+                    return (
+                        <button
+                            key={p.key}
+                            type="button"
+                            onClick={() => onChange(presetRange(p.key))}
+                            className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                                active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
+                            }`}
+                        >
+                            {p.label}
+                        </button>
+                    );
+                })}
+            </div>
+            <DateRangePicker
+                from={value.preset === "custom" ? new Date(`${value.from}T00:00:00`) : undefined}
+                to={value.preset === "custom" ? new Date(`${value.to}T00:00:00`) : undefined}
+                maxDate={new Date()}
+                placeholder="사용자지정"
+                onChange={({ from, to }) => {
+                    if (from && to) onChange({ preset: "custom", from: ymd(from), to: ymd(to) });
+                }}
+            />
         </div>
     );
 }

@@ -8,6 +8,7 @@ export type TrackerSite = {
     isActive: number;
     matchField: string | null;
     excludePaths: string[];
+    conversionStage: string | null;
     createdAt: string;
     updatedAt: string;
 };

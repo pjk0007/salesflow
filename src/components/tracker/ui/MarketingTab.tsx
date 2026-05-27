@@ -3,13 +3,13 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTrackerOverview } from "../hooks/useTrackerOverview";
-import { KpiCards } from "./widgets/KpiCards";
-import { DailyPageviewChart } from "./widgets/DailyPageviewChart";
-import { DailyConversions } from "./widgets/DailyConversions";
-import { ChannelConversion } from "./widgets/ChannelConversion";
-import { FunnelPreview } from "./widgets/FunnelPreview";
-import { RangeSelector, presetRange } from "./widgets/RangeSelector";
-import { SegmentFilter } from "./widgets/SegmentFilter";
+import { PopularPages } from "./widgets/PopularPages";
+import { ExitPages } from "./widgets/ExitPages";
+import { InflowChannels } from "./widgets/InflowChannels";
+import { AdContentTop } from "./widgets/AdContentTop";
+import { DeviceBreakdown } from "./widgets/DeviceBreakdown";
+import { presetRange } from "./widgets/RangeSelector";
+import { ControlBar } from "./OverviewTab";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Range, SegmentFilters } from "../types/overview";
 
@@ -23,10 +23,10 @@ function rangeFromSearchParams(sp: URLSearchParams): Range {
 }
 
 /**
- * 개요(요약) 탭 — 핵심 KPI + 일별 차트 + 최근 활성 방문자.
- * 마케팅 분석은 MarketingTab으로 분리됨.
+ * 마케팅 탭 — 인기/이탈 페이지, 유입 채널, 광고 소재, 디바이스 분포.
+ * Overview와 같은 기간/필터 컨트롤 공유 (URL ?from&to 동일).
  */
-export function OverviewTab({ siteId }: { siteId: number | null }) {
+export function MarketingTab({ siteId }: { siteId: number | null }) {
     const router = useRouter();
     const pathname = usePathname();
     const sp = useSearchParams();
@@ -66,7 +66,7 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
 
             {isLoading && !data && (
                 <div className="space-y-3">
-                    <Skeleton className="h-24 w-full" />
+                    <Skeleton className="h-64 w-full" />
                     <Skeleton className="h-64 w-full" />
                 </div>
             )}
@@ -79,50 +79,17 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
 
             {data && (
                 <>
-                    <KpiCards kpi={data.kpi} />
-                    <FunnelPreview funnel={data.funnel} />
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                        <DailyPageviewChart data={data.dailyPageviews} />
-                        <DailyConversions
-                            data={data.dailyConversions}
-                            conversionLabel={data.funnel.conversionStageLabel}
-                        />
+                        <PopularPages pages={data.popularPages} />
+                        <ExitPages pages={data.exitPages} />
                     </div>
-                    <ChannelConversion items={data.channelConversions} />
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                        <InflowChannels channels={data.inflowChannels} />
+                        <AdContentTop items={data.adContents} />
+                    </div>
+                    <DeviceBreakdown devices={data.devices} />
                 </>
             )}
-        </div>
-    );
-}
-
-/** 기간 + 필터 컨트롤바 — Overview/Marketing 탭에서 동일하게 사용 */
-export function ControlBar({
-    range,
-    onRangeChange,
-    filters,
-    onFiltersChange,
-    isFilterActive,
-}: {
-    range: Range;
-    onRangeChange: (r: Range) => void;
-    filters: SegmentFilters;
-    onFiltersChange: (f: SegmentFilters) => void;
-    isFilterActive: boolean;
-}) {
-    return (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs text-muted-foreground">{range.from} ~ {range.to}</p>
-                {isFilterActive && (
-                    <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-foreground">
-                        {[filters.device, filters.channel].filter(Boolean).join(" · ")}
-                    </span>
-                )}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-                <SegmentFilter value={filters} onChange={onFiltersChange} />
-                <RangeSelector value={range} onChange={onRangeChange} />
-            </div>
         </div>
     );
 }

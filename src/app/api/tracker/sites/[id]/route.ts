@@ -65,6 +65,9 @@ export async function PATCH(
     if (parsed.data.excludePaths !== undefined) {
         updates.excludePaths = parsed.data.excludePaths;
     }
+    if (parsed.data.conversionStage !== undefined) {
+        updates.conversionStage = parsed.data.conversionStage || null;
+    }
 
     const [updated] = await db
         .update(trackerSites)

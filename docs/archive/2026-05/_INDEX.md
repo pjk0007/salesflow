@@ -9,3 +9,4 @@
 | visitor-multi-record | 98% | 2026-05-21 | [Plan](visitor-multi-record/visitor-multi-record.plan.md), [Design](visitor-multi-record/visitor-multi-record.design.md), [Analysis](visitor-multi-record/visitor-multi-record.analysis.md), [Report](visitor-multi-record/visitor-multi-record.report.md) |
 | visitor-record-rematch | 100% | 2026-05-22 | [Plan](visitor-record-rematch/visitor-record-rematch.plan.md), [Design](visitor-record-rematch/visitor-record-rematch.design.md), [Report](visitor-record-rematch/visitor-record-rematch.report.md) |
 | tracker-overview | 93% | 2026-05-27 | [Plan](tracker-overview/tracker-overview.plan.md), [Design](tracker-overview/tracker-overview.design.md), [Report](tracker-overview/tracker-overview.report.md) |
+| tracker-marketing-v1 | 100% | 2026-05-27 | [Plan](tracker-marketing-v1/tracker-marketing-v1.plan.md), [Design](tracker-marketing-v1/tracker-marketing-v1.design.md), [Report](tracker-marketing-v1/tracker-marketing-v1.report.md) |

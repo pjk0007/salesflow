@@ -89,6 +89,8 @@ export const updateSiteSchema = z.object({
     matchField: z.string().max(100).optional().nullable(),
     // 분석 제외 경로 prefix 배열 — 빈 배열 허용
     excludePaths: z.array(z.string().min(1).max(200)).max(50).optional(),
+    // 전환 완료 단계명 (record.data.matchStep 값) — 디하=구독중. 빈 문자열이면 NULL
+    conversionStage: z.string().max(100).optional().nullable(),
 });
 
 export type UpdateSitePayload = z.infer<typeof updateSiteSchema>;
