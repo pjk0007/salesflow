@@ -4,6 +4,7 @@ import { EmbedScriptCard } from "./EmbedScriptCard";
 import { DomainEditor } from "./DomainEditor";
 import { MatchFieldCard } from "./MatchFieldCard";
 import { ExcludePathsCard } from "./ExcludePathsCard";
+import { FunnelManagerCard } from "./FunnelManagerCard";
 import type { TrackerSite } from "../types";
 
 /**
@@ -36,6 +37,7 @@ export function TrackerSettingsPanel({
                 excludePaths={site.excludePaths ?? []}
                 onUpdated={onUpdated}
             />
+            <FunnelManagerCard siteId={site.id} />
         </div>
     );
 }

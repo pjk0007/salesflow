@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useTrackerOverview } from "../hooks/useTrackerOverview";
+import { useFunnelAnalytics } from "../hooks/useFunnelAnalytics";
+import { useTrackerFunnels } from "../hooks/useTrackerFunnels";
 import { KpiCards } from "./widgets/KpiCards";
 import { DailyPageviewChart } from "./widgets/DailyPageviewChart";
 import { DailyConversions } from "./widgets/DailyConversions";
@@ -50,6 +52,18 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
         channel: filters.channel,
     });
 
+    // 사용자정의 퍼널 분석 — 메인 퍼널 기준 단계별 visitor 수
+    const { data: funnelData } = useFunnelAnalytics({
+        siteId,
+        from: range.from,
+        to: range.to,
+        device: filters.device,
+        channel: filters.channel,
+    });
+    // 사이트에 퍼널 정의 있는지 확인 (없으면 안내 메시지 표시)
+    const { funnels } = useTrackerFunnels(siteId);
+    const hasFunnelDefined = funnels.length > 0;
+
     const isFilterActive = useMemo(() => filters.device !== null || filters.channel !== null, [filters]);
 
     if (!siteId) return <p className="text-sm text-muted-foreground">트래커가 설정되지 않았습니다.</p>;
@@ -80,7 +94,7 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
             {data && (
                 <>
                     <KpiCards kpi={data.kpi} />
-                    <FunnelPreview funnel={data.funnel} />
+                    <FunnelPreview data={funnelData} showSetupHint={!hasFunnelDefined} />
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                         <DailyPageviewChart data={data.dailyPageviews} />
                         <DailyConversions

@@ -386,6 +386,13 @@
       "when": 1770951700000,
       "tag": "0054_tracker_site_conversion_stage",
       "breakpoints": true
+    },
+    {
+      "idx": 55,
+      "version": "7",
+      "when": 1770951800000,
+      "tag": "0055_tracker_funnels",
+      "breakpoints": true
     }
   ]
 }
