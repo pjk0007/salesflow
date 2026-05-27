@@ -87,6 +87,8 @@ export const updateSiteSchema = z.object({
     domains: z.array(z.string().min(1).max(253)).max(20).optional(),
     isActive: z.union([z.literal(0), z.literal(1)]).optional(),
     matchField: z.string().max(100).optional().nullable(),
+    // 분석 제외 경로 prefix 배열 — 빈 배열 허용
+    excludePaths: z.array(z.string().min(1).max(200)).max(50).optional(),
 });
 
 export type UpdateSitePayload = z.infer<typeof updateSiteSchema>;

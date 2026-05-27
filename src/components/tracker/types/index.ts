@@ -7,6 +7,7 @@ export type TrackerSite = {
     domains: string[];
     isActive: number;
     matchField: string | null;
+    excludePaths: string[];
     createdAt: string;
     updatedAt: string;
 };

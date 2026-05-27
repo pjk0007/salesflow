@@ -1206,6 +1206,8 @@ export const trackerSites = pgTable("tracker_sites", {
     isActive: integer("is_active").default(1).notNull(),
     // identify 매칭 필드 — NULL이면 email/phone 기본
     matchField: varchar("match_field", { length: 100 }),
+    // 분석에서 제외할 경로 prefix 배열 (예: ["/main/", "/login/"]) — 로그인 후 영역 제외용
+    excludePaths: jsonb("exclude_paths").$type<string[]>().notNull().default([]),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 }, (table) => [

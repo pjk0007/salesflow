@@ -32,6 +32,7 @@ export async function updateTrackerSite(
         domains?: string[];
         isActive?: 0 | 1;
         matchField?: string | null;
+        excludePaths?: string[];
     },
 ): Promise<TrackerSite> {
     const res = await fetch(`/api/tracker/sites/${id}`, {

@@ -3,6 +3,7 @@
 import { EmbedScriptCard } from "./EmbedScriptCard";
 import { DomainEditor } from "./DomainEditor";
 import { MatchFieldCard } from "./MatchFieldCard";
+import { ExcludePathsCard } from "./ExcludePathsCard";
 import type { TrackerSite } from "../types";
 
 /**
@@ -28,6 +29,11 @@ export function TrackerSettingsPanel({
                 siteId={site.id}
                 workspaceId={site.workspaceId}
                 matchField={site.matchField}
+                onUpdated={onUpdated}
+            />
+            <ExcludePathsCard
+                siteId={site.id}
+                excludePaths={site.excludePaths ?? []}
                 onUpdated={onUpdated}
             />
         </div>
