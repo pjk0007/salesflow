@@ -15,10 +15,11 @@ interface ParsedUtm {
     campaign: string | null;
     gclid: boolean;
     fbclid: boolean;
+    sendbClickId: boolean; // sendb 메일 트래킹 클릭 ID 존재 = 우리 메일 클릭 100% 확실
 }
 
 export function parseUtm(landingPage: string | null): ParsedUtm {
-    const empty: ParsedUtm = { source: null, medium: null, campaign: null, gclid: false, fbclid: false };
+    const empty: ParsedUtm = { source: null, medium: null, campaign: null, gclid: false, fbclid: false, sendbClickId: false };
     if (!landingPage) return empty;
     try {
         const url = new URL(landingPage);
@@ -29,6 +30,7 @@ export function parseUtm(landingPage: string | null): ParsedUtm {
             campaign: q.get("utm_campaign") ?? null,
             gclid: q.has("gclid"),
             fbclid: q.has("fbclid"),
+            sendbClickId: q.has("sendb_cid"),
         };
     } catch {
         return empty;
@@ -51,7 +53,10 @@ export function classifyInflow(referrer: string | null, landingPage: string | nu
     const ref = (referrer ?? "").toLowerCase();
     const utm = parseUtm(landingPage);
 
-    if (utm.source === "email" || ref === "email" || utm.medium === "email") return "메일";
+    // 메일 신호: sendb 클릭ID(=우리 메일 클릭 확실) > utm source/medium email계열(sales도 sendb 발송에서 씀)
+    if (utm.sendbClickId || utm.source === "email" || ref === "email" || utm.medium === "email" || utm.medium === "sales") {
+        return "메일";
+    }
     if (utm.fbclid || utm.source === "meta" || utm.source === "facebook" || utm.source === "instagram" || /facebook|instagram|fb\.com/.test(ref)) {
         return "메타 광고";
     }

@@ -1313,6 +1313,7 @@ export const trackerEvents = pgTable("tracker_events", {
     index("tracker_events_visitor_occurred_idx").on(table.visitorId, table.occurredAt),
     index("tracker_events_site_occurred_idx").on(table.siteId, table.occurredAt),
     index("tracker_events_type_idx").on(table.siteId, table.eventType),
+    index("tracker_events_session_idx").on(table.sessionId),
 ]);
 
 export type TrackerSite = typeof trackerSites.$inferSelect;

@@ -372,6 +372,13 @@
       "when": 1770951500000,
       "tag": "0052_tracker_site_exclude_paths",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1770951600000,
+      "tag": "0053_tracker_events_session_idx",
+      "breakpoints": true
     }
   ]
 }
