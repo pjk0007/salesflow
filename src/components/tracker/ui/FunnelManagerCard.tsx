@@ -67,7 +67,7 @@ export function FunnelManagerCard({ siteId }: Props) {
             <CardContent className="space-y-3">
                 <p className="text-xs text-muted-foreground">
                     방문 → 리드까지는 자동 단계입니다. 그 다음 단계를 사이트에 맞게 정의하세요.
-                    메인 퍼널은 개요 탭의 깔때기 위젯에 표시됩니다.
+                    메인 퍼널은 개요 탭의 마케팅 퍼널 위젯에 표시됩니다.
                 </p>
                 {isLoading ? (
                     <p className="text-sm text-muted-foreground">불러오는 중...</p>

@@ -22,7 +22,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         .where(and(eq(trackerSites.id, siteId), eq(trackerSites.orgId, user.orgId)));
     if (!site) return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
 
-    // 1) 이벤트 타입+라벨: 그 workspace의 record_events에서 추출
+    // 1) 이벤트 타입+라벨:
+    //    (a) 실제 발생한 record_events
+    //    (b) 추적이력 ON된 select 필드의 options (아직 발생 안 했어도 미리 선택 가능)
+    //    + 표준 이벤트 타입 (signup, consult 등 보편 가입/상담 이벤트)
     const eventRows = (await db.execute(sql`
         SELECT re.type, re.label, COUNT(*)::int AS cnt
         FROM record_events re
@@ -32,13 +35,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         ORDER BY 1, 3 DESC
     `)) as unknown as Array<{ type: string; label: string; cnt: number }>;
 
-    const eventTypesMap = new Map<string, string[]>();
+    const eventTypesMap = new Map<string, Set<string>>();
+    // (a) 실제 발생 이벤트
     for (const r of eventRows) {
-        const arr = eventTypesMap.get(r.type) ?? [];
-        if (r.label && !arr.includes(r.label)) arr.push(r.label);
-        eventTypesMap.set(r.type, arr);
+        const set = eventTypesMap.get(r.type) ?? new Set<string>();
+        if (r.label) set.add(r.label);
+        eventTypesMap.set(r.type, set);
     }
-    const eventTypes = [...eventTypesMap.entries()].map(([type, labels]) => ({ type, labels }));
 
     // 2) select 필드 + 옵션 — 워크스페이스의 추적이력 있는 select 필드들
     // partition의 field_type_id 우선
@@ -46,12 +49,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         .from(partitions).where(eq(partitions.workspaceId, site.workspaceId));
     const fieldTypeIds = partitionRows.map((p) => p.ftId).filter((v): v is number => v != null);
 
-    let selectFields: Array<{ key: string; label: string; options: string[] }> = [];
+    const selectFields: Array<{ key: string; label: string; options: string[] }> = [];
     if (fieldTypeIds.length) {
         const fields = await db.select({
             key: fieldDefinitions.key,
             label: fieldDefinitions.label,
             options: fieldDefinitions.options,
+            trackHistory: fieldDefinitions.trackHistory,
         })
             .from(fieldDefinitions)
             .where(and(
@@ -65,8 +69,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             seen.add(f.key);
             const opts = Array.isArray(f.options) ? (f.options as string[]).filter((v) => typeof v === "string") : [];
             selectFields.push({ key: f.key, label: f.label, options: opts });
+
+            // (b) 추적이력 ON된 select 필드 → 행동 이벤트로 미리 노출
+            // type = 필드 key, labels = 그 필드의 select options
+            // (앞으로 변경이 발생하면 record_events에 동일 type으로 쌓임)
+            if (f.trackHistory === 1) {
+                const set = eventTypesMap.get(f.key) ?? new Set<string>();
+                for (const opt of opts) set.add(opt);
+                eventTypesMap.set(f.key, set);
+            }
         }
     }
+
+    const eventTypes = [...eventTypesMap.entries()].map(([type, labels]) => ({
+        type,
+        labels: [...labels],
+    }));
 
     // 3) 인기 페이지 — 최근 90일 PV TOP10 (excludePaths 적용)
     const excludes = (site.excludePaths ?? []) as string[];

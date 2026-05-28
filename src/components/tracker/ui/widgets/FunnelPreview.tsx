@@ -40,7 +40,7 @@ export function FunnelPreview({ data, showSetupHint }: Props) {
             </p>
             {showSetupHint && (
                 <div className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-                    기본 깔때기로 표시 중. 설정 탭에서 사이트에 맞는 퍼널을 정의하면 단계별 분석이 가능합니다.
+                    기본 퍼널로 표시 중. 설정 탭에서 사이트에 맞는 퍼널을 정의하면 단계별 분석이 가능합니다.
                     <Link href="?tab=settings" className="ml-2 underline">설정으로</Link>
                 </div>
             )}

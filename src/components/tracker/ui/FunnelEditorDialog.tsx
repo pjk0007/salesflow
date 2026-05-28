@@ -89,55 +89,57 @@ export function FunnelEditorDialog({ open, onOpenChange, siteId, funnel, onSaved
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange} key={funnelKey}>
-            <DialogContent className="sm:max-w-2xl">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-2xl flex max-h-[85vh] flex-col gap-0 p-0">
+                <DialogHeader className="border-b p-6 pb-4">
                     <DialogTitle>{funnel ? "퍼널 편집" : "신규 퍼널"}</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="text-xs text-muted-foreground">이름</label>
-                        <Input
-                            placeholder="퍼널 이름 (예: 가입 깔때기)"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                        />
-                    </div>
-                    <label className="inline-flex items-center gap-2 text-sm">
-                        <Checkbox checked={isDefault} onCheckedChange={(v) => setIsDefault(v === true)} />
-                        메인 퍼널로 설정 (개요 탭에 표시)
-                    </label>
-                    <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">단계 (방문/리드는 자동 포함됨)</p>
-                        <div className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
-                            1. 방문 (자동) · 2. 리드 (자동)
-                        </div>
-                        <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
-                            <p className="mb-1 font-medium">단계는 3가지 방식으로 정의할 수 있어요:</p>
-                            <ul className="space-y-0.5 pl-3">
-                                <li>• <span className="font-medium">행동 이벤트</span>: "회원가입 했을 때", "구독중으로 바뀌었을 때" — 시점 추적 (권장)</li>
-                                <li>• <span className="font-medium">현재 상태</span>: "지금 구독중인 고객" — 시점은 모르고 현재 값만</li>
-                                <li>• <span className="font-medium">페이지 방문</span>: "/pricing 본 적 있는 사용자"</li>
-                            </ul>
-                        </div>
-                        {stages.map((s, i) => (
-                            <FunnelStageEditor
-                                key={i}
-                                index={i}
-                                stage={s}
-                                options={options}
-                                onChange={(next) => handleStageChange(i, next)}
-                                onMoveUp={i > 0 ? () => moveStage(i, -1) : undefined}
-                                onMoveDown={i < stages.length - 1 ? () => moveStage(i, 1) : undefined}
-                                onRemove={() => removeStage(i)}
+                <div className="flex-1 overflow-y-auto">
+                    <div className="space-y-4 p-6">
+                        <div className="space-y-2">
+                            <label className="text-xs text-muted-foreground">이름</label>
+                            <Input
+                                placeholder="퍼널 이름 (예: 구독 전환 흐름)"
+                                value={name}
+                                onChange={(e) => setName(e.target.value)}
                             />
-                        ))}
-                        <Button type="button" variant="outline" size="sm" onClick={addStage} className="w-full">
-                            <Plus className="mr-1 h-3.5 w-3.5" />
-                            단계 추가
-                        </Button>
+                        </div>
+                        <label className="inline-flex items-center gap-2 text-sm">
+                            <Checkbox checked={isDefault} onCheckedChange={(v) => setIsDefault(v === true)} />
+                            메인 퍼널로 설정 (개요 탭에 표시)
+                        </label>
+                        <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground">단계 (방문/리드는 자동 포함됨)</p>
+                            <div className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+                                1. 방문 (자동) · 2. 리드 (자동)
+                            </div>
+                            <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                                <p className="mb-1 font-medium">단계는 3가지 방식으로 정의할 수 있어요:</p>
+                                <ul className="space-y-0.5 pl-3">
+                                    <li>• <span className="font-medium">행동 이벤트</span>: "회원가입 했을 때", "구독중으로 바뀌었을 때" — 시점 추적 (권장)</li>
+                                    <li>• <span className="font-medium">현재 상태</span>: "지금 구독중인 고객" — 시점은 모르고 현재 값만</li>
+                                    <li>• <span className="font-medium">페이지 방문</span>: "/pricing 본 적 있는 사용자"</li>
+                                </ul>
+                            </div>
+                            {stages.map((s, i) => (
+                                <FunnelStageEditor
+                                    key={i}
+                                    index={i}
+                                    stage={s}
+                                    options={options}
+                                    onChange={(next) => handleStageChange(i, next)}
+                                    onMoveUp={i > 0 ? () => moveStage(i, -1) : undefined}
+                                    onMoveDown={i < stages.length - 1 ? () => moveStage(i, 1) : undefined}
+                                    onRemove={() => removeStage(i)}
+                                />
+                            ))}
+                            <Button type="button" variant="outline" size="sm" onClick={addStage} className="w-full">
+                                <Plus className="mr-1 h-3.5 w-3.5" />
+                                단계 추가
+                            </Button>
+                        </div>
                     </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="border-t p-6 pt-4">
                     <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={saving}>취소</Button>
                     <Button onClick={handleSave} disabled={saving || !name.trim()}>
                         {saving ? "저장 중..." : "저장"}
