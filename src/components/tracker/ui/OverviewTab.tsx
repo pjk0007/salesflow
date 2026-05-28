@@ -129,24 +129,29 @@ export function ControlBar({
     isFilterActive: boolean;
 }) {
     return (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs text-muted-foreground">{range.from} ~ {range.to}</p>
-                {isFilterActive && (
-                    <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-foreground">
-                        {[
-                            filters.device,
-                            filters.channel,
-                            filters.channelMode !== "all"
-                                ? filters.channelMode === "paid" ? "광고만" : "자연만"
-                                : null,
-                        ].filter(Boolean).join(" · ")}
-                    </span>
-                )}
+        <div className="space-y-2">
+            {/* 1줄: 기간 표시 + 기간 선택기 */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{range.from} ~ {range.to}</p>
+                    {isFilterActive && (
+                        <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-foreground">
+                            {[
+                                filters.device,
+                                filters.channel,
+                                filters.channelMode !== "all"
+                                    ? filters.channelMode === "paid" ? "광고만" : "자연만"
+                                    : null,
+                            ].filter(Boolean).join(" · ")}
+                        </span>
+                    )}
+                </div>
+                <RangeSelector value={range} onChange={onRangeChange} />
             </div>
+
+            {/* 2줄: 세그먼트 필터 (디바이스/채널/광고-자연/해제) */}
             <div className="flex flex-wrap items-center gap-2">
                 <SegmentFilter value={filters} onChange={onFiltersChange} />
-                <RangeSelector value={range} onChange={onRangeChange} />
             </div>
         </div>
     );
