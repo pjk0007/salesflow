@@ -10,3 +10,4 @@
 | visitor-record-rematch | 100% | 2026-05-22 | [Plan](visitor-record-rematch/visitor-record-rematch.plan.md), [Design](visitor-record-rematch/visitor-record-rematch.design.md), [Report](visitor-record-rematch/visitor-record-rematch.report.md) |
 | tracker-overview | 93% | 2026-05-27 | [Plan](tracker-overview/tracker-overview.plan.md), [Design](tracker-overview/tracker-overview.design.md), [Report](tracker-overview/tracker-overview.report.md) |
 | tracker-marketing-v1 | 100% | 2026-05-27 | [Plan](tracker-marketing-v1/tracker-marketing-v1.plan.md), [Design](tracker-marketing-v1/tracker-marketing-v1.design.md), [Report](tracker-marketing-v1/tracker-marketing-v1.report.md) |
+| tracker-funnels-v1 | 95% | 2026-05-28 | [Plan](tracker-funnels-v1/tracker-funnels-v1.plan.md), [Design](tracker-funnels-v1/tracker-funnels-v1.design.md), [Analysis](tracker-funnels-v1/tracker-funnels-v1.analysis.md), [Report](tracker-funnels-v1/tracker-funnels-v1.report.md) |

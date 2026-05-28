@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowUp, ArrowDown, X } from "lucide-react";
 import type { FunnelStage, StageMatch, FunnelOptions } from "../types/funnel";
+import { EventTypeSelector } from "./funnel-stage/EventTypeSelector";
+import { FieldSelector } from "./funnel-stage/FieldSelector";
+import { PageSelector } from "./funnel-stage/PageSelector";
+import { slugify, defaultMatchFor } from "./funnel-stage/utils";
 
 const MATCH_TYPES: Array<{ value: StageMatch["type"]; label: string; hint: string }> = [
     { value: "record_event", label: "행동 이벤트", hint: "회원가입·단계변경 같이 '언제' 이 단계에 도달했는지 시점 추적 (권장)" },
@@ -22,13 +26,9 @@ interface Props {
     onRemove: () => void;
 }
 
-const CUSTOM = "__custom__";   // "직접 입력" 옵션 값
-const NONE = "__none__";       // 라벨 없음 옵션 값
-
 export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, onMoveDown, onRemove }: Props) {
     const updateMatch = (next: StageMatch) => onChange({ ...stage, match: next });
 
-    // 사이트 데이터에서 추출한 옵션
     const eventTypes = options?.eventTypes ?? [];
     const selectFields = options?.selectFields ?? [];
     const popularPaths = options?.popularPaths ?? [];
@@ -88,14 +88,14 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
                     </Select>
 
                     {stage.match.type === "record_event" && (
-                        <EventTypeSelectors
+                        <EventTypeSelector
                             eventTypes={eventTypes}
                             current={stage.match}
                             onChange={applyMatchWithLabel}
                         />
                     )}
                     {stage.match.type === "record_field" && (
-                        <FieldSelectors
+                        <FieldSelector
                             selectFields={selectFields}
                             current={stage.match}
                             onChange={applyMatchWithLabel}
@@ -112,206 +112,4 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
             </div>
         </div>
     );
-}
-
-/**
- * 이벤트 선택 — 한글 label 위주로 평탄화해서 보여줌.
- * 운영자는 "구독중", "회원가입" 같은 익숙한 한글로 선택, 시스템은 type+label 둘 다 저장.
- * label이 없는 type(이벤트만)은 "(라벨 무관)"으로 별도 옵션.
- */
-function EventTypeSelectors({
-    eventTypes,
-    current,
-    onChange,
-}: {
-    eventTypes: FunnelOptions["eventTypes"];
-    current: Extract<StageMatch, { type: "record_event" }>;
-    onChange: (next: StageMatch) => void;
-}) {
-    // 평탄화: label(한글) 위주로 보여주고 type은 보조 정보(툴팁)로.
-    // label 없는 type은 type 자체를 표시 (개발자가 박은 영문 키지만 그대로 노출).
-    type Option = { value: string; type: string; label?: string; display: string };
-    const options: Option[] = [];
-    for (const e of eventTypes) {
-        if (e.labels.length === 0) {
-            options.push({ value: `${e.type}::`, type: e.type, display: e.type });
-        } else {
-            for (const l of e.labels) {
-                options.push({ value: `${e.type}::${l}`, type: e.type, label: l, display: l });
-            }
-        }
-    }
-
-    const currentValue = current.eventType
-        ? `${current.eventType}::${current.label ?? ""}`
-        : "";
-    const matchedOption = options.find((o) => o.value === currentValue);
-    const isCustom = current.eventType && !matchedOption;
-
-    return (
-        <>
-            <Select
-                value={isCustom ? CUSTOM : currentValue}
-                onValueChange={(v) => {
-                    if (v === CUSTOM) {
-                        onChange({ type: "record_event", eventType: "" });
-                        return;
-                    }
-                    const opt = options.find((o) => o.value === v);
-                    if (opt) {
-                        onChange({ type: "record_event", eventType: opt.type, label: opt.label });
-                    }
-                }}
-            >
-                <SelectTrigger className="h-8 w-44 min-w-0 text-xs [&>span]:truncate">
-                    <SelectValue placeholder="이벤트 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                    {options.map((o) => (
-                        <SelectItem key={o.value} value={o.value} title={o.label ? `${o.type} / ${o.label}` : o.type}>
-                            {o.display}
-                        </SelectItem>
-                    ))}
-                    <SelectItem value={CUSTOM}>직접 입력</SelectItem>
-                </SelectContent>
-            </Select>
-            {isCustom && (
-                <>
-                    <Input
-                        placeholder="이벤트 타입"
-                        value={current.eventType}
-                        onChange={(e) => onChange({ ...current, eventType: e.target.value })}
-                        className="h-8 w-32 text-xs"
-                    />
-                    <Input
-                        placeholder="라벨 (선택)"
-                        value={current.label ?? ""}
-                        onChange={(e) => onChange({ ...current, label: e.target.value || undefined })}
-                        className="h-8 w-32 text-xs"
-                    />
-                </>
-            )}
-        </>
-    );
-}
-
-/** 필드 + 값 드롭다운 (select 필드 옵션에서) */
-function FieldSelectors({
-    selectFields,
-    current,
-    onChange,
-}: {
-    selectFields: FunnelOptions["selectFields"];
-    current: Extract<StageMatch, { type: "record_field" }>;
-    onChange: (next: StageMatch) => void;
-}) {
-    const valuesOfCurrent = selectFields.find((f) => f.key === current.field)?.options ?? [];
-    const isFieldCustom = current.field && !selectFields.some((f) => f.key === current.field);
-    return (
-        <>
-            <Select
-                value={isFieldCustom ? CUSTOM : (current.field || "")}
-                onValueChange={(v) => {
-                    if (v === CUSTOM) onChange({ type: "record_field", field: "", value: "" });
-                    else onChange({ type: "record_field", field: v, value: "" });
-                }}
-            >
-                <SelectTrigger className="h-8 w-36 min-w-0 text-xs [&>span]:truncate">
-                    <SelectValue placeholder="필드 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                    {selectFields.map((f) => (
-                        <SelectItem key={f.key} value={f.key} title={f.key}>
-                            {f.label}
-                        </SelectItem>
-                    ))}
-                    <SelectItem value={CUSTOM}>직접 입력</SelectItem>
-                </SelectContent>
-            </Select>
-            {isFieldCustom && (
-                <Input
-                    placeholder="필드명 직접 입력"
-                    value={current.field}
-                    onChange={(e) => onChange({ ...current, field: e.target.value })}
-                    className="h-8 w-32 text-xs"
-                />
-            )}
-            {valuesOfCurrent.length > 0 ? (
-                <Select
-                    value={current.value || ""}
-                    onValueChange={(v) => onChange({ ...current, value: v })}
-                >
-                    <SelectTrigger className="h-8 w-32 text-xs">
-                        <SelectValue placeholder="값 선택" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {valuesOfCurrent.map((v) => (
-                            <SelectItem key={v} value={v}>{v}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            ) : current.field ? (
-                <Input
-                    placeholder="값 직접 입력"
-                    value={current.value}
-                    onChange={(e) => onChange({ ...current, value: e.target.value })}
-                    className="h-8 w-32 text-xs"
-                />
-            ) : null}
-        </>
-    );
-}
-
-/** 페이지 경로 — 인기 페이지 드롭다운 + 직접 입력 */
-function PageSelector({
-    popularPaths,
-    current,
-    onChange,
-}: {
-    popularPaths: string[];
-    current: Extract<StageMatch, { type: "page_url" }>;
-    onChange: (next: StageMatch) => void;
-}) {
-    const isCustom = current.pathPrefix && !popularPaths.includes(current.pathPrefix);
-    return (
-        <>
-            <Select
-                value={isCustom ? CUSTOM : (current.pathPrefix || "")}
-                onValueChange={(v) => {
-                    if (v === CUSTOM) onChange({ type: "page_url", pathPrefix: "" });
-                    else onChange({ type: "page_url", pathPrefix: v });
-                }}
-            >
-                <SelectTrigger className="h-8 w-44 text-xs">
-                    <SelectValue placeholder="인기 페이지 선택" />
-                </SelectTrigger>
-                <SelectContent>
-                    {popularPaths.map((p) => (
-                        <SelectItem key={p} value={p}>
-                            <span className="font-mono">{p}</span>
-                        </SelectItem>
-                    ))}
-                    <SelectItem value={CUSTOM}>직접 입력</SelectItem>
-                </SelectContent>
-            </Select>
-            {isCustom && (
-                <Input
-                    placeholder="경로 prefix (예: /pricing)"
-                    value={current.pathPrefix}
-                    onChange={(e) => onChange({ ...current, pathPrefix: e.target.value })}
-                    className="h-8 w-44 font-mono text-xs"
-                />
-            )}
-        </>
-    );
-}
-
-function slugify(s: string): string {
-    return s.trim().toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "").slice(0, 50);
-}
-
-function defaultMatchFor(type: StageMatch["type"]): StageMatch {
-    if (type === "record_event") return { type, eventType: "" };
-    if (type === "record_field") return { type, field: "", value: "" };
-    return { type: "page_url", pathPrefix: "" };
 }
