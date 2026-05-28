@@ -37,7 +37,7 @@ import { toast } from "sonner";
 import { useApiTokens } from "@/hooks/useApiTokens";
 import { useSession } from "@/contexts/SessionContext";
 import ApiTokenCreateDialog from "./ApiTokenCreateDialog";
-import { Plus, MoreHorizontal, Pencil, Trash2, Copy, Check, ChevronDown } from "lucide-react";
+import { Plus, MoreHorizontal, Pencil, Trash2, Copy, Check, ChevronDown, Database, MessageSquare } from "lucide-react";
 import {
     Collapsible,
     CollapsibleContent,
@@ -288,7 +288,25 @@ export default function ApiTokensTab() {
 
 /* ─── API 문서 카드 ─── */
 
-const ENDPOINTS = [
+type EndpointParam = { name: string; type: string; required: boolean; desc: string };
+type EndpointDef = {
+    method: string;
+    path: string;
+    title: string;
+    desc: string;
+    params: EndpointParam[] | null;
+    body: string | null;
+    response: string;
+};
+type EndpointGroup = {
+    id: string;
+    title: string;
+    description: string;
+    icon: React.ComponentType<{ className?: string }>;
+    endpoints: EndpointDef[];
+};
+
+const RECORD_ENDPOINTS: EndpointDef[] = [
     {
         method: "GET",
         path: "/api/v1/partitions",
@@ -423,6 +441,104 @@ const ENDPOINTS = [
   "success": true,
   "data": { "id": 3, "recordId": 42, "type": "match_stage", "label": "구독중", ... }
 }`,
+    },
+];
+
+const ALIMTALK_ENDPOINTS: EndpointDef[] = [
+    {
+        method: "GET",
+        path: "/api/v1/alimtalk/templates",
+        title: "알림톡 템플릿 목록 조회",
+        desc: "조직(org)에 등록된 NHN Cloud 알림톡 템플릿 중 승인 완료(status=TSC03) 상태인 것만 반환합니다. 검수중·반려·중단된 템플릿은 노출되지 않습니다. 본문(templateContent)·강조 영역·버튼·이미지 등 NHN 원본 필드를 모두 포함하여 반환하므로 호출 측에서 미리보기 UI를 자유롭게 구성할 수 있습니다. 변수 치환(#{변수} → 실제값)은 호출 측에서 처리하세요.",
+        params: [
+            { name: "senderKey", type: "string", required: false, desc: "발신프로필 키. 미지정 시 조직의 기본 발신프로필(defaultSenderKey)이 사용됩니다." },
+        ],
+        body: null,
+        response: `{
+  "success": true,
+  "data": {
+    "senderKey": "abc...",
+    "totalCount": 12,
+    "templates": [
+      {
+        "templateCode": "WELCOME_001",
+        "templateName": "회원가입 환영",
+        "templateContent": "#{고객명}님 가입을 환영합니다.",
+        "templateMessageType": "BA",
+        "templateEmphasizeType": "TEXT",
+        "templateTitle": "환영합니다",
+        "templateSubtitle": null,
+        "templateHeader": null,
+        "templateImageUrl": null,
+        "templateExtra": null,
+        "buttons": [
+          { "ordering": 1, "type": "WL", "name": "홈으로", "linkMo": "https://..." }
+        ],
+        "quickReplies": [],
+        "status": "APR",
+        "statusName": "승인",
+        "categoryCode": "..."
+      }
+    ]
+  }
+}`,
+    },
+    {
+        method: "POST",
+        path: "/api/v1/alimtalk/send",
+        title: "알림톡 발송",
+        desc: "조직에 등록된 NHN Cloud 알림톡 발신프로필을 사용하여 알림톡을 발송합니다. 한 번에 최대 1,000건까지 처리합니다. 전화번호는 하이픈 포함/미포함 모두 허용(서버에서 정규화)되며, 형식이 잘못된 번호는 별도 errors 배열로 반환됩니다. 발송 결과는 alimtalk_send_logs에 자동 저장됩니다.",
+        params: null,
+        body: `{
+  "templateCode": "WELCOME_001",   // 필수, 발신프로필에 승인된 템플릿 코드
+  "senderKey": "abc...",            // 선택, 미지정 시 조직 기본 발신프로필 사용
+  "recipients": [                    // 필수, 1 ~ 1000건
+    {
+      "phoneNumber": "010-1234-5678",
+      "templateParameter": { "고객명": "홍길동" }  // 선택, 템플릿의 #{변수} 치환값
+    }
+  ],
+  "requestDate": "2026-05-28 14:00",  // 선택, NHN 예약 발송 시각 (yyyy-MM-dd HH:mm)
+  "triggerType": "designer-hire-admin" // 선택, 로그에 기록될 발송 출처 라벨
+}`,
+        response: `{
+  "success": true,
+  "data": {
+    "requestId": "abc-123",
+    "totalCount": 1,
+    "successCount": 1,
+    "failCount": 0,
+    "results": [
+      {
+        "phoneNumber": "010-1234-5678",
+        "recipientSeq": 1,
+        "status": "sent",
+        "resultCode": "0",
+        "resultMessage": "success"
+      }
+    ],
+    "errors": [
+      // 전화번호 형식 오류 등 NHN 호출 전에 걸러진 건만 포함됨
+    ]
+  }
+}`,
+    },
+];
+
+const ENDPOINT_GROUPS: EndpointGroup[] = [
+    {
+        id: "records",
+        title: "레코드",
+        description: "파티션 내 레코드를 CRUD하고 비즈니스 이벤트(이력)를 기록합니다.",
+        icon: Database,
+        endpoints: RECORD_ENDPOINTS,
+    },
+    {
+        id: "alimtalk",
+        title: "알림톡",
+        description: "조직(org)에 등록된 NHN Cloud 알림톡 템플릿을 조회하고 메시지를 발송합니다.",
+        icon: MessageSquare,
+        endpoints: ALIMTALK_ENDPOINTS,
     },
 ];
 
@@ -599,7 +715,7 @@ function ApiDocsCard() {
             <CardHeader>
                 <CardTitle>API 문서</CardTitle>
                 <CardDescription>
-                    외부 시스템에서 Sendb 레코드에 접근하기 위한 REST API 레퍼런스입니다.
+                    외부 시스템에서 Sendb의 레코드·알림톡 등을 사용하기 위한 REST API 레퍼런스입니다.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -618,9 +734,9 @@ function ApiDocsCard() {
                     <CodeBlock>{`${typeof window !== "undefined" ? window.location.origin : "https://your-domain.com"}`}</CodeBlock>
                 </div>
 
-                {/* 이벤트(변경 이력) */}
+                {/* 이벤트(변경 이력) - 레코드 API 전용 */}
                 <div className="space-y-2">
-                    <h4 className="text-sm font-semibold">이벤트 (변경 이력)</h4>
+                    <h4 className="text-sm font-semibold">이벤트 (변경 이력) <span className="text-xs font-normal text-muted-foreground">— 레코드 API 전용</span></h4>
                     <p className="text-sm text-muted-foreground">
                         레코드 생성·수정 시 <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">event</code>를
                         함께 보내면 그 레코드의 <strong>변경 이력(타임라인)</strong>이 시간순으로 쌓입니다.
@@ -636,69 +752,82 @@ function ApiDocsCard() {
                     </p>
                 </div>
 
-                {/* 엔드포인트 */}
-                <div className="space-y-2">
+                {/* 엔드포인트 (그룹별) */}
+                <div className="space-y-4">
                     <h4 className="text-sm font-semibold">엔드포인트</h4>
-                    <div className="space-y-2">
-                        {ENDPOINTS.map((ep) => (
-                            <Collapsible key={`${ep.method}-${ep.path}`}>
-                                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50 transition-colors group">
-                                    <MethodBadge method={ep.method} />
-                                    <code className="font-mono text-xs">{ep.path}</code>
-                                    <span className="ml-auto text-xs text-muted-foreground">{ep.title}</span>
-                                    <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-                                </CollapsibleTrigger>
-                                <CollapsibleContent className="border-x border-b rounded-b-md px-3 py-3 space-y-3">
-                                    <p className="text-sm text-muted-foreground">{ep.desc}</p>
+                    {ENDPOINT_GROUPS.map((group) => {
+                        const Icon = group.icon;
+                        return (
+                            <div key={group.id} className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Icon className="size-4 text-muted-foreground" />
+                                    <h5 className="text-sm font-semibold">{group.title}</h5>
+                                    <span className="text-xs text-muted-foreground">· {group.endpoints.length}개</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">{group.description}</p>
+                                <div className="space-y-2">
+                                    {group.endpoints.map((ep) => (
+                                        <Collapsible key={`${ep.method}-${ep.path}`}>
+                                            <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted/50 transition-colors group">
+                                                <MethodBadge method={ep.method} />
+                                                <code className="font-mono text-xs">{ep.path}</code>
+                                                <span className="ml-auto text-xs text-muted-foreground">{ep.title}</span>
+                                                <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                            </CollapsibleTrigger>
+                                            <CollapsibleContent className="border-x border-b rounded-b-md px-3 py-3 space-y-3">
+                                                <p className="text-sm text-muted-foreground">{ep.desc}</p>
 
-                                    {ep.params && (
-                                        <div className="space-y-1">
-                                            <p className="text-xs font-semibold text-muted-foreground">쿼리 파라미터</p>
-                                            <div className="rounded-md border text-xs">
-                                                <table className="w-full">
-                                                    <tbody>
-                                                        {ep.params.map((p) => (
-                                                            <tr key={p.name} className="border-b last:border-0">
-                                                                <td className="px-2 py-1.5 font-mono font-medium whitespace-nowrap">
-                                                                    {p.name}
-                                                                    {p.required && <span className="text-red-500 ml-0.5">*</span>}
-                                                                </td>
-                                                                <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{p.type}</td>
-                                                                <td className="px-2 py-1.5 text-muted-foreground">{p.desc}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
-                                    )}
+                                                {ep.params && (
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-semibold text-muted-foreground">쿼리 파라미터</p>
+                                                        <div className="rounded-md border text-xs">
+                                                            <table className="w-full">
+                                                                <tbody>
+                                                                    {ep.params.map((p) => (
+                                                                        <tr key={p.name} className="border-b last:border-0">
+                                                                            <td className="px-2 py-1.5 font-mono font-medium whitespace-nowrap">
+                                                                                {p.name}
+                                                                                {p.required && <span className="text-red-500 ml-0.5">*</span>}
+                                                                            </td>
+                                                                            <td className="px-2 py-1.5 text-muted-foreground whitespace-nowrap">{p.type}</td>
+                                                                            <td className="px-2 py-1.5 text-muted-foreground">{p.desc}</td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </tbody>
+                                                            </table>
+                                                        </div>
+                                                    </div>
+                                                )}
 
-                                    {ep.body && (
-                                        <div className="space-y-1">
-                                            <p className="text-xs font-semibold text-muted-foreground">요청 본문</p>
-                                            <CodeBlock>{ep.body}</CodeBlock>
-                                        </div>
-                                    )}
+                                                {ep.body && (
+                                                    <div className="space-y-1">
+                                                        <p className="text-xs font-semibold text-muted-foreground">요청 본문</p>
+                                                        <CodeBlock>{ep.body}</CodeBlock>
+                                                    </div>
+                                                )}
 
-                                    <div className="space-y-1">
-                                        <p className="text-xs font-semibold text-muted-foreground">응답</p>
-                                        <CodeBlock>{ep.response}</CodeBlock>
-                                    </div>
-                                </CollapsibleContent>
-                            </Collapsible>
-                        ))}
-                    </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-xs font-semibold text-muted-foreground">응답</p>
+                                                    <CodeBlock>{ep.response}</CodeBlock>
+                                                </div>
+                                            </CollapsibleContent>
+                                        </Collapsible>
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
 
                 {/* 필터 연산자 */}
                 <Collapsible>
                     <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-semibold hover:text-foreground/80 group">
-                        필터 연산자
+                        필터 연산자 <span className="text-xs font-normal text-muted-foreground">(레코드 API 전용)</span>
                         <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-2 space-y-2">
                         <p className="text-sm text-muted-foreground">
-                            <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">filters</code> 쿼리 파라미터에 JSON 배열로 전달합니다.
+                            레코드 목록 조회 시 <code className="bg-muted px-1 py-0.5 rounded text-xs font-mono">filters</code> 쿼리 파라미터에 JSON 배열로 전달합니다.
                         </p>
                         <CodeBlock>{`?filters=[{"field":"이름","operator":"contains","value":"홍"}]`}</CodeBlock>
                         <div className="rounded-md border text-xs">
