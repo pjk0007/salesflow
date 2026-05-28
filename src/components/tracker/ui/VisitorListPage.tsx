@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useTrackerSite } from "../hooks/useTrackerSite";
 import { useTrackerVisitors } from "../hooks/useTrackerVisitors";
@@ -27,7 +28,24 @@ import type { TrackerSite } from "../types";
 
 const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
 
+const TAB_VALUES = ["overview", "marketing", "visitors", "settings"] as const;
+type TabValue = typeof TAB_VALUES[number];
+function parseTab(v: string | null): TabValue {
+    return (TAB_VALUES as readonly string[]).includes(v ?? "") ? (v as TabValue) : "overview";
+}
+
 export function VisitorListPage() {
+    const router = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const tab = parseTab(searchParams.get("tab"));
+    const onTabChange = (next: string) => {
+        const sp = new URLSearchParams(searchParams.toString());
+        if (next === "overview") sp.delete("tab");
+        else sp.set("tab", next);
+        router.replace(`${pathname}${sp.toString() ? "?" + sp.toString() : ""}`, { scroll: false });
+    };
+
     const { workspaces } = useWorkspaces();
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(() => {
         if (typeof window === "undefined") return null;
@@ -102,7 +120,7 @@ export function VisitorListPage() {
         <div className="space-y-4">
             <div className="flex items-center gap-3">{workspaceSelector}</div>
 
-            <Tabs defaultValue="overview">
+            <Tabs value={tab} onValueChange={onTabChange}>
                 <TabsList variant="line" className="w-full justify-start">
                     <TabsTrigger value="overview">
                         <BarChart3 className="mr-1.5 h-4 w-4" />

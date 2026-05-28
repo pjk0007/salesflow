@@ -4,6 +4,42 @@
 // 채널 라벨은 동적(소셜은 utm_source명을 그대로) — 고정 enum 아닌 string.
 export type InflowChannel = string;
 
+/**
+ * SegmentFilter 드롭다운의 상위 라벨 ↔ classifyInflow 출력 라벨 매핑.
+ * "네이버" 선택 시 "네이버 검색" + "네이버 검색광고" 둘 다 매칭 / "구글" 동일.
+ *
+ * 사용 예: groupChannel("네이버 검색광고") === "네이버"
+ */
+const SINGLETON_GROUPS = new Set<string>(["직접", "메일", "메타 광고"]);
+export function groupChannel(detail: InflowChannel): string {
+    if (detail === "네이버 검색" || detail === "네이버 검색광고") return "네이버";
+    if (detail === "구글 검색" || detail === "구글 검색광고") return "구글";
+    if (SINGLETON_GROUPS.has(detail)) return detail;
+    return "기타";
+}
+
+/** 광고/자연 구분 — 광고 라벨이면 paid, 아니면 organic. */
+const PAID_DETAILS = new Set<string>(["네이버 검색광고", "구글 검색광고", "메타 광고"]);
+export function isPaidChannel(detail: InflowChannel): boolean {
+    return PAID_DETAILS.has(detail);
+}
+
+/**
+ * SegmentFilter(드롭다운 + 광고/자연 토글) 조건에 맞는지 판정.
+ * - group: "전체" 의미면 null 전달. 그 외엔 groupChannel 결과 그대로.
+ * - mode:  "all" | "paid" | "organic"
+ */
+export function matchesChannelFilter(
+    detail: InflowChannel,
+    group: string | null,
+    mode: "all" | "paid" | "organic",
+): boolean {
+    if (group !== null && groupChannel(detail) !== group) return false;
+    if (mode === "paid" && !isPaidChannel(detail)) return false;
+    if (mode === "organic" && isPaidChannel(detail)) return false;
+    return true;
+}
+
 interface ParsedUtm {
     source: string | null;
     medium: string | null;

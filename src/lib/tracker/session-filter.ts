@@ -1,22 +1,24 @@
 import { db } from "@/lib/db";
 import { trackerSessions } from "@/lib/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
-import { classifyInflow } from "@/components/journey/utils/referrer";
+import { classifyInflow, matchesChannelFilter } from "@/components/journey/utils/referrer";
 
 /**
- * 채널 필터에 매칭되는 세션 ID 목록을 구한다.
+ * 채널 필터(상위 그룹 + 광고/자연 모드)에 매칭되는 세션 ID 목록.
  * classifyInflow가 JS 함수라 SQL에서 못 처리해서 JS 후처리 방식.
- * 운영 규모(sessions 수천)는 OK. 큰 데이터면 traffic_source 컬럼 채워 SQL 이전 검토.
  *
- * channel이 null이면 null 반환 (필터 미적용 — 호출자는 IN 절 안 씀).
+ * channel=null && mode="all" 이면 필터 미적용(null 반환) — 호출자는 IN 절 안 씀.
  */
 export async function getSessionIdsByChannel(args: {
     siteId: number;
     fromIso: string;
     toIso: string;
-    channel: string | null;
+    channel: string | null;          // 상위 그룹 (직접/네이버/구글/메타 광고/메일/기타) 또는 null=전체
+    channelMode?: "all" | "paid" | "organic";
 }): Promise<number[] | null> {
-    if (!args.channel) return null;
+    const mode = args.channelMode ?? "all";
+    // 필터 조건이 모두 비어 있으면 적용 안 함
+    if (!args.channel && mode === "all") return null;
 
     const rows = await db
         .select({
@@ -34,6 +36,6 @@ export async function getSessionIdsByChannel(args: {
         );
 
     return rows
-        .filter((r) => classifyInflow(r.referrer, r.landingPage) === args.channel)
+        .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landingPage), args.channel, mode))
         .map((r) => r.id);
 }

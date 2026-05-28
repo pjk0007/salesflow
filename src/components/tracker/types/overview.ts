@@ -14,11 +14,18 @@ export interface KpiMetric {
 }
 
 export type DeviceFilter = "desktop" | "mobile" | "tablet" | null;
-export type ChannelFilter = string | null; // classifyInflow 결과 라벨
+// 사용자가 SegmentFilter 드롭다운에서 고르는 상위 채널 라벨.
+// null = 전체. classifyInflow의 상세 라벨이 아니라 groupChannel 결과(직접/네이버/구글/메타 광고/메일/기타).
+export type ChannelFilter = string | null;
+// 검색엔진 채널(네이버/구글) 안에서 광고/자연 추가 필터.
+// "all" = 전체, "paid" = 광고만, "organic" = 자연만.
+// 드롭다운=전체일 때도 의미 있음 ("all" 전체 / "paid" 전체 광고 / "organic" 전체 자연).
+export type ChannelMode = "all" | "paid" | "organic";
 
 export interface SegmentFilters {
     device: DeviceFilter;
     channel: ChannelFilter;
+    channelMode: ChannelMode;
 }
 
 export interface OverviewData {

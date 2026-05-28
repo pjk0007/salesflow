@@ -34,7 +34,7 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
     const sp = useSearchParams();
 
     const [range, setRange] = useState<Range>(() => rangeFromSearchParams(new URLSearchParams(sp.toString())));
-    const [filters, setFilters] = useState<SegmentFilters>({ device: null, channel: null });
+    const [filters, setFilters] = useState<SegmentFilters>({ device: null, channel: null, channelMode: "all" });
 
     useEffect(() => {
         const next = new URLSearchParams(sp.toString());
@@ -50,6 +50,7 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
         to: range.to,
         device: filters.device,
         channel: filters.channel,
+        channelMode: filters.channelMode,
     });
 
     // 사용자정의 퍼널 분석 — 메인 퍼널 기준 단계별 visitor 수 (코호트 분석)
@@ -59,12 +60,16 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
         to: range.to,
         device: filters.device,
         channel: filters.channel,
+        channelMode: filters.channelMode,
     });
     // 사이트에 퍼널 정의 있는지 확인 (없으면 안내 메시지 표시)
     const { funnels } = useTrackerFunnels(siteId);
     const hasFunnelDefined = funnels.length > 0;
 
-    const isFilterActive = useMemo(() => filters.device !== null || filters.channel !== null, [filters]);
+    const isFilterActive = useMemo(
+        () => filters.device !== null || filters.channel !== null || filters.channelMode !== "all",
+        [filters],
+    );
 
     if (!siteId) return <p className="text-sm text-muted-foreground">트래커가 설정되지 않았습니다.</p>;
 
@@ -129,7 +134,13 @@ export function ControlBar({
                 <p className="text-xs text-muted-foreground">{range.from} ~ {range.to}</p>
                 {isFilterActive && (
                     <span className="rounded bg-muted px-2 py-0.5 text-[11px] text-foreground">
-                        {[filters.device, filters.channel].filter(Boolean).join(" · ")}
+                        {[
+                            filters.device,
+                            filters.channel,
+                            filters.channelMode !== "all"
+                                ? filters.channelMode === "paid" ? "광고만" : "자연만"
+                                : null,
+                        ].filter(Boolean).join(" · ")}
                     </span>
                 )}
             </div>

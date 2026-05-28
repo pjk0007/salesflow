@@ -181,12 +181,16 @@ export async function GET(req: NextRequest) {
     const deviceParam = sp.get("device");
     const device = deviceParam && ["desktop", "mobile", "tablet"].includes(deviceParam) ? deviceParam : null;
     const channel = sp.get("channel");
+    const channelModeRaw = sp.get("channelMode");
+    const channelMode = (["all", "paid", "organic"] as const).includes(channelModeRaw as "all" | "paid" | "organic")
+        ? (channelModeRaw as "all" | "paid" | "organic")
+        : "all";
 
     try {
         // 채널 필터 있으면 매칭 세션 ID 사전 추출 (현재/직전 기간 각각)
         const [sessionIdsCurr, sessionIdsPrev] = await Promise.all([
-            getSessionIdsByChannel({ siteId, fromIso, toIso, channel }),
-            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel }),
+            getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode }),
+            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode }),
         ]);
 
         const devFilterTv = deviceFilterSql(device, "tv");
@@ -252,7 +256,7 @@ export async function GET(req: NextRequest) {
                           WHERE ev2.visitor_id = tv.id AND ev2.event_type = 'PAGE_VIEW'
                             AND ev2.occurred_at >= ${fromIso} AND ev2.occurred_at <= ${toIso}
                             AND ${dailyNotExcluded}
-                            ${sessFilterEv}
+                            ${sessionInFilterSql(sessionIdsCurr, "ev2.session_id")}
                       )
                       ${devFilterTv}
                 )

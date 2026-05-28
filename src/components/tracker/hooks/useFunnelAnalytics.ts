@@ -11,6 +11,7 @@ export function useFunnelAnalytics(args: {
     to: string;
     device?: string | null;
     channel?: string | null;
+    channelMode?: "all" | "paid" | "organic";
 }) {
     const key = args.siteId
         ? `/api/tracker/analytics/funnel?` + new URLSearchParams({
@@ -20,6 +21,7 @@ export function useFunnelAnalytics(args: {
             ...(args.funnelId ? { funnelId: String(args.funnelId) } : {}),
             ...(args.device ? { device: args.device } : {}),
             ...(args.channel ? { channel: args.channel } : {}),
+            ...(args.channelMode && args.channelMode !== "all" ? { channelMode: args.channelMode } : {}),
         }).toString()
         : null;
     const { data, isLoading, error } = useSWR<FunnelAnalyticsResponse>(key, defaultFetcher);

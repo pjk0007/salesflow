@@ -10,6 +10,7 @@ export function useTrackerOverview(args: {
     to: string;
     device?: string | null;
     channel?: string | null;
+    channelMode?: "all" | "paid" | "organic";
 }) {
     const key = args.siteId
         ? `/api/tracker/analytics/overview?` + new URLSearchParams({
@@ -18,6 +19,7 @@ export function useTrackerOverview(args: {
             to: args.to,
             ...(args.device ? { device: args.device } : {}),
             ...(args.channel ? { channel: args.channel } : {}),
+            ...(args.channelMode && args.channelMode !== "all" ? { channelMode: args.channelMode } : {}),
         }).toString()
         : null;
     const { data, isLoading, error, mutate } = useSWR<OverviewResponse>(key, defaultFetcher);

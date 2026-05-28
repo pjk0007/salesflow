@@ -69,7 +69,11 @@ export async function GET(req: NextRequest) {
     const deviceParam = sp.get("device");
     const device = deviceParam && ["desktop", "mobile", "tablet"].includes(deviceParam) ? deviceParam : null;
     const channel = sp.get("channel");
-    const sessionIds = await getSessionIdsByChannel({ siteId, fromIso, toIso, channel });
+    const channelModeRaw = sp.get("channelMode");
+    const channelMode = (["all", "paid", "organic"] as const).includes(channelModeRaw as "all" | "paid" | "organic")
+        ? (channelModeRaw as "all" | "paid" | "organic")
+        : "all";
+    const sessionIds = await getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode });
 
     const excludes = (site.excludePaths ?? []) as string[];
     const devFilterTv = deviceFilterSql(device, "tv");

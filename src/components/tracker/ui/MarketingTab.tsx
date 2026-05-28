@@ -32,7 +32,7 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
     const sp = useSearchParams();
 
     const [range, setRange] = useState<Range>(() => rangeFromSearchParams(new URLSearchParams(sp.toString())));
-    const [filters, setFilters] = useState<SegmentFilters>({ device: null, channel: null });
+    const [filters, setFilters] = useState<SegmentFilters>({ device: null, channel: null, channelMode: "all" });
 
     useEffect(() => {
         const next = new URLSearchParams(sp.toString());
