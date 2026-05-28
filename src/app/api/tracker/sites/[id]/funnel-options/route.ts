@@ -9,7 +9,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
  *
  * 응답:
  * - eventTypes: [{ type, labels[] }] — record_events.type 별 label 목록
- * - selectFields: [{ key, label, options[] }] — record select 필드 + 그 필드의 옵션 값들
+ *   (추적이력 ON된 select 필드의 옵션도 eventType으로 합쳐 노출)
  * - popularPaths: 인기 페이지 경로 TOP 10 (utm 제거)
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,11 +49,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         .from(partitions).where(eq(partitions.workspaceId, site.workspaceId));
     const fieldTypeIds = partitionRows.map((p) => p.ftId).filter((v): v is number => v != null);
 
-    const selectFields: Array<{ key: string; label: string; options: string[] }> = [];
     if (fieldTypeIds.length) {
         const fields = await db.select({
             key: fieldDefinitions.key,
-            label: fieldDefinitions.label,
             options: fieldDefinitions.options,
             trackHistory: fieldDefinitions.trackHistory,
         })
@@ -62,22 +60,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
                 inArray(fieldDefinitions.fieldTypeId, fieldTypeIds),
                 eq(fieldDefinitions.fieldType, "select"),
             ));
-        // 중복 key 제거 + 옵션 정규화
+        // (b) 추적이력 ON된 select 필드 → 행동 이벤트로 미리 노출
+        // type = 필드 key, labels = 그 필드의 select options
+        // (앞으로 변경이 발생하면 record_events에 동일 type으로 쌓임)
         const seen = new Set<string>();
         for (const f of fields) {
             if (seen.has(f.key)) continue;
             seen.add(f.key);
+            if (f.trackHistory !== 1) continue;
             const opts = Array.isArray(f.options) ? (f.options as string[]).filter((v) => typeof v === "string") : [];
-            selectFields.push({ key: f.key, label: f.label, options: opts });
-
-            // (b) 추적이력 ON된 select 필드 → 행동 이벤트로 미리 노출
-            // type = 필드 key, labels = 그 필드의 select options
-            // (앞으로 변경이 발생하면 record_events에 동일 type으로 쌓임)
-            if (f.trackHistory === 1) {
-                const set = eventTypesMap.get(f.key) ?? new Set<string>();
-                for (const opt of opts) set.add(opt);
-                eventTypesMap.set(f.key, set);
-            }
+            const set = eventTypesMap.get(f.key) ?? new Set<string>();
+            for (const opt of opts) set.add(opt);
+            eventTypesMap.set(f.key, set);
         }
     }
 
@@ -108,6 +102,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({
         success: true,
-        data: { eventTypes, selectFields, popularPaths },
+        data: { eventTypes, popularPaths },
     });
 }

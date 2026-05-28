@@ -5,15 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowUp, ArrowDown, X } from "lucide-react";
 import type { FunnelStage, StageMatch, FunnelOptions } from "../types/funnel";
-import { EventTypeSelector } from "./funnel-stage/EventTypeSelector";
-import { FieldSelector } from "./funnel-stage/FieldSelector";
+import { FieldValueSelector } from "./funnel-stage/FieldValueSelector";
 import { PageSelector } from "./funnel-stage/PageSelector";
 import { slugify, defaultMatchFor } from "./funnel-stage/utils";
 
 const MATCH_TYPES: Array<{ value: StageMatch["type"]; label: string; hint: string }> = [
-    { value: "record_event", label: "행동 이벤트", hint: "회원가입·단계변경 같이 '언제' 이 단계에 도달했는지 시점 추적 (권장)" },
-    { value: "record_field", label: "현재 상태", hint: "고객의 현재 단계/상태 값으로 매칭 (시점 정보 없음)" },
-    { value: "page_url", label: "페이지 방문", hint: "특정 경로(/pricing 등) 본 적 있는 사용자" },
+    { value: "record_field", label: "필드 값", hint: "예: 매치 단계가 '신청완료'였던 적이 있는 사람 (이력 기반)" },
+    { value: "page_url", label: "페이지 방문", hint: "예: /pricing 같은 특정 경로를 한 번이라도 방문한 사람" },
 ];
 
 interface Props {
@@ -30,12 +28,10 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
     const updateMatch = (next: StageMatch) => onChange({ ...stage, match: next });
 
     const eventTypes = options?.eventTypes ?? [];
-    const selectFields = options?.selectFields ?? [];
     const popularPaths = options?.popularPaths ?? [];
 
     // 단계 라벨 자동 추천: 사용자 입력 비어있을 때 매칭 값에서 따옴
     const suggestLabel = (m: StageMatch): string => {
-        if (m.type === "record_event") return m.label ?? m.eventType ?? "";
         if (m.type === "record_field") return m.value ?? "";
         if (m.type === "page_url") return m.pathPrefix ?? "";
         return "";
@@ -56,7 +52,7 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
             <div className="flex items-center gap-2">
                 <span className="w-6 shrink-0 text-center text-sm font-medium text-muted-foreground">{index + 3}</span>
                 <Input
-                    placeholder="단계 이름 (예: 회원가입) — 비우면 자동"
+                    placeholder="단계 이름 (예: 신청완료) — 비우면 자동"
                     value={stage.label}
                     onChange={(e) => onChange({ ...stage, label: e.target.value, key: slugify(e.target.value) || stage.key })}
                     className="h-8 text-sm"
@@ -87,16 +83,9 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
                         </SelectContent>
                     </Select>
 
-                    {stage.match.type === "record_event" && (
-                        <EventTypeSelector
-                            eventTypes={eventTypes}
-                            current={stage.match}
-                            onChange={applyMatchWithLabel}
-                        />
-                    )}
                     {stage.match.type === "record_field" && (
-                        <FieldSelector
-                            selectFields={selectFields}
+                        <FieldValueSelector
+                            eventTypes={eventTypes}
                             current={stage.match}
                             onChange={applyMatchWithLabel}
                         />

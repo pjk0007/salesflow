@@ -1220,7 +1220,9 @@ export const trackerSites = pgTable("tracker_sites", {
 /**
  * 사이트별 사용자정의 퍼널.
  * "방문/리드"는 자동 단계로 코드가 처리. 3단부터 stages jsonb로 사용자가 정의.
- * 각 stage는 매칭 조건(record_event / record_field / page_url) 중 하나.
+ * 각 stage는 매칭 조건(record_field / page_url) 중 하나.
+ *   - record_field: 필드+값. 시스템이 자동으로 현재 상태 + 변경 이력 합집합 매칭.
+ *   - page_url: 특정 경로 prefix 방문.
  */
 export const trackerFunnels = pgTable("tracker_funnels", {
     id: serial("id").primaryKey(),
@@ -1245,7 +1247,6 @@ type FunnelStageData = {
     key: string;
     label: string;
     match:
-        | { type: "record_event"; eventType: string; label?: string }
         | { type: "record_field"; field: string; value: string }
         | { type: "page_url"; pathPrefix: string };
 };

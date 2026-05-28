@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerFunnels } from "@/lib/db";
 import { and, eq, sql, desc } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { countStageVisitors, AUTO_STAGE_VISIT, AUTO_STAGE_LEAD } from "@/lib/tracker/funnel-analytics";
+import { computeSequentialStageCounts, AUTO_STAGE_VISIT, AUTO_STAGE_LEAD } from "@/lib/tracker/funnel-analytics";
 import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
 import type { FunnelStageResult } from "@/components/tracker/types/funnel";
 
@@ -91,6 +91,9 @@ export async function GET(req: NextRequest) {
     )`;
 
     // visit/lead 자동 단계 카운트
+    // - visit: 코호트 전체
+    // - lead:  record 연결된 visitor (대표 record_id 또는 N:M visitor_record_links)
+    // Sequential 보정은 아래에서 별도 처리 (사용자 정의 단계 통과자는 자동으로 리드도 통과한 것으로).
     const [vRow] = (await db.execute(sql`
         SELECT
             COUNT(*)::int AS visitors,
@@ -102,20 +105,25 @@ export async function GET(req: NextRequest) {
         WHERE id IN ${meaningfulVisitorIdsSql}
     `)) as unknown as Array<{ visitors: number; leads: number }>;
 
+    // 사용자 정의 단계 sequential 카운트
+    const userStageCounts = funnel
+        ? await computeSequentialStageCounts({ siteId, meaningfulVisitorIdsSql }, funnel.stages)
+        : [];
+
+    // Sequential 보정: 사용자 정의 단계 중 최상위 도달자 수 = "그 단계까지 간 사람 모두 리드 통과"
+    // userStageCounts[0]은 "stage 3단 이상 도달자 수"이므로, 리드 카운트는 그보다 작을 수 없다.
+    const topUserStageReached = userStageCounts[0] ?? 0;
+    const adjustedLeads = Math.max(vRow.leads, topUserStageReached);
+
     const stages: FunnelStageResult[] = [
         { key: AUTO_STAGE_VISIT, label: "방문", visitors: vRow.visitors, isAuto: true },
-        { key: AUTO_STAGE_LEAD, label: "리드", visitors: vRow.leads, isAuto: true },
+        { key: AUTO_STAGE_LEAD, label: "리드", visitors: adjustedLeads, isAuto: true },
     ];
 
-    // 사용자 정의 단계
     if (funnel) {
-        for (const stage of funnel.stages) {
-            const count = await countStageVisitors(
-                { siteId, fromIso, toIso, meaningfulVisitorIdsSql },
-                stage.match,
-            );
-            stages.push({ key: stage.key, label: stage.label, visitors: count });
-        }
+        funnel.stages.forEach((stage, i) => {
+            stages.push({ key: stage.key, label: stage.label, visitors: userStageCounts[i] ?? 0 });
+        });
     }
 
     return NextResponse.json({

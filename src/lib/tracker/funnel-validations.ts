@@ -1,12 +1,8 @@
 import { z } from "zod";
 
-// 단계 매칭 조건 — 3가지 타입
+// 단계 매칭 조건 — 2가지 타입.
+// record_field는 시스템이 자동으로 현재 상태(records.data) + 변경 이력(record_events) 합집합 매칭.
 export const stageMatchSchema = z.discriminatedUnion("type", [
-    z.object({
-        type: z.literal("record_event"),
-        eventType: z.string().min(1).max(50),
-        label: z.string().max(100).optional(),
-    }),
     z.object({
         type: z.literal("record_field"),
         field: z.string().min(1).max(100),

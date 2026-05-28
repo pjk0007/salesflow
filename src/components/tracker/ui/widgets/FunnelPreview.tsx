@@ -13,7 +13,7 @@ const COLORS = ["#6366f1", "#3b82f6", "#0ea5e9", "#06b6d4", "#10b981", "#84cc16"
 
 /**
  * 마케팅 퍼널 — 사이트의 메인 퍼널 정의대로 동적 단계 렌더.
- * 자동 단계(방문/리드) + 사용자 정의 단계. 단계 수 가변, 코드 도메인 단어 없음.
+ * 코호트 분석: 기간 내 처음 방문한 사람들이 (시간 무관) 다음 단계에 도달했는지.
  */
 export function FunnelPreview({ data, showSetupHint }: Props) {
     if (!data || data.stages.length === 0) {
@@ -35,8 +35,11 @@ export function FunnelPreview({ data, showSetupHint }: Props) {
                     <span className="text-[11px] text-muted-foreground">{data.funnel.name}</span>
                 )}
             </div>
-            <p className="mb-4 text-[11px] text-muted-foreground">
+            <p className="mb-1 text-[11px] text-muted-foreground">
                 {stages.map((s) => s.label).join(" → ")}
+            </p>
+            <p className="mb-4 text-[11px] text-muted-foreground/80">
+                선택한 기간에 처음 방문한 사람들이 이후 어디까지 갔는지 봅니다. 도달 시점은 기간 밖이어도 카운트되고, 상위 단계까지 간 사람은 하위 단계에도 자동 포함됩니다.
             </p>
             {showSetupHint && (
                 <div className="mb-4 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">

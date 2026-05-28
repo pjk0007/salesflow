@@ -52,7 +52,7 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
         channel: filters.channel,
     });
 
-    // 사용자정의 퍼널 분석 — 메인 퍼널 기준 단계별 visitor 수
+    // 사용자정의 퍼널 분석 — 메인 퍼널 기준 단계별 visitor 수 (코호트 분석)
     const { data: funnelData } = useFunnelAnalytics({
         siteId,
         from: range.from,
