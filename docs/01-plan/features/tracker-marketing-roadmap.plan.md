@@ -33,15 +33,21 @@
 - **데이터**: 기존 트래커 스키마로 충분, 신규 테이블 X
 - **예상 작업량**: 중간 (위젯 4개 + 필터 상태 관리 + URL sync)
 
-### **Phase 2: 깔때기/캠페인 분석 v1** (묵직, 별도 사이클)
-- **PDCA 이름**: `tracker-funnels-v1`
-- **포함 기능**:
-  1. **전환 목표(goals)** — `tracker_goals` 테이블 신설. "특정 path 도달 = 목표". 워크스페이스별 정의, 캠페인 ROI에 핵심
-  2. **퍼널** — `tracker_funnels` 테이블 신설. 단계 정의 + 단계별 도달률/이탈률 시각화. 디하 가입 깔때기가 첫 적용 대상
-  3. **기간 비교** — 같은 KPI를 두 기간 나란히 (이번 30일 vs 직전 30일 차트 오버레이)
-  4. **캠페인 트렌드** — utm_campaign별 시계열 추이
-- **데이터**: 신규 마이그레이션 2건 (goals/funnels) + UI 정의 폼
-- **예상 작업량**: 큼 (DB 설계 + 정의 UI + 단계별 집계 SQL + 차트)
+### **Phase 2: 사용자정의 퍼널** (`tracker-funnels-v1`)
+- 가장 큰 작업, 단독 PDCA로 분리
+- **포함**: `tracker_funnels` 테이블 신설 + 단계 정의 UI + 단계별 도달률/이탈률 시각화
+- 디하 도메인 박힘(가입/구독중) 본격 해결의 본체. 어떤 사이트도 자기 퍼널 정의 가능
+- **데이터**: 신규 마이그레이션 1건, 정의 UI 폼
+
+### **Phase 2.5: 기간 비교** (`tracker-compare-v1`)
+- 가벼움 — KPI ±%는 이미 있고, 차트 오버레이만 추가
+- **포함**: 일별 PV/가입/구독 차트에 직전 기간 비교 라인 오버레이
+- DB 변경 없음, API/UI 약간 확장
+
+### **Phase 2.6: 전환 목표 + 캠페인 트렌드** (`tracker-campaigns-v1`)
+- Phase 2의 퍼널 인프라 재사용 (목표 = 단계 1개짜리 퍼널)
+- **포함**: 전환 목표(goals) 위젯 + utm_campaign 시계열 차트
+- 캠페인 데이터 더 쌓인 후 의미 살아남
 
 ### **(보류) Phase 3: 운영 편의**
 - 알림(alerts), 클릭 룰, 디버그 스트림, 이벤트 탭
@@ -50,13 +56,17 @@
 ## 4. 의존성 / 순서
 
 ```
-[현재] tracker-overview (완료)
+[Phase 0] tracker-overview ✅
    ↓
-[Phase 1] tracker-marketing-v1
-   ↓ (Phase 1의 세그먼트 필터·기간 인프라를 Phase 2가 재사용)
-[Phase 2] tracker-funnels-v1
+[Phase 1] tracker-marketing-v1 ✅
+   ↓ (필터·기간 인프라 재사용)
+[Phase 2] tracker-funnels-v1  ← 다음 (사용자정의 퍼널)
+   ↓ (퍼널 정의 모델 재사용)
+[Phase 2.5] tracker-compare-v1 (기간 비교)
    ↓
-[Phase 3] 운영 편의 (보류 — 필요 판단 후)
+[Phase 2.6] tracker-campaigns-v1 (목표 + 캠페인 트렌드)
+   ↓
+[Phase 3] 운영 편의 (알림/클릭룰/디버그/이벤트 탭 — 보류)
 ```
 
 **중요 원칙**:
@@ -78,8 +88,10 @@
 |------|------|------|------|
 | 0 (overview) | ✅ 완료 | tracker-overview | 2026-05-27 아카이브 |
 | 1 (marketing-v1) | ✅ 완료 | tracker-marketing-v1 | 2026-05-27 아카이브 → [archive/2026-05/tracker-marketing-v1](../../archive/2026-05/tracker-marketing-v1/tracker-marketing-v1.report.md) |
-| 2 (funnels-v1) | ⏳ 대기 | tracker-funnels-v1 | Phase 1 완료 후 |
-| 3 (편의) | 🛑 보류 | - | 필요 시 재개 |
+| **2 (funnels-v1)** | **⏳ 진행 중** | **tracker-funnels-v1** | **사용자정의 퍼널 — 도메인 박힘 해결 핵심** |
+| 2.5 (compare-v1) | 🔵 대기 | tracker-compare-v1 | 기간 비교 — Phase 2 완료 후 |
+| 2.6 (campaigns-v1) | 🔵 대기 | tracker-campaigns-v1 | 전환 목표 + 캠페인 트렌드 |
+| 3 (편의) | 🛑 보류 | - | 알림/클릭룰/디버그/이벤트 탭 |
 
 ## 7. 사용 안내
 

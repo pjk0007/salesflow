@@ -1217,6 +1217,43 @@ export const trackerSites = pgTable("tracker_sites", {
     uniqueIndex("tracker_sites_api_key_idx").on(table.apiKey),
 ]);
 
+/**
+ * 사이트별 사용자정의 퍼널.
+ * "방문/리드"는 자동 단계로 코드가 처리. 3단부터 stages jsonb로 사용자가 정의.
+ * 각 stage는 매칭 조건(record_field / page_url) 중 하나.
+ *   - record_field: 필드+값. 시스템이 자동으로 현재 상태 + 변경 이력 합집합 매칭.
+ *   - page_url: 특정 경로 prefix 방문.
+ */
+export const trackerFunnels = pgTable("tracker_funnels", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    siteId: integer("site_id")
+        .references(() => trackerSites.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 200 }).notNull(),
+    // FunnelStage[] — components/tracker/types/funnel.ts 참조
+    stages: jsonb("stages").$type<FunnelStageData[]>().notNull().default([]),
+    isDefault: integer("is_default").default(0).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => [
+    index("tracker_funnels_site_idx").on(table.siteId),
+]);
+
+// schema에서는 직접 타입을 정의 (UI types 파일과 동기화 필요)
+type FunnelStageData = {
+    key: string;
+    label: string;
+    match:
+        | { type: "record_field"; field: string; value: string }
+        | { type: "page_url"; pathPrefix: string };
+};
+
+export type TrackerFunnel = typeof trackerFunnels.$inferSelect;
+export type NewTrackerFunnel = typeof trackerFunnels.$inferInsert;
+
 export const trackerVisitors = pgTable("tracker_visitors", {
     id: serial("id").primaryKey(),
     orgId: uuid("org_id")
