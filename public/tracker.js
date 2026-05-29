@@ -238,6 +238,40 @@
         } catch (e) {}
     }
 
+    // 배치 전송 — sendBeacon 우선, 실패 시 fetch keepalive.
+    // unload 직전에도 보장 도착되도록 sendBeacon 사용. SECTION_VIEW dwell 누적용.
+    function sendCollectBatch(events) {
+        if (!config.apiKey || !config.endpoint || !events.length) return;
+        var payload = JSON.stringify({
+            visitor_id: getVisitorId(),
+            session_key: getSessionKey(),
+            click_id: config.clickId || undefined,
+            events: events,
+            session: buildSessionData(),
+            device: detectDevice(),
+        });
+        var url = config.endpoint + "?key=" + encodeURIComponent(config.apiKey);
+        try {
+            if (navigator.sendBeacon) {
+                // text/plain으로 simple request 처리 — CORS preflight 회피 (서버는 JSON 파싱 가능)
+                var blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
+                if (navigator.sendBeacon(url, blob)) return;
+            }
+        } catch (e) {}
+        try {
+            if (typeof fetch !== "undefined") {
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: payload,
+                    keepalive: true,
+                    mode: "cors",
+                    credentials: "omit",
+                }).catch(function () {});
+            }
+        } catch (e) {}
+    }
+
     function sendIdentify(props) {
         if (!config.apiKey || !config.identifyEndpoint) return;
         var payload = JSON.stringify({
@@ -263,6 +297,153 @@
             page_url: location.href,
             page_title: document.title,
         });
+    }
+
+    // ── Engagement: SECTION_VIEW + CLICK ──
+    // data-track-section / data-track-click 속성을 가진 요소를 자동 추적.
+    //
+    // SECTION_VIEW: IntersectionObserver로 50% 이상 + 1초 이상 머문 섹션만 카운트.
+    //   같은 섹션은 페이지당 1회만 (observed=true 이후 무시) 카운트하고 dwell_ms는 누적.
+    //   페이지 unload 또는 SPA 라우팅 시 sendBeacon으로 일괄 전송.
+    // CLICK: 클릭 위임 + 조상 traversal로 가장 가까운 section 자동 매칭. 즉시 전송.
+
+    var sectionState = {}; // name → { observed, dwellMs, lastEnterAt, enterTimer }
+    var sectionObserver = null;
+    var clickHandlerAttached = false;
+
+    function getSectionState(name) {
+        if (!sectionState[name]) {
+            sectionState[name] = { observed: false, dwellMs: 0, lastEnterAt: 0 };
+        }
+        return sectionState[name];
+    }
+
+    // 뷰포트 중앙 50% 영역에 섹션이 닿으면 시인 — 큰 섹션(뷰포트보다 큼) 대응
+    // (rootMargin '-25% 0px -25% 0px' + threshold:0). 1초 이상 dwell 같은 조건은 분석 단계에서 필터.
+    function handleSectionIntersect(entries) {
+        for (var i = 0; i < entries.length; i++) {
+            var entry = entries[i];
+            var name = entry.target.getAttribute("data-track-section");
+            if (!name) continue;
+            var state = getSectionState(name);
+            if (entry.isIntersecting) {
+                // 진입 — 이미 측정 중이면 무시
+                if (state.lastEnterAt > 0) continue;
+                state.observed = true;
+                state.lastEnterAt = Date.now();
+            } else if (state.lastEnterAt > 0) {
+                // 이탈 — dwell 누적
+                state.dwellMs += Date.now() - state.lastEnterAt;
+                state.lastEnterAt = 0;
+            }
+        }
+    }
+
+    function initSectionTracking() {
+        if (typeof IntersectionObserver === "undefined") return;
+        if (sectionObserver) sectionObserver.disconnect();
+        sectionObserver = new IntersectionObserver(handleSectionIntersect, {
+            rootMargin: "-25% 0px -25% 0px",
+            threshold: 0,
+        });
+        rebindSections();
+        // SPA hydration 등으로 DOM이 늦게 그려지는 경우 대비 — 새 요소 추적
+        if (!window._sendbDomMo && typeof MutationObserver !== "undefined") {
+            var mo = new MutationObserver(function () { rebindSections(); });
+            mo.observe(document.body || document.documentElement, { childList: true, subtree: true });
+            window._sendbDomMo = mo;
+        }
+    }
+
+    var observedSet = null;
+    function rebindSections() {
+        if (!sectionObserver) return;
+        if (!observedSet) observedSet = new Set();
+        var els = document.querySelectorAll("[data-track-section]");
+        for (var i = 0; i < els.length; i++) {
+            if (!observedSet.has(els[i])) {
+                sectionObserver.observe(els[i]);
+                observedSet.add(els[i]);
+            }
+        }
+    }
+
+    // 시인된 섹션은 dwell이 짧아도 전송 — 1초 미만 노이즈 필터는 분석 단계에서.
+    // 100ms 미만은 IntersectionObserver 콜백 노이즈로 간주해 미발화.
+    function flushSectionViews() {
+        var now = Date.now();
+        var events = [];
+        for (var name in sectionState) {
+            if (!Object.prototype.hasOwnProperty.call(sectionState, name)) continue;
+            var s = sectionState[name];
+            if (s.lastEnterAt > 0) {
+                s.dwellMs += now - s.lastEnterAt;
+                s.lastEnterAt = 0;
+            }
+            if (s.observed && s.dwellMs >= 100) {
+                events.push({
+                    type: "SECTION_VIEW",
+                    name: name,
+                    page_url: location.href,
+                    page_title: document.title,
+                    properties: { dwell_ms: s.dwellMs },
+                });
+            }
+        }
+        sectionState = {};
+        if (events.length) sendCollectBatch(events);
+        // SPA 페이지 전환 시 다음 페이지의 새 DOM을 다시 attach 하도록 observedSet 리셋
+        if (observedSet) observedSet = new Set();
+    }
+
+    function findAncestorAttr(el, attr) {
+        var cur = el;
+        while (cur && cur.nodeType === 1 && cur !== document.body) {
+            if (cur.getAttribute) {
+                var v = cur.getAttribute(attr);
+                if (v) return { el: cur, value: v };
+            }
+            cur = cur.parentElement;
+        }
+        return null;
+    }
+
+    function setupClickTracking() {
+        if (clickHandlerAttached) return;
+        clickHandlerAttached = true;
+        document.addEventListener(
+            "click",
+            function (e) {
+                var clickHit = findAncestorAttr(e.target, "data-track-click");
+                if (!clickHit) return;
+                var sectionHit = findAncestorAttr(clickHit.el, "data-track-section");
+                var el = clickHit.el;
+                sendCollect({
+                    type: "CLICK",
+                    name: clickHit.value,
+                    page_url: location.href,
+                    page_title: document.title,
+                    properties: {
+                        section: sectionHit ? sectionHit.value : null,
+                        text: (el.innerText || el.textContent || "").trim().slice(0, 100),
+                        href: el.getAttribute ? el.getAttribute("href") : null,
+                        target_tag: el.tagName ? el.tagName.toLowerCase() : null,
+                    },
+                });
+            },
+            true
+        );
+    }
+
+    function setupEngagement() {
+        // pagehide: 페이지 닫힘/이동. visibilitychange: 백그라운드 전환 (모바일 보강).
+        window.addEventListener("pagehide", flushSectionViews);
+        document.addEventListener("visibilitychange", function () {
+            // 탭 숨김 → dwell 정산 후 전송. 다시 보이면 IntersectionObserver가 자동으로 재진입 잡음.
+            if (document.hidden) flushSectionViews();
+        });
+        initSectionTracking();
+        setupClickTracking();
     }
 
     // ── Heartbeat ──
@@ -312,8 +493,13 @@
         function onUrlChange() {
             var currentUrl = location.href;
             if (currentUrl !== lastUrl) {
+                // 이전 페이지의 섹션 시인 데이터를 먼저 정산해 보내고, 새 DOM 기준으로 재바인딩.
+                flushSectionViews();
                 lastUrl = currentUrl;
-                setTimeout(trackPageView, 100);
+                setTimeout(function () {
+                    trackPageView();
+                    initSectionTracking();
+                }, 100);
             }
         }
     }
@@ -434,6 +620,13 @@
         getClickId: function () {
             return config.clickId || null;
         },
+        // ── 디버그용 (콘솔에서 호출) ──
+        _debugSections: function () {
+            return JSON.parse(JSON.stringify(sectionState));
+        },
+        _debugFlush: function () {
+            flushSectionViews();
+        },
     };
 
     // ── Init ──
@@ -479,6 +672,7 @@
         setupSpaTracking();
         setupHeartbeat();
         setupCrossDomainLinking();
+        setupEngagement();
     }
 
     if (document.readyState === "loading") {

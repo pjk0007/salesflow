@@ -8,6 +8,7 @@ import { ExitPages } from "./widgets/ExitPages";
 import { InflowChannels } from "./widgets/InflowChannels";
 import { AdContentTop } from "./widgets/AdContentTop";
 import { DeviceBreakdown } from "./widgets/DeviceBreakdown";
+import { EngagementCard } from "./widgets/EngagementCard";
 import { presetRange } from "./widgets/RangeSelector";
 import { ControlBar } from "./OverviewTab";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -88,6 +89,7 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
                         <AdContentTop items={data.adContents} />
                     </div>
                     <DeviceBreakdown devices={data.devices} />
+                    <EngagementCard siteId={siteId} range={range} filters={filters} />
                 </>
             )}
         </div>

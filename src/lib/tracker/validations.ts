@@ -1,51 +1,67 @@
 import { z } from "zod";
 
+const eventSchema = z.object({
+    type: z.enum([
+        "PAGE_VIEW",
+        "CUSTOM",
+        "PURCHASE",
+        "HEARTBEAT",
+        "SESSION_END",
+        "CLICK",
+        "SECTION_VIEW",
+    ]),
+    name: z.string().max(100).optional().nullable(),
+    page_url: z.string().max(2000).optional().nullable(),
+    page_title: z.string().max(500).optional().nullable(),
+    properties: z.record(z.string(), z.unknown()).optional().nullable(),
+    revenue: z.number().optional().nullable(),
+});
+
+const sessionSchema = z.object({
+    landing_page: z.string().max(2000).optional().nullable(),
+    traffic_source: z.string().max(20).optional().nullable(),
+    referrer: z.string().max(2000).optional().nullable(),
+    utm_source: z.string().max(100).optional().nullable(),
+    utm_medium: z.string().max(100).optional().nullable(),
+    utm_campaign: z.string().max(200).optional().nullable(),
+    utm_term: z.string().max(200).optional().nullable(),
+    utm_content: z.string().max(200).optional().nullable(),
+});
+
+const deviceSchema = z.object({
+    type: z.enum(["desktop", "mobile", "tablet"]).optional(),
+    browser: z.string().max(50).optional(),
+    os: z.string().max(50).optional(),
+});
+
 /**
- * tracker.js → /api/tracker/collect 페이로드 검증.
+ * tracker.js → /api/tracker/collect 페이로드 검증 (단건).
  */
 export const collectEventSchema = z.object({
     visitor_id: z.string().min(1).max(64),
     session_key: z.string().min(1).max(64),
     click_id: z.string().max(64).optional().nullable(),
-    event: z.object({
-        type: z.enum([
-            "PAGE_VIEW",
-            "CUSTOM",
-            "PURCHASE",
-            "HEARTBEAT",
-            "SESSION_END",
-            "CLICK",
-        ]),
-        name: z.string().max(100).optional().nullable(),
-        page_url: z.string().max(2000).optional().nullable(),
-        page_title: z.string().max(500).optional().nullable(),
-        properties: z.record(z.string(), z.unknown()).optional().nullable(),
-        revenue: z.number().optional().nullable(),
-    }),
-    session: z
-        .object({
-            landing_page: z.string().max(2000).optional().nullable(),
-            traffic_source: z.string().max(20).optional().nullable(),
-            referrer: z.string().max(2000).optional().nullable(),
-            utm_source: z.string().max(100).optional().nullable(),
-            utm_medium: z.string().max(100).optional().nullable(),
-            utm_campaign: z.string().max(200).optional().nullable(),
-            utm_term: z.string().max(200).optional().nullable(),
-            utm_content: z.string().max(200).optional().nullable(),
-        })
-        .optional()
-        .nullable(),
-    device: z
-        .object({
-            type: z.enum(["desktop", "mobile", "tablet"]).optional(),
-            browser: z.string().max(50).optional(),
-            os: z.string().max(50).optional(),
-        })
-        .optional()
-        .nullable(),
+    event: eventSchema,
+    session: sessionSchema.optional().nullable(),
+    device: deviceSchema.optional().nullable(),
 });
 
 export type CollectEventPayload = z.infer<typeof collectEventSchema>;
+
+/**
+ * 배치 페이로드 — sendBeacon으로 unload 시점에 SECTION_VIEW 등 여러 이벤트를 한 번에 전송.
+ * 모든 이벤트가 같은 visitor/session 컨텍스트라고 가정.
+ */
+export const collectBatchSchema = z.object({
+    visitor_id: z.string().min(1).max(64),
+    session_key: z.string().min(1).max(64),
+    click_id: z.string().max(64).optional().nullable(),
+    events: z.array(eventSchema).min(1).max(50),
+    session: sessionSchema.optional().nullable(),
+    device: deviceSchema.optional().nullable(),
+});
+
+export type CollectBatchPayload = z.infer<typeof collectBatchSchema>;
 
 /**
  * sendb.identify() → /api/tracker/identify 페이로드 검증.

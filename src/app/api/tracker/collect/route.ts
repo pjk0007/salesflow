@@ -11,7 +11,7 @@ import {
     visitorRecordLinks,
 } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
-import { collectEventSchema } from "@/lib/tracker/validations";
+import { collectEventSchema, collectBatchSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
 import { rateLimit } from "@/lib/tracker/rate-limit";
 
@@ -63,6 +63,51 @@ export async function POST(req: NextRequest) {
     }
 
     const rawBody = await req.json().catch(() => null);
+
+    // batch 페이로드(sendBeacon용) 우선 처리 — events 배열이 있으면 각각 INSERT.
+    // SECTION_VIEW 외 PAGE_VIEW/세션 갱신성 이벤트는 batch에 들어오지 않도록 클라이언트가 보장한다고 가정.
+    const batchParsed = collectBatchSchema.safeParse(rawBody);
+    if (batchParsed.success) {
+        const { visitor_id: vid, session_key: skey, events } = batchParsed.data;
+        try {
+            await db.transaction(async (tx) => {
+                const visitor = await tx.query.trackerVisitors.findFirst({
+                    where: and(eq(trackerVisitors.siteId, site.id), eq(trackerVisitors.visitorId, vid)),
+                });
+                const trackerSession = await tx.query.trackerSessions.findFirst({
+                    where: and(eq(trackerSessions.siteId, site.id), eq(trackerSessions.sessionKey, skey)),
+                });
+                if (!visitor || !trackerSession) return; // 단건 호출이 먼저 visitor/session을 만들었어야 함
+
+                const rows = events.map((ev) => ({
+                    siteId: site.id,
+                    sessionId: trackerSession.id,
+                    visitorId: visitor.id,
+                    eventType: ev.type,
+                    eventName: ev.name ?? null,
+                    pageUrl: ev.page_url ?? null,
+                    pageTitle: ev.page_title ?? null,
+                    properties: ev.properties ?? null,
+                    revenue: ev.revenue != null ? String(ev.revenue) : null,
+                }));
+                if (rows.length > 0) await tx.insert(trackerEvents).values(rows);
+
+                await tx
+                    .update(trackerVisitors)
+                    .set({
+                        lastSeenAt: new Date(),
+                        totalEvents: sql`${trackerVisitors.totalEvents} + ${rows.length}`,
+                        updatedAt: new Date(),
+                    })
+                    .where(eq(trackerVisitors.id, visitor.id));
+            });
+            return cors(200, { ok: true, batched: events.length }, origin);
+        } catch (err) {
+            console.error("Tracker batch collect error:", err);
+            return cors(500, { error: "Internal error" }, origin);
+        }
+    }
+
     const parsed = collectEventSchema.safeParse(rawBody);
     if (!parsed.success) return cors(400, { error: "Invalid payload" }, origin);
 
