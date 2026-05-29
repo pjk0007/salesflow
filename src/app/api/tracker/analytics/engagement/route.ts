@@ -74,8 +74,7 @@ export async function GET(req: NextRequest) {
     const sessFilterEv = sessionInFilterSql(sessionIds, "ev.session_id");
     const pageFilterEv = pageFilterSql(page, "ev");
 
-    // 페이지 드롭다운 TOP 20 (시인율 계산 시 분모로도 사용)
-    // path별 1회 집계 + title은 path 그룹의 최빈값을 MAX로 대표 선택 (정확한 의미보단 대표 표시용)
+    // 페이지 드롭다운 TOP 20 — path별 집계, title은 MAX로 대표 선택.
     const pageRows = (await db.execute(sql`
         SELECT
             regexp_replace(split_part(ev.page_url, '?', 1), '^https?://[^/]+', '') AS path,
@@ -107,15 +106,20 @@ export async function GET(req: NextRequest) {
     `)) as unknown as Array<{ visitors: number }>;
     const totalVisitors = Math.max(1, pvDenominator?.visitors ?? 0);
 
-    // sections
+    // sections — tracker_event_aliases LEFT JOIN으로 label 함께 가져옴
     const sectionRows = (await db.execute(sql`
         SELECT
             ev.event_name AS name,
+            a.label AS label,
             COUNT(DISTINCT ev.visitor_id)::int AS visitors,
             COUNT(*)::int AS pageviews,
             COALESCE(AVG((ev.properties->>'dwell_ms')::numeric), 0)::int AS "avgDwellMs"
         FROM tracker_events ev
         JOIN tracker_visitors tv ON tv.id = ev.visitor_id
+        LEFT JOIN tracker_event_aliases a
+            ON a.site_id = ev.site_id
+           AND a.event_type = 'SECTION_VIEW'
+           AND a.event_name = ev.event_name
         WHERE ev.site_id = ${siteId}
           AND ev.event_type = 'SECTION_VIEW'
           AND ev.occurred_at >= ${fromIso} AND ev.occurred_at <= ${toIso}
@@ -125,23 +129,25 @@ export async function GET(req: NextRequest) {
           ${devFilterTv}
           ${sessFilterEv}
           ${pageFilterEv}
-        GROUP BY 1
+        GROUP BY ev.event_name, a.label
         ORDER BY visitors DESC
         LIMIT 50
-    `)) as unknown as Array<{ name: string; visitors: number; pageviews: number; avgDwellMs: number }>;
+    `)) as unknown as Array<{ name: string; label: string | null; visitors: number; pageviews: number; avgDwellMs: number }>;
 
     const sections = sectionRows.map((r) => ({
         name: r.name,
+        label: r.label,
         visitors: r.visitors,
         pageviews: r.pageviews,
         avgDwellMs: r.avgDwellMs,
         viewRate: r.visitors / totalVisitors,
     }));
 
-    // clicks — section은 properties.section 중 최빈값
+    // clicks — section은 properties.section 중 최빈값, label은 alias LEFT JOIN
     const clickRows = (await db.execute(sql`
         SELECT
             ev.event_name AS name,
+            a.label AS label,
             (SELECT ev2.properties->>'section'
                FROM tracker_events ev2
               WHERE ev2.site_id = ${siteId}
@@ -156,6 +162,10 @@ export async function GET(req: NextRequest) {
             COUNT(DISTINCT ev.visitor_id)::int AS visitors
         FROM tracker_events ev
         JOIN tracker_visitors tv ON tv.id = ev.visitor_id
+        LEFT JOIN tracker_event_aliases a
+            ON a.site_id = ev.site_id
+           AND a.event_type = 'CLICK'
+           AND a.event_name = ev.event_name
         WHERE ev.site_id = ${siteId}
           AND ev.event_type = 'CLICK'
           AND ev.occurred_at >= ${fromIso} AND ev.occurred_at <= ${toIso}
@@ -163,13 +173,14 @@ export async function GET(req: NextRequest) {
           ${devFilterTv}
           ${sessFilterEv}
           ${pageFilterEv}
-        GROUP BY 1
+        GROUP BY ev.event_name, a.label
         ORDER BY clicks DESC
         LIMIT 50
-    `)) as unknown as Array<{ name: string; section: string | null; clicks: number; visitors: number }>;
+    `)) as unknown as Array<{ name: string; label: string | null; section: string | null; clicks: number; visitors: number }>;
 
     const clicks = clickRows.map((r) => ({
         name: r.name,
+        label: r.label,
         section: r.section,
         clicks: r.clicks,
         visitors: r.visitors,

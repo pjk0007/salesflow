@@ -8,6 +8,8 @@ export interface EngagementPageInfo {
 
 export interface EngagementSectionStat {
     name: string;
+    // 운영자가 설정 탭에서 등록한 한글 라벨. null 또는 빈 문자열이면 UI에서 name으로 fallback.
+    label: string | null;
     visitors: number;
     pageviews: number;
     avgDwellMs: number;
@@ -16,6 +18,7 @@ export interface EngagementSectionStat {
 
 export interface EngagementClickStat {
     name: string;
+    label: string | null;
     section: string | null;
     clicks: number;
     visitors: number;

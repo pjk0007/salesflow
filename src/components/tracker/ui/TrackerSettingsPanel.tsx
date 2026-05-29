@@ -5,6 +5,7 @@ import { DomainEditor } from "./DomainEditor";
 import { MatchFieldCard } from "./MatchFieldCard";
 import { ExcludePathsCard } from "./ExcludePathsCard";
 import { FunnelManagerCard } from "./FunnelManagerCard";
+import { EventAliasesCard } from "./EventAliasesCard";
 import type { TrackerSite } from "../types";
 
 /**
@@ -38,6 +39,7 @@ export function TrackerSettingsPanel({
                 onUpdated={onUpdated}
             />
             <FunnelManagerCard siteId={site.id} />
+            <EventAliasesCard siteId={site.id} />
         </div>
     );
 }

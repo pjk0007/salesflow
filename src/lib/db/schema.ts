@@ -1254,6 +1254,32 @@ type FunnelStageData = {
 export type TrackerFunnel = typeof trackerFunnels.$inferSelect;
 export type NewTrackerFunnel = typeof trackerFunnels.$inferInsert;
 
+/**
+ * 사이트별 이벤트 이름 별칭(라벨) 매핑.
+ * 운영자가 SECTION_VIEW/CLICK 이벤트의 raw 이름에 한글 라벨을 매핑.
+ */
+export const trackerEventAliases = pgTable("tracker_event_aliases", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    siteId: integer("site_id")
+        .references(() => trackerSites.id, { onDelete: "cascade" })
+        .notNull(),
+    eventType: varchar("event_type", { length: 30 }).notNull(), // 'SECTION_VIEW' | 'CLICK'
+    eventName: varchar("event_name", { length: 100 }).notNull(),
+    label: varchar("label", { length: 200 }).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => [
+    unique("tracker_event_aliases_site_type_name_unique")
+        .on(table.siteId, table.eventType, table.eventName),
+    index("tracker_event_aliases_site_idx").on(table.siteId),
+]);
+
+export type TrackerEventAlias = typeof trackerEventAliases.$inferSelect;
+export type NewTrackerEventAlias = typeof trackerEventAliases.$inferInsert;
+
 export const trackerVisitors = pgTable("tracker_visitors", {
     id: serial("id").primaryKey(),
     orgId: uuid("org_id")

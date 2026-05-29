@@ -33,6 +33,19 @@ function formatPct(rate: number): string {
     return `${Math.round(rate * 1000) / 10}%`;
 }
 
+function NameCell({ label, name }: { label: string | null; name: string }) {
+    const hasLabel = !!(label && label.trim());
+    if (!hasLabel) {
+        return <span className="font-mono text-[11px]">{name}</span>;
+    }
+    return (
+        <span title={name}>
+            <span>{label}</span>
+            <span className="ml-1 font-mono text-[10px] text-muted-foreground/70">{name}</span>
+        </span>
+    );
+}
+
 /**
  * 페이지 인게이지먼트 — 섹션별 시인율·체류 + 클릭별 카운트.
  * data-track-section / data-track-click 가 한 건도 없으면 빈 상태 안내.
@@ -127,7 +140,7 @@ function SectionTable({ rows }: { rows: NonNullable<ReturnType<typeof useEngagem
                         <tbody>
                             {rows.map((r) => (
                                 <tr key={r.name} className="border-t">
-                                    <td className="px-2 py-1.5">{r.name}</td>
+                                    <td className="px-2 py-1.5"><NameCell label={r.label} name={r.name} /></td>
                                     <td className="px-2 py-1.5 text-right tabular-nums">{formatPct(r.viewRate)}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums">{formatDwell(r.avgDwellMs)}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums">{r.visitors.toLocaleString()}</td>
@@ -162,8 +175,8 @@ function ClickTable({ rows }: { rows: NonNullable<ReturnType<typeof useEngagemen
                         <tbody>
                             {rows.map((r) => (
                                 <tr key={r.name} className="border-t">
-                                    <td className="px-2 py-1.5">{r.name}</td>
-                                    <td className="px-2 py-1.5 text-muted-foreground">{r.section ?? "-"}</td>
+                                    <td className="px-2 py-1.5"><NameCell label={r.label} name={r.name} /></td>
+                                    <td className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">{r.section ?? "-"}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums">{r.clicks.toLocaleString()}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums">{r.visitors.toLocaleString()}</td>
                                     <td className="px-2 py-1.5 text-right tabular-nums">{formatPct(r.clickRate)}</td>

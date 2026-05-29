@@ -393,6 +393,13 @@
       "when": 1770951800000,
       "tag": "0055_tracker_funnels",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1770951900000,
+      "tag": "0056_tracker_event_aliases",
+      "breakpoints": true
     }
   ]
 }
