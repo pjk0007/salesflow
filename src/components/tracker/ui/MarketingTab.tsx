@@ -7,6 +7,7 @@ import { PopularPages } from "./widgets/PopularPages";
 import { ExitPages } from "./widgets/ExitPages";
 import { InflowChannels } from "./widgets/InflowChannels";
 import { AdContentTop } from "./widgets/AdContentTop";
+import { AdPerformanceCard } from "./widgets/AdPerformanceCard";
 import { DeviceBreakdown } from "./widgets/DeviceBreakdown";
 import { EngagementCard } from "./widgets/EngagementCard";
 import { presetRange } from "./widgets/RangeSelector";
@@ -88,6 +89,7 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
                         <InflowChannels channels={data.inflowChannels} />
                         <AdContentTop items={data.adContents} />
                     </div>
+                    <AdPerformanceCard siteId={siteId} range={range} />
                     <DeviceBreakdown devices={data.devices} />
                     <EngagementCard siteId={siteId} range={range} filters={filters} />
                 </>
