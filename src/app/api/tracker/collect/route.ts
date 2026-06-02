@@ -123,7 +123,15 @@ export async function POST(req: NextRequest) {
                 ),
             });
 
+            // 이번 요청이 visitor row를 실제로 새로 만들었는지.
+            // totalVisits default가 1이므로, 신규 생성한 visitor의 첫 세션에서는 +1을 하지 않아야
+            // "첫 방문 = 1"이 된다 (기존 visitor의 새 세션일 때만 +1).
+            let visitorCreated = false;
+
             if (!visitor) {
+                // 동시 요청(신규 방문자가 이벤트를 동시 발사)이면 둘 다 INSERT를 시도해
+                // unique(site_id, visitor_id) 충돌이 난다. onConflictDoNothing으로 흡수하고,
+                // INSERT가 스킵되면(빈 배열) 다른 요청이 만든 row를 재조회한다.
                 const [created] = await tx
                     .insert(trackerVisitors)
                     .values({
@@ -142,8 +150,23 @@ export async function POST(req: NextRequest) {
                         firstReferrer: session?.referrer ?? null,
                         lastReferrer: session?.referrer ?? null,
                     })
+                    .onConflictDoNothing({
+                        target: [trackerVisitors.siteId, trackerVisitors.visitorId],
+                    })
                     .returning();
-                visitor = created;
+                if (created) {
+                    visitor = created;
+                    visitorCreated = true;
+                } else {
+                    // 충돌로 스킵됨 — 다른 동시 요청이 만든 row 재조회
+                    visitor = await tx.query.trackerVisitors.findFirst({
+                        where: and(
+                            eq(trackerVisitors.siteId, site.id),
+                            eq(trackerVisitors.visitorId, visitor_id),
+                        ),
+                    });
+                    if (!visitor) throw new Error("visitor upsert failed");
+                }
             }
 
             // 2. click_id로 record 자동 매칭 (click_id 있으면 항상 시도 — 링크 누적)
@@ -202,17 +225,12 @@ export async function POST(req: NextRequest) {
             });
 
             if (!trackerSession) {
-                // 첫 세션인지 판정
-                const [{ count }] = await tx
-                    .select({ count: sql<number>`COUNT(*)::integer` })
-                    .from(trackerSessions)
-                    .where(
-                        and(
-                            eq(trackerSessions.siteId, site.id),
-                            eq(trackerSessions.visitorId, visitor.id),
-                        ),
-                    );
+                // 첫 세션 여부 = visitor를 이번 요청에서 새로 만들었는가.
+                // 신규 visitor의 첫 세션이 곧 첫 방문 — count 쿼리는 동시성에 약해(둘 다 0 판정)
+                // visitorCreated 플래그로 판정한다.
+                const isFirstVisit = visitorCreated;
 
+                // visitor와 동일한 동시성 문제 — onConflictDoNothing으로 흡수 후 재조회.
                 const [created] = await tx
                     .insert(trackerSessions)
                     .values({
@@ -231,20 +249,38 @@ export async function POST(req: NextRequest) {
                         utmTerm: session?.utm_term ?? null,
                         utmContent: session?.utm_content ?? null,
                         clickId: click_id ?? null,
-                        isFirstVisit: count === 0 ? 1 : 0,
+                        isFirstVisit: isFirstVisit ? 1 : 0,
+                    })
+                    .onConflictDoNothing({
+                        target: [trackerSessions.siteId, trackerSessions.sessionKey],
                     })
                     .returning();
-                trackerSession = created;
 
-                // 새 세션이면 visitor.totalVisits +1
-                await tx
-                    .update(trackerVisitors)
-                    .set({
-                        totalVisits: sql`${trackerVisitors.totalVisits} + 1`,
-                        lastSeenAt: new Date(),
-                        updatedAt: new Date(),
-                    })
-                    .where(eq(trackerVisitors.id, visitor.id));
+                if (created) {
+                    trackerSession = created;
+                    // 새 세션을 실제로 만든 요청만 totalVisits +1.
+                    // 단 신규 visitor는 default totalVisits=1로 이미 첫 방문이 반영돼 있으므로,
+                    // 그 첫 세션에서는 +1을 하지 않는다 (기존 visitor의 새 세션일 때만 +1).
+                    if (!visitorCreated) {
+                        await tx
+                            .update(trackerVisitors)
+                            .set({
+                                totalVisits: sql`${trackerVisitors.totalVisits} + 1`,
+                                lastSeenAt: new Date(),
+                                updatedAt: new Date(),
+                            })
+                            .where(eq(trackerVisitors.id, visitor.id));
+                    }
+                } else {
+                    // 동시 요청이 먼저 만든 세션을 재조회
+                    trackerSession = await tx.query.trackerSessions.findFirst({
+                        where: and(
+                            eq(trackerSessions.siteId, site.id),
+                            eq(trackerSessions.sessionKey, session_key),
+                        ),
+                    });
+                    if (!trackerSession) throw new Error("session upsert failed");
+                }
             } else if (event.type === "PAGE_VIEW") {
                 await tx.execute(sql`
                     UPDATE tracker_sessions
