@@ -33,14 +33,14 @@ interface LogItem {
     recipientEmail: string;
     sentAt: string;
     recordId: number | null;
-    isOpened: number;
+    isClicked: boolean;
     identifier: string | null;
 }
 
 interface FollowupStep {
     delayDays: number;
-    onOpened?: { prompt: string };
-    onNotOpened?: { prompt: string };
+    onClicked?: { prompt: string };
+    onNotClicked?: { prompt: string };
 }
 
 interface LinkInfo {
@@ -67,7 +67,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
 
     const [parentLogId, setParentLogId] = useState<number | null>(null);
     const [stepIndex, setStepIndex] = useState<number>(0);
-    const [isOpened, setIsOpened] = useState(false);
+    const [isClicked, setIsClicked] = useState(false);
     const [testEmail, setTestEmail] = useState("");
     const [working, setWorking] = useState(false);
     const [logSearch, setLogSearch] = useState("");
@@ -77,7 +77,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
         recordData: Record<string, unknown> | null;
     } | null>(null);
 
-    // 기본 선택: 가장 최근 로그, 1단계, 안읽음 분기
+    // 기본 선택: 가장 최근 로그, 1단계, 미클릭 분기
     useEffect(() => {
         if (logs.length > 0 && parentLogId === null) {
             setParentLogId(logs[0].id);
@@ -97,7 +97,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
     const selectedLog = logs.find((l) => l.id === parentLogId);
 
     const currentStep = steps[stepIndex];
-    const currentBranch = isOpened ? currentStep?.onOpened : currentStep?.onNotOpened;
+    const currentBranch = isClicked ? currentStep?.onClicked : currentStep?.onNotClicked;
     const branchAvailable = !!currentBranch?.prompt;
 
     const handleClose = (next: boolean) => {
@@ -106,7 +106,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
             setTestEmail("");
             setParentLogId(null);
             setStepIndex(0);
-            setIsOpened(false);
+            setIsClicked(false);
             setLogSearch("");
         }
         onOpenChange(next);
@@ -118,7 +118,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
             return;
         }
         if (!branchAvailable) {
-            toast.error(`${stepIndex + 1}단계 ${isOpened ? "읽음" : "안읽음"} 분기에 프롬프트가 없습니다.`);
+            toast.error(`${stepIndex + 1}단계 ${isClicked ? "클릭함" : "클릭 안 함"} 분기에 프롬프트가 없습니다.`);
             return;
         }
         if (mode === "send" && (!testEmail || !testEmail.includes("@"))) {
@@ -136,7 +136,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                     linkId,
                     parentLogId,
                     stepIndex,
-                    isOpened,
+                    isClicked,
                     testEmail: mode === "send" ? testEmail : undefined,
                     mode,
                 }),
@@ -221,7 +221,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                                                         <div className="mt-0.5 shrink-0">
                                                             {active ? (
                                                                 <Check className="h-4 w-4 text-primary" />
-                                                            ) : log.isOpened === 1 ? (
+                                                            ) : log.isClicked ? (
                                                                 <MailOpen className="h-4 w-4 text-muted-foreground" />
                                                             ) : (
                                                                 <Mail className="h-4 w-4 text-muted-foreground" />
@@ -283,10 +283,10 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                                     </div>
 
                                     <div className="space-y-2">
-                                        <Label>이전 메일 읽음 여부</Label>
+                                        <Label>이전 메일 링크 클릭 여부</Label>
                                         <div className="flex items-center justify-between rounded-md border h-10 px-3">
-                                            <span className="text-sm">{isOpened ? "읽음" : "안읽음"}</span>
-                                            <Switch checked={isOpened} onCheckedChange={setIsOpened} />
+                                            <span className="text-sm">{isClicked ? "클릭함" : "클릭 안 함"}</span>
+                                            <Switch checked={isClicked} onCheckedChange={setIsClicked} />
                                         </div>
                                     </div>
                                 </div>
@@ -294,7 +294,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
                                 {currentStep && (
                                     <div className="rounded-md border bg-muted/30 p-3 space-y-1">
                                         <p className="text-xs font-medium">
-                                            선택된 분기: {stepIndex + 1}단계 / {isOpened ? "읽음" : "안읽음"}
+                                            선택된 분기: {stepIndex + 1}단계 / {isClicked ? "클릭함" : "클릭 안 함"}
                                         </p>
                                         {branchAvailable ? (
                                             <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">

@@ -9,10 +9,10 @@ import {
     products,
 } from "@/lib/db";
 import { eq, and, lte } from "drizzle-orm";
-import { getEmailClient, getEmailConfig, substituteVariables, appendSignature, parseNhnDate } from "@/lib/nhn-email";
+import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
-import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { wrapTrackingUrls, hasClicked } from "@/lib/email-click-tracking";
 import { substitutePromptVariables } from "@/lib/email-utils";
 
 // ============================================
@@ -21,14 +21,14 @@ import { substitutePromptVariables } from "@/lib/email-utils";
 
 interface TemplateFollowupStep {
     delayDays: number;
-    onOpened?: { templateId: number };
-    onNotOpened?: { templateId: number };
+    onClicked?: { templateId: number };
+    onNotClicked?: { templateId: number };
 }
 
 interface AiFollowupStep {
     delayDays: number;
-    onOpened?: { prompt: string };
-    onNotOpened?: { prompt: string };
+    onClicked?: { prompt: string };
+    onNotClicked?: { prompt: string };
 }
 
 type FollowupConfig = TemplateFollowupStep | AiFollowupStep;
@@ -48,7 +48,7 @@ export interface GenerateAiFollowupPreviewInput {
     linkId: number;
     parentLogId: number;
     stepIndex: number; // 0-based
-    isOpened: boolean;
+    isClicked: boolean;
 }
 
 export async function generateAiFollowupPreview(
@@ -76,11 +76,11 @@ export async function generateAiFollowupPreview(
     const currentStep = steps[input.stepIndex] as AiFollowupStep | undefined;
     if (!currentStep) return { success: false, error: "해당 후속 단계가 없습니다." };
 
-    const action = input.isOpened ? currentStep.onOpened : currentStep.onNotOpened;
+    const action = input.isClicked ? currentStep.onClicked : currentStep.onNotClicked;
     if (!action?.prompt) {
         return {
             success: false,
-            error: `이 단계의 ${input.isOpened ? "읽음" : "안읽음"} 분기에 프롬프트가 설정되어 있지 않습니다.`,
+            error: `이 단계의 ${input.isClicked ? "클릭함" : "클릭 안 함"} 분기에 프롬프트가 설정되어 있지 않습니다.`,
         };
     }
 
@@ -124,7 +124,7 @@ export async function generateAiFollowupPreview(
         `[참고: 이전 발송 이메일]`,
         `- 제목: ${parentLog.subject || "(없음)"}`,
         `- 본문 요약: ${(parentLog.body || "").substring(0, 300)}`,
-        `- 읽음 여부: ${input.isOpened ? "읽음" : "읽지 않음"}`,
+        `- 링크 클릭 여부: ${input.isClicked ? "클릭함" : "클릭하지 않음"}`,
         `- 후속 단계: ${input.stepIndex + 1}단계`,
         ``,
         `위 지시사항을 반드시 따르되, 이전 이메일은 맥락 파악용으로만 참고하세요. 이전 이메일의 내용을 반복하지 마세요.`,
@@ -267,26 +267,17 @@ async function processFollowupItem(
             return;
         }
 
-        // 2. 읽음 상태 최신화 (NHN API)
-        await syncReadStatus(parentLog);
-
-        // 재조회 (업데이트 반영)
-        const [refreshedLog] = await db
-            .select()
-            .from(emailSendLogs)
-            .where(eq(emailSendLogs.id, item.parentLogId))
-            .limit(1);
-
-        const isOpened = refreshedLog?.isOpened === 1;
-        const result = isOpened ? "opened" : "not_opened";
+        // 2. 링크 클릭 여부로 분기 판정 (수신확인보다 정확 — 우리가 직접 기록)
+        const isClicked = await hasClicked(item.parentLogId);
+        const result = isClicked ? "clicked" : "not_clicked";
 
         // 3. sourceType에 따라 분기
         let sent = false;
 
         if (item.sourceType === "template") {
-            sent = await handleTemplateFollowup(item, refreshedLog!, isOpened);
+            sent = await handleTemplateFollowup(item, parentLog, isClicked);
         } else if (item.sourceType === "ai") {
-            sent = await handleAiFollowup(item, refreshedLog!, isOpened);
+            sent = await handleAiFollowup(item, parentLog, isClicked);
         }
 
         if (sent) {
@@ -319,44 +310,13 @@ async function updateQueueStatus(
 }
 
 // ============================================
-// 내부 헬퍼: 읽음 상태 최신화
-// ============================================
-
-async function syncReadStatus(log: typeof emailSendLogs.$inferSelect) {
-    if (!log.requestId || log.isOpened === 1) return;
-
-    try {
-        const client = await getEmailClient(log.orgId);
-        if (!client) return;
-
-        const result = await client.queryMails({ requestId: log.requestId });
-        if (!result.header.isSuccessful || !result.data) return;
-
-        for (const mail of result.data) {
-            if (mail.receiveMailAddr === log.recipientEmail && mail.isOpened) {
-                await db
-                    .update(emailSendLogs)
-                    .set({
-                        isOpened: 1,
-                        openedAt: parseNhnDate(mail.openedDate) ?? new Date(),
-                    })
-                    .where(eq(emailSendLogs.id, log.id));
-                break;
-            }
-        }
-    } catch {
-        // NHN API 실패 시 기존 상태 유지
-    }
-}
-
-// ============================================
 // 템플릿 기반 후속 발송
 // ============================================
 
 async function handleTemplateFollowup(
     item: typeof emailFollowupQueue.$inferSelect,
     parentLog: typeof emailSendLogs.$inferSelect,
-    isOpened: boolean
+    isClicked: boolean
 ): Promise<boolean> {
     // 1. templateLink 조회
     const [link] = await db
@@ -372,7 +332,7 @@ async function handleTemplateFollowup(
     if (!currentStep) return false;
 
     // 2. 조건에 맞는 templateId 확인
-    const action = isOpened ? currentStep.onOpened : currentStep.onNotOpened;
+    const action = isClicked ? currentStep.onClicked : currentStep.onNotClicked;
     if (!action?.templateId) return false;
 
     // 3. 후속 템플릿 조회
@@ -477,7 +437,7 @@ async function handleTemplateFollowup(
 async function handleAiFollowup(
     item: typeof emailFollowupQueue.$inferSelect,
     parentLog: typeof emailSendLogs.$inferSelect,
-    isOpened: boolean
+    isClicked: boolean
 ): Promise<boolean> {
     // 1. autoPersonalizedLink 조회
     const [link] = await db
@@ -493,7 +453,7 @@ async function handleAiFollowup(
     if (!currentStep) return false;
 
     // 2. 조건에 맞는 prompt 확인
-    const action = isOpened ? currentStep.onOpened : currentStep.onNotOpened;
+    const action = isClicked ? currentStep.onClicked : currentStep.onNotClicked;
     if (!action?.prompt) return false;
 
     // 3. AI 클라이언트 확인
@@ -536,7 +496,7 @@ async function handleAiFollowup(
         `[참고: 이전 발송 이메일]`,
         `- 제목: ${parentLog.subject || "(없음)"}`,
         `- 본문 요약: ${(parentLog.body || "").substring(0, 300)}`,
-        `- 읽음 여부: ${isOpened ? "읽음" : "읽지 않음"}`,
+        `- 링크 클릭 여부: ${isClicked ? "클릭함" : "클릭하지 않음"}`,
         `- 후속 단계: ${item.stepIndex + 1}단계`,
         ``,
         `위 지시사항을 반드시 따르되, 이전 이메일은 맥락 파악용으로만 참고하세요. 이전 이메일의 내용을 반복하지 마세요.`,

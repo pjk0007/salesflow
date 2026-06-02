@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, alimtalkSendLogs, emailSendLogs } from "@/lib/db";
+import { db, alimtalkSendLogs, emailSendLogs, emailClickLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -40,14 +40,14 @@ export async function GET(req: NextRequest) {
                 .groupBy(sql`date_trunc('day', ${alimtalkSendLogs.sentAt})`)
                 .orderBy(sql`date_trunc('day', ${alimtalkSendLogs.sentAt})`);
 
-        // 이메일 일별 집계
+        // 이메일 일별 집계 — 클릭은 발송일(sentAt) 기준, 로그당 1회 클릭으로 카운트
         const emailTrends = channel === "alimtalk" ? [] :
             await db
                 .select({
                     date: sql<string>`date_trunc('day', ${emailSendLogs.sentAt})::date::text`.as("date"),
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
-                    opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`.as("opened"),
+                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
                 .where(and(
@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
             alimtalkFailed: number;
             emailSent: number;
             emailFailed: number;
-            emailOpened: number;
+            emailClicked: number;
         }>();
 
         for (const row of alimtalkTrends) {
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
                 alimtalkFailed: row.failed,
                 emailSent: 0,
                 emailFailed: 0,
-                emailOpened: 0,
+                emailClicked: 0,
             });
         }
 
@@ -84,7 +84,7 @@ export async function GET(req: NextRequest) {
             if (existing) {
                 existing.emailSent = row.sent;
                 existing.emailFailed = row.failed;
-                existing.emailOpened = row.opened;
+                existing.emailClicked = row.clicked;
             } else {
                 map.set(row.date, {
                     date: row.date,
@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
                     alimtalkFailed: 0,
                     emailSent: row.sent,
                     emailFailed: row.failed,
-                    emailOpened: row.opened,
+                    emailClicked: row.clicked,
                 });
             }
         }

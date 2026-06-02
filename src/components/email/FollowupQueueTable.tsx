@@ -165,10 +165,10 @@ export default function FollowupQueueTable() {
                                                 <Badge variant={st.variant}>{st.label}</Badge>
                                             </TableCell>
                                             <TableCell>
-                                                {item.result === "opened" ? (
-                                                    <Badge variant="default">읽음</Badge>
-                                                ) : item.result === "not_opened" ? (
-                                                    <Badge variant="secondary">미읽음</Badge>
+                                                {item.result === "clicked" ? (
+                                                    <Badge variant="default">클릭</Badge>
+                                                ) : item.result === "not_clicked" ? (
+                                                    <Badge variant="secondary">미클릭</Badge>
                                                 ) : (
                                                     <span className="text-muted-foreground">—</span>
                                                 )}

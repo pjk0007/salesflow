@@ -7,7 +7,7 @@ export interface TrendItem {
     alimtalkFailed: number;
     emailSent: number;
     emailFailed: number;
-    emailOpened: number;
+    emailClicked: number;
 }
 
 export interface ChannelSummary {
@@ -30,7 +30,6 @@ export interface TemplatePerformance {
     total: number;
     sent: number;
     failed: number;
-    opened: number;
     clicked: number;
     successRate: number;
     clickRate: number;

@@ -18,7 +18,6 @@ import {
     CheckCircle2,
     XCircle,
     Clock,
-    Eye,
     MousePointerClick,
     Settings,
     Loader2,
@@ -114,16 +113,9 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
         },
         { label: "대기", value: email?.pending ?? 0, icon: Clock, color: "text-yellow-600" },
         {
-            label: "읽음률",
-            value: email ? `${email.openRate}%` : "0%",
-            sub: email ? `${email.opened}/${email.sent}` : undefined,
-            icon: Eye,
-            color: "text-purple-600",
-        },
-        {
             label: "클릭률",
             value: email ? `${email.clickRate}%` : "0%",
-            sub: email ? `${email.clicked}/${email.opened}` : undefined,
+            sub: email ? `${email.clicked}/${email.sent}` : undefined,
             icon: MousePointerClick,
             color: "text-blue-500",
         },
@@ -180,7 +172,6 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                     <TableHead className="text-right">성공</TableHead>
                                     <TableHead className="text-right">실패</TableHead>
                                     <TableHead className="text-right">성공률</TableHead>
-                                    <TableHead className="text-right">읽음률</TableHead>
                                     <TableHead className="text-right">클릭률</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -194,7 +185,6 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                         <TableCell className="text-right">{row.sent}</TableCell>
                                         <TableCell className="text-right">{row.failed}</TableCell>
                                         <TableCell className="text-right">{row.successRate}%</TableCell>
-                                        <TableCell className="text-right">{row.openRate}%</TableCell>
                                         <TableCell className="text-right">{row.clickRate}%</TableCell>
                                     </TableRow>
                                 ))}
@@ -231,8 +221,8 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                 />
                                 <Line
                                     type="monotone"
-                                    dataKey="emailOpened"
-                                    name="읽음"
+                                    dataKey="emailClicked"
+                                    name="클릭"
                                     stroke="#8b5cf6"
                                     strokeWidth={2}
                                     dot={false}

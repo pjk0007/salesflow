@@ -3,18 +3,17 @@ import { db, records, alimtalkSendLogs, emailSendLogs, emailClickLogs } from "@/
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
-function aggregateStats(rows: Array<{ status: string; count: number; opened: number }>, clicked: number) {
-    let total = 0, sent = 0, failed = 0, pending = 0, opened = 0;
+function aggregateStats(rows: Array<{ status: string; count: number }>, clicked: number) {
+    let total = 0, sent = 0, failed = 0, pending = 0;
     for (const row of rows) {
         total += row.count;
-        opened += row.opened;
         if (row.status === "sent") sent = row.count;
         else if (row.status === "failed" || row.status === "rejected") failed += row.count;
         else if (row.status === "pending") pending = row.count;
     }
-    const openRate = sent > 0 ? Math.round((opened / sent) * 1000) / 10 : 0;
-    const clickRate = opened > 0 ? Math.round((clicked / opened) * 1000) / 10 : 0;
-    return { total, sent, failed, pending, opened, openRate, clicked, clickRate };
+    // 클릭률 = 발송 대비 링크 클릭 (수신확인 제거 후 발송 기준)
+    const clickRate = sent > 0 ? Math.round((clicked / sent) * 1000) / 10 : 0;
+    return { total, sent, failed, pending, clicked, clickRate };
 }
 
 function aggregateAlimtalkStats(rows: Array<{ status: string; count: number }>) {
@@ -67,11 +66,10 @@ export async function GET(req: NextRequest) {
                 ))
                 .groupBy(alimtalkSendLogs.status),
 
-            // 이메일 상태별 카운트 + 읽음
+            // 이메일 상태별 카운트
             db.select({
                 status: emailSendLogs.status,
                 count: sql<number>`count(*)::int`,
-                opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`,
             })
                 .from(emailSendLogs)
                 .where(emailWhere)
@@ -92,7 +90,6 @@ export async function GET(req: NextRequest) {
                 total: sql<number>`count(*)::int`,
                 sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`,
                 failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`,
-                opened: sql<number>`count(*) filter (where ${emailSendLogs.isOpened} = 1)::int`,
             })
                 .from(emailSendLogs)
                 .where(emailWhere)
@@ -126,11 +123,9 @@ export async function GET(req: NextRequest) {
                 total: t.total,
                 sent: t.sent,
                 failed: t.failed,
-                opened: t.opened,
                 clicked,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 1000) / 10 : 0,
-                openRate: t.sent > 0 ? Math.round((t.opened / t.sent) * 1000) / 10 : 0,
-                clickRate: t.opened > 0 ? Math.round((clicked / t.opened) * 1000) / 10 : 0,
+                clickRate: t.sent > 0 ? Math.round((clicked / t.sent) * 1000) / 10 : 0,
             };
         });
 

@@ -249,16 +249,6 @@ export async function GET(
                 label: `메일 발송: ${s.subject ?? "(제목 없음)"}`,
                 meta: { subject: s.subject, status: s.status },
             });
-            if (s.openedAt) {
-                events.push({
-                    at: s.openedAt.toISOString(),
-                    source: "email",
-                    channel: "메일",
-                    type: "email_open",
-                    label: `메일 열람: ${s.subject ?? ""}`.trim(),
-                    meta: { subject: s.subject },
-                });
-            }
         }
         for (const c of clickLogs) {
             events.push({

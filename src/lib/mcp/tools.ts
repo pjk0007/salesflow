@@ -309,8 +309,7 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
             const logs = await db.select({
                 id: emailSendLogs.id, recipientEmail: emailSendLogs.recipientEmail,
                 subject: emailSendLogs.subject, status: emailSendLogs.status,
-                triggerType: emailSendLogs.triggerType, isOpened: emailSendLogs.isOpened,
-                openedAt: emailSendLogs.openedAt, sentAt: emailSendLogs.sentAt,
+                triggerType: emailSendLogs.triggerType, sentAt: emailSendLogs.sentAt,
                 partitionId: emailSendLogs.partitionId, recordId: emailSendLogs.recordId,
             }).from(emailSendLogs).where(whereClause)
                 .orderBy(desc(emailSendLogs.sentAt)).limit(pageSize).offset((page - 1) * pageSize);

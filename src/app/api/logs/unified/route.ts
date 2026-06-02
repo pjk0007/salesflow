@@ -29,9 +29,9 @@ export async function GET(req: NextRequest) {
             const table = type === "alimtalk" ? "alimtalk_send_logs" : "email_send_logs";
             const recipientCol = type === "alimtalk" ? "recipient_no" : "recipient_email";
             const titleCol = type === "alimtalk" ? "template_name" : "subject";
-            const openedCols = type === "email"
-                ? `is_opened as "isOpened", opened_at as "openedAt", (SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${table}.id) as "clickCount"`
-                : `0 as "isOpened", NULL::timestamptz as "openedAt", 0 as "clickCount"`;
+            const clickCol = type === "email"
+                ? `(SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${table}.id) as "clickCount"`
+                : `0 as "clickCount"`;
 
             let q = sql`
                 SELECT id, ${sql.raw(`'${type}'`)}::text as channel,
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
                        ${sql.raw(recipientCol)} as recipient, ${sql.raw(titleCol)} as title,
                        status, trigger_type as "triggerType", result_message as "resultMessage",
                        sent_by as "sentBy", sent_at as "sentAt", completed_at as "completedAt",
-                       ${sql.raw(openedCols)}
+                       ${sql.raw(clickCol)}
                 FROM ${sql.raw(table)}
                 WHERE org_id = ${orgId}
             `;

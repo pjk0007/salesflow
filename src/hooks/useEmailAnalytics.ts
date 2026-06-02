@@ -6,8 +6,6 @@ interface EmailStats {
     sent: number;
     failed: number;
     pending: number;
-    opened: number;
-    openRate: number;
     clicked: number;
     clickRate: number;
 }
@@ -24,10 +22,8 @@ interface TriggerBreakdownItem {
     total: number;
     sent: number;
     failed: number;
-    opened: number;
     clicked: number;
     successRate: number;
-    openRate: number;
     clickRate: number;
 }
 
@@ -42,7 +38,7 @@ interface TrendItem {
     date: string;
     emailSent: number;
     emailFailed: number;
-    emailOpened: number;
+    emailClicked: number;
     alimtalkSent: number;
     alimtalkFailed: number;
 }

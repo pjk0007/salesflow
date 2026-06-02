@@ -167,7 +167,6 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                     <TableHead>수신자</TableHead>
                                     <TableHead>제목</TableHead>
                                     <TableHead>상태</TableHead>
-                                    <TableHead>읽음</TableHead>
                                     <TableHead>클릭</TableHead>
                                     {!compact && <TableHead>방식</TableHead>}
                                     <TableHead>발송일시</TableHead>
@@ -197,22 +196,6 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                                 <Badge variant={statusInfo.variant}>
                                                     {statusInfo.label}
                                                 </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {log.channel === "email" && log.status === "sent" ? (
-                                                    log.isOpened ? (
-                                                        <div className="flex flex-col gap-0.5">
-                                                            <Badge variant="default" className="bg-green-600 text-xs w-fit">읽음</Badge>
-                                                            {log.openedAt && (
-                                                                <span className="text-xs text-muted-foreground">
-                                                                    {new Date(log.openedAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    ) : (
-                                                        <Badge variant="outline" className="text-xs">안읽음</Badge>
-                                                    )
-                                                ) : null}
                                             </TableCell>
                                             <TableCell>
                                                 {log.channel === "email" && log.status === "sent" ? (

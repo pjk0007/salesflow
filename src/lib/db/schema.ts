@@ -602,8 +602,8 @@ export const emailTemplateLinks = pgTable("email_template_links", {
     } | null>(),
     followupConfig: jsonb("followup_config").$type<{
         delayDays: number;
-        onOpened?: { templateId: number };
-        onNotOpened?: { templateId: number };
+        onClicked?: { templateId: number };
+        onNotClicked?: { templateId: number };
     } | null>(),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
@@ -636,8 +636,6 @@ export const emailSendLogs = pgTable("email_send_logs", {
     sentBy: uuid("sent_by").references(() => users.id),
     sentAt: timestamptz("sent_at").defaultNow().notNull(),
     completedAt: timestamptz("completed_at"),
-    isOpened: integer("is_opened").default(0).notNull(),
-    openedAt: timestamptz("opened_at"),
     parentLogId: integer("parent_log_id"),
     autoPersonalizedLinkId: integer("auto_personalized_link_id").references(
         () => emailAutoPersonalizedLinks.id,
@@ -721,8 +719,8 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     useSignaturePersona: integer("use_signature_persona").default(0).notNull(),
     followupConfig: jsonb("followup_config").$type<{
         delayDays: number;
-        onOpened?: { prompt: string };
-        onNotOpened?: { prompt: string };
+        onClicked?: { prompt: string };
+        onNotClicked?: { prompt: string };
     } | null>(),
     senderProfileId: integer("sender_profile_id"),
     signatureId: integer("signature_id"),

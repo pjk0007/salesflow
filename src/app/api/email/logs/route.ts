@@ -56,14 +56,6 @@ export async function GET(req: NextRequest) {
             end.setDate(end.getDate() + 1);
             conditions.push(lte(emailSendLogs.sentAt, end));
         }
-        const isOpened = searchParams.get("isOpened");
-        if (isOpened === "1") {
-            conditions.push(eq(emailSendLogs.isOpened, 1));
-            conditions.push(eq(emailSendLogs.status, "sent"));
-        } else if (isOpened === "0") {
-            conditions.push(eq(emailSendLogs.isOpened, 0));
-            conditions.push(eq(emailSendLogs.status, "sent"));
-        }
         const isClicked = searchParams.get("isClicked");
         if (isClicked === "1") {
             conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`);
@@ -87,7 +79,7 @@ export async function GET(req: NextRequest) {
 
         // 클릭 수 조회
         const logIds = logs.map(l => l.id);
-        let clickCounts: Record<number, number> = {};
+        const clickCounts: Record<number, number> = {};
         if (logIds.length > 0) {
             const clicks = await db
                 .select({

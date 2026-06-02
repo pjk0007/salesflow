@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
 
     try {
         let updated = 0;
-        let readUpdated = 0;
 
         // ── 단계 1: pending 상태 동기화 ──
         const pendingLogs = await db
@@ -59,8 +58,6 @@ export async function POST(req: NextRequest) {
                                 resultCode: mail.resultCode,
                                 resultMessage: mail.resultCodeName,
                                 completedAt: parseNhnDate(mail.resultDate) ?? new Date(),
-                                isOpened: mail.isOpened ? 1 : 0,
-                                openedAt: parseNhnDate(mail.openedDate),
                             })
                             .where(eq(emailSendLogs.id, log.id));
                         updated++;
@@ -71,7 +68,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // ── 단계 2: sent 상태 동기화 (실제 NHN 상태 반영 + 읽음 체크, 최근 30일) ──
+        // ── 단계 2: sent 상태 동기화 (실제 NHN 상태 반영, 최근 30일) ──
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         let statusCorrected = 0;
@@ -119,19 +116,6 @@ export async function POST(req: NextRequest) {
                                 })
                                 .where(eq(emailSendLogs.id, log.id));
                             statusCorrected++;
-                            continue;
-                        }
-
-                        // 읽음 동기화
-                        if (mail.isOpened && log.isOpened === 0) {
-                            await db
-                                .update(emailSendLogs)
-                                .set({
-                                    isOpened: 1,
-                                    openedAt: parseNhnDate(mail.openedDate) ?? new Date(),
-                                })
-                                .where(eq(emailSendLogs.id, log.id));
-                            readUpdated++;
                         }
                     }
                 }
@@ -142,7 +126,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: { synced: pendingLogs.length, updated, sentChecked: sentLogs.length, statusCorrected, readUpdated },
+            data: { synced: pendingLogs.length, updated, sentChecked: sentLogs.length, statusCorrected },
         });
     } catch (error) {
         console.error("Email sync error:", error);

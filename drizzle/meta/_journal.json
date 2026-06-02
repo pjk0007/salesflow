@@ -400,6 +400,20 @@
       "when": 1770951900000,
       "tag": "0056_tracker_event_aliases",
       "breakpoints": true
+    },
+    {
+      "idx": 57,
+      "version": "7",
+      "when": 1770952000000,
+      "tag": "0057_followup_open_to_click",
+      "breakpoints": true
+    },
+    {
+      "idx": 58,
+      "version": "7",
+      "when": 1770952100000,
+      "tag": "0058_drop_email_open_tracking",
+      "breakpoints": true
     }
   ]
 }

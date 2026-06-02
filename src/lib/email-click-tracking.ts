@@ -72,6 +72,19 @@ export async function recordClick(
 }
 
 /**
+ * 발송 로그에 링크 클릭이 한 번이라도 기록됐는지 여부.
+ * 후속 메일 분기(clicked/not_clicked)의 판정 기준 — 수신확인(open)보다 정확.
+ */
+export async function hasClicked(sendLogId: number): Promise<boolean> {
+    const [row] = await db
+        .select({ id: emailClickLogs.id })
+        .from(emailClickLogs)
+        .where(eq(emailClickLogs.sendLogId, sendLogId))
+        .limit(1);
+    return !!row;
+}
+
+/**
  * redirect 도착지 URL에 sendb_cid 파라미터를 부착합니다.
  * 트래커가 이 값을 보고 방문자를 sendb 리드와 자동 연결합니다.
  */

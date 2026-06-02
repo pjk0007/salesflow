@@ -26,8 +26,8 @@ export interface AutoPersonalizedLink {
     preventDuplicate: number;
     followupConfig: {
         delayDays: number;
-        onOpened?: { prompt: string };
-        onNotOpened?: { prompt: string };
+        onClicked?: { prompt: string };
+        onNotClicked?: { prompt: string };
     } | null;
     senderProfileId: number | null;
     signatureId: number | null;
@@ -54,8 +54,8 @@ interface CreateInput {
     useSignaturePersona?: number;
     followupConfig?: {
         delayDays: number;
-        onOpened?: { prompt: string };
-        onNotOpened?: { prompt: string };
+        onClicked?: { prompt: string };
+        onNotClicked?: { prompt: string };
     } | null;
     isActive?: number;
     isDraft?: number;
@@ -80,8 +80,8 @@ interface UpdateInput {
     useSignaturePersona?: number;
     followupConfig?: {
         delayDays: number;
-        onOpened?: { prompt: string };
-        onNotOpened?: { prompt: string };
+        onClicked?: { prompt: string };
+        onNotClicked?: { prompt: string };
     } | null;
     isActive?: number;
     isDraft?: number;

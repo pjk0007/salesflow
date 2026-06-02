@@ -15,14 +15,14 @@ import { Plus, Trash2 } from "lucide-react";
 
 interface TemplateFollowupStep {
     delayDays: number;
-    onOpened?: { templateId: number };
-    onNotOpened?: { templateId: number };
+    onClicked?: { templateId: number };
+    onNotClicked?: { templateId: number };
 }
 
 interface AiFollowupStep {
     delayDays: number;
-    onOpened?: { prompt: string };
-    onNotOpened?: { prompt: string };
+    onClicked?: { prompt: string };
+    onNotClicked?: { prompt: string };
 }
 
 type FollowupStep = TemplateFollowupStep | AiFollowupStep;
@@ -83,7 +83,7 @@ export function FollowupConfigForm({ mode, value, onChange, templates }: Followu
     };
 
     // Template mode handlers
-    const handleTemplateSelect = (index: number, condition: "onOpened" | "onNotOpened", templateId: string) => {
+    const handleTemplateSelect = (index: number, condition: "onClicked" | "onNotClicked", templateId: string) => {
         const step = steps[index] as TemplateFollowupStep;
         if (templateId === "none") {
             const { [condition]: _, ...rest } = step;
@@ -94,7 +94,7 @@ export function FollowupConfigForm({ mode, value, onChange, templates }: Followu
     };
 
     // AI mode handlers
-    const handlePromptChange = (index: number, condition: "onOpened" | "onNotOpened", prompt: string) => {
+    const handlePromptChange = (index: number, condition: "onClicked" | "onNotClicked", prompt: string) => {
         const step = steps[index] as AiFollowupStep;
         if (!prompt.trim()) {
             const { [condition]: _, ...rest } = step;
@@ -148,13 +148,13 @@ export function FollowupConfigForm({ mode, value, onChange, templates }: Followu
                                 <span className="text-sm text-muted-foreground">일 후 체크</span>
                             </div>
 
-                            {/* 읽었을 때 */}
+                            {/* 링크를 클릭했을 때 */}
                             <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">읽었을 때</Label>
+                                <Label className="text-xs text-muted-foreground">링크를 클릭했을 때</Label>
                                 {mode === "template" ? (
                                     <Select
-                                        value={(step as TemplateFollowupStep).onOpened?.templateId ? String((step as TemplateFollowupStep).onOpened!.templateId) : "none"}
-                                        onValueChange={(v) => handleTemplateSelect(index, "onOpened", v)}
+                                        value={(step as TemplateFollowupStep).onClicked?.templateId ? String((step as TemplateFollowupStep).onClicked!.templateId) : "none"}
+                                        onValueChange={(v) => handleTemplateSelect(index, "onClicked", v)}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="템플릿 선택 (선택사항)" />
@@ -171,20 +171,20 @@ export function FollowupConfigForm({ mode, value, onChange, templates }: Followu
                                 ) : (
                                     <Textarea
                                         placeholder="AI 지시사항 (선택사항)"
-                                        value={(step as AiFollowupStep).onOpened?.prompt ?? ""}
-                                        onChange={(e) => handlePromptChange(index, "onOpened", e.target.value)}
+                                        value={(step as AiFollowupStep).onClicked?.prompt ?? ""}
+                                        onChange={(e) => handlePromptChange(index, "onClicked", e.target.value)}
                                         rows={2}
                                     />
                                 )}
                             </div>
 
-                            {/* 읽지 않았을 때 */}
+                            {/* 클릭하지 않았을 때 */}
                             <div className="space-y-1">
-                                <Label className="text-xs text-muted-foreground">읽지 않았을 때</Label>
+                                <Label className="text-xs text-muted-foreground">클릭하지 않았을 때</Label>
                                 {mode === "template" ? (
                                     <Select
-                                        value={(step as TemplateFollowupStep).onNotOpened?.templateId ? String((step as TemplateFollowupStep).onNotOpened!.templateId) : "none"}
-                                        onValueChange={(v) => handleTemplateSelect(index, "onNotOpened", v)}
+                                        value={(step as TemplateFollowupStep).onNotClicked?.templateId ? String((step as TemplateFollowupStep).onNotClicked!.templateId) : "none"}
+                                        onValueChange={(v) => handleTemplateSelect(index, "onNotClicked", v)}
                                     >
                                         <SelectTrigger>
                                             <SelectValue placeholder="템플릿 선택 (선택사항)" />
@@ -201,8 +201,8 @@ export function FollowupConfigForm({ mode, value, onChange, templates }: Followu
                                 ) : (
                                     <Textarea
                                         placeholder="AI 지시사항 (선택사항)"
-                                        value={(step as AiFollowupStep).onNotOpened?.prompt ?? ""}
-                                        onChange={(e) => handlePromptChange(index, "onNotOpened", e.target.value)}
+                                        value={(step as AiFollowupStep).onNotClicked?.prompt ?? ""}
+                                        onChange={(e) => handlePromptChange(index, "onNotClicked", e.target.value)}
                                         rows={2}
                                     />
                                 )}

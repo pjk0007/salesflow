@@ -70,11 +70,6 @@ const TRIGGER_OPTIONS = [
     { value: "ai_followup", label: "후속발송" },
 ];
 
-const READ_OPTIONS = [
-    { value: "1", label: "읽음" },
-    { value: "0", label: "안읽음" },
-];
-
 const CLICK_OPTIONS = [
     { value: "1", label: "클릭" },
     { value: "0", label: "미클릭" },
@@ -87,7 +82,6 @@ export default function EmailSendLogTable() {
     const [status, setStatus] = useState("");
     const [triggerType, setTriggerType] = useState("");
     const [ruleFilter, setRuleFilter] = useState("");  // "link:ID" or "ai:ID"
-    const [isOpened, setIsOpened] = useState("");
     const [isClicked, setIsClicked] = useState("");
     const [period, setPeriod] = useState("");
     const [syncing, setSyncing] = useState(false);
@@ -137,7 +131,6 @@ export default function EmailSendLogTable() {
         status: status || undefined,
         triggerType: triggerType || undefined,
         ...ruleParams,
-        isOpened: isOpened || undefined,
         isClicked: isClicked || undefined,
         ...dateRange,
     });
@@ -149,7 +142,7 @@ export default function EmailSendLogTable() {
         const result = await syncLogs();
         setSyncing(false);
         if (result.success) {
-            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트, ${result.data.readUpdated || 0}건 읽음 확인 (${result.data.readChecked || 0}건 조회)`);
+            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트`);
         } else {
             toast.error(result.error || "동기화에 실패했습니다.");
         }
@@ -176,7 +169,6 @@ export default function EmailSendLogTable() {
         }
         activeFilters.push({ key: "ruleFilter", value: ruleFilter, label: ruleLabel });
     }
-    if (isOpened) activeFilters.push({ key: "isOpened", value: isOpened, label: isOpened === "1" ? "읽음" : "안읽음" });
     if (isClicked) activeFilters.push({ key: "isClicked", value: isClicked, label: isClicked === "1" ? "클릭" : "미클릭" });
     if (debouncedSearch) activeFilters.push({ key: "search", value: debouncedSearch, label: `"${debouncedSearch}"` });
 
@@ -185,7 +177,6 @@ export default function EmailSendLogTable() {
         if (key === "status") setStatus("");
         if (key === "triggerType") setTriggerType("");
         if (key === "ruleFilter") setRuleFilter("");
-        if (key === "isOpened") setIsOpened("");
         if (key === "isClicked") setIsClicked("");
         if (key === "search") { setSearchInput(""); setDebouncedSearch(""); }
         setPage(1);
@@ -196,7 +187,6 @@ export default function EmailSendLogTable() {
         setStatus("");
         setTriggerType("");
         setRuleFilter("");
-        setIsOpened("");
         setIsClicked("");
         setSearchInput("");
         setDebouncedSearch("");
@@ -326,20 +316,7 @@ export default function EmailSendLogTable() {
 
                     <span className="text-xs text-muted-foreground mx-1">|</span>
 
-                    {/* 읽음/클릭 */}
-                    {READ_OPTIONS.map((opt) => (
-                        <button
-                            key={`read-${opt.value}`}
-                            onClick={() => toggleFilter(setIsOpened, isOpened, opt.value)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                                isOpened === opt.value
-                                    ? "bg-green-600 text-white"
-                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                            }`}
-                        >
-                            {opt.label}
-                        </button>
-                    ))}
+                    {/* 클릭 */}
                     {CLICK_OPTIONS.map((opt) => (
                         <button
                             key={`click-${opt.value}`}
@@ -399,7 +376,6 @@ export default function EmailSendLogTable() {
                                 <TableHead>수신자</TableHead>
                                 <TableHead>제목</TableHead>
                                 <TableHead>상태</TableHead>
-                                <TableHead>읽음</TableHead>
                                 <TableHead>클릭</TableHead>
                                 <TableHead>방식</TableHead>
                                 <TableHead>발송일</TableHead>
@@ -422,20 +398,6 @@ export default function EmailSendLogTable() {
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            {log.status === "sent" ? (
-                                                log.isOpened ? (
-                                                    <div className="flex flex-col gap-0.5">
-                                                        <Badge variant="default" className="bg-green-600 w-fit">읽음</Badge>
-                                                        {log.openedAt && (
-                                                            <span className="text-xs text-muted-foreground">{formatDate(log.openedAt as unknown as string)}</span>
-                                                        )}
-                                                    </div>
-                                                ) : (
-                                                    <Badge variant="outline">안읽음</Badge>
-                                                )
-                                            ) : null}
                                         </TableCell>
                                         <TableCell>
                                             {log.status === "sent" ? (
@@ -523,16 +485,6 @@ export default function EmailSendLogTable() {
                                                 <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
                                             </span>
                                         </div>
-                                        {selectedLog.status === "sent" && (
-                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
-                                                <span className="text-sm text-muted-foreground">읽음</span>
-                                                <span className="col-span-2 text-sm">
-                                                    {selectedLog.isOpened
-                                                        ? formatDateFull(selectedLog.openedAt as unknown as string)
-                                                        : "안읽음"}
-                                                </span>
-                                            </div>
-                                        )}
                                         <div className="grid grid-cols-3 gap-2 py-2 border-b">
                                             <span className="text-sm text-muted-foreground">발송일시</span>
                                             <span className="col-span-2 text-sm">
