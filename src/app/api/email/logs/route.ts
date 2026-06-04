@@ -58,9 +58,9 @@ export async function GET(req: NextRequest) {
         }
         const isClicked = searchParams.get("isClicked");
         if (isClicked === "1") {
-            conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`);
+            conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id)`);
         } else if (isClicked === "0") {
-            conditions.push(sql`NOT EXISTS (SELECT 1 FROM email_click_logs WHERE send_log_id = ${emailSendLogs.id})`);
+            conditions.push(sql`NOT EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id)`);
             conditions.push(eq(emailSendLogs.status, "sent"));
         }
 

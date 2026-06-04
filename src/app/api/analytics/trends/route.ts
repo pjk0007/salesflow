@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
                     date: sql<string>`date_trunc('day', ${emailSendLogs.sentAt})::date::text`.as("date"),
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
-                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} where ${emailClickLogs.sendLogId} = ${emailSendLogs.id}))::int`.as("clicked"),
+                    clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} ecl where ecl.send_log_id = email_send_logs.id))::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
                 .where(and(
