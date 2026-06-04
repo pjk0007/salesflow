@@ -7,11 +7,13 @@ import { ArrowUp, ArrowDown, X } from "lucide-react";
 import type { FunnelStage, StageMatch, FunnelOptions } from "../types/funnel";
 import { FieldValueSelector } from "./funnel-stage/FieldValueSelector";
 import { PageSelector } from "./funnel-stage/PageSelector";
+import { CustomEventSelector } from "./funnel-stage/CustomEventSelector";
 import { slugify, defaultMatchFor } from "./funnel-stage/utils";
 
 const MATCH_TYPES: Array<{ value: StageMatch["type"]; label: string; hint: string }> = [
     { value: "record_field", label: "필드 값", hint: "예: 매치 단계가 '신청완료'였던 적이 있는 사람 (이력 기반)" },
     { value: "page_url", label: "페이지 방문", hint: "예: /pricing 같은 특정 경로를 한 번이라도 방문한 사람" },
+    { value: "custom_event", label: "이벤트 발생", hint: "예: 'subscribe_step_2' 같은 CUSTOM 이벤트를 한 번이라도 발생시킨 사람" },
 ];
 
 interface Props {
@@ -29,11 +31,17 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
 
     const eventTypes = options?.eventTypes ?? [];
     const popularPaths = options?.popularPaths ?? [];
+    const customEvents = options?.customEvents ?? [];
 
-    // 단계 라벨 자동 추천: 사용자 입력 비어있을 때 매칭 값에서 따옴
+    // 단계 라벨 자동 추천: 사용자 입력 비어있을 때 매칭 값에서 따옴.
+    // custom_event는 이벤트 라벨 카드에 정의된 한글 라벨을 우선 사용 (없으면 이벤트 코드).
     const suggestLabel = (m: StageMatch): string => {
         if (m.type === "record_field") return m.value ?? "";
         if (m.type === "page_url") return m.pathPrefix ?? "";
+        if (m.type === "custom_event") {
+            const def = customEvents.find((e) => e.eventName === m.eventName);
+            return def?.label || m.eventName || "";
+        }
         return "";
     };
     const applyMatchWithLabel = (next: StageMatch) => {
@@ -93,6 +101,13 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
                     {stage.match.type === "page_url" && (
                         <PageSelector
                             popularPaths={popularPaths}
+                            current={stage.match}
+                            onChange={applyMatchWithLabel}
+                        />
+                    )}
+                    {stage.match.type === "custom_event" && (
+                        <CustomEventSelector
+                            customEvents={customEvents}
                             current={stage.match}
                             onChange={applyMatchWithLabel}
                         />

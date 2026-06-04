@@ -1,7 +1,8 @@
 import { z } from "zod";
 
-// 단계 매칭 조건 — 2가지 타입.
+// 단계 매칭 조건 — 3가지 타입.
 // record_field는 시스템이 자동으로 현재 상태(records.data) + 변경 이력(record_events) 합집합 매칭.
+// custom_event는 사이트가 sendb.track으로 쏜 CUSTOM 이벤트(event_name) 발생 여부.
 export const stageMatchSchema = z.discriminatedUnion("type", [
     z.object({
         type: z.literal("record_field"),
@@ -11,6 +12,10 @@ export const stageMatchSchema = z.discriminatedUnion("type", [
     z.object({
         type: z.literal("page_url"),
         pathPrefix: z.string().min(1).max(200),
+    }),
+    z.object({
+        type: z.literal("custom_event"),
+        eventName: z.string().min(1).max(100),
     }),
 ]);
 

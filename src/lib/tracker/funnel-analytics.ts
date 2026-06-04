@@ -71,6 +71,19 @@ export async function getStageVisitorIds(
         return new Set(rows.map((r) => r.id));
     }
 
+    if (match.type === "custom_event") {
+        // CUSTOM 이벤트(sendb.track) 발생 여부 — event_name 일치하면 도달.
+        const rows = (await db.execute(sql`
+            SELECT DISTINCT ev.visitor_id AS id
+            FROM tracker_events ev
+            WHERE ev.site_id = ${ctx.siteId}
+              AND ev.event_type = 'CUSTOM'
+              AND ev.event_name = ${match.eventName}
+              AND ev.visitor_id IN ${ctx.meaningfulVisitorIdsSql}
+        `)) as unknown as Array<{ id: number }>;
+        return new Set(rows.map((r) => r.id));
+    }
+
     return new Set();
 }
 

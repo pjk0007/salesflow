@@ -6,5 +6,6 @@ export function slugify(s: string): string {
 
 export function defaultMatchFor(type: StageMatch["type"]): StageMatch {
     if (type === "record_field") return { type, field: "", value: "" };
+    if (type === "custom_event") return { type, eventName: "" };
     return { type: "page_url", pathPrefix: "" };
 }

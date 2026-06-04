@@ -7,10 +7,15 @@
  *     ② OR record_events에 (type=field, label=value) (변경 이력)
  *   둘 중 하나라도 맞으면 통과. 트래커 도입 전 record와 신규 record를 모두 잡음.
  * - "page_url": 특정 페이지 경로 방문 여부.
+ * - "custom_event": CUSTOM 트래커 이벤트(sendb.track) 발생 여부.
+ *   각 사이트가 자기 단계를 자유 이름으로 쏘고(예: 'subscribe_step_2'),
+ *   그 이벤트가 한 번이라도 발생한 visitor를 단계 도달로 본다.
+ *   멀티테넌시 — 코드에 사이트별 단계명을 박지 않고 사이트가 정의.
  */
 export type StageMatch =
     | { type: "record_field"; field: string; value: string }
-    | { type: "page_url"; pathPrefix: string };
+    | { type: "page_url"; pathPrefix: string }
+    | { type: "custom_event"; eventName: string };
 
 export interface FunnelStage {
     key: string;        // 내부 slug (응답/식별용)
@@ -60,6 +65,8 @@ export interface FunnelOptions {
     eventTypes: Array<{ type: string; labels: string[] }>;
     // 인기 페이지 경로 (page_url 매칭용)
     popularPaths: string[];
+    // CUSTOM 이벤트 목록 (custom_event 매칭용) — 이름 + 라벨(이벤트 라벨 카드에서 정의)
+    customEvents: Array<{ eventName: string; label: string }>;
 }
 
 export type FunnelOptionsResponse =

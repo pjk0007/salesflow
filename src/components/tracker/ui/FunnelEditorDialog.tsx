@@ -111,10 +111,11 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, onSaved }: Omit<Props,
                             1. 방문 (자동) · 2. 리드 (자동)
                         </div>
                         <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
-                            <p className="mb-1 font-medium">단계는 2가지 방식으로 정의할 수 있어요:</p>
+                            <p className="mb-1 font-medium">단계는 3가지 방식으로 정의할 수 있어요:</p>
                             <ul className="space-y-0.5 pl-3">
                                 <li>• <span className="font-medium">필드 값</span>: 예) 매치 단계가 &quot;신청완료&quot;였던 적이 있는 사람 (변경 이력 기준)</li>
                                 <li>• <span className="font-medium">페이지 방문</span>: 예) /pricing 같은 특정 경로를 본 적 있는 사람</li>
+                                <li>• <span className="font-medium">이벤트 발생</span>: 예) &apos;subscribe_step_2&apos; 같은 CUSTOM 이벤트를 발생시킨 사람 (이름을 직접 정의하고 사이트에 심으세요)</li>
                             </ul>
                             <p className="mt-1.5">상위 단계 도달자는 자동으로 하위 단계도 통과한 걸로 카운트됩니다 (전환된 후 종료된 사람도 전환에 잡힙니다).</p>
                         </div>

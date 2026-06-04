@@ -1240,13 +1240,14 @@ export const trackerFunnels = pgTable("tracker_funnels", {
     index("tracker_funnels_site_idx").on(table.siteId),
 ]);
 
-// schema에서는 직접 타입을 정의 (UI types 파일과 동기화 필요)
+// schema에서는 직접 타입을 정의 (UI types 파일과 동기화 필요 — src/components/tracker/types/funnel.ts)
 type FunnelStageData = {
     key: string;
     label: string;
     match:
         | { type: "record_field"; field: string; value: string }
-        | { type: "page_url"; pathPrefix: string };
+        | { type: "page_url"; pathPrefix: string }
+        | { type: "custom_event"; eventName: string };
 };
 
 export type TrackerFunnel = typeof trackerFunnels.$inferSelect;
