@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tags, Plus, Pencil, Trash2 } from "lucide-react";
+import { Tags, Plus, Pencil, Trash2, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useEventAliases, deleteEventAlias } from "../hooks/useEventAliases";
 import { EventAliasEditorDialog } from "./EventAliasEditorDialog";
@@ -13,10 +13,29 @@ interface Props {
     siteId: number;
 }
 
+function CopyBtn({ text, title }: { text: string; title?: string }) {
+    const [copied, setCopied] = useState(false);
+    return (
+        <button
+            type="button"
+            title={title}
+            className="ml-1.5 inline-flex align-middle text-muted-foreground hover:text-foreground"
+            onClick={() => {
+                navigator.clipboard.writeText(text);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+            }}
+        >
+            {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+        </button>
+    );
+}
+
 const FILTERS: Array<{ value: "all" | EventAliasType; label: string }> = [
     { value: "all", label: "전체" },
     { value: "SECTION_VIEW", label: "섹션 노출" },
     { value: "CLICK", label: "클릭" },
+    { value: "CUSTOM", label: "이벤트 코드" },
 ];
 
 /**
@@ -121,9 +140,14 @@ export function EventAliasesCard({ siteId }: Props) {
                                     return (
                                         <tr key={`${r.eventType}-${r.eventName}`} className="border-t">
                                             <td className="px-2 py-1.5 font-mono text-[11px] text-muted-foreground">
-                                                {r.eventType === "SECTION_VIEW" ? "섹션" : "클릭"}
+                                                {r.eventType === "SECTION_VIEW" ? "섹션" : r.eventType === "CLICK" ? "클릭" : "이벤트"}
                                             </td>
-                                            <td className="px-2 py-1.5 font-mono">{r.eventName}</td>
+                                            <td className="px-2 py-1.5 font-mono">
+                                                {r.eventName}
+                                                {r.eventType === "CUSTOM" && (
+                                                    <CopyBtn text={`sendb.track('${r.eventName}')`} title="sendb.track 코드 복사" />
+                                                )}
+                                            </td>
                                             <td className="px-2 py-1.5">
                                                 {hasLabel ? (
                                                     <span>{r.label}</span>

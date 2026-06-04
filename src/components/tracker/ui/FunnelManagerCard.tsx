@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Target, Plus, Star, Pencil, Trash2 } from "lucide-react";
+import { Target, Plus, Star, Pencil, Trash2, Copy, Check, Code } from "lucide-react";
 import { toast } from "sonner";
 import { FunnelEditorDialog } from "./FunnelEditorDialog";
 import { useTrackerFunnels, deleteFunnel, updateFunnel } from "../hooks/useTrackerFunnels";
@@ -11,6 +11,22 @@ import type { FunnelDefinition } from "../types/funnel";
 
 interface Props {
     siteId: number;
+}
+
+function CopyBtn({ text }: { text: string }) {
+    const [copied, setCopied] = useState(false);
+    return (
+        <Button
+            size="sm" variant="ghost" className="h-6 px-1.5"
+            onClick={() => {
+                navigator.clipboard.writeText(text);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+            }}
+        >
+            {copied ? <Check className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+        </Button>
+    );
 }
 
 /**
@@ -21,6 +37,19 @@ export function FunnelManagerCard({ siteId }: Props) {
     const { funnels, isLoading, mutate } = useTrackerFunnels(siteId);
     const [editing, setEditing] = useState<FunnelDefinition | null>(null);
     const [open, setOpen] = useState(false);
+
+    // 퍼널 단계로 정의된 CUSTOM 이벤트 코드 목록 — 사이트에 심어야 데이터가 쌓인다.
+    const customEventCodes = useMemo(() => {
+        const seen = new Map<string, string>(); // eventName → label
+        for (const f of funnels) {
+            for (const s of f.stages) {
+                if (s.match.type === "custom_event" && s.match.eventName) {
+                    if (!seen.has(s.match.eventName)) seen.set(s.match.eventName, s.label);
+                }
+            }
+        }
+        return [...seen.entries()].map(([eventName, label]) => ({ eventName, label }));
+    }, [funnels]);
 
     const handleAdd = () => {
         setEditing(null);
@@ -73,7 +102,7 @@ export function FunnelManagerCard({ siteId }: Props) {
                     <p className="text-sm text-muted-foreground">불러오는 중...</p>
                 ) : funnels.length === 0 ? (
                     <p className="rounded-md border border-dashed bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-                        정의된 퍼널이 없습니다. "퍼널 추가"로 시작하세요.
+                        정의된 퍼널이 없습니다. &quot;퍼널 추가&quot;로 시작하세요.
                     </p>
                 ) : (
                     <ul className="space-y-2">
@@ -111,6 +140,30 @@ export function FunnelManagerCard({ siteId }: Props) {
                             </li>
                         ))}
                     </ul>
+                )}
+
+                {customEventCodes.length > 0 && (
+                    <div className="rounded-md border bg-muted/30 p-3">
+                        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold">
+                            <Code className="h-3.5 w-3.5" />
+                            이벤트 단계 — 사이트에 심을 코드
+                        </p>
+                        <p className="mb-2 text-[11px] text-muted-foreground">
+                            아래 이벤트 코드를 사이트의 해당 동작 시점에 호출해야 단계 데이터가 쌓입니다.
+                            (예: 구독신청 단계에서 다음 버튼 클릭 시)
+                        </p>
+                        <ul className="space-y-1.5">
+                            {customEventCodes.map(({ eventName, label }) => (
+                                <li key={eventName} className="flex items-center gap-2 rounded bg-card px-2 py-1.5">
+                                    <span className="shrink-0 text-[11px] text-muted-foreground">{label}</span>
+                                    <code className="flex-1 truncate font-mono text-[11px]">
+                                        sendb.track(&apos;{eventName}&apos;)
+                                    </code>
+                                    <CopyBtn text={`sendb.track('${eventName}')`} />
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
                 )}
             </CardContent>
             <FunnelEditorDialog

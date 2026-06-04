@@ -1,6 +1,6 @@
 // 이벤트 별칭 관리 응답 타입
 
-export type EventAliasType = "SECTION_VIEW" | "CLICK";
+export type EventAliasType = "SECTION_VIEW" | "CLICK" | "CUSTOM";
 
 /**
  * 별칭 관리 카드에서 표시할 한 행.

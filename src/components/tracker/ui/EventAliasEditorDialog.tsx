@@ -113,6 +113,7 @@ function EventAliasEditorBody({
                         <SelectContent>
                             <SelectItem value="SECTION_VIEW">SECTION_VIEW (섹션 노출)</SelectItem>
                             <SelectItem value="CLICK">CLICK (클릭)</SelectItem>
+                            <SelectItem value="CUSTOM">CUSTOM (직접 정의 이벤트)</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -128,13 +129,19 @@ function EventAliasEditorBody({
                     </datalist>
                     <Input
                         list={isEdit ? undefined : datalistId}
-                        placeholder="예: hero, service-cta, hero-free-trial"
+                        placeholder={eventType === "CUSTOM" ? "예: subscribe_step_2" : "예: hero, service-cta, hero-free-trial"}
                         value={eventName}
                         onChange={(e) => setEventName(e.target.value)}
                         disabled={isEdit}
-                        className="h-9 text-sm"
+                        className="h-9 text-sm font-mono"
                     />
                 </div>
+                {eventType === "CUSTOM" && eventName.trim() && (
+                    <div className="rounded-md border bg-muted/40 p-2 text-[11px]">
+                        <span className="text-muted-foreground">사이트에 심을 코드: </span>
+                        <code className="font-mono">sendb.track(&apos;{eventName.trim()}&apos;)</code>
+                    </div>
+                )}
                 <div className="space-y-1">
                     <label className="text-xs text-muted-foreground">라벨 (운영자 표시용)</label>
                     <Input

@@ -31,7 +31,7 @@ function invalidateEngagement() {
 
 export async function createEventAlias(payload: {
     siteId: number;
-    eventType: "SECTION_VIEW" | "CLICK";
+    eventType: "SECTION_VIEW" | "CLICK" | "CUSTOM";
     eventName: string;
     label: string;
 }) {

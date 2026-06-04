@@ -100,8 +100,33 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     `)) as unknown as Array<{ path: string; cnt: number }>;
     const popularPaths = pathRows.map((r) => r.path).filter((p) => p && p !== "");
 
+    // 4) CUSTOM 이벤트 목록 (custom_event 매칭용) + 라벨
+    //    = 최근 90일 발생한 것 + 이벤트 라벨 카드에 등록된 CUSTOM alias(미발생 포함).
+    //    "이벤트를 먼저 정의(라벨 카드) → 퍼널에서 골라쓰기"를 위해 등록분도 노출하고,
+    //    퍼널 드롭다운에 한글 라벨을 같이 보여주려고 alias.label을 join.
+    const customRows = (await db.execute(sql`
+        WITH names AS (
+            SELECT event_name FROM tracker_events
+            WHERE site_id = ${siteId} AND event_type = 'CUSTOM' AND event_name IS NOT NULL
+              AND occurred_at >= now() - INTERVAL '90 days'
+            GROUP BY event_name
+            UNION
+            SELECT event_name FROM tracker_event_aliases
+            WHERE site_id = ${siteId} AND event_type = 'CUSTOM'
+        )
+        SELECT n.event_name AS "eventName", a.label
+        FROM names n
+        LEFT JOIN tracker_event_aliases a
+            ON a.site_id = ${siteId} AND a.event_type = 'CUSTOM' AND a.event_name = n.event_name
+        ORDER BY n.event_name
+        LIMIT 100
+    `)) as unknown as Array<{ eventName: string; label: string | null }>;
+    const customEvents = customRows
+        .filter((r) => r.eventName && r.eventName !== "")
+        .map((r) => ({ eventName: r.eventName, label: r.label ?? "" }));
+
     return NextResponse.json({
         success: true,
-        data: { eventTypes, popularPaths },
+        data: { eventTypes, popularPaths, customEvents },
     });
 }

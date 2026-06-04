@@ -21,27 +21,38 @@ export async function GET(req: NextRequest) {
         .where(and(eq(trackerSites.id, siteId), eq(trackerSites.orgId, user.orgId)));
     if (!site) return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
 
+    // 발생한 이벤트(SECTION_VIEW/CLICK/CUSTOM) + 등록된 모든 alias의 합집합.
+    // 등록된 alias는 아직 발생 안 했어도(occurrences=0) 노출 — CUSTOM 이벤트를 미리 정의하고
+    // 사이트에 심기 전이라도 퍼널/코드 안내에서 쓸 수 있게.
     const rows = (await db.execute(sql`
+        WITH occ AS (
+            SELECT event_type, event_name, COUNT(*)::int AS occurrences
+            FROM tracker_events
+            WHERE site_id = ${siteId}
+              AND event_type IN ('SECTION_VIEW', 'CLICK', 'CUSTOM')
+              AND event_name IS NOT NULL
+            GROUP BY event_type, event_name
+        ),
+        keys AS (
+            SELECT event_type, event_name FROM occ
+            UNION
+            SELECT event_type, event_name FROM tracker_event_aliases WHERE site_id = ${siteId}
+        )
         SELECT
             a.id,
-            ev.event_type AS "eventType",
-            ev.event_name AS "eventName",
+            k.event_type AS "eventType",
+            k.event_name AS "eventName",
             a.label,
-            COUNT(*)::int AS occurrences
-        FROM tracker_events ev
+            COALESCE(o.occurrences, 0) AS occurrences
+        FROM keys k
+        LEFT JOIN occ o ON o.event_type = k.event_type AND o.event_name = k.event_name
         LEFT JOIN tracker_event_aliases a
-            ON a.site_id = ev.site_id
-           AND a.event_type = ev.event_type
-           AND a.event_name = ev.event_name
-        WHERE ev.site_id = ${siteId}
-          AND ev.event_type IN ('SECTION_VIEW', 'CLICK')
-          AND ev.event_name IS NOT NULL
-        GROUP BY a.id, ev.event_type, ev.event_name, a.label
-        ORDER BY ev.event_type, occurrences DESC
+            ON a.site_id = ${siteId} AND a.event_type = k.event_type AND a.event_name = k.event_name
+        ORDER BY k.event_type, occurrences DESC
         LIMIT 200
     `)) as unknown as Array<{
         id: number | null;
-        eventType: "SECTION_VIEW" | "CLICK";
+        eventType: "SECTION_VIEW" | "CLICK" | "CUSTOM";
         eventName: string;
         label: string | null;
         occurrences: number;
@@ -86,7 +97,7 @@ export async function POST(req: NextRequest) {
             success: true,
             data: {
                 id: created.id,
-                eventType: created.eventType as "SECTION_VIEW" | "CLICK",
+                eventType: created.eventType as "SECTION_VIEW" | "CLICK" | "CUSTOM",
                 eventName: created.eventName,
                 label: created.label,
             },

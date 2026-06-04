@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const allowedTypes = ["SECTION_VIEW", "CLICK"] as const;
+const allowedTypes = ["SECTION_VIEW", "CLICK", "CUSTOM"] as const;
 
 export const eventAliasCreateSchema = z.object({
     siteId: z.number().int().positive(),
