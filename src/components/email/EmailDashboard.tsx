@@ -31,6 +31,8 @@ import {
     Tooltip,
     Legend,
 } from "recharts";
+import { DailyEmailTable } from "./DailyEmailTable";
+import { KeyLeadsCard } from "./KeyLeadsCard";
 
 interface EmailDashboardProps {
     onTabChange?: (tab: string) => void;
@@ -240,6 +242,12 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                     </CardContent>
                 </Card>
             )}
+
+            {/* 날짜별 발송·클릭 비율 (유형·캠페인 드릴다운) */}
+            <DailyEmailTable startDate={startDate} endDate={endDate} />
+
+            {/* 핵심 리드 */}
+            <KeyLeadsCard />
 
             {/* 네비게이션 버튼 */}
             <div className="flex gap-3">
