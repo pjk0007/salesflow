@@ -6,6 +6,7 @@ import {
     trackerVisitors,
     trackerEvents,
     trackerSessions,
+    trackerFunnels,
     emailSendLogs,
     emailClickLogs,
     fieldDefinitions,
@@ -47,6 +48,14 @@ function josaRo(s: string): string {
     const jong = (last - 0xac00) % 28;
     // jong 0 = 받침없음, 8 = ㄹ → "로"
     return jong === 0 || jong === 8 ? "로" : "으로";
+}
+
+// 트래커 이벤트의 타임라인 라벨.
+// CUSTOM/CLICK/SECTION_VIEW는 event_name이 핵심 정보(예: subscribe_step_2)이므로 우선.
+// PAGE_VIEW는 event_name이 없으니 page_title.
+function trackerEventLabel(ev: { eventType: string; eventName: string | null; pageTitle: string | null; pageUrl: string | null }): string {
+    if (ev.eventType === "PAGE_VIEW") return ev.pageTitle ?? ev.pageUrl ?? ev.eventType;
+    return ev.eventName ?? ev.pageTitle ?? ev.pageUrl ?? ev.eventType;
 }
 
 // record_events.type → 채널 라벨
@@ -166,6 +175,21 @@ export async function GET(
                 : Promise.resolve([]),
         ]);
 
+        // 퍼널 단계로 등록된 CUSTOM 이벤트 이름 집합 — 이 이름의 CUSTOM 이벤트는
+        // [사이트]가 아니라 [단계 전환] 행에 표시한다 (사이트가 정의한 단계만, 멀티테넌시 안전).
+        const trkSiteIds = [...new Set(trkSessions.map((s) => s.siteId))];
+        const funnelStageEventNames = new Set<string>();
+        if (trkSiteIds.length) {
+            const funnels = await db.select({ stages: trackerFunnels.stages })
+                .from(trackerFunnels)
+                .where(inArray(trackerFunnels.siteId, trkSiteIds));
+            for (const f of funnels) {
+                for (const st of (f.stages ?? [])) {
+                    if (st.match?.type === "custom_event") funnelStageEventNames.add(st.match.eventName);
+                }
+            }
+        }
+
         // ── normalize ──
         const events: JourneyEvent[] = [];
 
@@ -196,15 +220,34 @@ export async function GET(
                 looseEvents.push(ev);
             }
         }
+        // 퍼널 단계로 등록된 CUSTOM 이벤트인지
+        const isFunnelStageEvent = (ev: TrkEvent) =>
+            ev.eventType === "CUSTOM" && ev.eventName != null && funnelStageEventNames.has(ev.eventName);
+
         for (const s of trkSessions) {
-            const children = (eventsBySession.get(s.id) ?? []).map<JourneyEvent>((ev) => ({
-                at: ev.occurredAt.toISOString(),
-                source: "tracker",
-                channel: "사이트",
-                type: ev.eventType,
-                label: ev.pageTitle ?? ev.pageUrl ?? ev.eventType,
-                meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
-            }));
+            const sessionEvents = eventsBySession.get(s.id) ?? [];
+            // 퍼널 단계 이벤트는 세션 children에서 빼서 [단계 전환] 행에 독립 표시.
+            const stageEvents = sessionEvents.filter(isFunnelStageEvent);
+            const children = sessionEvents
+                .filter((ev) => !isFunnelStageEvent(ev))
+                .map<JourneyEvent>((ev) => ({
+                    at: ev.occurredAt.toISOString(),
+                    source: "tracker",
+                    channel: "사이트",
+                    type: ev.eventType,
+                    label: trackerEventLabel(ev),
+                    meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
+                }));
+            for (const ev of stageEvents) {
+                events.push({
+                    at: ev.occurredAt.toISOString(),
+                    source: "tracker",
+                    channel: "단계",
+                    type: ev.eventType,
+                    label: trackerEventLabel(ev),
+                    meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
+                });
+            }
             const inflow = classifyInflow(s.referrer, s.landingPage);
             events.push({
                 at: s.startedAt.toISOString(),
@@ -226,10 +269,10 @@ export async function GET(
             events.push({
                 at: ev.occurredAt.toISOString(),
                 source: "tracker",
-                channel: "사이트",
+                channel: isFunnelStageEvent(ev) ? "단계" : "사이트",
                 type: ev.eventType,
-                label: ev.pageTitle ?? ev.pageUrl ?? ev.eventType,
-                meta: { pageUrl: ev.pageUrl },
+                label: trackerEventLabel(ev),
+                meta: { pageUrl: ev.pageUrl, eventName: ev.eventName },
             });
         }
 

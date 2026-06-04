@@ -54,6 +54,9 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 </ul>
             )}
 
+            {/* CUSTOM 이벤트(단계 등): 입력/속성 표시 — 어느 단계에서 무엇을 채우고 넘어갔는지 */}
+            {event.type === "CUSTOM" && <CustomEventProps properties={meta.properties} />}
+
             {/* 메일: 제목/CTA/URL */}
             {event.source === "email" && (
                 <div className="space-y-0.5 text-xs text-muted-foreground">
@@ -67,6 +70,43 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 <div className="flex flex-wrap gap-x-4 gap-y-1 border-t pt-2 text-xs text-muted-foreground">
                     {meta.by != null && <span>수정자 · {String(meta.by).slice(0, 8)}</span>}
                     {meta.trigger != null && <span>경로 · {String(meta.trigger)}</span>}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * CUSTOM 이벤트 properties 표시 — sendb.track(name, properties)로 보낸 값.
+ * filled_keys(채운 필드명 배열)는 칩으로, 그 외 스칼라는 key·value로.
+ * (개인정보 보호상 보통 값이 아니라 "어느 필드를 채웠나"만 담김)
+ */
+function CustomEventProps({ properties }: { properties: unknown }) {
+    if (!properties || typeof properties !== "object") return null;
+    const props = properties as Record<string, unknown>;
+    const filledKeys = Array.isArray(props.filled_keys) ? (props.filled_keys as unknown[]).map(String) : [];
+    // filled_keys / step 외 나머지 스칼라 속성
+    const extras = Object.entries(props).filter(
+        ([k, v]) => k !== "filled_keys" && k !== "step" && (typeof v === "string" || typeof v === "number" || typeof v === "boolean"),
+    );
+    if (filledKeys.length === 0 && extras.length === 0) return null;
+    return (
+        <div className="space-y-1.5">
+            {filledKeys.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">입력한 항목</span>
+                    {filledKeys.map((k) => (
+                        <span key={k} className="rounded-md bg-muted px-2 py-0.5 text-[11px]">{k}</span>
+                    ))}
+                </div>
+            )}
+            {extras.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                    {extras.map(([k, v]) => (
+                        <span key={k} className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                            {k} · {String(v)}
+                        </span>
+                    ))}
                 </div>
             )}
         </div>
