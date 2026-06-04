@@ -2,8 +2,9 @@ import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export interface KeyLead {
-    id: number;
-    recordId: number | null;
+    recordId: number;
+    siteId: number;
+    product: string | null;
     email: string | null;
     name: string | null;
     totalVisits: number;

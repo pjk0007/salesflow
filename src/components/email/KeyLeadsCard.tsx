@@ -17,7 +17,7 @@ function formatDuration(sec: number): string {
 }
 
 function leadLabel(lead: KeyLead): string {
-    return lead.name || lead.email || `방문자 #${lead.id}`;
+    return lead.name || lead.email || `고객 #${lead.recordId}`;
 }
 
 /**
@@ -48,6 +48,7 @@ export function KeyLeadsCard() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>고객</TableHead>
+                                <TableHead>프로덕트</TableHead>
                                 <TableHead className="text-right">방문</TableHead>
                                 <TableHead className="text-right">체류</TableHead>
                                 <TableHead className="text-right">클릭</TableHead>
@@ -58,17 +59,18 @@ export function KeyLeadsCard() {
                             {leads.map((lead) => {
                                 const label = leadLabel(lead);
                                 return (
-                                    <TableRow key={lead.id}>
-                                        <TableCell className="font-medium max-w-[220px] truncate">
-                                            {lead.recordId ? (
-                                                <Link href={`/records/${lead.recordId}`} className="hover:underline" title={label}>
-                                                    {label}
-                                                </Link>
-                                            ) : (
-                                                <span title={label}>{label}</span>
-                                            )}
+                                    <TableRow key={`${lead.recordId}-${lead.siteId}`}>
+                                        <TableCell className="font-medium max-w-[200px] truncate">
+                                            <Link href={`/records?id=${lead.recordId}`} className="hover:underline" title={label}>
+                                                {label}
+                                            </Link>
                                             {lead.email && lead.name && (
                                                 <span className="ml-1 text-xs text-muted-foreground">{lead.email}</span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {lead.product && (
+                                                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{lead.product}</span>
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right tabular-nums">
