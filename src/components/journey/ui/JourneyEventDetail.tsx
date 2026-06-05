@@ -118,15 +118,20 @@ function ymdFromSeconds(sec: number): string {
     return kst.toISOString().slice(0, 10);
 }
 
-/** 객체 하나를 짧은 라벨로 — 라벨키 우선, 없으면 비어있지 않은 첫 스칼라. */
+/** http(s) URL 문자열인지 (파일/링크 — 긴 주소는 그대로 노출하지 않고 축약). */
+function isUrl(s: string): boolean {
+    return /^https?:\/\//i.test(s.trim());
+}
+
+/** 객체 하나를 짧은 라벨로 — 라벨키 우선, 없으면 비어있지 않은 첫 스칼라. URL은 라벨로 쓰지 않음. */
 function objectLabel(o: Record<string, unknown>): string | null {
     for (const k of LABEL_KEYS) {
         const v = o[k];
-        if (typeof v === "string" && v.trim()) return v;
+        if (typeof v === "string" && v.trim() && !isUrl(v)) return v;
         if (typeof v === "number") return String(v);
     }
     for (const v of Object.values(o)) {
-        if (typeof v === "string" && v.trim()) return v;
+        if (typeof v === "string" && v.trim() && !isUrl(v)) return v;
         if (typeof v === "number") return String(v);
     }
     return null;
@@ -135,19 +140,30 @@ function objectLabel(o: Record<string, unknown>): string | null {
 /**
  * 값 직렬화 — raw JSON을 사람이 읽게 가공. 디하 등 사이트별 폼 구조에 하드코딩하지 않는 범용 규칙:
  *  - firestore timestamp → 날짜(YYYY-MM-DD)
+ *  - URL 문자열 → "파일"(개수 있으면 "파일 N개") — 긴 주소 노출 방지
  *  - 객체 배열 → 각 객체의 라벨(sub/label/name…)만 뽑아 쉼표
  *  - 스칼라 배열 → 쉼표 join
  *  - 빈 값([], {}, "", null) → null (호출부에서 숨김)
  */
 function formatValue(v: unknown): string | null {
     if (v == null || v === "") return null;
-    if (typeof v === "string") return v.trim() || null;
+    if (typeof v === "string") {
+        const s = v.trim();
+        if (!s) return null;
+        return isUrl(s) ? "파일 1개" : s;
+    }
     if (typeof v === "number" || typeof v === "boolean") return String(v);
 
     if (Array.isArray(v)) {
+        // URL 항목은 따로 세서 "파일 N개"로 (긴 주소 나열 방지)
+        let fileCount = 0;
         const parts = v
             .map((x) => {
                 if (x == null || x === "") return null;
+                if (typeof x === "string") {
+                    if (isUrl(x)) { fileCount += 1; return null; }
+                    return x;
+                }
                 if (typeof x === "object") {
                     const o = x as Record<string, unknown>;
                     const sec = firestoreSeconds(o);
@@ -157,6 +173,7 @@ function formatValue(v: unknown): string | null {
                 return String(x);
             })
             .filter((p): p is string => p != null && p !== "");
+        if (fileCount > 0) parts.push(`파일 ${fileCount}개`);
         return parts.length ? parts.join(", ") : null;
     }
 
