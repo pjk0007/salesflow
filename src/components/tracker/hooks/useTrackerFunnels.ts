@@ -2,7 +2,7 @@
 
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
-import type { FunnelDefinition, FunnelsListResponse, FunnelMutateResponse } from "../types/funnel";
+import type { FunnelDefinition, FunnelKind, FunnelsListResponse, FunnelMutateResponse } from "../types/funnel";
 
 export function useTrackerFunnels(siteId: number | null) {
     const key = siteId ? `/api/tracker/funnels?siteId=${siteId}` : null;
@@ -26,6 +26,7 @@ async function postJson<T>(url: string, body: unknown, method = "POST"): Promise
 
 export async function createFunnel(input: {
     siteId: number; name: string;
+    kind?: FunnelKind;
     stages: FunnelDefinition["stages"];
     isDefault?: boolean;
 }): Promise<FunnelDefinition> {
@@ -36,6 +37,7 @@ export async function createFunnel(input: {
 
 export async function updateFunnel(id: number, input: {
     name?: string;
+    kind?: FunnelKind;
     stages?: FunnelDefinition["stages"];
     isDefault?: boolean;
 }): Promise<FunnelDefinition> {

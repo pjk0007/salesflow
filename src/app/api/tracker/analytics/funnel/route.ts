@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerFunnels } from "@/lib/db";
 import { and, eq, sql, desc } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { computeSequentialStageCounts, AUTO_STAGE_VISIT, AUTO_STAGE_LEAD } from "@/lib/tracker/funnel-analytics";
+import { computeSequentialStageCounts, getStageVisitorIds, AUTO_STAGE_VISIT, AUTO_STAGE_LEAD } from "@/lib/tracker/funnel-analytics";
 import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
 import type { FunnelStageResult } from "@/components/tracker/types/funnel";
 
@@ -44,18 +44,19 @@ export async function GET(req: NextRequest) {
     // 퍼널 선택: funnelId 지정 / 또는 사이트의 is_default
     const funnelIdParam = sp.get("funnelId");
     let funnel:
-        | { id: number; name: string; stages: { key: string; label: string; match: import("@/components/tracker/types/funnel").StageMatch }[] }
+        | { id: number; name: string; kind: import("@/components/tracker/types/funnel").FunnelKind; stages: { key: string; label: string; match: import("@/components/tracker/types/funnel").StageMatch }[] }
         | null = null;
     if (funnelIdParam) {
         const [f] = await db.select().from(trackerFunnels)
             .where(and(eq(trackerFunnels.id, Number(funnelIdParam)), eq(trackerFunnels.siteId, siteId)));
-        if (f) funnel = { id: f.id, name: f.name, stages: f.stages };
+        if (f) funnel = { id: f.id, name: f.name, kind: f.kind as import("@/components/tracker/types/funnel").FunnelKind, stages: f.stages };
     } else {
+        // 기본(funnelId 미지정): 개요 메인 퍼널 = marketing 한정 (event 퍼널은 메인 대상 아님)
         const [f] = await db.select().from(trackerFunnels)
             .where(and(eq(trackerFunnels.siteId, siteId), eq(trackerFunnels.isDefault, 1)))
             .orderBy(desc(trackerFunnels.createdAt))
             .limit(1);
-        if (f) funnel = { id: f.id, name: f.name, stages: f.stages };
+        if (f) funnel = { id: f.id, name: f.name, kind: f.kind as import("@/components/tracker/types/funnel").FunnelKind, stages: f.stages };
     }
 
     // 기간
@@ -109,31 +110,51 @@ export async function GET(req: NextRequest) {
         WHERE id IN ${meaningfulVisitorIdsSql}
     `)) as unknown as Array<{ visitors: number; leads: number }>;
 
-    // 사용자 정의 단계 sequential 카운트
-    const userStageCounts = funnel
-        ? await computeSequentialStageCounts({ siteId, meaningfulVisitorIdsSql }, funnel.stages)
-        : [];
+    let stages: FunnelStageResult[];
 
-    // Sequential 보정: 사용자 정의 단계 중 최상위 도달자 수 = "그 단계까지 간 사람 모두 리드 통과"
-    // userStageCounts[0]은 "stage 3단 이상 도달자 수"이므로, 리드 카운트는 그보다 작을 수 없다.
-    const topUserStageReached = userStageCounts[0] ?? 0;
-    const adjustedLeads = Math.max(vRow.leads, topUserStageReached);
+    if (funnel && funnel.kind === "event") {
+        // 행동(event) 퍼널: 자동 리드단계 없음 + cumulative 역산 미적용.
+        // 각 custom_event 단계의 실제 발생 visitor 수를 그대로 카운트한다.
+        // (역산 미적용 → 상태 도달자가 행동 단계로 오집계되는 버그 제거)
+        const eventStageCounts = await Promise.all(
+            funnel.stages.map((stage) =>
+                getStageVisitorIds({ siteId, meaningfulVisitorIdsSql }, stage.match).then((set) => set.size),
+            ),
+        );
+        stages = [
+            { key: AUTO_STAGE_VISIT, label: "방문", visitors: vRow.visitors, isAuto: true },
+            ...funnel.stages.map((stage, i) => ({
+                key: stage.key,
+                label: stage.label,
+                visitors: eventStageCounts[i] ?? 0,
+            })),
+        ];
+    } else {
+        // 마케팅(marketing) 퍼널: 방문/리드 자동단계 + 사용자 단계 sequential 역산. (기존 로직)
+        const userStageCounts = funnel
+            ? await computeSequentialStageCounts({ siteId, meaningfulVisitorIdsSql }, funnel.stages)
+            : [];
 
-    const stages: FunnelStageResult[] = [
-        { key: AUTO_STAGE_VISIT, label: "방문", visitors: vRow.visitors, isAuto: true },
-        { key: AUTO_STAGE_LEAD, label: "리드", visitors: adjustedLeads, isAuto: true },
-    ];
+        // Sequential 보정: 사용자 정의 단계 중 최상위 도달자 수 = "그 단계까지 간 사람 모두 리드 통과"
+        // userStageCounts[0]은 "stage 3단 이상 도달자 수"이므로, 리드 카운트는 그보다 작을 수 없다.
+        const topUserStageReached = userStageCounts[0] ?? 0;
+        const adjustedLeads = Math.max(vRow.leads, topUserStageReached);
 
-    if (funnel) {
-        funnel.stages.forEach((stage, i) => {
-            stages.push({ key: stage.key, label: stage.label, visitors: userStageCounts[i] ?? 0 });
-        });
+        stages = [
+            { key: AUTO_STAGE_VISIT, label: "방문", visitors: vRow.visitors, isAuto: true },
+            { key: AUTO_STAGE_LEAD, label: "리드", visitors: adjustedLeads, isAuto: true },
+        ];
+        if (funnel) {
+            funnel.stages.forEach((stage, i) => {
+                stages.push({ key: stage.key, label: stage.label, visitors: userStageCounts[i] ?? 0 });
+            });
+        }
     }
 
     return NextResponse.json({
         success: true,
         data: {
-            funnel: funnel ? { id: funnel.id, name: funnel.name } : { id: null, name: null },
+            funnel: funnel ? { id: funnel.id, name: funnel.name, kind: funnel.kind } : { id: null, name: null, kind: null },
             range: { from: fromYmd, to: toYmd },
             stages,
         },

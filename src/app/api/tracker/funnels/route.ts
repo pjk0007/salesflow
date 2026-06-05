@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
         orgId: user.orgId,
         siteId: parsed.data.siteId,
         name: parsed.data.name,
+        kind: parsed.data.kind,
         stages: parsed.data.stages,
         isDefault: parsed.data.isDefault ? 1 : 0,
     }).returning();

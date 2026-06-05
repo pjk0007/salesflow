@@ -3,11 +3,11 @@
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Target, Plus, Star, Pencil, Trash2, Copy, Check, Code } from "lucide-react";
+import { Target, Plus, Star, Pencil, Trash2, Copy, Check, Code, Activity } from "lucide-react";
 import { toast } from "sonner";
 import { FunnelEditorDialog } from "./FunnelEditorDialog";
 import { useTrackerFunnels, deleteFunnel, updateFunnel } from "../hooks/useTrackerFunnels";
-import type { FunnelDefinition } from "../types/funnel";
+import type { FunnelDefinition, FunnelKind } from "../types/funnel";
 
 interface Props {
     siteId: number;
@@ -29,19 +29,70 @@ function CopyBtn({ text }: { text: string }) {
     );
 }
 
+interface RowProps {
+    funnel: FunnelDefinition;
+    onEdit: (f: FunnelDefinition) => void;
+    onDelete: (f: FunnelDefinition) => void;
+    onSetDefault: (f: FunnelDefinition) => void;
+}
+
+function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault }: RowProps) {
+    const isEvent = f.kind === "event";
+    return (
+        <li className="rounded-md border bg-card p-3">
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                        {/* 메인 표시(별)는 마케팅 퍼널만 */}
+                        {!isEvent && (f.isDefault ? <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> : <span className="w-3.5" />)}
+                        <span className="text-sm font-medium">{f.name}</span>
+                        {!isEvent && f.isDefault === 1 && (
+                            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                메인
+                            </span>
+                        )}
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        {isEvent ? "" : "방문 → 리드 → "}
+                        {f.stages.map((s) => s.label).join(" → ") || "(단계 미정의)"}
+                    </p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                    {!isEvent && !f.isDefault && (
+                        <Button size="sm" variant="ghost" onClick={() => onSetDefault(f)} title="메인으로">
+                            <Star className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => onEdit(f)}>
+                        <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => onDelete(f)} className="text-rose-600 hover:text-rose-700">
+                        <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+            </div>
+        </li>
+    );
+}
+
 /**
  * 트래커 설정 탭 — 사이트의 사용자정의 퍼널 관리.
- * 방문/리드는 자동 단계라 여기서 정의 안 함. 3단부터 운영자가 입력.
+ * 마케팅 퍼널(방문/리드 자동 + 상태 단계)과 행동 퍼널(CUSTOM 이벤트 단계)을
+ * 한 카드 안에서 두 섹션으로 분리해, 각각 추가/관리한다.
  */
 export function FunnelManagerCard({ siteId }: Props) {
     const { funnels, isLoading, mutate } = useTrackerFunnels(siteId);
     const [editing, setEditing] = useState<FunnelDefinition | null>(null);
+    const [newKind, setNewKind] = useState<FunnelKind>("marketing");
     const [open, setOpen] = useState(false);
 
-    // 퍼널 단계로 정의된 CUSTOM 이벤트 코드 목록 — 사이트에 심어야 데이터가 쌓인다.
+    const marketingFunnels = useMemo(() => funnels.filter((f) => f.kind !== "event"), [funnels]);
+    const eventFunnels = useMemo(() => funnels.filter((f) => f.kind === "event"), [funnels]);
+
+    // 행동 퍼널 단계로 정의된 CUSTOM 이벤트 코드 — 사이트에 심어야 데이터가 쌓인다.
     const customEventCodes = useMemo(() => {
         const seen = new Map<string, string>(); // eventName → label
-        for (const f of funnels) {
+        for (const f of eventFunnels) {
             for (const s of f.stages) {
                 if (s.match.type === "custom_event" && s.match.eventName) {
                     if (!seen.has(s.match.eventName)) seen.set(s.match.eventName, s.label);
@@ -49,10 +100,11 @@ export function FunnelManagerCard({ siteId }: Props) {
             }
         }
         return [...seen.entries()].map(([eventName, label]) => ({ eventName, label }));
-    }, [funnels]);
+    }, [eventFunnels]);
 
-    const handleAdd = () => {
+    const handleAdd = (kind: FunnelKind) => {
         setEditing(null);
+        setNewKind(kind);
         setOpen(true);
     };
     const handleEdit = (f: FunnelDefinition) => {
@@ -82,95 +134,102 @@ export function FunnelManagerCard({ siteId }: Props) {
     return (
         <Card>
             <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between text-base">
-                    <span className="inline-flex items-center gap-2">
-                        <Target className="h-4 w-4 text-muted-foreground" />
-                        퍼널 관리
-                    </span>
-                    <Button size="sm" variant="outline" onClick={handleAdd}>
-                        <Plus className="mr-1 h-3.5 w-3.5" />
-                        퍼널 추가
-                    </Button>
+                <CardTitle className="inline-flex items-center gap-2 text-base">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    퍼널 관리
                 </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-                <p className="text-xs text-muted-foreground">
-                    방문 → 리드까지는 자동 단계입니다. 그 다음 단계를 사이트에 맞게 정의하세요.
-                    메인 퍼널은 개요 탭의 마케팅 퍼널 위젯에 표시됩니다.
-                </p>
-                {isLoading ? (
-                    <p className="text-sm text-muted-foreground">불러오는 중...</p>
-                ) : funnels.length === 0 ? (
-                    <p className="rounded-md border border-dashed bg-muted/30 p-4 text-center text-sm text-muted-foreground">
-                        정의된 퍼널이 없습니다. &quot;퍼널 추가&quot;로 시작하세요.
+            <CardContent className="space-y-6">
+                {/* ── 마케팅 퍼널 섹션 ── */}
+                <section className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                            <Target className="h-3.5 w-3.5 text-sky-500" />
+                            <span className="text-sm font-semibold">마케팅 퍼널</span>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => handleAdd("marketing")}>
+                            <Plus className="mr-1 h-3.5 w-3.5" />
+                            추가
+                        </Button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                        방문 → 리드까지 자동 단계. 그 다음 상태 단계를 정의하면 됩니다. 메인 퍼널은 개요 탭에 표시됩니다.
                     </p>
-                ) : (
-                    <ul className="space-y-2">
-                        {funnels.map((f) => (
-                            <li key={f.id} className="rounded-md border bg-card p-3">
-                                <div className="flex items-start justify-between gap-3">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5">
-                                            {f.isDefault ? <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-500" /> : <span className="w-3.5" />}
-                                            <span className="text-sm font-medium">{f.name}</span>
-                                            {f.isDefault === 1 && (
-                                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                                                    메인
-                                                </span>
-                                            )}
-                                        </div>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            방문 → 리드 → {f.stages.map((s) => s.label).join(" → ") || "(단계 미정의)"}
-                                        </p>
-                                    </div>
-                                    <div className="flex shrink-0 gap-1">
-                                        {!f.isDefault && (
-                                            <Button size="sm" variant="ghost" onClick={() => setAsDefault(f)} title="메인으로">
-                                                <Star className="h-3.5 w-3.5" />
-                                            </Button>
-                                        )}
-                                        <Button size="sm" variant="ghost" onClick={() => handleEdit(f)}>
-                                            <Pencil className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button size="sm" variant="ghost" onClick={() => handleDelete(f)} className="text-rose-600 hover:text-rose-700">
-                                            <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
-                                    </div>
-                                </div>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-
-                {customEventCodes.length > 0 && (
-                    <div className="rounded-md border bg-muted/30 p-3">
-                        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold">
-                            <Code className="h-3.5 w-3.5" />
-                            이벤트 단계 — 사이트에 심을 코드
+                    {isLoading ? (
+                        <p className="text-sm text-muted-foreground">불러오는 중...</p>
+                    ) : marketingFunnels.length === 0 ? (
+                        <p className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
+                            마케팅 퍼널이 없습니다. &quot;추가&quot;로 시작하세요.
                         </p>
-                        <p className="mb-2 text-[11px] text-muted-foreground">
-                            아래 이벤트 코드를 사이트의 해당 동작 시점에 호출해야 단계 데이터가 쌓입니다.
-                            (예: 구독신청 단계에서 다음 버튼 클릭 시)
-                        </p>
-                        <ul className="space-y-1.5">
-                            {customEventCodes.map(({ eventName, label }) => (
-                                <li key={eventName} className="flex items-center gap-2 rounded bg-card px-2 py-1.5">
-                                    <span className="shrink-0 text-[11px] text-muted-foreground">{label}</span>
-                                    <code className="flex-1 truncate font-mono text-[11px]">
-                                        sendb.track(&apos;{eventName}&apos;)
-                                    </code>
-                                    <CopyBtn text={`sendb.track('${eventName}')`} />
-                                </li>
+                    ) : (
+                        <ul className="space-y-2">
+                            {marketingFunnels.map((f) => (
+                                <FunnelRow key={f.id} funnel={f} onEdit={handleEdit} onDelete={handleDelete} onSetDefault={setAsDefault} />
                             ))}
                         </ul>
+                    )}
+                </section>
+
+                {/* ── 행동(이벤트) 퍼널 섹션 ── */}
+                <section className="space-y-2 border-t pt-5">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                            <Activity className="h-3.5 w-3.5 text-violet-500" />
+                            <span className="text-sm font-semibold">행동 퍼널</span>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => handleAdd("event")}>
+                            <Plus className="mr-1 h-3.5 w-3.5" />
+                            추가
+                        </Button>
                     </div>
-                )}
+                    <p className="text-[11px] text-muted-foreground">
+                        CUSTOM 이벤트 단계로 폼/행동 흐름의 단계별 이탈을 봅니다. 마케팅 탭에 표시됩니다.
+                    </p>
+                    {isLoading ? (
+                        <p className="text-sm text-muted-foreground">불러오는 중...</p>
+                    ) : eventFunnels.length === 0 ? (
+                        <p className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
+                            행동 퍼널이 없습니다. &quot;추가&quot;로 만드세요.
+                        </p>
+                    ) : (
+                        <ul className="space-y-2">
+                            {eventFunnels.map((f) => (
+                                <FunnelRow key={f.id} funnel={f} onEdit={handleEdit} onDelete={handleDelete} onSetDefault={setAsDefault} />
+                            ))}
+                        </ul>
+                    )}
+
+                    {customEventCodes.length > 0 && (
+                        <div className="rounded-md border bg-muted/30 p-3">
+                            <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold">
+                                <Code className="h-3.5 w-3.5" />
+                                이벤트 단계 — 사이트에 심을 코드
+                            </p>
+                            <p className="mb-2 text-[11px] text-muted-foreground">
+                                아래 이벤트 코드를 사이트의 해당 동작 시점에 호출해야 단계 데이터가 쌓입니다.
+                                (예: 구독신청 단계에서 다음 버튼 클릭 시)
+                            </p>
+                            <ul className="space-y-1.5">
+                                {customEventCodes.map(({ eventName, label }) => (
+                                    <li key={eventName} className="flex items-center gap-2 rounded bg-card px-2 py-1.5">
+                                        <span className="shrink-0 text-[11px] text-muted-foreground">{label}</span>
+                                        <code className="flex-1 truncate font-mono text-[11px]">
+                                            sendb.track(&apos;{eventName}&apos;)
+                                        </code>
+                                        <CopyBtn text={`sendb.track('${eventName}')`} />
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </section>
             </CardContent>
             <FunnelEditorDialog
                 open={open}
                 onOpenChange={setOpen}
                 siteId={siteId}
                 funnel={editing}
+                initialKind={newKind}
                 onSaved={() => mutate()}
             />
         </Card>

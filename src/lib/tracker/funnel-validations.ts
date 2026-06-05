@@ -25,15 +25,20 @@ export const funnelStageSchema = z.object({
     match: stageMatchSchema,
 });
 
+// 퍼널 종류: marketing(상태 기반 + 역산) / event(행동 custom_event 단계, 역산 미적용)
+export const funnelKindSchema = z.enum(["marketing", "event"]);
+
 export const funnelCreateSchema = z.object({
     siteId: z.number().int().positive(),
     name: z.string().min(1).max(200),
+    kind: funnelKindSchema.default("marketing"),
     stages: z.array(funnelStageSchema).min(1).max(20),
     isDefault: z.boolean().optional(),
 });
 
 export const funnelUpdateSchema = z.object({
     name: z.string().min(1).max(200).optional(),
+    kind: funnelKindSchema.optional(),
     stages: z.array(funnelStageSchema).min(1).max(20).optional(),
     isDefault: z.boolean().optional(),
 });

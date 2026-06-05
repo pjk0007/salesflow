@@ -23,11 +23,19 @@ export interface FunnelStage {
     match: StageMatch;
 }
 
+/**
+ * 퍼널 종류.
+ * - "marketing": 방문/리드 자동단계 + record/page 상태 단계, cumulative 역산(상위 도달=하위 통과).
+ * - "event": custom_event 단계만, 역산 미적용 — 각 단계 실제 발생 visitor 수 그대로.
+ */
+export type FunnelKind = "marketing" | "event";
+
 export interface FunnelDefinition {
     id: number;
     siteId: number;
     name: string;
-    stages: FunnelStage[];   // 3단부터 (visit/lead는 자동)
+    kind: FunnelKind;
+    stages: FunnelStage[];   // marketing은 3단부터(visit/lead 자동), event는 전부 custom_event
     isDefault: number;       // 0 | 1
     createdAt: string;
     updatedAt: string;
@@ -42,7 +50,7 @@ export interface FunnelStageResult {
 }
 
 export interface FunnelAnalyticsData {
-    funnel: { id: number | null; name: string | null };
+    funnel: { id: number | null; name: string | null; kind: FunnelKind | null };
     range: { from: string; to: string };
     stages: FunnelStageResult[];
 }

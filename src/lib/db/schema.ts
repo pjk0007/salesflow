@@ -1231,6 +1231,8 @@ export const trackerFunnels = pgTable("tracker_funnels", {
         .references(() => trackerSites.id, { onDelete: "cascade" })
         .notNull(),
     name: varchar("name", { length: 200 }).notNull(),
+    // 'marketing'(상태 기반 + 역산) | 'event'(행동 custom_event 단계, 역산 미적용). default 'marketing' → 기존 무영향.
+    kind: varchar("kind", { length: 20 }).default("marketing").notNull(),
     // FunnelStage[] — components/tracker/types/funnel.ts 참조
     stages: jsonb("stages").$type<FunnelStageData[]>().notNull().default([]),
     isDefault: integer("is_default").default(0).notNull(),

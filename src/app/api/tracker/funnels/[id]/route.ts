@@ -43,6 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (parsed.data.name !== undefined) updates.name = parsed.data.name;
+    if (parsed.data.kind !== undefined) updates.kind = parsed.data.kind;
     if (parsed.data.stages !== undefined) updates.stages = parsed.data.stages;
     if (parsed.data.isDefault !== undefined) updates.isDefault = parsed.data.isDefault ? 1 : 0;
 

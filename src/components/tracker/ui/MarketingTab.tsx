@@ -9,7 +9,6 @@ import { InflowChannels } from "./widgets/InflowChannels";
 import { AdContentTop } from "./widgets/AdContentTop";
 import { AdPerformanceCard } from "./widgets/AdPerformanceCard";
 import { DeviceBreakdown } from "./widgets/DeviceBreakdown";
-import { EngagementCard } from "./widgets/EngagementCard";
 import { presetRange } from "./widgets/RangeSelector";
 import { ControlBar } from "./OverviewTab";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -91,7 +90,6 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
                     </div>
                     <AdPerformanceCard siteId={siteId} range={range} />
                     <DeviceBreakdown devices={data.devices} />
-                    <EngagementCard siteId={siteId} range={range} filters={filters} />
                 </>
             )}
         </div>

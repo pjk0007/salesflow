@@ -10,18 +10,22 @@ import { toast } from "sonner";
 import { FunnelStageEditor } from "./FunnelStageEditor";
 import { createFunnel, updateFunnel } from "../hooks/useTrackerFunnels";
 import { useFunnelOptions } from "../hooks/useFunnelOptions";
-import type { FunnelDefinition, FunnelStage } from "../types/funnel";
+import type { FunnelDefinition, FunnelKind, FunnelStage } from "../types/funnel";
 
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     siteId: number;
     funnel: FunnelDefinition | null;     // null이면 신규 모드
+    initialKind?: FunnelKind;            // 신규 모드일 때 종류 기본값 (섹션별 추가용)
     onSaved: () => void;
 }
 
-function emptyStage(): FunnelStage {
-    return { key: "", label: "", match: { type: "record_field", field: "", value: "" } };
+function emptyStage(kind: FunnelKind): FunnelStage {
+    // event 퍼널은 custom_event 단계로 구성, marketing은 record_field 기본.
+    return kind === "event"
+        ? { key: "", label: "", match: { type: "custom_event", eventName: "" } }
+        : { key: "", label: "", match: { type: "record_field", field: "", value: "" } };
 }
 
 /**
@@ -29,12 +33,26 @@ function emptyStage(): FunnelStage {
  * 외부에서 open/close + funnel 변경 시마다 새 인스턴스가 마운트되도록
  * 부모(FunnelEditorDialog)에서 key를 부여한다.
  */
-function FunnelEditorBody({ onOpenChange, siteId, funnel, onSaved }: Omit<Props, "open">) {
+function FunnelEditorBody({ onOpenChange, siteId, funnel, initialKind, onSaved }: Omit<Props, "open">) {
+    const startKind: FunnelKind = funnel?.kind ?? initialKind ?? "marketing";
     const [name, setName] = useState(funnel?.name ?? "");
-    const [stages, setStages] = useState<FunnelStage[]>(funnel?.stages ?? [emptyStage()]);
+    const [kind, setKind] = useState<FunnelKind>(startKind);
+    const [stages, setStages] = useState<FunnelStage[]>(funnel?.stages ?? [emptyStage(startKind)]);
     const [isDefault, setIsDefault] = useState(Boolean(funnel?.isDefault));
     const [saving, setSaving] = useState(false);
     const { options } = useFunnelOptions(siteId);
+    const isEvent = kind === "event";
+    const isEdit = funnel !== null;  // 편집 모드면 종류 변경 잠금 (역산 로직이 달라 데이터 의미 바뀜)
+
+    // 종류 변경 시: 비어있는(미입력) 단계만 새 종류 기본 매칭으로 갈아끼움 (입력된 단계는 보존).
+    const handleKindChange = (next: FunnelKind) => {
+        if (next === kind) return;
+        setKind(next);
+        setStages((prev) =>
+            prev.map((s) => (s.label.trim() === "" ? emptyStage(next) : s)),
+        );
+        if (next === "event") setIsDefault(false); // event 퍼널은 개요 메인 대상 아님
+    };
 
     const handleStageChange = (i: number, next: FunnelStage) => {
         const arr = [...stages];
@@ -49,7 +67,7 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, onSaved }: Omit<Props,
         setStages(arr);
     };
     const removeStage = (i: number) => setStages(stages.filter((_, idx) => idx !== i));
-    const addStage = () => setStages([...stages, emptyStage()]);
+    const addStage = () => setStages([...stages, emptyStage(kind)]);
 
     const handleSave = async () => {
         const cleaned = stages.filter((s) => s.label.trim() !== "");
@@ -72,9 +90,9 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, onSaved }: Omit<Props,
         setSaving(true);
         try {
             if (funnel) {
-                await updateFunnel(funnel.id, { name, stages: cleaned, isDefault });
+                await updateFunnel(funnel.id, { name, kind, stages: cleaned, isDefault });
             } else {
-                await createFunnel({ siteId, name, stages: cleaned, isDefault });
+                await createFunnel({ siteId, name, kind, stages: cleaned, isDefault });
             }
             toast.success("저장되었습니다.");
             onSaved();
@@ -96,29 +114,73 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, onSaved }: Omit<Props,
                     <div className="space-y-2">
                         <label className="text-xs text-muted-foreground">이름</label>
                         <Input
-                            placeholder="퍼널 이름 (예: 구독 전환 흐름)"
+                            placeholder={isEvent ? "퍼널 이름 (예: 구독신청 과정)" : "퍼널 이름 (예: 구독 전환 흐름)"}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                         />
                     </div>
-                    <label className="inline-flex items-center gap-2 text-sm">
-                        <Checkbox checked={isDefault} onCheckedChange={(v) => setIsDefault(v === true)} />
-                        메인 퍼널로 설정 (개요 탭에 표시)
-                    </label>
                     <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground">단계 (방문/리드는 자동 포함됨)</p>
-                        <div className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
-                            1. 방문 (자동) · 2. 리드 (자동)
-                        </div>
-                        <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
-                            <p className="mb-1 font-medium">단계는 3가지 방식으로 정의할 수 있어요:</p>
-                            <ul className="space-y-0.5 pl-3">
-                                <li>• <span className="font-medium">필드 값</span>: 예) 매치 단계가 &quot;신청완료&quot;였던 적이 있는 사람 (변경 이력 기준)</li>
-                                <li>• <span className="font-medium">페이지 방문</span>: 예) /pricing 같은 특정 경로를 본 적 있는 사람</li>
-                                <li>• <span className="font-medium">이벤트 발생</span>: 예) &apos;subscribe_step_2&apos; 같은 CUSTOM 이벤트를 발생시킨 사람 (이름을 직접 정의하고 사이트에 심으세요)</li>
-                            </ul>
-                            <p className="mt-1.5">상위 단계 도달자는 자동으로 하위 단계도 통과한 걸로 카운트됩니다 (전환된 후 종료된 사람도 전환에 잡힙니다).</p>
-                        </div>
+                        <label className="text-xs text-muted-foreground">종류</label>
+                        {isEdit ? (
+                            <div className="rounded-md border bg-muted/20 p-2.5 text-xs">
+                                <span className="font-medium">{isEvent ? "행동(이벤트) 퍼널" : "마케팅 퍼널"}</span>
+                                <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                                    종류는 생성 후 변경할 수 없습니다 (카운트 방식이 달라요).
+                                </span>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-2 gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handleKindChange("marketing")}
+                                    className={`rounded-md border p-2.5 text-left text-xs transition ${kind === "marketing" ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30" : "border-border bg-card hover:bg-muted/40"}`}
+                                >
+                                    <span className="block font-medium">마케팅 퍼널</span>
+                                    <span className="mt-0.5 block text-[11px] text-muted-foreground">방문 → 리드 → 상태 단계 (전환 흐름)</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleKindChange("event")}
+                                    className={`rounded-md border p-2.5 text-left text-xs transition ${kind === "event" ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-950/30" : "border-border bg-card hover:bg-muted/40"}`}
+                                >
+                                    <span className="block font-medium">행동(이벤트) 퍼널</span>
+                                    <span className="mt-0.5 block text-[11px] text-muted-foreground">CUSTOM 이벤트 단계별 이탈 분석</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                    {!isEvent && (
+                        <label className="inline-flex items-center gap-2 text-sm">
+                            <Checkbox checked={isDefault} onCheckedChange={(v) => setIsDefault(v === true)} />
+                            메인 퍼널로 설정 (개요 탭에 표시)
+                        </label>
+                    )}
+                    <div className="space-y-2">
+                        {isEvent ? (
+                            <>
+                                <p className="text-xs text-muted-foreground">단계 (방문 모수 기준, 각 이벤트 실제 발생자만 카운트)</p>
+                                <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                                    <p className="mb-1 font-medium">행동 퍼널은 CUSTOM 이벤트 단계로 구성합니다.</p>
+                                    <p>각 단계는 <span className="font-medium">&apos;subscribe_step_2&apos;</span> 같은 이벤트 이름을 직접 정하고 사이트에 <code className="font-mono">sendb.track(...)</code>로 심으세요. 그 이벤트를 실제로 발생시킨 사람만 단계에 잡힙니다 (역산 없음).</p>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <p className="text-xs text-muted-foreground">단계 (방문/리드는 자동 포함됨)</p>
+                                <div className="rounded-md border bg-muted/20 p-2 text-xs text-muted-foreground">
+                                    1. 방문 (자동) · 2. 리드 (자동)
+                                </div>
+                                <div className="rounded-md border border-blue-200 bg-blue-50 p-2.5 text-[11px] leading-relaxed text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+                                    <p className="mb-1 font-medium">단계는 3가지 방식으로 정의할 수 있어요:</p>
+                                    <ul className="space-y-0.5 pl-3">
+                                        <li>• <span className="font-medium">필드 값</span>: 예) 매치 단계가 &quot;신청완료&quot;였던 적이 있는 사람 (변경 이력 기준)</li>
+                                        <li>• <span className="font-medium">페이지 방문</span>: 예) /pricing 같은 특정 경로를 본 적 있는 사람</li>
+                                        <li>• <span className="font-medium">이벤트 발생</span>: 예) &apos;subscribe_step_2&apos; 같은 CUSTOM 이벤트를 발생시킨 사람 (이름을 직접 정의하고 사이트에 심으세요)</li>
+                                    </ul>
+                                    <p className="mt-1.5">상위 단계 도달자는 자동으로 하위 단계도 통과한 걸로 카운트됩니다 (전환된 후 종료된 사람도 전환에 잡힙니다).</p>
+                                </div>
+                            </>
+                        )}
                         {stages.map((s, i) => (
                             <FunnelStageEditor
                                 key={i}
@@ -152,10 +214,10 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, onSaved }: Omit<Props,
  * 외부 노출 wrapper — Dialog 자체를 들고, 매 open 시점에 Body를 새로 마운트해서
  * funnel prop 변경(편집 → 신규 등)이 useState 초기값에 반영되도록 보장.
  */
-export function FunnelEditorDialog({ open, onOpenChange, siteId, funnel, onSaved }: Props) {
-    // open 마다 또는 funnel 변경 시 Body 리마운트.
+export function FunnelEditorDialog({ open, onOpenChange, siteId, funnel, initialKind, onSaved }: Props) {
+    // open 마다 또는 funnel/initialKind 변경 시 Body 리마운트.
     // 닫은 상태(open=false)일 땐 Body 자체를 안 그려서 stale state 누적도 방지.
-    const bodyKey = open ? `${funnel?.id ?? "new"}` : "closed";
+    const bodyKey = open ? `${funnel?.id ?? `new-${initialKind ?? "marketing"}`}` : "closed";
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             {open && (
@@ -164,6 +226,7 @@ export function FunnelEditorDialog({ open, onOpenChange, siteId, funnel, onSaved
                     onOpenChange={onOpenChange}
                     siteId={siteId}
                     funnel={funnel}
+                    initialKind={initialKind}
                     onSaved={onSaved}
                 />
             )}
