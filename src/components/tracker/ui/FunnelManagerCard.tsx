@@ -183,7 +183,7 @@ export function FunnelManagerCard({ siteId }: Props) {
                         </Button>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                        CUSTOM 이벤트 단계로 폼/행동 흐름의 단계별 이탈을 봅니다. 마케팅 탭에 표시됩니다.
+                        CUSTOM 이벤트 단계로 폼/행동 흐름의 단계별 이탈을 봅니다. 행동 탭에 표시됩니다.
                     </p>
                     {isLoading ? (
                         <p className="text-sm text-muted-foreground">불러오는 중...</p>
