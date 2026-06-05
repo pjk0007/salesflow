@@ -1,6 +1,15 @@
 import type { JourneyEvent } from "../types";
 import { formatDateTime, channelStyle } from "../utils/format";
+import { dedupStages } from "../utils/stage";
 import { parseInflowDetail } from "@/components/tracker/utils/inflowDetail";
+
+/**
+ * 단계 전환 묶음 판별 — 자식에 CUSTOM 이벤트가 있으면 행동 단계 묶음.
+ * (사이트 세션 묶음은 자식이 session이라 PagePathSummary로, 단계 묶음은 입력항목을 펼침)
+ */
+function isStageGroup(event: JourneyEvent): boolean {
+    return !!event.children?.some((c) => c.type === "CUSTOM");
+}
 
 /**
  * 선택/호버 이벤트 상세 카드. 채널별로 의미있는 메타만 정리해서 표시.
@@ -37,8 +46,24 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
                 </>
             )}
 
+            {/* 단계 전환 묶음(여러 단계): 같은 단계 반복(이전→다시 다음)은 마지막 도달분으로 접어 표시.
+                단계마다 라벨 + 그 단계에서 입력/선택한 항목 펼침. */}
+            {event.type === "group" && isStageGroup(event) && event.children && (
+                <ol className="space-y-2.5 border-t pt-2">
+                    {dedupStages(event.children).map((c, i) => (
+                        <li key={i} className="space-y-1.5">
+                            <div className="flex items-baseline justify-between gap-2 text-xs">
+                                <span className="font-medium text-foreground">{c.label}</span>
+                                <span className="shrink-0 tabular-nums text-muted-foreground">{formatDateTime(c.at).slice(-5)}</span>
+                            </div>
+                            <CustomEventProps properties={c.meta?.properties} />
+                        </li>
+                    ))}
+                </ol>
+            )}
+
             {/* 사이트 세션 묶음(그날 세션 여러 개): 모든 세션의 페이지를 경로별 집계 */}
-            {event.type === "group" && event.source === "tracker" && event.children && event.children.length > 0 && (
+            {event.type === "group" && event.source === "tracker" && !isStageGroup(event) && event.children && event.children.length > 0 && (
                 <PagePathSummary sessions={event.children} />
             )}
 
@@ -76,23 +101,125 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
     );
 }
 
+// 객체에서 사람이 읽을 "라벨" 후보 키 (객체 배열을 칩으로 펼칠 때 이 값만 뽑음)
+const LABEL_KEYS = ["sub", "label", "name", "title", "value", "text"];
+
+/** firestore Timestamp 류 객체면 epoch초 반환, 아니면 null. ({seconds,nanoseconds} 또는 {_seconds} 또는 {type:'firestore/timestamp', seconds}) */
+function firestoreSeconds(o: Record<string, unknown>): number | null {
+    const s = o.seconds ?? o._seconds;
+    if (typeof s === "number") return s;
+    return null;
+}
+
+/** epoch초 → YYYY-MM-DD (KST). */
+function ymdFromSeconds(sec: number): string {
+    const d = new Date(sec * 1000);
+    const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+    return kst.toISOString().slice(0, 10);
+}
+
+/** 객체 하나를 짧은 라벨로 — 라벨키 우선, 없으면 비어있지 않은 첫 스칼라. */
+function objectLabel(o: Record<string, unknown>): string | null {
+    for (const k of LABEL_KEYS) {
+        const v = o[k];
+        if (typeof v === "string" && v.trim()) return v;
+        if (typeof v === "number") return String(v);
+    }
+    for (const v of Object.values(o)) {
+        if (typeof v === "string" && v.trim()) return v;
+        if (typeof v === "number") return String(v);
+    }
+    return null;
+}
+
+/**
+ * 값 직렬화 — raw JSON을 사람이 읽게 가공. 디하 등 사이트별 폼 구조에 하드코딩하지 않는 범용 규칙:
+ *  - firestore timestamp → 날짜(YYYY-MM-DD)
+ *  - 객체 배열 → 각 객체의 라벨(sub/label/name…)만 뽑아 쉼표
+ *  - 스칼라 배열 → 쉼표 join
+ *  - 빈 값([], {}, "", null) → null (호출부에서 숨김)
+ */
+function formatValue(v: unknown): string | null {
+    if (v == null || v === "") return null;
+    if (typeof v === "string") return v.trim() || null;
+    if (typeof v === "number" || typeof v === "boolean") return String(v);
+
+    if (Array.isArray(v)) {
+        const parts = v
+            .map((x) => {
+                if (x == null || x === "") return null;
+                if (typeof x === "object") {
+                    const o = x as Record<string, unknown>;
+                    const sec = firestoreSeconds(o);
+                    if (sec != null) return ymdFromSeconds(sec);
+                    return objectLabel(o) ?? null; // 라벨 못 뽑으면 버림 (raw JSON 토하지 않음)
+                }
+                return String(x);
+            })
+            .filter((p): p is string => p != null && p !== "");
+        return parts.length ? parts.join(", ") : null;
+    }
+
+    if (typeof v === "object") {
+        const o = v as Record<string, unknown>;
+        const sec = firestoreSeconds(o);
+        if (sec != null) return ymdFromSeconds(sec);
+        // 일반 객체: 라벨 1개로 축약 우선, 없으면 비어있지 않은 key: value 나열
+        const label = objectLabel(o);
+        if (label) return label;
+        const entries = Object.entries(o)
+            .map(([k, val]) => [k, formatValue(val)] as const)
+            .filter((e): e is readonly [string, string] => e[1] != null);
+        return entries.length ? entries.map(([k, val]) => `${k}: ${val}`).join(" / ") : null;
+    }
+    return null;
+}
+
 /**
  * CUSTOM 이벤트 properties 표시 — sendb.track(name, properties)로 보낸 값.
- * filled_keys(채운 필드명 배열)는 칩으로, 그 외 스칼라는 key·value로.
- * (개인정보 보호상 보통 값이 아니라 "어느 필드를 채웠나"만 담김)
+ * values(단계별 입력/선택 값)가 있으면 "필드 · 값"으로, 없으면 filled_keys(필드명)만 칩으로.
+ * 내부 분석용이라 값까지 그대로 표시 (임시저장·이탈 시점 값 포함).
  */
 function CustomEventProps({ properties }: { properties: unknown }) {
     if (!properties || typeof properties !== "object") return null;
     const props = properties as Record<string, unknown>;
     const filledKeys = Array.isArray(props.filled_keys) ? (props.filled_keys as unknown[]).map(String) : [];
-    // filled_keys / step 외 나머지 스칼라 속성
+
+    // values: 단계에서 입력/선택한 실제 값 (필드명 → 값)
+    const valueObj = props.values && typeof props.values === "object" && !Array.isArray(props.values)
+        ? (props.values as Record<string, unknown>)
+        : null;
+    const valuePairs = valueObj
+        ? Object.entries(valueObj)
+            .map(([k, v]) => [k, formatValue(v)] as const)
+            .filter((pair): pair is readonly [string, string] => pair[1] !== null)
+        : [];
+
+    // values 밖의 기타 스칼라 속성 (filled_keys/step/values 제외)
     const extras = Object.entries(props).filter(
-        ([k, v]) => k !== "filled_keys" && k !== "step" && (typeof v === "string" || typeof v === "number" || typeof v === "boolean"),
+        ([k, v]) => k !== "filled_keys" && k !== "step" && k !== "values" && (typeof v === "string" || typeof v === "number" || typeof v === "boolean"),
     );
-    if (filledKeys.length === 0 && extras.length === 0) return null;
+
+    // values가 있으면 값 우선 표시, 없을 때만 filled_keys 칩으로 fallback
+    const showFilledChips = valuePairs.length === 0 && filledKeys.length > 0;
+    if (valuePairs.length === 0 && !showFilledChips && extras.length === 0) return null;
+
     return (
         <div className="space-y-1.5">
-            {filledKeys.length > 0 && (
+            {valuePairs.length > 0 && (
+                <div className="space-y-1">
+                    <span className="text-xs text-muted-foreground">입력·선택한 값</span>
+                    <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]">
+                        {valuePairs.map(([k, v]) => (
+                            <div key={k} className="contents">
+                                <dt className="text-muted-foreground">{k}</dt>
+                                <dd className="break-all text-foreground">{v}</dd>
+                            </div>
+                        ))}
+                    </dl>
+                </div>
+            )}
+            {showFilledChips && (
                 <div className="flex flex-wrap items-center gap-1.5">
                     <span className="text-xs text-muted-foreground">입력한 항목</span>
                     {filledKeys.map((k) => (

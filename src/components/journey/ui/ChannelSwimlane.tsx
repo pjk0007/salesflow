@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { Globe, Mail, UserPlus, GitBranch } from "lucide-react";
 import type { JourneyEvent } from "../types";
+import { dedupStages } from "../utils/stage";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -127,7 +128,9 @@ export function ChannelSwimlane({
                                         />
                                     );
                                 }
-                                const laneEvents = col.events.filter((e) => laneOf(e.channel) === lane.key);
+                                const rawLaneEvents = col.events.filter((e) => laneOf(e.channel) === lane.key);
+                                // 단계 레인: 이전→다시 다음 반복 중복을 접어 마지막 도달분만 (카운트·묶음 둘 다)
+                                const laneEvents = lane.key === "단계" ? dedupStages(rawLaneEvents) : rawLaneEvents;
                                 if (laneEvents.length === 0) {
                                     return (
                                         <div key={i} className={`relative flex-1 min-w-[120px] py-5 ${i > 0 ? "border-l border-dashed" : ""}`}>

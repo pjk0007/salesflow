@@ -7,6 +7,7 @@ import {
     trackerEvents,
     trackerSessions,
     trackerFunnels,
+    trackerEventAliases,
     emailSendLogs,
     emailClickLogs,
     fieldDefinitions,
@@ -177,18 +178,46 @@ export async function GET(
 
         // 퍼널 단계로 등록된 CUSTOM 이벤트 이름 집합 — 이 이름의 CUSTOM 이벤트는
         // [사이트]가 아니라 [단계 전환] 행에 표시한다 (사이트가 정의한 단계만, 멀티테넌시 안전).
+        // 동시에 event_name → 한글 라벨 맵 구성:
+        //   ① 퍼널 단계 라벨(FunnelEditor에서 단계마다 단 라벨) 우선
+        //   ② 이벤트 라벨 카드(tracker_event_aliases) 보완
+        // 둘 다 없으면 raw event_name 사용 (trackerEventLabel fallback).
         const trkSiteIds = [...new Set(trkSessions.map((s) => s.siteId))];
         const funnelStageEventNames = new Set<string>();
+        const customEventLabels = new Map<string, string>();
         if (trkSiteIds.length) {
-            const funnels = await db.select({ stages: trackerFunnels.stages })
-                .from(trackerFunnels)
-                .where(inArray(trackerFunnels.siteId, trkSiteIds));
+            const [funnels, aliases] = await Promise.all([
+                db.select({ stages: trackerFunnels.stages })
+                    .from(trackerFunnels)
+                    .where(inArray(trackerFunnels.siteId, trkSiteIds)),
+                db.select({ eventName: trackerEventAliases.eventName, label: trackerEventAliases.label })
+                    .from(trackerEventAliases)
+                    .where(and(
+                        inArray(trackerEventAliases.siteId, trkSiteIds),
+                        eq(trackerEventAliases.eventType, "CUSTOM"),
+                    )),
+            ]);
+            // ② 라벨 카드 먼저 (퍼널 라벨이 덮어쓰도록)
+            for (const a of aliases) {
+                if (a.label?.trim()) customEventLabels.set(a.eventName, a.label);
+            }
+            // ① 퍼널 단계 라벨 우선 적용
             for (const f of funnels) {
                 for (const st of (f.stages ?? [])) {
-                    if (st.match?.type === "custom_event") funnelStageEventNames.add(st.match.eventName);
+                    if (st.match?.type === "custom_event") {
+                        funnelStageEventNames.add(st.match.eventName);
+                        if (st.label?.trim()) customEventLabels.set(st.match.eventName, st.label);
+                    }
                 }
             }
         }
+        // CUSTOM 이벤트의 표시 라벨 — 라벨 맵 우선, 없으면 기본 라벨러.
+        const customLabel = (ev: { eventType: string; eventName: string | null; pageTitle: string | null; pageUrl: string | null }): string => {
+            if (ev.eventType === "CUSTOM" && ev.eventName && customEventLabels.has(ev.eventName)) {
+                return customEventLabels.get(ev.eventName)!;
+            }
+            return trackerEventLabel(ev);
+        };
 
         // ── normalize ──
         const events: JourneyEvent[] = [];
@@ -235,7 +264,7 @@ export async function GET(
                     source: "tracker",
                     channel: "사이트",
                     type: ev.eventType,
-                    label: trackerEventLabel(ev),
+                    label: customLabel(ev),
                     meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
                 }));
             for (const ev of stageEvents) {
@@ -244,7 +273,7 @@ export async function GET(
                     source: "tracker",
                     channel: "단계",
                     type: ev.eventType,
-                    label: trackerEventLabel(ev),
+                    label: customLabel(ev),
                     meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
                 });
             }
@@ -271,8 +300,8 @@ export async function GET(
                 source: "tracker",
                 channel: isFunnelStageEvent(ev) ? "단계" : "사이트",
                 type: ev.eventType,
-                label: trackerEventLabel(ev),
-                meta: { pageUrl: ev.pageUrl, eventName: ev.eventName },
+                label: customLabel(ev),
+                meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
             });
         }
 
