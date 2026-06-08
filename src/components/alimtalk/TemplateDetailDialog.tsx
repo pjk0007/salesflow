@@ -77,6 +77,23 @@ export default function TemplateDetailDialog({
                             <Badge variant="secondary">{template.templateMessageType}</Badge>
                         </div>
 
+                        {/* 반려 사유 (NHN 검수 결과) */}
+                        {template.status === "TSC04" && template.comments && template.comments.length > 0 && (
+                            <div className="rounded-lg border bg-muted/40 p-3 space-y-2">
+                                <p className="text-sm font-medium text-foreground">검수 결과</p>
+                                {template.comments.map((comment, i) => (
+                                    <div key={comment.id || i} className="text-sm text-muted-foreground">
+                                        <p className="whitespace-pre-wrap">{comment.content}</p>
+                                        {(comment.userName || comment.createdAt) && (
+                                            <p className="mt-0.5 text-xs text-muted-foreground/70">
+                                                {[comment.userName, comment.createdAt].filter(Boolean).join(" · ")}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
                         {/* 카카오톡 스타일 미리보기 */}
                         <div className="bg-[#B2C7D9] rounded-lg p-4">
                             <div className="bg-white rounded-lg shadow-sm max-w-[280px] overflow-hidden">
