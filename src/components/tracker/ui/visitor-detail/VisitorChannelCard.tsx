@@ -9,7 +9,13 @@ import { parseInflowDetail } from "../../utils/inflowDetail";
  * 유입 채널 분포 — 이 사람이 어떤 경로로 반복 방문하는지.
  * 세션별 referrer/UTM을 채널로 분류해 집계.
  */
-export function VisitorChannelCard({ sessions }: { sessions: TrackerSession[] }) {
+export function VisitorChannelCard({
+    sessions,
+    className,
+}: {
+    sessions: TrackerSession[];
+    className?: string;
+}) {
     if (sessions.length === 0) return null;
 
     const counts = new Map<string, { count: number; isPaid: boolean }>();
@@ -25,7 +31,7 @@ export function VisitorChannelCard({ sessions }: { sessions: TrackerSession[] })
     const max = rows[0]?.count ?? 1;
 
     return (
-        <Card>
+        <Card className={className}>
             <CardHeader>
                 <CardTitle className="text-base">유입 경로</CardTitle>
                 <p className="text-[11px] text-muted-foreground">세션 기준 · 최근 {sessions.length}회 방문</p>

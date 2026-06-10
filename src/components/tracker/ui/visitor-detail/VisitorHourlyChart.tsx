@@ -8,7 +8,13 @@ import type { VisitorHourlyActivity } from "../../types/visitor-detail";
  * 방문 시간대 — 0~23시 활동 분포. 피크 시간대는 색 강조.
  * 영업 입장에서 "언제 연락하면 잡히는 사람인지"를 보여준다.
  */
-export function VisitorHourlyChart({ hourly }: { hourly: VisitorHourlyActivity[] }) {
+export function VisitorHourlyChart({
+    hourly,
+    className,
+}: {
+    hourly: VisitorHourlyActivity[];
+    className?: string;
+}) {
     if (hourly.length === 0) return null;
 
     const byHour = new Map(hourly.map((h) => [h.hour, h.count]));
@@ -20,7 +26,7 @@ export function VisitorHourlyChart({ hourly }: { hourly: VisitorHourlyActivity[]
     const peakHours = data.filter((d) => d.peak).map((d) => d.label);
 
     return (
-        <Card>
+        <Card className={className}>
             <CardHeader>
                 <CardTitle className="text-base">방문 시간대</CardTitle>
                 <p className="text-[11px] text-muted-foreground">

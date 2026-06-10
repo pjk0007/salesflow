@@ -6,7 +6,13 @@ import type { VisitorEngagement } from "../../types/visitor-detail";
 import { formatDwellMs, urlPath } from "../../utils/format";
 
 /** 오래 머문 섹션 — 누적 체류시간 가로 바차트. data-track-section 단 사이트만 데이터 있음. */
-export function SectionDwellCard({ sections }: { sections: VisitorEngagement["sections"] }) {
+export function SectionDwellCard({
+    sections,
+    className,
+}: {
+    sections: VisitorEngagement["sections"];
+    className?: string;
+}) {
     if (sections.length === 0) return null;
     const data = sections.map((s) => ({
         name: s.label ?? s.name,
@@ -17,7 +23,7 @@ export function SectionDwellCard({ sections }: { sections: VisitorEngagement["se
     const height = Math.max(144, data.length * 36 + 16);
 
     return (
-        <Card>
+        <Card className={className}>
             <CardHeader>
                 <CardTitle className="text-base">오래 머문 섹션</CardTitle>
                 <p className="text-[11px] text-muted-foreground">누적 체류시간 기준</p>
@@ -58,11 +64,17 @@ export function SectionDwellCard({ sections }: { sections: VisitorEngagement["se
 }
 
 /** 많이 클릭한 것 — 클릭 횟수 순위. data-track-click 단 사이트만 데이터 있음. */
-export function ClickTopCard({ clicks }: { clicks: VisitorEngagement["clicks"] }) {
+export function ClickTopCard({
+    clicks,
+    className,
+}: {
+    clicks: VisitorEngagement["clicks"];
+    className?: string;
+}) {
     if (clicks.length === 0) return null;
     const max = clicks[0]?.count ?? 1;
     return (
-        <Card>
+        <Card className={className}>
             <CardHeader>
                 <CardTitle className="text-base">많이 클릭한 것</CardTitle>
                 <p className="text-[11px] text-muted-foreground">클릭 횟수 기준</p>
@@ -94,11 +106,17 @@ export function ClickTopCard({ clicks }: { clicks: VisitorEngagement["clicks"] }
 }
 
 /** 자주 본 페이지 — 페이지뷰 순위. */
-export function TopPagesCard({ pages }: { pages: VisitorEngagement["pages"] }) {
+export function TopPagesCard({
+    pages,
+    className,
+}: {
+    pages: VisitorEngagement["pages"];
+    className?: string;
+}) {
     if (pages.length === 0) return null;
     const max = pages[0]?.views ?? 1;
     return (
-        <Card>
+        <Card className={className}>
             <CardHeader>
                 <CardTitle className="text-base">자주 본 페이지</CardTitle>
                 <p className="text-[11px] text-muted-foreground">페이지뷰 기준</p>
