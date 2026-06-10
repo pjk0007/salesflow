@@ -15,11 +15,14 @@ import { JourneyEventDetail } from "./JourneyEventDetail";
 import { ChannelFilter } from "./ChannelFilter";
 import type { JourneyEvent } from "../types";
 
-export function JourneyPage({ recordId }: { recordId: number }) {
+export function JourneyPage({ recordId, visitorId }: { recordId?: number; visitorId?: number }) {
     const router = useRouter();
     const [channels, setChannels] = useState<string[]>([]);
+    const isAnonymous = !recordId;
     // 필터는 클라이언트에서 처리 — 서버 재요청 없이 즉시 (깜빡임 방지)
-    const { journey, isLoading } = useJourney(recordId);
+    const { journey, isLoading } = useJourney(
+        recordId ? { recordId } : visitorId ? { visitorId } : null,
+    );
     const [selected, setSelected] = useState<JourneyEvent | null>(null);
     const [hovered, setHovered] = useState<JourneyEvent | null>(null);
 
@@ -44,7 +47,9 @@ export function JourneyPage({ recordId }: { recordId: number }) {
                     <ArrowLeft className="h-4 w-4" />
                     뒤로
                 </button>
-                <h1 className="text-base font-semibold">고객 여정</h1>
+                <h1 className="text-base font-semibold">
+                    {isAnonymous ? "방문자 여정 (익명)" : "고객 여정"}
+                </h1>
             </div>
 
             {isLoading && (

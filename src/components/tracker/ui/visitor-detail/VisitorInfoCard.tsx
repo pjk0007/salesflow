@@ -46,14 +46,16 @@ export function VisitorInfoCard({
                             </div>
                             <div className="mt-0.5 flex items-center gap-2 text-sm text-muted-foreground">
                                 {visitor.name && visitor.email && <span className="truncate">{visitor.email}</span>}
-                                {visitor.recordId && (
-                                    <Link
-                                        href={`/records/${visitor.recordId}/journey`}
-                                        className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline"
-                                    >
-                                        여정 보기 <ExternalLink className="size-3" />
-                                    </Link>
-                                )}
+                                <Link
+                                    href={
+                                        visitor.recordId
+                                            ? `/records/${visitor.recordId}/journey`
+                                            : `/tracker/visitors/${visitor.id}/journey`
+                                    }
+                                    className="inline-flex shrink-0 items-center gap-1 text-primary hover:underline"
+                                >
+                                    여정 보기 <ExternalLink className="size-3" />
+                                </Link>
                             </div>
                         </div>
                     </div>
