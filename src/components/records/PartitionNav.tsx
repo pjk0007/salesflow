@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput, ListTree } from "lucide-react";
+import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput, ListTree, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -87,6 +87,12 @@ export default function PartitionNav({
         } else {
             toast.error(result.error || "변경에 실패했습니다.");
         }
+    };
+
+    // 외부 연동(V1 API의 partitionId)에 쓰는 ID — DB 안 보고 바로 복사
+    const copyPartitionId = async (id: number) => {
+        await navigator.clipboard.writeText(String(id));
+        toast.success(`파티션 ID ${id} 복사됨`);
     };
 
     const getTypeName = (fieldTypeId: number | null) => {
@@ -257,9 +263,13 @@ export default function PartitionNav({
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                                        속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
+                                                        ID {pt.id} · 속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
                                                     </div>
                                                     <DropdownMenuSeparator />
+                                                    <DropdownMenuItem onClick={() => copyPartitionId(pt.id)}>
+                                                        <Copy className="h-3.5 w-3.5 mr-2" />
+                                                        파티션 ID 복사
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuItem onClick={() => onRenamePartition(pt.id, pt.name)}>
                                                         <Pencil className="h-3.5 w-3.5 mr-2" />
                                                         이름 변경
@@ -353,9 +363,13 @@ export default function PartitionNav({
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                         <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                            속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
+                                            ID {pt.id} · 속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
                                         </div>
                                         <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => copyPartitionId(pt.id)}>
+                                            <Copy className="h-3.5 w-3.5 mr-2" />
+                                            파티션 ID 복사
+                                        </DropdownMenuItem>
                                         <DropdownMenuItem onClick={() => onRenamePartition(pt.id, pt.name)}>
                                             <Pencil className="h-3.5 w-3.5 mr-2" />
                                             이름 변경
