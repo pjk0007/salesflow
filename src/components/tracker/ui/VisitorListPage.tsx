@@ -6,7 +6,9 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useTrackerSite } from "../hooks/useTrackerSite";
 import { useTrackerVisitors } from "../hooks/useTrackerVisitors";
 import { useTrackerStats } from "../hooks/useTrackerStats";
+import { useTrackerPages } from "../hooks/useTrackerPages";
 import { VisitorListTable } from "./VisitorListTable";
+import { VisitorFilterBar, type VisitorFilters } from "./VisitorFilterBar";
 import { TrackerSetupForm } from "./TrackerSetupForm";
 import { TrackerInstallGuide } from "./TrackerInstallGuide";
 import { TrackerSettingsPanel } from "./TrackerSettingsPanel";
@@ -173,22 +175,32 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
     const [q, setQ] = useState("");
     const [searchInput, setSearchInput] = useState("");
     const [hasRecord, setHasRecord] = useState<"" | "true" | "false">("");
+    const [filters, setFilters] = useState<VisitorFilters>({ pagePath: null, channel: null });
     const [page, setPage] = useState(1);
 
     useEffect(() => {
         setPage(1);
-    }, [q, hasRecord, site.id]);
+    }, [q, hasRecord, filters.pagePath, filters.channel, site.id]);
 
     const { items, total, totalPages, isLoading } = useTrackerVisitors({
         siteId: site.id,
         page,
         q: q || undefined,
         hasRecord,
+        pagePath: filters.pagePath ?? undefined,
+        channel: filters.channel ?? undefined,
     });
 
-    const { stats } = useTrackerStats(site.id);
+    const { stats } = useTrackerStats(site.id, {
+        pagePath: filters.pagePath ?? undefined,
+        channel: filters.channel ?? undefined,
+    });
 
-    const isFresh = stats != null && stats.totalVisitors === 0 && !q && !hasRecord;
+    const { pages } = useTrackerPages(site.id);
+
+    const isFresh =
+        stats != null && stats.totalVisitors === 0 &&
+        !q && !hasRecord && !filters.pagePath && !filters.channel;
     if (isFresh) return <TrackerInstallGuide apiKey={site.apiKey} />;
 
     return (
@@ -225,6 +237,12 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
                         <SelectItem value="false">익명</SelectItem>
                     </SelectContent>
                 </Select>
+                <VisitorFilterBar
+                    pages={pages}
+                    excludePaths={site.excludePaths ?? []}
+                    value={filters}
+                    onChange={setFilters}
+                />
             </div>
 
             {isLoading && items.length === 0 ? (

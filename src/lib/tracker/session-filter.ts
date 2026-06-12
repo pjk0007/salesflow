@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { trackerSessions } from "@/lib/db/schema";
-import { eq, and, gte, lte } from "drizzle-orm";
+import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { classifyInflow, matchesChannelFilter } from "@/components/journey/utils/referrer";
 
 /**
@@ -38,4 +38,34 @@ export async function getSessionIdsByChannel(args: {
     return rows
         .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landingPage), args.channel, mode))
         .map((r) => r.id);
+}
+
+/**
+ * 채널 필터에 매칭되는 방문자 ID 목록 — 기간 제한 없음 (방문자 탭용).
+ * 방문자의 "첫 세션" referrer/utm으로 채널 분류 — overview의 visitor 채널 분류와 동일 정책.
+ *
+ * channel=null && mode="all" 이면 필터 미적용(null 반환).
+ */
+export async function getVisitorIdsByChannel(args: {
+    siteId: number;
+    channel: string | null;
+    channelMode?: "all" | "paid" | "organic";
+}): Promise<number[] | null> {
+    const mode = args.channelMode ?? "all";
+    if (!args.channel && mode === "all") return null;
+
+    const rows = (await db.execute(sql`
+        SELECT DISTINCT ON (visitor_id) visitor_id, referrer, landing_page
+        FROM tracker_sessions
+        WHERE site_id = ${args.siteId}
+        ORDER BY visitor_id, started_at ASC
+    `)) as unknown as Array<{
+        visitor_id: number;
+        referrer: string | null;
+        landing_page: string | null;
+    }>;
+
+    return rows
+        .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landing_page), args.channel, mode))
+        .map((r) => r.visitor_id);
 }

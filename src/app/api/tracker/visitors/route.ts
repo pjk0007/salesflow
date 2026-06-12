@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { getVisitorIdsByChannel } from "@/lib/tracker/session-filter";
+import { pagePathExpr } from "@/lib/tracker/page-path";
 
 const PAGE_SIZE = 50;
 
@@ -34,6 +36,11 @@ export async function GET(req: NextRequest) {
     const page = Math.max(1, Number(sp.get("page")) || 1);
     const q = sp.get("q")?.trim();
     const hasRecord = sp.get("hasRecord"); // "true" | "false" | null
+    const pagePath = sp.get("pagePath")?.trim() || null;
+    const channel = sp.get("channel")?.trim() || null;
+
+    // 채널 필터 → 첫 세션 채널이 매칭되는 방문자 ID (null이면 미적용)
+    const channelVisitorIds = await getVisitorIdsByChannel({ siteId, channel });
 
     // WHERE 절 (raw)
     const filters = [sql`site_id = ${siteId}`];
@@ -44,6 +51,18 @@ export async function GET(req: NextRequest) {
         filters.push(
             sql`(email ILIKE ${term} OR name ILIKE ${term} OR visitor_id ILIKE ${term})`,
         );
+    }
+    if (channelVisitorIds !== null) {
+        if (channelVisitorIds.length === 0) filters.push(sql`FALSE`);
+        else filters.push(sql`id IN (${sql.join(channelVisitorIds.map((id) => sql`${id}`), sql`, `)})`);
+    }
+    if (pagePath) {
+        filters.push(sql`EXISTS (
+            SELECT 1 FROM tracker_events ev
+            WHERE ev.visitor_id = tracker_visitors.id
+              AND ev.event_type = 'PAGE_VIEW'
+              AND ${pagePathExpr("ev.page_url")} = ${pagePath}
+        )`);
     }
     const whereSql = sql.join(filters, sql` AND `);
 

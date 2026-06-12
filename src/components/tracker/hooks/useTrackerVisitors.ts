@@ -20,15 +20,19 @@ type Args = {
     page: number;
     q?: string;
     hasRecord?: "true" | "false" | "";
+    pagePath?: string;
+    channel?: string;
 };
 
-export function useTrackerVisitors({ siteId, page, q, hasRecord }: Args) {
+export function useTrackerVisitors({ siteId, page, q, hasRecord, pagePath, channel }: Args) {
     const key = siteId
         ? `/api/tracker/visitors?${new URLSearchParams({
               siteId: String(siteId),
               page: String(page),
               ...(q ? { q } : {}),
               ...(hasRecord ? { hasRecord } : {}),
+              ...(pagePath ? { pagePath } : {}),
+              ...(channel ? { channel } : {}),
           }).toString()}`
         : null;
 
