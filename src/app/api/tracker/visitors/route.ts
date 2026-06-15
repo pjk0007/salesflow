@@ -84,34 +84,48 @@ export async function GET(req: NextRequest) {
     const safePage = Math.min(page, totalPages);
     const offset = (safePage - 1) * PAGE_SIZE;
 
-    // 그룹 집계
+    // 그룹 집계.
+    // 첫 유입(획득 채널)은 그룹 내 가장 이른 세션의 referrer/landing_page 기준 —
+    // first_referrer만으로는 sendb_cid(URL 쿼리)가 안 잡혀 세션에서 직접 조회.
     const rows = (await db.execute(sql`
-        SELECT
-            MIN(id) AS id,
-            MAX(record_id) AS record_id,
-            MAX(visitor_id) AS visitor_id,
-            MAX(email) AS email,
-            MAX(name) AS name,
-            MIN(first_seen_at) AS first_seen_at,
-            MAX(last_seen_at) AS last_seen_at,
-            SUM(total_visits)::int AS total_visits,
-            SUM(total_pageviews)::int AS total_pageviews,
-            SUM(total_events)::int AS total_events,
-            COUNT(*)::int AS device_count,
-            (ARRAY_AGG(device_type ORDER BY last_seen_at DESC))[1] AS device_type,
-            (ARRAY_AGG(browser ORDER BY last_seen_at DESC))[1] AS browser,
-            (ARRAY_AGG(os ORDER BY last_seen_at DESC))[1] AS os,
-            (ARRAY_AGG(last_utm_source ORDER BY last_seen_at DESC))[1] AS last_utm_source,
-            (ARRAY_AGG(last_utm_campaign ORDER BY last_seen_at DESC))[1] AS last_utm_campaign,
-            (ARRAY_AGG(last_referrer ORDER BY last_seen_at DESC))[1] AS last_referrer,
-            (ARRAY_AGG(last_page ORDER BY last_seen_at DESC))[1] AS last_page,
-            (ARRAY_AGG(last_event ORDER BY last_seen_at DESC))[1] AS last_event,
-            MAX(last_event_at) AS last_event_at
-        FROM tracker_visitors
-        WHERE ${whereSql}
-        GROUP BY ${groupKey}
-        ORDER BY MAX(last_seen_at) DESC
-        LIMIT ${PAGE_SIZE} OFFSET ${offset}
+        WITH grp AS (
+            SELECT
+                ${groupKey} AS gk,
+                MIN(id) AS id,
+                MAX(record_id) AS record_id,
+                MAX(visitor_id) AS visitor_id,
+                MAX(email) AS email,
+                MAX(name) AS name,
+                MIN(first_seen_at) AS first_seen_at,
+                MAX(last_seen_at) AS last_seen_at,
+                SUM(total_visits)::int AS total_visits,
+                SUM(total_pageviews)::int AS total_pageviews,
+                SUM(total_events)::int AS total_events,
+                COUNT(*)::int AS device_count,
+                (ARRAY_AGG(device_type ORDER BY last_seen_at DESC))[1] AS device_type,
+                (ARRAY_AGG(browser ORDER BY last_seen_at DESC))[1] AS browser,
+                (ARRAY_AGG(os ORDER BY last_seen_at DESC))[1] AS os,
+                (ARRAY_AGG(last_utm_source ORDER BY last_seen_at DESC))[1] AS last_utm_source,
+                (ARRAY_AGG(last_utm_campaign ORDER BY last_seen_at DESC))[1] AS last_utm_campaign,
+                ARRAY_AGG(id) AS visitor_ids,
+                (ARRAY_AGG(last_event ORDER BY last_seen_at DESC))[1] AS last_event,
+                MAX(last_event_at) AS last_event_at
+            FROM tracker_visitors
+            WHERE ${whereSql}
+            GROUP BY ${groupKey}
+            ORDER BY MAX(last_seen_at) DESC
+            LIMIT ${PAGE_SIZE} OFFSET ${offset}
+        )
+        SELECT grp.*, fs.referrer AS first_referrer, fs.landing_page AS first_page
+        FROM grp
+        LEFT JOIN LATERAL (
+            SELECT referrer, landing_page
+            FROM tracker_sessions
+            WHERE visitor_id = ANY(grp.visitor_ids)
+            ORDER BY started_at ASC
+            LIMIT 1
+        ) fs ON true
+        ORDER BY grp.last_seen_at DESC
     `)) as unknown as Array<Record<string, unknown>>;
 
     const data = rows.map((r) => ({
@@ -131,8 +145,8 @@ export async function GET(req: NextRequest) {
         os: (r.os as string) ?? null,
         lastUtmSource: (r.last_utm_source as string) ?? null,
         lastUtmCampaign: (r.last_utm_campaign as string) ?? null,
-        lastReferrer: (r.last_referrer as string) ?? null,
-        lastPage: (r.last_page as string) ?? null,
+        firstReferrer: (r.first_referrer as string) ?? null,
+        firstPage: (r.first_page as string) ?? null,
         lastEvent: (r.last_event as string) ?? null,
         lastEventAt: r.last_event_at,
     }));

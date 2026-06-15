@@ -81,7 +81,7 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }
                             </TableCell>
                             <TableCell className="text-center">
                                 {(() => {
-                                    const channel = classifyInflow(v.lastReferrer, v.lastPage);
+                                    const channel = classifyInflow(v.firstReferrer, v.firstPage);
                                     return channel === "직접" ? (
                                         <span className="text-sm text-muted-foreground">-</span>
                                     ) : (
