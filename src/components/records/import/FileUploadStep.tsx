@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import Papa from "papaparse";
 import { Upload, AlertCircle } from "lucide-react";
 import type { FieldDefinition } from "@/types";
@@ -23,10 +23,13 @@ export default function FileUploadStep({
     onError,
 }: FileUploadStepProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDragging, setIsDragging] = useState(false);
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+    const parseFile = (file: File) => {
+        if (!file.name.toLowerCase().endsWith(".csv")) {
+            onError([{ row: 0, message: "CSV 파일만 업로드할 수 있습니다." }]);
+            return;
+        }
 
         Papa.parse(file, {
             header: false,
@@ -49,19 +52,50 @@ export default function FileUploadStep({
                 onParsed(headers, data, autoMapping);
             },
         });
+    };
 
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) parseFile(file);
         e.target.value = "";
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        if (!isDragging) setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        // 자식 요소로 이동 시 발생하는 leave는 무시 (박스 밖으로 나갈 때만 해제)
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) parseFile(file);
     };
 
     return (
         <div className="space-y-4">
             <div
-                className="border-2 border-dashed rounded-lg p-12 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${
+                    isDragging ? "border-primary bg-primary/5" : "hover:border-primary/50"
+                }`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={handleDragOver}
+                onDragEnter={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
             >
                 <Upload className="h-10 w-10 text-muted-foreground mx-auto" />
                 <p className="text-sm text-muted-foreground mt-2">
-                    CSV 파일을 여기에 클릭하여 선택하세요
+                    {isDragging
+                        ? "여기에 놓아서 업로드하세요"
+                        : "CSV 파일을 끌어다 놓거나 클릭하여 선택하세요"}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">최대 3,000건</p>
                 <input
