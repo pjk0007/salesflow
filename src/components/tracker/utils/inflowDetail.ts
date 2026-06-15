@@ -64,10 +64,11 @@ function extractSearchQuery(params: URLSearchParams | null, referrer: string | n
 /**
  * 유입 채널 라벨 + 광고/자연 구분. classifyInflow와 정책 일치시키되 광고 세분화.
  */
-function classifyChannel(source: string | null, medium: string | null, ref: string, hasGclid: boolean, hasFbclid: boolean): { channel: string; isPaid: boolean } {
+function classifyChannel(source: string | null, medium: string | null, ref: string, hasGclid: boolean, hasFbclid: boolean, hasSendbCid: boolean): { channel: string; isPaid: boolean } {
     const paidMedium = medium === "cpc" || medium === "paid" || medium === "pmax" || medium === "ppc";
 
-    if (source === "email" || medium === "email" || ref === "email") return { channel: "메일", isPaid: false };
+    // 메일 (sendb 우리 클릭 ID > utm) — classifyInflow / SQL overview와 정책 일치
+    if (hasSendbCid || source === "email" || medium === "email" || medium === "sales" || ref === "email") return { channel: "메일", isPaid: false };
     if (hasFbclid || source === "meta" || source === "facebook" || source === "instagram" || /facebook|instagram|fb\.com/.test(ref)) {
         return { channel: "메타 광고", isPaid: true };
     }
@@ -93,6 +94,7 @@ export function parseInflowDetail(referrer: string | null, landingPage: string |
         ref,
         params?.has("gclid") ?? false,
         params?.has("fbclid") ?? false,
+        params?.has("sendb_cid") ?? false,
     );
 
     return {

@@ -31,6 +31,7 @@ export type TrackerVisitorRow = {
     os: string | null;
     lastUtmSource: string | null;
     lastUtmCampaign: string | null;
+    lastReferrer: string | null;
     lastPage: string | null;
     lastEvent: string | null;
     lastEventAt: string | null;

@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
             (ARRAY_AGG(os ORDER BY last_seen_at DESC))[1] AS os,
             (ARRAY_AGG(last_utm_source ORDER BY last_seen_at DESC))[1] AS last_utm_source,
             (ARRAY_AGG(last_utm_campaign ORDER BY last_seen_at DESC))[1] AS last_utm_campaign,
+            (ARRAY_AGG(last_referrer ORDER BY last_seen_at DESC))[1] AS last_referrer,
             (ARRAY_AGG(last_page ORDER BY last_seen_at DESC))[1] AS last_page,
             (ARRAY_AGG(last_event ORDER BY last_seen_at DESC))[1] AS last_event,
             MAX(last_event_at) AS last_event_at
@@ -130,6 +131,7 @@ export async function GET(req: NextRequest) {
         os: (r.os as string) ?? null,
         lastUtmSource: (r.last_utm_source as string) ?? null,
         lastUtmCampaign: (r.last_utm_campaign as string) ?? null,
+        lastReferrer: (r.last_referrer as string) ?? null,
         lastPage: (r.last_page as string) ?? null,
         lastEvent: (r.last_event as string) ?? null,
         lastEventAt: r.last_event_at,

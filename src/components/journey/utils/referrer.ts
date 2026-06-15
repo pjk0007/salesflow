@@ -25,6 +25,21 @@ export function isPaidChannel(detail: InflowChannel): boolean {
 }
 
 /**
+ * 채널 라벨 → 브랜드 컬러 Badge 클래스.
+ * groupChannel로 상위 그룹화한 뒤 매핑하므로 "구글 검색"/"구글 검색광고" 동일 색.
+ * Tailwind JIT가 스캔하도록 클래스는 완전한 리터럴로 둔다(동적 조합 금지).
+ */
+const CHANNEL_BADGE_CLASS: Record<string, string> = {
+    네이버: "bg-[#03C75A]/10 text-[#03C75A] border-[#03C75A]/20",
+    구글: "bg-[#4285F4]/10 text-[#4285F4] border-[#4285F4]/20",
+    "메타 광고": "bg-[#0082FB]/10 text-[#0082FB] border-[#0082FB]/20",
+    메일: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+};
+export function channelBadgeClass(detail: InflowChannel): string {
+    return CHANNEL_BADGE_CLASS[groupChannel(detail)] ?? "";
+}
+
+/**
  * SegmentFilter(드롭다운 + 광고/자연 토글) 조건에 맞는지 판정.
  * - group: "전체" 의미면 null 전달. 그 외엔 groupChannel 결과 그대로.
  * - mode:  "all" | "paid" | "organic"

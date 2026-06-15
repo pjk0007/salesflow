@@ -12,6 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Monitor, Smartphone, Tablet, Users } from "lucide-react";
 import type { TrackerVisitorRow } from "../types";
+import { classifyInflow, channelBadgeClass } from "@/components/journey/utils/referrer";
+import { cn } from "@/lib/utils";
 
 export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }) {
     if (visitors.length === 0) {
@@ -37,7 +39,7 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }
                         <TableHead className="text-right">방문</TableHead>
                         <TableHead className="text-right">페이지뷰</TableHead>
                         <TableHead>디바이스</TableHead>
-                        <TableHead>유입</TableHead>
+                        <TableHead className="text-center">유입</TableHead>
                         <TableHead>마지막 방문</TableHead>
                         <TableHead className="w-24">상태</TableHead>
                     </TableRow>
@@ -77,14 +79,20 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }
                                     )}
                                 </span>
                             </TableCell>
-                            <TableCell>
-                                {v.lastUtmSource ? (
-                                    <Badge variant="secondary" className="font-normal">
-                                        {v.lastUtmSource}
-                                    </Badge>
-                                ) : (
-                                    <span className="text-sm text-muted-foreground">-</span>
-                                )}
+                            <TableCell className="text-center">
+                                {(() => {
+                                    const channel = classifyInflow(v.lastReferrer, v.lastPage);
+                                    return channel === "직접" ? (
+                                        <span className="text-sm text-muted-foreground">-</span>
+                                    ) : (
+                                        <Badge
+                                            variant="secondary"
+                                            className={cn("font-normal", channelBadgeClass(channel))}
+                                        >
+                                            {channel}
+                                        </Badge>
+                                    );
+                                })()}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
                                 {formatRelative(v.lastSeenAt)}

@@ -249,6 +249,9 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
                 <Skeleton className="h-96 w-full rounded-xl" />
             ) : (
                 <>
+                    <p className="text-right text-[11px] text-muted-foreground">
+                        * 유입의 <span className="font-medium">-</span> 표기는 직접 방문(referrer 없음)을 의미합니다.
+                    </p>
                     <VisitorListTable visitors={items} />
                     <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">총 {total.toLocaleString()}명</p>
