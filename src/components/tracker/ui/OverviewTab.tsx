@@ -16,6 +16,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Range, SegmentFilters } from "../types/overview";
 
 function rangeFromSearchParams(sp: URLSearchParams): Range {
+    const preset = sp.get("preset");
+    if (preset === "7d" || preset === "30d" || preset === "90d") return presetRange(preset);
     const from = sp.get("from");
     const to = sp.get("to");
     if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
@@ -38,11 +40,18 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
 
     useEffect(() => {
         const next = new URLSearchParams(sp.toString());
-        next.set("from", range.from);
-        next.set("to", range.to);
+        if (range.preset === "custom") {
+            next.delete("preset");
+            next.set("from", range.from);
+            next.set("to", range.to);
+        } else {
+            next.set("preset", range.preset);
+            next.delete("from");
+            next.delete("to");
+        }
         router.replace(`${pathname}?${next.toString()}`, { scroll: false });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [range.from, range.to]);
+    }, [range.preset, range.from, range.to]);
 
     const { data, isLoading, error } = useTrackerOverview({
         siteId,
