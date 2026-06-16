@@ -4,8 +4,12 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Range, RangePreset } from "../../types/overview";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+// 로컬 타임존 기준 YYYY-MM-DD. toISOString()은 UTC라 KST 새벽에 날짜가 하루 밀림.
 function ymd(d: Date): string {
-    return d.toISOString().slice(0, 10);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
 }
 
 export function presetRange(preset: RangePreset): Range {
@@ -13,7 +17,7 @@ export function presetRange(preset: RangePreset): Range {
     if (preset === "7d") return { preset, from: ymd(new Date(today.getTime() - 6 * DAY_MS)), to: ymd(today) };
     if (preset === "30d") return { preset, from: ymd(new Date(today.getTime() - 29 * DAY_MS)), to: ymd(today) };
     if (preset === "90d") return { preset, from: ymd(new Date(today.getTime() - 89 * DAY_MS)), to: ymd(today) };
-    return { preset: "30d", from: ymd(new Date(today.getTime() - 29 * DAY_MS)), to: ymd(today) };
+    return { preset: "7d", from: ymd(new Date(today.getTime() - 6 * DAY_MS)), to: ymd(today) };
 }
 
 interface Props {

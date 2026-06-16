@@ -20,7 +20,7 @@ function rangeFromSearchParams(sp: URLSearchParams): Range {
     if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
         return { preset: "custom", from, to };
     }
-    return presetRange("30d");
+    return presetRange("7d");
 }
 
 /**
