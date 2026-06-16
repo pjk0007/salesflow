@@ -1,4 +1,4 @@
-import { db, alimtalkTemplateLinks, alimtalkSendLogs, alimtalkAutomationQueue, alimtalkFollowupQueue, records } from "@/lib/db";
+import { db, queryClient, alimtalkTemplateLinks, alimtalkSendLogs, alimtalkAutomationQueue, alimtalkFollowupQueue, records } from "@/lib/db";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { getAlimtalkClient, normalizePhoneNumber } from "@/lib/nhn-alimtalk";
 import type { DbRecord, AlimtalkTemplateLink } from "@/lib/db";
@@ -462,18 +462,23 @@ export async function processAlimtalkFollowupQueue(): Promise<FollowupQueueStats
     const stats: FollowupQueueStats = { processed: 0, sent: 0, failed: 0, skipped: 0 };
 
     // [1] advisory lock 획득 (cron 겹침 방지)
-    const lockResult = await db.execute<{ acquired: boolean }>(
-        sql`SELECT pg_try_advisory_lock(${FOLLOWUP_CRON_LOCK_KEY}) AS acquired`
-    );
-    const acquired = lockResult[0]?.acquired === true;
-    if (!acquired) {
-        console.log("[alimtalk-followup] another instance running, skip");
-        return { ...stats, skippedAsLocked: true };
-    }
-
-    const startTime = Date.now();
-
+    // 세션 단위 advisory lock은 "획득한 그 커넥션"에서 해제해야 한다. 풀에서 매번 다른 커넥션이
+    // 잡히면 unlock이 엉뚱한 커넥션에서 실행돼 "you don't own a lock" 경고 + 락 누수가 난다.
+    // 그래서 전용 커넥션을 reserve 해 락 생애주기를 한 커넥션에 고정한다. (작업 쿼리는 풀 사용)
+    const conn = await queryClient.reserve();
+    let acquired = false;
     try {
+        const lockResult = await conn<{ acquired: boolean }[]>`
+            SELECT pg_try_advisory_lock(${FOLLOWUP_CRON_LOCK_KEY}) AS acquired
+        `;
+        acquired = lockResult[0]?.acquired === true;
+        if (!acquired) {
+            console.log("[alimtalk-followup] another instance running, skip");
+            return { ...stats, skippedAsLocked: true };
+        }
+
+        const startTime = Date.now();
+
         // [2] 좀비 청소: 10분 이상 processing 상태 → pending 복구
         const zombieCutoff = new Date(Date.now() - ZOMBIE_THRESHOLD_MS);
         await db
@@ -553,7 +558,11 @@ export async function processAlimtalkFollowupQueue(): Promise<FollowupQueueStats
 
         return stats;
     } finally {
-        await db.execute(sql`SELECT pg_advisory_unlock(${FOLLOWUP_CRON_LOCK_KEY})`);
+        // 락은 잡은 그 커넥션에서 해제한 뒤 커넥션을 풀에 반환한다.
+        if (acquired) {
+            await conn`SELECT pg_advisory_unlock(${FOLLOWUP_CRON_LOCK_KEY})`;
+        }
+        conn.release();
     }
 }
 
