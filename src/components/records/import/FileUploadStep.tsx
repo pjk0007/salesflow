@@ -2,8 +2,11 @@
 
 import { useRef, useState } from "react";
 import Papa from "papaparse";
+import * as XLSX from "xlsx";
 import { Upload, AlertCircle } from "lucide-react";
 import type { FieldDefinition } from "@/types";
+
+const ACCEPT = ".csv,.xlsx,.xls";
 
 interface FileUploadStepProps {
     mappableFields: FieldDefinition[];
@@ -25,33 +28,59 @@ export default function FileUploadStep({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDragging, setIsDragging] = useState(false);
 
-    const parseFile = (file: File) => {
-        if (!file.name.toLowerCase().endsWith(".csv")) {
-            onError([{ row: 0, message: "CSV 파일만 업로드할 수 있습니다." }]);
+    // CSV/엑셀 공통 — 파싱된 행 배열을 검증·자동매핑 후 상위로 전달.
+    const handleRows = (rows: string[][]) => {
+        if (rows.length < 2) return;
+        const headers = rows[0];
+        const data = rows.slice(1);
+        if (data.length > 3000) {
+            onError([{ row: 0, message: `${data.length}건 감지 — 최대 3,000건까지 가능합니다.` }]);
             return;
         }
 
-        Papa.parse(file, {
-            header: false,
-            skipEmptyLines: true,
-            complete: (result) => {
-                const rows = result.data as string[][];
-                if (rows.length < 2) return;
-                const headers = rows[0];
-                const data = rows.slice(1);
-                if (data.length > 3000) {
-                    onError([{ row: 0, message: `${data.length}건 감지 — 최대 3,000건까지 가능합니다.` }]);
-                    return;
-                }
+        const autoMapping: Record<string, string> = {};
+        for (const header of headers) {
+            const match = mappableFields.find(f => f.label === header);
+            if (match) autoMapping[header] = match.key;
+        }
+        onParsed(headers, data, autoMapping);
+    };
 
-                const autoMapping: Record<string, string> = {};
-                for (const header of headers) {
-                    const match = mappableFields.find(f => f.label === header);
-                    if (match) autoMapping[header] = match.key;
+    const parseFile = (file: File) => {
+        const name = file.name.toLowerCase();
+
+        if (name.endsWith(".csv")) {
+            Papa.parse(file, {
+                header: false,
+                skipEmptyLines: true,
+                complete: (result) => handleRows(result.data as string[][]),
+            });
+            return;
+        }
+
+        if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const wb = XLSX.read(e.target?.result, { type: "array" });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    // 첫 시트를 행 배열로. defval로 빈 셀을 ""로 채워 열 어긋남 방지.
+                    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+                        header: 1,
+                        blankrows: false,
+                        defval: "",
+                        raw: false,
+                    });
+                    handleRows(rows.map((r) => r.map((c) => String(c ?? ""))));
+                } catch {
+                    onError([{ row: 0, message: "엑셀 파일을 읽지 못했습니다. 파일을 확인해주세요." }]);
                 }
-                onParsed(headers, data, autoMapping);
-            },
-        });
+            };
+            reader.readAsArrayBuffer(file);
+            return;
+        }
+
+        onError([{ row: 0, message: "CSV 또는 엑셀(.xlsx, .xls) 파일만 업로드할 수 있습니다." }]);
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,13 +124,13 @@ export default function FileUploadStep({
                 <p className="text-sm text-muted-foreground mt-2">
                     {isDragging
                         ? "여기에 놓아서 업로드하세요"
-                        : "CSV 파일을 끌어다 놓거나 클릭하여 선택하세요"}
+                        : "CSV·엑셀 파일을 끌어다 놓거나 클릭하여 선택하세요"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">최대 3,000건</p>
+                <p className="text-xs text-muted-foreground mt-1">CSV, XLSX, XLS · 최대 3,000건</p>
                 <input
                     ref={fileInputRef}
                     type="file"
-                    accept=".csv"
+                    accept={ACCEPT}
                     className="hidden"
                     onChange={handleFileSelect}
                 />
