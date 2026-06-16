@@ -68,9 +68,10 @@ export async function processScheduledRegistrations(): Promise<ScheduledRegStats
             try {
                 const registered = await registerForPartition(partition, orgId, config.countPerDay);
                 stats.registered += registered.count;
-                // 트리거는 커밋 후 fire-and-forget
+                // 트리거는 커밋 후 fire-and-forget (규칙 있을 때만 레코드별 발동)
                 if (registered.insertedRecords.length > 0) {
-                    dispatchImportTriggers(registered.insertedRecords, { partitionId: partition.id, orgId });
+                    dispatchImportTriggers(registered.insertedRecords, { partitionId: partition.id, orgId })
+                        .catch((e) => console.error("[scheduled-reg] dispatch triggers error:", e));
                 }
                 console.log(`[scheduled-reg] partition ${partition.id}: registered ${registered.count}`);
             } catch (err) {

@@ -69,8 +69,9 @@ export async function POST(
                         })
                     );
 
-                    // 자동 트리거 (알림톡/이메일/보강/AI개인화)
-                    dispatchImportTriggers(result.insertedRecords, { partitionId, orgId });
+                    // 자동 트리거 (알림톡/이메일/보강/AI개인화) — 규칙 있을 때만, fire-and-forget
+                    dispatchImportTriggers(result.insertedRecords, { partitionId, orgId })
+                        .catch((e) => console.error("[bulk-import] dispatch triggers error:", e));
                     // SSE 브로드캐스트
                     broadcastToPartition(partitionId, "record:created", { partitionId });
 

@@ -1,5 +1,14 @@
-import { db, records, organizations, type DbRecord } from "@/lib/db";
-import { eq, sql } from "drizzle-orm";
+import {
+    db,
+    records,
+    organizations,
+    alimtalkTemplateLinks,
+    emailTemplateLinks,
+    emailAutoPersonalizedLinks,
+    recordAutoEnrichRules,
+    type DbRecord,
+} from "@/lib/db";
+import { eq, and, sql } from "drizzle-orm";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
@@ -149,32 +158,57 @@ export async function insertImportedRecords(
 
 /**
  * 가져오기/예약등록 공용 — 생성된 레코드들에 대해 자동 트리거를 발동한다.
+ *
+ * 핵심: 파티션에 활성 규칙이 있는지 **1회만** 확인하고, 규칙이 있는 트리거만 레코드별로 돈다.
+ * (규칙이 없으면 레코드마다 조회·로그가 폭주하던 문제 방지 — 대량 가져오기 시 수천 줄 로그/쿼리 제거.)
+ *
  * 알림톡/이메일/보강은 fire-and-forget, AI 개인화 메일은 5건/배치·1초 딜레이로 rate limit 준수.
  */
-export function dispatchImportTriggers(
+export async function dispatchImportTriggers(
     insertedRecords: DbRecord[],
     ctx: { partitionId: number; orgId: string },
-): void {
-    for (const record of insertedRecords) {
-        const triggerParams = { record, partitionId: ctx.partitionId, triggerType: "on_create" as const, orgId: ctx.orgId };
-        processAutoTrigger(triggerParams).catch((err) => console.error("[import] auto trigger error:", err));
-        processEmailAutoTrigger(triggerParams).catch((err) => console.error("[import] email auto trigger error:", err));
-        processAutoEnrich(triggerParams).catch((err) => console.error("[import] auto enrich error:", err));
+): Promise<void> {
+    if (insertedRecords.length === 0) return;
+    const p = ctx.partitionId;
+
+    // 각 트리거 함수가 레코드별로 쓰는 것과 동일한 조건으로 "활성 규칙 존재" 1회 확인
+    const [alim, emailAuto, aiEmail, enrich] = await Promise.all([
+        db.select({ id: alimtalkTemplateLinks.id }).from(alimtalkTemplateLinks)
+            .where(and(eq(alimtalkTemplateLinks.partitionId, p), eq(alimtalkTemplateLinks.triggerType, "on_create"), eq(alimtalkTemplateLinks.isActive, 1))).limit(1),
+        db.select({ id: emailTemplateLinks.id }).from(emailTemplateLinks)
+            .where(and(eq(emailTemplateLinks.partitionId, p), eq(emailTemplateLinks.triggerType, "on_create"), eq(emailTemplateLinks.isActive, 1))).limit(1),
+        db.select({ id: emailAutoPersonalizedLinks.id }).from(emailAutoPersonalizedLinks)
+            .where(and(eq(emailAutoPersonalizedLinks.partitionId, p), eq(emailAutoPersonalizedLinks.triggerType, "on_create"), eq(emailAutoPersonalizedLinks.isActive, 1))).limit(1),
+        db.select({ id: recordAutoEnrichRules.id }).from(recordAutoEnrichRules)
+            .where(and(eq(recordAutoEnrichRules.partitionId, p), eq(recordAutoEnrichRules.isActive, 1))).limit(1),
+    ]);
+    const hasAlim = alim.length > 0;
+    const hasEmailAuto = emailAuto.length > 0;
+    const hasAiEmail = aiEmail.length > 0;
+    const hasEnrich = enrich.length > 0;
+
+    if (hasAlim || hasEmailAuto || hasEnrich) {
+        for (const record of insertedRecords) {
+            const triggerParams = { record, partitionId: p, triggerType: "on_create" as const, orgId: ctx.orgId };
+            if (hasAlim) processAutoTrigger(triggerParams).catch((err) => console.error("[import] auto trigger error:", err));
+            if (hasEmailAuto) processEmailAutoTrigger(triggerParams).catch((err) => console.error("[import] email auto trigger error:", err));
+            if (hasEnrich) processAutoEnrich(triggerParams).catch((err) => console.error("[import] auto enrich error:", err));
+        }
     }
 
-    (async () => {
+    if (hasAiEmail) {
         const BATCH_SIZE = 5;
         const BATCH_DELAY_MS = 1000;
         for (let i = 0; i < insertedRecords.length; i += BATCH_SIZE) {
             const batch = insertedRecords.slice(i, i + BATCH_SIZE);
             await Promise.allSettled(
                 batch.map((record) =>
-                    processAutoPersonalizedEmail({ record, partitionId: ctx.partitionId, triggerType: "on_create", orgId: ctx.orgId }),
+                    processAutoPersonalizedEmail({ record, partitionId: p, triggerType: "on_create", orgId: ctx.orgId }),
                 ),
             );
             if (i + BATCH_SIZE < insertedRecords.length) {
                 await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
             }
         }
-    })();
+    }
 }
