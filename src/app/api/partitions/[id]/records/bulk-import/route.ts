@@ -47,33 +47,58 @@ export async function POST(
 
         const partition = access.partition;
 
-        const result = await db.transaction((tx) =>
-            insertImportedRecords(tx, {
-                orgId: user.orgId,
-                partition: {
-                    id: partition.id,
-                    workspaceId: partition.workspaceId,
-                    duplicateConfig: partition.duplicateConfig as { field: string; action: string } | null,
-                    duplicateCheckField: partition.duplicateCheckField,
-                },
-                dataRows: importRecords,
-                duplicateAction,
-            })
-        );
+        // 진행률 스트리밍 응답 (NDJSON): progress… → done|error
+        const encoder = new TextEncoder();
+        const orgId = user.orgId;
+        const stream = new ReadableStream<Uint8Array>({
+            async start(controller) {
+                const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+                try {
+                    const result = await db.transaction((tx) =>
+                        insertImportedRecords(tx, {
+                            orgId,
+                            partition: {
+                                id: partition.id,
+                                workspaceId: partition.workspaceId,
+                                duplicateConfig: partition.duplicateConfig as { field: string; action: string } | null,
+                                duplicateCheckField: partition.duplicateCheckField,
+                            },
+                            dataRows: importRecords,
+                            duplicateAction,
+                            onProgress: (processed, total) => send({ type: "progress", processed, total }),
+                        })
+                    );
 
-        // 자동 트리거 (알림톡/이메일/보강/AI개인화)
-        dispatchImportTriggers(result.insertedRecords, { partitionId, orgId: user.orgId });
+                    // 자동 트리거 (알림톡/이메일/보강/AI개인화)
+                    dispatchImportTriggers(result.insertedRecords, { partitionId, orgId });
+                    // SSE 브로드캐스트
+                    broadcastToPartition(partitionId, "record:created", { partitionId });
 
-        // SSE 브로드캐스트
-        broadcastToPartition(partitionId, "record:created", { partitionId });
+                    send({
+                        type: "done",
+                        result: {
+                            success: true,
+                            totalCount: result.totalCount,
+                            insertedCount: result.insertedCount,
+                            skippedCount: result.skippedCount,
+                            mergedCount: result.mergedCount,
+                            errors: result.errors,
+                        },
+                    });
+                } catch (err) {
+                    console.error("Bulk import error:", err);
+                    send({ type: "error", error: "서버 오류가 발생했습니다." });
+                } finally {
+                    controller.close();
+                }
+            },
+        });
 
-        return NextResponse.json({
-            success: true,
-            totalCount: result.totalCount,
-            insertedCount: result.insertedCount,
-            skippedCount: result.skippedCount,
-            mergedCount: result.mergedCount,
-            errors: result.errors,
+        return new Response(stream, {
+            headers: {
+                "Content-Type": "application/x-ndjson; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+            },
         });
     } catch (error) {
         console.error("Bulk import error:", error);

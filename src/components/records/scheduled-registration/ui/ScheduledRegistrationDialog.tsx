@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { Upload, CalendarClock, Trash2, Loader2 } from "lucide-react";
 import FieldMappingStep from "../../import/FieldMappingStep";
 import type { FieldDefinition } from "@/types";
@@ -250,6 +251,7 @@ function UploadTab({
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [dupAction, setDupAction] = useState<"skip" | "error">("skip");
     const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
 
     const activeMappings = useMemo(() => Object.entries(mapping).filter(([, v]) => v), [mapping]);
@@ -296,6 +298,7 @@ function UploadTab({
     const handleUpload = async () => {
         if (!file) return;
         setUploading(true);
+        setProgress(null);
         try {
             const fd = new FormData();
             fd.append("file", file);
@@ -304,20 +307,50 @@ function UploadTab({
                 method: "POST",
                 body: fd,
             });
-            const json = await res.json();
-            if (json.success) {
-                toast.success(`${json.data.inserted.toLocaleString()}건이 예약 등록 대기열에 추가됐습니다.`);
-                setFile(null);
-                setHeaders([]);
-                setMapping({});
-                onUploaded();
-            } else {
+
+            // 검증 실패 등은 일반 JSON 에러로 응답
+            if (!res.ok || !res.body) {
+                const json = await res.json().catch(() => ({}));
                 toast.error(json.error ?? "업로드 실패");
+                return;
+            }
+
+            // 서버가 적재 진행률을 NDJSON으로 스트리밍
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = "";
+            let done = false;
+            while (!done) {
+                const { value, done: streamDone } = await reader.read();
+                if (streamDone) break;
+                buf += decoder.decode(value, { stream: true });
+                const lines = buf.split("\n");
+                buf = lines.pop() ?? "";
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    const msg = JSON.parse(line);
+                    if (msg.type === "start") {
+                        setProgress({ processed: 0, total: msg.total });
+                    } else if (msg.type === "progress") {
+                        setProgress({ processed: msg.processed, total: msg.total });
+                    } else if (msg.type === "done") {
+                        toast.success(`${msg.inserted.toLocaleString()}건이 예약 등록 대기열에 추가됐습니다.`);
+                        setFile(null);
+                        setHeaders([]);
+                        setMapping({});
+                        onUploaded();
+                        done = true;
+                    } else if (msg.type === "error") {
+                        toast.error(msg.error ?? "적재 중 오류가 발생했습니다.");
+                        done = true;
+                    }
+                }
             }
         } catch {
             toast.error("업로드 중 오류가 발생했습니다.");
         } finally {
             setUploading(false);
+            setProgress(null);
         }
     };
 
@@ -359,8 +392,29 @@ function UploadTab({
                 duplicateAction={dupAction}
                 onDuplicateActionChange={setDupAction}
             />
+            {uploading && (
+                <div className="space-y-1.5">
+                    {progress ? (
+                        <>
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                                <span>대기열에 적재 중…</span>
+                                <span className="tabular-nums">
+                                    {progress.processed.toLocaleString()} / {progress.total.toLocaleString()}
+                                    {progress.total > 0 ? ` (${Math.floor((progress.processed / progress.total) * 100)}%)` : ""}
+                                </span>
+                            </div>
+                            <Progress value={progress.total > 0 ? (progress.processed / progress.total) * 100 : 0} />
+                        </>
+                    ) : (
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            파일 전송 중…
+                        </div>
+                    )}
+                </div>
+            )}
             <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { setFile(null); setHeaders([]); setMapping({}); }}>
+                <Button variant="outline" disabled={uploading} onClick={() => { setFile(null); setHeaders([]); setMapping({}); }}>
                     다른 파일
                 </Button>
                 <Button onClick={handleUpload} disabled={uploading || activeMappings.length === 0}>

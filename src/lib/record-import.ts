@@ -21,6 +21,8 @@ export interface InsertImportedRecordsParams {
     dataRows: Array<Record<string, unknown>>;
     /** 중복(reject) 시 동작 — skip(건너뛰기) | error(에러로 보고) */
     duplicateAction?: "skip" | "error";
+    /** 진행률 콜백 (처리된 행 수, 전체) — 약 50행마다 + 완료 시 호출 */
+    onProgress?: (processed: number, total: number) => void;
 }
 
 export interface InsertImportedRecordsResult {
@@ -39,7 +41,7 @@ export interface InsertImportedRecordsResult {
  */
 export async function insertImportedRecords(
     tx: DbExecutor,
-    { orgId, partition, dataRows, duplicateAction = "skip" }: InsertImportedRecordsParams,
+    { orgId, partition, dataRows, duplicateAction = "skip", onProgress }: InsertImportedRecordsParams,
 ): Promise<InsertImportedRecordsResult> {
     const partitionId = partition.id;
 
@@ -79,6 +81,7 @@ export async function insertImportedRecords(
     let currentSeq = org.integratedCodeSeq;
 
     for (let i = 0; i < dataRows.length; i++) {
+        if (onProgress && i % 50 === 0) onProgress(i, dataRows.length);
         const data = dataRows[i];
 
         // 중복 체크
@@ -132,6 +135,8 @@ export async function insertImportedRecords(
         insertedCount++;
         insertedRecords.push(inserted);
     }
+
+    if (onProgress) onProgress(dataRows.length, dataRows.length);
 
     // 조직 시퀀스 업데이트
     await tx

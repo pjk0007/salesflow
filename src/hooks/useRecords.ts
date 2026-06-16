@@ -134,7 +134,8 @@ export function useRecords(params: UseRecordsParams) {
 
     const bulkImport = async (
         importRecords: Array<Record<string, unknown>>,
-        duplicateAction: "skip" | "error" = "skip"
+        duplicateAction: "skip" | "error" = "skip",
+        onProgress?: (p: { processed: number; total: number }) => void
     ): Promise<ImportResult> => {
         const res = await fetch(
             `/api/partitions/${params.partitionId}/records/bulk-import`,
@@ -144,7 +145,33 @@ export function useRecords(params: UseRecordsParams) {
                 body: JSON.stringify({ records: importRecords, duplicateAction }),
             }
         );
-        const result = await res.json();
+
+        // 검증 실패 등은 일반 JSON 에러
+        if (!res.ok || !res.body) {
+            return await res.json();
+        }
+
+        // 서버가 적재 진행률을 NDJSON으로 스트리밍 (progress… → done|error)
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = "";
+        let result: ImportResult = { success: false, totalCount: 0, insertedCount: 0, skippedCount: 0, errors: [] };
+        let finished = false;
+        while (!finished) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split("\n");
+            buf = lines.pop() ?? "";
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                const msg = JSON.parse(line);
+                if (msg.type === "progress") onProgress?.({ processed: msg.processed, total: msg.total });
+                else if (msg.type === "done") { result = msg.result; finished = true; }
+                else if (msg.type === "error") { result = { success: false, totalCount: 0, insertedCount: 0, skippedCount: 0, errors: [], error: msg.error } as ImportResult; finished = true; }
+            }
+        }
+
         if (result.success && result.insertedCount > 0) mutate();
         return result;
     };

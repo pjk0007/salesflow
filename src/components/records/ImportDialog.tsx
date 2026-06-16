@@ -8,6 +8,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import FileUploadStep from "./import/FileUploadStep";
 import FieldMappingStep from "./import/FieldMappingStep";
 import ImportResultStep from "./import/ImportResultStep";
@@ -22,7 +23,8 @@ interface ImportDialogProps {
     duplicateCheckField?: string;
     onImport: (
         records: Array<Record<string, unknown>>,
-        duplicateAction: "skip" | "error"
+        duplicateAction: "skip" | "error",
+        onProgress?: (p: { processed: number; total: number }) => void
     ) => Promise<ImportResult>;
 }
 
@@ -39,6 +41,7 @@ export default function ImportDialog({
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [duplicateAction, setDuplicateAction] = useState<"skip" | "error">("skip");
     const [importing, setImporting] = useState(false);
+    const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null);
     const [result, setResult] = useState<ImportResult | null>(null);
     const [errors, setErrors] = useState<Array<{ row: number; message: string }>>([]);
 
@@ -62,6 +65,7 @@ export default function ImportDialog({
             setResult(null);
             setErrors([]);
             setImporting(false);
+            setProgress(null);
         }
         onOpenChange(open);
     };
@@ -121,6 +125,7 @@ export default function ImportDialog({
 
     const handleImport = async () => {
         setImporting(true);
+        setProgress(null);
         try {
             const validationErrors = validateData();
             const errorRows = new Set(validationErrors.map(e => e.row - 1));
@@ -167,13 +172,14 @@ export default function ImportDialog({
                 return;
             }
 
-            const apiResult = await onImport(importRecords, duplicateAction);
+            const apiResult = await onImport(importRecords, duplicateAction, setProgress);
             setResult({
                 ...apiResult,
-                errors: [...validationErrors, ...apiResult.errors],
+                errors: [...validationErrors, ...(apiResult.errors ?? [])],
             });
         } finally {
             setImporting(false);
+            setProgress(null);
         }
     };
 
@@ -181,10 +187,10 @@ export default function ImportDialog({
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>CSV 가져오기</DialogTitle>
+                    <DialogTitle>파일 가져오기</DialogTitle>
                     <DialogDescription>
-                        {step === 1 && "CSV 파일을 선택하세요."}
-                        {step === 2 && "CSV 컬럼을 필드에 매핑하세요."}
+                        {step === 1 && "CSV 또는 엑셀 파일을 업로드하세요."}
+                        {step === 2 && "파일 컬럼을 필드에 매핑하세요."}
                         {step === 3 && (result
                             ? (result.insertedCount === 0 && !(result as any).mergedCount
                                 ? "중복으로 인해 등록된 레코드가 없습니다."
@@ -229,6 +235,25 @@ export default function ImportDialog({
                         errors={errors}
                         result={result}
                     />
+                )}
+
+                {importing && (
+                    <div className="space-y-1.5">
+                        {progress ? (
+                            <>
+                                <div className="flex justify-between text-xs text-muted-foreground">
+                                    <span>레코드 등록 중…</span>
+                                    <span className="tabular-nums">
+                                        {progress.processed.toLocaleString()} / {progress.total.toLocaleString()}
+                                        {progress.total > 0 ? ` (${Math.floor((progress.processed / progress.total) * 100)}%)` : ""}
+                                    </span>
+                                </div>
+                                <Progress value={progress.total > 0 ? (progress.processed / progress.total) * 100 : 0} />
+                            </>
+                        ) : (
+                            <div className="text-xs text-muted-foreground">처리 준비 중…</div>
+                        )}
+                    </div>
                 )}
 
                 <DialogFooter>

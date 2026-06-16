@@ -120,15 +120,38 @@ export async function POST(
             };
         });
 
-        // 배치 insert
-        let inserted = 0;
-        for (let i = 0; i < queueValues.length; i += INSERT_BATCH) {
-            const batch = queueValues.slice(i, i + INSERT_BATCH);
-            await db.insert(scheduledRegistrations).values(batch);
-            inserted += batch.length;
-        }
+        // 진행률 스트리밍 응답 (NDJSON 한 줄당 이벤트): start → progress… → done|error
+        const encoder = new TextEncoder();
+        const values = queueValues;
+        const total = values.length;
+        const stream = new ReadableStream<Uint8Array>({
+            async start(controller) {
+                const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+                try {
+                    send({ type: "start", total });
+                    let inserted = 0;
+                    for (let i = 0; i < values.length; i += INSERT_BATCH) {
+                        const batch = values.slice(i, i + INSERT_BATCH);
+                        await db.insert(scheduledRegistrations).values(batch);
+                        inserted += batch.length;
+                        send({ type: "progress", processed: inserted, total });
+                    }
+                    send({ type: "done", inserted });
+                } catch (err) {
+                    console.error("Scheduled registration upload (stream) error:", err);
+                    send({ type: "error", error: "적재 중 오류가 발생했습니다." });
+                } finally {
+                    controller.close();
+                }
+            },
+        });
 
-        return NextResponse.json({ success: true, data: { inserted } });
+        return new Response(stream, {
+            headers: {
+                "Content-Type": "application/x-ndjson; charset=utf-8",
+                "Cache-Control": "no-cache, no-transform",
+            },
+        });
     } catch (error) {
         console.error("Scheduled registration upload error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });

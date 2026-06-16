@@ -292,8 +292,9 @@ export default function RecordsPage() {
         async (
             importRecords: Array<Record<string, unknown>>,
             duplicateAction: "skip" | "error" = "skip",
+            onProgress?: (p: { processed: number; total: number }) => void,
         ) => {
-            const result = await bulkImport(importRecords, duplicateAction);
+            const result = await bulkImport(importRecords, duplicateAction, onProgress);
             if (result?.success && viewMode === "grouped") handleSSEChange();
             return result;
         },
