@@ -25,6 +25,7 @@ interface RecordToolbarProps {
     onExportClick?: () => void;
     onImportClick?: () => void;
     onScheduledRegClick?: () => void;
+    onConditionDeleteClick?: () => void;
     onAlimtalkSend?: () => void;
     onEmailSend?: () => void;
     selectedCount: number;
@@ -51,6 +52,7 @@ export default function RecordToolbar({
     onExportClick,
     onImportClick,
     onScheduledRegClick,
+    onConditionDeleteClick,
     onAlimtalkSend,
     onEmailSend,
     selectedCount,
@@ -224,6 +226,19 @@ export default function RecordToolbar({
                         {selectedCount}건 삭제
                     </Button>
                 </>
+            )}
+
+            {/* 조건 삭제 */}
+            {onConditionDeleteClick && (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onConditionDeleteClick}
+                    className="gap-1.5 text-destructive hover:text-destructive"
+                >
+                    <Trash2 className="h-4 w-4" />
+                    조건 삭제
+                </Button>
             )}
 
             {/* 추가 버튼 */}

@@ -8,6 +8,7 @@ import { processAutoEnrich } from "@/lib/auto-enrich";
 import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
+import { buildRecordConditions } from "@/lib/record-filters";
 
 async function verifyPartitionAccess(partitionId: number, orgId: string) {
     const result = await db
@@ -66,77 +67,8 @@ export async function GET(
 
         const offset = (page - 1) * pageSize;
 
-        // WHERE 조건 구성
-        const conditions = [eq(records.partitionId, partitionId)];
-
-        if (search) {
-            conditions.push(sql`${records.data}::text ILIKE ${"%" + search + "%"}`);
-        }
-
-        if (distributionOrder !== undefined) {
-            conditions.push(eq(records.distributionOrder, distributionOrder));
-        }
-
-        // 그룹 필터 (그룹뷰: 특정 그룹의 레코드만 페이징)
-        if (groupBy) {
-            if (!groupValue) {
-                // 미분류: NULL 또는 빈 문자열
-                conditions.push(sql`(${records.data}->>${groupBy} IS NULL OR ${records.data}->>${groupBy} = '')`);
-            } else {
-                conditions.push(sql`${records.data}->>${groupBy} = ${groupValue}`);
-            }
-        }
-
-        // 필드별 필터 조건
-        for (const f of filters) {
-            const key = f.field;
-            const val = f.value;
-            switch (f.operator) {
-                case "contains":
-                    conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
-                    break;
-                case "equals":
-                    conditions.push(sql`${records.data}->>${key} = ${String(val)}`);
-                    break;
-                case "not_equals":
-                    conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
-                    break;
-                case "gt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric > ${Number(val)}`);
-                    break;
-                case "gte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric >= ${Number(val)}`);
-                    break;
-                case "lt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric < ${Number(val)}`);
-                    break;
-                case "lte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
-                    break;
-                case "before":
-                    conditions.push(sql`(${records.data}->>${key})::date < ${String(val)}::date`);
-                    break;
-                case "after":
-                    conditions.push(sql`(${records.data}->>${key})::date > ${String(val)}::date`);
-                    break;
-                case "between":
-                    conditions.push(sql`(${records.data}->>${key})::date >= ${String(val)}::date`);
-                    conditions.push(sql`(${records.data}->>${key})::date <= ${String(f.valueTo)}::date`);
-                    break;
-                case "is_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);
-                    break;
-                case "is_not_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NOT NULL AND ${records.data}->>${key} != '')`);
-                    break;
-                case "is_true":
-                    conditions.push(sql`(${records.data}->>${key})::boolean = true`);
-                    break;
-                case "is_false":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR (${records.data}->>${key})::boolean = false)`);
-                    break;
-            }
-        }
+        // WHERE 조건 구성 (목록/조건삭제 공용 빌더)
+        const conditions = buildRecordConditions(partitionId, { search, distributionOrder, groupBy, groupValue, filters });
 
         const whereClause = and(...conditions);
 

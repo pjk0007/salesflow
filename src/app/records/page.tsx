@@ -35,6 +35,7 @@ import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
 import SendEmailDialog from "@/components/records/SendEmailDialog";
 import ImportDialog from "@/components/records/ImportDialog";
 import ScheduledRegistrationDialog from "@/components/records/scheduled-registration/ui/ScheduledRegistrationDialog";
+import ConditionDeleteDialog from "@/components/records/ConditionDeleteDialog";
 import RecordDetailDialog from "@/components/records/RecordDetailDialog";
 import CreatePartitionDialog from "@/components/records/CreatePartitionDialog";
 import CreateFolderDialog from "@/components/records/CreateFolderDialog";
@@ -81,6 +82,7 @@ export default function RecordsPage() {
     const [emailDialogOpen, setEmailDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [scheduledRegOpen, setScheduledRegOpen] = useState(false);
+    const [conditionDeleteOpen, setConditionDeleteOpen] = useState(false);
     const [detailRecord, setDetailRecord] = useState<DbRecord | null>(null);
 
     // 파티션/폴더 관리 다이얼로그 상태
@@ -527,6 +529,7 @@ export default function RecordsPage() {
                                 onExportClick={handleExport}
                                 onImportClick={() => setImportDialogOpen(true)}
                                 onScheduledRegClick={() => setScheduledRegOpen(true)}
+                                onConditionDeleteClick={() => setConditionDeleteOpen(true)}
                                 onAlimtalkSend={() => setAlimtalkDialogOpen(true)}
                                 onEmailSend={() => setEmailDialogOpen(true)}
                                 selectedCount={selectedIds.size}
@@ -646,6 +649,13 @@ export default function RecordsPage() {
                 onOpenChange={setScheduledRegOpen}
                 partitionId={partitionId}
                 fields={fields}
+            />
+            <ConditionDeleteDialog
+                open={conditionDeleteOpen}
+                onOpenChange={setConditionDeleteOpen}
+                partitionId={partitionId}
+                fields={fields}
+                onDeleted={() => { handleSSEChange(); setSelectedIds(new Set()); }}
             />
             <RecordDetailDialog
                 open={detailRecord !== null}
