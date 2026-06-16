@@ -72,7 +72,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 파티션 ID입니다." }, { status: 400 });
     }
 
-    const { name, folderId, fieldTypeId, visibleFields, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig } = await req.json();
+    const { name, folderId, fieldTypeId, visibleFields, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig, scheduledRegistrationConfig } = await req.json();
 
     // name-only 업데이트가 아닌 경우에도 지원
     if (name !== undefined && (!name || !String(name).trim())) {
@@ -146,6 +146,26 @@ export async function PATCH(
             updateData.duplicateConfig = duplicateConfig;
             // duplicateCheckField 동기화 (하위호환)
             updateData.duplicateCheckField = duplicateConfig?.field || null;
+        }
+
+        if (scheduledRegistrationConfig !== undefined) {
+            if (scheduledRegistrationConfig === null) {
+                updateData.scheduledRegistrationConfig = null;
+            } else {
+                const timeOfDay = String(scheduledRegistrationConfig.timeOfDay || "09:00");
+                if (!/^\d{2}:\d{2}$/.test(timeOfDay)) {
+                    return NextResponse.json({ success: false, error: "실행 시각 형식이 올바르지 않습니다 (HH:mm)." }, { status: 400 });
+                }
+                const countPerDay = Math.max(1, Number(scheduledRegistrationConfig.countPerDay) || 0);
+                const prev = access.partition.scheduledRegistrationConfig as { lastRunDate?: string } | null;
+                updateData.scheduledRegistrationConfig = {
+                    enabled: Boolean(scheduledRegistrationConfig.enabled),
+                    timeOfDay,
+                    countPerDay,
+                    // 설정 변경 시 마지막 실행일 유지 (하루 1회 보장 유지)
+                    ...(prev?.lastRunDate ? { lastRunDate: prev.lastRunDate } : {}),
+                };
+            }
         }
 
         const [updated] = await db

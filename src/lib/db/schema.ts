@@ -196,9 +196,53 @@ export const partitions = pgTable("partitions", {
     } | null>(),
     // 상태 옵션 필터
     statusOptionIds: jsonb("status_option_ids").$type<number[]>(),
+    // 예약 등록 설정 (매일 지정 시각에 N개씩 자동 등록)
+    scheduledRegistrationConfig: jsonb("scheduled_registration_config").$type<{
+        enabled: boolean;
+        timeOfDay: string; // "HH:mm" (KST)
+        countPerDay: number;
+        lastRunDate?: string; // "YYYY-MM-DD" — 하루 1회 실행 보장
+    } | null>(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
+
+// ============================================
+// 예약 등록 대기열 (업로드 → 매일 N개씩 레코드 등록)
+// ============================================
+export const scheduledRegistrations = pgTable(
+    "scheduled_registrations",
+    {
+        id: serial("id").primaryKey(),
+        orgId: uuid("org_id")
+            .references(() => organizations.id, { onDelete: "cascade" })
+            .notNull(),
+        workspaceId: integer("workspace_id")
+            .references(() => workspaces.id, { onDelete: "cascade" })
+            .notNull(),
+        partitionId: integer("partition_id")
+            .references(() => partitions.id, { onDelete: "cascade" })
+            .notNull(),
+        data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | registered | failed
+        recordId: integer("record_id"),
+        sourceFileName: varchar("source_file_name", { length: 300 }),
+        errorMessage: text("error_message"),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+        registeredAt: timestamptz("registered_at"),
+    },
+    (table) => [
+        // 일일 픽업(status='pending' ORDER BY id) + 목록/카운트 동시 커버
+        index("scheduled_registrations_pickup_idx").on(
+            table.partitionId,
+            table.status,
+            table.id,
+        ),
+    ],
+);
+
+export type ScheduledRegistration = typeof scheduledRegistrations.$inferSelect;
+export type NewScheduledRegistration = typeof scheduledRegistrations.$inferInsert;
 
 // ============================================
 // 레코드 (JSONB 기반 유연한 데이터)

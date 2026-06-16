@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces, organizations } from "@/lib/db";
-import { eq, and, sql } from "drizzle-orm";
+import { db, partitions, workspaces } from "@/lib/db";
+import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { processAutoTrigger } from "@/lib/alimtalk-automation";
-import { processEmailAutoTrigger } from "@/lib/email-automation";
-import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
-// Note: bulk-import uses batched AI email (rate limit safe), so dispatchAutoTriggers is not used here
-import { processAutoEnrich } from "@/lib/auto-enrich";
+import { insertImportedRecords, dispatchImportTriggers } from "@/lib/record-import";
 import { broadcastToPartition } from "@/lib/sse";
 
 export async function POST(
@@ -51,133 +47,22 @@ export async function POST(
 
         const partition = access.partition;
 
-        const result = await db.transaction(async (tx) => {
-            // 조직 정보 (통합코드용)
-            const [org] = await tx
-                .select()
-                .from(organizations)
-                .where(eq(organizations.id, user.orgId));
-
-            // 중복 체크 필드 확인 (duplicateConfig 우선, fallback to duplicateCheckField)
-            const dupConfig = partition.duplicateConfig as { field: string; action: string } | null;
-            const duplicateField = dupConfig?.field || partition.duplicateCheckField;
-            const dupAction = dupConfig?.action || "reject"; // reject=skip/error, allow/merge/delete_old
-
-            // 기존 레코드 값 → ID 매핑 (merge/delete_old용)
-            const existingMap = new Map<string, number>();
-            const existingDataMap = new Map<string, Record<string, unknown>>();
-            if (duplicateField) {
-                const existing = await tx
-                    .select({ id: records.id, data: records.data, val: sql<string>`${records.data}->>${duplicateField}` })
-                    .from(records)
-                    .where(eq(records.partitionId, partitionId));
-                for (const r of existing) {
-                    if (r.val) {
-                        existingMap.set(r.val, r.id);
-                        existingDataMap.set(r.val, r.data as Record<string, unknown>);
-                    }
-                }
-            }
-            // 배치 내 중복 추적
-            const batchValues = new Set<string>();
-
-            // 레코드 순회 삽입
-            const errors: Array<{ row: number; message: string }> = [];
-            const insertedRecords: Array<typeof records.$inferSelect> = [];
-            let insertedCount = 0;
-            let skippedCount = 0;
-            let mergedCount = 0;
-            let currentSeq = org.integratedCodeSeq;
-
-            for (let i = 0; i < importRecords.length; i++) {
-                const data = importRecords[i];
-
-                // 중복 체크
-                if (duplicateField && data[duplicateField]) {
-                    const val = String(data[duplicateField]);
-                    const isDupExisting = existingMap.has(val);
-                    const isDupBatch = batchValues.has(val);
-
-                    if (isDupExisting || isDupBatch) {
-                        if (dupAction === "allow") {
-                            // 그대로 진행 (중복 허용)
-                        } else if (dupAction === "merge" && isDupExisting) {
-                            // 기존 레코드에 새 데이터 병합
-                            const existingData = existingDataMap.get(val) || {};
-                            const mergedData = { ...existingData, ...data };
-                            await tx
-                                .update(records)
-                                .set({ data: mergedData, updatedAt: new Date() })
-                                .where(eq(records.id, existingMap.get(val)!));
-                            existingDataMap.set(val, mergedData);
-                            mergedCount++;
-                            continue;
-                        } else if (dupAction === "delete_old" && isDupExisting) {
-                            // 기존 삭제 후 아래 생성 로직 진행
-                            await tx.delete(records).where(eq(records.id, existingMap.get(val)!));
-                            existingMap.delete(val);
-                            existingDataMap.delete(val);
-                        } else {
-                            // reject (기존 skip/error 동작)
-                            if (duplicateAction === "skip") {
-                                skippedCount++;
-                                continue;
-                            } else {
-                                errors.push({ row: i + 1, message: `중복: ${duplicateField}="${val}"` });
-                                continue;
-                            }
-                        }
-                    }
-                    batchValues.add(val);
-                }
-
-                // 통합코드 생성
-                currentSeq++;
-                const integratedCode = `${org.integratedCodePrefix}-${String(currentSeq).padStart(4, "0")}`;
-
-                const [inserted] = await tx.insert(records).values({
-                    orgId: user.orgId,
+        const result = await db.transaction((tx) =>
+            insertImportedRecords(tx, {
+                orgId: user.orgId,
+                partition: {
+                    id: partition.id,
                     workspaceId: partition.workspaceId,
-                    partitionId,
-                    integratedCode,
-                    data,
-                }).returning();
-                insertedCount++;
-                insertedRecords.push(inserted);
-            }
+                    duplicateConfig: partition.duplicateConfig as { field: string; action: string } | null,
+                    duplicateCheckField: partition.duplicateCheckField,
+                },
+                dataRows: importRecords,
+                duplicateAction,
+            })
+        );
 
-            // 조직 시퀀스 업데이트
-            await tx
-                .update(organizations)
-                .set({ integratedCodeSeq: currentSeq })
-                .where(eq(organizations.id, org.id));
-
-            return { totalCount: importRecords.length, insertedCount, skippedCount, mergedCount, errors, insertedRecords };
-        });
-
-        // 자동 트리거 (알림톡/이메일/보강은 fire-and-forget, AI 자동발송은 순차)
-        for (const record of result.insertedRecords) {
-            const triggerParams = { record, partitionId, triggerType: "on_create" as const, orgId: user.orgId };
-            processAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: auto trigger error:", err));
-            processEmailAutoTrigger(triggerParams).catch((err) => console.error("Bulk import: email auto trigger error:", err));
-            processAutoEnrich(triggerParams).catch((err) => console.error("Bulk import: auto enrich error:", err));
-        }
-        // AI 자동발송은 배치 병렬 실행 (5건/배치, 1초 딜레이로 rate limit 준수)
-        (async () => {
-            const BATCH_SIZE = 5;
-            const BATCH_DELAY_MS = 1000;
-            for (let i = 0; i < result.insertedRecords.length; i += BATCH_SIZE) {
-                const batch = result.insertedRecords.slice(i, i + BATCH_SIZE);
-                await Promise.allSettled(
-                    batch.map(record =>
-                        processAutoPersonalizedEmail({ record, partitionId, triggerType: "on_create", orgId: user.orgId })
-                    )
-                );
-                if (i + BATCH_SIZE < result.insertedRecords.length) {
-                    await new Promise(r => setTimeout(r, BATCH_DELAY_MS));
-                }
-            }
-        })();
+        // 자동 트리거 (알림톡/이메일/보강/AI개인화)
+        dispatchImportTriggers(result.insertedRecords, { partitionId, orgId: user.orgId });
 
         // SSE 브로드캐스트
         broadcastToPartition(partitionId, "record:created", { partitionId });

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Search, Plus, Trash2, MessageSquare, Mail, Download, Upload, List, LayoutList, SlidersHorizontal, Eye, EyeOff } from "lucide-react";
+import { Search, Plus, Trash2, MessageSquare, Mail, Download, Upload, CalendarClock, List, LayoutList, SlidersHorizontal, Eye, EyeOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ interface RecordToolbarProps {
     onBulkDelete: () => void;
     onExportClick?: () => void;
     onImportClick?: () => void;
+    onScheduledRegClick?: () => void;
     onAlimtalkSend?: () => void;
     onEmailSend?: () => void;
     selectedCount: number;
@@ -49,6 +50,7 @@ export default function RecordToolbar({
     onBulkDelete,
     onExportClick,
     onImportClick,
+    onScheduledRegClick,
     onAlimtalkSend,
     onEmailSend,
     selectedCount,
@@ -173,6 +175,17 @@ export default function RecordToolbar({
                 >
                     <Upload className="h-4 w-4" />
                     가져오기
+                </Button>
+            )}
+            {onScheduledRegClick && (
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onScheduledRegClick}
+                    className="gap-1.5"
+                >
+                    <CalendarClock className="h-4 w-4" />
+                    예약 등록
                 </Button>
             )}
 

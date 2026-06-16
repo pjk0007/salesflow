@@ -34,6 +34,7 @@ import DeleteConfirmDialog from "@/components/records/DeleteConfirmDialog";
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
 import SendEmailDialog from "@/components/records/SendEmailDialog";
 import ImportDialog from "@/components/records/ImportDialog";
+import ScheduledRegistrationDialog from "@/components/records/scheduled-registration/ui/ScheduledRegistrationDialog";
 import RecordDetailDialog from "@/components/records/RecordDetailDialog";
 import CreatePartitionDialog from "@/components/records/CreatePartitionDialog";
 import CreateFolderDialog from "@/components/records/CreateFolderDialog";
@@ -79,6 +80,7 @@ export default function RecordsPage() {
     const [alimtalkDialogOpen, setAlimtalkDialogOpen] = useState(false);
     const [emailDialogOpen, setEmailDialogOpen] = useState(false);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
+    const [scheduledRegOpen, setScheduledRegOpen] = useState(false);
     const [detailRecord, setDetailRecord] = useState<DbRecord | null>(null);
 
     // 파티션/폴더 관리 다이얼로그 상태
@@ -523,6 +525,7 @@ export default function RecordsPage() {
                                 onBulkDelete={() => setDeleteDialogOpen(true)}
                                 onExportClick={handleExport}
                                 onImportClick={() => setImportDialogOpen(true)}
+                                onScheduledRegClick={() => setScheduledRegOpen(true)}
                                 onAlimtalkSend={() => setAlimtalkDialogOpen(true)}
                                 onEmailSend={() => setEmailDialogOpen(true)}
                                 selectedCount={selectedIds.size}
@@ -636,6 +639,12 @@ export default function RecordsPage() {
                 fields={fields}
                 duplicateCheckField={currentPartition?.duplicateCheckField ?? undefined}
                 onImport={handleBulkImport}
+            />
+            <ScheduledRegistrationDialog
+                open={scheduledRegOpen}
+                onOpenChange={setScheduledRegOpen}
+                partitionId={partitionId}
+                fields={fields}
             />
             <RecordDetailDialog
                 open={detailRecord !== null}
