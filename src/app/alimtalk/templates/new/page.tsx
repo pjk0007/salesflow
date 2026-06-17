@@ -191,9 +191,12 @@ function NewAlimtalkTemplateContent() {
 
             const result = await createTemplate(payload);
             if (result.success) {
-                // 임시저장이 있으면 삭제
+                // 임시저장이 있으면 삭제 — 응답을 기다려야 라우팅으로 요청이 취소되지 않음.
                 if (draftId) {
-                    fetch(`/api/alimtalk/template-drafts/${draftId}`, { method: "DELETE" }).catch(() => {});
+                    const delRes = await fetch(`/api/alimtalk/template-drafts/${draftId}`, { method: "DELETE" });
+                    if (!delRes.ok) {
+                        toast.error("템플릿은 등록됐지만 임시저장 삭제에 실패했습니다. 목록에서 직접 삭제해주세요.");
+                    }
                 }
                 router.push("/alimtalk?tab=templates");
             } else {

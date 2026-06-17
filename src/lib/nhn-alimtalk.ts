@@ -305,15 +305,31 @@ export class NhnAlimtalkClient {
     // --- 템플릿 ---
 
     async listTemplates(senderKey: string) {
-        const result = await this.request(
-            "GET",
-            `/alimtalk/v2.3/appkeys/{appkey}/senders/${encodeURIComponent(senderKey)}/templates`
-        );
-        const listResponse = result.templateListResponse as { templates?: NhnTemplate[]; totalCount?: number } | undefined;
+        // NHN 목록 API 기본 pageSize가 15라, 페이지네이션 없이는 16번째부터 잘린다.
+        // totalCount에 도달할 때까지 pageNum을 올려 전체를 모은다.
+        const PAGE_SIZE = 100;
+        const base = `/alimtalk/v2.3/appkeys/{appkey}/senders/${encodeURIComponent(senderKey)}/templates`;
+        const all: NhnTemplate[] = [];
+        let pageNum = 1;
+        let totalCount = 0;
+        let header: NhnApiHeader | undefined;
+
+        do {
+            const result = await this.request("GET", `${base}?pageNum=${pageNum}&pageSize=${PAGE_SIZE}`);
+            header = result.header;
+            if (!result.header.isSuccessful) break;
+            const listResponse = result.templateListResponse as { templates?: NhnTemplate[]; totalCount?: number } | undefined;
+            const page = (listResponse?.templates ?? []) as NhnTemplate[];
+            all.push(...page);
+            totalCount = (listResponse?.totalCount ?? 0) as number;
+            if (page.length === 0) break; // 빈 페이지면 무한루프 방지
+            pageNum++;
+        } while (all.length < totalCount);
+
         return {
-            header: result.header,
-            templates: (listResponse?.templates ?? []) as NhnTemplate[],
-            totalCount: (listResponse?.totalCount ?? 0) as number,
+            header: header as NhnApiHeader,
+            templates: all,
+            totalCount,
         };
     }
 
