@@ -16,9 +16,10 @@ async function getQuotaLimitForOrg(orgId: string): Promise<number> {
         .where(eq(plans.id, sub.planId))
         .limit(1);
 
-    if (plan?.name === "Enterprise") return 100_000_000;
-    if (plan?.name === "Pro") return 10_000_000;
-    return 1_000_000;
+    // 주의: total_tokens/quota_limit 컬럼이 int4(최대 ~21.4억)이라 그 이상 올리려면 bigint 전환 필요
+    if (plan?.name === "Enterprise") return 1_000_000_000; // 10억
+    if (plan?.name === "Pro") return 100_000_000; // 1억
+    return 10_000_000; // Free 1천만
 }
 
 async function getOrCreateQuota(orgId: string, month: string): Promise<{ totalTokens: number; quotaLimit: number }> {
