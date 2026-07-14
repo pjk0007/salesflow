@@ -53,7 +53,7 @@ export async function PUT(
     }
 
     try {
-        const { name, subject, htmlBody, templateType, isActive, status, categoryId } = await req.json();
+        const { name, subject, htmlBody, templateType, isActive, status, categoryId, useUnsubscribe } = await req.json();
 
         // 발행 시 필수 필드 검증
         if (status === "published") {
@@ -76,6 +76,7 @@ export async function PUT(
         if (isActive !== undefined) updateData.isActive = isActive;
         if (status !== undefined) updateData.status = status;
         if (categoryId !== undefined) updateData.categoryId = categoryId || null;
+        if (useUnsubscribe !== undefined) updateData.useUnsubscribe = useUnsubscribe ? 1 : 0;
 
         const [updated] = await db
             .update(emailTemplates)

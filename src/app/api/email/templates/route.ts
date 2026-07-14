@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const { name, subject, htmlBody, templateType, status, categoryId } = await req.json();
+        const { name, subject, htmlBody, templateType, status, categoryId, useUnsubscribe } = await req.json();
         if (status !== "draft" && (!name || !subject || !htmlBody)) {
             return NextResponse.json({ success: false, error: "name, subject, htmlBody는 필수입니다." }, { status: 400 });
         }
@@ -67,6 +67,7 @@ export async function POST(req: NextRequest) {
                 templateType: templateType || null,
                 categoryId: categoryId || null,
                 status: status || "published",
+                useUnsubscribe: useUnsubscribe ? 1 : 0,
             })
             .returning();
 

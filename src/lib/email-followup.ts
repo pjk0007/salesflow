@@ -13,6 +13,14 @@ import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } 
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { wrapTrackingUrls, hasClicked } from "@/lib/email-click-tracking";
+import {
+    isUnsubscribed,
+    resolveWorkspaceId,
+    generateUnsubscribeToken,
+    buildUnsubscribeUrl,
+    appendUnsubscribeFooter,
+    buildListUnsubscribeHeaders,
+} from "@/lib/email-unsubscribe";
 import { substitutePromptVariables } from "@/lib/email-utils";
 
 // ============================================
@@ -361,7 +369,12 @@ async function handleTemplateFollowup(
         if (record) data = record.data as Record<string, unknown>;
     }
 
-    // 6. 변수 치환 + 서명
+    // 6. 수신거부 확인 — 첫 메일 이후 거부했을 수 있으므로 후속 발송 직전에 다시 본다
+    const workspaceId = await resolveWorkspaceId(link.partitionId);
+    if (!workspaceId) return false;
+    if (await isUnsubscribed(workspaceId, parentLog.recipientEmail)) return false;
+
+    // 7. 변수 치환 + 서명
     const mappings = (link.variableMappings as Record<string, string>) || {};
     const subject = substituteVariables(template.subject, mappings, data);
     let body = substituteVariables(template.htmlBody, mappings, data);
@@ -369,11 +382,16 @@ async function handleTemplateFollowup(
         body = appendSignature(body, signatureJson);
     }
 
-    // 7. NHN 발송
+    const unsubscribeToken = template.useUnsubscribe ? generateUnsubscribeToken() : null;
+    if (unsubscribeToken) {
+        body = appendUnsubscribeFooter(body, buildUnsubscribeUrl(unsubscribeToken));
+    }
+
+    // 8. NHN 발송
     const client = await getEmailClient(item.orgId);
     if (!client) return false;
 
-    // 8. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
+    // 9. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
     const [inserted] = await db.insert(emailSendLogs).values({
         orgId: item.orgId,
         templateLinkId: link.id,
@@ -387,6 +405,7 @@ async function handleTemplateFollowup(
         triggerType: "followup",
         parentLogId: parentLog.id,
         sentAt: new Date(),
+        unsubscribeToken,
     }).returning({ id: emailSendLogs.id });
 
     const trackedBody = wrapTrackingUrls(body, inserted.id);
@@ -397,6 +416,9 @@ async function handleTemplateFollowup(
         title: subject,
         body: trackedBody,
         receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
+        ...(unsubscribeToken
+            ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+            : {}),
     });
 
     const sendResult = nhnResult.data?.results?.[0];
@@ -456,7 +478,12 @@ async function handleAiFollowup(
     const action = isClicked ? currentStep.onClicked : currentStep.onNotClicked;
     if (!action?.prompt) return false;
 
-    // 3. AI 클라이언트 확인
+    // 3. 수신거부 확인 — AI 호출(토큰 소모) 전에 걸러낸다
+    const workspaceId = await resolveWorkspaceId(link.partitionId);
+    if (!workspaceId) return false;
+    if (await isUnsubscribed(workspaceId, parentLog.recipientEmail)) return false;
+
+    // 4. AI 클라이언트 확인
     const aiClient = getAiClient();
     if (!aiClient) return false;
 
@@ -542,6 +569,11 @@ async function handleAiFollowup(
         finalBody = appendSignature(finalBody, signatureJson);
     }
 
+    const unsubscribeToken = link.useUnsubscribe ? generateUnsubscribeToken() : null;
+    if (unsubscribeToken) {
+        finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
+    }
+
     const emailClient = await getEmailClient(item.orgId);
     if (!emailClient) return false;
 
@@ -557,6 +589,7 @@ async function handleAiFollowup(
         triggerType: "ai_followup",
         parentLogId: parentLog.id,
         sentAt: new Date(),
+        unsubscribeToken,
     }).returning({ id: emailSendLogs.id });
 
     const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
@@ -567,6 +600,9 @@ async function handleAiFollowup(
         title: emailResult.subject,
         body: trackedBody,
         receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
+        ...(unsubscribeToken
+            ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+            : {}),
     });
 
     const sendResult = nhnResult.data?.results?.[0];

@@ -6,6 +6,14 @@ import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import {
+    isUnsubscribed,
+    resolveWorkspaceId,
+    generateUnsubscribeToken,
+    buildUnsubscribeUrl,
+    appendUnsubscribeFooter,
+    buildListUnsubscribeHeaders,
+} from "@/lib/email-unsubscribe";
 import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
 
@@ -110,6 +118,11 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             // 4. 수신자 이메일 추출
             const email = data[link.recipientField];
             if (!email || typeof email !== "string" || !email.includes("@")) { console.log(`[AutoEmail] Rule ${link.id}: no valid email in field "${link.recipientField}" (got: ${email})`); continue; }
+
+            // 수신거부 확인 — AI 호출(토큰 소모) 전에 걸러낸다
+            const workspaceId = await resolveWorkspaceId(partitionId);
+            if (!workspaceId) { console.log(`[AutoEmail] Rule ${link.id}: workspace not found for partition ${partitionId}`); continue; }
+            if (await isUnsubscribed(workspaceId, email)) { console.log(`[AutoEmail] Rule ${link.id}: skipped, unsubscribed (${email})`); continue; }
 
             // 5. AI 클라이언트 확인
             const aiClient = getAiClient();
@@ -244,6 +257,11 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 finalBody = appendSignature(finalBody, signatureJson);
             }
 
+            const unsubscribeToken = link.useUnsubscribe ? generateUnsubscribeToken() : null;
+            if (unsubscribeToken) {
+                finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
+            }
+
             // 10. 로그 먼저 insert → 트래킹 URL 삽입 → 발송 → status 업데이트
             const [inserted] = await db.insert(emailSendLogs).values({
                 orgId,
@@ -256,6 +274,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 triggerType: "ai_auto",
                 autoPersonalizedLinkId: link.id,
                 sentAt: new Date(),
+                unsubscribeToken,
             }).returning({ id: emailSendLogs.id });
 
             const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
@@ -266,6 +285,9 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 title: emailResult.subject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
+                ...(unsubscribeToken
+                    ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                    : {}),
             });
 
             const sendResult = nhnResult.data?.results?.[0];

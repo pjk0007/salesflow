@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Sparkles, Code, Eye, ArrowLeft, Save } from "lucide-react";
 import {
     Select,
@@ -24,6 +25,7 @@ interface SaveData {
     templateType?: string;
     status?: "draft" | "published";
     categoryId?: number | null;
+    useUnsubscribe?: number;
 }
 
 interface SaveResult {
@@ -44,6 +46,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     const [htmlBody, setHtmlBody] = useState("");
     const [templateType, setTemplateType] = useState("");
     const [categoryId, setCategoryId] = useState<number | null>(null);
+    const [useUnsubscribe, setUseUnsubscribe] = useState(false);
     const [saving, setSaving] = useState(false);
     const [showAiPanel, setShowAiPanel] = useState(false);
     const [editMode, setEditMode] = useState<"visual" | "code">("visual");
@@ -68,6 +71,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
             setHtmlBody(template.htmlBody);
             setTemplateType(template.templateType || "");
             setCategoryId(template.categoryId ?? null);
+            setUseUnsubscribe(template.useUnsubscribe === 1);
             lastSavedRef.current = { name: template.name, subject: template.subject, htmlBody: template.htmlBody };
         }
     }, [template]);
@@ -217,6 +221,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     templateType: templateType || undefined,
                     status: "draft",
                     categoryId,
+                    useUnsubscribe: useUnsubscribe ? 1 : 0,
                 });
                 if (result.success) {
                     lastSavedRef.current = { name, subject, htmlBody };
@@ -232,7 +237,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         return () => {
             if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
         };
-    }, [name, subject, htmlBody, templateType, categoryId, isDirty, onSave]);
+    }, [name, subject, htmlBody, templateType, categoryId, useUnsubscribe, isDirty, onSave]);
 
     // 임시저장 (수동)
     const handleSaveDraft = async () => {
@@ -247,6 +252,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 templateType: templateType || undefined,
                 status: "draft",
                 categoryId,
+                useUnsubscribe: useUnsubscribe ? 1 : 0,
             });
             if (result.success) {
                 lastSavedRef.current = { name, subject, htmlBody };
@@ -274,6 +280,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 templateType: templateType || undefined,
                 status: "published",
                 categoryId,
+                useUnsubscribe: useUnsubscribe ? 1 : 0,
             });
             if (!result.success) {
                 toast.error(result.error || "발행에 실패했습니다.");
@@ -383,6 +390,22 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                                         ))}
                                     </SelectContent>
                                 </Select>
+                            </div>
+                        </div>
+                        <div className="flex items-start gap-2">
+                            <Checkbox
+                                id="tmpl-unsubscribe"
+                                checked={useUnsubscribe}
+                                onCheckedChange={(v) => setUseUnsubscribe(v === true)}
+                                className="mt-0.5"
+                            />
+                            <div className="space-y-0.5">
+                                <Label htmlFor="tmpl-unsubscribe" className="text-xs cursor-pointer">
+                                    수신거부 링크 삽입
+                                </Label>
+                                <p className="text-[11px] text-muted-foreground">
+                                    본문 하단에 수신거부 링크가 자동으로 붙습니다. 거부한 주소에는 이후 발송되지 않습니다.
+                                </p>
                             </div>
                         </div>
                         <div className="space-y-1">

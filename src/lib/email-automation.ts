@@ -5,6 +5,14 @@ import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import {
+    isUnsubscribed,
+    resolveWorkspaceId,
+    generateUnsubscribeToken,
+    buildUnsubscribeUrl,
+    appendUnsubscribeFooter,
+    buildListUnsubscribeHeaders,
+} from "@/lib/email-unsubscribe";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 
 // ============================================
@@ -93,12 +101,21 @@ async function sendEmailSingle(
     const email = data[link.recipientField];
     if (!email || typeof email !== "string" || !email.includes("@")) return { success: false };
 
+    const workspaceId = await resolveWorkspaceId(link.partitionId);
+    if (!workspaceId) return { success: false };
+    if (await isUnsubscribed(workspaceId, email)) return { success: false };
+
     // 변수 매핑
     const mappings = (link.variableMappings as Record<string, string>) || {};
     const substitutedSubject = substituteVariables(template.subject, mappings, data);
     let finalBody = substituteVariables(template.htmlBody, mappings, data);
     if (signatureJson) {
         finalBody = appendSignature(finalBody, signatureJson);
+    }
+
+    const unsubscribeToken = template.useUnsubscribe ? generateUnsubscribeToken() : null;
+    if (unsubscribeToken) {
+        finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
     }
 
     const [inserted] = await db.insert(emailSendLogs).values({
@@ -113,6 +130,7 @@ async function sendEmailSingle(
         status: "pending",
         triggerType,
         sentAt: new Date(),
+        unsubscribeToken,
     }).returning({ id: emailSendLogs.id });
 
     const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
@@ -123,6 +141,9 @@ async function sendEmailSingle(
         title: substitutedSubject,
         body: trackedBody,
         receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
+        ...(unsubscribeToken
+            ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+            : {}),
     });
 
     const sendResult = nhnResult.data?.results?.[0];

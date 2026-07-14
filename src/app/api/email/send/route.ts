@@ -4,6 +4,13 @@ import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import {
+    isUnsubscribed,
+    generateUnsubscribeToken,
+    buildUnsubscribeUrl,
+    appendUnsubscribeFooter,
+    buildListUnsubscribeHeaders,
+} from "@/lib/email-unsubscribe";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -110,6 +117,7 @@ export async function POST(req: NextRequest) {
         }
 
         const templateLink = linkRow.email_template_links;
+        const workspaceId = linkRow.workspaces.id;
 
         // 이메일 템플릿 조회
         const [template] = await db
@@ -143,10 +151,20 @@ export async function POST(req: NextRequest) {
                 continue;
             }
 
+            if (await isUnsubscribed(workspaceId, email)) {
+                errors.push({ recordId: record.id, error: "수신거부한 주소입니다." });
+                continue;
+            }
+
             const substitutedSubject = substituteVariables(template.subject, mappings, data);
             let finalBody = substituteVariables(template.htmlBody, mappings, data);
             if (signatureJson) {
                 finalBody = appendSignature(finalBody, signatureJson);
+            }
+
+            const unsubscribeToken = template.useUnsubscribe ? generateUnsubscribeToken() : null;
+            if (unsubscribeToken) {
+                finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
             }
 
             // 로그 먼저 insert → logId 획득 → 트래킹 URL 삽입 → 발송 → status 업데이트
@@ -162,6 +180,7 @@ export async function POST(req: NextRequest) {
                 status: "pending",
                 triggerType: "manual",
                 sentBy: user.userId,
+                unsubscribeToken,
             }).returning({ id: emailSendLogs.id });
 
             const trackedBody = wrapTrackingUrls(finalBody, logEntry.id);
@@ -172,6 +191,9 @@ export async function POST(req: NextRequest) {
                 title: substitutedSubject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
+                ...(unsubscribeToken
+                    ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                    : {}),
             });
 
             const sendResult = nhnResult.data?.results?.[0];

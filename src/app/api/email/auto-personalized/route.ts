@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
             triggerCondition: emailAutoPersonalizedLinks.triggerCondition,
             autoResearch: emailAutoPersonalizedLinks.autoResearch,
             useSignaturePersona: emailAutoPersonalizedLinks.useSignaturePersona,
+            useUnsubscribe: emailAutoPersonalizedLinks.useUnsubscribe,
             followupConfig: emailAutoPersonalizedLinks.followupConfig,
             senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
             signatureId: emailAutoPersonalizedLinks.signatureId,
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest) {
             triggerCondition,
             autoResearch = 1,
             useSignaturePersona = 0,
+            useUnsubscribe = 0,
             followupConfig,
             isActive,
             isDraft,
@@ -164,6 +166,7 @@ export async function POST(req: NextRequest) {
                 triggerCondition: triggerCondition || null,
                 autoResearch: autoResearch ?? 1,
                 useSignaturePersona: useSignaturePersona ?? 0,
+                useUnsubscribe: useUnsubscribe ?? 0,
                 followupConfig: followupConfig || null,
                 // draft는 자동으로 isActive=0
                 isActive: isDraftFlag ? 0 : (isActive ?? 1),

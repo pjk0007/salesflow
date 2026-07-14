@@ -611,6 +611,7 @@ export const emailTemplates = pgTable("email_templates", {
     categoryId: integer("category_id"),
     status: varchar("status", { length: 20 }).default("published").notNull(),
     isActive: integer("is_active").default(1).notNull(),
+    useUnsubscribe: integer("use_unsubscribe").default(0).notNull(),  // 본문 하단에 수신거부 링크 삽입
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
@@ -685,6 +686,7 @@ export const emailSendLogs = pgTable("email_send_logs", {
         () => emailAutoPersonalizedLinks.id,
         { onDelete: "set null" }
     ),
+    unsubscribeToken: varchar("unsubscribe_token", { length: 64 }),  // 본문 수신거부 링크가 발송 건을 되짚는 토큰
 });
 
 // ============================================
@@ -707,6 +709,31 @@ export const emailClickLogs = pgTable("email_click_logs", {
 ]);
 
 export type EmailClickLog = typeof emailClickLogs.$inferSelect;
+
+// ============================================
+// 이메일 수신거부
+// ============================================
+// 거부 범위는 워크스페이스 단위. 등록되면 해당 워크스페이스의 모든 발송 경로
+// (수동/자동/AI/후속)에서 제외된다.
+export const emailUnsubscribes = pgTable("email_unsubscribes", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    workspaceId: integer("workspace_id")
+        .references(() => workspaces.id, { onDelete: "cascade" })
+        .notNull(),
+    email: varchar("email", { length: 200 }).notNull(),
+    sendLogId: integer("send_log_id").references(() => emailSendLogs.id, {
+        onDelete: "set null",
+    }),
+    recordId: integer("record_id"),
+    source: varchar("source", { length: 20 }).default("link").notNull(),  // link | one_click | manual
+    reason: text("reason"),
+    unsubscribedAt: timestamptz("unsubscribed_at").defaultNow().notNull(),
+});
+
+export type EmailUnsubscribe = typeof emailUnsubscribes.$inferSelect;
 
 // ============================================
 // 이메일 자동 발송 큐
@@ -761,6 +788,7 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     }>(),
     autoResearch: integer("auto_research").default(1).notNull(),
     useSignaturePersona: integer("use_signature_persona").default(0).notNull(),
+    useUnsubscribe: integer("use_unsubscribe").default(0).notNull(),  // 본문 하단에 수신거부 링크 삽입
     followupConfig: jsonb("followup_config").$type<{
         delayDays: number;
         onClicked?: { prompt: string };

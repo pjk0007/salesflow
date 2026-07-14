@@ -1,6 +1,7 @@
 import { db, emailClickLogs, emailSendLogs } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
+import { isUnsubscribeUrl } from "@/lib/email-unsubscribe";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://sendb.kr";
 
@@ -29,6 +30,11 @@ export function wrapTrackingUrls(html: string, sendLogId: number): string {
         (_match, prefix, url, suffix) => {
             // mailto:, tel:, #앵커, javascript: 등은 제외
             if (/^(mailto:|tel:|#|javascript:)/i.test(url)) {
+                return `${prefix}${url}${suffix}`;
+            }
+            // 수신거부 링크는 트래킹하지 않는다.
+            // 감싸면 수신거부 클릭이 CTA 클릭으로 집계되어 후속 메일 분기(hasClicked)가 오염된다.
+            if (isUnsubscribeUrl(url)) {
                 return `${prefix}${url}${suffix}`;
             }
             // HTML 엔티티 디코딩 (&amp; → &)

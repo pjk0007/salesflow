@@ -23,6 +23,7 @@ export interface AutoPersonalizedLink {
     } | null;
     autoResearch: number;
     useSignaturePersona: number;
+    useUnsubscribe: number;
     preventDuplicate: number;
     followupConfig: {
         delayDays: number;
@@ -52,6 +53,7 @@ interface CreateInput {
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
     useSignaturePersona?: number;
+    useUnsubscribe?: number;
     followupConfig?: {
         delayDays: number;
         onClicked?: { prompt: string };
@@ -78,6 +80,7 @@ interface UpdateInput {
     triggerCondition?: { field: string; operator: string; value: string } | null;
     autoResearch?: number;
     useSignaturePersona?: number;
+    useUnsubscribe?: number;
     followupConfig?: {
         delayDays: number;
         onClicked?: { prompt: string };

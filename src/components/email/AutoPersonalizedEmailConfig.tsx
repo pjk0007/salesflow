@@ -83,6 +83,7 @@ export default function AutoPersonalizedEmailConfig({
             triggerCondition: link.triggerCondition?.field ? link.triggerCondition as { field: string; operator: string; value: string } : null,
             autoResearch: link.autoResearch,
             useSignaturePersona: link.useSignaturePersona,
+            useUnsubscribe: link.useUnsubscribe,
             followupConfig: link.followupConfig ?? undefined,
             isActive: 0,
         });

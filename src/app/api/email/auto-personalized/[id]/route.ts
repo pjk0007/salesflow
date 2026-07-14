@@ -42,6 +42,7 @@ export async function PUT(
             triggerCondition,
             autoResearch,
             useSignaturePersona,
+            useUnsubscribe,
             isActive,
             isDraft,
             followupConfig,
@@ -89,6 +90,7 @@ export async function PUT(
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition || null;
         if (autoResearch !== undefined) updateData.autoResearch = autoResearch;
         if (useSignaturePersona !== undefined) updateData.useSignaturePersona = useSignaturePersona;
+        if (useUnsubscribe !== undefined) updateData.useUnsubscribe = useUnsubscribe;
         if (isActive !== undefined) updateData.isActive = isActive;
         if (isDraft !== undefined) {
             updateData.isDraft = isDraft ? 1 : 0;

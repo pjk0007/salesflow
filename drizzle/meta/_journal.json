@@ -421,6 +421,13 @@
       "when": 1770952200000,
       "tag": "0059_tracker_funnel_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1770952300000,
+      "tag": "0060_email_unsubscribe",
+      "breakpoints": true
     }
   ]
 }

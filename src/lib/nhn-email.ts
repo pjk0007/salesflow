@@ -20,6 +20,8 @@ export interface NhnEmailSendRequest {
         receiveMailAddr: string;
         receiveType: "MRT0";
     }>;
+    /** 사용자 지정 헤더. List-Unsubscribe 등 (NHN Cloud Email API 지원). */
+    customHeaders?: Record<string, string>;
 }
 
 export interface NhnEmailSendResult {

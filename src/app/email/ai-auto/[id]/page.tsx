@@ -123,6 +123,7 @@ function EditAiAutoPageContent() {
     const [format, setFormat] = useState<"plain" | "designed">("plain");
     const [autoResearch, setAutoResearch] = useState(true);
     const [useSignaturePersona, setUseSignaturePersona] = useState(false);
+    const [useUnsubscribe, setUseUnsubscribe] = useState(false);
     const [conditionEnabled, setConditionEnabled] = useState(false);
     const [conditionField, setConditionField] = useState("");
     const [conditionOperator, setConditionOperator] = useState("eq");
@@ -202,6 +203,7 @@ function EditAiAutoPageContent() {
             setFormat((link.format as "plain" | "designed") || "plain");
             setAutoResearch(link.autoResearch === 1);
             setUseSignaturePersona(link.useSignaturePersona === 1);
+            setUseUnsubscribe(link.useUnsubscribe === 1);
             setFollowupConfig(link.followupConfig ?? null);
             setPreventDuplicate(link.preventDuplicate ?? 0);
             setSenderProfileId(link.senderProfileId ?? null);
@@ -240,6 +242,7 @@ function EditAiAutoPageContent() {
                 format,
                 autoResearch: autoResearch ? 1 : 0,
                 useSignaturePersona: useSignaturePersona ? 1 : 0,
+                useUnsubscribe: useUnsubscribe ? 1 : 0,
                 triggerCondition,
                 followupConfig: followupConfig || null,
                 preventDuplicate,
@@ -512,6 +515,14 @@ function EditAiAutoPageContent() {
                                             <p className="text-xs text-muted-foreground">AI 웹 검색으로 회사 정보를 자동 조사</p>
                                         </div>
                                         <Switch checked={autoResearch} onCheckedChange={setAutoResearch} />
+                                    </div>
+
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <Label>수신거부 링크 삽입</Label>
+                                            <p className="text-xs text-muted-foreground">본문 하단에 수신거부 링크 추가. 거부한 주소에는 이후 발송되지 않음</p>
+                                        </div>
+                                        <Switch checked={useUnsubscribe} onCheckedChange={setUseUnsubscribe} />
                                     </div>
 
                                     <div className="flex items-center justify-between">
