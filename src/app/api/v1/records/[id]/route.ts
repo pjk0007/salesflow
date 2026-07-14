@@ -74,12 +74,11 @@ export async function PUT(
             return NextResponse.json({ success: false, error: "data is required." }, { status: 400 });
         }
 
-        // event 사전 검증 — record 수정 전
+        // event는 부수적 이력이므로 검증에 실패해도 data 갱신은 진행한다.
+        // (이력 기록 실패가 상태 동기화를 막으면 CRM이 영구히 어긋난다)
         const eventParsed = event != null ? parseEventInput(event) : null;
-        if (eventParsed && !eventParsed.ok) {
-            return NextResponse.json({ success: false, error: eventParsed.error }, { status: 400 });
-        }
         const eventInput = eventParsed?.ok ? eventParsed.value : null;
+        const eventError = eventParsed && !eventParsed.ok ? eventParsed.error : null;
 
         const [existing] = await db
             .select()
@@ -107,6 +106,9 @@ export async function PUT(
         const updatedEvent = eventInput
             ? await insertRecordEvent({ orgId: tokenInfo.orgId, recordId, event: eventInput })
             : null;
+        if (eventError) {
+            console.error(`Record ${recordId} updated but event rejected: ${eventError}`);
+        }
 
         dispatchAutoTriggers({
             record: updated,
@@ -128,7 +130,12 @@ export async function PUT(
             data: updated.data as Record<string, unknown>,
         }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
 
-        return NextResponse.json({ success: true, data: updated, event: updatedEvent ?? null });
+        return NextResponse.json({
+            success: true,
+            data: updated,
+            event: updatedEvent ?? null,
+            ...(eventError ? { eventError } : {}),
+        });
     } catch (error) {
         console.error("External record update error:", error);
         return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
