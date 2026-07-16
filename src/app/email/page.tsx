@@ -18,6 +18,7 @@ import EmailConfigForm from "@/components/email/EmailConfigForm";
 import EmailCategoryManager from "@/components/email/EmailCategoryManager";
 import AutoPersonalizedEmailConfig from "@/components/email/AutoPersonalizedEmailConfig";
 import FollowupQueueTable from "@/components/email/FollowupQueueTable";
+import AssetManager from "@/components/email/assets/ui/AssetManager";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
 
@@ -105,6 +106,7 @@ function EmailPageContent() {
                             <TabsTrigger value="templates">템플릿</TabsTrigger>
                             <TabsTrigger value="links">템플릿 자동발송</TabsTrigger>
                             <TabsTrigger value="ai-auto">AI 자동발송</TabsTrigger>
+                            <TabsTrigger value="assets">에셋</TabsTrigger>
                             <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
                             <TabsTrigger value="logs">발송 이력</TabsTrigger>
                         </TabsList>
@@ -124,6 +126,10 @@ function EmailPageContent() {
 
                         <TabsContent value="ai-auto" className="mt-6">
                             <AutoPersonalizedEmailConfig partitions={partitions} />
+                        </TabsContent>
+
+                        <TabsContent value="assets" className="mt-6">
+                            <AssetManager />
                         </TabsContent>
 
                         <TabsContent value="followup-queue" className="mt-6">

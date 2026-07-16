@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
             followupConfig: emailAutoPersonalizedLinks.followupConfig,
             senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
             signatureId: emailAutoPersonalizedLinks.signatureId,
+            assetIds: emailAutoPersonalizedLinks.assetIds,
             preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
             isActive: emailAutoPersonalizedLinks.isActive,
             isDraft: emailAutoPersonalizedLinks.isDraft,
@@ -106,6 +107,7 @@ export async function POST(req: NextRequest) {
             preventDuplicate = 0,
             senderProfileId,
             signatureId,
+            assetIds,
         } = await req.json();
 
         const isDraftFlag = isDraft ? 1 : 0;
@@ -174,6 +176,7 @@ export async function POST(req: NextRequest) {
                 preventDuplicate: preventDuplicate ? 1 : 0,
                 senderProfileId: senderProfileId || null,
                 signatureId: signatureId || null,
+                assetIds: Array.isArray(assetIds) && assetIds.length > 0 ? assetIds : null,
             })
             .returning();
 

@@ -47,6 +47,7 @@ import { useAutoPersonalizedEmail } from "@/hooks/useAutoPersonalizedEmail";
 import { useProducts } from "@/hooks/useProducts";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
+import AssetPickerField from "@/components/email/assets/ui/AssetPickerField";
 import useSWR from "swr";
 
 interface SenderProfile { id: number; name: string; fromName: string; fromEmail: string; isDefault: boolean; }
@@ -133,6 +134,7 @@ function EditAiAutoPageContent() {
     const [preventDuplicate, setPreventDuplicate] = useState(0);
     const [senderProfileId, setSenderProfileId] = useState<number | null>(null);
     const [signatureId, setSignatureId] = useState<number | null>(null);
+    const [assetIds, setAssetIds] = useState<number[]>([]);
 
     // DB(파티션) 변경 confirm dialog
     const [pendingPartitionId, setPendingPartitionId] = useState<number | null>(null);
@@ -208,6 +210,7 @@ function EditAiAutoPageContent() {
             setPreventDuplicate(link.preventDuplicate ?? 0);
             setSenderProfileId(link.senderProfileId ?? null);
             setSignatureId(link.signatureId ?? null);
+            setAssetIds(link.assetIds ?? []);
             if (link.triggerCondition?.field) {
                 setConditionEnabled(true);
                 setConditionField(link.triggerCondition.field);
@@ -248,6 +251,7 @@ function EditAiAutoPageContent() {
                 preventDuplicate,
                 senderProfileId,
                 signatureId,
+                assetIds,
                 isDraft: asDraft ? 1 : 0,
             });
             if (result.success) {
@@ -500,6 +504,14 @@ function EditAiAutoPageContent() {
                                             </div>
                                         </>
                                     )}
+
+                                    <div className="space-y-2">
+                                        <Label>
+                                            이미지 에셋
+                                            <HelpTip text="선택한 이미지 URL이 프롬프트에 전달되어 AI가 본문에 <img>로 배치합니다. 에셋 탭에서 업로드한 이미지를 재사용합니다." />
+                                        </Label>
+                                        <AssetPickerField value={assetIds} onChange={setAssetIds} />
+                                    </div>
 
                                     <div className="flex items-center justify-between">
                                         <div>

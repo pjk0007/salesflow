@@ -797,11 +797,33 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
     senderProfileId: integer("sender_profile_id"),
     signatureId: integer("signature_id"),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
+    // 규칙에 연결된 이메일 에셋 id 목록. null/[]이면 이미지 없음.
+    assetIds: jsonb("asset_ids").$type<number[]>(),
     isActive: integer("is_active").default(1).notNull(),
     isDraft: integer("is_draft").default(0).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
+
+// ============================================
+// 이메일 에셋 (HTML 본문 이미지) — org(조직) 단위 공유·재사용
+// ============================================
+export const emailAssets = pgTable(
+    "email_assets",
+    {
+        id: serial("id").primaryKey(),
+        orgId: uuid("org_id")
+            .references(() => organizations.id, { onDelete: "cascade" })
+            .notNull(),
+        name: varchar("name", { length: 200 }).notNull(), // 표시 이름(초기값=파일명)
+        url: varchar("url", { length: 500 }).notNull(), // R2 공개 URL
+        r2Key: varchar("r2_key", { length: 300 }).notNull(), // email/{orgId}/{random}.{ext}
+        contentType: varchar("content_type", { length: 50 }).notNull(),
+        size: integer("size").notNull(), // bytes
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+    },
+    (table) => [index("email_assets_org_idx").on(table.orgId)]
+);
 
 // ============================================
 // 이메일 후속 발송 큐
@@ -1231,6 +1253,8 @@ export type EmailTemplateLink = typeof emailTemplateLinks.$inferSelect;
 export type EmailSendLog = typeof emailSendLogs.$inferSelect;
 export type EmailAutomationQueueRow = typeof emailAutomationQueue.$inferSelect;
 export type EmailAutoPersonalizedLink = typeof emailAutoPersonalizedLinks.$inferSelect;
+export type EmailAsset = typeof emailAssets.$inferSelect;
+export type NewEmailAsset = typeof emailAssets.$inferInsert;
 export type Product = typeof products.$inferSelect;
 export type NewProduct = typeof products.$inferInsert;
 export type AiConfig = typeof aiConfigs.$inferSelect;

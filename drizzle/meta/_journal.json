@@ -428,6 +428,13 @@
       "when": 1770952300000,
       "tag": "0060_email_unsubscribe",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1770952400000,
+      "tag": "0061_email_assets",
+      "breakpoints": true
     }
   ]
 }

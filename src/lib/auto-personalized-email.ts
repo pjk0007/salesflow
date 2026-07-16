@@ -1,4 +1,4 @@
-import { db, emailAutoPersonalizedLinks, emailSendLogs, emailSenderProfiles, emailSignatures, records, products } from "@/lib/db";
+import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, emailSenderProfiles, emailSignatures, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
@@ -209,6 +209,19 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 product = p ?? null;
             }
 
+            // 8-0. 에셋 URL 조회 (규칙에 assetIds가 있으면)
+            let assetUrls: string[] = [];
+            const assetIds = (link as Record<string, unknown>).assetIds as number[] | null | undefined;
+            if (Array.isArray(assetIds) && assetIds.length > 0) {
+                const assets = await db
+                    .select({ id: emailAssets.id, url: emailAssets.url })
+                    .from(emailAssets)
+                    .where(inArray(emailAssets.id, assetIds));
+                // 규칙에 저장된 순서를 유지
+                const urlById = new Map(assets.map((a) => [a.id, a.url]));
+                assetUrls = assetIds.map((id) => urlById.get(id)).filter((u): u is string => !!u);
+            }
+
             // 8-1. 발신자 페르소나 (서명에서 추출)
             let senderPersona: { name: string; title?: string; company?: string } | null = null;
             if (link.useSignaturePersona === 1 && signatureJson) {
@@ -233,6 +246,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 recordData,
                 tone: link.tone || undefined,
                 ctaUrl: link.ctaUrl || product?.url || undefined,
+                assetUrls: assetUrls.length > 0 ? assetUrls : undefined,
                 format: (link.format as "plain" | "designed") || "plain",
                 senderPersona,
             });

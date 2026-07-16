@@ -14,6 +14,7 @@ export interface GenerateEmailInput {
     recordData?: Record<string, unknown> | null;
     tone?: string;
     ctaUrl?: string;
+    assetUrls?: string[];
     format?: "plain" | "designed";
     senderPersona?: SenderPersona | null;
 }
@@ -69,6 +70,15 @@ subject는 반드시 plain text만 사용하세요. HTML 태그(<b>, <u> 등)를
 - URL을 수정하거나 파라미터를 추가하지 마세요. 정확히 위 URL만 사용하세요.
 - CTA 링크의 표시 텍스트는 반드시 자연스러운 문구를 사용하세요 (예: "자세히 알아보기", "무료 시작하기"). URL을 표시 텍스트로 쓰지 마세요.
 - 미팅 예약, 캘린더 링크 등 실제로 지원하지 않는 기능을 CTA로 쓰지 마세요.`;
+    }
+
+    if (input.assetUrls && input.assetUrls.length > 0) {
+        prompt += `\n\n[이미지 에셋 규칙]
+- 아래 이미지 URL들을 본문에 <img src>로 자연스럽게 배치하세요:
+${input.assetUrls.map((url) => `  - ${url}`).join("\n")}
+- URL은 정확히 위 값을 그대로 사용하세요. 수정하거나 파라미터를 추가하지 마세요.
+- <img> 태그에는 max-width: 100%; height: auto; 를 인라인 스타일로 넣어 모바일에서 넘치지 않게 하세요.
+- 모든 이미지를 반드시 다 넣을 필요는 없습니다. 내용에 어울리는 이미지를 골라 배치하세요.`;
     }
 
     prompt += `\n\n[변수 치환 안내]

@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Sparkles, Code, Eye, ArrowLeft, Save } from "lucide-react";
+import { Loader2, Sparkles, Code, Eye, ArrowLeft, Save, ImagePlus } from "lucide-react";
 import {
     Select,
     SelectContent,
@@ -15,6 +15,9 @@ import {
 import { extractEmailVariables } from "@/lib/email-utils";
 import { useEmailCategories } from "@/hooks/useEmailCategories";
 import AiEmailPanel from "@/components/email/AiEmailPanel";
+import AssetPicker from "@/components/email/assets/ui/AssetPicker";
+import { assetsToImgHtml, insertAtCursor } from "@/components/email/assets/utils/insertImg";
+import type { SelectedAsset } from "@/components/email/assets/types";
 import { toast } from "sonner";
 import type { EmailTemplate } from "@/lib/db";
 
@@ -50,7 +53,9 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     const [saving, setSaving] = useState(false);
     const [showAiPanel, setShowAiPanel] = useState(false);
     const [editMode, setEditMode] = useState<"visual" | "code">("visual");
+    const [showAssetPicker, setShowAssetPicker] = useState(false);
     const editorRef = useRef<HTMLDivElement>(null);
+    const codeRef = useRef<HTMLTextAreaElement>(null);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     const { categories } = useEmailCategories();
     const initialized = useRef(false);
@@ -101,6 +106,33 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         }
         setEditMode(mode);
     }, [htmlBody]);
+
+    // 에셋 이미지 삽입 — 비주얼 모드는 커서 위치에 insertHTML, 코드 모드는 textarea 커서 위치에
+    const handleInsertAssets = useCallback((selected: SelectedAsset[]) => {
+        if (selected.length === 0) return;
+        const html = assetsToImgHtml(selected);
+
+        if (editMode === "visual" && editorRef.current) {
+            editorRef.current.focus();
+            // execCommand는 deprecated지만 contenteditable 커서 삽입에 여전히 가장 단순·안정적
+            const inserted = document.execCommand("insertHTML", false, html);
+            if (!inserted) editorRef.current.innerHTML += html;
+            setHtmlBody(editorRef.current.innerHTML);
+        } else {
+            const ta = codeRef.current;
+            const start = ta?.selectionStart ?? htmlBody.length;
+            const end = ta?.selectionEnd ?? htmlBody.length;
+            const { next, cursor } = insertAtCursor(htmlBody, start, end, html);
+            setHtmlBody(next);
+            // 커서를 삽입 지점 뒤로 복원
+            requestAnimationFrame(() => {
+                if (codeRef.current) {
+                    codeRef.current.focus();
+                    codeRef.current.setSelectionRange(cursor, cursor);
+                }
+            });
+        }
+    }, [editMode, htmlBody]);
 
     // AI 스트리밍 상태
     const [isStreaming, setIsStreaming] = useState(false);
@@ -453,6 +485,18 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                             <Code className="h-3.5 w-3.5" />
                             코드
                         </button>
+                        <div className="ml-auto">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7"
+                                onClick={() => setShowAssetPicker(true)}
+                            >
+                                <ImagePlus className="h-3.5 w-3.5 mr-1" />
+                                이미지
+                            </Button>
+                        </div>
                     </div>
 
                     {/* 편집 영역 */}
@@ -467,6 +511,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                             />
                         ) : (
                             <textarea
+                                ref={codeRef}
                                 value={htmlBody}
                                 onChange={(e) => setHtmlBody(e.target.value)}
                                 placeholder="<h1>환영합니다, ##name##님!</h1>"
@@ -512,6 +557,12 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     )}
                 </div>
             </div>
+
+            <AssetPicker
+                open={showAssetPicker}
+                onClose={() => setShowAssetPicker(false)}
+                onConfirm={handleInsertAssets}
+            />
         </div>
     );
 }

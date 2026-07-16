@@ -32,6 +32,7 @@ export interface AutoPersonalizedLink {
     } | null;
     senderProfileId: number | null;
     signatureId: number | null;
+    assetIds: number[] | null;
     isActive: number;
     isDraft?: number;
     createdAt: string;
@@ -64,6 +65,7 @@ interface CreateInput {
     preventDuplicate?: number;
     senderProfileId?: number | null;
     signatureId?: number | null;
+    assetIds?: number[];
 }
 
 interface UpdateInput {
@@ -91,6 +93,7 @@ interface UpdateInput {
     preventDuplicate?: number;
     senderProfileId?: number | null;
     signatureId?: number | null;
+    assetIds?: number[];
 }
 
 export function useAutoPersonalizedEmail(partitionId: number | null | "all") {

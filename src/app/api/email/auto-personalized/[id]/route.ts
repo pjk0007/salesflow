@@ -49,6 +49,7 @@ export async function PUT(
             preventDuplicate,
             senderProfileId,
             signatureId,
+            assetIds,
         } = body;
 
         // 제품 변경 시 소유권 확인
@@ -102,6 +103,7 @@ export async function PUT(
         if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;
         if (senderProfileId !== undefined) updateData.senderProfileId = senderProfileId || null;
         if (signatureId !== undefined) updateData.signatureId = signatureId || null;
+        if (assetIds !== undefined) updateData.assetIds = Array.isArray(assetIds) && assetIds.length > 0 ? assetIds : null;
 
         const [updated] = await db
             .update(emailAutoPersonalizedLinks)
