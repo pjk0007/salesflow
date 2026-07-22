@@ -14,6 +14,7 @@ export interface AutoPersonalizedLink {
     ctaUrl: string | null;
     prompt: string | null;
     tone: string | null;
+    model: string | null;
     format: string;
     triggerType: string;
     triggerCondition: {
@@ -49,6 +50,7 @@ interface CreateInput {
     ctaUrl?: string;
     prompt?: string;
     tone?: string;
+    model?: string;
     format?: string;
     triggerType: "on_create" | "on_update";
     triggerCondition?: { field: string; operator: string; value: string } | null;
@@ -77,6 +79,7 @@ interface UpdateInput {
     ctaUrl?: string;
     prompt?: string;
     tone?: string;
+    model?: string;
     format?: string;
     triggerType?: string;
     triggerCondition?: { field: string; operator: string; value: string } | null;

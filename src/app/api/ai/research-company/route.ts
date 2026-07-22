@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getAiClient, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getSearchAiClient, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = getAiClient();
+    const client = getSearchAiClient();
     if (!client) {
         return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
     }
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: "gemini",
+            provider: client.provider,
             model: client.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,

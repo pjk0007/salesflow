@@ -37,6 +37,7 @@ export async function PUT(
             ctaUrl,
             prompt,
             tone,
+            model,
             format,
             triggerType,
             triggerCondition,
@@ -86,6 +87,7 @@ export async function PUT(
         if (ctaUrl !== undefined) updateData.ctaUrl = ctaUrl || null;
         if (prompt !== undefined) updateData.prompt = prompt || null;
         if (tone !== undefined) updateData.tone = tone || null;
+        if (model !== undefined) updateData.model = model || null;
         if (format !== undefined) updateData.format = format || "plain";
         if (triggerType !== undefined) updateData.triggerType = triggerType;
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition || null;

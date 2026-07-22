@@ -1,6 +1,6 @@
 import { db, recordAutoEnrichRules, records, partitions, fieldDefinitions } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getAiClient, generateFieldEnrichment, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getSearchAiClient, generateFieldEnrichment, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import type { DbRecord } from "@/lib/db";
 
 interface AutoEnrichParams {
@@ -32,8 +32,8 @@ export async function processAutoEnrich(params: AutoEnrichParams): Promise<void>
         return;
     }
 
-    // AI 클라이언트
-    const aiClient = getAiClient();
+    // AI 클라이언트 (필드 보강은 웹검색 필요 → Gemini 고정)
+    const aiClient = getSearchAiClient();
     if (!aiClient) {
         console.log("[AutoEnrich] GEMINI_API_KEY missing");
         return;
@@ -123,7 +123,7 @@ export async function processAutoEnrich(params: AutoEnrichParams): Promise<void>
             await logAiUsage({
                 orgId,
                 userId: null,
-                provider: "gemini",
+                provider: aiClient.provider,
                 model: aiClient.model,
                 promptTokens: result.usage.promptTokens,
                 completionTokens: result.usage.completionTokens,

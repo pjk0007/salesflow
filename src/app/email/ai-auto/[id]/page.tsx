@@ -48,6 +48,7 @@ import { useProducts } from "@/hooks/useProducts";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import AssetPickerField from "@/components/email/assets/ui/AssetPickerField";
+import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import useSWR from "swr";
 
 interface SenderProfile { id: number; name: string; fromName: string; fromEmail: string; isDefault: boolean; }
@@ -121,6 +122,7 @@ function EditAiAutoPageContent() {
     const [companyField, setCompanyField] = useState("");
     const [prompt, setPrompt] = useState("");
     const [tone, setTone] = useState("");
+    const [model, setModel] = useState(DEFAULT_MODEL_ID);
     const [format, setFormat] = useState<"plain" | "designed">("plain");
     const [autoResearch, setAutoResearch] = useState(true);
     const [useSignaturePersona, setUseSignaturePersona] = useState(false);
@@ -202,6 +204,7 @@ function EditAiAutoPageContent() {
             setCompanyField(link.companyField);
             setPrompt(link.prompt || "");
             setTone(link.tone || "");
+            setModel(link.model || DEFAULT_MODEL_ID);
             setFormat((link.format as "plain" | "designed") || "plain");
             setAutoResearch(link.autoResearch === 1);
             setUseSignaturePersona(link.useSignaturePersona === 1);
@@ -242,6 +245,7 @@ function EditAiAutoPageContent() {
                 companyField,
                 prompt: prompt || undefined,
                 tone: tone || undefined,
+                model,
                 format,
                 autoResearch: autoResearch ? 1 : 0,
                 useSignaturePersona: useSignaturePersona ? 1 : 0,
@@ -504,6 +508,25 @@ function EditAiAutoPageContent() {
                                             </div>
                                         </>
                                     )}
+
+                                    <div className="space-y-2">
+                                        <Label>AI 모델</Label>
+                                        <Select value={model} onValueChange={setModel}>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="모델 선택" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {AI_MODELS.map((m) => (
+                                                    <SelectItem key={m.id} value={m.id}>
+                                                        {m.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            첫 메일과 후속 메일 모두 이 모델로 생성됩니다. (회사 리서치는 Gemini 고정)
+                                        </p>
+                                    </div>
 
                                     <div className="space-y-2">
                                         <Label>

@@ -18,6 +18,16 @@ export async function callGeminiEmail(
     systemPrompt: string,
     userPrompt: string
 ): Promise<GenerateEmailResult> {
+    if (client.provider === "deepseek") {
+        const { content, usage, truncated } = await callDeepseek(client, systemPrompt, userPrompt);
+        const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
+        return {
+            subject: (parsed.subject as string).replace(/<[^>]*>/g, ""),
+            htmlBody: parsed.htmlBody as string,
+            usage,
+        };
+    }
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`;
     const body = JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
@@ -70,6 +80,11 @@ export async function callGeminiJson(
     systemPrompt: string,
     userPrompt: string
 ): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number } }> {
+    if (client.provider === "deepseek") {
+        const { content, usage } = await callDeepseek(client, systemPrompt, userPrompt);
+        return { content, usage };
+    }
+
     const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
         {
@@ -171,5 +186,50 @@ export async function callGeminiWithSearch(
             promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
             completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
         },
+    };
+}
+
+// DeepSeek (OpenAI 호환) 호출. 검색 미지원 텍스트 생성용.
+async function callDeepseek(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string
+): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number }; truncated: boolean }> {
+    const url = "https://api.deepseek.com/chat/completions";
+    const body = JSON.stringify({
+        model: client.model,
+        messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+        ],
+        response_format: { type: "json_object" },
+    });
+    const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${client.apiKey}`,
+    };
+
+    let response = await fetch(url, { method: "POST", headers, body });
+
+    // 서버 에러(429/500/503) 시 1~2초 대기 후 1회 재시도
+    if (!response.ok && [429, 500, 503].includes(response.status)) {
+        await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
+        response = await fetch(url, { method: "POST", headers, body });
+    }
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || "AI API 호출에 실패했습니다.");
+    }
+
+    const data = await response.json();
+    const choice = data.choices?.[0];
+    return {
+        content: choice?.message?.content ?? "",
+        usage: {
+            promptTokens: data.usage?.prompt_tokens ?? 0,
+            completionTokens: data.usage?.completion_tokens ?? 0,
+        },
+        truncated: choice?.finish_reason === "length",
     };
 }

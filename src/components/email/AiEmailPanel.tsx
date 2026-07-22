@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Sparkles, Square, Link } from "lucide-react";
 import { toast } from "sonner";
+import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 
 const TONE_OPTIONS = [
     { value: "default", label: "기본" },
@@ -36,6 +37,7 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
     const [prompt, setPrompt] = useState("");
     const [productId, setProductId] = useState<number | undefined>(defaultProductId);
     const [tone, setTone] = useState("default");
+    const [model, setModel] = useState(DEFAULT_MODEL_ID);
     const [ctaUrl, setCtaUrl] = useState("");
 
     // 제품 선택 시 사이트 URL 자동 채움
@@ -69,6 +71,7 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
                 recordId,
                 tone: tone === "default" ? undefined : tone,
                 ctaUrl: ctaUrl.trim() || undefined,
+                model,
             },
             (fullText) => {
                 onStream?.(fullText);
@@ -117,6 +120,21 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
                         {TONE_OPTIONS.map((t) => (
                             <SelectItem key={t.value} value={t.value}>
                                 {t.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">AI 모델</Label>
+                <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="모델 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {AI_MODELS.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                                {m.label}
                             </SelectItem>
                         ))}
                     </SelectContent>

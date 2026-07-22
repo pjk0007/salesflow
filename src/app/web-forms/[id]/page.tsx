@@ -17,6 +17,14 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { ArrowLeft, Link2, Sparkles } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 
 export default function EditWebFormPage() {
     const router = useRouter();
@@ -46,6 +54,7 @@ export default function EditWebFormPage() {
     // AI 생성
     const [aiOpen, setAiOpen] = useState(false);
     const [aiPrompt, setAiPrompt] = useState("");
+    const [aiModel, setAiModel] = useState(DEFAULT_MODEL_ID);
     const [aiGenerating, setAiGenerating] = useState(false);
 
     const { fields: workspaceFields } = useResolvedFields(partitionId);
@@ -141,6 +150,7 @@ export default function EditWebFormPage() {
                 body: JSON.stringify({
                     prompt: aiPrompt.trim(),
                     workspaceFields: workspaceFields.map((f) => ({ key: f.key, label: f.label })),
+                    model: aiModel,
                 }),
             });
             const json = await res.json();
@@ -171,7 +181,7 @@ export default function EditWebFormPage() {
             toast.error("AI 생성 중 오류가 발생했습니다.");
         }
         setAiGenerating(false);
-    }, [aiPrompt, formFields.length, workspaceFields]);
+    }, [aiPrompt, aiModel, formFields.length, workspaceFields]);
 
     if (loading) {
         return (
@@ -216,6 +226,18 @@ export default function EditWebFormPage() {
                                         placeholder="예: B2B SaaS 무료 체험 신청 폼"
                                         rows={3}
                                     />
+                                    <Select value={aiModel} onValueChange={setAiModel}>
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="AI 모델 선택" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {AI_MODELS.map((m) => (
+                                                <SelectItem key={m.id} value={m.id}>
+                                                    {m.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
                                     <Button
                                         className="w-full"
                                         onClick={handleAiGenerate}

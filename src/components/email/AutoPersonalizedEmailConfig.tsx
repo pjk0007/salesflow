@@ -78,6 +78,7 @@ export default function AutoPersonalizedEmailConfig({
             companyField: link.companyField,
             prompt: link.prompt ?? undefined,
             tone: link.tone ?? undefined,
+            model: link.model ?? undefined,
             format: link.format,
             triggerType: link.triggerType as "on_create" | "on_update",
             triggerCondition: link.triggerCondition?.field ? link.triggerCondition as { field: string; operator: string; value: string } : null,

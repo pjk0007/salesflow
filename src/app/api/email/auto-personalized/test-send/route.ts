@@ -3,7 +3,7 @@ import { db, emailAutoPersonalizedLinks, products, records } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
-import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { substitutePromptVariables } from "@/lib/email-utils";
 
@@ -56,8 +56,8 @@ export async function POST(req: NextRequest) {
             recordData[link.companyField] = "테스트 회사";
         }
 
-        // 3. AI 클라이언트
-        const aiClient = getAiClient();
+        // 3. AI 클라이언트 (규칙에 저장된 모델 사용)
+        const aiClient = getAiClient(link.model || undefined);
         if (!aiClient) {
             return NextResponse.json({ success: false, error: "AI API 키가 설정되지 않았습니다." }, { status: 400 });
         }
@@ -84,9 +84,10 @@ export async function POST(req: NextRequest) {
         // 5. 회사 조사 (autoResearch ON && 레코드에 _companyResearch 없으면)
         if (link.autoResearch === 1 && !recordData._companyResearch) {
             const companyName = recordData[link.companyField] as string;
-            if (companyName && typeof companyName === "string" && companyName.trim()) {
+            const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → Gemini 고정
+            if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
                 try {
-                    const research = await generateCompanyResearch(aiClient, { companyName, additionalContext: recordData });
+                    const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: recordData });
                     recordData._companyResearch = {
                         ...research,
                         sources: research.sources,
@@ -97,8 +98,8 @@ export async function POST(req: NextRequest) {
                     await logAiUsage({
                         orgId: user.orgId,
                         userId: user.userId,
-                        provider: "gemini",
-                        model: aiClient.model,
+                        provider: searchClient.provider,
+                        model: searchClient.model,
                         promptTokens: research.usage.promptTokens,
                         completionTokens: research.usage.completionTokens,
                         purpose: "test_company_research",
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: "gemini",
+            provider: aiClient.provider,
             model: aiClient.model,
             promptTokens: emailResult.usage.promptTokens,
             completionTokens: emailResult.usage.completionTokens,

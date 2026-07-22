@@ -10,11 +10,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = getAiClient();
-    if (!client) {
-        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
-    }
-
     const quota = await checkTokenQuota(user.orgId);
     if (!quota.allowed) {
         return NextResponse.json({
@@ -23,7 +18,13 @@ export async function POST(req: NextRequest) {
         }, { status: 429 });
     }
 
-    const { prompt, productId, tone } = await req.json();
+    const { prompt, productId, tone, model } = await req.json();
+
+    const client = getAiClient(model);
+    if (!client) {
+        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
+    }
+
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
         return NextResponse.json({ success: false, error: "프롬프트를 입력해주세요." }, { status: 400 });
     }
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
         await logAiUsage({
             orgId: user.orgId,
             userId: user.userId,
-            provider: "gemini",
+            provider: client.provider,
             model: client.model,
             promptTokens: result.usage.promptTokens,
             completionTokens: result.usage.completionTokens,

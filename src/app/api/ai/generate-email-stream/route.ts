@@ -13,11 +13,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = getAiClient();
-    if (!client) {
-        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
-    }
-
     const quota = await checkTokenQuota(user.orgId);
     if (!quota.allowed) {
         return NextResponse.json({
@@ -26,7 +21,13 @@ export async function POST(req: NextRequest) {
         }, { status: 429 });
     }
 
-    const { prompt, productId, recordId, tone, ctaUrl } = await req.json();
+    const { prompt, productId, recordId, tone, ctaUrl, model } = await req.json();
+
+    const client = getAiClient(model);
+    if (!client) {
+        return NextResponse.json({ success: false, error: "AI 서비스를 사용할 수 없습니다." }, { status: 503 });
+    }
+
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
         return NextResponse.json({ success: false, error: "프롬프트를 입력해주세요." }, { status: 400 });
     }
@@ -66,7 +67,9 @@ export async function POST(req: NextRequest) {
                 };
 
                 try {
-                    const usage = await streamGemini(client, systemPrompt, input.prompt, sendEvent);
+                    const usage = client.provider === "deepseek"
+                        ? await streamDeepseek(client, systemPrompt, input.prompt, sendEvent)
+                        : await streamGemini(client, systemPrompt, input.prompt, sendEvent);
 
                     sendEvent("done", { usage });
                     controller.close();
@@ -77,7 +80,7 @@ export async function POST(req: NextRequest) {
                     logAiUsage({
                         orgId: user.orgId,
                         userId: user.userId,
-                        provider: "gemini",
+                        provider: client.provider,
                         model: client.model,
                         promptTokens: usage.promptTokens,
                         completionTokens: usage.completionTokens,
@@ -107,6 +110,74 @@ export async function POST(req: NextRequest) {
 }
 
 type SendEvent = (event: string, data: unknown) => void;
+
+// DeepSeek (OpenAI 호환) SSE 스트리밍
+async function streamDeepseek(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string,
+    sendEvent: SendEvent
+): Promise<Usage> {
+    const response = await fetch("https://api.deepseek.com/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${client.apiKey}`,
+        },
+        body: JSON.stringify({
+            model: client.model,
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userPrompt },
+            ],
+            response_format: { type: "json_object" },
+            stream: true,
+            stream_options: { include_usage: true },
+        }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error?.error?.message || "DeepSeek API 호출에 실패했습니다.");
+    }
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const usage: Usage = { promptTokens: 0, completionTokens: 0 };
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith("data: ")) continue;
+            const data = trimmed.slice(6);
+            if (data === "[DONE]") continue;
+
+            try {
+                const parsed = JSON.parse(data);
+                const text = parsed.choices?.[0]?.delta?.content;
+                if (text) {
+                    sendEvent("chunk", { text });
+                }
+                if (parsed.usage) {
+                    usage.promptTokens = parsed.usage.prompt_tokens ?? 0;
+                    usage.completionTokens = parsed.usage.completion_tokens ?? 0;
+                }
+            } catch {
+                // ignore
+            }
+        }
+    }
+
+    return usage;
+}
 
 async function streamGemini(
     client: AiClient,

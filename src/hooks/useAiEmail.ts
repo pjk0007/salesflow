@@ -6,6 +6,7 @@ interface GenerateEmailInput {
     recordId?: number;
     tone?: string;
     ctaUrl?: string;
+    model?: string;
 }
 
 interface GenerateEmailResult {

@@ -1,7 +1,7 @@
 import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, emailSenderProfiles, emailSignatures, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
-import { getAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
@@ -125,7 +125,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             if (await isUnsubscribed(workspaceId, email)) { console.log(`[AutoEmail] Rule ${link.id}: skipped, unsubscribed (${email})`); continue; }
 
             // 5. AI 클라이언트 확인
-            const aiClient = getAiClient();
+            const aiClient = getAiClient(link.model || undefined);
             if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (GEMINI_API_KEY missing)`); continue; }
 
             // 5-1. 토큰 쿼터 확인
@@ -169,8 +169,9 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             let recordData = { ...data };
             if (link.autoResearch === 1 && !recordData._companyResearch) {
                 const companyName = data[link.companyField] as string;
-                if (aiClient && companyName && typeof companyName === "string" && companyName.trim()) {
-                    const research = await generateCompanyResearch(aiClient, { companyName, additionalContext: data });
+                const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → Gemini 고정
+                if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
+                    const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
                     recordData._companyResearch = {
                         ...research,
                         sources: research.sources,
@@ -189,8 +190,8 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                     await logAiUsage({
                         orgId,
                         userId: null,
-                        provider: "gemini",
-                        model: aiClient.model,
+                        provider: searchClient.provider,
+                        model: searchClient.model,
                         promptTokens: research.usage.promptTokens,
                         completionTokens: research.usage.completionTokens,
                         purpose: "auto_company_research",
@@ -258,7 +259,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             await logAiUsage({
                 orgId,
                 userId: null,
-                provider: "gemini",
+                provider: aiClient.provider,
                 model: aiClient.model,
                 promptTokens: emailResult.usage.promptTokens,
                 completionTokens: emailResult.usage.completionTokens,

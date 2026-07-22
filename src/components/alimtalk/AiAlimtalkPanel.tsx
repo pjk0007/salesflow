@@ -12,6 +12,8 @@ import {
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import type { NhnTemplateButton } from "@/lib/nhn-alimtalk";
+import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
+import { Label } from "@/components/ui/label";
 
 const TONE_OPTIONS = [
     { value: "default", label: "기본" },
@@ -35,6 +37,7 @@ export default function AiAlimtalkPanel({ onGenerated }: AiAlimtalkPanelProps) {
     const [prompt, setPrompt] = useState("");
     const [productId, setProductId] = useState<number | undefined>();
     const [tone, setTone] = useState("default");
+    const [model, setModel] = useState(DEFAULT_MODEL_ID);
     const [isGenerating, setIsGenerating] = useState(false);
 
     const handleGenerate = async () => {
@@ -52,6 +55,7 @@ export default function AiAlimtalkPanel({ onGenerated }: AiAlimtalkPanelProps) {
                     prompt: prompt.trim(),
                     productId,
                     tone: tone === "default" ? undefined : tone,
+                    model,
                 }),
             });
             const result = await res.json();
@@ -103,6 +107,21 @@ export default function AiAlimtalkPanel({ onGenerated }: AiAlimtalkPanelProps) {
                         {TONE_OPTIONS.map((t) => (
                             <SelectItem key={t.value} value={t.value}>
                                 {t.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">AI 모델</Label>
+                <Select value={model} onValueChange={setModel}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="모델 선택" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {AI_MODELS.map((m) => (
+                            <SelectItem key={m.id} value={m.id}>
+                                {m.label}
                             </SelectItem>
                         ))}
                     </SelectContent>

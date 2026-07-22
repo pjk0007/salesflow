@@ -99,7 +99,7 @@ export async function generateAiFollowupPreview(
         .limit(1);
     if (!parentLog) return { success: false, error: "이전 발송 로그를 찾을 수 없습니다." };
 
-    const aiClient = getAiClient();
+    const aiClient = getAiClient(link.model || undefined);
     if (!aiClient) return { success: false, error: "AI 클라이언트가 구성되지 않았습니다." };
 
     const quota = await checkTokenQuota(orgId);
@@ -163,7 +163,7 @@ export async function generateAiFollowupPreview(
     await logAiUsage({
         orgId,
         userId: null,
-        provider: "gemini",
+        provider: aiClient.provider,
         model: aiClient.model,
         promptTokens: emailResult.usage.promptTokens,
         completionTokens: emailResult.usage.completionTokens,
@@ -484,7 +484,7 @@ async function handleAiFollowup(
     if (await isUnsubscribed(workspaceId, parentLog.recipientEmail)) return false;
 
     // 4. AI 클라이언트 확인
-    const aiClient = getAiClient();
+    const aiClient = getAiClient(link.model || undefined);
     if (!aiClient) return false;
 
     const quota = await checkTokenQuota(item.orgId);
@@ -556,7 +556,7 @@ async function handleAiFollowup(
     await logAiUsage({
         orgId: item.orgId,
         userId: null,
-        provider: "gemini",
+        provider: aiClient.provider,
         model: aiClient.model,
         promptTokens: emailResult.usage.promptTokens,
         completionTokens: emailResult.usage.completionTokens,

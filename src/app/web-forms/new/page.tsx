@@ -22,6 +22,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Sparkles } from "lucide-react";
+import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 
 export default function NewWebFormPage() {
     const router = useRouter();
@@ -36,6 +37,7 @@ export default function NewWebFormPage() {
     const [title, setTitle] = useState("");
     const [creating, setCreating] = useState(false);
     const [aiPrompt, setAiPrompt] = useState("");
+    const [aiModel, setAiModel] = useState(DEFAULT_MODEL_ID);
 
     useEffect(() => {
         if (!workspaceId && workspaces.length > 0) {
@@ -79,6 +81,7 @@ export default function NewWebFormPage() {
                     body: JSON.stringify({
                         prompt: aiPrompt.trim(),
                         workspaceFields: workspaceFields.map((f) => ({ key: f.key, label: f.label })),
+                        model: aiModel,
                     }),
                 });
                 const aiJson = await aiRes.json();
@@ -201,6 +204,20 @@ export default function NewWebFormPage() {
                             <p className="text-xs text-muted-foreground">
                                 입력하면 폼 이름, 제목, 필드를 AI가 자동으로 생성합니다.
                             </p>
+                            {hasAi && (
+                                <Select value={aiModel} onValueChange={setAiModel}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="AI 모델 선택" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {AI_MODELS.map((m) => (
+                                            <SelectItem key={m.id} value={m.id}>
+                                                {m.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
                         <Button
                             className="w-full"
