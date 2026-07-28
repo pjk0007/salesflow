@@ -78,8 +78,9 @@ export function RecordVisitorActivity({ recordId }: { recordId: number }) {
                     </div>
                 )}
 
+                {/* 방문자 상세는 recordId가 같은 visitor를 서버에서 묶어 보여주므로 디바이스 하나만 지목해도 전체가 나온다 */}
                 <Link
-                    href={`/tracker?recordId=${recordId}`}
+                    href={`/tracker/visitors/${summary.devices[0].id}`}
                     className="text-xs text-primary hover:underline"
                 >
                     전체 행동 보기 →
