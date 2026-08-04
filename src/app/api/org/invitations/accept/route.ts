@@ -32,11 +32,18 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ success: false, error: "만료되었거나 유효하지 않은 초대입니다." }, { status: 400 });
         }
 
+        // 이미 가입한 이메일이면 신규 가입 폼 대신 로그인 후 수락으로 유도
+        const [existingUser] = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(eq(users.email, invitation.email));
+
         return NextResponse.json({
             success: true,
             data: {
                 email: invitation.email,
                 role: invitation.role,
+                hasAccount: Boolean(existingUser),
             },
         });
     } catch (error) {
@@ -72,50 +79,68 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "만료되었거나 유효하지 않은 초대입니다." }, { status: 400 });
         }
 
-        // 이미 존재하는 사용자 체크 (organizationMembers 기반)
-        const [existingMember] = await db
+        // 이미 가입한 계정이면 새 유저를 만들지 않는다.
+        // users에는 unique(org_id, email) 제약이 있어 그대로 insert하면 충돌하고,
+        // 충돌을 피해 만들어도 로그인이 이메일당 한 행만 집어가므로 접근 불가 계정이 생긴다.
+        const [existingUser] = await db
             .select({ id: users.id })
             .from(users)
-            .innerJoin(organizationMembers, and(
-                eq(organizationMembers.userId, users.id),
-                eq(organizationMembers.organizationId, invitation.orgId)
-            ))
             .where(eq(users.email, invitation.email));
 
-        if (existingMember) {
-            return NextResponse.json({ success: false, error: "이미 조직에 소속된 이메일입니다." }, { status: 400 });
+        if (existingUser) {
+            const [existingMember] = await db
+                .select({ id: organizationMembers.id })
+                .from(organizationMembers)
+                .where(and(
+                    eq(organizationMembers.userId, existingUser.id),
+                    eq(organizationMembers.organizationId, invitation.orgId)
+                ));
+
+            if (existingMember) {
+                return NextResponse.json({ success: false, error: "이미 조직에 소속된 이메일입니다." }, { status: 400 });
+            }
+
+            return NextResponse.json({
+                success: false,
+                error: "이미 가입된 이메일입니다. 로그인 후 초대를 수락해주세요.",
+                requiresLogin: true,
+            }, { status: 409 });
         }
 
         const hashedPassword = await hashPassword(password);
 
-        const [newUser] = await db
-            .insert(users)
-            .values({
-                orgId: invitation.orgId,
-                email: invitation.email,
-                name: name.trim(),
-                password: hashedPassword,
+        // 유저 생성 + 멤버 등록 + 초대 수락을 한 트랜잭션으로 묶는다.
+        // 따로 두면 중간 실패 시 멤버십 없는 유령 계정이 남아 재초대까지 막힌다.
+        const newUser = await db.transaction(async (tx) => {
+            const [created] = await tx
+                .insert(users)
+                .values({
+                    orgId: invitation.orgId,
+                    email: invitation.email,
+                    name: name.trim(),
+                    password: hashedPassword,
+                    role: invitation.role,
+                })
+                .returning({
+                    id: users.id,
+                    email: users.email,
+                    name: users.name,
+                    role: users.role,
+                });
+
+            await tx.insert(organizationMembers).values({
+                organizationId: invitation.orgId,
+                userId: created.id,
                 role: invitation.role,
-            })
-            .returning({
-                id: users.id,
-                email: users.email,
-                name: users.name,
-                role: users.role,
             });
 
-        // organizationMembers에 추가
-        await db.insert(organizationMembers).values({
-            organizationId: invitation.orgId,
-            userId: newUser.id,
-            role: invitation.role,
-        });
+            await tx
+                .update(organizationInvitations)
+                .set({ status: "accepted" })
+                .where(eq(organizationInvitations.id, invitation.id));
 
-        // 초대 상태 업데이트
-        await db
-            .update(organizationInvitations)
-            .set({ status: "accepted" })
-            .where(eq(organizationInvitations.id, invitation.id));
+            return created;
+        });
 
         // JWT 생성
         const jwtToken = generateToken({

@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import { SendbIcon } from "@/components/SendbLogo";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/contexts/SessionContext";
 import { Mail, Lock } from "lucide-react";
 
-export default function LoginPage() {
+function LoginPageContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const inviteToken = searchParams.get("invite");
     const { refreshSession } = useSession();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -29,6 +31,18 @@ export default function LoginPage() {
             const data = await res.json();
 
             if (data.success) {
+                if (inviteToken) {
+                    const acceptRes = await fetch("/api/org/invite-accept", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token: inviteToken }),
+                    });
+                    const acceptData = await acceptRes.json();
+                    if (!acceptData.success) {
+                        setError(acceptData.error || "초대 수락에 실패했습니다.");
+                        return;
+                    }
+                }
                 await refreshSession();
                 router.push("/");
             } else {
@@ -196,5 +210,19 @@ export default function LoginPage() {
                 </div>
             </section>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="flex min-h-screen items-center justify-center bg-white">
+                    <p className="text-slate-500">로딩 중...</p>
+                </div>
+            }
+        >
+            <LoginPageContent />
+        </Suspense>
     );
 }

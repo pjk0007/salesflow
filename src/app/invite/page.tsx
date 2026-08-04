@@ -20,7 +20,7 @@ function InvitePageContent() {
     const { refreshSession } = useSession();
     const token = searchParams.get("token") as string;
 
-    const [inviteInfo, setInviteInfo] = useState<{ email: string; role: string } | null>(null);
+    const [inviteInfo, setInviteInfo] = useState<{ email: string; role: string; hasAccount: boolean } | null>(null);
     const [name, setName] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -73,6 +73,8 @@ function InvitePageContent() {
             if (data.success) {
                 await refreshSession();
                 router.push("/");
+            } else if (data.requiresLogin) {
+                router.push(`/login?invite=${token}`);
             } else {
                 setError(data.error || "가입에 실패했습니다.");
             }
@@ -102,6 +104,29 @@ function InvitePageContent() {
                     <CardContent className="text-center">
                         <Button variant="outline" onClick={() => router.push("/login")}>
                             로그인 페이지로 이동
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    if (inviteInfo?.hasAccount) {
+        return (
+            <div className="flex min-h-screen items-center justify-center bg-muted/30">
+                <Card className="w-full max-w-md">
+                    <CardHeader className="text-center">
+                        <CardTitle>초대 수락</CardTitle>
+                        <CardDescription>
+                            {inviteInfo.email}은 이미 가입된 계정입니다. 로그인하면 초대가 수락됩니다.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="text-center">
+                        <Button
+                            className="w-full"
+                            onClick={() => router.push(`/login?invite=${token}`)}
+                        >
+                            로그인하고 참여하기
                         </Button>
                     </CardContent>
                 </Card>
