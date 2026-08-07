@@ -11,7 +11,7 @@ import {
 import { eq, and, lte } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
-import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
+import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { wrapTrackingUrls, hasClicked } from "@/lib/email-click-tracking";
 import {
     isUnsubscribed,
@@ -106,7 +106,11 @@ export async function generateAiFollowupPreview(
     if (!quota.allowed) return { success: false, error: "AI 토큰 한도를 초과했습니다." };
 
     const emailConfig = await getEmailConfig(orgId);
-    const signatureJson = await resolveDefaultSignature(orgId, emailConfig);
+    // 미리보기 서명이 실제 발송과 어긋나지 않도록 규칙 지정값을 따른다
+    const signatureJson = await resolveSignature(orgId, {
+        requestedId: link.signatureId ?? undefined,
+        config: emailConfig,
+    });
 
     let recordData: Record<string, unknown> = {};
     if (parentLog.recordId) {
@@ -352,11 +356,17 @@ async function handleTemplateFollowup(
 
     if (!template) return false;
 
-    // 4. 발신자 + 서명 결정
+    // 4. 발신자 + 서명 결정 — 원본 메일의 프로필을 상속한다.
+    // parentLog.senderProfileId가 null(구 로그)이거나 그 프로필이 삭제됐으면
+    // 후보에 없으므로 자동으로 현재 기본 프로필로 흐른다.
     const emailConfig = await getEmailConfig(item.orgId);
-    const sender = await resolveDefaultSender(item.orgId, emailConfig);
+    const sender = await resolveSender(item.orgId, {
+        preferredIds: [parentLog.senderProfileId],
+        config: emailConfig,
+    });
     if (!sender.fromEmail) return false;
-    const signatureJson = await resolveDefaultSignature(item.orgId, emailConfig);
+    // emailTemplateLinks에는 signatureId 컬럼이 없다 — 템플릿 규칙은 서명을 지정할 수 없으므로 기본 서명을 쓴다
+    const signatureJson = await resolveSignature(item.orgId, { config: emailConfig });
 
     // 5. 원본 레코드 조회 (변수 치환용)
     let data: Record<string, unknown> = {};
@@ -406,6 +416,7 @@ async function handleTemplateFollowup(
         parentLogId: parentLog.id,
         sentAt: new Date(),
         unsubscribeToken,
+        senderProfileId: sender.profileId,
     }).returning({ id: emailSendLogs.id });
 
     const trackedBody = wrapTrackingUrls(body, inserted.id);
@@ -490,11 +501,18 @@ async function handleAiFollowup(
     const quota = await checkTokenQuota(item.orgId);
     if (!quota.allowed) return false;
 
-    // 4. 발신자 + 서명 결정
+    // 4. 발신자 + 서명 결정 — 규칙 지정값 우선, 없으면 원본 메일 상속
     const emailConfig = await getEmailConfig(item.orgId);
-    const sender = await resolveDefaultSender(item.orgId, emailConfig);
+    const sender = await resolveSender(item.orgId, {
+        preferredIds: [link.senderProfileId, parentLog.senderProfileId],
+        config: emailConfig,
+    });
     if (!sender.fromEmail) return false;
-    const signatureJson = await resolveDefaultSignature(item.orgId, emailConfig);
+    // DB의 null은 "미지정"이므로 undefined로 정규화 (HTTP body의 null과 의미가 다르다)
+    const signatureJson = await resolveSignature(item.orgId, {
+        requestedId: link.signatureId ?? undefined,
+        config: emailConfig,
+    });
 
     // 5. 원본 레코드 + 제품 조회
     let recordData: Record<string, unknown> = {};
@@ -590,6 +608,7 @@ async function handleAiFollowup(
         parentLogId: parentLog.id,
         sentAt: new Date(),
         unsubscribeToken,
+        senderProfileId: sender.profileId,
     }).returning({ id: emailSendLogs.id });
 
     const trackedBody = wrapTrackingUrls(finalBody, inserted.id);

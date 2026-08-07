@@ -4,7 +4,7 @@ import { eq, and, desc, isNotNull, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { generateAiFollowupPreview } from "@/lib/email-followup";
 import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
-import { resolveDefaultSender } from "@/lib/email-sender-resolver";
+import { resolveSender } from "@/lib/email-sender-resolver";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 
 /**
@@ -144,9 +144,9 @@ export async function POST(req: NextRequest) {
     // 어떤 레코드 데이터로 치환됐는지 디버그용으로 반환
     let recordPreview: Record<string, unknown> | null = null;
     const [parentLog] = await db
-        .select({ recordId: emailSendLogs.recordId })
+        .select({ recordId: emailSendLogs.recordId, senderProfileId: emailSendLogs.senderProfileId })
         .from(emailSendLogs)
-        .where(eq(emailSendLogs.id, parentLogId))
+        .where(and(eq(emailSendLogs.id, parentLogId), eq(emailSendLogs.orgId, user.orgId)))
         .limit(1);
     if (parentLog?.recordId) {
         const [rec] = await db
@@ -170,7 +170,18 @@ export async function POST(req: NextRequest) {
 
     // mode === "send": 실제 발송
     const emailConfig = await getEmailConfig(user.orgId);
-    const sender = await resolveDefaultSender(user.orgId, emailConfig);
+
+    // 규칙 지정값 → 원본 메일 상속 → 기본값. 실제 후속 발송과 같은 우선순위여야 테스트가 의미 있다
+    const [link] = await db
+        .select({ senderProfileId: emailAutoPersonalizedLinks.senderProfileId })
+        .from(emailAutoPersonalizedLinks)
+        .where(and(eq(emailAutoPersonalizedLinks.id, linkId), eq(emailAutoPersonalizedLinks.orgId, user.orgId)))
+        .limit(1);
+
+    const sender = await resolveSender(user.orgId, {
+        preferredIds: [link?.senderProfileId, parentLog?.senderProfileId],
+        config: emailConfig,
+    });
     if (!sender.fromEmail) {
         return NextResponse.json(
             { success: false, error: "기본 발신 프로필이 설정되어 있지 않습니다." },
@@ -196,6 +207,7 @@ export async function POST(req: NextRequest) {
             body: result.htmlBody,
             status: "pending",
             triggerType: "test_followup",
+            senderProfileId: sender.profileId,
         })
         .returning();
 

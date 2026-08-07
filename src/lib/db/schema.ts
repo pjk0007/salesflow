@@ -687,6 +687,7 @@ export const emailSendLogs = pgTable("email_send_logs", {
         { onDelete: "set null" }
     ),
     unsubscribeToken: varchar("unsubscribe_token", { length: 64 }),  // 본문 수신거부 링크가 발송 건을 되짚는 토큰
+    senderProfileId: integer("sender_profile_id"),  // 후속 메일이 원본 발신자를 상속하기 위한 값. 마이그레이션 이전 로그는 null
 });
 
 // ============================================

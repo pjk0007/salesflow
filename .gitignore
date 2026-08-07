@@ -54,3 +54,6 @@ data/
 
 # ML 작업 폴더 (로컬 전용, 운영 데이터 분석 산출물)
 ml/
+
+# devkit 로컬 실행 로그·상태 (PDCA 문서는 docs/에 남긴다)
+.devkit/

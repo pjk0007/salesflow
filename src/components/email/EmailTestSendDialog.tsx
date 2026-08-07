@@ -1,15 +1,21 @@
-import { useState, useMemo } from "react";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
-import { extractEmailVariables } from "@/lib/email-utils";
+import { useEmailTestSend } from "./hooks/useEmailTestSend";
 
 interface EmailTestSendDialogProps {
     open: boolean;
@@ -26,57 +32,28 @@ export default function EmailTestSendDialog({
     onOpenChange,
     template,
 }: EmailTestSendDialogProps) {
-    const [recipientEmail, setRecipientEmail] = useState("");
-    const [variables, setVariables] = useState<Record<string, string>>({});
-    const [sending, setSending] = useState(false);
-    const [result, setResult] = useState<{
-        success: boolean;
-        requestId?: string;
-        error?: string;
-    } | null>(null);
+    const {
+        profiles,
+        signatures,
+        recipientEmail,
+        setRecipientEmail,
+        variables,
+        variableNames,
+        setVariable,
+        selectedProfileId,
+        setSelectedProfileId,
+        selectedSigId,
+        setSelectedSigId,
+        previewSubject,
+        sending,
+        result,
+        handleSend,
+        reset,
+    } = useEmailTestSend(template);
 
-    const variableNames = useMemo(
-        () => extractEmailVariables(template.subject + (template.htmlBody || "")),
-        [template.subject, template.htmlBody]
-    );
-
-    const previewSubject = useMemo(() => {
-        let text = template.subject;
-        for (const varName of variableNames) {
-            text = text.replaceAll(varName, variables[varName] || varName);
-        }
-        return text;
-    }, [template.subject, variableNames, variables]);
-
-    const handleSend = async () => {
-        if (!recipientEmail.includes("@")) return;
-        setSending(true);
-        setResult(null);
-        try {
-            const res = await fetch("/api/email/test-send", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    templateId: template.id,
-                    recipientEmail,
-                    variables: Object.keys(variables).length > 0 ? variables : undefined,
-                }),
-            });
-            const data = await res.json();
-            setResult(data);
-        } catch {
-            setResult({ success: false, error: "요청에 실패했습니다." });
-        } finally {
-            setSending(false);
-        }
-    };
-
-    const handleOpenChange = (open: boolean) => {
-        if (!open) {
-            setResult(null);
-            setSending(false);
-        }
-        onOpenChange(open);
+    const handleOpenChange = (next: boolean) => {
+        if (!next) reset();
+        onOpenChange(next);
     };
 
     return (
@@ -97,6 +74,43 @@ export default function EmailTestSendDialog({
                         />
                     </div>
 
+                    {profiles.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>발신 프로필</Label>
+                            <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="발신 프로필 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {profiles.map((p) => (
+                                        <SelectItem key={p.id} value={String(p.id)}>
+                                            {p.fromName} &lt;{p.fromEmail}&gt;
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {signatures.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>서명</Label>
+                            <Select value={selectedSigId} onValueChange={setSelectedSigId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="서명 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="none">서명 없음</SelectItem>
+                                    {signatures.map((s) => (
+                                        <SelectItem key={s.id} value={String(s.id)}>
+                                            {s.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
                     {variableNames.length > 0 && (
                         <div className="space-y-2">
                             <Label className="text-muted-foreground text-xs">변수 값 (선택)</Label>
@@ -109,9 +123,7 @@ export default function EmailTestSendDialog({
                                         className="h-8 text-sm"
                                         placeholder="값 입력"
                                         value={variables[varName] || ""}
-                                        onChange={(e) =>
-                                            setVariables((prev) => ({ ...prev, [varName]: e.target.value }))
-                                        }
+                                        onChange={(e) => setVariable(varName, e.target.value)}
                                     />
                                 </div>
                             ))}

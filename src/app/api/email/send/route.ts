@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces, emailSenderProfiles, emailSignatures } from "@/lib/db";
+import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
+import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 import {
     isUnsubscribed,
@@ -26,63 +27,27 @@ export async function POST(req: NextRequest) {
     const config = await getEmailConfig(user.orgId);
 
     try {
-        const { templateLinkId, recordIds, senderProfileId, signatureId } = await req.json();
+        const { templateLinkId, recordIds, senderProfileId, signatureId } = await req.json() as {
+            templateLinkId?: number;
+            recordIds?: unknown;
+            senderProfileId?: number;
+            signatureId?: number | null;
+        };
 
-        // 발신자 프로필 결정
-        let senderFromEmail: string | null = null;
-        let senderFromName: string | undefined;
-
-        if (senderProfileId) {
-            const [profile] = await db
-                .select()
-                .from(emailSenderProfiles)
-                .where(and(eq(emailSenderProfiles.id, senderProfileId), eq(emailSenderProfiles.orgId, user.orgId)));
-            if (profile) {
-                senderFromEmail = profile.fromEmail;
-                senderFromName = profile.fromName;
-            }
-        }
-        if (!senderFromEmail) {
-            // 기본 프로필 fallback
-            const [defaultProfile] = await db
-                .select()
-                .from(emailSenderProfiles)
-                .where(and(eq(emailSenderProfiles.orgId, user.orgId), eq(emailSenderProfiles.isDefault, true)))
-                .limit(1);
-            if (defaultProfile) {
-                senderFromEmail = defaultProfile.fromEmail;
-                senderFromName = defaultProfile.fromName;
-            } else if (config?.fromEmail) {
-                // 레거시 fallback
-                senderFromEmail = config.fromEmail;
-                senderFromName = config.fromName || undefined;
-            }
-        }
-        if (!senderFromEmail) {
+        const sender = await resolveSender(user.orgId, {
+            preferredIds: [senderProfileId],
+            config,
+        });
+        if (!sender.fromEmail) {
             return NextResponse.json({ success: false, error: "발신 이메일 주소를 설정해주세요." }, { status: 400 });
         }
+        const senderFromEmail = sender.fromEmail;
 
-        // 서명 결정
-        let signatureJson: string | null = null;
-        if (signatureId === null) {
-            // 명시적으로 "서명 없음" 선택
-            signatureJson = null;
-        } else if (signatureId) {
-            const [sig] = await db
-                .select()
-                .from(emailSignatures)
-                .where(and(eq(emailSignatures.id, signatureId), eq(emailSignatures.orgId, user.orgId)));
-            if (sig) signatureJson = sig.signature;
-        } else {
-            // signatureId 미전달 → 기본 서명
-            const [defaultSig] = await db
-                .select()
-                .from(emailSignatures)
-                .where(and(eq(emailSignatures.orgId, user.orgId), eq(emailSignatures.isDefault, true)))
-                .limit(1);
-            if (defaultSig) signatureJson = defaultSig.signature;
-            else if (config?.signatureEnabled && config?.signature) signatureJson = config.signature;
-        }
+        // signatureId는 body에서 온 값을 그대로 넘긴다 — null(서명 없음)과 undefined(미지정)의 구분이 사용자 선택이다
+        const signatureJson = await resolveSignature(user.orgId, {
+            requestedId: signatureId,
+            config,
+        });
 
         if (!templateLinkId || !recordIds || !Array.isArray(recordIds) || recordIds.length === 0) {
             return NextResponse.json({
@@ -181,13 +146,14 @@ export async function POST(req: NextRequest) {
                 triggerType: "manual",
                 sentBy: user.userId,
                 unsubscribeToken,
+                senderProfileId: sender.profileId,
             }).returning({ id: emailSendLogs.id });
 
             const trackedBody = wrapTrackingUrls(finalBody, logEntry.id);
 
             const nhnResult = await client.sendEachMail({
-                senderAddress: senderFromEmail!,
-                senderName: senderFromName,
+                senderAddress: senderFromEmail,
+                senderName: sender.fromName,
                 title: substitutedSubject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],

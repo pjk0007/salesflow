@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "cycleId": "2026-08-07-sender-profile-propagation",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "pickSender: 명시 profileId가 유효하면 그 프로필을 반환한다",
+      "priority": "P1",
+      "target": "src/lib/email-sender-pick.ts:52-56",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:20-30",
+        "cmd": "pnpm test",
+        "output": "✔ 명시 profileId가 유효하면 그 프로필을 반환한다 (B1) (0.615625ms)\n✔ 명시 profileId는 기본 프로필을 이긴다 (B1) (0.100666ms)",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "pickSender: 명시 profileId가 없으면 org 기본 프로필로 fallback한다",
+      "priority": "P1",
+      "target": "src/lib/email-sender-pick.ts:58-59",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:32-42",
+        "cmd": "pnpm test",
+        "output": "✔ 명시값이 없으면 기본 프로필로 fallback한다 (B2) (0.0745ms)\n✔ preferredIds의 null/undefined 원소는 무시한다 (B2/B14) (0.050292ms)",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "pickSender: 기본 프로필도 없으면 레거시 emailConfigs.fromEmail로 fallback하고, 그것도 없으면 fromEmail: null",
+      "priority": "P1",
+      "target": "src/lib/email-sender-pick.ts:61-71",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:66-92",
+        "cmd": "pnpm test",
+        "output": "✔ 프로필이 없으면 레거시 config로 fallback하고 profileId는 null이다 (B3) (0.054417ms)\n✔ 프로필도 config도 없으면 fromEmail은 null이다 (B3) (0.064ms)\n✔ fromEmail이 빈 config는 미설정과 같다 (B3) (0.082417ms)\n✔ 기본 프로필이 레거시 config보다 우선한다 (B3) (0.092208ms)",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "pickSignature: signatureId === null이면 '서명 없음'으로 확정하고 기본 서명으로 fallback하지 않는다",
+      "priority": "P1",
+      "target": "src/lib/email-sender-pick.ts:96",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:105-109",
+        "cmd": "pnpm test",
+        "output": "✔ signatureId가 null이면 기본 서명과 레거시 둘 다 붙지 않는다 (B4)",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "pickSignature: signatureId === undefined면 기본 서명 → 레거시 config 순으로 fallback한다",
+      "priority": "P1",
+      "target": "src/lib/email-sender-pick.ts:103-108",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:111-141",
+        "cmd": "pnpm test",
+        "output": "✔ signatureId가 undefined면 기본 서명으로 fallback한다 (B5)\n✔ 기본 서명이 없으면 레거시 config 서명을 쓴다 (B5) (0.049125ms)\n✔ signatureEnabled가 false면 config 서명을 쓰지 않는다 (B5) (0.512625ms)\n✔ config.signature가 비어있으면 null이다 (B5) (0.074125ms)\n✔ 후보도 config도 없으면 null이다 (B5) (0.029042ms)",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "resolveSender: 다른 org 소유의 profileId를 넘기면 그 프로필을 쓰지 않고 기본값으로 fallback한다 (org 격리)",
+      "priority": "P1",
+      "target": "src/lib/email-sender-resolver.ts:31-35",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:44-47",
+        "cmd": "pnpm test",
+        "output": "✔ 후보에 없는 id(삭제됐거나 타 org)는 건너뛰고 기본으로 간다 (B6/B16) (0.057333ms)\n\n조회는 where(eq(emailSenderProfiles.orgId, orgId)) 단일 필터로 org 프로필만 가져오므로, 타 org의 id는 candidates에 존재할 수 없다 (email-sender-resolver.ts:31-35). pick 레벨에서 '후보에 없는 id' 케이스로 검증됨.",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "템플릿 테스트 발송이 다이얼로그에서 고른 발신 프로필로 나간다",
+      "priority": "P1",
+      "target": "src/app/api/email/test-send/route.ts:41-48",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B8",
+      "desc": "템플릿 테스트 발송에 선택한 서명이 본문에 붙는다 (현재 아예 미적용)",
+      "priority": "P1",
+      "target": "src/app/api/email/test-send/route.ts:51-70",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B9",
+      "desc": "AI 테스트 발송이 규칙의 link.senderProfileId로 나간다",
+      "priority": "P1",
+      "target": "src/app/api/email/auto-personalized/test-send/route.ts:78-88",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B10",
+      "desc": "AI 후속 발송이 규칙의 link.senderProfileId로 나간다",
+      "priority": "P1",
+      "target": "src/lib/email-followup.ts:499-509",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B11",
+      "desc": "후속 테스트 발송(test-followup)이 규칙의 link.senderProfileId로 나간다",
+      "priority": "P2",
+      "target": "src/app/api/email/auto-personalized/test-followup/route.ts:174-186",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B12",
+      "desc": "템플릿 후속 발송이 원본 메일의 parentLog.senderProfileId를 상속한다",
+      "priority": "P1",
+      "target": "src/lib/email-followup.ts:358-367",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B13",
+      "desc": "발송 로그(email_send_logs)에 실제 사용된 senderProfileId가 기록된다",
+      "priority": "P1",
+      "target": "src/app/api/email/send/route.ts:150, src/lib/auto-personalized-email.ts:281, src/lib/email-followup.ts:404,592, src/app/api/email/auto-personalized/test-followup/route.ts:210",
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B14",
+      "desc": "senderProfileId가 null인 기존 로그의 후속은 기본 프로필로 나가며 에러 없이 동작한다 (하위호환)",
+      "priority": "P2",
+      "target": "src/lib/email-sender-pick.ts:53",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:38-42",
+        "cmd": "pnpm test",
+        "output": "✔ preferredIds의 null/undefined 원소는 무시한다 (B2/B14) (0.050292ms)",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "마이그레이션 0064가 멱등하게 재실행 가능하다 (IF NOT EXISTS)",
+      "priority": "P2",
+      "target": "drizzle/0064_email_send_log_sender.sql:14-15",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "drizzle/0064_email_send_log_sender.sql",
+        "cmd": "psql postgresql://jaehun@localhost:5432/salesflow -f drizzle/0064_email_send_log_sender.sql (2회 실행)",
+        "output": "1회차: ALTER TABLE\n2회차: NOTICE:  column \"sender_profile_id\" of relation \"email_send_logs\" already exists, skipping / ALTER TABLE\n컬럼 확인: sender_profile_id | integer",
+        "at": "2026-08-07"
+      }
+    },
+    {
+      "id": "B16",
+      "desc": "상속할 senderProfileId가 가리키는 프로필이 삭제된 경우 현재 기본 프로필로 fallback한다",
+      "priority": "P1",
+      "target": "src/lib/email-sender-pick.ts:52-59",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-sender-pick.test.ts:44-62",
+        "cmd": "pnpm test",
+        "output": "✔ 후보에 없는 id(삭제됐거나 타 org)는 건너뛰고 기본으로 간다 (B6/B16) (0.057333ms)\n✔ 1순위가 죽어도 2순위를 보고, 기본으로 바로 떨어지지 않는다 (B16) (0.048208ms)",
+        "at": "2026-08-07"
+      }
+    }
+  ]
+}

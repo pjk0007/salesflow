@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
-import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
+import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { substitutePromptVariables } from "@/lib/email-utils";
 
 // POST /api/email/auto-personalized/test-send
@@ -74,12 +74,20 @@ export async function POST(req: NextRequest) {
         }
         const emailConfig = await getEmailConfig(user.orgId);
 
-        const sender = await resolveDefaultSender(user.orgId, emailConfig);
+        // 테스트 발송도 규칙에 지정된 발신 프로필·서명을 따라야 실제 발송과 결과가 같다
+        const sender = await resolveSender(user.orgId, {
+            preferredIds: [link.senderProfileId],
+            config: emailConfig,
+        });
         if (!sender.fromEmail) {
             return NextResponse.json({ success: false, error: "발신자 프로필이 설정되지 않았습니다." }, { status: 400 });
         }
 
-        const signatureJson = await resolveDefaultSignature(user.orgId, emailConfig);
+        // DB의 null은 "미지정" (HTTP body의 null과 의미가 다르다)
+        const signatureJson = await resolveSignature(user.orgId, {
+            requestedId: link.signatureId ?? undefined,
+            config: emailConfig,
+        });
 
         // 5. 회사 조사 (autoResearch ON && 레코드에 _companyResearch 없으면)
         if (link.autoResearch === 1 && !recordData._companyResearch) {

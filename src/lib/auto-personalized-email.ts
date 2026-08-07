@@ -1,9 +1,9 @@
-import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, emailSenderProfiles, emailSignatures, records, products } from "@/lib/db";
+import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
-import { resolveDefaultSender, resolveDefaultSignature } from "@/lib/email-sender-resolver";
+import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 import {
@@ -138,32 +138,19 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             const emailConfig = await getEmailConfig(orgId);
 
             // 6-1. 발신자 프로필 결정 (규칙 지정 → 기본 프로필 → 레거시 fallback)
-            let senderFromEmail: string | null = null;
-            let senderFromName: string | undefined;
-            if ((link as Record<string, unknown>).senderProfileId) {
-                const [profile] = await db.select().from(emailSenderProfiles)
-                    .where(and(eq(emailSenderProfiles.id, (link as Record<string, unknown>).senderProfileId as number), eq(emailSenderProfiles.orgId, orgId)))
-                    .limit(1);
-                if (profile) { senderFromEmail = profile.fromEmail; senderFromName = profile.fromName; }
-            }
-            if (!senderFromEmail) {
-                const sender = await resolveDefaultSender(orgId, emailConfig);
-                senderFromEmail = sender.fromEmail;
-                senderFromName = sender.fromName;
-            }
-            if (!senderFromEmail) continue;
+            const sender = await resolveSender(orgId, {
+                preferredIds: [link.senderProfileId],
+                config: emailConfig,
+            });
+            if (!sender.fromEmail) continue;
+            const senderFromEmail = sender.fromEmail;
 
-            // 6-2. 서명 결정 (규칙 지정 → 기본 서명 → 레거시 fallback)
-            let signatureJson: string | null = null;
-            if ((link as Record<string, unknown>).signatureId) {
-                const [sig] = await db.select().from(emailSignatures)
-                    .where(and(eq(emailSignatures.id, (link as Record<string, unknown>).signatureId as number), eq(emailSignatures.orgId, orgId)))
-                    .limit(1);
-                if (sig) signatureJson = sig.signature;
-            }
-            if (!signatureJson) {
-                signatureJson = await resolveDefaultSignature(orgId, emailConfig);
-            }
+            // 6-2. 서명 결정. DB의 null은 "미지정"이므로 undefined로 정규화한다
+            // (HTTP body에서 온 값과 달리 여기서는 null이 "서명 없음"을 뜻하지 않는다)
+            const signatureJson = await resolveSignature(orgId, {
+                requestedId: link.signatureId ?? undefined,
+                config: emailConfig,
+            });
 
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
             let recordData = { ...data };
@@ -290,13 +277,14 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 autoPersonalizedLinkId: link.id,
                 sentAt: new Date(),
                 unsubscribeToken,
+                senderProfileId: sender.profileId,
             }).returning({ id: emailSendLogs.id });
 
             const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
             const nhnResult = await emailClient.sendEachMail({
-                senderAddress: senderFromEmail!,
-                senderName: senderFromName,
+                senderAddress: senderFromEmail,
+                senderName: sender.fromName,
                 title: emailResult.subject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
