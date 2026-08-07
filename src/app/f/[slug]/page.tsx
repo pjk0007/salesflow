@@ -94,10 +94,18 @@ export default function PublicFormPage() {
                     }
                 } catch {}
 
+                // 메일 클릭으로 들어온 경우 리다이렉트가 붙여준 sendb_cid / utm_*.
+                // 이 페이지엔 고객사 tracker.js가 없어 visitor_id가 비므로,
+                // URL 파라미터가 유입 캠페인을 알 수 있는 유일한 경로다.
+                // 파싱·검증은 서버가 한다 (원문 그대로 전달).
                 const res = await fetch(`/api/public/forms/${slug}/submit`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ data: values, visitor_id: visitorId }),
+                    body: JSON.stringify({
+                        data: values,
+                        visitor_id: visitorId,
+                        attribution: window.location.search,
+                    }),
                 });
                 const result = await res.json();
                 if (result.success) {

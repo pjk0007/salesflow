@@ -1,0 +1,71 @@
+{
+  "cycle": "2026-08-07-form-attribution",
+  "behaviors": [
+    {
+      "id": 1,
+      "desc": "sendb_cid 있는 URL로 제출 → 레코드에 campaignName/adName 기록",
+      "passes": true,
+      "evidence": "운영 DB 실행: clk_up_V0_Eng8OVd1FKyGGGY → {\"campaignName\":\"outreach\",\"adName\":\"한신공영(주) 최문규/전재식 대표님, 경리 채용 전 확인해 보세요\"}"
+    },
+    {
+      "id": 2,
+      "desc": "파라미터 없이 제출 → 제출 성공, 캠페인 필드 없음",
+      "passes": true,
+      "evidence": "실행: search=\"\" → params {} → result {}. recordData에 키를 추가하지 않으므로 기존 흐름 그대로."
+    },
+    {
+      "id": 3,
+      "desc": "위조 sendb_cid(clk_ 아님) → 무시, 제출 성공",
+      "passes": true,
+      "evidence": "단위테스트 'clk_ 접두사가 없는 sendb_cid는 무시한다' 통과 + 운영 실행: sendb_cid=evil → clickId 없이 utmCampaign만 남음"
+    },
+    {
+      "id": 4,
+      "desc": "존재하지 않는 clk_xxx → 조인 실패해도 제출 성공",
+      "passes": true,
+      "evidence": "운영 DB 실행: clk_nonexistent000000000 → result {} (throw 없음)"
+    },
+    {
+      "id": 5,
+      "desc": "UTM만 있고 sendb_cid 없음 → campaignName에 UTM 값",
+      "passes": true,
+      "evidence": "운영 DB 실행: utm_campaign=job-platform → {\"campaignName\":\"job-platform\"}"
+    },
+    {
+      "id": 6,
+      "desc": "오염된 캠페인 값 outreach) → outreach로 정제",
+      "passes": true,
+      "evidence": "단위테스트 4건 통과(후행 )/]//,한글 접미, URL 딸림) + 운영 실행에서 outreach) → outreach 확인"
+    },
+    {
+      "id": 7,
+      "desc": "기존 visitor_id 경로 회귀 없음",
+      "passes": true,
+      "evidence": "dev(:3100) 실제 폼 제출: visitor_id=v_test_regression + utm_campaign=youtuber 동시 전송 → 201 + campaignName=youtuber 저장. 두 경로 공존 확인."
+    },
+    {
+      "id": 8,
+      "desc": "defaultValues가 attribution을 덮어쓰지 않음",
+      "passes": true,
+      "evidence": "dev 실제 제출 대조: defaultValues=[{campaignName:덮어쓰면안됨},{source:웹사이트}] 설정 후 → attribution 있으면 campaignName=job-platform(지켜짐), 없으면 덮어쓰면안됨(기본값 적용). source=웹사이트는 양쪽 모두 유지."
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "passes": 8,
+    "unproven": 0,
+    "notes": "8개 전부 런타임 실측으로 증명. 1~6은 운영 DB 조회 + 단위테스트 13건, 1~8은 dev(:3100) 실제 HTTP 폼 제출 9건으로 확인. 테스트 레코드는 로컬 DB에만 생성 후 전량 삭제(8건), 운영 DB 오염 0건 확인."
+  },
+  "runtime_verification": {
+    "env": "dev server :3100 → 로컬 DB(localhost:5432)",
+    "note": "dev 서버는 .env.local의 DATABASE_URL(로컬)에 붙으므로 운영 데이터는 건드리지 않았다. 로컬 DB에도 email_click_logs가 있어 clk_ 역추적이 실제로 동작했다.",
+    "results": [
+      "실제 clickId + utm_campaign=outreach) → campaignName=outreach, adName=\"한신공영(주) 최문규/전재식 대표님, 경리 채용 전 확인해 보세요\"",
+      "파라미터 없음 → 두 필드 모두 미생성, 제출 성공",
+      "위조 clickId(evil) → clickId 무시, campaignName=t2-pain만",
+      "없는 clickId(clk_nonexistent...) → 두 필드 미생성, 제출 성공",
+      "UTM만 → campaignName=job-platform"
+    ],
+    "cleanup": "web_forms.default_values 원복, 테스트 레코드 8건 DELETE, 잔여 0건 확인"
+  }
+}

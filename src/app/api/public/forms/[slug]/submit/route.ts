@@ -7,6 +7,8 @@ import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { linkVisitorByFormSubmit } from "@/lib/tracker/match-record";
+import { parseAttributionParams } from "@/lib/attribution/parse-params";
+import { resolveAttribution } from "@/lib/attribution/resolve-attribution";
 
 export async function POST(
     req: NextRequest,
@@ -20,6 +22,10 @@ export async function POST(
     const reqBody = await req.json();
     const submitData = reqBody?.data;
     const visitorId: string | undefined = typeof reqBody?.visitor_id === "string" ? reqBody.visitor_id : undefined;
+    // 파싱은 서버에서 한다 — 화이트리스트·clk_ 검증을 클라이언트에 맡기지 않는다.
+    const attributionParams = parseAttributionParams(
+        typeof reqBody?.attribution === "string" ? reqBody.attribution : ""
+    );
     if (!submitData || typeof submitData !== "object") {
         return NextResponse.json({ success: false, error: "제출 데이터가 필요합니다." }, { status: 400 });
     }
@@ -62,6 +68,18 @@ export async function POST(
             if (field.linkedFieldKey && val !== undefined && val !== null && val !== "") {
                 recordData[field.linkedFieldKey] = val;
             }
+        }
+
+        // 유입 출처 기록 (defaultValues보다 먼저 — 폼 기본값이 실제 캠페인을 덮지 않도록)
+        //
+        // 조회 실패가 폼 제출을 막으면 안 된다. 리드 유실이 캠페인 정보 유실보다
+        // 훨씬 비싸므로 여기서만 의도적으로 degrade한다 (로그는 남긴다).
+        try {
+            const attribution = await resolveAttribution(attributionParams);
+            if (attribution.campaignName) recordData.campaignName = attribution.campaignName;
+            if (attribution.adName) recordData.adName = attribution.adName;
+        } catch (err) {
+            console.error("Attribution resolve error:", err);
         }
 
         // defaultValues 적용 (빈 필드만)
