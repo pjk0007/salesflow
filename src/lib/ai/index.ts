@@ -2,7 +2,7 @@
 
 // Types & client
 export { getAiClient, getSearchAiClient, type AiClient } from "./client";
-export { AI_MODELS, DEFAULT_MODEL_ID, resolveModel, type AiModelOption, type AiProvider } from "./models";
+export { AI_MODELS, DEFAULT_MODEL_ID, SEARCH_MODEL_ID, resolveModel, type AiModelOption, type AiProvider } from "./models";
 
 // JSON utilities (internal, but buildEmailSystemPrompt uses extractJson indirectly)
 export { extractJson } from "./json-utils";

@@ -32,10 +32,10 @@ export async function processAutoEnrich(params: AutoEnrichParams): Promise<void>
         return;
     }
 
-    // AI 클라이언트 (필드 보강은 웹검색 필요 → Gemini 고정)
+    // AI 클라이언트 (필드 보강은 웹검색 필요 → SEARCH_MODEL_ID 고정)
     const aiClient = getSearchAiClient();
     if (!aiClient) {
-        console.log("[AutoEnrich] GEMINI_API_KEY missing");
+        console.log("[AutoEnrich] ANTHROPIC_API_KEY missing");
         return;
     }
 

@@ -1,0 +1,238 @@
+{
+  "version": 1,
+  "cycleId": "2026-08-28-claude-ai-provider",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "resolveModel(\"claude-haiku-4-5\")가 provider claude인 항목을 반환한다",
+      "priority": "P1",
+      "target": "src/lib/ai/models.ts:16",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/models.test.ts:5",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — 'claude-haiku-4-5를 지정하면 provider claude 항목을 반환한다 (B1)' 통과",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "resolveModel(undefined)가 기본 모델(Claude)을 반환한다",
+      "priority": "P1",
+      "target": "src/lib/ai/models.ts:22",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/models.test.ts:11",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — '미지정이면 기본 모델(Claude)을 반환한다 (B2)' + 빈문자열/미등록 폴백 통과",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "resolveModel(\"gemini-3.5-flash-lite\")가 기존 Gemini 항목을 그대로 반환한다 (DB 저장값 12건 호환)",
+      "priority": "P1",
+      "target": "src/lib/ai/models.ts:17",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/models.test.ts:25",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — '기존 저장값 gemini-3.5-flash-lite는 그대로 gemini 항목을 반환한다 (B3)' 통과. notEqual(DEFAULT_MODEL_ID)로 기본값 폴백 아님을 assert",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "getAiClient(\"claude-haiku-4-5\")가 ANTHROPIC_API_KEY로 claude 클라이언트를 만든다",
+      "priority": "P1",
+      "target": "src/lib/ai/client.ts:26-28",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/client.test.ts:24",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — 'ANTHROPIC_API_KEY가 있으면 claude 클라이언트를 만든다 (B4)' 통과. 실호출에서도 '=== B4 client === claude claude-haiku-4-5' 확인",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "ANTHROPIC_API_KEY 미설정 시 getAiClient가 null을 반환한다",
+      "priority": "P2",
+      "target": "src/lib/ai/client.ts:27",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/client.test.ts:35",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — getAiClient/getSearchAiClient 둘 다 null 반환 확인",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "getSearchAiClient()가 Claude 클라이언트를 반환한다",
+      "priority": "P1",
+      "target": "src/lib/ai/client.ts:32-36",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/client.test.ts:41",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — 단위테스트 통과. 실호출에서 '=== B6: search client === claude claude-haiku-4-5' 확인",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "callClaudeEmail이 subject/htmlBody를 파싱해 반환하고 usage 토큰을 채운다",
+      "priority": "P1",
+      "target": "src/lib/ai/claude.ts:125-138",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/claude.ts:125 + claude-parse.test.ts:45",
+        "cmd": "npx tsx (generateEmail 실호출)",
+        "output": "subject='Sendb로 영업 생산성 3배 올려보세요', htmlBody=<div style=...>안녕하세요...</div>, usage=860/520, HAS_CITE_TAG=false. extractText 쪼개진 블록 이어붙이기 단위테스트 통과",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "callClaudeJson이 JSON 문자열과 usage를 반환한다",
+      "priority": "P1",
+      "target": "src/lib/ai/claude.ts:140-147",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/claude.ts:140",
+        "cmd": "npx tsx (callClaudeJson 실호출 — B14 검증 중 동일 경로 통과)",
+        "output": "정상 키로는 응답 반환, 잘못된 키로는 401 throw. extractText/toUsage 단위테스트 통과",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "callClaudeWithSearch가 web search 툴을 써서 parsed + sources를 반환한다",
+      "priority": "P1",
+      "target": "src/lib/ai/claude.ts:149-162",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/claude-parse.test.ts:76",
+        "cmd": "npx tsx (generateCompanyResearch 실호출) + pnpm test",
+        "output": "실호출: sources 17건, JSON 파싱 성공, usage 29764/740. union 에러갈래 분기 단위테스트('content가 에러인 블록은 건너뛰고 나머지는 계속 수집한다 (B9)') 통과. allowed_callers:['direct'] 없으면 400 — 실측 확인 후 반영",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "callClaudeWithSearch의 sources에 검색 출처 URL·title이 채워진다",
+      "priority": "P2",
+      "target": "src/lib/ai/claude-parse.ts:19-38",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/claude-parse.test.ts:66",
+        "cmd": "pnpm test + 실호출",
+        "output": "tests 68 / pass 68 — url/title 추출·dedupe·빈 title→url 폴백 통과. 실호출에서 sources 17건 수집, 첫 항목 url 정상",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "generateCompanyResearch가 Claude 경로로 회사 정보 JSON을 반환한다 (search.ts 무수정)",
+      "priority": "P1",
+      "target": "src/lib/ai/gemini.ts:136-138",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/search.ts (무수정)",
+        "cmd": "npx tsx (generateCompanyResearch 실호출)",
+        "output": "companyName='토스페이먼츠(주)', industry='금융 - 전자결제 서비스', website='https://www.tosspayments.com/', services/description 정상, sources 17, usage 29764/740, HAS_CITE_TAG=false",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "generateProduct가 Claude 경로로 동작한다",
+      "priority": "P2",
+      "target": "src/lib/ai/gemini.ts:136-138",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/search.ts (무수정)",
+        "cmd": "npx tsx (generateProduct 실호출)",
+        "output": "name='토스페이먼츠', category='PG (결제대행사) / SaaS', price/url 정상, sources 13, usage 27900/733, HAS_CITE_TAG=false",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B13",
+      "desc": "generateFieldEnrichment가 Claude 경로로 동작한다",
+      "priority": "P2",
+      "target": "src/lib/ai/gemini.ts:136-138",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/search.ts (무수정)",
+        "cmd": "npx tsx (generateFieldEnrichment 실호출)",
+        "output": "data={\"ceo\":\"임한욱\",\"addr\":\"서울 강남구 테헤란로 131, 15층\"}, sources 16, usage 32265/328, HAS_CITE_TAG=false",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B14",
+      "desc": "Claude API 에러 시 원문 메시지를 담아 throw한다 (조용한 swallow 금지)",
+      "priority": "P1",
+      "target": "src/lib/ai/claude.ts:42-55",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/ai/claude.ts:42",
+        "cmd": "npx tsx (잘못된 키로 callClaudeJson 호출)",
+        "output": "message='401 {\"type\":\"error\",\"error\":{\"type\":\"authentication_error\",\"message\":\"API key is invalid.\"},...}', has401=true → search.ts:141의 msg.includes('401') 분류가 그대로 동작함을 확인. 래핑 없음",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "logAiUsage에 provider가 claude로 기록된다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B16",
+      "desc": "기존 DeepSeek 경로가 회귀 없이 그대로 동작한다",
+      "priority": "P1",
+      "target": "src/lib/ai/client.ts:14-18",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/client.test.ts:63",
+        "cmd": "pnpm test",
+        "output": "tests 68 / pass 68 / fail 0 — 'deepseek 모델은 여전히 DEEPSEEK_API_KEY를 읽는다 (B16)' + resolveModel deepseek 항목 반환 통과. gemini.ts의 deepseek 분기 무수정",
+        "at": "2026-08-28"
+      }
+    },
+    {
+      "id": "B17",
+      "desc": "UI 모델 드롭다운에 Claude 항목이 노출된다",
+      "priority": "P2",
+      "target": "src/lib/ai/models.ts:16",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/models.test.ts:47",
+        "cmd": "pnpm test",
+        "output": "✔ 드롭다운 첫 항목이 Claude다 (B17)",
+        "at": "2026-08-28"
+      }
+    }
+  ]
+}

@@ -126,7 +126,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             // 5. AI 클라이언트 확인
             const aiClient = getAiClient(link.model || undefined);
-            if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (GEMINI_API_KEY missing)`); continue; }
+            if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`); continue; }
 
             // 5-1. 토큰 쿼터 확인
             const quota = await checkTokenQuota(orgId);
@@ -156,7 +156,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             let recordData = { ...data };
             if (link.autoResearch === 1 && !recordData._companyResearch) {
                 const companyName = data[link.companyField] as string;
-                const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → Gemini 고정
+                const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → SEARCH_MODEL_ID 고정
                 if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
                     const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
                     recordData._companyResearch = {

@@ -1,0 +1,27 @@
+# PROGRESS — docs/2026-08-28-claude-ai-provider/
+
+- 2026-08-28 plan: PLAN.md + behaviors.json 작성, 승인 대기
+- 2026-08-28 plan: 사용자 결정 — 텍스트 생성/리서치 둘 다 `claude-haiku-4-5`로 시작, 테스트 후 품질 미달이면 상위 모델 교체. `@anthropic-ai/sdk` 설치 승인받음
+- 2026-08-28 plan: 기존 사이클 `2026-08-07-sender-profile-propagation`(do 단계)은 열어둔 채 이번 긴급 건을 새 사이클로 분리
+- 2026-08-28 plan: 사용자 PLAN 승인
+- 2026-08-28 design: `@anthropic-ai/sdk` 0.122.0 설치, `.env.local`에 ANTHROPIC_API_KEY 등록(사용자 직접)
+- 2026-08-28 design: 실호출 검증 3건 — (1) Haiku 4.5 단발 호출 성공 (2) web search 툴에 `allowed_callers:["direct"]` 누락 시 400(programmatic tool calling 미지원) (3) `allowed_callers` 추가 후 `web_search_20260209` 정상 동작, 검색결과 9건·in/out 11,625/446
+- 2026-08-28 design: 실측 결과로 architect 초안 2곳 수정 — web search 폴백 코드 제거(지원 확인됨), prefill 미사용으로 확정(오염 미관측). DESIGN.md 작성, 승인 대기
+- 2026-08-28 design: 사용자 DESIGN 승인. 열린 질문 4건 확정 — Gemini 충전계획 없음(코드는 이번엔 유지, 다음 사이클에서 제거 검토), 비용 현 수준 수용(max_uses 3 유지), pause_turn 한도초과는 현 설계(부분결과+warn) 유지, MAX_SEARCH_CONTINUATIONS=3
+- 2026-08-28 do: 구현 시작 (TDD 그룹1~3 → claude.ts → gemini.ts 분기)
+- 2026-08-28 do(1): TDD 그룹1·2 — models.test.ts/client.test.ts 15케이스 작성 → RED 확인 → models.ts/client.ts 구현 → GREEN (50/50). B1~B6·B16·B17(목록 첫 항목) 통과
+- 2026-08-28 do(2): TDD 그룹3 — claude-parse.test.ts 12케이스(union 에러갈래 분기 포함) → RED → claude-parse.ts 구현 → GREEN (62/62)
+- 2026-08-28 do(3): claude.ts 구현 — callClaudeMessage/runSearchLoop(pause_turn 재개, usage 누적)/공개함수 3종. SEARCH_TOOL에 allowed_callers:["direct"] 명시
+- 2026-08-28 do(4): gemini.ts 3개 함수에 claude 분기 추가, GenerateEmailResult export화. search.ts/email.ts/alimtalk.ts/form.ts 무수정 원칙 지킴
+- 2026-08-28 do(5): 실호출 검증 중 **미발견 이슈 발견** — 웹검색 경로 응답에 `(cite index="21-1">...</cite>` 인용 태그가 본문에 섞여 나옴. 그대로면 콜드메일/회사설명에 태그 노출. 텍스트 생성 경로는 깨끗(HAS_CITE_TAG=false)
+- 2026-08-28 do(6): TDD로 stripCitationTags 추가(6케이스 RED→GREEN, 68/68) → claude.ts 검색 경로에 적용 → 재검증 결과 HAS_CITE_TAG=false, 데이터 품질 정상(대표자명·주소까지 정확)
+- 2026-08-28 do(7): 실호출 검증 완료 — B11 회사리서치(sources 17, usage 29764/740), B12 제품조사(sources 13), B13 필드보강(ceo/addr 정확), B14 잘못된 키로 401 원문 전파 확인(search.ts:141 분류 동작)
+- 2026-08-28 do(8): 스테일 주석 3곳 수정(`→ Gemini 고정` → `→ SEARCH_MODEL_ID 고정`)
+- 2026-08-28 do: 검증 — `npx tsc --noEmit` 클린, `pnpm test` 68/68(기존 35 + 신규 33), 변경 파일 eslint 0건
+- 2026-08-28 do: behaviors 15/17 통과. **B15(logAiUsage provider=claude 기록)·B17(UI 드롭다운 육안)은 배포 후 확인 필요 — 증거 없어 passes:false 유지**
+- 2026-08-28 do(9): 운영 프롬프트(규칙 42)·실제 레코드 3건으로 E2E 재현 — 제목/첫문장/문장수/금지어/CTA/서명 규칙 전부 통과, cite 태그 없음. 건당 평균 입력 19,651 출력 822
+- 2026-08-28 do(10): 알림톡·웹폼(callClaudeJson 경로) 실호출 검증 — 정상
+- 2026-08-28 do(11): **실제 메일 발송 성공** — 운영 규칙 42 + 발신 프로필(cs@matchesplan.cloud) + 서명으로 ghty6323@gmail.com 수신. NHN isSuccessful=true, resultCode=0
+- 2026-08-28 do(12): 발송 중 발견 — 규칙 42의 model이 'gemini-3.5-flash-lite'라 배포만으로는 복구 안 됨(B3 의도대로 동작). 활성 Gemini 고정 규칙 6건(id 3·31·32·34·40·42) SQL 전환 필요 → 배포 체크리스트에 반영
+- 2026-08-28 gap: unproven=0 통과(16/17). 지적 3건 반영 — 스테일 로그 2곳(GEMINI_API_KEY→ANTHROPIC_API_KEY) 수정, B17 passes:true 정정, 임시 파일 정리
+- 2026-08-28 gap: **미해결 2건을 다음 사이클로 인계** — (1) search.ts 폴백의 usage 유실(재현율 2/5, 기존 부채이나 Claude 단가에서 손실 규모 다름) (2) senderPersona가 사용자 프롬프트 고정문구를 덮어씀(Gemini는 유저 프롬프트 우선, Claude는 페르소나 우선). 둘 다 PLAN 범위 밖

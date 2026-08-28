@@ -1,7 +1,10 @@
+// provider dispatch 진입점 — gemini/deepseek/claude 세 경로가 여기서 갈린다.
+// (파일명은 히스토리상 gemini.ts지만 Gemini 전용이 아니다)
 import type { AiClient } from "./client";
 import { extractJson } from "./json-utils";
+import { callClaudeEmail, callClaudeJson, callClaudeWithSearch } from "./claude";
 
-interface GenerateEmailResult {
+export interface GenerateEmailResult {
     subject: string;
     htmlBody: string;
     usage: { promptTokens: number; completionTokens: number };
@@ -18,6 +21,10 @@ export async function callGeminiEmail(
     systemPrompt: string,
     userPrompt: string
 ): Promise<GenerateEmailResult> {
+    if (client.provider === "claude") {
+        return callClaudeEmail(client, systemPrompt, userPrompt);
+    }
+
     if (client.provider === "deepseek") {
         const { content, usage, truncated } = await callDeepseek(client, systemPrompt, userPrompt);
         const parsed = extractJson(content, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
@@ -80,6 +87,10 @@ export async function callGeminiJson(
     systemPrompt: string,
     userPrompt: string
 ): Promise<{ content: string; usage: { promptTokens: number; completionTokens: number } }> {
+    if (client.provider === "claude") {
+        return callClaudeJson(client, systemPrompt, userPrompt);
+    }
+
     if (client.provider === "deepseek") {
         const { content, usage } = await callDeepseek(client, systemPrompt, userPrompt);
         return { content, usage };
@@ -122,6 +133,10 @@ export async function callGeminiWithSearch(
     userPrompt: string,
     jsonPattern: RegExp
 ): Promise<WebSearchResult> {
+    if (client.provider === "claude") {
+        return callClaudeWithSearch(client, systemPrompt, userPrompt, jsonPattern);
+    }
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`;
     const headers = { "Content-Type": "application/json" };
 
