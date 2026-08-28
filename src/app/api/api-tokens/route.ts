@@ -1,8 +1,8 @@
 import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db, apiTokens, apiTokenScopes, workspaces, folders, partitions } from "@/lib/db";
-import { eq, and, desc } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { eq, desc } from "drizzle-orm";
+import { getUserFromNextRequest, validateTokenScopes } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -31,7 +31,9 @@ export async function GET(req: NextRequest) {
                 const scopesWithNames = await Promise.all(
                     scopes.map(async (s) => {
                         let scopeName = "";
-                        if (s.scopeType === "workspace") {
+                        if (s.scopeType === "org") {
+                            scopeName = "조직 전체";
+                        } else if (s.scopeType === "workspace") {
                             const [ws] = await db.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.id, s.scopeId));
                             scopeName = ws?.name ?? "";
                         } else if (s.scopeType === "folder") {
@@ -85,26 +87,9 @@ export async function POST(req: NextRequest) {
         }
 
         // 스코프 유효성 검증
-        for (const scope of scopes) {
-            if (!["workspace", "folder", "partition"].includes(scope.scopeType)) {
-                return NextResponse.json({ success: false, error: `유효하지 않은 범위 유형: ${scope.scopeType}` }, { status: 400 });
-            }
-            // scopeId가 해당 org에 속하는지 검증
-            if (scope.scopeType === "workspace") {
-                const [ws] = await db.select({ id: workspaces.id }).from(workspaces)
-                    .where(and(eq(workspaces.id, scope.scopeId), eq(workspaces.orgId, user.orgId)));
-                if (!ws) return NextResponse.json({ success: false, error: "워크스페이스를 찾을 수 없습니다." }, { status: 400 });
-            } else if (scope.scopeType === "folder") {
-                const [f] = await db.select({ id: folders.id }).from(folders)
-                    .innerJoin(workspaces, eq(folders.workspaceId, workspaces.id))
-                    .where(and(eq(folders.id, scope.scopeId), eq(workspaces.orgId, user.orgId)));
-                if (!f) return NextResponse.json({ success: false, error: "폴더를 찾을 수 없습니다." }, { status: 400 });
-            } else if (scope.scopeType === "partition") {
-                const [p] = await db.select({ id: partitions.id }).from(partitions)
-                    .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-                    .where(and(eq(partitions.id, scope.scopeId), eq(workspaces.orgId, user.orgId)));
-                if (!p) return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 400 });
-            }
+        const validated = await validateTokenScopes(scopes, user.orgId);
+        if (!validated.ok) {
+            return NextResponse.json({ success: false, error: validated.error }, { status: 400 });
         }
 
         // 토큰 생성
@@ -128,7 +113,7 @@ export async function POST(req: NextRequest) {
                 })
                 .returning();
 
-            for (const scope of scopes) {
+            for (const scope of validated.scopes) {
                 await tx.insert(apiTokenScopes).values({
                     tokenId: newToken.id,
                     scopeType: scope.scopeType,

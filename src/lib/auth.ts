@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 import type { NextApiRequest } from "next";
 import type { NextRequest } from "next/server";
 import type { JWTPayload } from "@/types";
-import { db, apiTokens, apiTokenScopes, partitions } from "@/lib/db";
+import { db, apiTokens, apiTokenScopes, partitions, workspaces, folders } from "@/lib/db";
 import { eq, and, gt, or, isNull } from "drizzle-orm";
 import type { ApiTokenScope } from "@/lib/db";
 
@@ -199,28 +199,84 @@ export async function checkTokenAccess(
     partitionId: number,
     permission: Permission
 ): Promise<boolean> {
+    const [partition] = await db
+        .select({
+            folderId: partitions.folderId,
+            workspaceId: partitions.workspaceId,
+            orgId: workspaces.orgId,
+        })
+        .from(partitions)
+        .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
+        .where(eq(partitions.id, partitionId));
+
+    if (!partition) return false;
+
+    // 토큰은 발급 조직 밖으로 나갈 수 없다 — scope 종류와 무관한 공통 경계
+    if (partition.orgId !== tokenInfo.orgId) return false;
+
     for (const scope of tokenInfo.scopes) {
         if (!scope.permissions[permission]) continue;
 
-        if (scope.scopeType === "partition" && scope.scopeId === partitionId) {
-            return true;
-        }
-
-        if (scope.scopeType === "folder" || scope.scopeType === "workspace") {
-            const [partition] = await db
-                .select({ folderId: partitions.folderId, workspaceId: partitions.workspaceId })
-                .from(partitions)
-                .where(eq(partitions.id, partitionId));
-
-            if (!partition) return false;
-
-            if (scope.scopeType === "folder" && partition.folderId === scope.scopeId) {
-                return true;
-            }
-            if (scope.scopeType === "workspace" && partition.workspaceId === scope.scopeId) {
-                return true;
-            }
-        }
+        if (scope.scopeType === "org") return true;
+        if (scope.scopeType === "partition" && scope.scopeId === partitionId) return true;
+        if (scope.scopeType === "folder" && partition.folderId === scope.scopeId) return true;
+        if (scope.scopeType === "workspace" && partition.workspaceId === scope.scopeId) return true;
     }
     return false;
+}
+
+export interface ScopeInput {
+    scopeType: string;
+    scopeId: number;
+    permissions: { read: boolean; create: boolean; update: boolean; delete: boolean };
+}
+
+/**
+ * 토큰 발급/수정 시 요청된 scope가 유효하고 해당 org에 속하는지 검증한다.
+ * 통과하면 저장 가능한 형태(org 스코프는 scopeId를 0으로 정규화)를 돌려주고,
+ * 실패하면 사용자에게 보여줄 에러 메시지를 돌려준다.
+ */
+export async function validateTokenScopes(
+    scopes: ScopeInput[],
+    orgId: string
+): Promise<{ ok: true; scopes: ScopeInput[] } | { ok: false; error: string }> {
+    const normalized: ScopeInput[] = [];
+
+    for (const scope of scopes) {
+        if (!["org", "workspace", "folder", "partition"].includes(scope.scopeType)) {
+            return { ok: false, error: `유효하지 않은 범위 유형: ${scope.scopeType}` };
+        }
+
+        // org 스코프는 토큰의 orgId 자체가 범위라 대상 검증이 없다
+        if (scope.scopeType === "org") {
+            normalized.push({ ...scope, scopeId: 0 });
+            continue;
+        }
+
+        if (scope.scopeType === "workspace") {
+            const [ws] = await db
+                .select({ id: workspaces.id })
+                .from(workspaces)
+                .where(and(eq(workspaces.id, scope.scopeId), eq(workspaces.orgId, orgId)));
+            if (!ws) return { ok: false, error: "워크스페이스를 찾을 수 없습니다." };
+        } else if (scope.scopeType === "folder") {
+            const [f] = await db
+                .select({ id: folders.id })
+                .from(folders)
+                .innerJoin(workspaces, eq(folders.workspaceId, workspaces.id))
+                .where(and(eq(folders.id, scope.scopeId), eq(workspaces.orgId, orgId)));
+            if (!f) return { ok: false, error: "폴더를 찾을 수 없습니다." };
+        } else {
+            const [p] = await db
+                .select({ id: partitions.id })
+                .from(partitions)
+                .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
+                .where(and(eq(partitions.id, scope.scopeId), eq(workspaces.orgId, orgId)));
+            if (!p) return { ok: false, error: "파티션을 찾을 수 없습니다." };
+        }
+
+        normalized.push(scope);
+    }
+
+    return { ok: true, scopes: normalized };
 }

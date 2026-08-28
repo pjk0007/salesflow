@@ -24,7 +24,7 @@ interface CreateTokenInput {
     name: string;
     expiresIn: "30d" | "90d" | "1y" | null;
     scopes: Array<{
-        scopeType: "workspace" | "folder" | "partition";
+        scopeType: "org" | "workspace" | "folder" | "partition";
         scopeId: number;
         permissions: { read: boolean; create: boolean; update: boolean; delete: boolean };
     }>;

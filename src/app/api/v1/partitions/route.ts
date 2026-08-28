@@ -47,6 +47,8 @@ export async function GET(req: NextRequest) {
         const accessible = allPartitions.filter((p) => {
             for (const scope of tokenInfo.scopes) {
                 if (!scope.permissions.read) continue;
+                // 목록 쿼리가 이미 orgId로 걸러졌으므로 org 스코프는 전부 통과
+                if (scope.scopeType === "org") return true;
                 if (scope.scopeType === "partition" && scope.scopeId === p.id) return true;
                 if (scope.scopeType === "folder" && p.folderId === scope.scopeId) return true;
                 if (scope.scopeType === "workspace" && p.workspaceId === scope.scopeId) return true;

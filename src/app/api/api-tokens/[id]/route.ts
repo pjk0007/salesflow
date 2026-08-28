@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, apiTokens, apiTokenScopes } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getUserFromNextRequest, validateTokenScopes } from "@/lib/auth";
+import type { ScopeInput } from "@/lib/auth";
 
 export async function PUT(
     req: NextRequest,
@@ -34,6 +35,15 @@ export async function PUT(
 
         const { name, isActive, scopes } = await req.json();
 
+        let validatedScopes: ScopeInput[] | null = null;
+        if (scopes && Array.isArray(scopes)) {
+            const validated = await validateTokenScopes(scopes, user.orgId);
+            if (!validated.ok) {
+                return NextResponse.json({ success: false, error: validated.error }, { status: 400 });
+            }
+            validatedScopes = validated.scopes;
+        }
+
         await db.transaction(async (tx) => {
             const updates: Record<string, unknown> = {};
             if (name !== undefined) updates.name = name;
@@ -46,9 +56,9 @@ export async function PUT(
                     .where(eq(apiTokens.id, tokenId));
             }
 
-            if (scopes && Array.isArray(scopes)) {
+            if (validatedScopes) {
                 await tx.delete(apiTokenScopes).where(eq(apiTokenScopes.tokenId, tokenId));
-                for (const scope of scopes) {
+                for (const scope of validatedScopes) {
                     await tx.insert(apiTokenScopes).values({
                         tokenId,
                         scopeType: scope.scopeType,

@@ -29,8 +29,10 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
 import { Plus, X, Loader2 } from "lucide-react";
 
+type ScopeType = "org" | "workspace" | "folder" | "partition";
+
 interface ScopeInput {
-    scopeType: "workspace" | "folder" | "partition";
+    scopeType: ScopeType;
     scopeId: number;
     scopeName: string;
     permissions: { read: boolean; create: boolean; update: boolean; delete: boolean };
@@ -54,7 +56,7 @@ interface ApiTokenCreateDialogProps {
         name: string;
         expiresIn: "30d" | "90d" | "1y" | null;
         scopes: Array<{
-            scopeType: "workspace" | "folder" | "partition";
+            scopeType: ScopeType;
             scopeId: number;
             permissions: { read: boolean; create: boolean; update: boolean; delete: boolean };
         }>;
@@ -77,7 +79,7 @@ export default function ApiTokenCreateDialog({
 
     // 범위 추가 Popover state
     const [addScopeOpen, setAddScopeOpen] = useState(false);
-    const [newScopeType, setNewScopeType] = useState<"workspace" | "folder" | "partition">("workspace");
+    const [newScopeType, setNewScopeType] = useState<ScopeType>("workspace");
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
     const [selectedScopeId, setSelectedScopeId] = useState<number | null>(null);
 
@@ -90,7 +92,7 @@ export default function ApiTokenCreateDialog({
                 setExpiresIn("none");
                 setScopes(
                     token.scopes.map((s) => ({
-                        scopeType: s.scopeType as "workspace" | "folder" | "partition",
+                        scopeType: s.scopeType as ScopeType,
                         scopeId: s.scopeId,
                         scopeName: s.scopeName ?? "",
                         permissions: { ...s.permissions },
@@ -105,6 +107,26 @@ export default function ApiTokenCreateDialog({
     }, [open, mode, token]);
 
     const handleAddScope = () => {
+        // org 스코프는 조직 전체가 대상이라 고를 항목이 없다
+        if (newScopeType === "org") {
+            if (scopes.some((s) => s.scopeType === "org")) {
+                toast.error("이미 추가된 범위입니다.");
+                return;
+            }
+            setScopes([
+                ...scopes,
+                {
+                    scopeType: "org",
+                    scopeId: 0,
+                    scopeName: "조직 전체",
+                    permissions: { read: true, create: false, update: false, delete: false },
+                },
+            ]);
+            setAddScopeOpen(false);
+            setSelectedScopeId(null);
+            return;
+        }
+
         if (!selectedScopeId) return;
 
         // 중복 체크
@@ -187,7 +209,12 @@ export default function ApiTokenCreateDialog({
         }
     };
 
-    const scopeTypeLabel = { workspace: "워크스페이스", folder: "폴더", partition: "파티션" };
+    const scopeTypeLabel: Record<ScopeType, string> = {
+        org: "조직 전체",
+        workspace: "워크스페이스",
+        folder: "폴더",
+        partition: "파티션",
+    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -245,11 +272,15 @@ export default function ApiTokenCreateDialog({
                                         <RadioGroup
                                             value={newScopeType}
                                             onValueChange={(v) => {
-                                                setNewScopeType(v as "workspace" | "folder" | "partition");
+                                                setNewScopeType(v as ScopeType);
                                                 setSelectedScopeId(null);
                                             }}
-                                            className="flex gap-3"
+                                            className="flex flex-wrap gap-3"
                                         >
+                                            <div className="flex items-center gap-1">
+                                                <RadioGroupItem value="org" id="scope-org" />
+                                                <Label htmlFor="scope-org" className="text-xs font-normal cursor-pointer">조직 전체</Label>
+                                            </div>
                                             <div className="flex items-center gap-1">
                                                 <RadioGroupItem value="workspace" id="scope-ws" />
                                                 <Label htmlFor="scope-ws" className="text-xs font-normal cursor-pointer">워크스페이스</Label>
@@ -265,7 +296,11 @@ export default function ApiTokenCreateDialog({
                                         </RadioGroup>
                                     </div>
 
-                                    {newScopeType === "workspace" ? (
+                                    {newScopeType === "org" ? (
+                                        <p className="text-xs text-muted-foreground">
+                                            조직에 속한 모든 워크스페이스·폴더·파티션에 접근합니다. 이후 추가되는 항목도 자동으로 포함됩니다.
+                                        </p>
+                                    ) : newScopeType === "workspace" ? (
                                         <div className="space-y-1.5">
                                             <Label className="text-xs">워크스페이스</Label>
                                             <Select
@@ -351,7 +386,7 @@ export default function ApiTokenCreateDialog({
                                     <Button
                                         size="sm"
                                         className="w-full"
-                                        disabled={!selectedScopeId}
+                                        disabled={newScopeType !== "org" && !selectedScopeId}
                                         onClick={handleAddScope}
                                     >
                                         추가
@@ -373,7 +408,7 @@ export default function ApiTokenCreateDialog({
                                                 <span className="text-muted-foreground text-xs mr-1.5">
                                                     [{scopeTypeLabel[scope.scopeType]}]
                                                 </span>
-                                                {scope.scopeName}
+                                                {scope.scopeType === "org" ? null : scope.scopeName}
                                             </span>
                                             <Button
                                                 variant="ghost"
