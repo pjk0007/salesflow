@@ -27,7 +27,9 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "파티션 ID가 필요합니다." }, { status: 400 });
     }
 
-    const access = await requirePartitionAccess(user, partitionId, "update");
+    // 예약 등록 설정은 원래 관리자 전용이던 기능이라 명시적 부여가 필요하다 —
+    // 데이터 읽기·쓰기처럼 member의 기본 능력으로 열지 않는다.
+    const access = await requirePartitionAccess(user, partitionId, "update", { denyByDefault: true });
     if (!access.ok) {
         return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }

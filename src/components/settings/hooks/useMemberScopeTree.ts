@@ -15,9 +15,9 @@ import type { Folder, Partition } from "@/lib/db";
 export type PermissionLevel = "full" | "edit" | "read" | "custom";
 
 export const PERMISSION_LEVELS: { value: PermissionLevel; label: string; hint: string }[] = [
-    { value: "full", label: "모든 권한", hint: "조회·생성·수정·삭제" },
-    { value: "edit", label: "편집 가능", hint: "조회·생성·수정 (삭제 불가)" },
-    { value: "read", label: "조회만", hint: "보기만 가능" },
+    { value: "full", label: "모든 권한", hint: "만들기·수정·삭제·설정" },
+    { value: "edit", label: "삭제 제외", hint: "만들기·수정·설정" },
+    { value: "read", label: "권한 없음", hint: "기본 데이터 접근만" },
 ];
 
 /**

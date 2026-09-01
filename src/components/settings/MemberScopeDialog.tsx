@@ -96,7 +96,7 @@ export function MemberScopeDialog({ open, onOpenChange, userId, userName }: Memb
 
                 {!hasAnyScope && !isLoading && (
                     <p className="text-xs text-muted-foreground">
-                        아직 아무 제한이 없습니다 — 이 멤버는 조직의 모든 파티션에 접근합니다.
+                        아직 추가 권한이 없습니다 — 데이터 조회·편집은 가능하지만 파티션을 만들거나 지울 수는 없습니다.
                     </p>
                 )}
 

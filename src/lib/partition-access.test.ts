@@ -49,14 +49,16 @@ test("다른 파티션에만 scope가 걸려 있으면 이 파티션은 여전�
     assert.equal(can(ALICE, P1, "read", [scope("u-bob", "partition", 102)]), true);
 });
 
-// ── B2: 제한 모드 전환 ──
+// ── B2: 권한 부여는 남의 접근을 빼앗지 않는다 ──
 
-test("타인의 partition scope가 걸리면 권한 없는 member는 차단된다", () => {
-    assert.equal(can(ALICE, P1, "read", [scope("u-bob", "partition", 101)]), false);
+test("타인이 이 파티션 권한을 받아도 나머지 member는 그대로 접근한다 (B2)", () => {
+    // 체크 = 부여이지 잠금이 아니다. 예전에는 여기서 false가 나와
+    // "한 명에게 주면 나머지가 막히는" 혼란을 낳았다.
+    assert.equal(can(ALICE, P1, "read", [scope("u-bob", "partition", 101)]), true);
 });
 
-test("타인의 workspace scope도 그 워크스페이스 하위를 제한 모드로 만든다", () => {
-    assert.equal(can(ALICE, P1, "read", [scope("u-bob", "workspace", 1)]), false);
+test("타인의 workspace scope도 다른 member의 접근을 막지 않는다 (B2)", () => {
+    assert.equal(can(ALICE, P1, "read", [scope("u-bob", "workspace", 1)]), true);
 });
 
 // ── B3: 권한 보유자 통과 ──
@@ -72,17 +74,24 @@ test("제한된 파티션에 나와 타인 scope가 함께 있어도 나는 통�
 
 // ── B4: permission 비트 분리 ──
 
-test("read만 있는 scope로는 create가 거부된다", () => {
-    assert.equal(can(ALICE, P1, "create", [scope("u-alice", "partition", 101, RO)]), false);
+test("데이터 접근에서는 비트와 무관하게 통과한다 — member의 기본 능력이다 (B4)", () => {
+    // permission 비트는 denyByDefault 경로(구조 변경)에서만 의미를 갖는다
+    assert.equal(can(ALICE, P1, "create", [scope("u-alice", "partition", 101, RO)]), true);
+    assert.equal(can(ALICE, P1, "read", [scope("u-alice", "partition", 101, NONE)]), true);
 });
 
-test("read+create scope면 create가 통과한다", () => {
-    assert.equal(can(ALICE, P1, "create", [scope("u-alice", "partition", 101, RC)]), true);
-});
-
-test("비트가 전부 꺼진 scope는 제한만 걸고 아무것도 허용하지 않는다", () => {
-    // 명시적 차단을 표현하는 수단
-    assert.equal(can(ALICE, P1, "read", [scope("u-alice", "partition", 101, NONE)]), false);
+test("구조 변경에서는 비트가 정확히 대조된다 (B4)", () => {
+    const deny = (perm: Permission, perms: ScopePermissions) =>
+        canAccessPartition({
+            user: ALICE,
+            partition: P1,
+            permission: perm,
+            orgScopes: [scope("u-alice", "partition", 101, perms)],
+            denyByDefault: true,
+        });
+    assert.equal(deny("update", RO), false);   // read만 있으면 수정 불가
+    assert.equal(deny("create", RC), true);    // create 비트가 있으면 통과
+    assert.equal(deny("read", NONE), false);   // 전부 꺼진 scope는 아무것도 못 한다
 });
 
 // ── B5: 관리자 우회 ──
@@ -97,46 +106,55 @@ test("owner는 scope가 전부 타인 것이어도 통과한다", () => {
 
 // ── B6: workspace 상속 ──
 
-test("workspace scope는 하위 모든 파티션을 덮는다", () => {
-    const scopes = [scope("u-alice", "workspace", 1)];
-    assert.equal(can(ALICE, P1, "read", scopes), true);
-    assert.equal(can(ALICE, P2, "read", scopes), true);
+test("workspace scope는 하위 모든 파티션을 덮는다 (B6)", () => {
+    // 상속은 denyByDefault 경로에서 관측된다 — 데이터 접근은 어차피 전원 통과라 구분이 안 된다
+    const scopes = [scope("u-alice", "workspace", 1, RC)];
+    const deny = (p: PartitionLocation) =>
+        canAccessPartition({ user: ALICE, partition: p, permission: "create", orgScopes: scopes, denyByDefault: true });
+    assert.equal(deny(P1), true);
+    assert.equal(deny(P2), true);
+    assert.equal(deny(P3), false); // 다른 워크스페이스는 안 덮는다
 });
 
-test("workspace scope는 다른 워크스페이스 파티션을 덮지 않는다", () => {
-    // 덮지 않는다 = 제한도 걸지 않는다 → allow 기본으로 통과. 소유와 혼동하지 말 것
+test("데이터 접근은 scope 유무·소유자와 무관하게 통과한다", () => {
     assert.equal(can(ALICE, P3, "read", [scope("u-alice", "workspace", 1)]), true);
-});
-
-test("타인의 workspace scope가 있으면 그 워크스페이스 밖은 영향받지 않는다", () => {
     assert.equal(can(ALICE, P3, "read", [scope("u-bob", "workspace", 1)]), true);
 });
 
 // ── B7: folder 상속 ──
 
-test("folder scope는 그 폴더 하위 파티션을 덮는다", () => {
-    assert.equal(can(ALICE, P1, "read", [scope("u-alice", "folder", 10)]), true);
-});
-
-test("folderId가 null인 파티션은 folder scope에 걸리지 않는다", () => {
-    // 미분류 파티션이 엉뚱한 폴더 권한에 묶이지 않아야 한다
-    assert.equal(can(ALICE, P2, "read", [scope("u-bob", "folder", 10)]), true);
-});
-
-test("folder scope는 다른 폴더 파티션을 덮지 않는다", () => {
-    assert.equal(can(ALICE, P3, "read", [scope("u-bob", "folder", 10)]), true);
+test("folder scope는 그 폴더 하위 파티션을 덮는다 (B7)", () => {
+    const deny = (p: PartitionLocation, owner = "u-alice") =>
+        canAccessPartition({
+            user: ALICE, partition: p, permission: "create",
+            orgScopes: [scope(owner, "folder", 10, RC)], denyByDefault: true,
+        });
+    assert.equal(deny(P1), true);
+    assert.equal(deny(P2), false);  // 미분류 파티션은 폴더 권한에 묶이지 않는다
+    assert.equal(deny(P3), false);  // 다른 폴더
+    assert.equal(deny(P1, "u-bob"), false); // 타인의 scope는 나에게 권한을 주지 않는다
 });
 
 // ── org scope / 미지의 scopeType ──
 
 test("org scope는 조직 내 모든 파티션을 덮는다", () => {
-    assert.equal(can(ALICE, P3, "read", [scope("u-bob", "org", 0)]), false);
-    assert.equal(can(ALICE, P3, "read", [scope("u-alice", "org", 0)]), true);
+    const deny = (owner: string) =>
+        canAccessPartition({
+            user: ALICE, partition: P3, permission: "create",
+            orgScopes: [scope(owner, "org", 0, RC)], denyByDefault: true,
+        });
+    assert.equal(deny("u-alice"), true);
+    assert.equal(deny("u-bob"), false); // 타인 것은 나에게 적용되지 않는다
 });
 
 test("알 수 없는 scopeType은 아무 파티션도 덮지 않는다", () => {
-    // 미래에 scopeType이 추가돼도 기존 접근을 깨지 않는다
-    assert.equal(can(ALICE, P1, "read", [scope("u-bob", "universe", 1)]), true);
+    assert.equal(
+        canAccessPartition({
+            user: ALICE, partition: P1, permission: "create",
+            orgScopes: [scope("u-alice", "universe", 1, RC)], denyByDefault: true,
+        }),
+        false
+    );
 });
 
 // ── scopeCoversPartition 직접 ──
@@ -157,15 +175,15 @@ test("scopeId가 0인 folder scope가 folderId null과 맞물리지 않는다", 
 
 // ── B11: 목록 필터 ──
 
-test("filterAccessiblePartitions는 건별 판정과 같은 결과를 낸다", () => {
-    const orgScopes = [scope("u-bob", "workspace", 1)];
+test("목록은 타인 권한 때문에 줄어들지 않는다 (B11)", () => {
+    // 예전에는 [P3]만 남아 "한 명에게 권한을 주면 나머지 목록이 사라지는" 문제가 있었다
     const result = filterAccessiblePartitions({
         user: ALICE,
         partitions: [P1, P2, P3],
         permission: "read",
-        orgScopes,
+        orgScopes: [scope("u-bob", "workspace", 1)],
     });
-    assert.deepEqual(result, [P3]);
+    assert.deepEqual(result, [P1, P2, P3]);
 });
 
 test("admin에게는 목록이 그대로 유지된다", () => {
@@ -227,7 +245,7 @@ test("partition/folder scope로는 새 파티션을 만들 수 없다 (B17)", ()
 // ── B21: 구조 변경(수정·삭제)은 allow 기본의 대상이 아니다 ──
 
 test("권한이 하나도 없어도 구조 변경은 통과시키지 않는다 (B21)", () => {
-    // 데이터 접근은 통과하지만(allow 기본)
+    // 데이터 접근은 통과하지만
     assert.equal(can(ALICE, P1, "delete", []), true);
     // 구조 변경은 막힌다 — 아무도 권한을 안 걸었다고 누구나 지워도 되는 건 아니다
     assert.equal(

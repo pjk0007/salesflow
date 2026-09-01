@@ -69,10 +69,15 @@ export function scopeCoversPartition(scope: ScopeLike, partition: PartitionLocat
 /**
  * 파티션 접근 허용 여부. DB를 보지 않는 순수 함수.
  *
+ * **권한은 더해주기만 한다 — 남의 접근을 빼앗지 않는다.**
+ * 누군가에게 권한을 준다고 해서 그 대상이 나머지 멤버에게 잠기지 않는다.
+ * (예전에는 "덮는 scope가 하나라도 있으면 제한 모드로 전환"했는데,
+ *  체크 = 부여로 읽히는 UI와 정반대로 동작해 혼란만 낳았다.)
+ *
  * 1) owner/admin → 통과
- * 2) 이 파티션을 덮는 scope가 조직에 하나도 없음 → 통과 (allow 기본)
- * 3) 덮는 scope 중 내 것이면서 해당 permission 비트가 켜진 게 있음 → 통과
- * 4) 그 외 → 차단
+ * 2) denyByDefault가 아니면 → 통과 (member의 기본 능력: 모든 파티션 데이터 접근)
+ * 3) denyByDefault면 내 scope에 해당 비트가 있을 때만 통과
+ *    — 구조 변경(파티션·폴더 생성·수정·삭제)과 예약 등록 설정이 여기 해당한다
  */
 export function canAccessPartition({
     user,
@@ -83,15 +88,16 @@ export function canAccessPartition({
 }: AccessInput): boolean {
     if (user.role === "owner" || user.role === "admin") return true;
 
-    let covered = false;
-    for (const scope of orgScopes) {
-        if (!scopeCoversPartition(scope, partition)) continue;
-        // 누가 가진 scope든 이 파티션을 제한 모드로 전환시킨다
-        covered = true;
-        if (scope.userId === user.userId && scope.permissions[permission]) return true;
-    }
+    // 데이터 접근은 member 전원의 기본 능력이다. 누가 권한을 받았든 영향받지 않는다.
+    if (!denyByDefault) return true;
 
-    return denyByDefault ? false : !covered;
+    // 구조 변경 등 명시적으로 부여받아야 하는 동작
+    return orgScopes.some(
+        (scope) =>
+            scope.userId === user.userId &&
+            scope.permissions[permission] &&
+            scopeCoversPartition(scope, partition)
+    );
 }
 
 export interface CreateInWorkspaceInput {
