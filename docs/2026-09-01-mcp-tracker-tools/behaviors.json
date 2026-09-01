@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "cycleId": "2026-09-01-mcp-tracker-tools",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "list_tracker_sites가 토큰의 org에 속한 사이트만 반환한다",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B2",
+      "desc": "list_funnels가 새로 추가된 퍼널을 코드 수정 없이 반환한다",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B3",
+      "desc": "get_funnel_analytics가 단계별 방문자 수와 전환율을 반환한다",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B4",
+      "desc": "get_funnel_analytics가 웹 UI(/api/tracker/analytics/funnel)와 같은 수치를 낸다",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B5",
+      "desc": "타 조직의 siteId를 넘기면 거부한다 (org 경계)",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B6",
+      "desc": "get_record_journey가 리드의 방문 이력을 시간순으로 반환한다",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B7",
+      "desc": "get_tracker_overview가 방문·세션 집계를 반환한다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B8",
+      "desc": "get_page_analytics가 페이지별 성과를 반환한다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B9",
+      "desc": "list_tracker_events가 이벤트를 조회하고 eventName으로 필터된다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B10",
+      "desc": "로직 추출 후에도 웹 UI의 퍼널·개요·페이지·여정 화면이 동일하게 동작한다 (회귀)",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B11",
+      "desc": "funnelId를 생략하면 사이트의 기본 퍼널을 쓴다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B12",
+      "desc": "날짜 인자를 생략하면 최근 30일이 적용된다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B13",
+      "desc": "토큰 스코프에 따라 접근 가능한 사이트가 제한된다 (org=전체, workspace=해당, folder/partition=상위 워크스페이스)",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    }
+  ]
+}
