@@ -6,105 +6,183 @@
       "id": "B1",
       "desc": "list_tracker_sites가 토큰의 org에 속한 사이트만 반환한다",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/site-access.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "list_tracker_sites → 6개 사이트 반환(픽셀앤로직/백오피스랩/디자이너하이어/디하파트너스/오피오/디하기업). apiKey는 select 컬럼 명시로 구조적 배제",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B2",
       "desc": "list_funnels가 새로 추가된 퍼널을 코드 수정 없이 반환한다",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/mcp/tracker-tools.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "list_funnels → 3개 반환(구독 전환 흐름 marketing/3단계, 구독 전환 marketing/3단계, 구독신청 과정 event/5단계). 퍼널명·개수가 코드에 없어 새 퍼널이 자동으로 나온다",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B3",
       "desc": "get_funnel_analytics가 단계별 방문자 수와 전환율을 반환한다",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/mcp/tracker-format.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/mcp/tracker-format.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "순수 12케이스 GREEN(첫 단계 null, 0으로 안 나눔, 역증가 시 음수 이탈 방지 등). API: 구독신청 과정 → 방문 3405 → 40 → 37 → 34 → 21 → 19, 전체 0.6%, 최대이탈 visit→디자이너-분야-선택 3365명(98.8%)",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B4",
       "desc": "get_funnel_analytics가 웹 UI(/api/tracker/analytics/funnel)와 같은 수치를 낸다",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/funnel-context.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "diff",
+        "output": "MCP get_funnel_analytics와 웹 /api/tracker/analytics/funnel의 {funnel,range,stages[key,label,visitors]} 대조 → 기본 퍼널·event 퍼널 둘 다 빈 diff",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B5",
       "desc": "타 조직의 siteId를 넘기면 거부한다 (org 경계)",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/site-access.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "없는 siteId(99999) → isError=true, \"트래커를 찾을 수 없습니다.\" org 경계가 존재 여부를 흡수해 존재 탐침을 막는다",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B6",
       "desc": "get_record_journey가 리드의 방문 이력을 시간순으로 반환한다",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/journey.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "get_record_journey(220665) → 16건, truncated=false. 웹 journey의 이벤트 수 16과 일치",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B7",
       "desc": "get_tracker_overview가 방문·세션 집계를 반환한다",
       "priority": "P2",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/analytics-queries.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "diff",
+        "output": "MCP get_tracker_overview의 current{visitors,sessions,pageviews,avgDwell}와 웹 overview의 kpi 대조 → 빈 diff",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B8",
       "desc": "get_page_analytics가 페이지별 성과를 반환한다",
       "priority": "P2",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/analytics-queries.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "get_page_analytics(siteId=1,pageSize=3) → / 6211회, /main/chat/ 3628회, /main/ 2999회",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B9",
       "desc": "list_tracker_events가 이벤트를 조회하고 eventName으로 필터된다",
       "priority": "P2",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/mcp/tracker-tools.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "list_tracker_events(siteId=1) → totalCount 27586, eventNameCounts 상위 hero 3030·trust-logos 1062·trust-stats 993. 20건만 주고도 전체 규모를 알 수 있다",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B10",
       "desc": "로직 추출 후에도 웹 UI의 퍼널·개요·페이지·여정 화면이 동일하게 동작한다 (회귀)",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/funnel-context.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "diff -r",
+        "output": "추출 전후 웹 API 응답 14건 전부 바이트 단위 동일 — 퍼널 6종(기본/모바일/유료/f1/f3-event/site2) + overview 3종 + pages 2종 + journey 3건. 기간 2026-05-18~06-29 고정 구간, journey는 daysSince 제외",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B11",
       "desc": "funnelId를 생략하면 사이트의 기본 퍼널을 쓴다",
       "priority": "P2",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/funnel-context.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "funnelId 생략 시 funnel.id=1, 명시(funnelId=1) 시에도 1 — 기본 퍼널 선택이 웹과 같다",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B12",
       "desc": "날짜 인자를 생략하면 최근 30일이 적용된다",
       "priority": "P2",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/date-range.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/tracker/date-range.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "순수 15케이스 GREEN. API: 날짜 생략 시 range 2026-08-02~2026-09-01(30일). 잘못된 형식(\"지난달\") → isError=true \"from은 YYYY-MM-DD 형식이어야 합니다.\"",
+        "at": "2026-09-01"
+      }
     },
     {
       "id": "B13",
       "desc": "토큰 스코프에 따라 접근 가능한 사이트가 제한된다 (org=전체, workspace=해당, folder/partition=상위 워크스페이스)",
       "priority": "P1",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/tracker/site-access-rules.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/tracker/site-access.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "순수 21케이스 GREEN. API: org 스코프 → 6개 사이트, workspace 8 스코프로 바꾸니 → 1개(디자이너하이어 기업)만, 다른 사이트(siteId=2) 접근 시 isError=true \"이 트래커에 대한 접근 권한이 없습니다.\"",
+        "at": "2026-09-01"
+      }
     }
   ]
 }

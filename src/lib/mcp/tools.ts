@@ -9,23 +9,10 @@ import {
     folders,
 } from "@/lib/db";
 import { eq, and, desc, gte, sql, inArray } from "drizzle-orm";
-import type { ApiTokenInfo } from "@/lib/auth";
 import { checkTokenAccess } from "@/lib/auth";
 
-type ToolResult = {
-    content: { type: "text"; text: string }[];
-    isError?: boolean;
-};
-
-type ToolHandler = (args: Record<string, unknown>, tokenInfo: ApiTokenInfo) => Promise<ToolResult>;
-
-function ok(data: unknown): ToolResult {
-    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
-}
-
-function err(message: string): ToolResult {
-    return { content: [{ type: "text", text: message }], isError: true };
-}
+import { ok, err, type ToolHandler } from "./types";
+import { TRACKER_TOOL_DEFINITIONS, createTrackerToolHandlers } from "./tracker-tools";
 
 // ── Tool Definitions (for tools/list) ──
 
@@ -136,6 +123,7 @@ export const TOOL_DEFINITIONS = [
         description: "발송 통계를 조회합니다. 오늘의 알림톡/이메일 발송 현황과 레코드 수를 반환합니다.",
         inputSchema: { type: "object" as const, properties: {} },
     },
+    ...TRACKER_TOOL_DEFINITIONS,
 ];
 
 // ── Tool Handlers ──
@@ -398,5 +386,6 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
                 todayEmail: agg(emailStats),
             });
         },
+        ...createTrackerToolHandlers(),
     };
 }
