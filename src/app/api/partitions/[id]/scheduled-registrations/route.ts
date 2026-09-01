@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, workspaces, scheduledRegistrations } from "@/lib/db";
+import { db, scheduledRegistrations } from "@/lib/db";
 import { eq, and, sql, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 import type { ScheduledRegConfig } from "@/lib/scheduled-registration";
 
 const PAGE_SIZE = 50;
-
-async function verifyPartition(orgId: string, partitionId: number) {
-    const [access] = await db
-        .select({ partition: partitions })
-        .from(partitions)
-        .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-        .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, orgId)));
-    return access?.partition ?? null;
-}
 
 // 대기 목록 + 요약 조회
 export async function GET(
@@ -30,10 +22,11 @@ export async function GET(
         return NextResponse.json({ success: false, error: "파티션 ID가 필요합니다." }, { status: 400 });
     }
 
-    const partition = await verifyPartition(user.orgId, partitionId);
-    if (!partition) {
-        return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+    const access = await requirePartitionAccess(user, partitionId, "read");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
+    const partition = access.partition;
 
     const page = Math.max(1, Number(req.nextUrl.searchParams.get("page")) || 1);
 
@@ -81,9 +74,9 @@ export async function DELETE(
         return NextResponse.json({ success: false, error: "파티션 ID가 필요합니다." }, { status: 400 });
     }
 
-    const partition = await verifyPartition(user.orgId, partitionId);
-    if (!partition) {
-        return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+    const access = await requirePartitionAccess(user, partitionId, "delete");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     const body = await req.json().catch(() => ({}));

@@ -456,6 +456,13 @@
       "when": 1770952700000,
       "tag": "0064_email_send_log_sender",
       "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1770952800000,
+      "tag": "0065_member_scopes",
+      "breakpoints": true
     }
   ]
 }

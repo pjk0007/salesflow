@@ -62,7 +62,9 @@ import {
     Trash2,
     Copy,
     X,
+    KeyRound,
 } from "lucide-react";
+import { MemberScopeDialog } from "./MemberScopeDialog";
 import type { OrgRole, MemberItem } from "@/types";
 
 const roleConfig: Record<OrgRole, { icon: typeof Crown; label: string; color: string }> = {
@@ -85,6 +87,8 @@ export default function OrgTeamTab() {
     const [inviting, setInviting] = useState(false);
 
     const [memberToRemove, setMemberToRemove] = useState<MemberItem | null>(null);
+
+    const [scopeTarget, setScopeTarget] = useState<{ id: string; name: string } | null>(null);
 
     const activeMembers = members.filter((m) => m.isActive === 1);
 
@@ -235,6 +239,19 @@ export default function OrgTeamTab() {
                                                                     <DropdownMenuSeparator />
                                                                 </>
                                                             )}
+                                                            {member.role === "member" && (
+                                                                <>
+                                                                    <DropdownMenuItem
+                                                                        onClick={() =>
+                                                                            setScopeTarget({ id: member.id, name: member.name })
+                                                                        }
+                                                                    >
+                                                                        <KeyRound className="h-4 w-4 mr-2 text-amber-500" />
+                                                                        파티션 권한
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuSeparator />
+                                                                </>
+                                                            )}
                                                             <DropdownMenuItem
                                                                 className="text-destructive"
                                                                 onClick={() => setMemberToRemove(member)}
@@ -331,7 +348,7 @@ export default function OrgTeamTab() {
                             const permissions: Record<OrgRole, string[]> = {
                                 owner: ["모든 권한", "조직 삭제", "역할 변경", "관리자 초대"],
                                 admin: ["멤버 초대", "멤버 제거", "설정 수정"],
-                                member: ["데이터 조회/편집"],
+                                member: ["데이터 조회/편집", "파티션별 권한 설정 가능"],
                             };
                             return (
                                 <Card key={role} className="p-4">
@@ -412,6 +429,16 @@ export default function OrgTeamTab() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* 파티션 권한 관리 */}
+            {scopeTarget && (
+                <MemberScopeDialog
+                    open={scopeTarget !== null}
+                    onOpenChange={(open) => { if (!open) setScopeTarget(null); }}
+                    userId={scopeTarget.id}
+                    userName={scopeTarget.name}
+                />
+            )}
         </div>
     );
 }

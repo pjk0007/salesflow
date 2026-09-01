@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, workspaces, folders } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, folders } from "@/lib/db";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requireWorkspaceCreateAccess } from "@/lib/partition-access";
 
 export async function POST(
     req: NextRequest,
@@ -11,14 +11,15 @@ export async function POST(
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
-
     const { id } = await params;
     const workspaceId = Number(id);
     if (!workspaceId) {
         return NextResponse.json({ success: false, error: "워크스페이스 ID가 필요합니다." }, { status: 400 });
+    }
+
+    const access = await requireWorkspaceCreateAccess(user, workspaceId);
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     const { name } = await req.json();
@@ -27,16 +28,6 @@ export async function POST(
     }
 
     try {
-        // 워크스페이스 소유권 검증
-        const [workspace] = await db
-            .select({ id: workspaces.id })
-            .from(workspaces)
-            .where(and(eq(workspaces.id, workspaceId), eq(workspaces.orgId, user.orgId)));
-
-        if (!workspace) {
-            return NextResponse.json({ success: false, error: "워크스페이스를 찾을 수 없습니다." }, { status: 404 });
-        }
-
         const [created] = await db
             .insert(folders)
             .values({

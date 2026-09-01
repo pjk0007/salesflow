@@ -449,7 +449,8 @@ function SettingsTab({
         try {
             // 정각으로 정규화 (HH:00)
             const normalizedTime = `${(timeOfDay.split(":")[0] || "09").padStart(2, "0")}:00`;
-            const res = await fetch(`/api/partitions/${partitionId}`, {
+            // 파티션 PATCH는 관리자 전용이라 member가 쓸 수 없다 — 설정 전용 경로로 보낸다
+            const res = await fetch(`/api/partitions/${partitionId}/scheduled-registrations/config`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ scheduledRegistrationConfig: { enabled, timeOfDay: normalizedTime, countPerDay } }),

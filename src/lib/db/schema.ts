@@ -325,6 +325,35 @@ export const partitionPermissions = pgTable(
 );
 
 // ============================================
+// 멤버 파티션 권한 범위 (member 역할 대상, allow 기본)
+// ============================================
+export const memberScopes = pgTable(
+    "member_scopes",
+    {
+        id: serial("id").primaryKey(),
+        orgId: uuid("org_id")
+            .references(() => organizations.id, { onDelete: "cascade" })
+            .notNull(),
+        userId: uuid("user_id")
+            .references(() => users.id, { onDelete: "cascade" })
+            .notNull(),
+        // "org" | "workspace" | "folder" | "partition" — scopeId는 org일 때 0
+        scopeType: varchar("scope_type", { length: 20 }).notNull(),
+        scopeId: integer("scope_id").notNull(),
+        permissions: jsonb("permissions")
+            .$type<{ read: boolean; create: boolean; update: boolean; delete: boolean }>()
+            .notNull(),
+        grantedBy: uuid("granted_by").references(() => users.id, { onDelete: "set null" }),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+        updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        orgIdx: index("member_scopes_org_idx").on(table.orgId),
+        scopeUnique: unique().on(table.orgId, table.userId, table.scopeType, table.scopeId),
+    })
+);
+
+// ============================================
 // 상태 옵션
 // ============================================
 export const statusOptionCategories = pgTable(
@@ -1242,6 +1271,8 @@ export type Memo = typeof memos.$inferSelect;
 export type NewMemo = typeof memos.$inferInsert;
 export type WorkspacePermission = typeof workspacePermissions.$inferSelect;
 export type PartitionPermission = typeof partitionPermissions.$inferSelect;
+export type MemberScope = typeof memberScopes.$inferSelect;
+export type NewMemberScope = typeof memberScopes.$inferInsert;
 export type StatusOptionCategory = typeof statusOptionCategories.$inferSelect;
 export type StatusOption = typeof statusOptions.$inferSelect;
 export type ApiToken = typeof apiTokens.$inferSelect;

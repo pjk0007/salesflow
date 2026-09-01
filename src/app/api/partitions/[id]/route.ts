@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, workspaces, records, fieldDefinitions } from "@/lib/db";
+import { db, partitions, records, fieldDefinitions, folders } from "@/lib/db";
 import { eq, and, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-
-async function verifyOwnership(partitionId: number, orgId: string) {
-    const result = await db
-        .select({ partition: partitions, wsOrgId: workspaces.orgId })
-        .from(partitions)
-        .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-        .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, orgId)));
-    return result[0] ?? null;
-}
+import { requirePartitionAccess } from "@/lib/partition-access";
+import { normalizeScheduledConfig } from "@/lib/scheduled-registration";
 
 export async function GET(
     req: NextRequest,
@@ -20,9 +13,6 @@ export async function GET(
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
 
     const { id } = await params;
     const partitionId = Number(id);
@@ -31,9 +21,9 @@ export async function GET(
     }
 
     try {
-        const access = await verifyOwnership(partitionId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "read");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         const [result] = await db
@@ -62,9 +52,6 @@ export async function PATCH(
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
 
     const { id } = await params;
     const partitionId = Number(id);
@@ -80,9 +67,9 @@ export async function PATCH(
     }
 
     try {
-        const access = await verifyOwnership(partitionId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "update", { denyByDefault: true });
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
@@ -92,7 +79,29 @@ export async function PATCH(
         }
 
         if (folderId !== undefined) {
-            updateData.folderId = folderId === null ? null : Number(folderId);
+            if (folderId === null) {
+                updateData.folderId = null;
+            } else {
+                // 같은 워크스페이스의 폴더인지 확인한다. 검증을 빼면 member가 자기 파티션을
+                // 자신이 권한을 가진 폴더로 옮겨 스스로 권한을 만들어낼 수 있다.
+                const targetFolderId = Number(folderId);
+                const [folder] = await db
+                    .select({ id: folders.id })
+                    .from(folders)
+                    .where(
+                        and(
+                            eq(folders.id, targetFolderId),
+                            eq(folders.workspaceId, access.partition.workspaceId)
+                        )
+                    );
+                if (!folder) {
+                    return NextResponse.json(
+                        { success: false, error: "폴더를 찾을 수 없습니다." },
+                        { status: 400 }
+                    );
+                }
+                updateData.folderId = targetFolderId;
+            }
         }
 
         if (fieldTypeId !== undefined) {
@@ -152,19 +161,14 @@ export async function PATCH(
             if (scheduledRegistrationConfig === null) {
                 updateData.scheduledRegistrationConfig = null;
             } else {
-                const timeOfDay = String(scheduledRegistrationConfig.timeOfDay || "09:00");
-                if (!/^\d{2}:\d{2}$/.test(timeOfDay)) {
-                    return NextResponse.json({ success: false, error: "실행 시각 형식이 올바르지 않습니다 (HH:mm)." }, { status: 400 });
+                const normalized = normalizeScheduledConfig(
+                    scheduledRegistrationConfig,
+                    access.partition.scheduledRegistrationConfig
+                );
+                if (!normalized.ok) {
+                    return NextResponse.json({ success: false, error: normalized.error }, { status: 400 });
                 }
-                const countPerDay = Math.max(1, Number(scheduledRegistrationConfig.countPerDay) || 0);
-                const prev = access.partition.scheduledRegistrationConfig as { lastRunDate?: string } | null;
-                updateData.scheduledRegistrationConfig = {
-                    enabled: Boolean(scheduledRegistrationConfig.enabled),
-                    timeOfDay,
-                    countPerDay,
-                    // 설정 변경 시 마지막 실행일 유지 (하루 1회 보장 유지)
-                    ...(prev?.lastRunDate ? { lastRunDate: prev.lastRunDate } : {}),
-                };
+                updateData.scheduledRegistrationConfig = normalized.config;
             }
         }
 
@@ -189,9 +193,6 @@ export async function DELETE(
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
 
     const { id } = await params;
     const partitionId = Number(id);
@@ -200,9 +201,9 @@ export async function DELETE(
     }
 
     try {
-        const access = await verifyOwnership(partitionId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "delete", { denyByDefault: true });
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         await db.delete(partitions).where(eq(partitions.id, partitionId));

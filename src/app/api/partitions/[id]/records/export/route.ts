@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces, fieldDefinitions } from "@/lib/db";
+import { db, records, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 
 const EXCLUDED_TYPES = ["file", "formula", "user_select"];
 const MAX_EXPORT = 10000;
@@ -52,15 +53,9 @@ export async function GET(
     }
 
     try {
-        // 파티션 접근 검증
-        const [access] = await db
-            .select({ partition: partitions, workspace: workspaces })
-            .from(partitions)
-            .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-            .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)));
-
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "read");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         const partition = access.partition;

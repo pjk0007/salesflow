@@ -12,6 +12,38 @@ export interface ScheduledRegConfig {
     lastRunDate?: string; // "YYYY-MM-DD"
 }
 
+/**
+ * 사용자 입력 config를 저장 가능한 형태로 정규화한다.
+ * 파티션 PATCH와 예약 등록 전용 config 경로가 같은 규칙을 쓰도록 여기에 둔다.
+ */
+export function normalizeScheduledConfig(
+    input: unknown,
+    prev: ScheduledRegConfig | null
+): { ok: true; config: ScheduledRegConfig } | { ok: false; error: string } {
+    if (typeof input !== "object" || input === null) {
+        return { ok: false, error: "예약 등록 설정이 올바르지 않습니다." };
+    }
+    const raw = input as Record<string, unknown>;
+
+    const timeOfDay = String(raw.timeOfDay || "09:00");
+    if (!/^\d{2}:\d{2}$/.test(timeOfDay)) {
+        return { ok: false, error: "실행 시각 형식이 올바르지 않습니다 (HH:mm)." };
+    }
+
+    const countPerDay = Math.max(1, Number(raw.countPerDay) || 0);
+
+    return {
+        ok: true,
+        config: {
+            enabled: Boolean(raw.enabled),
+            timeOfDay,
+            countPerDay,
+            // 설정 변경 시 마지막 실행일 유지 (하루 1회 보장 유지)
+            ...(prev?.lastRunDate ? { lastRunDate: prev.lastRunDate } : {}),
+        },
+    };
+}
+
 export interface ScheduledRegStats {
     duePartitions: number;
     registered: number;

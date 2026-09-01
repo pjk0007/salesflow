@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces } from "@/lib/db";
+import { db, records } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-
-async function verifyPartitionAccess(partitionId: number, orgId: string) {
-    const result = await db
-        .select({ partition: partitions })
-        .from(partitions)
-        .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-        .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, orgId)));
-    return result[0] ?? null;
-}
+import { requirePartitionAccess } from "@/lib/partition-access";
 
 const UNCATEGORIZED_KEY = "__uncategorized__";
 
@@ -29,9 +21,9 @@ export async function GET(
         return NextResponse.json({ success: false, error: "파티션 ID가 필요합니다." }, { status: 400 });
     }
 
-    const access = await verifyPartitionAccess(partitionId, user.orgId);
-    if (!access) {
-        return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+    const access = await requirePartitionAccess(user, partitionId, "read");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     const searchParams = req.nextUrl.searchParams;

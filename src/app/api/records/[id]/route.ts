@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, fieldDefinitions, partitions, workspaces, trackerVisitors } from "@/lib/db";
+import { db, records, fieldDefinitions, workspaces, trackerVisitors } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requireRecordAccess } from "@/lib/partition-access";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { broadcastToPartition } from "@/lib/sse";
 import { insertRecordEvent } from "@/lib/record-events";
@@ -21,16 +22,12 @@ export async function GET(
         return NextResponse.json({ success: false, error: "레코드 ID가 필요합니다." }, { status: 400 });
     }
 
-    const [record] = await db
-        .select()
-        .from(records)
-        .where(and(eq(records.id, recordId), eq(records.orgId, user.orgId)));
-
-    if (!record) {
-        return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
+    const access = await requireRecordAccess(user, recordId, "read");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
-    return NextResponse.json({ success: true, data: record });
+    return NextResponse.json({ success: true, data: access.record });
 }
 
 export async function PATCH(
@@ -54,15 +51,11 @@ export async function PATCH(
     }
 
     try {
-        // 레코드 조회 + 조직 검증
-        const [existing] = await db
-            .select()
-            .from(records)
-            .where(and(eq(records.id, recordId), eq(records.orgId, user.orgId)));
-
-        if (!existing) {
-            return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
+        const access = await requireRecordAccess(user, recordId, "update");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
+        const existing = access.record;
 
         // 시스템 매핑 필드 key는 data에 저장하지 않음 (읽기 전용 — records의 시스템 컬럼이 단일 진실원천)
         const sanitized = { ...(newData as Record<string, unknown>) };
@@ -72,12 +65,9 @@ export async function PATCH(
 
         // 변경 이력 추적 대상 필드 조회 (track_history=1)
         // partition.fieldTypeId → 없으면 workspace.defaultFieldTypeId 폴백
-        const [partition] = await db
-            .select({ fieldTypeId: partitions.fieldTypeId, workspaceId: partitions.workspaceId })
-            .from(partitions)
-            .where(eq(partitions.id, existing.partitionId));
-        let resolvedTypeId = partition?.fieldTypeId ?? null;
-        if (!resolvedTypeId && partition) {
+        const partition = access.partition;
+        let resolvedTypeId = partition.fieldTypeId ?? null;
+        if (!resolvedTypeId) {
             const [ws] = await db
                 .select({ defaultFieldTypeId: workspaces.defaultFieldTypeId })
                 .from(workspaces)
@@ -161,14 +151,11 @@ export async function DELETE(
     }
 
     try {
-        const [existing] = await db
-            .select({ id: records.id, partitionId: records.partitionId })
-            .from(records)
-            .where(and(eq(records.id, recordId), eq(records.orgId, user.orgId)));
-
-        if (!existing) {
-            return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
+        const access = await requireRecordAccess(user, recordId, "delete");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
+        const existing = access.record;
 
         // 트래커 visitor 연결 해제(익명으로 되돌림) — 방문 기록은 record와 수명이 다르므로 보존.
         // record_events / visitor_record_links / memos는 FK CASCADE로 자동 정리됨.

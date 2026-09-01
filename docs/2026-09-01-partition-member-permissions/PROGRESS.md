@@ -1,0 +1,40 @@
+# PROGRESS — docs/2026-09-01-partition-member-permissions/
+
+- 2026-09-01 plan: PLAN.md + behaviors.json 작성, 승인 대기
+- 2026-09-01 plan: 발단은 member 계정에서 예약 등록 "설정" 저장이 403 나던 문제. 원인은 PATCH /api/partitions/[id]의 member 차단(route.ts:65). 조사 중 파티션 데이터 접근(records CRUD·export·delete-all)에는 role 체크가 아예 없어 member가 조직 내 모든 파티션 레코드를 읽고·쓰고·삭제할 수 있다는 점이 드러나 범위를 파티션 단위 권한으로 확장
+- 2026-09-01 plan: 기본 정책은 사용자 결정으로 **allow 기본**(권한 미설정 파티션은 기존대로 전체 허용). 기존 사용자 영향 없음, 데이터 마이그레이션 불필요
+- 2026-09-01 plan: 기존 partition_permissions 테이블은 재활용하지 않기로 결정 — permissionType varchar(20) 단일값이라 read/create/update/delete 4비트를 표현 못 함. api_token_scopes와 같은 jsonb 모델의 신규 member_scopes 테이블로 감. 죽은 테이블 삭제는 범위 밖
+- 2026-09-01 plan: 급한 예약 등록 403은 해당 사용자에게 admin 권한을 주는 것으로 임시 대응하기로 함(사용자 결정). 따라서 예약 등록 건만 따로 떼지 않고 권한 체계를 통째로 진행
+- 2026-09-01 plan: 테스트 러너는 node:test로 결정. 확인 결과 이미 `pnpm test`(tsx --test, package.json:11)가 있고 기존 테스트 68개 전부 통과 — 새 셋업·새 의존성 불필요. B1~B8은 TDD로 선고정
+- 2026-09-01 design: PLAN 승인됨. DESIGN 단계 착수
+- 2026-09-01 design: DESIGN.md 작성. 핵심은 판정 로직을 DB 모르는 순수 함수(canAccessPartition)로 분리 — B1~B8을 node:test로 선고정 가능하게. allow 기본은 "scope 목록에 사용자 필터를 걸지 않고" 덮는 scope 유무와 내 scope 유무를 한 순회로 판정하는 방식으로 해결
+- 2026-09-01 design: org scope는 스키마·판정·검증은 지원하되 **UI에서 노출하지 않기로 결정**(사용자). 한 명에게 org scope를 주면 조직 전 파티션이 제한 모드가 되어 나머지 member 전원이 즉시 차단되는 사고를 구조적으로 막는다
+- 2026-09-01 design: 리스크였던 records.orgId vs workspaces.orgId 불일치를 로컬 DB에서 확인 — 0건. requireRecordAccess가 workspaces.orgId를 신뢰해도 안전(운영은 배포 전 재확인)
+- 2026-09-01 design: 마이그레이션 번호 0065 확정(마지막이 0064_email_send_log_sender, journal idx 64 확인)
+- 2026-09-01 do: DESIGN 승인됨. 구현 착수 — 순수 판정 코어부터 TDD
+- 2026-09-01 do: 순수 판정 코어 TDD 완료 — partition-access.test.ts 23케이스 먼저 작성해 RED 확인 후 partition-access-rules.ts 구현. `pnpm test` 91개 전부 통과(기존 68 + 신규 23). B1~B8, B11 계약 고정
+- 2026-09-01 do: 순수부를 DESIGN의 partition-access.ts 단일 파일이 아니라 partition-access-rules.ts로 분리 — 테스트가 DB(@/lib/db) 임포트를 끌고 오면 node:test에서 돌지 않기 때문. partition-access.ts가 re-export
+- 2026-09-01 do: member_scopes 스키마 + drizzle/0065_member_scopes.sql 작성, journal idx 65 등록, 로컬 DB 적용 완료
+- 2026-09-01 do: DB 어댑터 구현 — requirePartitionAccess / requireRecordAccess / loadOrgScopes / loadCoveringScopes / validateMemberScopes / validateScopeTarget
+- 2026-09-01 do: 파티션 데이터 접근 route 8곳에 권한 삽입 완료(records GET/POST, group-counts, export, bulk-import, delete-all, resolved-fields, scheduled-registrations GET/DELETE, upload). 7곳에 복붙돼 있던 로컬 헬퍼 전부 제거하고 공통 함수로 통합
+- 2026-09-01 do: B10 우회 경로 차단 — /api/records/[id] GET/PATCH/DELETE에 requireRecordAccess 적용. PATCH가 따로 하던 partition 재조회는 requireRecordAccess 반환값으로 대체(쿼리 1개 감소)
+- 2026-09-01 do: B11 목록 필터 적용(/api/partitions, /api/workspaces/[id]/partitions). partitions GET에 folderId를 select에 추가 — 없으면 folder scope 상속을 목록에서 판정 못 함
+- 2026-09-01 do: 예약 등록 config 전용 route 신설 + normalizeScheduledConfig를 lib으로 추출해 파티션 PATCH와 공유(중복 제거)
+- 2026-09-01 do: 권한 관리 API 2개(member-scopes, member-scopes/[id]) + 훅 + 다이얼로그 작성. 다이얼로그 로직은 useMemberScopeEditor로 분리(.tsx에 로직 금지 규칙)
+- 2026-09-01 do: org scope는 결정대로 UI에서 노출하지 않음 — 다이얼로그 Select에 workspace/folder/partition만
+- 2026-09-01 do: PartitionNav 진입점은 **넣지 않기로 결정**(사용자) — props가 이미 콜백 12개로 비대하고 page.tsx 연쇄 수정이 필요. 조직 설정 > 팀 탭의 멤버 행 드롭다운만 제공
+- 2026-09-01 do: API 레벨 검증 완료 — 로컬 dev 서버에 member/admin JWT로 B1~B14 curl 실증. 특히 B12(member가 예약등록 설정 저장 200)와 B13(name/folderId 끼워넣기 무시) 확인
+- 2026-09-01 do: **behaviors 15/15 통과**. pnpm test 91개 전부 GREEN, next build ✓ Compiled successfully(신규 route 3개 포함). 테스트 데이터 전량 정리
+- 2026-09-01 gap: unproven 0 (15/15). verify-evidence unresolved 0·uncited 0·no-cmd-match 0. 테스트 91/91, tsc 0, next build ✓
+- 2026-09-01 gap: uncovered 2·dead-branch 2는 tsx 트랜스파일로 lcov 행 번호가 소스와 어긋난 계측 아티팩트로 판정(FN 목록에 esbuild 래퍼, canAccessPartition이 FN:40/FN:55 이중 등록, funcs 100%/FNDA:24). 해당 두 경로를 직접 실행해 정상 확인
+- 2026-09-01 gap: **behaviors 밖 우회 경로 5건 발견** — A) POST /api/records/bulk-delete 가 파티션 권한 없이 id 배열로 일괄 삭제(파괴적, 최우선) B) records/[id]/{memos,journey,events,visitor-activity} 5개가 records.orgId만 검증 C) email/send·alimtalk/send 는 레코드 조회에 **org 필터조차 없음**(기존 결함, 테넌트 격리 문제라 별건) D) /api/sse 가 partitionId 무검증 E) auto-enrich. allow 기본이라 지금은 무해하나 첫 권한을 거는 순간 우회로가 된다. 원인은 DESIGN의 route 조사가 /api/partitions/*와 /api/records/[id]에 한정된 것 → 후속 사이클 대상
+- 2026-09-01 gap: 설계 밖 1건 — DELETE /api/member-scopes?userId= 가 DESIGN §9 계약에 없고 훅에서 호출하지 않아 사용처 0건(YAGNI). 제거 검토
+- 2026-09-01 do(2차): 사용자 요청으로 **파티션/폴더 생성·수정·삭제 권한 추가** — behaviors에 B16~B20 추가(총 20항목)
+- 2026-09-01 do(2차): 핵심 설계 판단 — 구조 변경(생성)은 **allow 기본을 적용하지 않는다**. 대상이 아직 없어 "덮는 scope 없으면 통과" 규칙을 쓸 수 없고, 적용하면 권한 미부여 member 전원이 파티션을 만들 수 있게 된다. canCreateInWorkspace는 명시적으로 받은 사람만 통과
+- 2026-09-01 do(2차): canCreateInWorkspace(순수, 8케이스 TDD) + requireWorkspaceCreateAccess + requireFolderAccess 추가. partitions/[id]의 role==member 하드 차단 3곳 제거 → requirePartitionAccess가 판정. folders/[id]도 동일 전환
+- 2026-09-01 do(2차): B16~B20 API 실증 — 권한 없음 403 / read-only 403 / create 비트 부여 후 201(파티션 생성) / 폴더 생성 201 / 수정 200 / 권한 회수 후 403. 테스트 99개 GREEN
+- 2026-09-01 do(2차): **UI 전면 개편**(사용자 UX 지적) — 드롭다운 3단 콤보를 트리 체크박스로 교체. 워크스페이스→폴더→파티션을 펼쳐 보며 체크만 하면 부여/회수, 권한 레벨은 "모든 권한/편집 가능/조회만" 프리셋으로 묶음(4개 체크박스는 custom 조합일 때만 노출). 상속 표시("○○에서 상속") 추가. useMemberScopeEditor → useMemberScopeTree로 교체
+- 2026-09-01 gap(2회차): unproven 0 (22/22). 테스트 102개 GREEN, verify-evidence 전 항목 클린
+- 2026-09-01 gap(2회차): **커밋 전 결함 2건 발견·수정** — (1) 구조 변경에 allow 기본이 번져 권한 0건 상태에서 member가 파티션을 삭제할 수 있었다(실측 200+행삭제 → 수정 후 403+행보존). canAccessPartition에 denyByDefault 추가, B21로 고정 (2) PATCH folderId 무검증으로 member가 자기 파티션을 권한 있는 폴더로 옮겨 스스로 권한을 만들 수 있었다(자기 권한 상승). 같은 워크스페이스 검증 추가, B22로 고정
+- 2026-09-01 review: 🔴4·🟡6·🟢3 지적. 이번 변경이 만든 7건 수정(위 2건 + 폴더 이름 노출, 에러 swallow, 트랜잭션 부재, UI 생성 표시 불일치, 미사용 코드 2건). 기존 우회 경로 5건은 후속 이관
+- 2026-09-01 report: REPORT.md 작성 완료. behaviors 22/22, 테스트 102 GREEN, tsc·build 클린. 아카이빙 후 커밋

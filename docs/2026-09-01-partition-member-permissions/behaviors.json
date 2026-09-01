@@ -1,0 +1,314 @@
+{
+  "version": 1,
+  "cycleId": "2026-09-01-partition-member-permissions",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "권한 행이 없는 파티션은 member가 기존대로 레코드 조회 가능 (allow 기본)",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:70-82",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "npx tsx --test --experimental-test-coverage src/**/*.test.ts",
+        "output": "✔ scope가 하나도 없으면 member도 통과한다 (allow 기본) (0.644166ms)\n✔ 다른 파티션에만 scope가 걸려 있으면 이 파티션은 여전히 통과한다 (0.095375ms)\nℹ tests 91 / pass 91 / fail 0. API 실증: 권한 미부여 상태에서 member로 GET /api/partitions/4/records → 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "파티션에 다른 사용자 권한이 걸리면, 권한 없는 member의 레코드 조회가 403",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:70-82",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "curl",
+        "output": "순수: ✔ 타인의 partition scope가 걸리면 권한 없는 member는 차단된다 / ✔ 타인의 workspace scope도 제한 모드로 만든다. API: owner에게 파티션 5 권한 부여 후 member GET /api/partitions/5/records → 403 {\"error\":\"이 파티션에 대한 권한이 없습니다.\"}",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "권한을 받은 member는 해당 파티션 레코드 조회 가능",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:78",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "curl",
+        "output": "순수: ✔ 자기 partition scope가 있으면 통과한다. API: member에게 파티션 4 read 부여 후 GET → 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "permission 비트별 분리 — read만 가진 member의 레코드 생성(POST)은 403",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:78",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "curl",
+        "output": "순수: ✔ read만 있는 scope로는 create가 거부된다 / ✔ read+create면 통과 / ✔ 비트가 전부 꺼진 scope. API: read만 가진 member의 POST /records → 403, delete-all → 403(조건 포함 재시도)",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "owner/admin은 파티션 권한과 무관하게 항상 통과",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:71",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "curl",
+        "output": "순수: ✔ admin은 자기 scope가 없어도 통과 / ✔ owner도 통과. API: 파티션 4가 제한 모드일 때 admin GET → 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "workspace scope를 받은 member는 그 워크스페이스 하위 모든 파티션에 접근 (계층 상속)",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:50",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "curl",
+        "output": "순수: ✔ workspace scope는 하위 모든 파티션을 덮는다 / ✔ 다른 워크스페이스는 덮지 않는다 / ✔ 타인 scope는 밖에 영향 없음. API: 403이던 파티션 14가 workspace(8) scope 부여 후 200, 우회 경로도 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "folder scope를 받은 member는 그 폴더 하위 파티션에 접근",
+      "priority": "P2",
+      "target": "src/lib/partition-access-rules.ts:52-54",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "npx tsx --test --experimental-test-coverage src/**/*.test.ts",
+        "output": "✔ folder scope는 그 폴더 하위 파티션을 덮는다 (0.049333ms)\n✔ folderId가 null인 파티션은 folder scope에 걸리지 않는다 (0.039042ms)\n✔ folder scope는 다른 폴더 파티션을 덮지 않는다 (0.038375ms)\n✔ scopeId가 0인 folder scope가 folderId null과 맞물리지 않는다 (0.03925ms)",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "타 조직의 파티션 id로 scope를 만들려 하면 거부 (org 경계 검증)",
+      "priority": "P1",
+      "target": "src/lib/partition-access.ts:196-260",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "POST /api/member-scopes 에 타 조직 파티션 id(10) → 400 {\"error\":\"파티션을 찾을 수 없습니다.\"}. 관리자 대상 부여 → 400 {\"error\":\"관리자에게는 파티션 권한을 설정할 필요가 없습니다.\"}",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "scope 수정(PUT)도 부여(POST)와 동일한 org 경계 검증을 거친다",
+      "priority": "P1",
+      "target": "src/app/api/member-scopes/[id]/route.ts:39-49",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "PUT /api/member-scopes/1 에 scopeId=10(타 조직) → 400 {\"error\":\"파티션을 찾을 수 없습니다.\"} — POST와 동일한 validateMemberScopes를 통과",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "파티션 권한이 없는 member에게 /api/records/[id] PATCH·DELETE가 403 (우회 경로 차단)",
+      "priority": "P1",
+      "target": "src/lib/partition-access.ts:137-170",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "파티션 14 제한 모드에서 member의 GET/PATCH /api/records/118155 → 둘 다 403. read만 가진 파티션 4에서는 GET 200 / PATCH·DELETE 403 (비트 분리가 우회 경로에서도 유지). DELETE 후 레코드 행 1건 잔존 확인",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "파티션 목록 API가 접근 불가 파티션을 제외하고 반환",
+      "priority": "P2",
+      "target": "src/app/api/partitions/route.ts:30-45",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "curl",
+        "output": "순수: ✔ filterAccessiblePartitions는 건별 판정과 같은 결과 / ✔ admin에게는 목록 그대로. API: 파티션 5 제한 후 GET /api/partitions → [4,14,19,...] 로 5만 제외됨",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "member가 update 권한으로 예약 등록 설정을 저장할 수 있다 (원래 문제 해결)",
+      "priority": "P1",
+      "target": "src/app/api/partitions/[id]/scheduled-registrations/config/route.ts:30-33",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "member(update 비트)로 PATCH /api/partitions/4/scheduled-registrations/config → 200 {\"scheduledRegistrationConfig\":{\"enabled\":true,\"timeOfDay\":\"12:00\",\"countPerDay\":3000}}. 원래 403 나던 문제 해소",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B13",
+      "desc": "예약 등록 설정 전용 경로가 scheduledRegistrationConfig 외 필드는 수정하지 않는다",
+      "priority": "P1",
+      "target": "src/app/api/partitions/[id]/scheduled-registrations/config/route.ts:51-56",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "같은 요청 본문에 name:\"해킹됨\", folderId:999 를 끼워넣고 PATCH → timeOfDay만 13:00으로 반영, name='AI 전송 DB' 불변, folder_id NULL 유지",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B14",
+      "desc": "member 권한 관리 API 자체는 owner/admin만 호출 가능",
+      "priority": "P1",
+      "target": "src/app/api/member-scopes/route.ts:53-55",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "member 토큰으로 GET /api/member-scopes → 403 {\"error\":\"접근 권한이 없습니다.\"}. admin은 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "권한 관리 UI에서 멤버에게 파티션 권한을 부여하면 목록에 반영된다",
+      "priority": "P2",
+      "target": "src/components/settings/hooks/useMemberScopeTree.ts:192-225",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/components/settings/MemberScopeDialog.tsx",
+        "cmd": "curl + next build",
+        "output": "다이얼로그가 쓰는 API 흐름을 그대로 실행: 부여 전 [] → POST /api/member-scopes {granted:1} → GET 목록에 id=7 partition 'AI 전송 DB' perms={read:true} user=안성욱 (scopeName·userName 해석 확인) → PUT 토글 시 update:true 반영 → DELETE 후 [] 로 복귀. useMemberScopes가 매 변경마다 mutate()로 재검증하므로 목록에 반영된다. GET /settings/organization?tab=team 200, 런타임 에러 0. next build ✓ Compiled successfully — /api/member-scopes, /api/member-scopes/[id], /api/partitions/[id]/scheduled-registrations/config 3개 route 포함. 다만 다이얼로그 열림 상태의 실제 렌더는 Playwright 부재로 육안 미확인",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B16",
+      "desc": "workspace scope의 create 비트가 있으면 member가 그 워크스페이스에 파티션을 생성할 수 있다",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:102-112",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "✔ workspace scope의 create 비트가 있으면 파티션을 만들 수 있다 (B16)\n✔ owner/admin은 scope 없이도 만들 수 있다 (B16)\n✔ org scope의 create는 모든 워크스페이스에 적용된다 (B16)\nAPI: create 비트 부여 후 POST /api/workspaces/3/partitions → 201 {\"id\":45,\"name\":\"멤버가만든파티션\"}",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B17",
+      "desc": "workspace scope가 없거나 create 비트가 없으면 파티션 생성은 403",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:105-111",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "✔ workspace scope가 있어도 create 비트가 없으면 거부된다 (B17)\n✔ 다른 워크스페이스의 create 권한으로는 만들 수 없다 (B17)\n✔ partition/folder scope로는 새 파티션을 만들 수 없다 (B17)\nAPI: read-only workspace scope로 POST → 403 {\"error\":\"이 워크스페이스에 만들 권한이 없습니다.\"}",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B18",
+      "desc": "파티션 수정/삭제는 해당 파티션의 update/delete 비트로 판정된다 (member도 가능)",
+      "priority": "P1",
+      "target": "src/app/api/partitions/[id]/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "member(update 비트)로 PATCH /api/partitions/45 {\"name\":\"이름바꿈\"} → 200. 권한 회수(update:false) 후 재시도 → 403 {\"error\":\"이 파티션에 대한 권한이 없습니다.\"}. partitions/[id]의 role==member 하드 차단 3곳을 제거하고 requirePartitionAccess가 판정하도록 전환",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B19",
+      "desc": "폴더 생성은 workspace create, 폴더 수정/삭제는 그 폴더 scope의 update/delete로 판정된다",
+      "priority": "P2",
+      "target": "src/lib/partition-access.ts:requireFolderAccess",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "member가 POST /api/workspaces/3/folders → 201 (id=7), PATCH /api/folders/7 → 200 {\"name\":\"폴더이름바꿈\"}. 폴더 생성은 requireWorkspaceCreateAccess, 수정/삭제는 requireFolderAccess가 판정",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B20",
+      "desc": "권한이 하나도 없는 워크스페이스에서는 member의 파티션 생성이 기존대로 403 (구조 변경은 allow 기본의 대상이 아니다)",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:103",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "✔ scope가 하나도 없으면 member는 만들 수 없다 — 구조 변경은 allow 기본이 아니다 (B20)\n✔ 타인이 그 워크스페이스 create를 가져도 나는 만들 수 없다 (B20)\nAPI: scope 0건 상태에서 POST /api/workspaces/3/partitions → 403. 데이터 접근(allow 기본)과 갈리는 지점",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B21",
+      "desc": "권한이 하나도 없는 파티션·폴더를 member가 수정·삭제할 수 없다 (구조 변경은 allow 기본의 대상이 아니다)",
+      "priority": "P1",
+      "target": "src/lib/partition-access-rules.ts:denyByDefault",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/partition-access.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "✔ 권한이 하나도 없어도 구조 변경은 통과시키지 않는다 (B21)\n✔ denyByDefault여도 자기 scope가 있으면 통과한다 (B21)\n✔ denyByDefault여도 admin은 통과한다 (B21)\nAPI: 권한 0건 상태에서 member의 DELETE /api/partitions/49 → 403, DB 행 보존(수정 전에는 200이 나가고 행이 삭제됐다). PATCH 이름변경도 403. 권한 부여 후 PATCH → 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B22",
+      "desc": "파티션 folderId 변경 시 같은 워크스페이스의 폴더인지 검증한다 (자기 권한 상승 차단)",
+      "priority": "P1",
+      "target": "src/app/api/partitions/[id]/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "member가 자기 파티션을 다른 워크스페이스(10)의 폴더(8)로 이동 시도 → 400 {\"error\":\"폴더를 찾을 수 없습니다.\"}, folder_id는 NULL 유지. 검증이 없으면 member가 자신이 folder scope를 가진 폴더로 파티션을 옮겨 스스로 권한을 만들어낼 수 있다",
+        "at": "2026-09-01"
+      }
+    }
+  ]
+}

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, workspaces, fieldDefinitions } from "@/lib/db";
-import { eq, and, asc } from "drizzle-orm";
+import { db, fieldDefinitions } from "@/lib/db";
+import { eq, asc } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 
 export async function GET(
     req: NextRequest,
@@ -15,18 +16,9 @@ export async function GET(
     const { id } = await params;
     const partitionId = Number(id);
 
-    // 파티션 + 워크스페이스 조회
-    const [access] = await db
-        .select({
-            partition: partitions,
-            workspace: workspaces,
-        })
-        .from(partitions)
-        .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-        .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)));
-
-    if (!access) {
-        return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+    const access = await requirePartitionAccess(user, partitionId, "read");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
     // 타입 결정: 파티션 fieldTypeId → 워크스페이스 defaultFieldTypeId

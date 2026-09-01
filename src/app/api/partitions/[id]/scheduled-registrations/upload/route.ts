@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, workspaces, scheduledRegistrations } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, scheduledRegistrations } from "@/lib/db";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 import { uploadToR2 } from "@/lib/r2";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -68,14 +68,9 @@ export async function POST(
     }
 
     try {
-        // 파티션 접근 검증
-        const [access] = await db
-            .select({ partition: partitions })
-            .from(partitions)
-            .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-            .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, user.orgId)));
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "create");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
         const partition = access.partition;
 

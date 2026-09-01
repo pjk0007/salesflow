@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, partitions, workspaces, organizations, fieldDefinitions, memos } from "@/lib/db";
+import { db, records, organizations, fieldDefinitions, memos } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { processAutoEnrich } from "@/lib/auto-enrich";
@@ -9,19 +10,6 @@ import { assignDistributionOrder } from "@/lib/distribution";
 import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { buildRecordConditions } from "@/lib/record-filters";
-
-async function verifyPartitionAccess(partitionId: number, orgId: string) {
-    const result = await db
-        .select({
-            partition: partitions,
-            workspace: workspaces,
-        })
-        .from(partitions)
-        .innerJoin(workspaces, eq(partitions.workspaceId, workspaces.id))
-        .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, orgId)));
-
-    return result[0] ?? null;
-}
 
 export async function GET(
     req: NextRequest,
@@ -39,9 +27,9 @@ export async function GET(
     }
 
     try {
-        const access = await verifyPartitionAccess(partitionId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "read");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         const searchParams = req.nextUrl.searchParams;
@@ -180,9 +168,9 @@ export async function POST(
     }
 
     try {
-        const access = await verifyPartitionAccess(partitionId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        const access = await requirePartitionAccess(user, partitionId, "create");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         const partition = access.partition;

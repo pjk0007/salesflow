@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, folders, partitions, workspaces } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, folders, partitions } from "@/lib/db";
+import { eq } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-
-async function verifyOwnership(folderId: number, orgId: string) {
-    const result = await db
-        .select({ folder: folders, wsOrgId: workspaces.orgId })
-        .from(folders)
-        .innerJoin(workspaces, eq(folders.workspaceId, workspaces.id))
-        .where(and(eq(folders.id, folderId), eq(workspaces.orgId, orgId)));
-    return result[0] ?? null;
-}
+import { requireFolderAccess } from "@/lib/partition-access";
 
 export async function PATCH(
     req: NextRequest,
@@ -19,9 +11,6 @@ export async function PATCH(
     const user = getUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
-    }
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
     }
 
     const { id } = await params;
@@ -36,9 +25,9 @@ export async function PATCH(
     }
 
     try {
-        const access = await verifyOwnership(folderId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "폴더를 찾을 수 없습니다." }, { status: 404 });
+        const access = await requireFolderAccess(user, folderId, "update");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         const [updated] = await db
@@ -62,9 +51,6 @@ export async function DELETE(
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
 
     const { id } = await params;
     const folderId = Number(id);
@@ -73,9 +59,9 @@ export async function DELETE(
     }
 
     try {
-        const access = await verifyOwnership(folderId, user.orgId);
-        if (!access) {
-            return NextResponse.json({ success: false, error: "폴더를 찾을 수 없습니다." }, { status: 404 });
+        const access = await requireFolderAccess(user, folderId, "delete");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
         // 하위 파티션을 미분류로 이동
