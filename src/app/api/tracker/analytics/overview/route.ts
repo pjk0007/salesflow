@@ -16,9 +16,6 @@ function normalizePath(url: string): string {
     return url.replace(/^https?:\/\/[^/]+/, "").split("?")[0] || "/";
 }
 
-// page_url에서 경로(path)만 추출하는 SQL 조각
-const PATH_EXPR = sql`regexp_replace(split_part(page_url, '?', 1), '^https?://[^/]+', '')`;
-
 // 한 기간의 핵심 집계 (KPI 7종 raw + 직전기간 비교용).
 // 세그먼트 필터: device(visitor), sessionIds(channel로 거른 세션 ID, null이면 미적용)
 export async function GET(req: NextRequest) {
