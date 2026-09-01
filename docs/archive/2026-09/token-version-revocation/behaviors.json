@@ -1,0 +1,188 @@
+{
+  "version": 1,
+  "cycleId": "2026-09-01-token-version-revocation",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "admin을 member로 강등하면 그 사람의 기존 토큰으로 관리자 API가 401",
+      "priority": "P1",
+      "target": "src/lib/auth-admin.ts:requireAdmin",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "O가 A(admin)를 member로 강등 → DB(role|version)=member|1. **A의 기존 토큰**으로 GET /api/org/settings → 401 {\"error\":\"세션이 만료되었습니다. 다시 로그인해주세요.\"}. 이전에는 최대 30일간 admin으로 통과했다",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "강등 후 재로그인하면 정상 동작하고, 새 토큰은 member 권한을 갖는다",
+      "priority": "P1",
+      "target": "src/lib/auth-admin.ts:requireAdmin",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "강등 후 현재 version(1)을 담은 새 토큰(role=member)으로 관리자 API → 403 {\"error\":\"접근 권한이 없습니다.\"}. 401이 아니라 403 — 토큰은 유효하고 권한만 없다",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "member를 admin으로 승격해도 기존 토큰은 무효화된다 (양방향)",
+      "priority": "P1",
+      "target": "src/app/api/org/members/[id]/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "admin→member→admin 두 번 변경 후 DB version=2. version 0을 담은 옛 토큰으로 관리자 API → 401. 승격도 무효화된다(방향 무관하게 +1)",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "role을 바꾸지 않은 다른 멤버의 토큰은 영향받지 않는다",
+      "priority": "P1",
+      "target": "src/app/api/org/members/[id]/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "A 강등 직후 다른 admin(coo)의 토큰으로 GET /api/org/settings → 200. UPDATE의 WHERE userId=targetId가 다른 행을 건드리지 않는다",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "tokenVersion이 일치하면 관리자 API가 정상 통과한다",
+      "priority": "P1",
+      "target": "src/lib/auth-admin-rules.ts:checkTokenVersion",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "version 0 토큰 + DB version 0 → GET /api/org/settings 200",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "payload에 tokenVersion이 없는 기존 토큰의 처리가 방침대로 동작한다",
+      "priority": "P1",
+      "target": "src/lib/auth-admin-rules.ts:checkTokenVersion",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/auth-admin.test.ts",
+        "cmd": "pnpm test + curl",
+        "output": "✔ tokenVersion이 없는 배포 전 토큰은 DB가 0이면 missing이다 (B6)\n✔ tokenVersion이 없어도 이미 강등된 멤버면 stale이다 (B6)\n✔ tokenVersion이 없고 DB가 여러 번 올라갔어도 stale이다 (B6)\nAPI: tokenVersion 없는 토큰으로 DB version=1일 때 401, DB version=0으로 되돌리면 200. 구멍이 닫히면서 전원 로그아웃도 없다",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "토큰 발급 8곳이 전부 현재 tokenVersion을 담는다",
+      "priority": "P1",
+      "target": "src/app/api/auth/login/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "grep",
+        "output": "Grep \"generateToken(\" src/app/api → 8건. 각 payload에 tokenVersion 포함 확인: ✓auth/signup ✓auth/profile ✓auth/login ✓org/settings ✓org/invite-accept ✓org/switch ✓org/create ✓org/invitations/accept (8/8)",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "강등된 admin도 일반 데이터 조회는 계속 가능하다 (의도된 범위 제한의 명시)",
+      "priority": "P2",
+      "target": "src/lib/auth.ts:getUserFromNextRequest",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "강등된 admin의 옛 토큰으로 GET /api/partitions → 200. 관리자 경로만 막는 이번 선택의 의도된 결과이며 잔여 리스크로 REPORT에 명시한다",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "owner는 role 변경 대상이 아니므로 무효화가 발생하지 않는다",
+      "priority": "P2",
+      "target": "src/app/api/org/members/[id]/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "owner 대상 PATCH → 403 {\"error\":\"자신의 역할은 변경할 수 없습니다.\"}, owner의 token_version 0→0 불변. 기존 가드로 보장되며 코드 추가 없음",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "판정 순수 함수가 버전 비교를 정확히 한다 (같음/다름/미보유)",
+      "priority": "P1",
+      "target": "src/lib/auth-admin-rules.ts:checkTokenVersion",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/auth-admin.test.ts",
+        "cmd": "npx tsx --test src/lib/auth-admin.test.ts",
+        "output": "✔ 토큰과 DB 버전이 같으면 통과한다 (B10) (0.498125ms)\n✔ 버전이 올라간 뒤의 옛 토큰은 stale이다 (B10) (0.062292ms)\n✔ 여러 번 강등된 뒤에도 옛 토큰은 stale이다 (B10) (0.060417ms)\n✔ 0이 아닌 같은 버전끼리도 통과한다 (B10) (0.04375ms)\n✔ 토큰 버전이 DB보다 커도 거부한다 — fail-closed (B10) (0.051583ms)\ntests 116 / pass 116 / fail 0. 커버리지 auth-admin-rules.ts line 100% / branch 95.83% / funcs 100%",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "/api/auth/me가 JWT가 아닌 DB의 최신 role을 반환한다 (강등 시 UI에서 관리자 메뉴가 사라진다)",
+      "priority": "P1",
+      "target": "src/app/api/auth/me/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "강등된 사용자의 새 토큰으로 GET /api/auth/me → role = member. myOrgs에 이미 들어 있는 값을 쓰므로 추가 쿼리 0. 이제 UI에서 관리자 메뉴가 즉시 사라진다",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "users/[id] 경로로 role을 바꿔도 tokenVersion이 증가한다 (두 번째 role 변경 경로)",
+      "priority": "P1",
+      "target": "src/app/api/users/[id]/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "PATCH /api/users/{id} {role:admin} → token_version 0→1, role=admin. 수정 전에는 이 경로가 role만 바꾸고 버전을 올리지 않아 옛 토큰이 그대로 살아남았다(B1이 이 경로에서 성립하지 않았다). Grep \"update(organizationMembers)\" 3건 중 role을 바꾸는 2건 모두 sql`+1` 적용 확인",
+        "at": "2026-09-01"
+      }
+    },
+    {
+      "id": "B13",
+      "desc": "owner/admin 게이트를 쓰던 관리자 API(api-tokens, users)도 강등 즉시 차단된다",
+      "priority": "P1",
+      "target": "src/app/api/api-tokens/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": null,
+        "cmd": "curl",
+        "output": "강등 전 /api/api-tokens 200 · /api/users 200 · /api/org/settings 200 → 강등 후 전부 401. api-tokens는 조직 전체 스코프 API 토큰을 발급하는 곳이라, 막지 않으면 강등된 admin이 영구 자격증명을 만들어 무효화를 우회할 수 있었다. Grep 결과 role !== owner && role !== admin 게이트 잔존 0건",
+        "at": "2026-09-01"
+      }
+    }
+  ]
+}

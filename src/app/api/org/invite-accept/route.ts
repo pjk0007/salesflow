@@ -81,6 +81,8 @@ export async function POST(req: NextRequest) {
             email: user.email,
             name: user.name,
             role: invitation.role as OrgRole,
+            // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
+            tokenVersion: 0,
         };
 
         const newToken = generateToken(payload);

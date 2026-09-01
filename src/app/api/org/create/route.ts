@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
             name: user.name,
             orgId: newOrg.id,
             role: "owner" as const,
+            // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
+            tokenVersion: 0,
         };
 
         const token = generateToken(payload);

@@ -988,6 +988,8 @@ export const organizationMembers = pgTable(
             .notNull()
             .references(() => users.id, { onDelete: "cascade" }),
         role: varchar("role", { length: 20 }).notNull(), // owner | admin | member
+        // role이 바뀔 때마다 +1. JWT에 구워진 값과 다르면 관리자 경로에서 거부된다.
+        tokenVersion: integer("token_version").default(0).notNull(),
         joinedAt: timestamptz("joined_at").defaultNow().notNull(),
     },
     (table) => ({

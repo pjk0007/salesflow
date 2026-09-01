@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users, organizationMembers } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { eq, and, sql } from "drizzle-orm";
+import { requireAdmin } from "@/lib/auth-admin";
 
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     const { id: targetId } = await params;
 
@@ -60,9 +57,12 @@ export async function PATCH(
         }
 
         // organizationMembers에서 role 업데이트
+        // role과 token_version을 같은 UPDATE에서 바꾼다. 문장을 나누면 사이에서 실패했을 때
+        // role만 강등되고 옛 토큰이 살아남는 창이 생긴다.
+        // sql`+1`을 쓰는 이유: read-modify-write는 동시 변경 시 증가가 유실될 수 있다.
         await db
             .update(organizationMembers)
-            .set({ role })
+            .set({ role, tokenVersion: sql`${organizationMembers.tokenVersion} + 1` })
             .where(and(
                 eq(organizationMembers.userId, targetId),
                 eq(organizationMembers.organizationId, user.orgId)
@@ -79,14 +79,11 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     const { id: targetId } = await params;
 

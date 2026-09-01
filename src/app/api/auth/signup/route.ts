@@ -95,6 +95,8 @@ export async function POST(req: NextRequest) {
             email: newUser.email,
             name: newUser.name,
             role: newUser.role as "owner" | "admin" | "member",
+            // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
+            tokenVersion: 0,
         };
 
         const token = generateToken(payload);

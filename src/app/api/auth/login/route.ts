@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
             .select({
                 organizationId: organizationMembers.organizationId,
                 role: organizationMembers.role,
+                tokenVersion: organizationMembers.tokenVersion,
                 joinedAt: organizationMembers.joinedAt,
             })
             .from(organizationMembers)
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
             email: user.email,
             name: user.name,
             role: selectedOrg.role as "owner" | "admin" | "member",
+            tokenVersion: selectedOrg.tokenVersion,
             ...(user.isSuperAdmin === 1 && { isSuperAdmin: true }),
         };
 

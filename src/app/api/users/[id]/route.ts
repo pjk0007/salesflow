@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users, organizationMembers } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { eq, and, sql } from "drizzle-orm";
+import { requireAdmin } from "@/lib/auth-admin";
 
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const currentUser = getUserFromNextRequest(req);
-    if (!currentUser) {
-        return NextResponse.json({ success: false, error: "인증되지 않았습니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-
-    if (currentUser.role !== "owner" && currentUser.role !== "admin") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
+    const currentUser = auth.user;
 
     const { id: targetId } = await params;
     if (!targetId) {
@@ -107,9 +104,11 @@ export async function PATCH(
         // role 변경은 organizationMembers에서
         let finalRole = targetUser.role;
         if (role !== undefined) {
+            // org/members/[id]와 같은 이유로 token_version을 같은 UPDATE에서 올린다 —
+            // 여기서 빠지면 이 경로로 강등할 때 옛 토큰이 그대로 살아남는다.
             await db
                 .update(organizationMembers)
-                .set({ role })
+                .set({ role, tokenVersion: sql`${organizationMembers.tokenVersion} + 1` })
                 .where(and(
                     eq(organizationMembers.userId, targetId),
                     eq(organizationMembers.organizationId, currentUser.orgId)

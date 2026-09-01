@@ -1,0 +1,23 @@
+# PROGRESS — docs/2026-09-01-token-version-revocation/
+
+- 2026-09-01 plan: PLAN.md + behaviors.json 작성, 승인 대기
+- 2026-09-01 plan: 발단은 앞 사이클(partition-member-permissions)에서 확인된 문제 — role이 JWT에 구워져 있고 토큰 수명이 30일이라 admin→member 강등 후에도 최대 30일간 옛 권한이 유지된다. 실측으로 DB는 admin인데 기존 토큰은 member라 403 나는 것을 확인
+- 2026-09-01 plan: 방식은 사용자 결정으로 tokenVersion. 무효화 범위는 **role 변경만**(멤버 제거·비밀번호 변경은 범위 밖)
+- 2026-09-01 plan: 검증 위치는 사용자 결정으로 **관리자 경로만**. getUserFromNextRequest가 동기 함수이고 164개 파일이 쓰기 때문 — 전체 적용은 async 전환 + 모든 요청에 쿼리 1개 추가를 뜻한다. 대가로 강등된 admin의 데이터 접근은 지연 반영되며, 이 잔여 리스크는 PLAN에 명시
+- 2026-09-01 design: PLAN 승인됨. DESIGN 단계 착수
+- 2026-09-01 design: DESIGN.md 작성. tokenVersion을 organization_members에 두고(role이 거기 살고 requireAdmin이 한 쿼리로 읽는다), 기존 토큰은 undefined를 0으로 취급(전원 로그아웃 없이 구멍도 닫힘), 관리자 경로는 PLAN의 12곳에 billing/cancel(owner 전용, 실측 발견)을 더해 13곳
+- 2026-09-01 design: 사용자 결정으로 **/api/auth/me의 role 갱신을 이번 범위에 포함**(B11 추가). 안 고치면 강등돼도 UI에 관리자 메뉴가 남아 누를 때마다 401만 나고 사용자가 이유를 모른다. 추가 쿼리 0, 3줄
+- 2026-09-01 design: DESIGN 승인됨. 구현 착수
+- 2026-09-01 do: 순수 판정부 TDD 완료 — auth-admin.test.ts 18케이스 RED 확인 후 auth-admin-rules.ts 구현
+- 2026-09-01 do: organization_members.token_version 컬럼 + drizzle/0066 마이그레이션, 로컬 적용
+- 2026-09-01 do: requireAdmin/bumpTokenVersion 구현. 관리자 route 13곳 전환(19개 핸들러), owner 게이트 2곳(org/settings DELETE, billing/cancel)은 minRole="owner"로
+- 2026-09-01 do: **기존 버그 발견·수정** — auth/profile의 이름 변경 재발급이 `{...currentUser}` 스프레드로 iat/exp까지 넘겨 jwt.sign이 항상 예외를 던지고 있었다(실증: "Bad options.expiresIn ... payload already has an exp property"). DESIGN은 "현재 동작 중"으로 가정했으나 사실이 아니었다. 명시적 필드 나열로 수정
+- 2026-09-01 do: 발급 8곳 전부 tokenVersion 반영(grep 분모 대조 8/8). auth/me가 DB의 최신 role을 반환하도록 수정(B11)
+- 2026-09-01 do: **behaviors 11/11 통과.** 테스트 116개 GREEN, tsc 클린, next build ✓. 로컬 DB 테스트 데이터 원복
+- 2026-09-01 gap: unproven 0 (11/11). 테스트 116 GREEN, verify-evidence 전 항목 클린, 커버리지 auth-admin-rules.ts 100%
+- 2026-09-01 gap: **분모 밖에서 P0 결함 발견** — users/[id]가 organization_members.role을 UPDATE하면서 tokenVersion을 올리지 않아, 이 경로로 강등하면 옛 토큰이 그대로 살아남았다. B1이 이 경로에서 성립하지 않았던 것. 원인은 role 변경 경로 조사를 org/members/* 디렉토리로 한정한 것. 수정 후 B12로 고정
+- 2026-09-01 gap: **owner/admin 게이트 7곳 누락 발견** — DESIGN §9의 분모가 `role === "member"` 한 패턴만 실측해 `role !== "owner" && role !== "admin"` 표기를 통째로 놓쳤다. 그중 api-tokens 4곳은 조직 전체 스코프 API 토큰 발급처라, 강등된 admin이 영구 자격증명을 만들어 무효화를 우회할 수 있었다. 7곳 전부 requireAdmin으로 전환하고 B13으로 고정
+- 2026-09-01 review: 🔴0·🟡3·🟢3. 보안·동시성·회귀·마이그레이션 결함 0건. 지적 3건(import 포맷 오타, isTokenVersionAcceptable 블랙리스트→화이트리스트, 미사용 bumpTokenVersion 제거) 전부 처리
+- 2026-09-01 review: org/switch로 stale 토큰을 세탁할 수 있는지 실측 — 새 토큰이 나오지만 role이 member로 갱신되어 권한 상승 없음(무해)
+- 2026-09-01: **behaviors 13/13 통과.** 테스트 116 GREEN, tsc 클린, next build ✓. 관리자 경로 전수 재검증(api-tokens·users·org/settings 강등 즉시 401)
+- 2026-09-01 report: REPORT.md 작성. behaviors 13/13, 테스트 116 GREEN, tsc·build 클린. 아카이빙 후 커밋

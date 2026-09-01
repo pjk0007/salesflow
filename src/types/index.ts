@@ -8,6 +8,8 @@ export interface JWTPayload {
   email: string;
   name: string;
   role: OrgRole;
+  /** 발급 시점의 organization_members.token_version. 도입 이전 토큰엔 없다 — 없으면 0으로 취급. */
+  tokenVersion?: number;
   isSuperAdmin?: boolean;
 }
 

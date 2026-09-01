@@ -125,9 +125,16 @@ export async function PATCH(req: NextRequest) {
 
         // 이름 변경 시 JWT 재발급 (JWT에 name 포함)
         if (name !== undefined && name.trim() !== currentUser.name) {
+            // currentUser를 그대로 스프레드하면 iat/exp까지 딸려와
+            // jwt.sign이 expiresIn과 충돌해 예외를 던진다. 필요한 필드만 옮긴다.
             const payload: JWTPayload = {
-                ...currentUser,
+                userId: currentUser.userId,
+                orgId: currentUser.orgId,
+                email: currentUser.email,
                 name: name.trim(),
+                role: currentUser.role,
+                tokenVersion: currentUser.tokenVersion,
+                ...(currentUser.isSuperAdmin && { isSuperAdmin: true }),
             };
             const token = generateToken(payload);
             const maxAge = Math.floor(getTokenExpiryMs() / 1000);

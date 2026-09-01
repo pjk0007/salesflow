@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
             .select({
                 organizationId: organizationMembers.organizationId,
                 role: organizationMembers.role,
+                tokenVersion: organizationMembers.tokenVersion,
             })
             .from(organizationMembers)
             .where(and(
@@ -42,6 +43,8 @@ export async function POST(req: NextRequest) {
             email: user.email,
             name: user.name,
             role: membership.role as OrgRole,
+            // 전환 대상 조직의 버전을 담는다 — 조직마다 무효화가 독립적이다
+            tokenVersion: membership.tokenVersion,
         };
 
         const token = generateToken(payload);

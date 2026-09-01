@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizations, organizationMembers } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-admin";
 import type { JWTPayload } from "@/types";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     try {
         const [org] = await db
@@ -39,14 +37,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     try {
         const { name, branding, settings, integratedCodePrefix } = await req.json();
@@ -107,14 +102,13 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req, "owner");
+    if (!auth.ok) {
+        // owner 게이트에 걸린 경우만 문구를 구체화한다
+        const error = auth.status === 403 ? "조직 삭제는 소유자만 가능합니다." : auth.error;
+        return NextResponse.json({ success: false, error }, { status: auth.status });
     }
-
-    if (user.role !== "owner") {
-        return NextResponse.json({ success: false, error: "조직 삭제는 소유자만 가능합니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     try {
         // 사용자의 다른 조직 찾기
@@ -122,6 +116,7 @@ export async function DELETE(req: NextRequest) {
             .select({
                 organizationId: organizationMembers.organizationId,
                 role: organizationMembers.role,
+                tokenVersion: organizationMembers.tokenVersion,
             })
             .from(organizationMembers)
             .where(
@@ -144,6 +139,7 @@ export async function DELETE(req: NextRequest) {
                 name: user.name,
                 orgId: nextOrg.organizationId,
                 role: nextOrg.role as "owner" | "admin" | "member",
+                tokenVersion: nextOrg.tokenVersion,
             };
             const token = generateToken(payload);
             const maxAge = Math.floor(getTokenExpiryMs() / 1000);

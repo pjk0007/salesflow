@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, apiTokens, apiTokenScopes } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest, validateTokenScopes } from "@/lib/auth";
+import { validateTokenScopes } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-admin";
 import type { ScopeInput } from "@/lib/auth";
 
 export async function PUT(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-    if (user.role !== "owner" && user.role !== "admin") {
-        return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     const { id } = await params;
     const tokenId = Number(id);
@@ -80,13 +79,11 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-    if (user.role !== "owner" && user.role !== "admin") {
-        return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     const { id } = await params;
     const tokenId = Number(id);

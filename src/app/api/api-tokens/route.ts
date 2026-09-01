@@ -2,16 +2,15 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db, apiTokens, apiTokenScopes, workspaces, folders, partitions } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
-import { getUserFromNextRequest, validateTokenScopes } from "@/lib/auth";
+import { validateTokenScopes } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-admin";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-    if (user.role !== "owner" && user.role !== "admin") {
-        return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     try {
         const tokens = await db
@@ -68,13 +67,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
     }
-    if (user.role !== "owner" && user.role !== "admin") {
-        return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
-    }
+    const user = auth.user;
 
     try {
         const { name, expiresIn, scopes } = await req.json();
