@@ -202,9 +202,15 @@
       "id": "B15",
       "desc": "logAiUsage에 provider가 claude로 기록된다",
       "priority": "P2",
-      "target": null,
-      "passes": false,
-      "evidence": null
+      "target": "src/lib/auto-personalized-email.ts:180",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "ai_usage_logs (운영 DB)",
+        "cmd": "psql ... select provider, model, purpose, count(*) from ai_usage_logs where created_at >= '2026-08-28 03:30:00+00' group by 1,2,3",
+        "output": "claude | claude-haiku-4-5 | auto_personalized_email | 545 | 1845110 / claude | claude-haiku-4-5 | auto_company_research | 534 | 13550398 — 배포 후 실발송에서 provider가 claude로 기록됨을 확인",
+        "at": "2026-08-28"
+      }
     },
     {
       "id": "B16",
