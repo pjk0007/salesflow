@@ -17,3 +17,9 @@
 - 2026-09-01 do(커밋3): MCP 툴 7개 + tracker-format(순수 17케이스) + types.ts 분리. tools.ts는 import 1줄 + 전개 2곳만 수정
 - 2026-09-01 do: **behaviors 13/13 통과.** 테스트 169개 GREEN, tsc 클린, next build ✓
 - 2026-09-01 do: 실증 하이라이트 — "구독신청 과정" 퍼널에서 방문 3405명 중 3365명(98.8%)이 첫 단계에서 이탈. 일단 시작하면 92%씩 진행되므로 문제는 진입이다. 이게 PLAN의 발단 질문에 대한 답
+- 2026-09-01 gap: 1회차 unproven 2 — B7(직전 기간이 웹과 하루 다름) B10(회귀 검증이 그 경로를 못 덮음). **DESIGN §4.3이 지시한 값 기반 grep을 실행하지 않아 overview:52의 인라인 날짜 계산을 놓친 것이 원인**. 선행 사이클 교훈("분모는 그 값으로 분기하는 모든 표기로")이 알고도 재현됨
+- 2026-09-01 gap: previousRange가 mechanical move가 아니었다 — 웹에 없던 것을 새로 작성했는데 커밋 메시지에 "4곳 중복이던 것"으로 적었다. 이 부정확함이 회귀 검증 설계에서 그 경로를 빠뜨리게 했다
+- 2026-09-01 gap: 사용자 결정으로 **웹도 previousRange를 쓰도록 수정**(하루 어긋남 버그 수정). 양쪽이 같은 함수라 구조적 일치 보장. 재검증 — 현재기간 KPI 3종 동일, 퍼널·pages 동일
+- 2026-09-01 review: 🔴1·🟡4·🟢3. **get_record_journey가 파티션 경계를 넘었다** — merge 기본값(true)이 visitor 링크로 다른 파티션 레코드를 통합하는데 검사한 건 진입 레코드 파티션 하나뿐. merge:false 고정(B14)
+- 2026-09-01 review: 역전 범위(from>to) 미거부와 get_page_analytics의 to 응답 누락도 수정(B15)
+- 2026-09-01: **behaviors 15/15 통과.** 테스트 169 GREEN, tsc·build 클린, verify-evidence unresolved 0

@@ -39,7 +39,10 @@ function parseRange(args: Record<string, unknown>): { fromYmd: string; toYmd: st
     const to = str(args.to);
     if (from && !isValidYmd(from)) return "from은 YYYY-MM-DD 형식이어야 합니다.";
     if (to && !isValidYmd(to)) return "to는 YYYY-MM-DD 형식이어야 합니다.";
-    return resolveRange(from ?? null, to ?? null);
+    const range = resolveRange(from ?? null, to ?? null);
+    // 역전 범위를 두면 집계가 조용히 0건으로 나오고 previousRange가 미래 구간을 만든다
+    if (range.fromYmd > range.toYmd) return "from이 to보다 늦을 수 없습니다.";
+    return range;
 }
 
 function parseDevice(value: unknown): string | null {
@@ -242,7 +245,15 @@ export function createTrackerToolHandlers(): Record<string, ToolHandler> {
             const hasAccess = await checkTokenAccess(tokenInfo, record.partitionId, "read");
             if (!hasAccess) return err("이 파티션에 대한 접근 권한이 없습니다.");
 
-            const journey = await buildRecordJourney({ recordId, orgId: tokenInfo.orgId });
+            // merge:false 고정 — 기본값(true)은 visitor 링크를 타고 다른 파티션 레코드까지
+            // 통합하는데, 위에서 검사한 것은 진입 레코드의 파티션 하나뿐이다.
+            // 웹은 세션 유저 기준이라 그 동작이 맞지만 MCP는 파티션 스코프 토큰이 있어
+            // 그대로 두면 스코프 밖 레코드의 이력이 새어 나간다.
+            const journey = await buildRecordJourney({
+                recordId,
+                orgId: tokenInfo.orgId,
+                merge: false,
+            });
             if (!journey) return err("레코드를 찾을 수 없습니다.");
 
             const limit = clampPageSize(num(args.limit), 100, 200);
@@ -326,14 +337,19 @@ export function createTrackerToolHandlers(): Record<string, ToolHandler> {
             const to = str(args.to);
             if (from && !isValidYmd(from)) return err("from은 YYYY-MM-DD 형식이어야 합니다.");
             if (to && !isValidYmd(to)) return err("to는 YYYY-MM-DD 형식이어야 합니다.");
-            const range = from || to ? rangeBounds(from ?? "1970-01-01", to ?? "2999-12-31") : undefined;
+            const fromYmd = from ?? "1970-01-01";
+            const toYmd = to ?? "2999-12-31";
+            if (fromYmd > toYmd) return err("from이 to보다 늦을 수 없습니다.");
+            const range = from || to ? rangeBounds(fromYmd, toYmd) : undefined;
 
             const data = await queryPageAnalytics({
                 siteId,
                 range,
                 limit: clampPageSize(num(args.pageSize), 20, 100),
             });
-            return ok({ range: from || to ? { from, to } : null, pages: data });
+            // 실제 적용된 경계를 돌려준다 — 원본 인자를 그대로 주면 생략한 쪽이 사라져
+            // Claude가 "언제까지 집계인지"를 알 수 없다
+            return ok({ range: range ? { from: fromYmd, to: toYmd } : null, pages: data });
         },
 
         list_tracker_events: async (args, tokenInfo) => {

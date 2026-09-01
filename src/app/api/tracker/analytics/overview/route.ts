@@ -6,10 +6,8 @@ import { classifyInflow } from "@/components/journey/utils/referrer";
 import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
 import { aggregateRange, notExcludedExpr, pct } from "@/lib/tracker/analytics-queries";
 import { deviceFilterSql, sessionInFilterSql } from "@/lib/tracker/sql-filters";
-import { rangeBounds } from "@/lib/tracker/date-range";
+import { previousRange, rangeBounds, resolveRange } from "@/lib/tracker/date-range";
 import type { OverviewData } from "@/components/tracker/types/overview";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 // url에서 host 제거 + ? 이전 경로
 function normalizePath(url: string): string {
@@ -41,20 +39,12 @@ export async function GET(req: NextRequest) {
     }
 
     // 기간 (기본 30일)
-    const today = new Date();
-    const defaultFromDate = new Date(today.getTime() - 30 * DAY_MS);
-    const ymd = (d: Date) => d.toISOString().slice(0, 10);
-    const fromYmd = sp.get("from") ?? ymd(defaultFromDate);
-    const toYmd = sp.get("to") ?? ymd(today);
+    const { fromYmd, toYmd } = resolveRange(sp.get("from"), sp.get("to"));
     const { fromIso, toIso } = rangeBounds(fromYmd, toYmd);
 
     // 직전 동일 길이 기간
-    const fromDate = new Date(`${fromYmd}T00:00:00+09:00`);
-    const toDate = new Date(`${toYmd}T23:59:59+09:00`);
-    const lengthDays = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / DAY_MS));
-    const prevFrom = new Date(fromDate.getTime() - lengthDays * DAY_MS);
-    const prevTo = new Date(fromDate.getTime() - 1);
-    const { fromIso: prevFromIso, toIso: prevToIso } = rangeBounds(ymd(prevFrom), ymd(prevTo));
+    const prev = previousRange(fromYmd, toYmd);
+    const { fromIso: prevFromIso, toIso: prevToIso } = rangeBounds(prev.fromYmd, prev.toYmd);
 
     const excludes = (site.excludePaths ?? []) as string[];
     const dailyNotExcluded = notExcludedExpr(excludes);
