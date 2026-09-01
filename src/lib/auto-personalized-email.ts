@@ -16,6 +16,7 @@ import {
 } from "@/lib/email-unsubscribe";
 import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
+import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
 
 // ============================================
 // 쿨다운 체크 (같은 record + ai_auto에 1시간 내 발송 이력)
@@ -69,8 +70,11 @@ interface AutoPersonalizedParams {
     orgId: string;
 }
 
-export async function processAutoPersonalizedEmail(params: AutoPersonalizedParams): Promise<void> {
+export async function processAutoPersonalizedEmail(
+    params: AutoPersonalizedParams
+): Promise<RecordOutcome> {
     const { record, partitionId, triggerType, orgId } = params;
+    const outcomes: LinkOutcome[] = [];
 
     console.log(`[AutoEmail] Start: record=${record.id}, partition=${partitionId}, trigger=${triggerType}`);
 
@@ -86,7 +90,10 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             )
         );
 
-    if (links.length === 0) { console.log(`[AutoEmail] No matching rules`); return; }
+    if (links.length === 0) {
+        console.log(`[AutoEmail] No matching rules`);
+        return { noMatchingRules: true, outcomes };
+    }
     console.log(`[AutoEmail] Found ${links.length} rules`);
 
     const data = record.data as Record<string, unknown>;
@@ -96,12 +103,17 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             // 2. 조건 평가
             if (!evaluateCondition(link.triggerCondition as Parameters<typeof evaluateCondition>[0], data)) {
                 console.log(`[AutoEmail] Rule ${link.id}: condition not met`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "condition_not_met" });
                 continue;
             }
 
             // 3. 쿨다운 체크
             const canSend = await checkCooldown(record.id);
-            if (!canSend) { console.log(`[AutoEmail] Rule ${link.id}: cooldown active`); continue; }
+            if (!canSend) {
+                console.log(`[AutoEmail] Rule ${link.id}: cooldown active`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "cooldown" });
+                continue;
+            }
 
             // 3-1. 중복 수신자 체크
             if (link.preventDuplicate) {
@@ -110,6 +122,7 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                     const canSendDup = await checkDuplicateRecipientForAiAuto(link.partitionId, recipientEmail);
                     if (!canSendDup) {
                         console.log(`[AutoEmail] Rule ${link.id}: duplicate recipient skipped: ${recipientEmail}`);
+                        outcomes.push({ kind: "skipped", linkId: link.id, reason: "duplicate_recipient" });
                         continue;
                     }
                 }
@@ -117,24 +130,48 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
 
             // 4. 수신자 이메일 추출
             const email = data[link.recipientField];
-            if (!email || typeof email !== "string" || !email.includes("@")) { console.log(`[AutoEmail] Rule ${link.id}: no valid email in field "${link.recipientField}" (got: ${email})`); continue; }
+            if (!email || typeof email !== "string" || !email.includes("@")) {
+                console.log(`[AutoEmail] Rule ${link.id}: no valid email in field "${link.recipientField}" (got: ${email})`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "invalid_email" });
+                continue;
+            }
 
             // 수신거부 확인 — AI 호출(토큰 소모) 전에 걸러낸다
             const workspaceId = await resolveWorkspaceId(partitionId);
-            if (!workspaceId) { console.log(`[AutoEmail] Rule ${link.id}: workspace not found for partition ${partitionId}`); continue; }
-            if (await isUnsubscribed(workspaceId, email)) { console.log(`[AutoEmail] Rule ${link.id}: skipped, unsubscribed (${email})`); continue; }
+            if (!workspaceId) {
+                console.log(`[AutoEmail] Rule ${link.id}: workspace not found for partition ${partitionId}`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "workspace_not_found" });
+                continue;
+            }
+            if (await isUnsubscribed(workspaceId, email)) {
+                console.log(`[AutoEmail] Rule ${link.id}: skipped, unsubscribed (${email})`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "unsubscribed" });
+                continue;
+            }
 
             // 5. AI 클라이언트 확인
             const aiClient = getAiClient(link.model || undefined);
-            if (!aiClient) { console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`); continue; }
+            if (!aiClient) {
+                console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_ai_client" });
+                continue;
+            }
 
             // 5-1. 토큰 쿼터 확인
             const quota = await checkTokenQuota(orgId);
-            if (!quota.allowed) { console.log(`[AutoEmail] Rule ${link.id}: quota exceeded`); continue; }
+            if (!quota.allowed) {
+                console.log(`[AutoEmail] Rule ${link.id}: quota exceeded`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "quota_exceeded" });
+                continue;
+            }
 
             // 6. 이메일 클라이언트 확인
             const emailClient = await getEmailClient(orgId);
-            if (!emailClient) { console.log(`[AutoEmail] Rule ${link.id}: no email client`); continue; }
+            if (!emailClient) {
+                console.log(`[AutoEmail] Rule ${link.id}: no email client`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_email_client" });
+                continue;
+            }
             const emailConfig = await getEmailConfig(orgId);
 
             // 6-1. 발신자 프로필 결정 (규칙 지정 → 기본 프로필 → 레거시 fallback)
@@ -142,7 +179,10 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 preferredIds: [link.senderProfileId],
                 config: emailConfig,
             });
-            if (!sender.fromEmail) continue;
+            if (!sender.fromEmail) {
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_sender" });
+                continue;
+            }
             const senderFromEmail = sender.fromEmail;
 
             // 6-2. 서명 결정. DB의 null은 "미지정"이므로 undefined로 정규화한다
@@ -305,6 +345,15 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
                 })
                 .where(eq(emailSendLogs.id, inserted.id));
             console.log(`[AutoEmail] Rule ${link.id}: ${isSuccess ? "sent" : "failed"} to ${email}`);
+            if (isSuccess) {
+                outcomes.push({ kind: "sent", linkId: link.id });
+            } else {
+                outcomes.push({
+                    kind: "failed",
+                    linkId: link.id,
+                    error: sendResult?.resultMessage ?? nhnResult.header.resultMessage ?? "send failed",
+                });
+            }
 
             // 11. 후속 발송 큐 등록
             if (isSuccess && inserted?.id && link.followupConfig) {
@@ -323,6 +372,14 @@ export async function processAutoPersonalizedEmail(params: AutoPersonalizedParam
             }
         } catch (err) {
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);
+            // 삼키지 않는다 — 큐 워커가 재시도 여부를 판단하려면 실패가 결과에 남아야 한다
+            outcomes.push({
+                kind: "failed",
+                linkId: link.id,
+                error: err instanceof Error ? err.message : String(err),
+            });
         }
     }
+
+    return { noMatchingRules: false, outcomes };
 }

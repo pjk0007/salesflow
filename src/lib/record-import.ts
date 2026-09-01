@@ -11,8 +11,8 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
-import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
 import { processAutoEnrich } from "@/lib/auto-enrich";
+import { enqueueSends, wakeSendQueue } from "@/lib/email-send-queue";
 
 // db 트랜잭션 / db 둘 다 받을 수 있는 최소 실행기 타입
 type DbExecutor = Pick<typeof db, "select" | "insert" | "update" | "delete">;
@@ -162,7 +162,7 @@ export async function insertImportedRecords(
  * 핵심: 파티션에 활성 규칙이 있는지 **1회만** 확인하고, 규칙이 있는 트리거만 레코드별로 돈다.
  * (규칙이 없으면 레코드마다 조회·로그가 폭주하던 문제 방지 — 대량 가져오기 시 수천 줄 로그/쿼리 제거.)
  *
- * 알림톡/이메일/보강은 fire-and-forget, AI 개인화 메일은 5건/배치·1초 딜레이로 rate limit 준수.
+ * 알림톡/이메일/보강은 fire-and-forget, AI 개인화 메일은 큐에 적재만 하고 워커가 발송한다.
  */
 export async function dispatchImportTriggers(
     insertedRecords: DbRecord[],
@@ -197,18 +197,17 @@ export async function dispatchImportTriggers(
     }
 
     if (hasAiEmail) {
-        const BATCH_SIZE = 5;
-        const BATCH_DELAY_MS = 1000;
-        for (let i = 0; i < insertedRecords.length; i += BATCH_SIZE) {
-            const batch = insertedRecords.slice(i, i + BATCH_SIZE);
-            await Promise.allSettled(
-                batch.map((record) =>
-                    processAutoPersonalizedEmail({ record, partitionId: p, triggerType: "on_create", orgId: ctx.orgId }),
-                ),
-            );
-            if (i + BATCH_SIZE < insertedRecords.length) {
-                await new Promise((r) => setTimeout(r, BATCH_DELAY_MS));
-            }
-        }
+        // 여기서 보내지 않는다 — 적재만 하고 워커가 발송한다.
+        // 이 자리에서 직접 돌리면 응답 이후 프로세스 생명주기에 발송이 매달리고,
+        // 한 건이라도 응답이 없으면(allSettled) 나머지 전량이 유실된다. (2026-09-01 사고)
+        await enqueueSends({
+            recordIds: insertedRecords.map((r) => r.id),
+            partitionId: p,
+            orgId: ctx.orgId,
+            triggerType: "on_create",
+        });
+
+        // cron(10분)을 기다리지 않고 바로 시작시킨다. 실패해도 cron이 주워간다.
+        wakeSendQueue();
     }
 }

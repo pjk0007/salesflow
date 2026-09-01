@@ -7,6 +7,21 @@ import type { GenerateEmailResult, WebSearchResult } from "./gemini";
 
 const MAX_TOKENS = 4096;
 
+// 타임아웃이 없으면 응답이 오지 않는 호출이 영원히 매달린다.
+// 그 호출이 Promise.allSettled 배치에 섞이면 배치 전체가 resolve되지 않아
+// 뒤따르는 발송이 전부 멈춘다 (2026-09-01 사고의 직접 원인).
+const REQUEST_TIMEOUT_MS = 120_000;
+
+function clientOptions(apiKey: string): ConstructorParameters<typeof Anthropic>[0] {
+    return {
+        apiKey,
+        timeout: REQUEST_TIMEOUT_MS,
+        // SDK 기본 재시도(2회)를 끈다 — requestWithRetry가 이미 재시도하므로
+        // 그대로 두면 4회가 되어 최악의 대기 시간이 배가 된다.
+        maxRetries: 0,
+    };
+}
+
 // web search 서버 루프가 10회에 도달하면 pause_turn으로 멈춘다.
 // 초기 1회 + 재개 3회 = 최대 4회 API 호출.
 const MAX_SEARCH_CONTINUATIONS = 3;
@@ -60,7 +75,7 @@ async function callClaudeMessage(
     systemPrompt: string,
     userPrompt: string
 ): Promise<ClaudeCallResult> {
-    const anthropic = new Anthropic({ apiKey: client.apiKey });
+    const anthropic = new Anthropic(clientOptions(client.apiKey));
     const message = await requestWithRetry(anthropic, {
         model: client.model,
         max_tokens: MAX_TOKENS,
@@ -84,7 +99,7 @@ async function runSearchLoop(
     systemPrompt: string,
     userPrompt: string
 ): Promise<ClaudeCallResult> {
-    const anthropic = new Anthropic({ apiKey: client.apiKey });
+    const anthropic = new Anthropic(clientOptions(client.apiKey));
     const messages: MessageParam[] = [{ role: "user", content: userPrompt }];
     const blocks: ContentBlock[] = [];
     const usage: TokenUsage = { promptTokens: 0, completionTokens: 0 };

@@ -882,6 +882,44 @@ export const emailFollowupQueue = pgTable(
     })
 );
 
+/**
+ * AI 개인화 이메일 대량 발송 큐.
+ *
+ * 발송 내용(제목/본문)은 담지 않는다 — AI가 발송 시점에 생성하므로 적재 시점엔 없다.
+ * 워커가 record_id로 기존 processAutoPersonalizedEmail을 그대로 부른다.
+ */
+export const emailSendQueue = pgTable(
+    "email_send_queue",
+    {
+        id: serial("id").primaryKey(),
+        recordId: integer("record_id")
+            .references(() => records.id, { onDelete: "cascade" })
+            .notNull(),
+        partitionId: integer("partition_id")
+            .references(() => partitions.id, { onDelete: "cascade" })
+            .notNull(),
+        orgId: uuid("org_id").notNull(),
+        triggerType: varchar("trigger_type", { length: 20 }).notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(),
+        attempts: integer("attempts").default(0).notNull(),
+        lastError: text("last_error"),
+        /** processing 진입 시각 — stuck 판정에 쓴다 */
+        lockedAt: timestamptz("locked_at"),
+        /**
+         * 이 시각 이후에 발송한다. 기본값 now()라 일반 업로드는 즉시 나간다.
+         * 미래로 넣으면 그때까지 워커가 집지 않는다 (야간 발송 회피·재발송 예약).
+         */
+        scheduledAt: timestamptz("scheduled_at").defaultNow().notNull(),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+        processedAt: timestamptz("processed_at"),
+    },
+    (table) => ({
+        pickupIdx: index("esq_pickup_idx").on(table.status, table.scheduledAt, table.id),
+        // 같은 레코드가 두 번 적재되는 것을 DB가 막는다 — 재업로드해도 메일이 두 번 나가지 않는다
+        recordTriggerIdx: uniqueIndex("esq_record_trigger_idx").on(table.recordId, table.triggerType),
+    })
+);
+
 // ============================================
 // 제품/서비스 카탈로그
 // ============================================
@@ -1287,6 +1325,7 @@ export type EmailTemplate = typeof emailTemplates.$inferSelect;
 export type EmailTemplateLink = typeof emailTemplateLinks.$inferSelect;
 export type EmailSendLog = typeof emailSendLogs.$inferSelect;
 export type EmailAutomationQueueRow = typeof emailAutomationQueue.$inferSelect;
+export type EmailSendQueueRow = typeof emailSendQueue.$inferSelect;
 export type EmailAutoPersonalizedLink = typeof emailAutoPersonalizedLinks.$inferSelect;
 export type EmailAsset = typeof emailAssets.$inferSelect;
 export type NewEmailAsset = typeof emailAssets.$inferInsert;
