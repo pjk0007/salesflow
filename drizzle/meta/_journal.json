@@ -477,6 +477,13 @@
       "when": 1772370000000,
       "tag": "0067_email_send_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1773100000000,
+      "tag": "0068_company_research_cache_idx",
+      "breakpoints": true
     }
   ]
 }

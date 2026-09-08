@@ -2,6 +2,7 @@ import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, records, pr
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { findCachedCompanyResearch } from "@/lib/ai/company-research-cache";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { enqueueFollowup } from "@/lib/email-followup";
@@ -198,31 +199,44 @@ export async function processAutoPersonalizedEmail(
                 const companyName = data[link.companyField] as string;
                 const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → SEARCH_MODEL_ID 고정
                 if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
-                    const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
-                    recordData._companyResearch = {
-                        ...research,
-                        sources: research.sources,
-                        researchedAt: new Date().toISOString(),
-                    };
+                    // 같은 org에서 이미 조사한 회사면 재사용한다 — 웹서치 1건이 약 19,000 input tokens라
+                    // 대량 발송에서 회사가 겹치는 만큼 그대로 중복 과금된다.
+                    const cached = await findCachedCompanyResearch(orgId, companyName);
 
-                    // 레코드에 _companyResearch 저장
-                    await db
-                        .update(records)
-                        .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
-                        .where(eq(records.id, record.id));
+                    if (cached) {
+                        recordData._companyResearch = { ...cached, researchedAt: new Date().toISOString() };
+                        await db
+                            .update(records)
+                            .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
+                            .where(eq(records.id, record.id));
+                        console.log(`[AutoEmail] Company research cache hit: ${companyName}`);
+                    } else {
+                        const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
+                        recordData._companyResearch = {
+                            ...research,
+                            sources: research.sources,
+                            researchedAt: new Date().toISOString(),
+                        };
 
-                    const researchTokens = research.usage.promptTokens + research.usage.completionTokens;
-                    await updateTokenUsage(orgId, researchTokens);
+                        // 레코드에 _companyResearch 저장
+                        await db
+                            .update(records)
+                            .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
+                            .where(eq(records.id, record.id));
 
-                    await logAiUsage({
-                        orgId,
-                        userId: null,
-                        provider: searchClient.provider,
-                        model: searchClient.model,
-                        promptTokens: research.usage.promptTokens,
-                        completionTokens: research.usage.completionTokens,
-                        purpose: "auto_company_research",
-                    });
+                        const researchTokens = research.usage.promptTokens + research.usage.completionTokens;
+                        await updateTokenUsage(orgId, researchTokens);
+
+                        await logAiUsage({
+                            orgId,
+                            userId: null,
+                            provider: searchClient.provider,
+                            model: searchClient.model,
+                            promptTokens: research.usage.promptTokens,
+                            completionTokens: research.usage.completionTokens,
+                            purpose: "auto_company_research",
+                        });
+                    }
                 }
             }
 
