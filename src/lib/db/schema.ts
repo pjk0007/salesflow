@@ -5,6 +5,7 @@ import {
     varchar,
     text,
     integer,
+    bigint,
     boolean,
     timestamp,
     unique,
@@ -985,8 +986,8 @@ export const aiUsageQuotas = pgTable("ai_usage_quotas", {
         .references(() => organizations.id, { onDelete: "cascade" })
         .notNull(),
     month: varchar("month", { length: 7 }).notNull(),
-    totalTokens: integer("total_tokens").default(0).notNull(),
-    quotaLimit: integer("quota_limit").default(100000).notNull(),
+    totalTokens: bigint("total_tokens", { mode: "number" }).default(0).notNull(),
+    quotaLimit: bigint("quota_limit", { mode: "number" }).default(100000).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 }, (table) => [

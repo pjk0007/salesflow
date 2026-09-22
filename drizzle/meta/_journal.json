@@ -484,6 +484,13 @@
       "when": 1773100000000,
       "tag": "0068_company_research_cache_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1773200000000,
+      "tag": "0069_ai_usage_quotas_bigint",
+      "breakpoints": true
     }
   ]
 }
