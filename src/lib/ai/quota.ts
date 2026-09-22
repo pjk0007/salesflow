@@ -1,5 +1,6 @@
 import { db, aiUsageLogs, aiUsageQuotas, subscriptions, plans } from "@/lib/db";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { getQuotaLimitForPlanSlug } from "./quota-limits";
 
 async function getQuotaLimitForOrg(orgId: string): Promise<number> {
     const [sub] = await db
@@ -11,15 +12,12 @@ async function getQuotaLimitForOrg(orgId: string): Promise<number> {
     if (!sub?.planId) return 100_000;
 
     const [plan] = await db
-        .select({ name: plans.name })
+        .select({ slug: plans.slug })
         .from(plans)
         .where(eq(plans.id, sub.planId))
         .limit(1);
 
-    // 주의: total_tokens/quota_limit 컬럼이 int4(최대 ~21.4억)이라 그 이상 올리려면 bigint 전환 필요
-    if (plan?.name === "Enterprise") return 1_000_000_000; // 10억
-    if (plan?.name === "Pro") return 100_000_000; // 1억
-    return 10_000_000; // Free 1천만
+    return getQuotaLimitForPlanSlug(plan?.slug);
 }
 
 async function getOrCreateQuota(orgId: string, month: string): Promise<{ totalTokens: number; quotaLimit: number }> {

@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "cycleId": "2026-09-22-ai-quota-bigint",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "Enterprise 플랜 이름에 대해 월 한도가 5,000,000,000이다",
+      "priority": "P1",
+      "target": "src/lib/ai/quota-limits.ts:11",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/quota-limits.test.ts",
+        "cmd": "pnpm exec tsx --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=.devkit/lcov.info \"src/lib/ai/quota-limits.test.ts\"",
+        "output": "✔ enterprise는 월 50억 토큰이다 (B1) (0.512125ms)\n✔ enterprise 한도는 int4 상한을 넘는다 — bigint 컬럼이 전제다 (B1) (0.095792ms)\nℹ tests 5\nℹ pass 5\nℹ fail 0\nℹ    quota-limits.ts | 100.00 |   100.00 |  100.00 |"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "Pro 100,000,000 / Free·미지정 10,000,000 / 활성 구독 없음 100,000으로 기존과 동일",
+      "priority": "P1",
+      "target": "src/lib/ai/quota-limits.ts:12-13",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/ai/quota-limits.test.ts",
+        "cmd": "pnpm exec tsx --test --experimental-test-coverage --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=.devkit/lcov.info \"src/lib/ai/quota-limits.test.ts\"",
+        "output": "✔ pro는 1억으로 기존과 같다 (B2) (0.04975ms)\n✔ free·미지정·미등록 slug는 1천만으로 폴백한다 (B2) (0.054042ms)\n✔ 표시명(name)을 넣으면 폴백된다 — slug 기준임을 고정한다 (B2) (0.057875ms)\nℹ tests 5\nℹ pass 5\nℹ fail 0 — (보충) 로컬 DB 실행: B2 Free org: { allowed: true, remaining: 10000000 }. '활성 구독 없음 100,000' 분기는 로컬 모든 org가 활성 구독을 가져 DB 재현 불가이며 이번 변경에서 코드 미수정(quota.ts:12)."
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "0069 적용 후 total_tokens·quota_limit의 data_type이 bigint이고 NOT NULL·기본값(0/100000)·기존 행 값이 보존된다",
+      "priority": "P1",
+      "target": "drizzle/0069_ai_usage_quotas_bigint.sql:7-9",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 PostgreSQL information_schema",
+        "cmd": "psql -c \"select column_name,data_type,column_default,is_nullable from information_schema.columns where table_name='ai_usage_quotas'...\"",
+        "output": "적용 전: quota_limit|integer|100000|NO, total_tokens|integer|0|NO → 적용 후: quota_limit|bigint|100000|NO, total_tokens|bigint|0|NO. 기존 행 값 보존 확인(2026-06 123409691 등 4행 그대로)",
+        "at": "2026-09-22"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "quota_limit=1e9인 기존 행의 Enterprise org에서 checkTokenQuota() 호출 시 에러 없이 DB quota_limit이 5e9로 갱신된다",
+      "priority": "P1",
+      "target": "src/lib/ai/quota.ts:33-38",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 PostgreSQL + quota.ts",
+        "cmd": "DATABASE_URL=local pnpm exec tsx scripts/__tmp-verify-quota.mts (임시 스크립트, 실행 후 삭제)",
+        "output": "B4 DB quota_limit: 5000000000 | total_tokens: 1000000593 (누적 보존 확인)"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "total_tokens=1,000,000,593인 Enterprise org의 checkTokenQuota()가 allowed=true, remaining=3,999,999,407을 반환하고 누적은 리셋되지 않는다",
+      "priority": "P1",
+      "target": "src/lib/ai/quota.ts:53-58",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 PostgreSQL + quota.ts",
+        "cmd": "DATABASE_URL=local pnpm exec tsx scripts/__tmp-verify-quota.mts (임시 스크립트, 실행 후 삭제)",
+        "output": "B5 checkTokenQuota: { allowed: true, remaining: 3999999407 } | 기대 allowed=true remaining=3999999407"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "updateTokenUsage()로 total_tokens가 2,147,483,647을 넘어도 에러 없이 증가한다",
+      "priority": "P2",
+      "target": "src/lib/ai/quota.ts:63-80",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 PostgreSQL + quota.ts",
+        "cmd": "DATABASE_URL=local pnpm exec tsx scripts/__tmp-verify-quota.mts (임시 스크립트, 실행 후 삭제)",
+        "output": "B6 total_tokens: 2200000593 | int4 상한 초과? true"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "getUsageData()의 totalTokens·quotaLimit·remaining이 JS number이고 1e9/5e9일 때 usagePercent가 20이다",
+      "priority": "P1",
+      "target": "src/lib/ai/quota.ts:82-110",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 PostgreSQL + quota.ts",
+        "cmd": "DATABASE_URL=local pnpm exec tsx scripts/__tmp-verify-quota.mts (임시 스크립트, 실행 후 삭제)",
+        "output": "B7 타입: number number number | usagePercent: 20"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "/api/ai/usage가 정상 직렬화되어 AI 사용량 탭이 1000.0M / 5000.0M, 잔여 4000.0M, 진행바 20%를 표시한다",
+      "priority": "P2",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B9",
+      "desc": "부팅 시 [migrate] 마이그레이션 완료! 로그가 찍히고 __drizzle_migrations에 0069가 created_at=1773200000000으로 기록되며 재부팅 시 재실행되지 않는다",
+      "priority": "P1",
+      "target": "drizzle/meta/_journal.json:entries[69]",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "src/lib/db/migrate.ts runMigrations",
+        "cmd": "DATABASE_URL=local tsx로 runMigrations() 2회 실행",
+        "output": "1회차: [migrate] 마이그레이션 완료! + 컬럼 bigint 전환. __drizzle_migrations 최신 created_at=1773200000000. 2회차: 완료 로그만, cnt_0069=1 (재실행 없음)",
+        "at": "2026-09-22"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "스키마 변경 후 호출부 수정 없이 tsc --noEmit과 pnpm lint가 통과한다",
+      "priority": "P1",
+      "target": "src/lib/db/schema.ts:988-989",
+      "passes": false,
+      "evidence": {
+        "kind": "manual",
+        "ref": "tsc/eslint",
+        "cmd": "pnpm exec tsc --noEmit; pnpm exec eslint (변경 4파일)",
+        "output": "tsc exit=0 / eslint exit=0 (변경분 지적 0건). 레포 전체 pnpm lint는 기존 44 errors로 exit 1 — 문언('pnpm lint 통과')은 레포 기준으로는 미성립이라 passes:false 유지",
+        "at": "2026-09-22"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "테스트발송이 429가 아닌 정상 응답, 자동발송 outcome에 quota_exceeded skip 없음, 팔로업이 한도 초과를 반환하지 않음",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    }
+  ]
+}
