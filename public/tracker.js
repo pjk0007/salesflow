@@ -342,6 +342,8 @@
     function initSectionTracking() {
         if (typeof IntersectionObserver === "undefined") return;
         if (sectionObserver) sectionObserver.disconnect();
+        // disconnect로 기존 관찰이 모두 풀렸으므로 등록 기록도 비워야 rebind가 현재 섹션을 다시 observe한다
+        observedSet = null;
         sectionObserver = new IntersectionObserver(handleSectionIntersect, {
             rootMargin: "-25% 0px -25% 0px",
             threshold: 0,
