@@ -372,7 +372,7 @@
 
     // 시인된 섹션은 dwell이 짧아도 전송 — 1초 미만 노이즈 필터는 분석 단계에서.
     // 100ms 미만은 IntersectionObserver 콜백 노이즈로 간주해 미발화.
-    function flushSectionViews() {
+    function flushSectionViews(pageUrl) {
         var now = Date.now();
         var events = [];
         for (var name in sectionState) {
@@ -386,7 +386,8 @@
                 events.push({
                     type: "SECTION_VIEW",
                     name: name,
-                    page_url: location.href,
+                    // pagehide 리스너가 넘기는 Event 객체를 URL로 쓰지 않도록 문자열만 허용한다.
+                    page_url: typeof pageUrl === "string" ? pageUrl : location.href,
                     page_title: document.title,
                     properties: { dwell_ms: s.dwellMs },
                 });
@@ -496,7 +497,7 @@
             var currentUrl = location.href;
             if (currentUrl !== lastUrl) {
                 // 이전 페이지의 섹션 시인 데이터를 먼저 정산해 보내고, 새 DOM 기준으로 재바인딩.
-                flushSectionViews();
+                flushSectionViews(lastUrl);
                 lastUrl = currentUrl;
                 setTimeout(function () {
                     trackPageView();
