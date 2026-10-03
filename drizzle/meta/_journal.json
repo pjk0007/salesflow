@@ -491,6 +491,13 @@
       "when": 1773200000000,
       "tag": "0069_ai_usage_quotas_bigint",
       "breakpoints": true
+    },
+    {
+      "idx": 70,
+      "version": "7",
+      "when": 1773300000000,
+      "tag": "0070_deep_visitor_alerts",
+      "breakpoints": true
     }
   ]
 }

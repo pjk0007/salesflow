@@ -1606,3 +1606,42 @@ export const recordEvents = pgTable("record_events", {
 
 export type RecordEvent = typeof recordEvents.$inferSelect;
 export type NewRecordEvent = typeof recordEvents.$inferInsert;
+
+// ============================================
+// 깊이 들어온 사람 알림 (구글 챗) — docs/2026-10-02-deep-visitor-alert/DESIGN.md 6절
+// ============================================
+// (레코드, 수준)당 한 줄. 5분마다 도는 워커가 같은 사람을 같은 수준으로 다시 보내지 않게
+// 유니크 키가 막는다 (deep → intent로 올라갈 때만 한 줄 더 생긴다).
+export const deepVisitorAlerts = pgTable("deep_visitor_alerts", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").notNull(),
+    workspaceId: integer("workspace_id").notNull(),
+    siteId: integer("site_id"),
+    recordId: integer("record_id")
+        .references(() => records.id, { onDelete: "cascade" })
+        .notNull(),
+    // 발송·세션·방문자는 FK를 걸지 않는다 — 원본이 지워져도 알림 기록은 남긴다
+    sendLogId: integer("send_log_id"),
+    sessionId: integer("session_id"),
+    visitorId: integer("visitor_id"),
+    level: varchar("level", { length: 20 }).notNull(), // deep | intent
+    angle: varchar("angle", { length: 5 }).notNull(), // A~E
+    deepestStage: integer("deepest_stage").notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | processing | sent | failed | skipped | dry_run
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    // 카드 글자 그대로 — dry_run에서 무엇이 나갈지 확인할 수 있다
+    message: text("message").notNull(),
+    detectedAt: timestamptz("detected_at").defaultNow().notNull(),
+    scheduledAt: timestamptz("scheduled_at").defaultNow().notNull(),
+    /** processing 진입 시각 — stuck 판정에 쓴다 */
+    lockedAt: timestamptz("locked_at"),
+    sentAt: timestamptz("sent_at"),
+}, (table) => [
+    uniqueIndex("dva_record_level_idx").on(table.recordId, table.level),
+    index("dva_pickup_idx").on(table.status, table.scheduledAt, table.id),
+    index("dva_org_detected_idx").on(table.orgId, table.detectedAt),
+]);
+
+export type DeepVisitorAlert = typeof deepVisitorAlerts.$inferSelect;
+export type NewDeepVisitorAlert = typeof deepVisitorAlerts.$inferInsert;
