@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useFollowupQueue } from "@/hooks/useFollowupQueue";
+import { toast } from "sonner";
 import {
     Table,
     TableBody,
@@ -25,6 +26,8 @@ import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
     pending: { label: "대기", variant: "outline" },
+    // 워커가 집어 가서 보내는 중. 잠금이 30분 넘게 풀리지 않으면 다음 회차가 대기로 되돌린다
+    processing: { label: "처리 중", variant: "secondary" },
     sent: { label: "발송", variant: "default" },
     skipped: { label: "건너뜀", variant: "secondary" },
     cancelled: { label: "취소", variant: "destructive" },
@@ -72,8 +75,10 @@ export default function FollowupQueueTable() {
 
     const handleCancel = async (id: number) => {
         setCancellingId(id);
-        await cancelItem(id);
+        const result = await cancelItem(id);
         setCancellingId(null);
+        // 그사이 발송 처리에 들어간 줄은 취소되지 않는다 — 이유를 보여 준다
+        if (!result?.success) toast.error(result?.error || "취소에 실패했습니다.");
     };
 
     const totalPages = Math.ceil(totalCount / 50);
@@ -89,6 +94,7 @@ export default function FollowupQueueTable() {
                     <SelectContent>
                         <SelectItem value="all">전체 상태</SelectItem>
                         <SelectItem value="pending">대기</SelectItem>
+                        <SelectItem value="processing">처리 중</SelectItem>
                         <SelectItem value="sent">발송</SelectItem>
                         <SelectItem value="skipped">건너뜀</SelectItem>
                         <SelectItem value="cancelled">취소</SelectItem>

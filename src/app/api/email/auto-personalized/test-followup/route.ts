@@ -5,6 +5,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
 import { generateAiFollowupPreview } from "@/lib/email-followup";
 import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
 import { resolveSender } from "@/lib/email-sender-resolver";
+import { followupSenderOrder } from "@/lib/email-sender-limit-paths";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 
 /**
@@ -171,15 +172,19 @@ export async function POST(req: NextRequest) {
     // mode === "send": 실제 발송
     const emailConfig = await getEmailConfig(user.orgId);
 
-    // 규칙 지정값 → 원본 메일 상속 → 기본값. 실제 후속 발송과 같은 우선순위여야 테스트가 의미 있다
+    // 원본 메일 주소 → 규칙 묶음 → 기본값. 실제 후속 발송(followupSenderOrder)과 같은 순서여야 테스트가 의미 있다.
+    // 일회성이라 한도 자리는 잡지 않는다
     const [link] = await db
-        .select({ senderProfileId: emailAutoPersonalizedLinks.senderProfileId })
+        .select({
+            senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
+            senderProfileIds: emailAutoPersonalizedLinks.senderProfileIds,
+        })
         .from(emailAutoPersonalizedLinks)
         .where(and(eq(emailAutoPersonalizedLinks.id, linkId), eq(emailAutoPersonalizedLinks.orgId, user.orgId)))
         .limit(1);
 
     const sender = await resolveSender(user.orgId, {
-        preferredIds: [link?.senderProfileId, parentLog?.senderProfileId],
+        preferredIds: followupSenderOrder(parentLog?.senderProfileId, link),
         config: emailConfig,
     });
     if (!sender.fromEmail) {

@@ -30,10 +30,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             return NextResponse.json({ success: false, error: "대기 상태인 항목만 취소할 수 있습니다." }, { status: 400 });
         }
 
-        await db
+        // 위에서 읽은 뒤 워커가 이 줄을 processing으로 집었을 수 있다 — 아직 pending일 때만 바꾼다.
+        // 조건 없이 쓰면 워커가 그 뒤 미룸(pending)으로 덮어 취소한 후속이 다시 나간다
+        const cancelled = await db
             .update(emailFollowupQueue)
             .set({ status: "cancelled", processedAt: new Date() })
-            .where(eq(emailFollowupQueue.id, queueId));
+            .where(and(
+                eq(emailFollowupQueue.id, queueId),
+                eq(emailFollowupQueue.orgId, user.orgId),
+                eq(emailFollowupQueue.status, "pending")
+            ))
+            .returning({ id: emailFollowupQueue.id });
+
+        if (cancelled.length === 0) {
+            return NextResponse.json(
+                { success: false, error: "이미 발송 처리 중이라 취소할 수 없습니다. 잠시 뒤 목록을 새로 고쳐 확인해주세요." },
+                { status: 409 }
+            );
+        }
 
         return NextResponse.json({ success: true });
     } catch (error) {

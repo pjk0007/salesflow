@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, products, records } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
+import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import { substitutePromptVariables } from "@/lib/email-utils";
 
 // POST /api/email/auto-personalized/test-send
@@ -20,6 +21,10 @@ export async function POST(req: NextRequest) {
 
         if (!linkId || !testEmail) {
             return NextResponse.json({ success: false, error: "linkId와 testEmail은 필수입니다." }, { status: 400 });
+        }
+        // id는 양의 정수만 — 문자열 등을 그대로 쿼리에 넘기면 DB 형 오류가 나고, 그 오류 문구에 쿼리가 담긴다
+        if (!isPositiveId(linkId) || (recordId !== undefined && recordId !== null && recordId !== "" && !isPositiveId(recordId))) {
+            return NextResponse.json({ success: false, error: "규칙 또는 레코드 id가 올바르지 않습니다." }, { status: 400 });
         }
 
         // 1. 규칙 조회
@@ -38,10 +43,11 @@ export async function POST(req: NextRequest) {
         if (inputTestData && typeof inputTestData === "object") {
             recordData = { ...inputTestData };
         } else if (recordId) {
+            // 이 조직 레코드만 — 조직 조건이 없으면 남의 레코드 내용이 AI 프롬프트에 들어간다
             const [record] = await db
                 .select()
                 .from(records)
-                .where(eq(records.id, recordId))
+                .where(and(eq(records.id, recordId), eq(records.orgId, user.orgId)))
                 .limit(1);
             if (record) {
                 recordData = (record.data ?? {}) as Record<string, unknown>;
@@ -74,9 +80,10 @@ export async function POST(req: NextRequest) {
         }
         const emailConfig = await getEmailConfig(user.orgId);
 
-        // 테스트 발송도 규칙에 지정된 발신 프로필·서명을 따라야 실제 발송과 결과가 같다
+        // 테스트 발송도 규칙에 지정된 발신 프로필·서명을 따라야 실제 발송과 결과가 같다.
+        // 묶음이면 첫 주소로 보낸다 (실제 발송은 그중 가장 오래 쉰 주소). 일회성이라 한도 자리는 잡지 않는다
         const sender = await resolveSender(user.orgId, {
-            preferredIds: [link.senderProfileId],
+            preferredIds: linkSenderPool(link),
             config: emailConfig,
         });
         if (!sender.fromEmail) {
@@ -189,8 +196,16 @@ export async function POST(req: NextRequest) {
             error: isSuccess ? undefined : (sendResult?.resultMessage ?? nhnResult.header.resultMessage),
         });
     } catch (error) {
+        // 원래 오류 문구는 서버 로그에만 남긴다 — DB 오류 문구에는 쿼리 원문과 매개변수가 담겨 화면으로 나가면 안 된다
         console.error("[TestSend] Error:", error);
-        const message = error instanceof Error ? error.message : "서버 오류가 발생했습니다.";
-        return NextResponse.json({ success: false, error: message }, { status: 500 });
+        return NextResponse.json(
+            { success: false, error: "테스트 발송 중 오류가 발생했습니다. 잠시 뒤 다시 시도해주세요." },
+            { status: 500 }
+        );
     }
+}
+
+/** 양의 정수 id인가. 화면은 숫자를 보낸다 */
+function isPositiveId(v: unknown): v is number {
+    return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
 }

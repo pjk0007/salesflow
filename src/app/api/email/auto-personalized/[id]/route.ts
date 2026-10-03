@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, products, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { resolveRuleSenderPool } from "@/lib/email-sender-resolver";
 
 export async function PUT(
     req: NextRequest,
@@ -49,6 +50,7 @@ export async function PUT(
             followupConfig,
             preventDuplicate,
             senderProfileId,
+            senderProfileIds,
             signatureId,
             assetIds,
         } = body;
@@ -78,6 +80,12 @@ export async function PUT(
             }
         }
 
+        // 발신 주소 묶음: 이 조직 주소인지 확인하고 두 칸을 같이 맞춘다. 둘 다 안 오면 건드리지 않는다
+        const senderPool = await resolveRuleSenderPool(user.orgId, { senderProfileId, senderProfileIds });
+        if (!senderPool.ok) {
+            return NextResponse.json({ success: false, error: senderPool.error }, { status: 400 });
+        }
+
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
         if (name !== undefined) updateData.name = name || null;
         if (partitionId !== undefined) updateData.partitionId = Number(partitionId);
@@ -103,7 +111,10 @@ export async function PUT(
         }
         if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
         if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;
-        if (senderProfileId !== undefined) updateData.senderProfileId = senderProfileId || null;
+        if (senderPool.value) {
+            updateData.senderProfileId = senderPool.value.senderProfileId;
+            updateData.senderProfileIds = senderPool.value.senderProfileIds;
+        }
         if (signatureId !== undefined) updateData.signatureId = signatureId || null;
         if (assetIds !== undefined) updateData.assetIds = Array.isArray(assetIds) && assetIds.length > 0 ? assetIds : null;
 

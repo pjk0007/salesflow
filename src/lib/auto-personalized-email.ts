@@ -4,7 +4,10 @@ import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email
 import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { findCachedCompanyResearch } from "@/lib/ai/company-research-cache";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
-import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
+import { resolveSignature } from "@/lib/email-sender-resolver";
+import { claimSender, releaseSenderSlot } from "@/lib/email-sender-limit";
+import type { SenderSlot } from "@/lib/email-sender-limit";
+import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import { enqueueFollowup } from "@/lib/email-followup";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 import {
@@ -69,17 +72,24 @@ interface AutoPersonalizedParams {
     partitionId: number;
     triggerType: "on_create" | "on_update";
     orgId: string;
+    /**
+     * 돌리지 않을 규칙 id. 발송 대기열 줄에서 시도 횟수를 다 쓴 규칙이다 — 뒤 규칙이 미뤄진 채 남아 있어
+     * 줄을 닫지 않고 다시 꺼낼 때, 이미 끝난 실패 규칙에 AI 생성·발송을 또 쓰지 않게 한다 (대기열 워커만 넘긴다)
+     */
+    skipLinkIds?: readonly number[];
 }
 
 export async function processAutoPersonalizedEmail(
     params: AutoPersonalizedParams
 ): Promise<RecordOutcome> {
     const { record, partitionId, triggerType, orgId } = params;
+    const skipLinkIds = new Set(params.skipLinkIds ?? []);
     const outcomes: LinkOutcome[] = [];
 
     console.log(`[AutoEmail] Start: record=${record.id}, partition=${partitionId}, trigger=${triggerType}`);
 
-    // 1. 매칭되는 규칙 조회
+    // 1. 매칭되는 규칙 조회 — id 순으로 고정한다. 앞 규칙이 발신 한도로 미뤄지면 뒤 규칙을 멈추므로(아래 break)
+    // 순서가 매번 같아야 다시 꺼냈을 때 같은 규칙부터 본다
     const links = await db
         .select()
         .from(emailAutoPersonalizedLinks)
@@ -89,7 +99,8 @@ export async function processAutoPersonalizedEmail(
                 eq(emailAutoPersonalizedLinks.triggerType, triggerType),
                 eq(emailAutoPersonalizedLinks.isActive, 1)
             )
-        );
+        )
+        .orderBy(emailAutoPersonalizedLinks.id);
 
     if (links.length === 0) {
         console.log(`[AutoEmail] No matching rules`);
@@ -100,6 +111,15 @@ export async function processAutoPersonalizedEmail(
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
+        if (skipLinkIds.has(link.id)) {
+            console.log(`[AutoEmail] Rule ${link.id}: retry exhausted on this queue row, not run again`);
+            outcomes.push({ kind: "skipped", linkId: link.id, reason: "retry_exhausted" });
+            continue;
+        }
+
+        // 잡은 발신 자리. sendEachMail을 부르기 전에 끝나면 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
+        let slot: SenderSlot | null = null;
+        let sendAttempted = false;
         try {
             // 2. 조건 평가
             if (!evaluateCondition(link.triggerCondition as Parameters<typeof evaluateCondition>[0], data)) {
@@ -175,12 +195,30 @@ export async function processAutoPersonalizedEmail(
             }
             const emailConfig = await getEmailConfig(orgId);
 
-            // 6-1. 발신자 프로필 결정 (규칙 지정 → 기본 프로필 → 레거시 fallback)
-            const sender = await resolveSender(orgId, {
-                preferredIds: [link.senderProfileId],
+            // 6-1. 발신 주소 고르기 + 오늘 자리 잡기 (규칙 묶음 중 가장 오래 쉰 주소 → 기본 프로필 → 레거시 fallback).
+            // 회사 조사·AI 생성(토큰)보다 먼저 해서 막힌 메일에 토큰을 쓰지 않는다
+            // 막히면 대기열이 retryAt에 다시 꺼낸다 — 간격 미룸은 순번대로 펼쳐 한꺼번에 깨어나지 않게 한다
+            // 여기까지의 검사 순서·조건은 대기열의 묶어 미루기(email-send-queue-rules.ts walkQueueRow)가 그대로 따른다 —
+            // 바꾸면 그쪽도 함께 바꿀 것 (같은 줄을 줄마다 처리한 결과와 같아야 한다)
+            const claim = await claimSender(orgId, {
+                mode: "pool",
+                ids: linkSenderPool(link),
                 config: emailConfig,
+                spreadDeferrals: true,
             });
+            if (!claim.ok) {
+                console.log(
+                    `[AutoEmail] Rule ${link.id}: deferred (${claim.reason}) until ${claim.retryAt.toISOString()}`
+                );
+                outcomes.push({ kind: "deferred", linkId: link.id, retryAt: claim.retryAt, reason: claim.reason });
+                // 뒤 규칙은 보지 않는다 — 이 규칙의 로그가 없어 뒤 규칙이 쿨다운을 통과해 먼저 나가 버린다.
+                // 레코드를 통째로 미루고, 다시 꺼낼 때 이 규칙부터 본다
+                break;
+            }
+            slot = claim.slot;
+            const sender = slot.sender;
             if (!sender.fromEmail) {
+                await releaseSenderSlot(slot);
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_sender" });
                 continue;
             }
@@ -194,7 +232,7 @@ export async function processAutoPersonalizedEmail(
             });
 
             // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
-            let recordData = { ...data };
+            const recordData = { ...data };
             if (link.autoResearch === 1 && !recordData._companyResearch) {
                 const companyName = data[link.companyField] as string;
                 const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → SEARCH_MODEL_ID 고정
@@ -336,6 +374,7 @@ export async function processAutoPersonalizedEmail(
 
             const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
+            sendAttempted = true;
             const nhnResult = await emailClient.sendEachMail({
                 senderAddress: senderFromEmail,
                 senderName: sender.fromName,
@@ -349,6 +388,8 @@ export async function processAutoPersonalizedEmail(
 
             const sendResult = nhnResult.data?.results?.[0];
             const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+            // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다. 로그 갱신보다 먼저 해야 갱신이 던져도 돌려준다
+            if (!isSuccess) await releaseSenderSlot(slot);
 
             await db.update(emailSendLogs)
                 .set({
@@ -385,6 +426,9 @@ export async function processAutoPersonalizedEmail(
                 }
             }
         } catch (err) {
+            // 회사 조사·AI·로그 insert에서 던졌으면 메일이 나가지 않았다 → 자리를 돌려준다.
+            // sendEachMail이 던졌거나 발송 뒤 DB 갱신이 던졌으면 나갔을 수 있다 → 돌려주지 않는다 (한도를 넘지 않는 쪽)
+            if (!sendAttempted) await releaseSenderSlot(slot);
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);
             // 삼키지 않는다 — 큐 워커가 재시도 여부를 판단하려면 실패가 결과에 남아야 한다
             outcomes.push({

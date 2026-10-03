@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { PromptWithVariableInsert } from "@/components/email/PromptWithVariableInsert";
 import {
     Card,
@@ -38,10 +37,11 @@ import { useProducts } from "@/hooks/useProducts";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import AssetPickerField from "@/components/email/assets/ui/AssetPickerField";
+import SenderPoolField from "@/components/email/sender-profiles/ui/SenderPoolField";
+import SenderPoolSummary from "@/components/email/sender-profiles/ui/SenderPoolSummary";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import useSWR from "swr";
 
-interface SenderProfile { id: number; name: string; fromName: string; fromEmail: string; isDefault: boolean; }
 interface EmailSignature { id: number; name: string; isDefault: boolean; }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
@@ -96,9 +96,7 @@ function NewAiAutoPageContent() {
     const { createLink } = useAutoPersonalizedEmail(partitionId || null);
     const { products } = useProducts({ activeOnly: true });
     const { fields } = useResolvedFields(partitionId || null);
-    const { data: senderProfilesData } = useSWR("/api/email/sender-profiles", fetcher);
     const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
-    const senderProfiles: SenderProfile[] = senderProfilesData?.data ?? [];
     const signatures: EmailSignature[] = signaturesData?.data ?? [];
 
     const [saving, setSaving] = useState(false);
@@ -122,7 +120,8 @@ function NewAiAutoPageContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
     const [preventDuplicate, setPreventDuplicate] = useState(0);
-    const [senderProfileId, setSenderProfileId] = useState<number | null>(null);
+    // 발신 주소 묶음 (순서 있음). 비어 있으면 기본 발신 프로필로 보낸다
+    const [senderProfileIds, setSenderProfileIds] = useState<number[]>([]);
     const [signatureId, setSignatureId] = useState<number | null>(null);
     const [assetIds, setAssetIds] = useState<number[]>([]);
 
@@ -157,7 +156,7 @@ function NewAiAutoPageContent() {
                 triggerCondition,
                 followupConfig: followupConfig || null,
                 preventDuplicate,
-                senderProfileId,
+                senderProfileIds,
                 signatureId,
                 assetIds,
                 isDraft: asDraft ? 1 : 0,
@@ -233,6 +232,42 @@ function NewAiAutoPageContent() {
                     <div className="flex gap-6">
                         {/* Left: Form */}
                         <div className="flex-1 min-w-0 space-y-6">
+                            {/* 발신 설정 — 묶음은 한도·웜업에 따라 하루 보낼 수 있는 양을 정하므로 맨 위에서 바로 보이게 둔다 */}
+                            <Card id="section-sender">
+                                <CardHeader>
+                                    <CardTitle>발신 설정</CardTitle>
+                                    <CardDescription>발신 이메일과 서명 선택 (미선택 시 기본값 사용)</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label>
+                                            발신 프로필
+                                            <HelpTip text="여러 개를 고르면 메일마다 오늘 보낼 수 있는 프로필 중 가장 오래 쉰 프로필로 나눠 보냅니다. 프로필별 하루 한도·웜업은 이메일 설정에서 정합니다." />
+                                        </Label>
+                                        <SenderPoolField value={senderProfileIds} onChange={setSenderProfileIds} />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label>서명</Label>
+                                        <Select
+                                            value={signatureId ? String(signatureId) : "default"}
+                                            onValueChange={(v) => setSignatureId(v === "default" ? null : Number(v))}
+                                        >
+                                            <SelectTrigger>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="default">기본 서명</SelectItem>
+                                                {signatures.map((s) => (
+                                                    <SelectItem key={s.id} value={String(s.id)}>
+                                                        {s.name}{s.isDefault ? " (기본)" : ""}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                </CardContent>
+                            </Card>
+
                             {/* Card 1: 기본 정보 */}
                             <Card id="section-basic">
                                 <CardHeader>
@@ -471,54 +506,6 @@ function NewAiAutoPageContent() {
                                 </CardContent>
                             </Card>
 
-                            {/* Card 3: 발신 설정 */}
-                            <Card id="section-sender">
-                                <CardHeader>
-                                    <CardTitle>발신 설정</CardTitle>
-                                    <CardDescription>발신 이메일과 서명 선택 (미선택 시 기본값 사용)</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="space-y-2">
-                                        <Label>발신 프로필</Label>
-                                        <Select
-                                            value={senderProfileId ? String(senderProfileId) : "default"}
-                                            onValueChange={(v) => setSenderProfileId(v === "default" ? null : Number(v))}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="default">기본 발신 프로필</SelectItem>
-                                                {senderProfiles.map((p) => (
-                                                    <SelectItem key={p.id} value={String(p.id)}>
-                                                        {p.fromName} &lt;{p.fromEmail}&gt;{p.isDefault ? " (기본)" : ""}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label>서명</Label>
-                                        <Select
-                                            value={signatureId ? String(signatureId) : "default"}
-                                            onValueChange={(v) => setSignatureId(v === "default" ? null : Number(v))}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="default">기본 서명</SelectItem>
-                                                {signatures.map((s) => (
-                                                    <SelectItem key={s.id} value={String(s.id)}>
-                                                        {s.name}{s.isDefault ? " (기본)" : ""}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </CardContent>
-                            </Card>
-
                             {/* Card 4: 발송 조건 */}
                             <Card id="section-condition">
                                 <CardHeader>
@@ -586,6 +573,8 @@ function NewAiAutoPageContent() {
                             <div className="sticky top-6 space-y-4">
                                 {/* Section Anchors */}
                                 <div className="flex flex-wrap gap-2 text-sm">
+                                    <button onClick={() => document.getElementById("section-sender")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">발신 설정</button>
+                                    <span className="text-muted-foreground">/</span>
                                     <button onClick={() => document.getElementById("section-basic")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">기본 정보</button>
                                     <span className="text-muted-foreground">/</span>
                                     <button onClick={() => document.getElementById("section-ai")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">AI 설정</button>
@@ -600,6 +589,10 @@ function NewAiAutoPageContent() {
                                         <CardTitle className="text-sm">요약</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-3 text-sm">
+                                        <div className="flex justify-between gap-3">
+                                            <span className="shrink-0 text-muted-foreground">발신</span>
+                                            <SenderPoolSummary ids={senderProfileIds} className="min-w-0" />
+                                        </div>
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">제품</span>
                                             <span className="font-medium truncate ml-2 max-w-40">{selectedProduct?.name || "미지정"}</span>

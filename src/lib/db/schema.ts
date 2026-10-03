@@ -13,6 +13,7 @@ import {
     index,
     uniqueIndex,
     numeric,
+    primaryKey,
 } from "drizzle-orm/pg-core";
 import type { FormulaConfig } from "@/types";
 
@@ -783,6 +784,8 @@ export const emailAutomationQueue = pgTable(
         repeatCount: integer("repeat_count").default(0).notNull(),
         nextRunAt: timestamptz("next_run_at").notNull(),
         status: varchar("status", { length: 20 }).default("pending").notNull(),
+        // repeat = 반복 발송, first = 발신 한도로 미룬 템플릿 자동 첫 메일
+        kind: varchar("kind", { length: 10 }).default("repeat").notNull(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },
@@ -826,7 +829,10 @@ export const emailAutoPersonalizedLinks = pgTable("email_auto_personalized_links
         onClicked?: { prompt: string };
         onNotClicked?: { prompt: string };
     } | null>(),
+    // 발신 주소 묶음의 첫 주소. 묶음을 모르는 예전 경로가 읽을 수 있게 senderProfileIds[0]으로 맞춰 둔다
     senderProfileId: integer("sender_profile_id"),
+    // 발신 주소 묶음 (순서 있음). null이면 senderProfileId 하나, 그것도 없으면 기본 발신 주소
+    senderProfileIds: jsonb("sender_profile_ids").$type<number[]>(),
     signatureId: integer("signature_id"),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     // 규칙에 연결된 이메일 에셋 id 목록. null/[]이면 이미지 없음.
@@ -875,6 +881,8 @@ export const emailFollowupQueue = pgTable(
         status: varchar("status", { length: 20 }).default("pending").notNull(),
         result: varchar("result", { length: 20 }),
         processedAt: timestamptz("processed_at"),
+        /** processing 진입 시각 — 멈춘 줄 회수에 쓴다 */
+        lockedAt: timestamptz("locked_at"),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
     },
     (table) => ({
@@ -913,6 +921,16 @@ export const emailSendQueue = pgTable(
         scheduledAt: timestamptz("scheduled_at").defaultNow().notNull(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         processedAt: timestamptz("processed_at"),
+        /**
+         * 시도 횟수를 다 써 이 줄에서 뺀 AI 규칙 id. 앞 규칙은 계속 실패하고 뒤 규칙은 발신 한도로 미뤄진 줄을
+         * failed로 닫지 않고, 실패 규칙만 빼서 미룬 규칙을 retryAt에 다시 시도한다 (email-send-queue-rules.ts planQueueRow)
+         */
+        exhaustedLinkIds: jsonb("exhausted_link_ids").$type<number[]>(),
+        /**
+         * 워커가 처리하는 사이 바로 보내는 경로가 같은 줄을 다시 처리해 달라고 남긴 시각 (enqueueDeferredSend).
+         * 워커가 보낼 것 없음·실패로 끝내려 할 때 이 값이 있으면 끝내지 않고 이 시각에 다시 꺼낸다
+         */
+        requeueAt: timestamptz("requeue_at"),
     },
     (table) => ({
         pickupIdx: index("esq_pickup_idx").on(table.status, table.scheduledAt, table.id),
@@ -1174,9 +1192,44 @@ export const emailSenderProfiles = pgTable("email_sender_profiles", {
     fromName: varchar("from_name", { length: 100 }).notNull(),
     fromEmail: varchar("from_email", { length: 200 }).notNull(),
     isDefault: boolean("is_default").default(false).notNull(),
+    // 발송 한도·웜업 (docs/2026-10-02-sender-warmup/DESIGN.md 4절).
+    // 전부 기본값이 "꺼짐"이라 설정하지 않은 주소는 지금처럼 바로 나간다
+    dailyLimit: integer("daily_limit"),
+    warmupEnabled: boolean("warmup_enabled").default(false).notNull(),
+    warmupStartCount: integer("warmup_start_count"),
+    warmupStep: integer("warmup_step"),
+    // "YYYY-MM-DD" KST. 웜업을 켤 때 서버가 기록한다
+    warmupStartedOn: varchar("warmup_started_on", { length: 10 }),
+    sendWindowStart: integer("send_window_start"), // 0~23 KST, 포함
+    sendWindowEnd: integer("send_window_end"), // 1~24 KST, 미포함
+    weekdaysOnly: boolean("weekdays_only").default(false).notNull(),
+    spreadEvenly: boolean("spread_evenly").default(false).notNull(),
+    isPaused: boolean("is_paused").default(false).notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
+
+// ============================================
+// 발신 주소별 하루 사용량 (KST 날짜)
+// ============================================
+// 로그를 세지 않고 예약 수를 센다 — email_send_logs에는 (sender_profile_id, sent_at) 인덱스가 없고,
+// AI 첫 메일은 로그를 AI 생성 뒤에 넣어서 로그로 세면 판정이 늦다.
+// usage_date를 date 형으로 두지 않는 것은 DB 세션 시간대에 따라 날짜가 바뀔 수 있어서다.
+export const emailSenderDailyUsage = pgTable(
+    "email_sender_daily_usage",
+    {
+        senderProfileId: integer("sender_profile_id")
+            .references(() => emailSenderProfiles.id, { onDelete: "cascade" })
+            .notNull(),
+        usageDate: varchar("usage_date", { length: 10 }).notNull(), // "YYYY-MM-DD" KST
+        sentCount: integer("sent_count").default(0).notNull(),
+        lastSentAt: timestamptz("last_sent_at"),
+    },
+    // 이름을 마이그레이션 SQL의 기본 이름과 맞춘다 — 다르면 drizzle-kit이 PK를 다시 만들려 한다
+    (table) => [
+        primaryKey({ name: "email_sender_daily_usage_pkey", columns: [table.senderProfileId, table.usageDate] }),
+    ]
+);
 
 // ============================================
 // 이메일 서명 (조직별 다중)
@@ -1348,6 +1401,7 @@ export type Subscription = typeof subscriptions.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type RecordAutoEnrichRule = typeof recordAutoEnrichRules.$inferSelect;
 export type EmailSenderProfile = typeof emailSenderProfiles.$inferSelect;
+export type EmailSenderDailyUsage = typeof emailSenderDailyUsage.$inferSelect;
 export type EmailSignature = typeof emailSignatures.$inferSelect;
 export type AdPlatform = typeof adPlatforms.$inferSelect;
 export type NewAdPlatform = typeof adPlatforms.$inferInsert;

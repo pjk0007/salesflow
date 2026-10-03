@@ -32,6 +32,8 @@ export interface AutoPersonalizedLink {
         onNotClicked?: { prompt: string };
     } | null;
     senderProfileId: number | null;
+    /** 발신 주소 묶음 (순서 있음). null이면 senderProfileId 하나 (묶음 칸이 생기기 전 규칙) */
+    senderProfileIds: number[] | null;
     signatureId: number | null;
     assetIds: number[] | null;
     isActive: number;
@@ -66,6 +68,8 @@ interface CreateInput {
     isDraft?: number;
     preventDuplicate?: number;
     senderProfileId?: number | null;
+    /** 보내면 서버가 senderProfileId를 첫 원소로 맞춘다. 빈 배열 = 기본 발신 프로필 */
+    senderProfileIds?: number[] | null;
     signatureId?: number | null;
     assetIds?: number[];
 }
@@ -95,6 +99,8 @@ interface UpdateInput {
     isDraft?: number;
     preventDuplicate?: number;
     senderProfileId?: number | null;
+    /** 보내면 서버가 senderProfileId를 첫 원소로 맞춘다. 빈 배열 = 기본 발신 프로필 */
+    senderProfileIds?: number[] | null;
     signatureId?: number | null;
     assetIds?: number[];
 }
