@@ -22,8 +22,6 @@ interface SenderPoolFieldProps {
     /** 고른 발신 프로필 id (고른 순서로 저장한다 — 발송 순서가 아니다). 빈 배열 = 기본 발신 프로필 */
     value: number[];
     onChange: (ids: number[]) => void;
-    /** 규칙의 파티션. 주면 묶음 주소가 답장을 받을 수 없고 워크스페이스 답장 주소도 없을 때 안내한다 (DESIGN-3) */
-    partitionId?: number | null;
 }
 
 function ProfileLabel({ profile, usage }: { profile: SenderProfile; usage?: SenderUsageView }) {
@@ -63,7 +61,7 @@ function RemainingToday({ today }: { today?: MemberToday }) {
  * (순서는 쉰 시간이 같을 때만 쓰인다). 대신 주소마다 오늘 남은 수와 묶음 합계를 보인다.
  * 규칙 폼(new/[id]) 두 곳이 공용으로 쓴다. 모양은 AssetPickerField와 같다 ({value, onChange}).
  */
-export default function SenderPoolField({ value, onChange, partitionId }: SenderPoolFieldProps) {
+export default function SenderPoolField({ value, onChange }: SenderPoolFieldProps) {
     const { profiles, isLoading, loadFailed } = useSenderProfiles();
     const { usageById } = useSenderUsage();
     const { capacity, todayById } = usePoolCapacity(value);
@@ -150,7 +148,8 @@ export default function SenderPoolField({ value, onChange, partitionId }: Sender
                 <p className="text-xs font-medium tabular-nums">{capacityLine}</p>
             )}
             {reserveNote && <p className="text-xs text-muted-foreground">{reserveNote}</p>}
-            {partitionId !== undefined && <PoolReplyToNotice partitionId={partitionId} ids={value} />}
+            {/* 답장은 보낸 주소로 간다 — 묶인 주소의 도메인이 메일을 받지 않으면 알린다 (DESIGN-3) */}
+            <PoolReplyToNotice ids={value} />
             {value.length > 1 && (
                 <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-0.5">
                     <li>모두 지금 보낼 수 없으면(한도·시간대·정지) 메일을 버리지 않고 가장 먼저 보낼 수 있는 때로 미룹니다.</li>

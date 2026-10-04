@@ -11,7 +11,6 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
-import { newReplyToResolver } from "@/lib/email-reply-to";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { enqueueSends, wakeSendQueue } from "@/lib/email-send-queue";
 
@@ -189,13 +188,11 @@ export async function dispatchImportTriggers(
     const hasEnrich = enrich.length > 0;
 
     if (hasAlim || hasEmailAuto || hasEnrich) {
-        // 답장 받을 주소는 이 명단 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
-        const replyTo = hasEmailAuto ? newReplyToResolver() : undefined;
         for (const record of insertedRecords) {
             const triggerParams = { record, partitionId: p, triggerType: "on_create" as const, orgId: ctx.orgId };
             if (hasAlim) processAutoTrigger(triggerParams).catch((err) => console.error("[import] auto trigger error:", err));
             // 가져오기·예약 등록 명단의 템플릿 첫 메일은 대량이다 — 15:00(KST) 전까지 주소마다 문의 몫을 남긴다 (DESIGN-2 2절)
-            if (hasEmailAuto) processEmailAutoTrigger({ ...triggerParams, purpose: "bulk", replyTo }).catch((err) => console.error("[import] email auto trigger error:", err));
+            if (hasEmailAuto) processEmailAutoTrigger({ ...triggerParams, purpose: "bulk" }).catch((err) => console.error("[import] email auto trigger error:", err));
             if (hasEnrich) processAutoEnrich(triggerParams).catch((err) => console.error("[import] auto enrich error:", err));
         }
     }

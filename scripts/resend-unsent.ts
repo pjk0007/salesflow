@@ -31,7 +31,6 @@ import { getAiClient, getSearchAiClient, generateCompanyResearch, generateEmail 
 import { getEmailConfig } from "../src/lib/nhn-email";
 import { resolveSender, resolveSignature } from "../src/lib/email-sender-resolver";
 import { linkSenderPool } from "../src/lib/email-sender-limit-rules";
-import { newReplyToResolver } from "../src/lib/email-reply-to";
 import { formatKstShort } from "../src/lib/kst";
 import { substitutePromptVariables } from "../src/lib/email-utils";
 import type { DbRecord } from "../src/lib/db";
@@ -94,9 +93,6 @@ async function previewOnly(targets: typeof records.$inferSelect[], orgId: string
     }
 
     console.log(`\n발신: ${sender.fromName} <${sender.fromEmail}>`);
-    // 답장 받을 주소 — 파티션의 워크스페이스 값 (실제 발송은 레코드마다 그 레코드의 워크스페이스 값, DESIGN-3)
-    const replyTo = await newReplyToResolver().forPartition(partitionId);
-    console.log(`답장: ${replyTo ?? "없음 — 답장이 발신 주소로 갑니다"}`);
     console.log(`AI  : ${aiClient.provider} / ${aiClient.model}  |  리서치: ${searchClient?.model ?? "(없음)"}`);
     console.log(`페르소나: ${senderPersona ? `${senderPersona.name} ${senderPersona.title ?? ""} (${senderPersona.company ?? ""})` : "미사용"}`);
     console.log("\n" + "=".repeat(72));
@@ -219,8 +215,6 @@ async function main() {
     let done = 0, failed = 0, deferred = 0;
     let earliestRetry: Date | null = null;
     const startedAt = Date.now();
-    // 답장 받을 주소는 실행 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
-    const replyTo = newReplyToResolver();
 
     for (let i = 0; i < targets.length; i += batchSize) {
         const batch = targets.slice(i, i + batchSize);
@@ -236,7 +230,6 @@ async function main() {
                     // 대량 재처리다 — 오전에 돌려도 그날 들어올 문의 몫을 먼저 쓰지 않게
                     purpose: "bulk",
                     claimTurn: turns[idx],
-                    replyTo,
                 }).finally(() => turns[idx].done())
             )
         );

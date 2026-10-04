@@ -3,7 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** 답장 주소 노란 경고 상자 — 워크스페이스 설정 칸(MX 없음)과 발신 묶음 칸(답장을 받을 수 없는 주소)이 같이 쓴다 */
+/** 답장 노란 경고 상자 — 발신 묶음 칸(답장을 받을 수 없는 주소) 안내가 쓴다 */
 export default function ReplyToWarning({ children, className }: { children: React.ReactNode; className?: string }) {
     return (
         <div

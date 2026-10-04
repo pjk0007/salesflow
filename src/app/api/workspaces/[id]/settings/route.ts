@@ -6,7 +6,10 @@ import { requireAdmin } from "@/lib/auth-admin";
 import { normalizeReplyToInput } from "@/lib/reply-to-rules";
 import { lookupEmailMx } from "@/lib/email-mx-lookup";
 
-/** 응답에 싣는 칸. replyToEmail = 답장 받을 주소 (DESIGN-3) */
+/**
+ * 응답에 싣는 칸. replyToEmail = 답장 받을 주소 (DESIGN-3). 칸과 API는 남아 있지만 발송에 쓰지 않는다 —
+ * NHN이 Reply-To 사용자 지정 헤더를 거절해(2026-10-04 실제 발송) 설정 화면에서도 칸을 뺐다. 답장은 보낸 주소로 간다
+ */
 const workspaceSettingsColumns = {
     id: workspaces.id,
     name: workspaces.name,
@@ -54,7 +57,7 @@ export async function GET(
             return NextResponse.json({ success: false, error: "워크스페이스를 찾을 수 없습니다." }, { status: 404 });
         }
 
-        // 답장 받을 주소 도메인의 MX (도메인마다 하루 캐시, 짧은 시간 제한). 주소가 없으면 null
+        // 답장 받을 주소 도메인의 MX (도메인마다 캐시 — ok 하루, none·unknown 10분, 짧은 시간 제한). 주소가 없으면 null
         const replyToMx = await lookupEmailMx(ws.replyToEmail);
         return NextResponse.json({ success: true, data: { ...ws, replyToMx } });
     } catch (error) {

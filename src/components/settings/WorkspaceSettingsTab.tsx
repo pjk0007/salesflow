@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,44 +19,31 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
 import { useFieldTypes } from "@/hooks/useFieldTypes";
 import IconPicker, { getIconComponent } from "@/components/ui/icon-picker";
-import { useSession } from "@/contexts/SessionContext";
-import ReplyToEmailField from "@/components/email/reply-to/ui/ReplyToEmailField";
-import { replyToFieldValue, type MxStatus } from "@/components/email/reply-to/utils/replyTo";
 import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 
 export default function WorkspaceSettingsTab() {
     const { workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList } = useWorkspaces();
-    const searchParams = useSearchParams();
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { workspace, isLoading, mutate: mutateSettings } = useWorkspaceSettings(selectedId);
+    const { workspace, isLoading } = useWorkspaceSettings(selectedId);
     const { fieldTypes: types } = useFieldTypes();
-    const { user } = useSession();
-    // 답장 받을 주소는 관리자(owner·admin)만 바꾼다 (서버도 멤버는 403)
-    const canEditReplyTo = user?.role === "owner" || user?.role === "admin";
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [icon, setIcon] = useState("");
     const [codePrefix, setCodePrefix] = useState("");
     const [defaultFieldTypeId, setDefaultFieldTypeId] = useState<string>("");
-    const [replyToEmail, setReplyToEmail] = useState("");
-    const [replyToError, setReplyToError] = useState<string | null>(null);
-    // 마지막 저장 응답의 MX 결과 (그때 저장한 워크스페이스·주소와 함께). 없으면 불러온 설정의 replyToMx를 쓴다 — 열 때도 경고가 보인다
-    const [replyToCheck, setReplyToCheck] = useState<{ workspaceId: number; email: string | null; mx: MxStatus | null } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [createOpen, setCreateOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
 
-    // 첫 워크스페이스 자동 선택. 주소에 ?workspaceId=가 있으면(AI 규칙 화면의 "답장 받을 주소 정하기" 링크) 그 워크스페이스
+    // 첫 번째 워크스페이스 자동 선택
     useEffect(() => {
         if (workspaces.length > 0 && selectedId === null) {
-            const wanted = Number(searchParams.get("workspaceId"));
-            const fromQuery = workspaces.find((ws) => ws.id === wanted);
-            setSelectedId(fromQuery ? fromQuery.id : workspaces[0].id);
+            setSelectedId(workspaces[0].id);
         }
-    }, [workspaces, selectedId, searchParams]);
+    }, [workspaces, selectedId]);
 
     // 워크스페이스 데이터로 폼 초기화
     useEffect(() => {
@@ -67,8 +53,6 @@ export default function WorkspaceSettingsTab() {
             setIcon(workspace.icon ?? "");
             setCodePrefix(workspace.codePrefix ?? "");
             setDefaultFieldTypeId(workspace.defaultFieldTypeId ? String(workspace.defaultFieldTypeId) : "");
-            setReplyToEmail(workspace.replyToEmail ?? "");
-            setReplyToError(null);
         }
     }, [workspace]);
 
@@ -78,17 +62,9 @@ export default function WorkspaceSettingsTab() {
             toast.error("이름을 입력해주세요.");
             return;
         }
-        // 답장 받을 주소는 서버와 같은 검사로 먼저 거른다 (헤더에 들어가는 값). 비우면 null — 답장 주소 없음
-        const parsedReplyTo = replyToFieldValue(replyToEmail);
-        if (canEditReplyTo && !parsedReplyTo.ok) {
-            setReplyToError(parsedReplyTo.error);
-            toast.error(parsedReplyTo.error);
-            return;
-        }
 
         setIsSubmitting(true);
         try {
-            const sentReplyTo = parsedReplyTo.ok ? parsedReplyTo.value : null;
             const res = await fetch(`/api/workspaces/${selectedId}/settings`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
@@ -98,27 +74,13 @@ export default function WorkspaceSettingsTab() {
                     icon: icon.trim() || null,
                     codePrefix: codePrefix.trim() || null,
                     defaultFieldTypeId: defaultFieldTypeId ? Number(defaultFieldTypeId) : null,
-                    // null = 답장 주소 없음 (Reply-To 헤더를 넣지 않는다). 멤버는 보내지 않는다 (서버도 403)
-                    ...(canEditReplyTo ? { replyToEmail: sentReplyTo } : {}),
                 }),
             });
             const result = await res.json();
             if (result.success) {
-                // 서버가 다듬어 저장한 값(앞뒤 공백 등)과 MX 결과. MX가 없어도 저장은 된다 — 칸 아래 노란 경고로 알린다
-                const savedReplyTo: string | null =
-                    result.data && result.data.replyToEmail !== undefined ? result.data.replyToEmail : sentReplyTo;
-                const mx: MxStatus | null = result.mx ?? null;
-                if (canEditReplyTo) setReplyToCheck({ workspaceId: selectedId, email: savedReplyTo, mx });
-                if (canEditReplyTo && savedReplyTo && mx === "none") {
-                    toast.warning("저장했습니다. 다만 답장 받을 주소의 도메인이 메일을 받지 않습니다 — 칸 아래 경고를 확인하세요.");
-                } else {
-                    toast.success("워크스페이스 설정이 저장되었습니다.");
-                }
-                mutateSettings();
+                toast.success("워크스페이스 설정이 저장되었습니다.");
                 mutateList();
             } else {
-                // 서버가 답장 받을 주소를 거절했으면(형식·길이) 그 칸 아래에도 보인다
-                if (typeof result.error === "string" && result.error.includes("답장 받을 주소")) setReplyToError(result.error);
                 toast.error(result.error || "저장에 실패했습니다.");
             }
         } catch {
@@ -259,23 +221,6 @@ export default function WorkspaceSettingsTab() {
                                     레코드 코드에 이 접두어가 붙습니다.
                                 </p>
                             </div>
-
-                            <ReplyToEmailField
-                                value={replyToEmail}
-                                onChange={(v) => {
-                                    setReplyToEmail(v);
-                                    setReplyToError(null);
-                                }}
-                                lastCheck={
-                                    replyToCheck?.workspaceId === selectedId
-                                        ? replyToCheck
-                                        : workspace
-                                          ? { email: workspace.replyToEmail ?? null, mx: workspace.replyToMx ?? null }
-                                          : null
-                                }
-                                error={replyToError}
-                                disabled={!canEditReplyTo}
-                            />
 
                             <div className="flex gap-2">
                                 <Button onClick={handleSave} disabled={isSubmitting}>

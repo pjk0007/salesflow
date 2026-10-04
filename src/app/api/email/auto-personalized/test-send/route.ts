@@ -7,8 +7,6 @@ import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch,
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import { substitutePromptVariables } from "@/lib/email-utils";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import { buildCustomHeaders } from "@/lib/reply-to-rules";
 
 // POST /api/email/auto-personalized/test-send
 // body: { linkId: number, testEmail: string, recordId?: number }
@@ -176,16 +174,13 @@ export async function POST(req: NextRequest) {
             finalBody = appendSignature(finalBody, signatureJson);
         }
 
-        // 10. NHN 테스트 발송. 답장 받을 주소는 이 규칙이 실제로 보낼 레코드의 워크스페이스(규칙 파티션의 워크스페이스) 값 —
-        // 테스트 메일에 답장해 보면 실제 메일의 답장이 어디로 가는지 확인할 수 있다 (DESIGN-3 4절)
-        const replyTo = await newReplyToResolver().forPartition(link.partitionId);
+        // 10. NHN 테스트 발송
         const nhnResult = await emailClient.sendEachMail({
             senderAddress: sender.fromEmail,
             senderName: sender.fromName,
             title: `[테스트] ${emailResult.subject}`,
             body: finalBody,
             receiverList: [{ receiveMailAddr: testEmail, receiveType: "MRT0" }],
-            ...buildCustomHeaders({ replyTo }),
         });
 
         const sendResult = nhnResult.data?.results?.[0];

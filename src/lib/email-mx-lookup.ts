@@ -3,7 +3,8 @@
  * 발송을 막지 않는다. 저장도 막지 않는다 (DNS 일시 오류일 수 있다).
  *
  * - 짧은 시간 제한 (기본 2.5초) — 넘으면 "unknown"
- * - 도메인마다 프로세스 안에서 캐시: ok·none은 하루, unknown은 10분 (mxCacheTtlMs). 같은 도메인을 동시에 물으면 한 번만 조회한다
+ * - 도메인마다 프로세스 안에서 캐시: ok는 하루, none·unknown은 10분 (mxCacheTtlMs) — MX를 연결하면 10분 안에 화면 안내가 걷힌다.
+ *   같은 도메인을 동시에 물으면 한 번만 조회한다
  * - 예약 도메인(.test·.example·.invalid·.localhost·example.com 등)은 조회하지 않고 "none" — 시험 환경이 바깥 DNS로 나가지 않는다
  * - 환경 변수 EMAIL_MX_LOOKUP=off 이면 조회하지 않고 "unknown" (바깥 망이 막힌 서버·시험 서버용)
  *

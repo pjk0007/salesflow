@@ -61,6 +61,29 @@ test("캐시 기간: ok는 하루 안에 다시 묻지 않고, 하루가 지나�
     assert.equal(calls.length, 2);
 });
 
+test("none은 10분만 캐시한다 — 안내대로 MX를 연결하면 10분 안에 ok로 바뀐다 (REVIEW-4 F1)", async () => {
+    let hasMx = false;
+    const calls: string[] = [];
+    setMxResolverForTests(async (d) => {
+        calls.push(d);
+        if (!hasMx) throw Object.assign(new Error("x"), { code: "ENODATA" });
+        return [{ exchange: "aspmx.l.google.com", priority: 1 }];
+    });
+    let now = 7_000_000;
+    assert.equal(await lookupDomainMx("matchesplan.me", { now: () => now }), "none");
+    hasMx = true; // 운영자가 MX를 연결했다
+    now += 9 * 60_000;
+    assert.equal(await lookupDomainMx("matchesplan.me", { now: () => now }), "none");
+    assert.equal(calls.length, 1);
+    now += 2 * 60_000;
+    assert.equal(await lookupDomainMx("matchesplan.me", { now: () => now }), "ok");
+    assert.equal(calls.length, 2);
+    // ok는 다시 하루 캐시
+    now += 23 * 3600_000;
+    assert.equal(await lookupDomainMx("matchesplan.me", { now: () => now }), "ok");
+    assert.equal(calls.length, 2);
+});
+
 test("unknown은 10분만 캐시한다 (일시 오류가 하루 내내 남지 않게)", async () => {
     let answer: "fail" | "ok" = "fail";
     const calls: string[] = [];

@@ -1,15 +1,16 @@
 /**
- * 사업(워크스페이스)별 답장 받을 주소(Reply-To) 규칙 — 순수 함수만 (docs/2026-10-02-sender-warmup/DESIGN-3-reply-to.md).
+ * 답장 받는 곳 규칙 — 순수 함수만 (docs/2026-10-02-sender-warmup/DESIGN-3-reply-to.md).
  *
  * DB·네트워크를 모른다. 시험이 이 파일만 import하면 DB 커넥션이 열리지 않는다 (화면 코드에서 불러도 된다).
- * - 저장할 값 검사 (형식·200자) — 워크스페이스 설정 API
- * - NHN 발송 요청의 customHeaders 만들기 — 수신거부 헤더(List-Unsubscribe)와 합치고, 답장 주소가 없으면 Reply-To를 넣지 않는다
- * - 레코드의 워크스페이스로 답장 주소를 찾는 회차 캐시 (조회 함수는 부르는 쪽이 넘긴다 — email-reply-to.ts)
- * - MX 조회 결과 해석·도메인 규칙 (조회 자체는 email-mx-lookup.ts)
+ * 2026-10-04 실제 발송에서 NHN이 사용자 지정 헤더 Reply-To를 거절했다 (DESIGN-3 6절 "실제 발송 결과(2026-10-04)와 바뀐 결정") —
+ * 발송 요청에는 Reply-To를 넣지 않는다 (NHN이 막는 헤더 이름은 nhn-email-headers.ts가 보낼 때 한 번 더 거른다).
+ * 고객 답장은 메일을 보낸 주소(From)로 간다. 그래서 여기 남은 것은:
+ * - 워크스페이스 설정 API의 replyToEmail 입력 검사 (칸은 DB·API에 남아 있지만 발송에 쓰지 않는다)
+ * - MX 조회 결과 해석·도메인 규칙 (조회 자체는 email-mx-lookup.ts) — 발신 도메인이 답장을 받을 수 있는지 화면에 알린다
+ * - 규칙의 발신 묶음이 실제로 쓸 주소 고르기 (GET /api/email/reply-to)
  */
 
 export const REPLY_TO_MAX_LENGTH = 200;
-export const REPLY_TO_HEADER = "Reply-To";
 
 /** 도메인의 메일 받는 서버(MX) 조회 결과. unknown = DNS 일시 오류·시간 초과 등으로 확인하지 못함 */
 export type MxStatus = "ok" | "none" | "unknown";
@@ -35,7 +36,7 @@ function isValidDomainName(domain: string): boolean {
 }
 
 /**
- * 답장 받을 주소로 쓸 수 있는 이메일인가. 헤더에 그대로 들어가므로 좁게 받는다 —
+ * 답장 받을 주소로 저장할 수 있는 이메일인가. 좁게 받는다 —
  * 공백·줄바꿈(헤더 주입)·쉼표·꺾쇠·따옴표·한글 도메인(퓨니코드로 적어야 함)은 받지 않는다.
  */
 export function isValidReplyToEmail(value: string): boolean {
@@ -53,7 +54,7 @@ export type ReplyToInputResult = { ok: true; value: string | null } | { ok: fals
 
 /**
  * 워크스페이스 설정 API의 replyToEmail 입력 검사 (R4). 앞뒤 공백을 지우고 도메인은 소문자로 저장한다.
- * null·빈 문자열·공백만 → value null (답장 주소 없음 = Reply-To 헤더 없음, 지금과 같다).
+ * null·빈 문자열·공백만 → value null (답장 주소 없음). 저장한 값은 발송에 쓰지 않는다 (위 머리말).
  * 칸을 보내지 않은 경우(undefined)는 부르는 쪽이 "바꾸지 않음"으로 다룬다 — 여기 넘기지 않는다.
  */
 export function normalizeReplyToInput(raw: unknown): ReplyToInputResult {
@@ -71,114 +72,6 @@ export function normalizeReplyToInput(raw: unknown): ReplyToInputResult {
     }
     const at = trimmed.indexOf("@");
     return { ok: true, value: `${trimmed.slice(0, at)}@${trimmed.slice(at + 1).toLowerCase()}` };
-}
-
-// ============================================
-// 발송 헤더
-// ============================================
-
-/**
- * DB에 저장된 답장 주소를 헤더 값으로. 비었거나 형식이 아니면 null (헤더를 넣지 않는다).
- * 저장할 때 이미 검사하지만 헤더에 들어가는 값이라 보낼 때 한 번 더 거른다 — 손으로 넣은 값에 줄바꿈이 있어도 헤더가 깨지지 않게.
- */
-export function replyToHeaderValue(stored: string | null | undefined): string | null {
-    if (typeof stored !== "string") return null;
-    const v = stored.trim();
-    return v !== "" && isValidReplyToEmail(v) ? v : null;
-}
-
-/**
- * NHN eachMail 요청에 펼쳐 넣을 customHeaders (R1·R2·R6).
- * - listUnsubscribe: buildListUnsubscribeHeaders의 결과 (수신거부 링크를 쓰지 않는 메일이면 null)
- * - replyTo: 워크스페이스 답장 주소 (없으면 null — Reply-To를 넣지 않는다)
- * 둘 다 없으면 빈 객체 — customHeaders 칸 자체를 보내지 않는다 (지금과 같은 요청).
- * 사용: `...buildCustomHeaders({ listUnsubscribe, replyTo })`
- */
-export function buildCustomHeaders(parts: {
-    listUnsubscribe?: Record<string, string> | null;
-    replyTo?: string | null;
-}): { customHeaders?: Record<string, string> } {
-    const headers: Record<string, string> = { ...(parts.listUnsubscribe ?? {}) };
-    const replyTo = replyToHeaderValue(parts.replyTo);
-    if (replyTo) {
-        // 같은 이름의 헤더가 두 번 나가지 않게 — 대소문자가 다른 Reply-To가 있으면 지운다
-        for (const key of Object.keys(headers)) {
-            if (key.toLowerCase() === REPLY_TO_HEADER.toLowerCase()) delete headers[key];
-        }
-        headers[REPLY_TO_HEADER] = replyTo;
-    }
-    return Object.keys(headers).length > 0 ? { customHeaders: headers } : {};
-}
-
-// ============================================
-// 레코드의 워크스페이스 → 답장 주소 (회차 캐시)
-// ============================================
-
-export interface ReplyToLoaders {
-    /** 워크스페이스의 저장된 답장 주소 (없으면 null). 워크스페이스가 없어도 null */
-    loadWorkspaceReplyTo: (workspaceId: number) => Promise<string | null>;
-    /** 파티션의 워크스페이스 id (없으면 null) */
-    loadPartitionWorkspaceId: (partitionId: number) => Promise<number | null>;
-}
-
-export interface ReplyToResolver {
-    /** 워크스페이스의 답장 주소 헤더 값 (없거나 형식이 아니면 null) */
-    forWorkspace(workspaceId: number | null | undefined): Promise<string | null>;
-    /** 레코드가 없을 때(지운 레코드의 후속 등) 파티션의 워크스페이스로 찾는다 */
-    forPartition(partitionId: number | null | undefined): Promise<string | null>;
-    /** 이미 읽은 워크스페이스 줄의 값을 넣어 둔다 — 다시 조회하지 않는다 */
-    prime(workspaceId: number, stored: string | null | undefined): void;
-}
-
-function isPositiveId(v: unknown): v is number {
-    return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
-}
-
-/**
- * 답장 주소 회차 캐시. 대기열·후속·반복 워커는 회차마다 하나를 만들어 줄마다 넘긴다 — 같은 워크스페이스를
- * 줄마다 다시 읽지 않는다 (한 회차는 길어야 8분이라 그사이 바꾼 값은 다음 회차부터 쓴다).
- * 워크스페이스마다 따로 담는다 — 다른 워크스페이스의 값이 섞이지 않는다 (R3).
- * 조회가 던지면 캐시에 남기지 않고 그대로 던진다 — 답장 주소를 모른 채 보내면 답장이 되돌아가므로 그 메일은 실패로 다룬다
- * (발송 경로는 sendEachMail 전에 던지면 잡은 발신 자리를 돌려준다).
- */
-export function createReplyToResolver(loaders: ReplyToLoaders): ReplyToResolver {
-    const byWorkspace = new Map<number, Promise<string | null>>();
-    const byPartition = new Map<number, Promise<number | null>>();
-
-    const forWorkspace = (workspaceId: number | null | undefined): Promise<string | null> => {
-        if (!isPositiveId(workspaceId)) return Promise.resolve(null);
-        const cached = byWorkspace.get(workspaceId);
-        if (cached) return cached;
-        const p = loaders.loadWorkspaceReplyTo(workspaceId).then(replyToHeaderValue);
-        byWorkspace.set(workspaceId, p);
-        p.catch(() => {
-            if (byWorkspace.get(workspaceId) === p) byWorkspace.delete(workspaceId);
-        });
-        return p;
-    };
-
-    const forPartition = async (partitionId: number | null | undefined): Promise<string | null> => {
-        if (!isPositiveId(partitionId)) return null;
-        let wsp = byPartition.get(partitionId);
-        if (!wsp) {
-            const p = loaders.loadPartitionWorkspaceId(partitionId);
-            byPartition.set(partitionId, p);
-            p.catch(() => {
-                if (byPartition.get(partitionId) === p) byPartition.delete(partitionId);
-            });
-            wsp = p;
-        }
-        return forWorkspace(await wsp);
-    };
-
-    return {
-        forWorkspace,
-        forPartition,
-        prime(workspaceId, stored) {
-            if (!isPositiveId(workspaceId)) return;
-            byWorkspace.set(workspaceId, Promise.resolve(replyToHeaderValue(stored)));
-        },
-    };
 }
 
 // ============================================
@@ -219,17 +112,29 @@ export function classifyMxError(code: string | null | undefined): MxStatus {
     return code && MX_NONE_ERROR_CODES.has(code) ? "none" : "unknown";
 }
 
-/** MX 결과 캐시 기간. ok·none은 하루, unknown(일시 오류일 수 있다)은 10분만 — 하루 내내 "확인 못 함"으로 남지 않게 */
+/**
+ * MX 결과 캐시 기간.
+ * - ok: 하루 — 받는 도메인이 갑자기 안 받게 되는 일은 드물다
+ * - none: 10분 — 화면 안내("도메인에 메일 수신(MX)을 연결해야 답장이 옵니다")대로 MX를 연결하면 그 뒤 10분 안에 안내가 걷혀야 한다.
+ *   하루로 두면 MX를 연결한 뒤에도 최대 하루(또는 서버를 다시 띄울 때까지) "받을 수 없음"이 남는다 (REVIEW-4 F1)
+ * - unknown(일시 오류일 수 있다): 10분 — 하루 내내 "확인 못 함"으로 남지 않게
+ */
 export const MX_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+export const MX_NONE_TTL_MS = 10 * 60 * 1000;
 export const MX_UNKNOWN_TTL_MS = 10 * 60 * 1000;
 
 export function mxCacheTtlMs(status: MxStatus): number {
-    return status === "unknown" ? MX_UNKNOWN_TTL_MS : MX_CACHE_TTL_MS;
+    if (status === "ok") return MX_CACHE_TTL_MS;
+    return status === "none" ? MX_NONE_TTL_MS : MX_UNKNOWN_TTL_MS;
 }
 
 // ============================================
 // 발신 묶음의 도메인 (규칙 수정 화면)
 // ============================================
+
+function isPositiveId(v: unknown): v is number {
+    return typeof v === "number" && Number.isSafeInteger(v) && v > 0;
+}
 
 /** 조직의 발신 주소 하나와 그 도메인의 MX (GET /api/email/reply-to) */
 export interface SenderMxEntry {

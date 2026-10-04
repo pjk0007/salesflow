@@ -1,5 +1,6 @@
 import { db, emailConfigs } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
+import { createDroppedHeaderWarner, withSafeCustomHeaders } from "@/lib/nhn-email-headers";
 
 // ============================================
 // NHN Cloud Email API 타입
@@ -20,9 +21,16 @@ export interface NhnEmailSendRequest {
         receiveMailAddr: string;
         receiveType: "MRT0";
     }>;
-    /** 사용자 지정 헤더. List-Unsubscribe 등 (NHN Cloud Email API 지원). */
+    /**
+     * 사용자 지정 헤더. List-Unsubscribe 등 (NHN Cloud Email API 지원).
+     * NHN이 막는 이름(Reply-To·From 등)이나 형식이 틀린 헤더는 sendEachMail이 빼고 보낸다 (nhn-email-headers.ts) —
+     * 하나라도 섞이면 NHN이 메일 전체를 거절하기 때문이다.
+     */
     customHeaders?: Record<string, string>;
 }
+
+/** 뺀 헤더 경고는 (이름, 까닭)마다 프로세스에서 한 번만 (nhn-email-headers.ts) */
+const warnDroppedHeaders = createDroppedHeaderWarner((message) => console.warn(message));
 
 export interface NhnEmailSendResult {
     requestId: string;
@@ -117,7 +125,7 @@ export class NhnEmailClient {
         return this.request<NhnEmailSendResult>(
             "POST",
             "/email/v2.1/appKeys/{appKey}/sender/eachMail",
-            data
+            withSafeCustomHeaders(data, warnDroppedHeaders)
         );
     }
 

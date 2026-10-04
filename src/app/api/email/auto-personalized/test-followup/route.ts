@@ -7,8 +7,6 @@ import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
 import { resolveSender } from "@/lib/email-sender-resolver";
 import { followupSenderOrder } from "@/lib/email-sender-limit-paths";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import { buildCustomHeaders } from "@/lib/reply-to-rules";
 
 /**
  * GET /api/email/auto-personalized/test-followup?linkId=...
@@ -180,7 +178,6 @@ export async function POST(req: NextRequest) {
         .select({
             senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
             senderProfileIds: emailAutoPersonalizedLinks.senderProfileIds,
-            partitionId: emailAutoPersonalizedLinks.partitionId,
         })
         .from(emailAutoPersonalizedLinks)
         .where(and(eq(emailAutoPersonalizedLinks.id, linkId), eq(emailAutoPersonalizedLinks.orgId, user.orgId)))
@@ -203,9 +200,6 @@ export async function POST(req: NextRequest) {
             { status: 400 }
         );
     }
-
-    // 답장 받을 주소 — 이 규칙이 실제로 보낼 레코드의 워크스페이스(규칙 파티션의 워크스페이스) 값 (DESIGN-3)
-    const replyTo = await newReplyToResolver().forPartition(link?.partitionId);
 
     const testSubject = `[테스트 후속] ${result.subject}`;
     const [inserted] = await db
@@ -232,7 +226,6 @@ export async function POST(req: NextRequest) {
         title: testSubject,
         body: trackedBody,
         receiverList: [{ receiveMailAddr: testEmail!, receiveType: "MRT0" }],
-        ...buildCustomHeaders({ replyTo }),
     });
 
     const sendResult = nhnResult.data?.results?.[0];

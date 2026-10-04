@@ -1,68 +1,22 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import {
-    buildCustomHeaders,
     classifyMxError,
     classifyMxRecords,
-    createReplyToResolver,
     emailDomain,
     isReservedMailDomain,
     isValidReplyToEmail,
     mxCacheTtlMs,
     MX_CACHE_TTL_MS,
+    MX_NONE_TTL_MS,
     MX_UNKNOWN_TTL_MS,
     normalizeReplyToInput,
     poolSenderEntries,
-    REPLY_TO_HEADER,
-    replyToHeaderValue,
 } from "./reply-to-rules";
 import type { SenderMxEntry } from "./reply-to-rules";
 
-// DESIGN-3 — 사업(워크스페이스)별 답장 받을 주소 (R1~R6)
-
-const UNSUB = {
-    "List-Unsubscribe": "<https://sendb.kr/api/email/unsubscribe/one-click?token=unsub_x>",
-    "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-};
-
-// ── R1·R2·R6: 발송 헤더 ──
-
-test("R1: 답장 주소가 있으면 Reply-To 헤더가 그 값", () => {
-    assert.deepEqual(buildCustomHeaders({ replyTo: "ceo@matchesplan.com" }), {
-        customHeaders: { "Reply-To": "ceo@matchesplan.com" },
-    });
-    assert.equal(REPLY_TO_HEADER, "Reply-To");
-});
-
-test("R2: 답장 주소가 비면 Reply-To 없음 — 수신거부 헤더도 없으면 customHeaders 칸 자체가 없다 (지금과 같은 요청)", () => {
-    assert.deepEqual(buildCustomHeaders({}), {});
-    assert.deepEqual(buildCustomHeaders({ replyTo: null, listUnsubscribe: null }), {});
-    assert.deepEqual(buildCustomHeaders({ replyTo: "" }), {});
-    assert.deepEqual(buildCustomHeaders({ replyTo: "   " }), {});
-    // 수신거부만 있으면 예전과 똑같은 헤더
-    assert.deepEqual(buildCustomHeaders({ listUnsubscribe: UNSUB, replyTo: null }), { customHeaders: UNSUB });
-});
-
-test("R6: 기존 List-Unsubscribe 헤더와 함께 들어간다 (넘긴 객체는 바꾸지 않는다)", () => {
-    const base = { ...UNSUB };
-    const out = buildCustomHeaders({ listUnsubscribe: base, replyTo: "cs@company.co.kr" });
-    assert.deepEqual(out, { customHeaders: { ...UNSUB, "Reply-To": "cs@company.co.kr" } });
-    assert.deepEqual(base, UNSUB);
-});
-
-test("Reply-To는 한 번만 — 대소문자가 다른 같은 이름 헤더를 지우고 넣는다", () => {
-    const out = buildCustomHeaders({ listUnsubscribe: { "reply-to": "old@x.com", ...UNSUB }, replyTo: "new@x.com" });
-    assert.deepEqual(out.customHeaders, { ...UNSUB, "Reply-To": "new@x.com" });
-});
-
-test("헤더 주입 막기: 저장된 값에 줄바꿈·쉼표·꺾쇠가 있으면 헤더를 넣지 않는다", () => {
-    assert.deepEqual(buildCustomHeaders({ replyTo: "a@x.com\r\nBcc: evil@x.com" }), {});
-    assert.deepEqual(buildCustomHeaders({ replyTo: "a@x.com, b@x.com" }), {});
-    assert.deepEqual(buildCustomHeaders({ replyTo: "Name <a@x.com>" }), {});
-    assert.equal(replyToHeaderValue(" ceo@matchesplan.com "), "ceo@matchesplan.com");
-    assert.equal(replyToHeaderValue(null), null);
-    assert.equal(replyToHeaderValue(undefined), null);
-});
+// DESIGN-3 — 답장 받는 곳. 2026-10-04 NHN이 Reply-To 사용자 지정 헤더를 거절해 발송 헤더 만들기는 없앴다.
+// 남은 것: 워크스페이스 설정 API 입력 검사(R4), MX 해석, 규칙 화면의 발신 묶음 주소 고르기
 
 // ── R4: 저장할 값 검사 ──
 
@@ -74,7 +28,7 @@ test("R4: 형식이 맞으면 저장 (앞뒤 공백 제거, 도메인 소문자,
     assert.deepEqual(normalizeReplyToInput("ceo@matchesplan.com\r\n"), { ok: true, value: "ceo@matchesplan.com" });
 });
 
-test("R2·R4: null·빈 문자열·공백은 지우기 (null = 헤더 없음)", () => {
+test("R4: null·빈 문자열·공백은 지우기 (null = 답장 주소 없음)", () => {
     assert.deepEqual(normalizeReplyToInput(null), { ok: true, value: null });
     assert.deepEqual(normalizeReplyToInput(""), { ok: true, value: null });
     assert.deepEqual(normalizeReplyToInput("   "), { ok: true, value: null });
@@ -137,93 +91,6 @@ test("R4: 문자열이 아니면 거절", () => {
     }
 });
 
-// ── R3: 레코드의 워크스페이스 기준, 섞이지 않음 + 회차 캐시 ──
-
-function fakeLoaders(values: Record<number, string | null>, partitionWs: Record<number, number | null> = {}) {
-    const calls = { workspace: [] as number[], partition: [] as number[] };
-    return {
-        calls,
-        loaders: {
-            loadWorkspaceReplyTo: async (id: number) => {
-                calls.workspace.push(id);
-                return values[id] ?? null;
-            },
-            loadPartitionWorkspaceId: async (id: number) => {
-                calls.partition.push(id);
-                return partitionWs[id] ?? null;
-            },
-        },
-    };
-}
-
-test("R3: 워크스페이스마다 그 워크스페이스 값 — 다른 워크스페이스의 답장 주소가 섞이지 않는다", async () => {
-    const { loaders } = fakeLoaders({ 1: "a@biz-a.com", 2: "b@biz-b.com", 3: null });
-    const r = createReplyToResolver(loaders);
-    const got = await Promise.all([1, 2, 3, 1, 2].map((ws) => r.forWorkspace(ws)));
-    assert.deepEqual(got, ["a@biz-a.com", "b@biz-b.com", null, "a@biz-a.com", "b@biz-b.com"]);
-});
-
-test("회차 캐시: 같은 워크스페이스는 한 번만 읽는다 (동시에 물어도)", async () => {
-    const { loaders, calls } = fakeLoaders({ 1: "a@biz-a.com", 2: null });
-    const r = createReplyToResolver(loaders);
-    await Promise.all([r.forWorkspace(1), r.forWorkspace(1), r.forWorkspace(2)]);
-    await r.forWorkspace(1);
-    await r.forWorkspace(2);
-    assert.deepEqual(calls.workspace.sort(), [1, 2]);
-});
-
-test("레코드가 없을 때 파티션의 워크스페이스로 찾는다 (파티션·워크스페이스 모두 캐시)", async () => {
-    const { loaders, calls } = fakeLoaders({ 7: "cs@biz.com" }, { 70: 7, 71: 7, 99: null });
-    const r = createReplyToResolver(loaders);
-    assert.equal(await r.forPartition(70), "cs@biz.com");
-    assert.equal(await r.forPartition(70), "cs@biz.com");
-    assert.equal(await r.forPartition(71), "cs@biz.com");
-    assert.equal(await r.forPartition(99), null);
-    assert.equal(await r.forPartition(null), null);
-    assert.deepEqual(calls.partition, [70, 71, 99]);
-    assert.deepEqual(calls.workspace, [7]);
-});
-
-test("id가 없거나 잘못이면 조회하지 않고 null", async () => {
-    const { loaders, calls } = fakeLoaders({});
-    const r = createReplyToResolver(loaders);
-    for (const v of [null, undefined, 0, -1, 1.5, Number.NaN]) {
-        assert.equal(await r.forWorkspace(v as number), null);
-    }
-    assert.deepEqual(calls.workspace, []);
-});
-
-test("저장된 값이 형식에 맞지 않으면 null (헤더를 넣지 않는다)", async () => {
-    const { loaders } = fakeLoaders({ 1: "broken\r\nvalue", 2: "  ok@biz.com  " });
-    const r = createReplyToResolver(loaders);
-    assert.equal(await r.forWorkspace(1), null);
-    assert.equal(await r.forWorkspace(2), "ok@biz.com");
-});
-
-test("prime: 이미 읽은 워크스페이스 값은 다시 조회하지 않는다", async () => {
-    const { loaders, calls } = fakeLoaders({ 1: "db@biz.com" });
-    const r = createReplyToResolver(loaders);
-    r.prime(1, "primed@biz.com");
-    assert.equal(await r.forWorkspace(1), "primed@biz.com");
-    r.prime(2, null);
-    assert.equal(await r.forWorkspace(2), null);
-    assert.deepEqual(calls.workspace, []);
-});
-
-test("조회가 던지면 그대로 던지고 캐시에 남기지 않는다 (다음 줄은 다시 읽는다)", async () => {
-    let fail = true;
-    const r = createReplyToResolver({
-        loadWorkspaceReplyTo: async () => {
-            if (fail) throw new Error("db down");
-            return "a@biz.com";
-        },
-        loadPartitionWorkspaceId: async () => 1,
-    });
-    await assert.rejects(r.forWorkspace(1), /db down/);
-    fail = false;
-    assert.equal(await r.forWorkspace(1), "a@biz.com");
-});
-
 // ── MX 해석·예약 도메인 ──
 
 test("emailDomain: 마지막 @ 뒤, 소문자. 형식이 아니면 null", () => {
@@ -253,11 +120,13 @@ test("MX 오류 해석: 이름 없음·MX 없음은 none, 시간 초과·서버 
     assert.equal(classifyMxError(undefined), "unknown");
 });
 
-test("MX 캐시 기간: ok·none 하루, unknown 10분", () => {
+test("MX 캐시 기간: ok 하루, none·unknown 10분 (MX를 연결하면 10분 안에 안내가 걷힌다 — REVIEW-4 F1)", () => {
     assert.equal(mxCacheTtlMs("ok"), MX_CACHE_TTL_MS);
-    assert.equal(mxCacheTtlMs("none"), MX_CACHE_TTL_MS);
+    assert.equal(mxCacheTtlMs("none"), MX_NONE_TTL_MS);
     assert.equal(mxCacheTtlMs("unknown"), MX_UNKNOWN_TTL_MS);
     assert.equal(MX_CACHE_TTL_MS, 86_400_000);
+    assert.equal(MX_NONE_TTL_MS, 600_000);
+    assert.equal(MX_UNKNOWN_TTL_MS, 600_000);
 });
 
 test("예약 도메인(.test·.example·.invalid·.localhost·example.com)은 메일을 받지 않는다", () => {

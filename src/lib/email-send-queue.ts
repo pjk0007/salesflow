@@ -36,8 +36,6 @@ import type { SlotDeferReason } from "@/lib/email-sender-limit-rules";
 import { checkPoolsBlocked } from "@/lib/email-sender-limit";
 import type { PoolBlockState } from "@/lib/email-sender-limit";
 import { isDeferralOnlyBatch } from "@/lib/email-sender-limit-paths";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import type { ReplyToResolver } from "@/lib/email-reply-to";
 import type { DbRecord } from "@/lib/db";
 
 /** scheduled-registration(0x5c4edf01)과 다른 키를 쓴다 — 두 잡은 독립적으로 돌아야 한다. */
@@ -125,8 +123,6 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
         stats.reclaimed = await reclaimStuck();
 
         const drainable = new Map<string, DrainGroup>();
-        // 답장 받을 주소는 회차 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
-        const replyTo = newReplyToResolver();
         const startedAt = Date.now();
         while (!isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
             // 이번 회차에 막힌 것을 본 묶음이 있으면 그 묶음의 줄부터 한꺼번에 본다.
@@ -143,7 +139,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
             if (batch.length === 0) break;
 
             stats.picked += batch.length;
-            const { deferredOnly, deferredGroups } = await runBatch(batch, stats, replyTo);
+            const { deferredOnly, deferredGroups } = await runBatch(batch, stats);
             for (const g of deferredGroups) drainable.set(drainGroupKey(g), toDrainGroup(g));
 
             // 미룸만 나온 배치는 NHN을 부르지 않았으니 쉬지 않는다 — 한도에 닿은 뒤 쌓인 줄을 빨리 넘긴다
@@ -395,14 +391,13 @@ async function pickBatch(): Promise<PickedRow[]> {
 
 async function runBatch(
     batch: PickedRow[],
-    stats: QueueRunStats,
-    replyTo: ReplyToResolver
+    stats: QueueRunStats
 ): Promise<{ deferredOnly: boolean; deferredGroups: PickedRow[] }> {
     // AI 생성·NHN 호출은 줄마다 겹쳐 돌리고, 발신 자리 잡기만 꺼낸 순서(문의 먼저, 먼저 들어온 순)대로 하나씩 한다 —
     // 함께 잡으면 다섯 줄이 같은 사용량을 읽어 한 주소에 몰리고 마지막 한 칸을 늦게 들어온 줄이 가져간다 (createClaimTurns)
     const turns = createClaimTurns(batch.length);
     const results = await Promise.allSettled(
-        batch.map((row, i) => processRow(row, turns[i], replyTo).finally(() => turns[i].done()))
+        batch.map((row, i) => processRow(row, turns[i]).finally(() => turns[i].done()))
     );
     const deferredFlags: boolean[] = [];
     const deferredGroups: PickedRow[] = [];
@@ -448,7 +443,7 @@ async function runBatch(
     return { deferredOnly: isDeferralOnlyBatch(deferredFlags), deferredGroups };
 }
 
-async function processRow(row: PickedRow, claimTurn: ClaimTurn, replyTo: ReplyToResolver): Promise<ProcessedRow> {
+async function processRow(row: PickedRow, claimTurn: ClaimTurn): Promise<ProcessedRow> {
     const [record] = await db
         .select()
         .from(records)
@@ -469,8 +464,6 @@ async function processRow(row: PickedRow, claimTurn: ClaimTurn, replyTo: ReplyTo
         purpose: purposeOfQueuePriority(row.priority),
         // 배치 안 자리 잡기는 꺼낸 순서대로 하나씩 (runBatch)
         claimTurn,
-        // 답장 받을 주소 회차 캐시
-        replyTo,
     });
 
     return toProcessedRow(result);

@@ -15,8 +15,6 @@ import {
     appendUnsubscribeFooter,
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import { buildCustomHeaders } from "@/lib/reply-to-rules";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -118,10 +116,6 @@ export async function POST(req: NextRequest) {
 
         const mappings = (templateLink.variableMappings as Record<string, string>) || {};
 
-        // 답장 받을 주소 (DESIGN-3) — 레코드마다 그 레코드의 워크스페이스 값. 규칙 파티션의 워크스페이스는 이미 읽었다
-        const replyToResolver = newReplyToResolver();
-        replyToResolver.prime(workspaceId, linkRow.workspaces.replyToEmail);
-
         for (const record of recordList) {
             const data = record.data as Record<string, unknown>;
             const email = data[templateLink.recipientField];
@@ -179,7 +173,6 @@ export async function POST(req: NextRequest) {
             // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
             let sendAttempted = false;
             try {
-                const replyTo = await replyToResolver.forWorkspace(record.workspaceId || workspaceId);
                 const substitutedSubject = substituteVariables(template.subject, mappings, data);
                 let finalBody = substituteVariables(template.htmlBody, mappings, data);
                 if (signatureJson) {
@@ -219,10 +212,9 @@ export async function POST(req: NextRequest) {
                     title: substitutedSubject,
                     body: trackedBody,
                     receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-                    ...buildCustomHeaders({
-                        listUnsubscribe: unsubscribeToken ? buildListUnsubscribeHeaders(unsubscribeToken) : null,
-                        replyTo,
-                    }),
+                    ...(unsubscribeToken
+                        ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                        : {}),
                 });
 
                 const sendResult = nhnResult.data?.results?.[0];

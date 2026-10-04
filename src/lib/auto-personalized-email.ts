@@ -20,9 +20,6 @@ import {
     appendUnsubscribeFooter,
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import type { ReplyToResolver } from "@/lib/email-reply-to";
-import { buildCustomHeaders } from "@/lib/reply-to-rules";
 import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
 import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
@@ -93,11 +90,6 @@ interface AutoPersonalizedParams {
      * 꺼낸 순서대로 하나씩 하게 한다. 생략하면 바로 잡는다 (한 건씩 보내는 경로)
      */
     claimTurn?: Pick<ClaimTurn, "run">;
-    /**
-     * 답장 받을 주소 조회 (DESIGN-3). 대기열 워커·일괄 재처리 스크립트는 회차마다 하나를 만들어 넘긴다 —
-     * 같은 워크스페이스를 줄마다 다시 읽지 않게. 생략하면 이 호출 안에서만 쓴다
-     */
-    replyTo?: ReplyToResolver;
 }
 
 export async function processAutoPersonalizedEmail(
@@ -105,7 +97,6 @@ export async function processAutoPersonalizedEmail(
 ): Promise<RecordOutcome> {
     const { record, partitionId, triggerType, orgId } = params;
     const purpose: SendPurpose = params.purpose ?? "inbound";
-    const replyToResolver = params.replyTo ?? newReplyToResolver();
     const skipLinkIds = new Set(params.skipLinkIds ?? []);
     const outcomes: LinkOutcome[] = [];
 
@@ -250,10 +241,6 @@ export async function processAutoPersonalizedEmail(
                 continue;
             }
             const senderFromEmail = sender.fromEmail;
-
-            // 6-1-1. 답장 받을 주소 — 받는 레코드의 워크스페이스 값 (없으면 Reply-To 없음). AI 생성(토큰)보다 먼저 읽는다.
-            // 자리 잡기 뒤에 읽어 위의 검사 순서(walkQueueRow가 따르는 순서)를 바꾸지 않는다 — 던지면 아래 catch가 자리를 돌려준다
-            const replyTo = await replyToResolver.forWorkspace(record.workspaceId || workspaceId);
 
             // 6-2. 서명 결정. DB의 null은 "미지정"이므로 undefined로 정규화한다
             // (HTTP body에서 온 값과 달리 여기서는 null이 "서명 없음"을 뜻하지 않는다)
@@ -414,10 +401,9 @@ export async function processAutoPersonalizedEmail(
                 title: emailResult.subject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-                ...buildCustomHeaders({
-                    listUnsubscribe: unsubscribeToken ? buildListUnsubscribeHeaders(unsubscribeToken) : null,
-                    replyTo,
-                }),
+                ...(unsubscribeToken
+                    ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                    : {}),
             });
 
             const sendResult = nhnResult.data?.results?.[0];

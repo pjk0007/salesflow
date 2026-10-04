@@ -26,9 +26,6 @@ import {
     appendUnsubscribeFooter,
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import type { ReplyToResolver } from "@/lib/email-reply-to";
-import { buildCustomHeaders } from "@/lib/reply-to-rules";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 
 // ============================================
@@ -107,9 +104,7 @@ async function sendEmailSingle(
     opts: {
         /** 생략하면 templatePurpose(triggerType) */
         purpose?: SendPurpose;
-        /** 답장 받을 주소 조회 (반복 대기열은 회차마다 하나) */
-        replyTo: ReplyToResolver;
-    }
+    } = {}
 ): Promise<TemplateSendResult> {
     const purpose: SendPurpose = opts.purpose ?? templatePurpose(triggerType);
     const client = await getEmailClient(orgId);
@@ -161,9 +156,6 @@ async function sendEmailSingle(
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
     try {
-        // 답장 받을 주소 — 받는 레코드의 워크스페이스 값 (없으면 Reply-To 없음, DESIGN-3)
-        const replyTo = await opts.replyTo.forWorkspace(record.workspaceId || workspaceId);
-
         // 서명 결정 (기본 서명 → 레거시 fallback)
         const signatureJson = await resolveDefaultSignature(orgId, config);
 
@@ -208,10 +200,9 @@ async function sendEmailSingle(
             title: substitutedSubject,
             body: trackedBody,
             receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-            ...buildCustomHeaders({
-                listUnsubscribe: unsubscribeToken ? buildListUnsubscribeHeaders(unsubscribeToken) : null,
-                replyTo,
-            }),
+            ...(unsubscribeToken
+                ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                : {}),
         });
 
         const sendResult = nhnResult.data?.results?.[0];
@@ -251,14 +242,12 @@ type TemplateFirstOutcome =
  * 바로 보내는 경로(processEmailAutoTrigger)와, 발신 한도로 미뤄 둔 첫 메일(반복 대기열 kind='first'·'first_bulk')이 같이 쓴다 —
  * 본문이 두 벌이면 한쪽만 고쳐진다. 미뤘다 보낼 때도 조건·쿨다운·중복을 그때의 레코드로 다시 본다.
  * purpose: 문의는 그날 한도 전체, 대량(가져오기·예약 등록 명단)은 15:00(KST) 전까지 문의 몫을 남긴다.
- * replyTo: 답장 받을 주소 조회 (반복 대기열은 회차마다 하나, 바로 보내는 경로는 호출마다 하나)
  */
 async function sendTemplateFirst(
     link: EmailTemplateLink,
     record: DbRecord,
     orgId: string,
-    purpose: SendPurpose,
-    replyTo: ReplyToResolver
+    purpose: SendPurpose
 ): Promise<TemplateFirstOutcome> {
     const data = record.data as Record<string, unknown>;
 
@@ -284,7 +273,7 @@ async function sendTemplateFirst(
     }
 
     // 발송
-    const { success, logId, deferred } = await sendEmailSingle(link, record, orgId, "auto", { purpose, replyTo });
+    const { success, logId, deferred } = await sendEmailSingle(link, record, orgId, "auto", { purpose });
     if (deferred) return { kind: "deferred", retryAt: deferred.retryAt, reason: deferred.reason };
     if (!success) return { kind: "failed" };
 
@@ -371,17 +360,11 @@ interface EmailAutoTriggerParams {
      * 가져오기·예약 등록(dispatchImportTriggers)은 "bulk"를 넘긴다 — 15:00(KST) 전까지 주소마다 문의 몫을 남긴다
      */
     purpose?: SendPurpose;
-    /**
-     * 답장 받을 주소 조회 (DESIGN-3). 가져오기처럼 여러 레코드를 잇달아 부르는 쪽은 하나를 만들어 함께 넘긴다 —
-     * 같은 워크스페이스를 레코드마다 다시 읽지 않게. 생략하면 이 호출 안에서만 쓴다
-     */
-    replyTo?: ReplyToResolver;
 }
 
 export async function processEmailAutoTrigger(params: EmailAutoTriggerParams): Promise<void> {
     const { record, partitionId, triggerType, orgId } = params;
     const purpose: SendPurpose = params.purpose ?? "inbound";
-    const replyTo = params.replyTo ?? newReplyToResolver();
 
     const links = await db
         .select()
@@ -398,7 +381,7 @@ export async function processEmailAutoTrigger(params: EmailAutoTriggerParams): P
 
     // 규칙마다 따로 본다 — 템플릿 쿨다운이 (레코드, 규칙) 단위라 한 규칙이 미뤄져도 다른 규칙과 엉키지 않는다
     for (const link of links) {
-        const outcome = await sendTemplateFirst(link, record, orgId, purpose, replyTo);
+        const outcome = await sendTemplateFirst(link, record, orgId, purpose);
         if (outcome.kind === "deferred") {
             console.log(
                 `[EmailAuto] linkId=${link.id}, record=${record.id}: deferred (${outcome.reason}) ` +
@@ -468,8 +451,6 @@ export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
             runStart,
             blockedUntil: new Map(),
             movedIds: new Set(),
-            // 답장 받을 주소는 회차 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
-            replyTo: newReplyToResolver(),
         };
 
         // 문의 첫 메일('first')을 먼저 다 보고 나머지('first_bulk'·'repeat')를 본다. 차례 안에서는 id 순 (REPEAT_QUEUE_PHASES, R8)
@@ -539,8 +520,6 @@ interface RepeatRunState {
     blockedUntil: Map<string, Date>;
     /** 조직이 막혀 한꺼번에 옮긴 줄 id — 이미 읽어 둔 배치에 있어도 다시 보지 않는다 */
     movedIds: Set<number>;
-    /** 답장 받을 주소 회차 캐시 */
-    replyTo: ReplyToResolver;
 }
 
 /** 줄 하나를 끝내거나(완료·취소) 다음 시각으로 옮긴다 */
@@ -594,7 +573,7 @@ async function processRepeatItem(
             return;
         }
 
-        const outcome = await sendTemplateFirst(link, record, item.orgId, firstPurpose, run.replyTo);
+        const outcome = await sendTemplateFirst(link, record, item.orgId, firstPurpose);
         if (outcome.kind === "deferred") {
             // 아직 막혀 있다 — 다음 열리는 시각에 다시 본다. 같은 조직의 다른 첫 메일 줄도 같은 주소라 함께 옮긴다
             // (문의가 막혔으면 문의·대량 줄 모두, 대량만 막혔으면 대량 줄만 — templateFirstKindsBlockedBy)
@@ -651,7 +630,7 @@ async function processRepeatItem(
     }
 
     // 발송
-    const { success, deferred } = await sendEmailSingle(link, record, item.orgId, "repeat", { replyTo: run.replyTo });
+    const { success, deferred } = await sendEmailSingle(link, record, item.orgId, "repeat");
 
     if (deferred) {
         // 한도·시간대에 막혀 보내지 않았다 — 반복 횟수를 쓰지 않고 열리는 시각에 다시 본다.

@@ -25,9 +25,6 @@ import {
     appendUnsubscribeFooter,
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
-import { newReplyToResolver } from "@/lib/email-reply-to";
-import type { ReplyToResolver } from "@/lib/email-reply-to";
-import { buildCustomHeaders } from "@/lib/reply-to-rules";
 import { substitutePromptVariables } from "@/lib/email-utils";
 
 // ============================================
@@ -297,14 +294,12 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
 
         stats.reclaimed = await reclaimStuckFollowups();
 
-        // 답장 받을 주소는 회차 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
-        const replyTo = newReplyToResolver();
         const startedAt = Date.now();
         while (!isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
             const batch = await claimFollowupBatch();
             if (batch.length === 0) break;
 
-            const results = await Promise.allSettled(batch.map((item) => processFollowupItem(item, stats, replyTo)));
+            const results = await Promise.allSettled(batch.map((item) => processFollowupItem(item, stats)));
             for (const r of results) {
                 if (r.status === "rejected") {
                     // 상태 갱신까지 던진 줄은 processing으로 남는다 — 30분 뒤 회수가 다시 집는다
@@ -395,8 +390,7 @@ async function claimFollowupBatch(): Promise<FollowupQueueItem[]> {
  */
 async function processFollowupItem(
     item: FollowupQueueItem,
-    stats: FollowupRunStats,
-    replyTo: ReplyToResolver
+    stats: FollowupRunStats
 ): Promise<"sent" | "skipped" | "deferred" | "cancelled"> {
     stats.processed++;
 
@@ -423,9 +417,9 @@ async function processFollowupItem(
         let outcome: FollowupHandlerResult = SKIPPED;
 
         if (item.sourceType === "template") {
-            outcome = await handleTemplateFollowup(item, parentLog, isClicked, replyTo);
+            outcome = await handleTemplateFollowup(item, parentLog, isClicked);
         } else if (item.sourceType === "ai") {
-            outcome = await handleAiFollowup(item, parentLog, isClicked, replyTo);
+            outcome = await handleAiFollowup(item, parentLog, isClicked);
         }
 
         if (outcome.kind === "deferred") {
@@ -484,8 +478,7 @@ async function deferQueueItem(queueId: number, retryAt: Date) {
 async function handleTemplateFollowup(
     item: FollowupQueueItem,
     parentLog: typeof emailSendLogs.$inferSelect,
-    isClicked: boolean,
-    replyToResolver: ReplyToResolver
+    isClicked: boolean
 ): Promise<FollowupHandlerResult> {
     // 1. templateLink 조회
     const [link] = await db
@@ -518,19 +511,15 @@ async function handleTemplateFollowup(
     // emailTemplateLinks에는 signatureId 컬럼이 없다 — 템플릿 규칙은 서명을 지정할 수 없으므로 기본 서명을 쓴다
     const signatureJson = await resolveSignature(item.orgId, { config: emailConfig });
 
-    // 5. 원본 레코드 조회 (변수 치환용). 답장 받을 주소도 이 레코드의 워크스페이스로 정한다
+    // 5. 원본 레코드 조회 (변수 치환용)
     let data: Record<string, unknown> = {};
-    let recordWorkspaceId: number | null = null;
     if (parentLog.recordId) {
         const [record] = await db
             .select()
             .from(records)
             .where(eq(records.id, parentLog.recordId))
             .limit(1);
-        if (record) {
-            data = record.data as Record<string, unknown>;
-            recordWorkspaceId = record.workspaceId;
-        }
+        if (record) data = record.data as Record<string, unknown>;
     }
 
     // 6. 수신거부 확인 — 첫 메일 이후 거부했을 수 있으므로 후속 발송 직전에 다시 본다
@@ -583,9 +572,6 @@ async function handleTemplateFollowup(
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
     try {
-        // 8-2. 답장 받을 주소 — 받는 레코드의 워크스페이스 값 (레코드를 지웠으면 규칙 파티션의 워크스페이스). 없으면 Reply-To 없음
-        const replyTo = await replyToResolver.forWorkspace(recordWorkspaceId ?? workspaceId);
-
         // 9. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
         const [inserted] = await db.insert(emailSendLogs).values({
             orgId: item.orgId,
@@ -615,10 +601,9 @@ async function handleTemplateFollowup(
             title: subject,
             body: trackedBody,
             receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
-            ...buildCustomHeaders({
-                listUnsubscribe: unsubscribeToken ? buildListUnsubscribeHeaders(unsubscribeToken) : null,
-                replyTo,
-            }),
+            ...(unsubscribeToken
+                ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                : {}),
         });
 
         const sendResult = nhnResult.data?.results?.[0];
@@ -665,8 +650,7 @@ async function handleTemplateFollowup(
 async function handleAiFollowup(
     item: FollowupQueueItem,
     parentLog: typeof emailSendLogs.$inferSelect,
-    isClicked: boolean,
-    replyToResolver: ReplyToResolver
+    isClicked: boolean
 ): Promise<FollowupHandlerResult> {
     // 1. autoPersonalizedLink 조회
     const [link] = await db
@@ -735,21 +719,14 @@ async function handleAiFollowup(
 
         // 5. 원본 레코드 + 제품 조회
         let recordData: Record<string, unknown> = {};
-        let recordWorkspaceId: number | null = null;
         if (parentLog.recordId) {
             const [record] = await db
                 .select()
                 .from(records)
                 .where(eq(records.id, parentLog.recordId))
                 .limit(1);
-            if (record) {
-                recordData = record.data as Record<string, unknown>;
-                recordWorkspaceId = record.workspaceId;
-            }
+            if (record) recordData = record.data as Record<string, unknown>;
         }
-
-        // 5-1. 답장 받을 주소 — 받는 레코드의 워크스페이스 값 (레코드를 지웠으면 규칙 파티션의 워크스페이스). AI 생성(토큰)보다 먼저
-        const replyTo = await replyToResolver.forWorkspace(recordWorkspaceId ?? workspaceId);
 
         let product = null;
         if (link.productId) {
@@ -845,10 +822,9 @@ async function handleAiFollowup(
             title: emailResult.subject,
             body: trackedBody,
             receiverList: [{ receiveMailAddr: parentLog.recipientEmail, receiveType: "MRT0" }],
-            ...buildCustomHeaders({
-                listUnsubscribe: unsubscribeToken ? buildListUnsubscribeHeaders(unsubscribeToken) : null,
-                replyTo,
-            }),
+            ...(unsubscribeToken
+                ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
+                : {}),
         });
 
         const sendResult = nhnResult.data?.results?.[0];

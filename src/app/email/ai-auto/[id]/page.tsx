@@ -354,7 +354,7 @@ function EditAiAutoPageContent() {
                                             발신 프로필
                                             <HelpTip text="여러 개를 고르면 메일마다 오늘 보낼 수 있는 프로필 중 가장 오래 쉰 프로필로 나눠 보냅니다. 프로필별 하루 한도·웜업은 이메일 설정에서 정합니다." />
                                         </Label>
-                                        <SenderPoolField value={senderProfileIds} onChange={setSenderProfileIds} partitionId={currentPartitionId || null} />
+                                        <SenderPoolField value={senderProfileIds} onChange={setSenderProfileIds} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>서명</Label>
@@ -704,7 +704,7 @@ function EditAiAutoPageContent() {
                                             <SenderPoolSummary ids={senderProfileIds} className="min-w-0" />
                                         </div>
                                         <RuleQueueSummary ids={senderProfileIds} linkId={linkId} savedIds={savedSenderIds} />
-                                        <ReplyToSummaryRow partitionId={currentPartitionId || null} ids={senderProfileIds} />
+                                        <ReplyToSummaryRow ids={senderProfileIds} />
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">제품</span>
                                             <span className="font-medium truncate ml-2 max-w-40">{selectedProduct?.name || "미지정"}</span>
