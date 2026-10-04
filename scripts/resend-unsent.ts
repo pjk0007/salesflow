@@ -4,6 +4,8 @@
  * 발송 로직은 실제 자동발송과 동일한 processAutoPersonalizedEmail을 그대로 쓴다.
  * (중복 방지·쿨다운·수신거부·쿼터 체크가 전부 그 안에서 동작한다)
  * 발송 대기열이 맡고 있는 레코드(pending·processing — 발신 한도로 미뤄 둔 줄 포함)는 대상에서 뺀다.
+ * 놓친 레코드를 한꺼번에 다시 태우는 대량 경로라 발송 목적은 "bulk"다 — 15:00(KST) 전까지 주소마다 문의 몫(한도의 10%)을
+ * 남긴다 (DESIGN-2 2절). 배치 안 자리 잡기는 대기열 워커처럼 순서대로 하나씩 한다 (createClaimTurns).
  *
  * 사용:
  *   DATABASE_URL=... npx tsx scripts/resend-unsent.ts --partition 55 --limit 10 --dry-run
@@ -24,10 +26,12 @@ import { db, records, partitions, workspaces, emailSendLogs, emailSendQueue, ema
 import { and, eq, sql } from "drizzle-orm";
 import { processAutoPersonalizedEmail } from "../src/lib/auto-personalized-email";
 import { foldOutcome, deferredUntil } from "../src/lib/auto-personalized-email-outcome";
+import { createClaimTurns } from "../src/lib/email-send-queue-rules";
 import { getAiClient, getSearchAiClient, generateCompanyResearch, generateEmail } from "../src/lib/ai";
 import { getEmailConfig } from "../src/lib/nhn-email";
 import { resolveSender, resolveSignature } from "../src/lib/email-sender-resolver";
 import { linkSenderPool } from "../src/lib/email-sender-limit-rules";
+import { newReplyToResolver } from "../src/lib/email-reply-to";
 import { formatKstShort } from "../src/lib/kst";
 import { substitutePromptVariables } from "../src/lib/email-utils";
 import type { DbRecord } from "../src/lib/db";
@@ -90,6 +94,9 @@ async function previewOnly(targets: typeof records.$inferSelect[], orgId: string
     }
 
     console.log(`\n발신: ${sender.fromName} <${sender.fromEmail}>`);
+    // 답장 받을 주소 — 파티션의 워크스페이스 값 (실제 발송은 레코드마다 그 레코드의 워크스페이스 값, DESIGN-3)
+    const replyTo = await newReplyToResolver().forPartition(partitionId);
+    console.log(`답장: ${replyTo ?? "없음 — 답장이 발신 주소로 갑니다"}`);
     console.log(`AI  : ${aiClient.provider} / ${aiClient.model}  |  리서치: ${searchClient?.model ?? "(없음)"}`);
     console.log(`페르소나: ${senderPersona ? `${senderPersona.name} ${senderPersona.title ?? ""} (${senderPersona.company ?? ""})` : "미사용"}`);
     console.log("\n" + "=".repeat(72));
@@ -212,17 +219,25 @@ async function main() {
     let done = 0, failed = 0, deferred = 0;
     let earliestRetry: Date | null = null;
     const startedAt = Date.now();
+    // 답장 받을 주소는 실행 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
+    const replyTo = newReplyToResolver();
 
     for (let i = 0; i < targets.length; i += batchSize) {
         const batch = targets.slice(i, i + batchSize);
+        // 자리 잡기는 순서대로 하나씩 — 함께 잡으면 같은 사용량을 읽어 묶음의 한 주소에 몰린다
+        const turns = createClaimTurns(batch.length);
         const results = await Promise.allSettled(
-            batch.map((record) =>
+            batch.map((record, idx) =>
                 processAutoPersonalizedEmail({
                     record: record as DbRecord,
                     partitionId,
                     triggerType: "on_create",
                     orgId: partition.orgId,
-                })
+                    // 대량 재처리다 — 오전에 돌려도 그날 들어올 문의 몫을 먼저 쓰지 않게
+                    purpose: "bulk",
+                    claimTurn: turns[idx],
+                    replyTo,
+                }).finally(() => turns[idx].done())
             )
         );
 

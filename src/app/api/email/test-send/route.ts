@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailTemplates } from "@/lib/db";
+import { db, emailTemplates, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
+import { buildCustomHeaders, replyToHeaderValue } from "@/lib/reply-to-rules";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -17,17 +18,38 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const { templateId, recipientEmail, variables, senderProfileId, signatureId } = await req.json() as {
+        const { templateId, recipientEmail, variables, senderProfileId, signatureId, workspaceId } = await req.json() as {
             templateId?: number;
             recipientEmail?: string;
             variables?: Record<string, unknown>;
             senderProfileId?: number;
             signatureId?: number | null;
+            /** 답장 받을 주소를 가져올 워크스페이스 (DESIGN-3). 생략하면 조직의 워크스페이스가 하나일 때만 그 값을 쓴다 */
+            workspaceId?: number | null;
         };
 
         if (!templateId || !recipientEmail || !recipientEmail.includes("@")) {
             return NextResponse.json({ success: false, error: "템플릿 ID와 유효한 수신자 이메일이 필요합니다." }, { status: 400 });
         }
+        if (workspaceId !== undefined && workspaceId !== null && !(Number.isSafeInteger(workspaceId) && workspaceId > 0)) {
+            return NextResponse.json({ success: false, error: "워크스페이스 id가 올바르지 않습니다." }, { status: 400 });
+        }
+
+        // 답장 받을 주소 (DESIGN-3). 템플릿은 조직 단위라 워크스페이스를 모른다 — 화면이 넘긴 워크스페이스(이 조직 것만),
+        // 넘기지 않았으면 조직의 워크스페이스가 하나일 때 그 값. 여럿인데 고르지 않았으면 넣지 않는다 (예전과 같음)
+        const orgWorkspaces = await db
+            .select({ id: workspaces.id, replyToEmail: workspaces.replyToEmail })
+            .from(workspaces)
+            .where(
+                workspaceId
+                    ? and(eq(workspaces.id, workspaceId), eq(workspaces.orgId, user.orgId))
+                    : eq(workspaces.orgId, user.orgId)
+            )
+            .limit(2);
+        if (workspaceId && orgWorkspaces.length === 0) {
+            return NextResponse.json({ success: false, error: "워크스페이스를 찾을 수 없습니다." }, { status: 404 });
+        }
+        const replyTo = orgWorkspaces.length === 1 ? replyToHeaderValue(orgWorkspaces[0].replyToEmail) : null;
 
         // 템플릿 조회
         const [template] = await db
@@ -78,6 +100,7 @@ export async function POST(req: NextRequest) {
             title: subject,
             body,
             receiverList: [{ receiveMailAddr: recipientEmail, receiveType: "MRT0" }],
+            ...buildCustomHeaders({ replyTo }),
         });
 
         if (result.header.isSuccessful) {

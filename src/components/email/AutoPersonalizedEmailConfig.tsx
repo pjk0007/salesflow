@@ -32,6 +32,8 @@ import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import { useSenderProfiles } from "@/components/email/sender-profiles/hooks/useSenderProfiles";
 import { splitKnownSenderIds } from "@/components/email/sender-profiles/utils/senderPool";
 import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
+import { useSendQueueStats } from "@/components/email/sender-profiles/hooks/useSendQueueStats";
+import RuleQueueBadges from "@/components/email/sender-profiles/ui/RuleQueueBadges";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -64,6 +66,8 @@ export default function AutoPersonalizedEmailConfig({
     // 복제할 때 지워진 발신 프로필을 묶음에서 빼려고 지금 프로필 목록을 본다
     const { profiles: senderProfiles, isLoading: senderProfilesLoading, loadFailed: senderProfilesLoadFailed } =
         useSenderProfiles();
+    // 규칙별 대기 통수·다 나가는 날·3일치 경고 (못 읽으면 배지를 붙이지 않는다)
+    const { byLinkId: queueByLinkId } = useSendQueueStats();
 
     const handleCreate = () => {
         const params = selectedPartitionId !== "all" ? `?partitionId=${selectedPartitionId}` : "";
@@ -213,6 +217,7 @@ export default function AutoPersonalizedEmailConfig({
                                                 {followupBadgeLabel(link.followupConfig)}
                                             </Badge>
                                         )}
+                                        <RuleQueueBadges stats={queueByLinkId.get(link.id)} />
                                     </div>
                                     <p className="text-sm text-muted-foreground">
                                         수신: {link.recipientField} | 회사: {link.companyField}

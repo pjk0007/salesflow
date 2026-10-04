@@ -9,7 +9,7 @@
 
 import { formatKstShort } from "@/lib/kst";
 import { hasAnyLimit, linkSenderPool } from "@/lib/email-sender-limit-rules";
-import type { SenderLimitSettings, SlotDeferReason } from "@/lib/email-sender-limit-rules";
+import type { SendPurpose, SenderLimitSettings, SlotDeferReason } from "@/lib/email-sender-limit-rules";
 import { pickSender } from "@/lib/email-sender-pick";
 import type { LegacyEmailConfig, ResolvedSender, SenderCandidate } from "@/lib/email-sender-pick";
 
@@ -169,6 +169,64 @@ export function restartedWarmupStartedOn(
 }
 
 /**
+ * 반복 대기열 회차의 "막힘" 기록 키 (조직 + 발송 목적). 템플릿 첫 메일(문의)과 반복(대량)은 쓸 수 있는 한도가 달라
+ * 따로 막힌다 — 대량이 문의 몫 앞에서 멈춰도 첫 메일은 나갈 수 있다 (DESIGN-2 2절).
+ */
+export function purposeBlockKey(orgId: string, purpose: SendPurpose): string {
+    return `${orgId}|${purpose}`;
+}
+
+/**
+ * 발신 한도로 미뤄 둔 템플릿 첫 메일 줄의 kind (반복 대기열 email_automation_queue.kind, varchar(10)).
+ *   'first'       문의 — 폼 제출·단건 생성·수정으로 생긴 레코드의 첫 메일. 그날 한도 전체를 쓴다
+ *   'first_bulk'  대량 — 가져오기·예약 등록으로 생긴 레코드의 첫 메일. 15:00(KST) 전까지 문의 몫을 남긴다
+ * 가져오기 명단의 첫 메일이 문의 몫까지 먼저 써서 그날 들어온 폼 문의가 다음 날로 밀리지 않게 나눈다 (REVIEW-2 안전 F4).
+ */
+export type TemplateFirstKind = "first" | "first_bulk";
+
+/** 템플릿 첫 메일 줄 kind 전부 (같은 규칙·레코드의 첫 메일은 둘 중 한 줄만 기다린다) */
+export const TEMPLATE_FIRST_KINDS: readonly TemplateFirstKind[] = ["first", "first_bulk"];
+
+/** 발송 목적 → 미뤄 둔 템플릿 첫 메일 줄의 kind */
+export function templateFirstKind(purpose: SendPurpose): TemplateFirstKind {
+    return purpose === "bulk" ? "first_bulk" : "first";
+}
+
+/** 반복 대기열 줄 kind → 템플릿 첫 메일의 발송 목적. 첫 메일 줄이 아니면(반복 'repeat' 등) null */
+export function templateFirstPurpose(kind: string | null | undefined): SendPurpose | null {
+    if (kind === "first") return "inbound";
+    if (kind === "first_bulk") return "bulk";
+    return null;
+}
+
+/**
+ * 기본 주소가 이 목적으로 막혔을 때 함께 미뤄도 되는 첫 메일 줄 kind. 문의가 막혔으면 대량도 막혔다 (recordPurposeBlock과 같은 까닭).
+ * 대량만 막혔으면(문의 몫 앞에서 멈춤) 문의 첫 메일은 나갈 수 있으므로 옮기지 않는다.
+ */
+export function templateFirstKindsBlockedBy(purpose: SendPurpose): TemplateFirstKind[] {
+    return purpose === "inbound" ? ["first", "first_bulk"] : ["first_bulk"];
+}
+
+/**
+ * 조직의 기본 발신 주소가 이 목적으로 retryAt까지 막혔다고 적는다 (activeBlock이 읽는다).
+ * 문의가 막혔으면 대량도 막혔다 — 대량 한도는 문의 한도보다 작거나 같고, 정지·시간대·간격은 같다.
+ * 대량이 막혔다고 문의가 막힌 것은 아니다 (문의 몫이 남아 있을 수 있다). 이미 더 늦게까지 막힌 기록은 당기지 않는다.
+ */
+export function recordPurposeBlock(
+    blockedUntil: Map<string, Date>,
+    orgId: string,
+    purpose: SendPurpose,
+    retryAt: Date,
+): void {
+    const purposes: SendPurpose[] = purpose === "inbound" ? ["inbound", "bulk"] : ["bulk"];
+    for (const p of purposes) {
+        const key = purposeBlockKey(orgId, p);
+        const prev = blockedUntil.get(key);
+        if (!prev || prev.getTime() < retryAt.getTime()) blockedUntil.set(key, new Date(retryAt.getTime()));
+    }
+}
+
+/**
  * 회차 안에서 "이 조직(키)의 발신 주소가 이 시각까지 막혔다"는 기록을 본다. 막혀 있으면 열리는 시각, 아니면 null.
  * 이미 열린 기록은 지운다. 반복 대기열이 같은 조직의 줄마다 조건·발송 준비 조회를 되풀이하지 않으려고 쓴다.
  */
@@ -180,4 +238,32 @@ export function activeBlock(blockedUntil: Map<string, Date>, key: string, now: D
         return null;
     }
     return until;
+}
+
+/**
+ * 반복 대기열(email_automation_queue) 한 회차에서 줄을 꺼내는 차례 (DESIGN-3 4-1, R8).
+ * 기한이 된 줄 중 문의 첫 메일('first')을 먼저 모두 보고, 그다음 나머지(가져오기 명단의 첫 메일 'first_bulk', 반복 'repeat')를 본다.
+ * 같은 차례 안에서는 예전처럼 id 순(먼저 들어온 순)이다. 줄의 kind는 바뀌지 않으므로 한 줄은 한 회차에 한 번만 본다.
+ * 예전에는 kind를 가리지 않고 id 순이라, 같은 시각에 열린 대량 첫 메일이 먼저 들어왔으면 그날 남은 한 칸을 문의보다 먼저 가져갔다.
+ */
+export interface RepeatQueuePhase {
+    /** 이 kind들만 (exclude=false) 또는 이 kind들을 뺀 나머지 (exclude=true) */
+    kinds: readonly string[];
+    exclude: boolean;
+}
+
+export const REPEAT_QUEUE_PHASES: readonly RepeatQueuePhase[] = [
+    { kinds: ["first"], exclude: false },
+    { kinds: ["first"], exclude: true },
+];
+
+/** 줄 kind의 차례 번호 (REPEAT_QUEUE_PHASES의 몇 번째에 꺼내는가) */
+export function repeatQueuePhaseOf(kind: string): number {
+    const i = REPEAT_QUEUE_PHASES.findIndex((p) => p.kinds.includes(kind) !== p.exclude);
+    return i < 0 ? REPEAT_QUEUE_PHASES.length : i;
+}
+
+/** 한 회차에 기한이 된 줄들을 보는 순서 (차례, 그다음 id). 워커는 차례마다 조회해 같은 순서로 본다 — 시험이 이 순서를 본다 */
+export function orderRepeatQueueItems<T extends { id: number; kind: string }>(items: readonly T[]): T[] {
+    return [...items].sort((a, b) => repeatQueuePhaseOf(a.kind) - repeatQueuePhaseOf(b.kind) || a.id - b.id);
 }

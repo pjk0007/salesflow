@@ -49,6 +49,8 @@ import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import AssetPickerField from "@/components/email/assets/ui/AssetPickerField";
 import SenderPoolField from "@/components/email/sender-profiles/ui/SenderPoolField";
 import SenderPoolSummary from "@/components/email/sender-profiles/ui/SenderPoolSummary";
+import RuleQueueSummary from "@/components/email/sender-profiles/ui/RuleQueueSummary";
+import ReplyToSummaryRow from "@/components/email/reply-to/ui/ReplyToSummaryRow";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import useSWR from "swr";
@@ -110,6 +112,10 @@ function EditAiAutoPageContent() {
     const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
     const signatures: EmailSignature[] = signaturesData?.data ?? [];
     const link = links.find((l) => l.id === linkId);
+    // 대기·예상 소진일은 저장된 묶음으로 센 값이다 — 폼에서 묶음을 바꿨는지 요약 칸이 알리게 넘긴다
+    const savedSenderIds = link
+        ? linkSenderPool({ senderProfileId: link.senderProfileId ?? null, senderProfileIds: link.senderProfileIds ?? null })
+        : undefined;
 
     const [saving, setSaving] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -348,7 +354,7 @@ function EditAiAutoPageContent() {
                                             발신 프로필
                                             <HelpTip text="여러 개를 고르면 메일마다 오늘 보낼 수 있는 프로필 중 가장 오래 쉰 프로필로 나눠 보냅니다. 프로필별 하루 한도·웜업은 이메일 설정에서 정합니다." />
                                         </Label>
-                                        <SenderPoolField value={senderProfileIds} onChange={setSenderProfileIds} />
+                                        <SenderPoolField value={senderProfileIds} onChange={setSenderProfileIds} partitionId={currentPartitionId || null} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label>서명</Label>
@@ -697,6 +703,8 @@ function EditAiAutoPageContent() {
                                             <span className="shrink-0 text-muted-foreground">발신</span>
                                             <SenderPoolSummary ids={senderProfileIds} className="min-w-0" />
                                         </div>
+                                        <RuleQueueSummary ids={senderProfileIds} linkId={linkId} savedIds={savedSenderIds} />
+                                        <ReplyToSummaryRow partitionId={currentPartitionId || null} ids={senderProfileIds} />
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">제품</span>
                                             <span className="font-medium truncate ml-2 max-w-40">{selectedProduct?.name || "미지정"}</span>

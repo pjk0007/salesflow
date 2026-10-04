@@ -5,6 +5,7 @@ import {
     varchar,
     text,
     integer,
+    smallint,
     bigint,
     boolean,
     timestamp,
@@ -104,6 +105,8 @@ export const workspaces = pgTable("workspaces", {
         defaultVisibleFields?: string[];
         duplicateCheckField?: string;
     }>(),
+    // 답장 받을 주소 (DESIGN-3). 있으면 이 워크스페이스 레코드로 나가는 모든 메일에 Reply-To 헤더를 넣는다. null = 헤더 없음
+    replyToEmail: varchar("reply_to_email", { length: 200 }),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
@@ -719,6 +722,8 @@ export const emailSendLogs = pgTable("email_send_logs", {
     ),
     unsubscribeToken: varchar("unsubscribe_token", { length: 64 }),  // 본문 수신거부 링크가 발송 건을 되짚는 토큰
     senderProfileId: integer("sender_profile_id"),  // 후속 메일이 원본 발신자를 상속하기 위한 값. 마이그레이션 이전 로그는 null
+    // 보낼 때 실제로 쓴 발신 주소 (DESIGN-3 4-1). 프로필 주소를 나중에 바꿔도 그대로다. 0073 전 로그는 null
+    senderEmail: varchar("sender_email", { length: 200 }),
 });
 
 // ============================================
@@ -784,7 +789,8 @@ export const emailAutomationQueue = pgTable(
         repeatCount: integer("repeat_count").default(0).notNull(),
         nextRunAt: timestamptz("next_run_at").notNull(),
         status: varchar("status", { length: 20 }).default("pending").notNull(),
-        // repeat = 반복 발송, first = 발신 한도로 미룬 템플릿 자동 첫 메일
+        // repeat = 반복 발송, first = 발신 한도로 미룬 템플릿 자동 첫 메일(문의),
+        // first_bulk = 가져오기·예약 등록 명단의 미룬 첫 메일(대량 — 15:00 KST 전까지 문의 몫을 남긴다, DESIGN-2 2절)
         kind: varchar("kind", { length: 10 }).default("repeat").notNull(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
@@ -931,9 +937,21 @@ export const emailSendQueue = pgTable(
          * 워커가 보낼 것 없음·실패로 끝내려 할 때 이 값이 있으면 끝내지 않고 이 시각에 다시 꺼낸다
          */
         requeueAt: timestamptz("requeue_at"),
+        /**
+         * 0 = 대량 명단 (가져오기·예약 등록 → enqueueSends), 1 = 문의가 발신 한도에 막혀 들어온 줄 (enqueueDeferredSend).
+         * 꺼낼 때 1이 먼저고(priority DESC, scheduled_at, id), 1인 줄은 그날 한도 전체를, 0인 줄은 15:00(KST) 전까지
+         * 문의 몫(한도의 10%)을 뺀 한도를 쓴다 (docs/2026-10-02-sender-warmup/DESIGN-2-queue-policy.md 2절)
+         */
+        priority: smallint("priority").default(0).notNull(),
     },
     (table) => ({
-        pickupIdx: index("esq_pickup_idx").on(table.status, table.scheduledAt, table.id),
+        // 줄 집기 순서(pickBatch)와 같은 색인 (0072에서 예전 esq_pickup_idx(status, scheduled_at, id)를 바꿨다)
+        pickupIdx: index("esq_pickup_priority_idx").on(
+            table.status,
+            table.priority.desc(),
+            table.scheduledAt,
+            table.id
+        ),
         // 같은 레코드가 두 번 적재되는 것을 DB가 막는다 — 재업로드해도 메일이 두 번 나가지 않는다
         recordTriggerIdx: uniqueIndex("esq_record_trigger_idx").on(table.recordId, table.triggerType),
     })

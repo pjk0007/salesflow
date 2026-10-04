@@ -6,7 +6,7 @@
  * 화면(14일 미리보기)도 이 파일을 그대로 쓰므로 서버 전용 모듈을 들이지 않는다.
  *
  * 시간은 모두 한국 시각(KST) 벽시계로 판단한다. 한도는 "한국 날짜 하루"에 걸린다. KST 계산은 kst.ts를 쓴다.
- * 설계: docs/2026-10-02-sender-warmup/DESIGN.md 1~2절.
+ * 설계: docs/2026-10-02-sender-warmup/DESIGN.md 1~2절, 문의 몫(발송 목적)은 DESIGN-2-queue-policy.md 2절.
  */
 
 import {
@@ -290,6 +290,76 @@ export function capSchedule(
 }
 
 // ============================================
+// 발송 목적 — 문의 몫 남겨 두기 (DESIGN-2 2절)
+// ============================================
+
+/**
+ * 메일 한 통의 발송 목적. 아침에 대량 명단이 그날 한도를 다 써서 문의 메일이 다음 날로 밀리지 않게 나눈다.
+ *   inbound  문의·단건: 한 건씩 생긴 레코드의 AI 첫 메일(dispatchAutoTriggers)과 그것이 막혀 대기열에 간 줄(priority 1),
+ *            템플릿 자동 첫 메일과 그 미룬 줄(kind='first'), 수동 발송. 그날 한도 전체를 쓴다
+ *   bulk     대량 명단: 가져오기·예약 등록으로 대기열에 들어온 AI 첫 메일(priority 0), 후속 메일, 템플릿 반복.
+ *            15:00(KST) 전에는 한도에서 문의 몫을 뺀 만큼만 쓴다
+ * 정하지 않으면 inbound — 예전 호출은 예전처럼 한도 전체를 쓴다.
+ */
+export type SendPurpose = "inbound" | "bulk";
+
+/** 문의 몫 = 그날 한도의 1/10 (올림) */
+const INBOUND_RESERVE_DIVISOR = 10;
+/** 이 시각(KST, 시)부터는 남겨 둔 문의 몫도 대량이 쓴다 — 안 쓰고 버리지 않게 */
+export const RESERVE_RELEASE_HOUR = 15;
+
+/**
+ * 이 주소의 문의 몫이 풀리는 시각 (KST, 시). 보통 RESERVE_RELEASE_HOUR(15시).
+ * 발송 시간대가 15시 전에 끝나는 주소(9~15시, 9~12시 등)는 15:00이 시간대 밖이라 몫이 끝내 풀리지 않아 문의가 없는 날
+ * 한도의 10%를 매일 버렸다 (REVIEW-2 정책 F4) — 그런 주소는 시간대 마지막 한 시간(끝 − 1시, 시작보다 이르지 않게)에 푼다.
+ * 시간대가 15시를 넘겨 열려 있거나 시간대가 없으면 15시 그대로다. 설정이 없으면(예전 호출) 15시.
+ */
+export function reserveReleaseHour(s?: SenderLimitSettings | null): number {
+    const w = s ? windowOf(s) : null;
+    if (!w || w.end > RESERVE_RELEASE_HOUR) return RESERVE_RELEASE_HOUR;
+    return Math.max(w.start, w.end - 1);
+}
+
+/**
+ * 그날 한도(cap)에서 문의 몫으로 남겨 두는 수. 10% 올림, 한도가 1 이하이거나 없으면 0.
+ * 한도가 1이면 몫을 남기면 대량이 하루 종일 한 통도 못 보낸다. 정수 나눗셈으로 센다 (30 × 0.1은 3.0000000000000004라 올리면 4가 된다).
+ */
+export function inboundReserve(cap: number | null): number {
+    if (cap === null || !Number.isFinite(cap) || cap <= 1) return 0;
+    return Math.ceil(Math.floor(cap) / INBOUND_RESERVE_DIVISOR);
+}
+
+/**
+ * 지금(now) 대량(bulk)이 쓸 수 있는 그날 한도. 자리 잡기 SQL의 $cap에 이 값을 넣는다.
+ *   cap        대량이 쓸 수 있는 한도 (null = 제한 없음)
+ *   reserve    지금 문의 몫으로 막아 둔 수 (몫이 풀린 뒤에는 0)
+ *   releaseAt  몫이 풀리는 시각 (오늘 reserveReleaseHour(s) KST — 보통 15:00). 지금 막아 둔 몫이 없으면 null
+ * s(주소 설정)를 넘기면 시간대가 15시 전에 끝나는 주소는 더 일찍 푼다 (reserveReleaseHour). 생략하면 15:00.
+ */
+export function bulkCapForNow(
+    cap: number | null,
+    now: Date,
+    s?: SenderLimitSettings | null,
+): { cap: number | null; reserve: number; releaseAt: Date | null } {
+    if (cap === null) return { cap: null, reserve: 0, releaseAt: null };
+    const reserve = inboundReserve(cap);
+    const p = kstParts(now);
+    const releaseHour = reserveReleaseHour(s);
+    if (reserve === 0 || p.hour >= releaseHour) return { cap, reserve: 0, releaseAt: null };
+    return { cap: cap - reserve, reserve, releaseAt: kstToDate(p.date, releaseHour) };
+}
+
+/** 그날 한도(capForDate)를 목적에 맞게 줄인다. inbound는 그대로, bulk는 bulkCapForNow (s = 그 주소 설정) */
+export function capForPurpose(
+    cap: number | null,
+    now: Date,
+    purpose: SendPurpose,
+    s?: SenderLimitSettings | null,
+): number | null {
+    return purpose === "bulk" ? bulkCapForNow(cap, now, s).cap : cap;
+}
+
+// ============================================
 // 시간대·간격
 // ============================================
 
@@ -349,12 +419,16 @@ export type SlotDecision =
  * 지금 한 통을 더 보내도 되는지 판정한다.
  * usage는 "오늘(KST)" 이 주소의 사용량이다 — 날이 바뀌면 0부터 다시 센다.
  *
- * 순서: 정지 → 시간대·요일 → 오늘 한도 → 간격. 앞의 이유일수록 더 오래 막힌다.
+ * 순서: 정지 → 시간대·요일 → 오늘 한도 → (bulk) 문의 몫 → 간격. 앞의 이유일수록 더 오래 막힌다.
+ * bulk가 문의 몫에 막히면 이유는 daily_limit이고 retryAt은 몫이 풀리는 시각(reserveReleaseHour — 보통 15:00, 시간대가 그 전에
+ * 끝나면 시간대 마지막 한 시간). 그때 보낼 수 없으면(평일만 주소의 주말 등) 다음 보낼 수 있는 날.
+ * 간격은 목적과 상관없이 그날 한도 전체로 나눈다 — 문의와 대량이 같은 간격을 지킨다.
  */
 export function decideSlot(
     s: SenderLimitSettings,
     now: Date,
     usage: { sentToday: number; lastSentAt: Date | null },
+    purpose: SendPurpose = "inbound",
 ): SlotDecision {
     if (s.isPaused) {
         return { ok: false, retryAt: nextSendableAt(s, now, true), reason: "paused" };
@@ -367,6 +441,17 @@ export function decideSlot(
     const cap = capForDate(s, today);
     if (cap !== null && usage.sentToday >= cap) {
         return { ok: false, retryAt: nextSendableAt(s, now, true), reason: "daily_limit" };
+    }
+    if (purpose === "bulk") {
+        const bulk = bulkCapForNow(cap, now, s);
+        if (bulk.cap !== null && usage.sentToday >= bulk.cap) {
+            // 몫이 풀리는 시각은 시간대 안으로 잡힌다(reserveReleaseHour). 그래도 그때 보낼 수 없으면 오늘은 더 못 보낸다
+            const retryAt =
+                bulk.releaseAt && isSendableNow(s, bulk.releaseAt)
+                    ? new Date(bulk.releaseAt.getTime())
+                    : nextSendableAt(s, now, true);
+            return { ok: false, retryAt, reason: "daily_limit" };
+        }
     }
 
     const gap = spreadGapMs(s, cap);
@@ -406,10 +491,15 @@ export type PoolRank =
  *   다른 주소가 열리기 전에 매일 헛걸음을 하게 된다
  * - 전부 정지면 그중 가장 이른 retryAt, reason "paused"
  * - 후보가 없으면 { ok: true, order: [] } — 막힌 게 아니라 고를 게 없는 것이다 (호출한 쪽이 기본 주소로)
+ * - purpose는 decideSlot에 그대로 넘긴다 (bulk는 15:00 전까지 문의 몫을 남긴다)
  *
  * 같은 id가 두 번 오면 앞의 것만 본다.
  */
-export function rankPool(cands: readonly PoolCandidate[], now: Date): PoolRank {
+export function rankPool(
+    cands: readonly PoolCandidate[],
+    now: Date,
+    purpose: SendPurpose = "inbound",
+): PoolRank {
     const seen = new Set<number>();
     const passed: Array<{ id: number; index: number; lastMs: number }> = [];
     let blocked: { retryAt: Date; reason: SlotDeferReason } | null = null;
@@ -420,7 +510,7 @@ export function rankPool(cands: readonly PoolCandidate[], now: Date): PoolRank {
         if (seen.has(c.id)) continue;
         seen.add(c.id);
 
-        const d = decideSlot(c.settings, now, c.usage);
+        const d = decideSlot(c.settings, now, c.usage, purpose);
         if (d.ok) {
             const t = c.usage.lastSentAt ? c.usage.lastSentAt.getTime() : NaN;
             passed.push({ id: c.id, index, lastMs: Number.isFinite(t) ? t : -Infinity });
@@ -456,15 +546,20 @@ export function rankPool(cands: readonly PoolCandidate[], now: Date): PoolRank {
  * 주소 하나의 간격으로 펼치면 묶음이 보낼 수 있는 양보다 늦게 깨워 발송이 느려진다.
  * 오늘 시간대 안에서 다시 열리는 주소(retryAt = 마지막 발송 + 간격)만 센다 — 시간대 끝을 넘겨 다음 날로 밀린 주소,
  * 한도·정지·시간대에 막힌 주소는 오늘 더 보내지 못하니 묶음 속도에 들어가지 않는다.
+ * purpose는 rankPool과 같은 값을 넘긴다 — bulk에서 문의 몫에 막힌 주소는 세지 않는다.
  */
-export function poolSpacingStepMs(cands: readonly PoolCandidate[], now: Date): number {
+export function poolSpacingStepMs(
+    cands: readonly PoolCandidate[],
+    now: Date,
+    purpose: SendPurpose = "inbound",
+): number {
     const today = kstParts(now).date;
     const seen = new Set<number>();
     let perMs = 0;
     for (const c of cands) {
         if (seen.has(c.id)) continue;
         seen.add(c.id);
-        const d = decideSlot(c.settings, now, c.usage);
+        const d = decideSlot(c.settings, now, c.usage, purpose);
         if (d.ok || d.reason !== "spacing" || !c.usage.lastSentAt) continue;
         const gap = spreadGapMs(c.settings, capForDate(c.settings, today));
         if (gap <= 0 || d.retryAt.getTime() !== c.usage.lastSentAt.getTime() + gap) continue;
@@ -475,6 +570,16 @@ export function poolSpacingStepMs(cands: readonly PoolCandidate[], now: Date): n
 
 /** spreadSpacingRetry가 "(묶음, retryAt)마다 몇 통을 이미 그 시각 뒤로 나눠 줬는지" 적어 두는 곳 */
 export type SpacingSpreadMemo = Map<string, { baseMs: number; count: number }>;
+
+/**
+ * 간격 미룸 펼치기 기록의 묶음 키 (spreadSpacingRetry의 poolKey) = 묶음 주소 id들(정렬·중복 제거) + 발송 목적.
+ * 목적을 넣는 까닭: 문의와 대량은 간격 retryAt(마지막 발송 + 간격)이 같아 한 키를 쓰면, 대량 대기 N줄을 펼친 직후 들어온
+ * 문의가 그 뒤(base + N·간격, 며칠 뒤)로 밀린다 (REVIEW-2 정책 F2). 문의는 문의끼리만 순번을 매긴다 — 그 시각에는 문의 줄이
+ * 먼저 꺼내지므로(priority 1) 대량 줄 뒤에 설 까닭이 없다.
+ */
+export function spacingSpreadKey(ids: readonly number[], purpose: SendPurpose): string {
+    return `${[...new Set(ids)].sort((a, b) => a - b).join(",")}|${purpose}`;
+}
 
 /**
  * 같은 묶음에서 같은 retryAt으로 미뤄지는 메일을 순번 × 간격(stepMs)으로 펼친다. 늘 새 Date를 준다.

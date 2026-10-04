@@ -7,9 +7,9 @@
 
 import { foldOutcome, deferredUntil, describeOutcome, failedLinkIds } from "@/lib/auto-personalized-email-outcome";
 import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
-import { describeDeferral } from "@/lib/email-sender-limit-rules";
-import type { SlotDeferReason } from "@/lib/email-sender-limit-rules";
-import { formatKstShort } from "@/lib/kst";
+import { describeDeferral, linkSenderPool } from "@/lib/email-sender-limit-rules";
+import type { SendPurpose, SlotDeferReason } from "@/lib/email-sender-limit-rules";
+import { formatKstShort, kstParts } from "@/lib/kst";
 
 /** 실패 재시도 상한. 초과하면 failed로 확정한다. */
 export const MAX_ATTEMPTS = 3;
@@ -165,6 +165,167 @@ export function isStuck(
     return elapsed > thresholdMs;
 }
 
+// ============================================
+// 줄 우선순위 — 문의는 바로, 대량 명단은 줄 세우기 (DESIGN-2 2절)
+// ============================================
+
+/** 대량 명단 줄 (가져오기·예약 등록 → enqueueSends). 칸 기본값이다 */
+export const QUEUE_PRIORITY_BULK = 0;
+/**
+ * 문의(한 건씩 생긴 레코드)가 발신 한도에 막혀 들어온 줄 (enqueueDeferredSend).
+ * 꺼낼 때 먼저다 (ORDER BY priority DESC, scheduled_at, id) — 같은 때 열리면 문의가 대량 명단보다 앞선다
+ */
+export const QUEUE_PRIORITY_INBOUND = 1;
+
+/**
+ * 대기열 줄의 priority → 자리 잡을 때의 발송 목적. 1 이상이면 문의(그날 한도 전체), 아니면 대량(15:00 전까지 문의 몫을 남긴다).
+ * 이상한 값(null·문자열)은 대량으로 본다 — 칸 기본값이 0이다.
+ */
+export function purposeOfQueuePriority(priority: unknown): SendPurpose {
+    const n = typeof priority === "number" ? priority : typeof priority === "string" ? Number(priority) : NaN;
+    return Number.isFinite(n) && n >= QUEUE_PRIORITY_INBOUND ? "inbound" : "bulk";
+}
+
+/**
+ * 새 대량 줄의 선입선출 하한을 정할 때 세는 미룸 이유 (last_error "deferred(이유) until …").
+ * 그날 한도·시간대·정지로 막혀 "다음에 열리는 날 시작"을 기다리는 줄만 센다. 간격(spacing) 미룸은 그날 안에 펼쳐져 있고
+ * 새 줄도 꺼내자마자 그 뒤로 펼쳐지므로 세지 않는다.
+ */
+export const FIFO_FLOOR_DEFER_REASONS: readonly SlotDeferReason[] = ["daily_limit", "outside_window", "paused"];
+
+/**
+ * 새로 넣는 대량 줄(enqueueSends)의 예정 시각 — 대량 명단은 먼저 들어온 순으로 나간다 (DESIGN-2 Q4).
+ *
+ * deferredUntil = 같은 규칙 묶음(조직·파티션·트리거)에서 한도·시간대·정지로 미뤄 둔 대량 줄(FIFO_FLOOR_DEFER_REASONS) 중
+ * 오늘(KST) 다시 열리는 가장 늦은 예정 시각 (없으면 null). 새 줄은 그보다 일찍 꺼내지 않는다.
+ * 막으려는 것: 시간대를 정하지 않은 주소는 한도를 다 쓴 날의 남은 줄을 다음 날 09:00(DEFAULT_RESUME_HOUR)으로 미루는데,
+ * 그 사이(00:00~09:00)에 들어온 새 줄은 그날 한도가 새로 열려 바로 나가 어제 밀린 줄을 앞질렀다.
+ *
+ * 하한은 deferredUntil이 오늘 날짜일 때만 건다 — 미룬 줄이 내일 이후에 열리면 새 줄도 꺼내자마자 같은 이유로 같은 시각에
+ * 미뤄지므로(먼저 들어온 순 그대로) 하한이 필요 없다. 그때 새 줄이 바로 나간다면 막힌 이유가 그 사이 풀렸거나(한도를 올림·
+ * 정지를 풂·주소를 더함) 다른 규칙·다른 묶음으로 가는 줄이다 — 하루 가까이 묶어 두면 안 된다 (REVIEW-2 안전 F1).
+ * 규칙마다 묶음이 다른 파티션은 부르는 쪽이 deferredUntil을 null로 넘긴다 (sharesOneSenderPool).
+ *
+ * 돌려주는 값: 넣을 예정 시각. null이면 칸 기본값(지금)을 그대로 쓴다. requested(호출한 쪽이 정한 시각)보다 당기지 않는다.
+ */
+export function bulkFifoScheduledAt(requested: Date | null, now: Date, deferredUntil: Date | null): Date | null {
+    const base = requested ?? now;
+    if (
+        deferredUntil &&
+        deferredUntil.getTime() > base.getTime() &&
+        kstParts(deferredUntil).date === kstParts(now).date
+    ) {
+        return new Date(deferredUntil.getTime());
+    }
+    return requested ? new Date(requested.getTime()) : null;
+}
+
+/**
+ * 파티션·트리거의 켜진 AI 규칙이 모두 같은 발신 묶음(주소 집합)을 쓰는가. 규칙이 없거나 하나면 true.
+ * 묶음이 다르면 미뤄 둔 줄이 막힌 묶음과 새 레코드가 갈 묶음이 다를 수 있다 — 선입선출 하한(bulkFifoScheduledAt)을 걸지 않는다.
+ * 묶음이 비어 있는 규칙(기본 주소로 보냄)끼리는 같은 묶음으로 본다.
+ */
+export function sharesOneSenderPool(
+    links: ReadonlyArray<{ senderProfileId: number | null; senderProfileIds: unknown }>
+): boolean {
+    const keys = new Set(
+        links.map((l) =>
+            linkSenderPool({
+                senderProfileId: l.senderProfileId,
+                senderProfileIds: Array.isArray(l.senderProfileIds) ? (l.senderProfileIds as number[]) : null,
+            })
+                .slice()
+                .sort((a, b) => a - b)
+                .join(",")
+        )
+    );
+    return keys.size <= 1;
+}
+
+// ============================================
+// 배치 안 자리 잡기 차례 (DESIGN-2 1절·Q1·Q4·Q5)
+// ============================================
+
+/**
+ * 한 배치 안 자리 잡기 차례: 문의 먼저(priority DESC), 그다음 먼저 들어온 순(id). 새 배열을 준다.
+ *
+ * - pickBatch의 UPDATE … RETURNING은 하위 쿼리의 ORDER BY와 상관없이 표에 놓인 순서로 줄을 돌려준다 — 그대로 차례를 매기면
+ *   마지막 한 칸을 늦게 들어온 줄이 가져갔다 (재검증 S2: s2-06 대신 s2-10). 그래서 다시 줄 세운다.
+ * - 배치에 든 줄은 모두 꺼낼 때가 된 줄이다. 그 안에서는 예정 시각(scheduled_at)이 아니라 들어온 순으로 세운다 —
+ *   고르게 나눠 보내기에서 앞 칸을 문의에 내준 대량 줄은 "마지막 발송 + 간격"으로 다시 미뤄져, 미리 펼쳐 둔 다음 줄의 칸보다
+ *   몇 분 늦은 시각을 받는다. 예정 시각 순이면 그 줄이 칸마다 다음 줄에 밀려 하루 끝까지 처진다 (재검증 S7).
+ *   어느 줄을 꺼낼지는 여전히 pickBatch가 priority DESC, scheduled_at, id로 정한다 (색인 순서).
+ */
+export function sortPickedRows<T extends { id: number; priority: unknown }>(rows: readonly T[]): T[] {
+    const prio = (v: unknown) => {
+        const n = typeof v === "number" ? v : typeof v === "string" ? Number(v) : NaN;
+        return Number.isFinite(n) ? n : QUEUE_PRIORITY_BULK;
+    };
+    return [...rows].sort((a, b) => prio(b.priority) - prio(a.priority) || Number(a.id) - Number(b.id));
+}
+
+/** 줄 하나의 자리 잡기 차례 (createClaimTurns) */
+export interface ClaimTurn {
+    /** 차례가 오면 claim(발신 자리 잡기)을 돌린다. 자리 잡기는 언제나 한 번에 하나다 */
+    run<T>(claim: () => Promise<T>): Promise<T>;
+    /** 이 줄의 처리가 끝났다 — 아직 자리를 잡지 않았으면 뒤 줄에 차례를 넘긴다. 여러 번 불러도 된다 */
+    done(): void;
+}
+
+/**
+ * 대기열 워커가 함께 처리하는 줄(배치)의 발신 자리 잡기를 꺼낸 순서대로 하나씩 하게 한다.
+ * AI 생성·NHN 호출은 그대로 겹쳐 돌고, 그 앞의 자리 잡기(claimSender)만 줄을 세운다.
+ *
+ * 함께 잡으면 생기던 일 (REVIEW-2 정책 F1, 검증 S1 실패):
+ *   - 다섯 줄이 같은 순간의 사용량을 읽어 모두 같은 "가장 오래 쉰 주소"를 고른다 — 묶음이 돌아가지 않고 한 주소에 몰린다
+ *   - 한도·문의 몫·간격의 마지막 한 칸을 꺼낸 순서(문의 먼저, 먼저 들어온 순)가 아니라 먼저 닿은 줄이 가져간다
+ *   - 간격 미룸 펼치기의 순번이 꺼낸 순서가 아니라 끝난 순서로 매겨진다
+ *
+ * 줄 i의 첫 자리 잡기는 앞 줄(0..i-1)이 모두 첫 자리 잡기를 마쳤거나 처리를 끝낸(done) 뒤에 한다.
+ * 한 줄이 규칙 여럿으로 두 번째 자리를 잡을 때도 한 번에 하나씩이다 — 앞 자리 잡기가 쓴 사용량을 다음 자리 잡기가 읽는다.
+ * 부르는 쪽은 줄마다 처리가 끝나면(보냈든 건너뛰었든 던졌든) 반드시 done()을 불러야 한다 — 안 부르면 뒤 줄이 기다린다.
+ */
+export function createClaimTurns(count: number): ClaimTurn[] {
+    const n = Math.max(0, Math.floor(count));
+    const release: Array<() => void> = [];
+    const turnEnded: Array<Promise<void>> = [];
+    for (let i = 0; i < n; i++) {
+        turnEnded.push(new Promise<void>((resolve) => release.push(resolve)));
+    }
+
+    // 자리 잡기 한 번에 하나 — 앞 자리 잡기가 끝나야(성공·실패 상관없이) 다음이 돈다
+    let tail: Promise<void> = Promise.resolve();
+    const exclusive = <T>(claim: () => Promise<T>): Promise<T> => {
+        const result = tail.then(claim);
+        tail = result.then(
+            () => undefined,
+            () => undefined
+        );
+        return result;
+    };
+
+    return turnEnded.map((_, i) => {
+        let ended = false;
+        const end = () => {
+            if (ended) return;
+            ended = true;
+            release[i]();
+        };
+        const before = Promise.all(turnEnded.slice(0, i));
+        return {
+            async run<T>(claim: () => Promise<T>): Promise<T> {
+                if (!ended) await before;
+                try {
+                    return await exclusive(claim);
+                } finally {
+                    end();
+                }
+            },
+            done: end,
+        };
+    });
+}
+
 /** 이번 회차의 처리 예산을 다 썼는지 판정한다. */
 export function isDeadlineExceeded(
     startedAtMs: number,
@@ -275,9 +436,18 @@ export function toWellFormed(text: string): string {
  */
 export const DRAIN_BATCH_SIZE = 200;
 
-/** 같은 규칙 목록을 보는 줄 (같은 조직·파티션·트리거) — processAutoPersonalizedEmail의 규칙 조회 조건이 같다 */
-export function drainGroupKey(row: { org_id: string; partition_id: number; trigger_type: string }): string {
-    return `${row.org_id}|${row.partition_id}|${row.trigger_type}`;
+/**
+ * 같은 규칙 목록을 보는 줄 (같은 조직·파티션·트리거) — processAutoPersonalizedEmail의 규칙 조회 조건이 같다.
+ * priority도 나눈다 — 문의 줄과 대량 줄은 쓸 수 있는 한도가 달라(문의 몫) 한쪽이 막혀도 다른 쪽은 열려 있을 수 있다.
+ * priority가 없으면 대량(0)으로 본다.
+ */
+export function drainGroupKey(row: {
+    org_id: string;
+    partition_id: number;
+    trigger_type: string;
+    priority?: number | null;
+}): string {
+    return `${row.org_id}|${row.partition_id}|${row.trigger_type}|${row.priority ?? QUEUE_PRIORITY_BULK}`;
 }
 
 /** walkQueueRow가 보는 AI 규칙 칸 (email_auto_personalized_links의 일부) */

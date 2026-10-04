@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CheckCircle, XCircle, Loader2 } from "lucide-react";
 import { useEmailTestSend } from "./hooks/useEmailTestSend";
+import { TEST_SEND_NO_WORKSPACE } from "./reply-to/utils/replyTo";
 
 interface EmailTestSendDialogProps {
     open: boolean;
@@ -44,6 +45,9 @@ export default function EmailTestSendDialog({
         setSelectedProfileId,
         selectedSigId,
         setSelectedSigId,
+        workspaceChoices,
+        selectedWorkspaceId,
+        setSelectedWorkspaceId,
         previewSubject,
         sending,
         result,
@@ -108,6 +112,28 @@ export default function EmailTestSendDialog({
                                     ))}
                                 </SelectContent>
                             </Select>
+                        </div>
+                    )}
+
+                    {workspaceChoices.length > 0 && (
+                        <div className="space-y-2">
+                            <Label>답장 받을 주소 (사업)</Label>
+                            <Select value={selectedWorkspaceId} onValueChange={setSelectedWorkspaceId}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="사업 선택" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={TEST_SEND_NO_WORKSPACE}>고르지 않음 — 답장 주소 없이 보냄</SelectItem>
+                                    {workspaceChoices.map((ws) => (
+                                        <SelectItem key={ws.id} value={String(ws.id)}>
+                                            {ws.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground">
+                                고른 사업의 답장 받을 주소를 넣어 보냅니다. 테스트 메일에 답장해 보면 실제 메일의 답장이 어디로 가는지 확인할 수 있습니다.
+                            </p>
                         </div>
                     )}
 

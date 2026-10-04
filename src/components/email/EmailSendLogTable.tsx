@@ -32,6 +32,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, RefreshCw, Loader2, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import type { EmailSendLog } from "@/lib/db";
+import {
+    CURRENT_PROFILE_MARK,
+    logSenderDetail,
+    logSenderParts,
+    type LogSenderSource,
+} from "@/components/email/sender-profiles/utils/logSender";
+
+/** 서버가 붙여 주는 클릭 수·보낸 주소(보낼 때 주소 senderEmail, 프로필의 지금 값 senderProfile)까지 담은 이력 한 줄 */
+type EmailSendLogRow = EmailSendLog & LogSenderSource & { clickCount?: number };
+
+/** 표의 "보낸 주소" 칸. 보낼 때 주소가 없는 옛 이력은 프로필의 지금 주소 아래에 "(현재 프로필)"을 붙인다 */
+function LogSenderCell({ log }: { log: LogSenderSource }) {
+    const { email, fromCurrentProfile } = logSenderParts(log);
+    if (!email) return <span className="font-mono">—</span>;
+    return (
+        <>
+            <div className="truncate font-mono">{email}</div>
+            {fromCurrentProfile && <div className="text-[11px] text-muted-foreground/80">{CURRENT_PROFILE_MARK}</div>}
+        </>
+    );
+}
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
     pending: { label: "대기", variant: "secondary" },
@@ -46,6 +67,9 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     repeat: { label: "반복", variant: "secondary" },
     ai_auto: { label: "AI 자동", variant: "default" },
     ai_followup: { label: "후속발송", variant: "secondary" },
+    // 템플릿 후속(email-followup.ts)·AI 후속 테스트 발송(test-followup API)이 남기는 값 — 없으면 영어 그대로 보였다
+    followup: { label: "템플릿 후속", variant: "secondary" },
+    test_followup: { label: "후속 테스트", variant: "outline" },
 };
 
 type FilterChip = { key: string; value: string; label: string };
@@ -68,6 +92,7 @@ const TRIGGER_OPTIONS = [
     { value: "repeat", label: "반복" },
     { value: "ai_auto", label: "AI 자동" },
     { value: "ai_followup", label: "후속발송" },
+    { value: "followup", label: "템플릿 후속" },
 ];
 
 const CLICK_OPTIONS = [
@@ -85,7 +110,7 @@ export default function EmailSendLogTable() {
     const [isClicked, setIsClicked] = useState("");
     const [period, setPeriod] = useState("");
     const [syncing, setSyncing] = useState(false);
-    const [selectedLog, setSelectedLog] = useState<EmailSendLog | null>(null);
+    const [selectedLog, setSelectedLog] = useState<EmailSendLogRow | null>(null);
 
     // 연결 규칙 + AI 규칙 목록
     const { templateLinks } = useEmailTemplateLinks("all");
@@ -374,6 +399,7 @@ export default function EmailSendLogTable() {
                         <TableHeader>
                             <TableRow>
                                 <TableHead>수신자</TableHead>
+                                <TableHead>보낸 주소</TableHead>
                                 <TableHead>제목</TableHead>
                                 <TableHead>상태</TableHead>
                                 <TableHead>클릭</TableHead>
@@ -382,7 +408,7 @@ export default function EmailSendLogTable() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {logs.map((log) => {
+                            {(logs as EmailSendLogRow[]).map((log) => {
                                 const statusInfo = STATUS_MAP[log.status] || { label: log.status, variant: "secondary" as const };
                                 const triggerInfo = TRIGGER_TYPE_MAP[log.triggerType || "manual"] || { label: log.triggerType, variant: "outline" as const };
 
@@ -393,6 +419,12 @@ export default function EmailSendLogTable() {
                                         onClick={() => setSelectedLog(log)}
                                     >
                                         <TableCell className="font-mono text-sm">{log.recipientEmail}</TableCell>
+                                        <TableCell
+                                            className="max-w-[220px] text-xs text-muted-foreground"
+                                            title={logSenderDetail(log)}
+                                        >
+                                            <LogSenderCell log={log} />
+                                        </TableCell>
                                         <TableCell className="max-w-[200px] truncate text-muted-foreground">
                                             {log.subject}
                                         </TableCell>
@@ -401,9 +433,9 @@ export default function EmailSendLogTable() {
                                         </TableCell>
                                         <TableCell>
                                             {log.status === "sent" ? (
-                                                (log as Record<string, unknown>).clickCount ? (
+                                                log.clickCount ? (
                                                     <Badge variant="default" className="bg-blue-600 text-xs">
-                                                        {(log as Record<string, unknown>).clickCount as number}회
+                                                        {log.clickCount}회
                                                     </Badge>
                                                 ) : (
                                                     <span className="text-xs text-muted-foreground">-</span>
@@ -468,6 +500,12 @@ export default function EmailSendLogTable() {
                                         <div className="grid grid-cols-3 gap-2 py-2 border-b">
                                             <span className="text-sm text-muted-foreground">수신자</span>
                                             <span className="col-span-2 text-sm font-mono">{selectedLog.recipientEmail}</span>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                            <span className="text-sm text-muted-foreground">보낸 주소</span>
+                                            <span className="col-span-2 text-sm break-all">
+                                                {logSenderDetail(selectedLog)}
+                                            </span>
                                         </div>
                                         <div className="grid grid-cols-3 gap-2 py-2 border-b">
                                             <span className="text-sm text-muted-foreground">제목</span>

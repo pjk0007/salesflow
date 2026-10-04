@@ -25,6 +25,7 @@ export function useWorkspaceSettings(workspaceId: number | null) {
         workspace: data?.data ?? null,
         isLoading,
         error,
+        mutate,
         updateWorkspace,
     };
 }

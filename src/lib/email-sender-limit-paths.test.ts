@@ -8,9 +8,18 @@ import {
     isDeferralOnlyBatch,
     normalizeSenderAddress,
     pickSenderCandidates,
+    purposeBlockKey,
+    recordPurposeBlock,
     restartedWarmupStartedOn,
     senderProfileChangeNeedsAdmin,
     senderProfileDeleteNeedsAdmin,
+    templateFirstKind,
+    templateFirstKindsBlockedBy,
+    templateFirstPurpose,
+    TEMPLATE_FIRST_KINDS,
+    REPEAT_QUEUE_PHASES,
+    repeatQueuePhaseOf,
+    orderRepeatQueueItems,
 } from "./email-sender-limit-paths";
 import { pickSender } from "./email-sender-pick";
 import type { LegacyEmailConfig, ResolvedSender, SenderCandidate } from "./email-sender-pick";
@@ -246,4 +255,89 @@ test("activeBlock: 막힌 시각 전이면 그 시각, 지났으면 null이고 �
     assert.equal(activeBlock(memo, "org-b", kstToDate("2026-10-02", 10)), null);
     assert.equal(activeBlock(memo, "org-a", kstToDate("2026-10-03", 9)), null);
     assert.equal(memo.has("org-a"), false);
+});
+
+// ── recordPurposeBlock — 반복 대기열의 막힘 기록을 발송 목적별로 (DESIGN-2 2절) ──
+
+test("recordPurposeBlock: 문의(첫 메일)가 막히면 대량(반복)도 막힌다", () => {
+    const blocked = new Map<string, Date>();
+    const now = kstToDate("2026-10-05", 10);
+    const until = kstToDate("2026-10-06", 9);
+    recordPurposeBlock(blocked, "o1", "inbound", until);
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "inbound"), now), until);
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "bulk"), now), until);
+    // 다른 조직은 그대로
+    assert.equal(activeBlock(blocked, purposeBlockKey("o2", "inbound"), now), null);
+});
+
+test("recordPurposeBlock: 대량(반복)이 막혀도 문의(첫 메일)는 열려 있다 — 문의 몫", () => {
+    const blocked = new Map<string, Date>();
+    const now = kstToDate("2026-10-05", 10);
+    recordPurposeBlock(blocked, "o1", "bulk", kstToDate("2026-10-05", 15));
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "bulk"), now), kstToDate("2026-10-05", 15));
+    assert.equal(activeBlock(blocked, purposeBlockKey("o1", "inbound"), now), null);
+});
+
+test("recordPurposeBlock: 더 늦게까지 막힌 기록은 당기지 않는다", () => {
+    const blocked = new Map<string, Date>();
+    const now = kstToDate("2026-10-05", 10);
+    const tomorrow = kstToDate("2026-10-06", 9);
+    // 대량은 내일까지, 그 뒤 문의가 간격으로 10:05까지 막힘 → 대량은 내일 그대로
+    recordPurposeBlock(blocked, "o1", "bulk", tomorrow);
+    recordPurposeBlock(blocked, "o1", "inbound", kstToDate("2026-10-05", 10, 5));
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "bulk"), now), tomorrow);
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "inbound"), now), kstToDate("2026-10-05", 10, 5));
+});
+
+// ── REVIEW-2 안전 F4: 가져오기·예약 등록 명단의 템플릿 첫 메일은 대량 (kind='first_bulk') ──
+
+test("templateFirstKind / templateFirstPurpose: 문의 'first', 대량 'first_bulk' — 서로 되돌린다", () => {
+    assert.equal(templateFirstKind("inbound"), "first");
+    assert.equal(templateFirstKind("bulk"), "first_bulk");
+    assert.equal(templateFirstPurpose("first"), "inbound");
+    assert.equal(templateFirstPurpose("first_bulk"), "bulk");
+    // 반복 줄·모르는 값은 첫 메일 줄이 아니다
+    assert.equal(templateFirstPurpose("repeat"), null);
+    assert.equal(templateFirstPurpose(null), null);
+    assert.equal(templateFirstPurpose(undefined), null);
+    // email_automation_queue.kind는 varchar(10)이다
+    for (const k of TEMPLATE_FIRST_KINDS) assert.ok(k.length <= 10, k);
+    assert.deepEqual([...TEMPLATE_FIRST_KINDS], ["first", "first_bulk"]);
+});
+
+test("templateFirstKindsBlockedBy: 문의가 막히면 문의·대량 첫 메일 줄 모두, 대량만 막히면 대량 줄만 함께 미룬다", () => {
+    assert.deepEqual(templateFirstKindsBlockedBy("inbound"), ["first", "first_bulk"]);
+    assert.deepEqual(templateFirstKindsBlockedBy("bulk"), ["first_bulk"]);
+});
+
+// ── DESIGN-3 4-1 (R8): 반복 대기열에서 같은 회차에 기한이 된 줄은 문의 첫 메일('first')이 대량 첫 메일('first_bulk')보다 먼저 ──
+
+test("R8: repeatQueuePhaseOf — 'first'가 첫 차례, 'first_bulk'·'repeat'·모르는 kind는 둘째 차례", () => {
+    assert.equal(repeatQueuePhaseOf("first"), 0);
+    assert.equal(repeatQueuePhaseOf("first_bulk"), 1);
+    assert.equal(repeatQueuePhaseOf("repeat"), 1);
+    assert.equal(repeatQueuePhaseOf("other"), 1);
+    // 차례는 빠짐없이 나눈다 — 어느 kind든 정확히 한 차례에 든다 (워커가 차례마다 조회해 한 줄을 두 번 보지 않는다)
+    for (const kind of ["first", "first_bulk", "repeat", "other"]) {
+        const hits = REPEAT_QUEUE_PHASES.filter((p) => p.kinds.includes(kind) !== p.exclude).length;
+        assert.equal(hits, 1, kind);
+    }
+});
+
+test("R8: 같은 시각에 열린 줄 — 먼저 들어온 'first_bulk'가 있어도 'first'를 먼저 보고, 같은 차례 안에서는 id 순", () => {
+    const due = [
+        { id: 10, kind: "first_bulk" },
+        { id: 11, kind: "repeat" },
+        { id: 12, kind: "first" },
+        { id: 13, kind: "first_bulk" },
+        { id: 14, kind: "first" },
+    ];
+    assert.deepEqual(orderRepeatQueueItems(due).map((r) => r.id), [12, 14, 10, 11, 13]);
+    // 넘긴 배열은 그대로
+    assert.deepEqual(due.map((r) => r.id), [10, 11, 12, 13, 14]);
+    // 'first'가 없으면 예전과 같은 id 순
+    assert.deepEqual(
+        orderRepeatQueueItems([{ id: 3, kind: "repeat" }, { id: 1, kind: "first_bulk" }, { id: 2, kind: "repeat" }]).map((r) => r.id),
+        [1, 2, 3]
+    );
 });

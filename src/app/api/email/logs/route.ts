@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailSendLogs, emailClickLogs } from "@/lib/db";
+import { db, emailSendLogs, emailClickLogs, emailSenderProfiles } from "@/lib/db";
 import { eq, and, desc, sql, gte, lte, inArray, or, ilike } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -69,13 +69,35 @@ export async function GET(req: NextRequest) {
             .from(emailSendLogs)
             .where(and(...conditions));
 
-        const logs = await db
-            .select()
+        // 보낸 주소: 줄마다 senderEmail(보낼 때 실제로 쓴 주소, email_send_logs.sender_email — 0073부터 저장, 옛 로그는 null)과
+        // senderProfile(sender_profile_id로 붙인 이 조직 발신 프로필의 **지금** 값)을 함께 준다 (DESIGN-2 4절 ②, DESIGN-3 4-1).
+        // 화면은 senderEmail을 먼저 쓴다 — 프로필 주소를 나중에 바꿔도 이력의 보낸 주소는 그대로다 (R7).
+        // 다른 조직 프로필은 붙지 않게 조직을 조인 조건에 둔다. 지워진 프로필이면 null
+        const rows = await db
+            .select({
+                log: emailSendLogs,
+                senderName: emailSenderProfiles.name,
+                senderFromEmail: emailSenderProfiles.fromEmail,
+            })
             .from(emailSendLogs)
+            .leftJoin(
+                emailSenderProfiles,
+                and(
+                    eq(emailSenderProfiles.id, emailSendLogs.senderProfileId),
+                    eq(emailSenderProfiles.orgId, user.orgId)
+                )
+            )
             .where(and(...conditions))
             .orderBy(desc(emailSendLogs.sentAt))
             .limit(pageSize)
             .offset(offset);
+        const logs = rows.map((r) => ({
+            ...r.log,
+            senderProfile:
+                r.log.senderProfileId !== null && r.senderFromEmail !== null
+                    ? { id: r.log.senderProfileId, name: r.senderName ?? "", fromEmail: r.senderFromEmail }
+                    : null,
+        }));
 
         // 클릭 수 조회
         const logIds = logs.map(l => l.id);

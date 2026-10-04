@@ -16,6 +16,14 @@ import {
     walkQueueRow,
     deferredRecordOutcome,
     drainGroupKey,
+    purposeOfQueuePriority,
+    bulkFifoScheduledAt,
+    sharesOneSenderPool,
+    sortPickedRows,
+    createClaimTurns,
+    FIFO_FLOOR_DEFER_REASONS,
+    QUEUE_PRIORITY_BULK,
+    QUEUE_PRIORITY_INBOUND,
     type QueueRowResult,
     type QueueWalkLink,
     type QueueWalkLookups,
@@ -571,4 +579,255 @@ test("walkQueueRow: 모델이 없으면 기본 모델(undefined)로 AI 클라이
         })
     );
     assert.deepEqual(seen, [undefined, "claude-haiku-4-5"]);
+});
+
+// ── DESIGN-2: 줄 우선순위 (문의 1 / 대량 0) ──
+
+test("purposeOfQueuePriority: 1이면 문의, 0·이상한 값은 대량", () => {
+    assert.equal(purposeOfQueuePriority(QUEUE_PRIORITY_INBOUND), "inbound");
+    assert.equal(purposeOfQueuePriority(QUEUE_PRIORITY_BULK), "bulk");
+    assert.equal(purposeOfQueuePriority(2), "inbound");
+    // 드라이버가 문자열로 줄 때
+    assert.equal(purposeOfQueuePriority("1"), "inbound");
+    assert.equal(purposeOfQueuePriority("0"), "bulk");
+    // 칸 기본값이 0이다
+    assert.equal(purposeOfQueuePriority(null), "bulk");
+    assert.equal(purposeOfQueuePriority(undefined), "bulk");
+    assert.equal(purposeOfQueuePriority("x"), "bulk");
+    assert.equal(purposeOfQueuePriority(-1), "bulk");
+});
+
+// ── bulkFifoScheduledAt — 새 대량 줄은 미뤄 둔 대량 줄을 앞지르지 않는다 (DESIGN-2 Q4) ──
+
+test("Q4: 어제 밀린 대량 줄이 09:00에 열리는데 08:00에 새 명단이 오면 새 줄도 09:00부터", () => {
+    // 시간대 없는 주소: 한도를 다 쓴 날의 남은 줄은 다음 날 09:00(DEFAULT_RESUME_HOUR)으로 미뤄진다.
+    // 08:00에는 그날 한도가 새로 열려 있어 새 줄을 바로 꺼내면 어제 밀린 줄보다 먼저 나간다
+    const now = new Date("2026-10-06T08:00:00+09:00");
+    const resume = new Date("2026-10-06T09:00:00+09:00");
+    assert.deepEqual(bulkFifoScheduledAt(null, now, resume), resume);
+    // 같은 시각이 되면 id 순(먼저 들어온 순)으로 꺼낸다 — 밀린 줄이 먼저다
+});
+
+test("bulkFifoScheduledAt: 미룬 줄이 없거나 이미 열렸으면 지금(칸 기본값) 그대로", () => {
+    const now = new Date("2026-10-06T10:00:00+09:00");
+    assert.equal(bulkFifoScheduledAt(null, now, null), null);
+    assert.equal(bulkFifoScheduledAt(null, now, new Date("2026-10-06T09:00:00+09:00")), null);
+    assert.equal(bulkFifoScheduledAt(null, now, now), null);
+});
+
+test("bulkFifoScheduledAt: 호출한 쪽이 정한 시각은 당기지 않고, 미룬 줄보다 이르면 미룬 줄 시각으로", () => {
+    const now = new Date("2026-10-06T08:00:00+09:00");
+    const requestedLate = new Date("2026-10-07T12:00:00+09:00");
+    const requestedEarly = new Date("2026-10-06T08:30:00+09:00");
+    const deferred = new Date("2026-10-06T15:00:00+09:00");
+    assert.deepEqual(bulkFifoScheduledAt(requestedLate, now, deferred), requestedLate);
+    assert.deepEqual(bulkFifoScheduledAt(requestedEarly, now, deferred), deferred);
+    assert.deepEqual(bulkFifoScheduledAt(requestedEarly, now, null), requestedEarly);
+    // 늘 새 Date — 호출한 쪽 값을 고쳐도 서로 영향이 없다
+    const out = bulkFifoScheduledAt(null, now, deferred);
+    assert.notEqual(out, deferred);
+});
+
+test("drainGroupKey: priority가 다르면 다른 묶음 — 문의 줄과 대량 줄은 따로 미룬다", () => {
+    const base = { org_id: "o1", partition_id: 3, trigger_type: "on_create" };
+    const bulk = drainGroupKey({ ...base, priority: QUEUE_PRIORITY_BULK });
+    const inbound = drainGroupKey({ ...base, priority: QUEUE_PRIORITY_INBOUND });
+    assert.notEqual(bulk, inbound);
+    assert.equal(bulk, drainGroupKey({ ...base, priority: 0 }));
+    // priority를 모르면 대량(0)으로 본다 — 예전 호출과 같은 키
+    assert.equal(drainGroupKey(base), bulk);
+    assert.equal(drainGroupKey({ ...base, priority: null }), bulk);
+});
+
+// ── REVIEW-2 안전 F1: 선입선출 하한은 오늘 아침 다시 열리기를 기다리는 줄에만, 묶음이 하나인 파티션에만 ──
+
+test("bulkFifoScheduledAt: 미룬 줄이 내일 이후에 열리면 하한을 걸지 않는다 (새 줄은 지금 넣는다)", () => {
+    // 13:00에 다른 규칙·옛 설정 때문에 내일 09:00으로 미뤄 둔 줄이 있어도 새 가져오기를 하루 가까이 묶지 않는다.
+    // 새 줄도 같은 이유로 막히면 꺼내자마자 같은 시각(내일 09:00)으로 미뤄져 id 순(먼저 들어온 순) 그대로다
+    const now = new Date("2026-10-06T13:00:00+09:00");
+    const tomorrow9 = new Date("2026-10-07T09:00:00+09:00");
+    assert.equal(bulkFifoScheduledAt(null, now, tomorrow9), null);
+    // 자정이 지나 그 줄이 오늘 09:00을 기다리게 되면 그때는 하한을 건다 (00:00~09:00에 새 명단이 앞지르지 않게)
+    const after = new Date("2026-10-07T02:00:00+09:00");
+    assert.deepEqual(bulkFifoScheduledAt(null, after, tomorrow9), tomorrow9);
+    // 한국 날짜로 본다 — UTC로는 같은 날이어도 KST로 다음 날이면 걸지 않는다 (10/6 23:30 KST = 10/6 14:30 UTC, 10/7 08:00 KST = 10/6 23:00 UTC)
+    assert.equal(
+        bulkFifoScheduledAt(null, new Date("2026-10-06T23:30:00+09:00"), new Date("2026-10-07T08:00:00+09:00")),
+        null
+    );
+});
+
+test("FIFO_FLOOR_DEFER_REASONS: 한도·시간대·정지만 센다 — 간격 미룸은 그날 안에 펼쳐져 있어 세지 않는다", () => {
+    assert.deepEqual([...FIFO_FLOOR_DEFER_REASONS].sort(), ["daily_limit", "outside_window", "paused"]);
+    assert.ok(!FIFO_FLOOR_DEFER_REASONS.includes("spacing"));
+});
+
+test("sharesOneSenderPool: 켜진 규칙이 모두 같은 주소 묶음이면 true, 하나라도 다르면 false", () => {
+    assert.equal(sharesOneSenderPool([]), true);
+    assert.equal(sharesOneSenderPool([{ senderProfileId: 1, senderProfileIds: [1, 2] }]), true);
+    // 순서·중복이 달라도 같은 주소 집합이면 같은 묶음
+    assert.equal(
+        sharesOneSenderPool([
+            { senderProfileId: 1, senderProfileIds: [1, 2] },
+            { senderProfileId: 2, senderProfileIds: [2, 1, 2] },
+        ]),
+        true
+    );
+    // 옛 칸 하나만 있는 규칙은 그 주소 하나
+    assert.equal(
+        sharesOneSenderPool([
+            { senderProfileId: 3, senderProfileIds: null },
+            { senderProfileId: null, senderProfileIds: [3] },
+        ]),
+        true
+    );
+    // 묶음이 다른 규칙 (조건이 다른 규칙 A·B — 리뷰 시나리오 1)
+    assert.equal(
+        sharesOneSenderPool([
+            { senderProfileId: 1, senderProfileIds: [1] },
+            { senderProfileId: 2, senderProfileIds: [2, 3, 4] },
+        ]),
+        false
+    );
+    // 기본 주소로 보내는 규칙(빈 묶음)끼리는 같다, 빈 묶음과 지정 묶음은 다르다
+    assert.equal(
+        sharesOneSenderPool([
+            { senderProfileId: null, senderProfileIds: null },
+            { senderProfileId: null, senderProfileIds: [] },
+        ]),
+        true
+    );
+    assert.equal(
+        sharesOneSenderPool([
+            { senderProfileId: null, senderProfileIds: null },
+            { senderProfileId: 1, senderProfileIds: [1] },
+        ]),
+        false
+    );
+});
+
+// ── REVIEW-2 정책 F1 / 검증 S1: 배치 안 자리 잡기는 꺼낸 순서대로 하나씩 ──
+
+const tick = (ms = 0) => new Promise<void>((r) => setTimeout(r, ms));
+
+test("createClaimTurns: 늦게 닿은 앞 줄을 기다려 꺼낸 순서대로, 한 번에 하나씩 잡는다", async () => {
+    const turns = createClaimTurns(3);
+    const log: string[] = [];
+    let running = 0;
+    let maxRunning = 0;
+    const claim = (name: string) => async () => {
+        running++;
+        maxRunning = Math.max(maxRunning, running);
+        log.push(`start ${name}`);
+        await tick(5);
+        log.push(`end ${name}`);
+        running--;
+        return name;
+    };
+    // 줄 2가 가장 먼저, 줄 0이 가장 늦게 자리 잡기 지점에 닿는다 (앞 단계 조회 시간이 줄마다 다르다)
+    const rows = [
+        (async () => { await tick(30); return turns[0].run(claim("0")); })(),
+        (async () => { await tick(15); return turns[1].run(claim("1")); })(),
+        (async () => turns[2].run(claim("2")))(),
+    ];
+    assert.deepEqual(await Promise.all(rows), ["0", "1", "2"]);
+    assert.deepEqual(log, ["start 0", "end 0", "start 1", "end 1", "start 2", "end 2"]);
+    assert.equal(maxRunning, 1);
+});
+
+test("createClaimTurns: 자리를 잡지 않고 끝난 줄(done)은 뒤 줄을 막지 않는다, 던진 자리 잡기도 차례를 넘긴다", async () => {
+    const turns = createClaimTurns(3);
+    const order: number[] = [];
+    // 줄 0은 건너뜀(조건 불충족 등)으로 끝난다 — 자리 잡기 없이 done
+    setTimeout(() => turns[0].done(), 10);
+    // 줄 1의 자리 잡기는 던진다
+    const r1 = turns[1].run(async () => {
+        order.push(1);
+        throw new Error("DB 오류");
+    });
+    const r2 = turns[2].run(async () => {
+        order.push(2);
+        return "ok";
+    });
+    await assert.rejects(r1, /DB 오류/);
+    assert.equal(await r2, "ok");
+    assert.deepEqual(order, [1, 2]);
+    // done을 여러 번 불러도 된다
+    turns[0].done();
+    turns[1].done();
+});
+
+test("createClaimTurns: 한 줄의 두 번째 자리 잡기(규칙 여럿)는 차례를 다시 기다리지 않고 한 번에 하나만 지킨다", async () => {
+    const turns = createClaimTurns(2);
+    const log: string[] = [];
+    await turns[0].run(async () => log.push("0a"));
+    // 줄 1이 아직 자리 잡기 전이어도 줄 0의 두 번째 자리 잡기는 바로 돈다 (줄 1을 기다리면 서로 기다릴 수 있다)
+    await turns[0].run(async () => log.push("0b"));
+    await turns[1].run(async () => log.push("1a"));
+    assert.deepEqual(log, ["0a", "0b", "1a"]);
+    assert.deepEqual(createClaimTurns(0), []);
+});
+
+/**
+ * 배치 모델: claimSender처럼 "사용량 읽기 → 가장 오래 쉰 주소 → 자리 잡기"를 비동기로 흉내 낸다.
+ * 차례 없이 함께 돌리면 같은 사용량을 읽어 한 주소에 몰리고(검증 S6 u1u1u1u2u1), 차례대로면 돌아가며 고르게 간다.
+ */
+async function modelBatch(useTurns: boolean, size: number, addresses: number[]): Promise<number[]> {
+    const lastSent = new Map<number, number>(addresses.map((a) => [a, 0]));
+    let clock = 0;
+    const claimOnce = async (): Promise<number> => {
+        const snapshot = new Map(lastSent); // 사용량 읽기
+        await tick(1); // 판정과 자리 잡기 사이
+        const pick = [...snapshot.entries()].sort((x, y) => x[1] - y[1] || x[0] - y[0])[0][0];
+        lastSent.set(pick, ++clock); // 자리 잡기 (한도·간격 없음 — 조건부 upsert가 늘 성공)
+        return pick;
+    };
+    const turns = createClaimTurns(size);
+    return Promise.all(
+        Array.from({ length: size }, (_, i) =>
+            (useTurns ? turns[i].run(claimOnce) : claimOnce()).finally(() => turns[i].done())
+        )
+    );
+}
+
+test("배치 모델(Q1·Q9): 차례대로 잡으면 한도 없는 주소 둘에 5통이 돌아가며 3·2로 간다", async () => {
+    const together = await modelBatch(false, 5, [1, 2]);
+    // 예전 동작 재현: 다섯 줄이 같은 순간을 읽어 모두 1번 주소
+    assert.deepEqual(together, [1, 1, 1, 1, 1]);
+    const ordered = await modelBatch(true, 5, [1, 2]);
+    assert.deepEqual(ordered, [1, 2, 1, 2, 1]);
+});
+
+test("sortPickedRows: RETURNING이 뒤섞어 돌려준 줄을 배치 안 차례(문의 먼저 → 먼저 들어온 순)로", () => {
+    const rows = [
+        { id: 7, priority: 0 },
+        { id: 10, priority: 0 },
+        { id: 6, priority: 0 },
+        { id: 3, priority: 0 },
+        // db.execute는 문자열로 줄 수 있다
+        { id: 21, priority: "1" },
+        { id: 8, priority: 0 },
+    ];
+    assert.deepEqual(
+        sortPickedRows(rows).map((r) => r.id),
+        [21, 3, 6, 7, 8, 10]
+    );
+    // 새 배열 — 넘긴 배열은 그대로
+    assert.deepEqual(
+        rows.map((r) => r.id),
+        [7, 10, 6, 3, 21, 8]
+    );
+});
+
+test("sortPickedRows: 배치 안에서는 예정 시각이 아니라 들어온 순 — 앞 칸을 문의에 내준 대량 줄이 계속 밀리지 않는다 (재검증 S7)", () => {
+    // 고르게(54분 간격): 2번 줄은 09:54 칸을 문의에 내주고 10:49로 다시 미뤄졌고, 3번 줄은 미리 펼친 10:48 칸에 있다.
+    // 10:50 워커가 둘을 함께 꺼내면 2번이 먼저 자리를 잡는다 (예정 시각 순이면 3번이 먼저고, 2번은 11:44로 또 밀려 4번(11:42) 뒤에 선다)
+    const batch = [
+        { id: 3, priority: 0, scheduledAt: "10:48" },
+        { id: 2, priority: 0, scheduledAt: "10:49" },
+    ];
+    assert.deepEqual(
+        sortPickedRows(batch).map((r) => r.id),
+        [2, 3]
+    );
 });

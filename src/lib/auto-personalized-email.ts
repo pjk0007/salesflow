@@ -8,6 +8,8 @@ import { resolveSignature } from "@/lib/email-sender-resolver";
 import { claimSender, releaseSenderSlot } from "@/lib/email-sender-limit";
 import type { SenderSlot } from "@/lib/email-sender-limit";
 import { linkSenderPool } from "@/lib/email-sender-limit-rules";
+import type { SendPurpose } from "@/lib/email-sender-limit-rules";
+import type { ClaimTurn } from "@/lib/email-send-queue-rules";
 import { enqueueFollowup } from "@/lib/email-followup";
 import { wrapTrackingUrls } from "@/lib/email-click-tracking";
 import {
@@ -18,6 +20,9 @@ import {
     appendUnsubscribeFooter,
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
+import { newReplyToResolver } from "@/lib/email-reply-to";
+import type { ReplyToResolver } from "@/lib/email-reply-to";
+import { buildCustomHeaders } from "@/lib/reply-to-rules";
 import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
 import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
@@ -77,12 +82,30 @@ interface AutoPersonalizedParams {
      * 줄을 닫지 않고 다시 꺼낼 때, 이미 끝난 실패 규칙에 AI 생성·발송을 또 쓰지 않게 한다 (대기열 워커만 넘긴다)
      */
     skipLinkIds?: readonly number[];
+    /**
+     * 발송 목적 (DESIGN-2 2절). 생략하면 "inbound" — 한 건씩 생긴 레코드를 바로 보내는 경로(dispatchAutoTriggers)와 같다.
+     * 대기열 워커는 줄의 priority로 정한다: 문의가 막혀 들어온 줄은 "inbound", 가져오기·예약 등록 줄은 "bulk"
+     * (15:00 KST 전까지 주소마다 한도의 10%를 문의 몫으로 남긴다)
+     */
+    purpose?: SendPurpose;
+    /**
+     * 발신 자리 잡기 차례 (대기열 워커·일괄 재처리 스크립트가 넘긴다 — createClaimTurns). 함께 처리하는 줄들의 자리 잡기를
+     * 꺼낸 순서대로 하나씩 하게 한다. 생략하면 바로 잡는다 (한 건씩 보내는 경로)
+     */
+    claimTurn?: Pick<ClaimTurn, "run">;
+    /**
+     * 답장 받을 주소 조회 (DESIGN-3). 대기열 워커·일괄 재처리 스크립트는 회차마다 하나를 만들어 넘긴다 —
+     * 같은 워크스페이스를 줄마다 다시 읽지 않게. 생략하면 이 호출 안에서만 쓴다
+     */
+    replyTo?: ReplyToResolver;
 }
 
 export async function processAutoPersonalizedEmail(
     params: AutoPersonalizedParams
 ): Promise<RecordOutcome> {
     const { record, partitionId, triggerType, orgId } = params;
+    const purpose: SendPurpose = params.purpose ?? "inbound";
+    const replyToResolver = params.replyTo ?? newReplyToResolver();
     const skipLinkIds = new Set(params.skipLinkIds ?? []);
     const outcomes: LinkOutcome[] = [];
 
@@ -200,12 +223,16 @@ export async function processAutoPersonalizedEmail(
             // 막히면 대기열이 retryAt에 다시 꺼낸다 — 간격 미룸은 순번대로 펼쳐 한꺼번에 깨어나지 않게 한다
             // 여기까지의 검사 순서·조건은 대기열의 묶어 미루기(email-send-queue-rules.ts walkQueueRow)가 그대로 따른다 —
             // 바꾸면 그쪽도 함께 바꿀 것 (같은 줄을 줄마다 처리한 결과와 같아야 한다)
-            const claim = await claimSender(orgId, {
-                mode: "pool",
-                ids: linkSenderPool(link),
-                config: emailConfig,
-                spreadDeferrals: true,
-            });
+            // 함께 처리하는 줄이 있으면 꺼낸 순서대로 하나씩 잡는다 — 같은 사용량을 읽어 한 주소에 몰리지 않게 (claimTurn)
+            const claimNow = () =>
+                claimSender(orgId, {
+                    mode: "pool",
+                    ids: linkSenderPool(link),
+                    config: emailConfig,
+                    spreadDeferrals: true,
+                    purpose,
+                });
+            const claim = params.claimTurn ? await params.claimTurn.run(claimNow) : await claimNow();
             if (!claim.ok) {
                 console.log(
                     `[AutoEmail] Rule ${link.id}: deferred (${claim.reason}) until ${claim.retryAt.toISOString()}`
@@ -223,6 +250,10 @@ export async function processAutoPersonalizedEmail(
                 continue;
             }
             const senderFromEmail = sender.fromEmail;
+
+            // 6-1-1. 답장 받을 주소 — 받는 레코드의 워크스페이스 값 (없으면 Reply-To 없음). AI 생성(토큰)보다 먼저 읽는다.
+            // 자리 잡기 뒤에 읽어 위의 검사 순서(walkQueueRow가 따르는 순서)를 바꾸지 않는다 — 던지면 아래 catch가 자리를 돌려준다
+            const replyTo = await replyToResolver.forWorkspace(record.workspaceId || workspaceId);
 
             // 6-2. 서명 결정. DB의 null은 "미지정"이므로 undefined로 정규화한다
             // (HTTP body에서 온 값과 달리 여기서는 null이 "서명 없음"을 뜻하지 않는다)
@@ -370,6 +401,8 @@ export async function processAutoPersonalizedEmail(
                 sentAt: new Date(),
                 unsubscribeToken,
                 senderProfileId: sender.profileId,
+                // 보낼 때 쓴 주소 그대로 — 프로필 주소를 나중에 바꿔도 이력의 보낸 주소는 그대로다 (DESIGN-3 4-1)
+                senderEmail: senderFromEmail,
             }).returning({ id: emailSendLogs.id });
 
             const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
@@ -381,9 +414,10 @@ export async function processAutoPersonalizedEmail(
                 title: emailResult.subject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
-                ...(unsubscribeToken
-                    ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
-                    : {}),
+                ...buildCustomHeaders({
+                    listUnsubscribe: unsubscribeToken ? buildListUnsubscribeHeaders(unsubscribeToken) : null,
+                    replyTo,
+                }),
             });
 
             const sendResult = nhnResult.data?.results?.[0];

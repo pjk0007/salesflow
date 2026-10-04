@@ -33,6 +33,7 @@ import {
 } from "recharts";
 import { DailyEmailTable } from "./DailyEmailTable";
 import { KeyLeadsCard } from "./KeyLeadsCard";
+import SendQueueOverviewCard from "./sender-profiles/ui/SendQueueOverviewCard";
 
 interface EmailDashboardProps {
     onTabChange?: (tab: string) => void;
@@ -158,6 +159,9 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                     </Card>
                 ))}
             </div>
+
+            {/* 발송 대기열 — 대기 합계와 3일치 넘은 규칙 (대기가 없으면 보이지 않는다) */}
+            <SendQueueOverviewCard />
 
             {/* triggerType별 성과 테이블 */}
             {triggerBreakdown.length > 0 && (

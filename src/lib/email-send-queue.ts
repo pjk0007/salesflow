@@ -1,5 +1,6 @@
 import { db, queryClient, emailSendQueue, emailAutoPersonalizedLinks, emailSendLogs, records } from "@/lib/db";
-import { sql, eq, and, gte, inArray } from "drizzle-orm";
+import { sql, eq, and, or, gt, gte, lt, inArray, like } from "drizzle-orm";
+import { addDaysYmd, kstParts, kstToDate } from "@/lib/kst";
 import type { SQL } from "drizzle-orm";
 import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
@@ -15,18 +16,28 @@ import {
     walkQueueRow,
     deferredRecordOutcome,
     drainGroupKey,
+    purposeOfQueuePriority,
+    bulkFifoScheduledAt,
+    sharesOneSenderPool,
+    sortPickedRows,
+    createClaimTurns,
+    FIFO_FLOOR_DEFER_REASONS,
+    QUEUE_PRIORITY_BULK,
+    QUEUE_PRIORITY_INBOUND,
     DRAIN_BATCH_SIZE,
     DEADLINE_BUDGET_MS,
     STUCK_THRESHOLD_MS,
     MAX_ATTEMPTS,
     isDeadlineExceeded,
 } from "@/lib/email-send-queue-rules";
-import type { ProcessedRow, QueueRowWrite, QueueWalk, QueueWalkLookups } from "@/lib/email-send-queue-rules";
+import type { ClaimTurn, ProcessedRow, QueueRowWrite, QueueWalk, QueueWalkLookups } from "@/lib/email-send-queue-rules";
 import { describeDeferral, linkSenderPool } from "@/lib/email-sender-limit-rules";
 import type { SlotDeferReason } from "@/lib/email-sender-limit-rules";
 import { checkPoolsBlocked } from "@/lib/email-sender-limit";
 import type { PoolBlockState } from "@/lib/email-sender-limit";
 import { isDeferralOnlyBatch } from "@/lib/email-sender-limit-paths";
+import { newReplyToResolver } from "@/lib/email-reply-to";
+import type { ReplyToResolver } from "@/lib/email-reply-to";
 import type { DbRecord } from "@/lib/db";
 
 /** scheduled-registration(0x5c4edf01)과 다른 키를 쓴다 — 두 잡은 독립적으로 돌아야 한다. */
@@ -61,13 +72,17 @@ interface PickedRow {
     attempts: number;
     /** jsonb — 시도 횟수를 다 써 이 줄에서 뺀 규칙 id (parseLinkIdList로 읽는다) */
     exhausted_link_ids: unknown;
+    /** 0 = 대량 명단, 1 = 문의가 막혀 들어온 줄 — 자리 잡을 때의 발송 목적 (purposeOfQueuePriority) */
+    priority: number;
 }
 
-/** 이번 회차에 발신 한도로 미뤄진 줄이 나온 규칙 묶음 (같은 조직·파티션·트리거) */
+/** 이번 회차에 발신 한도로 미뤄진 줄이 나온 규칙 묶음 (같은 조직·파티션·트리거·priority) */
 interface DrainGroup {
     orgId: string;
     partitionId: number;
     triggerType: string;
+    /** 문의 줄과 대량 줄은 쓸 수 있는 한도가 달라 따로 묶는다 */
+    priority: number;
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -110,6 +125,8 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
         stats.reclaimed = await reclaimStuck();
 
         const drainable = new Map<string, DrainGroup>();
+        // 답장 받을 주소는 회차 동안 워크스페이스마다 한 번만 읽는다 (DESIGN-3)
+        const replyTo = newReplyToResolver();
         const startedAt = Date.now();
         while (!isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
             // 이번 회차에 막힌 것을 본 묶음이 있으면 그 묶음의 줄부터 한꺼번에 본다.
@@ -126,7 +143,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
             if (batch.length === 0) break;
 
             stats.picked += batch.length;
-            const { deferredOnly, deferredGroups } = await runBatch(batch, stats);
+            const { deferredOnly, deferredGroups } = await runBatch(batch, stats, replyTo);
             for (const g of deferredGroups) drainable.set(drainGroupKey(g), toDrainGroup(g));
 
             // 미룸만 나온 배치는 NHN을 부르지 않았으니 쉬지 않는다 — 한도에 닿은 뒤 쌓인 줄을 빨리 넘긴다
@@ -167,10 +184,17 @@ export interface EnqueueParams {
  *
  * 업로드 경로와 재발송 스크립트가 함께 쓴다 — 적재 규칙이 갈리면
  * 한쪽만 고쳐져 중복 발송이 난다.
+ * 대량 명단이다 (priority 0) — 먼저 들어온 순으로 나가고, 15:00(KST) 전에는 주소마다 문의 몫(한도의 10%)을 남긴다.
+ * 같은 규칙 묶음에 오늘 아침 다시 열리기를 기다리는 미룬 대량 줄이 있으면 새 줄은 그 줄들보다 일찍 꺼내지 않는다
+ * (bulkFifoScheduledAt — 하한을 거는 경우는 그 함수 설명).
  */
 export async function enqueueSends(params: EnqueueParams): Promise<number> {
-    const { recordIds, partitionId, orgId, triggerType = "on_create", scheduledAt } = params;
+    const { recordIds, partitionId, orgId, triggerType = "on_create" } = params;
     if (recordIds.length === 0) return 0;
+
+    const now = new Date();
+    const deferredUntil = await latestDeferredBulkAt(orgId, partitionId, triggerType, now);
+    const scheduledAt = bulkFifoScheduledAt(params.scheduledAt ?? null, now, deferredUntil);
 
     const inserted = await db
         .insert(emailSendQueue)
@@ -180,6 +204,7 @@ export async function enqueueSends(params: EnqueueParams): Promise<number> {
                 partitionId,
                 orgId,
                 triggerType,
+                priority: QUEUE_PRIORITY_BULK,
                 ...(scheduledAt ? { scheduledAt } : {}),
             })),
         )
@@ -188,6 +213,61 @@ export async function enqueueSends(params: EnqueueParams): Promise<number> {
         .returning({ id: emailSendQueue.id });
 
     return inserted.length;
+}
+
+/**
+ * 같은 규칙 묶음(조직·파티션·트리거)에서 한도·시간대·정지로 미뤄 둔 대량 줄(priority 0) 중 오늘(KST) 안에 다시 열리는
+ * 가장 늦은 예정 시각. 없으면 null. 미룬 줄은 last_error가 describeDeferral 문구("deferred(이유) until …")다 —
+ * 운영 스크립트가 일부러 미래로 넣은 줄(enqueue-unsent --at)과 간격 미룸은 세지 않는다 (FIFO_FLOOR_DEFER_REASONS).
+ * 그 파티션·트리거의 켜진 AI 규칙들이 서로 다른 발신 묶음을 쓰면 null — 미룬 줄을 막은 묶음과 새 줄이 갈 묶음이 다를 수 있다.
+ * 조회가 실패하면 null로 넘어간다 — 순서 맞추기 때문에 적재를 막지 않는다.
+ */
+async function latestDeferredBulkAt(
+    orgId: string,
+    partitionId: number,
+    triggerType: string,
+    now: Date
+): Promise<Date | null> {
+    try {
+        const links = await db
+            .select({
+                senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
+                senderProfileIds: emailAutoPersonalizedLinks.senderProfileIds,
+            })
+            .from(emailAutoPersonalizedLinks)
+            .where(
+                and(
+                    eq(emailAutoPersonalizedLinks.partitionId, partitionId),
+                    eq(emailAutoPersonalizedLinks.triggerType, normalizeTriggerType(triggerType)),
+                    eq(emailAutoPersonalizedLinks.isActive, 1)
+                )
+            );
+        if (!sharesOneSenderPool(links)) return null;
+
+        // 오늘(KST)이 끝나는 시각 — 그 뒤에 열리는 줄은 새 줄도 같은 이유로 같은 시각에 미뤄지므로 세지 않는다
+        const endOfToday = kstToDate(addDaysYmd(kstParts(now).date, 1), 0);
+        const [row] = await db
+            .select({
+                until: sql<Date | null>`max(${emailSendQueue.scheduledAt})`.mapWith(emailSendQueue.scheduledAt),
+            })
+            .from(emailSendQueue)
+            .where(
+                and(
+                    eq(emailSendQueue.orgId, orgId),
+                    eq(emailSendQueue.partitionId, partitionId),
+                    eq(emailSendQueue.triggerType, triggerType),
+                    eq(emailSendQueue.status, "pending"),
+                    eq(emailSendQueue.priority, QUEUE_PRIORITY_BULK),
+                    gt(emailSendQueue.scheduledAt, sql`NOW()`),
+                    lt(emailSendQueue.scheduledAt, endOfToday),
+                    or(...FIFO_FLOOR_DEFER_REASONS.map((r) => like(emailSendQueue.lastError, `deferred(${r})%`)))
+                )
+            );
+        return row?.until instanceof Date && Number.isFinite(row.until.getTime()) ? row.until : null;
+    } catch (error) {
+        console.error("[send-queue] 미룬 대량 줄 시각 조회 실패 — 지금 시각으로 넣음:", error);
+        return null;
+    }
 }
 
 export interface DeferredSendParams {
@@ -211,6 +291,10 @@ export interface DeferredSendParams {
  *                워커가 보낼 것 없음·실패로 끝내려 하면 applyPlans가 이 시각에 다시 꺼내도록 바꾼다
  * 묶어 미루기(drainBlockedGroup)가 잡고 있는 pending 줄은 그 트랜잭션이 끝날 때까지 기다렸다가 끝난 값을 본다 —
  * 그쪽이 닫은 줄(skipped)이면 여기서 되살리고, 미룬 줄(pending)이면 그대로 둔다 (꺼낼 때 최신 레코드를 읽는다).
+ *
+ * 문의 줄이다 (priority 1, DESIGN-2 2절): 꺼낼 때 대량 명단보다 먼저이고, 자리를 잡을 때 그날 한도 전체(문의 몫 포함)를 쓴다.
+ * 되살리는 줄·processing 줄에도 1을 남긴다 — 다시 꺼낼 때 이 문의를 싣고 있다. pending 줄은 예전처럼 건드리지 않는다
+ * (그 줄은 이 경로가 먼저 넣은 문의 줄이다 — 대량 경로는 on_create만 넣고, 한 건씩 만든 레코드는 대량으로 들어오지 않는다).
  */
 export async function enqueueDeferredSend(params: DeferredSendParams): Promise<void> {
     const { recordId, partitionId, orgId, triggerType, retryAt, reason } = params;
@@ -218,12 +302,14 @@ export async function enqueueDeferredSend(params: DeferredSendParams): Promise<v
     const retryAtIso = retryAt.toISOString();
     const lastError = describeDeferral(reason, retryAt);
 
-    // processing 줄은 워커가 잡고 있다 — 상태·시도·잠금을 건드리지 않고 다시 처리할 시각만 남긴다
+    // processing 줄은 워커가 잡고 있다 — 상태·시도·잠금을 건드리지 않고 다시 처리할 시각(과 우선순위)만 남긴다
     await db.execute(sql`
-        INSERT INTO email_send_queue (record_id, partition_id, org_id, trigger_type, scheduled_at, last_error)
-        VALUES (${recordId}, ${partitionId}, ${orgId}, ${triggerType}, ${retryAtIso}::timestamptz, ${lastError})
+        INSERT INTO email_send_queue (record_id, partition_id, org_id, trigger_type, scheduled_at, last_error, priority)
+        VALUES (${recordId}, ${partitionId}, ${orgId}, ${triggerType}, ${retryAtIso}::timestamptz, ${lastError},
+                ${QUEUE_PRIORITY_INBOUND}::smallint)
         ON CONFLICT (record_id, trigger_type) DO UPDATE
-           SET status = CASE WHEN email_send_queue.status = 'processing' THEN email_send_queue.status ELSE 'pending' END,
+           SET priority = GREATEST(email_send_queue.priority, EXCLUDED.priority),
+               status = CASE WHEN email_send_queue.status = 'processing' THEN email_send_queue.status ELSE 'pending' END,
                attempts = CASE WHEN email_send_queue.status = 'processing' THEN email_send_queue.attempts ELSE 0 END,
                scheduled_at = CASE WHEN email_send_queue.status = 'processing'
                                    THEN email_send_queue.scheduled_at ELSE EXCLUDED.scheduled_at END,
@@ -284,28 +370,40 @@ async function reclaimStuck(): Promise<number> {
  *
  * attempts를 픽업 시점에 올리는 이유: 처리 중 프로세스가 죽어도 시도가 기록되어야
  * 무한 재시도를 막을 수 있다. 처리 후에 올리면 죽을 때마다 카운트가 초기화된다.
+ *
+ * 순서: 꺼낼 때가 된 줄 중 문의 줄(priority 1)이 먼저, 그다음 먼저 예정된 순(scheduled_at), 같으면 먼저 들어온 순(id).
+ * 대량 명단끼리는 먼저 들어온 순이 지켜진다 — 함께 미뤄진 줄은 같은 retryAt을 받아 id 순으로 다시 꺼내진다.
+ * 색인 esq_pickup_priority_idx (status, priority DESC, scheduled_at, id)가 이 순서다 (0072).
  */
 async function pickBatch(): Promise<PickedRow[]> {
-    return (await db.execute(sql`
+    // RETURNING은 하위 쿼리의 ORDER BY를 지키지 않는다 — 자리 잡기 차례(runBatch)를 문의 먼저·먼저 들어온 순으로 다시 세운다
+    const rows = (await db.execute(sql`
         UPDATE email_send_queue
         SET status = 'processing', locked_at = NOW(), attempts = attempts + 1
         WHERE id IN (
             SELECT id FROM email_send_queue
             WHERE status = 'pending'
               AND scheduled_at <= NOW()
-            ORDER BY scheduled_at ASC, id ASC
+            ORDER BY priority DESC, scheduled_at ASC, id ASC
             LIMIT ${BATCH_SIZE}
             FOR UPDATE SKIP LOCKED
         )
-        RETURNING id, record_id, partition_id, org_id, trigger_type, attempts, exhausted_link_ids
+        RETURNING id, record_id, partition_id, org_id, trigger_type, attempts, exhausted_link_ids, priority
     `)) as unknown as PickedRow[];
+    return sortPickedRows(rows);
 }
 
 async function runBatch(
     batch: PickedRow[],
-    stats: QueueRunStats
+    stats: QueueRunStats,
+    replyTo: ReplyToResolver
 ): Promise<{ deferredOnly: boolean; deferredGroups: PickedRow[] }> {
-    const results = await Promise.allSettled(batch.map((row) => processRow(row)));
+    // AI 생성·NHN 호출은 줄마다 겹쳐 돌리고, 발신 자리 잡기만 꺼낸 순서(문의 먼저, 먼저 들어온 순)대로 하나씩 한다 —
+    // 함께 잡으면 다섯 줄이 같은 사용량을 읽어 한 주소에 몰리고 마지막 한 칸을 늦게 들어온 줄이 가져간다 (createClaimTurns)
+    const turns = createClaimTurns(batch.length);
+    const results = await Promise.allSettled(
+        batch.map((row, i) => processRow(row, turns[i], replyTo).finally(() => turns[i].done()))
+    );
     const deferredFlags: boolean[] = [];
     const deferredGroups: PickedRow[] = [];
     const writes: QueueRowWrite[] = [];
@@ -350,7 +448,7 @@ async function runBatch(
     return { deferredOnly: isDeferralOnlyBatch(deferredFlags), deferredGroups };
 }
 
-async function processRow(row: PickedRow): Promise<ProcessedRow> {
+async function processRow(row: PickedRow, claimTurn: ClaimTurn, replyTo: ReplyToResolver): Promise<ProcessedRow> {
     const [record] = await db
         .select()
         .from(records)
@@ -367,6 +465,12 @@ async function processRow(row: PickedRow): Promise<ProcessedRow> {
         orgId: row.org_id,
         // 이 줄에서 시도 횟수를 다 쓴 규칙은 다시 돌리지 않는다 (planQueueRow)
         skipLinkIds: parseLinkIdList(row.exhausted_link_ids),
+        // 문의 줄(1)은 그날 한도 전체, 대량 명단 줄(0)은 15:00 전까지 문의 몫을 남긴 한도로 자리를 잡는다
+        purpose: purposeOfQueuePriority(row.priority),
+        // 배치 안 자리 잡기는 꺼낸 순서대로 하나씩 (runBatch)
+        claimTurn,
+        // 답장 받을 주소 회차 캐시
+        replyTo,
     });
 
     return toProcessedRow(result);
@@ -377,8 +481,18 @@ function normalizeTriggerType(triggerType: string): "on_create" | "on_update" {
     return triggerType === "on_update" ? "on_update" : "on_create";
 }
 
-function toDrainGroup(row: { org_id: string; partition_id: number; trigger_type: string }): DrainGroup {
-    return { orgId: row.org_id, partitionId: row.partition_id, triggerType: row.trigger_type };
+function toDrainGroup(row: {
+    org_id: string;
+    partition_id: number;
+    trigger_type: string;
+    priority: number;
+}): DrainGroup {
+    return {
+        orgId: row.org_id,
+        partitionId: row.partition_id,
+        triggerType: row.trigger_type,
+        priority: Number(row.priority) || QUEUE_PRIORITY_BULK,
+    };
 }
 
 function addCounts(
@@ -457,7 +571,8 @@ interface DrainRow {
 type AutoLink = typeof emailAutoPersonalizedLinks.$inferSelect;
 
 /**
- * 같은 규칙 묶음(조직·파티션·트리거)의 꺼낼 때가 된 줄을 최대 DRAIN_BATCH_SIZE개 한꺼번에 본다.
+ * 같은 규칙 묶음(조직·파티션·트리거·priority)의 꺼낼 때가 된 줄을 최대 DRAIN_BATCH_SIZE개 한꺼번에 본다.
+ * priority별로 나누는 것은 문의 줄과 대량 줄이 쓸 수 있는 한도가 달라서다 (대량은 15:00 전까지 문의 몫을 남긴다).
  *
  * 줄마다 processAutoPersonalizedEmail을 부르는 대신, 그 함수가 읽는 값(레코드·규칙·쿨다운·중복 수신자·수신거부·
  * 워크스페이스·토큰 쿼터·메일 설정·발신 주소와 오늘 사용량)을 묶음마다 한 번씩 읽고 walkQueueRow로 같은 순서를 따라간다.
@@ -485,6 +600,7 @@ async function drainBlockedGroup(group: DrainGroup, stats: QueueRunStats): Promi
                   AND q.org_id = ${group.orgId}
                   AND q.partition_id = ${group.partitionId}
                   AND q.trigger_type = ${group.triggerType}
+                  AND q.priority = ${group.priority}
                 ORDER BY q.scheduled_at ASC, q.id ASC
                 LIMIT ${DRAIN_BATCH_SIZE}
                 FOR UPDATE OF q SKIP LOCKED
@@ -520,6 +636,7 @@ async function drainBlockedGroup(group: DrainGroup, stats: QueueRunStats): Promi
             addCounts(stats, done.counts);
             console.log(
                 `[send-queue] 묶어 처리 org=${group.orgId} partition=${group.partitionId} trigger=${group.triggerType} ` +
+                `priority=${group.priority} ` +
                 `rows=${done.rows} deferred=${done.counts.deferred} skipped=${done.counts.skipped} ` +
                 `failed=${done.counts.failed} 줄마다처리로남김=${done.left}`
             );
@@ -642,11 +759,12 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
         } else if (needs.has("emailClient")) {
             emailConfig = await getEmailConfig(group.orgId);
         } else {
-            // claimSender와 같은 설정·같은 묶음(linkSenderPool)으로 규칙마다 본다 — 주소·사용량은 한 번만 읽는다
+            // claimSender와 같은 설정·같은 묶음(linkSenderPool)·같은 목적(줄의 priority)으로 규칙마다 본다 —
+            // 주소·사용량은 한 번만 읽는다
             const states = await checkPoolsBlocked(
                 group.orgId,
                 links.map((l) => linkSenderPool(l)),
-                { config: emailConfig ?? null, spreadDeferrals: true }
+                { config: emailConfig ?? null, spreadDeferrals: true, purpose: purposeOfQueuePriority(group.priority) }
             );
             blocks = new Map(links.map((l, i) => [l.id, states[i]]));
         }

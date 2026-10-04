@@ -7,6 +7,8 @@ import type {
 
 export const SENDER_PROFILES_KEY = "/api/email/sender-profiles";
 export const SENDER_USAGE_KEY = "/api/email/sender-profiles/usage";
+/** 규칙별 대기 통계 (대기 통수·묶음 용량·예상 소진일·3일치 경고). 조직 범위 */
+export const SEND_QUEUE_STATS_KEY = "/api/email/send-queue/stats";
 
 // 네트워크가 끊기거나 서버가 JSON이 아닌 오류 화면을 주면 res.json()이 던진다.
 // 호출부가 저장 중 표시를 풀 수 있게 실패 결과로 바꿔 돌려준다.

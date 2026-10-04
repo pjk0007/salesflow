@@ -246,6 +246,10 @@ export interface WorkspaceDetail {
     codePrefix: string | null;
     defaultFieldTypeId: number | null;
     settings: WorkspaceSettings | null;
+    /** 답장 받을 주소 (Reply-To). null = 없음 — 답장이 발신 주소로 간다. 마이그레이션 0073 전 서버 응답에는 없다 */
+    replyToEmail?: string | null;
+    /** 답장 받을 주소 도메인의 MX 조회 결과 (주소가 없으면 null). 없음이면 설정 칸에 노란 경고 */
+    replyToMx?: "ok" | "none" | "unknown" | null;
 }
 
 // 워크스페이스 수정 입력
@@ -254,6 +258,8 @@ export interface UpdateWorkspaceInput {
     description?: string;
     icon?: string;
     codePrefix?: string;
+    /** 답장 받을 주소. null 또는 빈 값 = 없음 (관리자만) */
+    replyToEmail?: string | null;
 }
 
 // 워크스페이스 생성 입력

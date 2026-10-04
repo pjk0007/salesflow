@@ -39,6 +39,9 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     repeat: { label: "반복", variant: "secondary" },
     ai_auto: { label: "AI 자동", variant: "default" },
     ai_followup: { label: "후속발송", variant: "secondary" },
+    // 템플릿 후속·AI 후속 테스트 발송이 남기는 값 (발송 이력 표와 같은 이름)
+    followup: { label: "템플릿 후속", variant: "secondary" },
+    test_followup: { label: "후속 테스트", variant: "outline" },
 };
 
 interface UnifiedLogTableProps {

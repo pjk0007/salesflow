@@ -1,9 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import {
+    bulkCapForNow,
     capForDate,
+    capForPurpose,
     capSchedule,
     decideSlot,
+    inboundReserve,
     describeDeferral,
     hasAnyLimit,
     isSendableNow,
@@ -23,7 +26,11 @@ import {
     DEFAULT_WARMUP_STEP,
     MAX_SENDER_POOL_INPUT,
     MAX_SENDER_POOL_SIZE,
+    RESERVE_RELEASE_HOUR,
+    reserveReleaseHour,
+    spacingSpreadKey,
     type PoolCandidate,
+    type SendPurpose,
     type SenderLimitSettings,
     type SlotDecision,
     type SpacingSpreadMemo,
@@ -856,4 +863,378 @@ test("linkSenderPool: 저장된 큰 묶음도 순서를 지키며 한 번에 거
     // 중복 제거를 Set으로 바꿔도 처음 나온 순서가 유지돼야 한다
     const ids = [9, 3, 9, 1, 3, 7];
     assert.deepEqual(linkSenderPool({ senderProfileId: null, senderProfileIds: ids }), [9, 3, 1, 7]);
+});
+
+// ── DESIGN-2: 문의 몫 남겨 두기 (발송 목적 inbound/bulk) ──
+
+test("inboundReserve: 그날 한도의 10% 올림, 한도가 1 이하·없음이면 0", () => {
+    assert.equal(inboundReserve(null), 0);
+    assert.equal(inboundReserve(0), 0);
+    assert.equal(inboundReserve(1), 0);
+    assert.equal(inboundReserve(2), 1);
+    assert.equal(inboundReserve(4), 1);
+    assert.equal(inboundReserve(10), 1);
+    assert.equal(inboundReserve(11), 2);
+    // 30 × 0.1 = 3.0000000000000004 — 곱해서 올리면 4가 된다. 정수 나눗셈으로 3
+    assert.equal(inboundReserve(30), 3);
+    assert.equal(inboundReserve(70), 7);
+    assert.equal(inboundReserve(100), 10);
+    assert.equal(inboundReserve(101), 11);
+});
+
+test("bulkCapForNow: 15:00 전에는 몫을 빼고, 15:00부터는 한도 전체", () => {
+    assert.deepEqual(bulkCapForNow(10, at("2026-10-05T10:00")), {
+        cap: 9,
+        reserve: 1,
+        releaseAt: kstToDate("2026-10-05", RESERVE_RELEASE_HOUR),
+    });
+    assert.equal(bulkCapForNow(10, at("2026-10-05T14:59")).cap, 9);
+    assert.deepEqual(bulkCapForNow(10, at("2026-10-05T15:00")), { cap: 10, reserve: 0, releaseAt: null });
+    assert.deepEqual(bulkCapForNow(10, at("2026-10-05T23:30")), { cap: 10, reserve: 0, releaseAt: null });
+    // 자정이 지나면 다시 몫을 남긴다 (한국 날짜 기준)
+    assert.equal(bulkCapForNow(10, at("2026-10-06T00:10")).cap, 9);
+    // 한도 1이면 몫이 없다 — 대량이 하루 종일 못 보내지 않게
+    assert.deepEqual(bulkCapForNow(1, at("2026-10-05T10:00")), { cap: 1, reserve: 0, releaseAt: null });
+    assert.deepEqual(bulkCapForNow(0, at("2026-10-05T10:00")), { cap: 0, reserve: 0, releaseAt: null });
+    // 제한 없음은 그대로 (Q9)
+    assert.deepEqual(bulkCapForNow(null, at("2026-10-05T10:00")), { cap: null, reserve: 0, releaseAt: null });
+    // 문의는 줄이지 않는다
+    assert.equal(capForPurpose(10, at("2026-10-05T10:00"), "inbound"), 10);
+    assert.equal(capForPurpose(10, at("2026-10-05T10:00"), "bulk"), 9);
+    assert.equal(capForPurpose(null, at("2026-10-05T10:00"), "bulk"), null);
+});
+
+test("decideSlot: 목적을 안 넘기면 문의(inbound)와 같다 — 예전 호출은 한도 전체를 쓴다", () => {
+    const s = settings({ dailyLimit: 10 });
+    const morning = at("2026-10-05T10:00");
+    const used9 = { sentToday: 9, lastSentAt: at("2026-10-05T09:59") };
+    assert.deepEqual(decideSlot(s, morning, used9), { ok: true });
+    assert.deepEqual(decideSlot(s, morning, used9, "inbound"), { ok: true });
+});
+
+test("decideSlot bulk: 몫에 막히면 daily_limit, 15:00에 다시 (Q2)", () => {
+    const s = settings({ dailyLimit: 10 });
+    const used9 = { sentToday: 9, lastSentAt: at("2026-10-05T09:59") };
+    assert.deepEqual(decideSlot(s, at("2026-10-05T10:00"), { sentToday: 8, lastSentAt: null }, "bulk"), { ok: true });
+    assert.deepEqual(deferredOf(decideSlot(s, at("2026-10-05T10:00"), used9, "bulk")), {
+        retryAt: iso("2026-10-05T15:00"),
+        reason: "daily_limit",
+    });
+    // 15:00부터는 10통째도 나간다
+    assert.deepEqual(decideSlot(s, at("2026-10-05T15:00"), used9, "bulk"), { ok: true });
+    // 한도를 다 쓰면 목적과 상관없이 다음 날
+    const used10 = { sentToday: 10, lastSentAt: at("2026-10-05T15:01") };
+    assert.deepEqual(deferredOf(decideSlot(s, at("2026-10-05T15:10"), used10, "bulk")), {
+        retryAt: kstToDate("2026-10-06", DEFAULT_RESUME_HOUR).toISOString(),
+        reason: "daily_limit",
+    });
+});
+
+test("decideSlot bulk: 시간대가 15시 전에 끝나면 몫을 시간대 마지막 한 시간에 푼다 (REVIEW-2 정책 F4)", () => {
+    // 9~14시만 보내는 주소 — 15:00이 시간대 밖이라 예전에는 몫이 끝내 풀리지 않아 매일 한도의 10%를 버렸다. 이제 13:00에 푼다
+    const s = settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 14 });
+    const d = decideSlot(s, at("2026-10-05T11:00"), { sentToday: 9, lastSentAt: null }, "bulk");
+    assert.deepEqual(deferredOf(d), { retryAt: iso("2026-10-05T13:00"), reason: "daily_limit" });
+    assert.deepEqual(decideSlot(s, at("2026-10-05T13:00"), { sentToday: 9, lastSentAt: null }, "bulk"), { ok: true });
+    // 한도를 다 쓰면 다음 날 시간대 시작
+    assert.deepEqual(deferredOf(decideSlot(s, at("2026-10-05T13:10"), { sentToday: 10, lastSentAt: null }, "bulk")), {
+        retryAt: iso("2026-10-06T09:00"),
+        reason: "daily_limit",
+    });
+    // 평일만 보내는 주소도 그날 13:00 (금요일이라도 월요일로 넘기지 않는다)
+    const weekdays = settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 14, weekdaysOnly: true });
+    const fri = decideSlot(weekdays, at("2026-10-02T11:00"), { sentToday: 9, lastSentAt: null }, "bulk");
+    assert.deepEqual(deferredOf(fri), { retryAt: iso("2026-10-02T13:00"), reason: "daily_limit" });
+    // 15시를 넘겨 열린 시간대(9~18시)는 그대로 15:00
+    const late = settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 18 });
+    assert.deepEqual(deferredOf(decideSlot(late, at("2026-10-05T11:00"), { sentToday: 9, lastSentAt: null }, "bulk")), {
+        retryAt: iso("2026-10-05T15:00"),
+        reason: "daily_limit",
+    });
+});
+
+test("reserveReleaseHour: 보통 15시, 시간대가 15시 전에 끝나면 끝나기 한 시간 전(시작보다 이르지 않게)", () => {
+    assert.equal(reserveReleaseHour(), RESERVE_RELEASE_HOUR);
+    assert.equal(reserveReleaseHour(null), RESERVE_RELEASE_HOUR);
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10 })), 15);
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 18 })), 15);
+    // 15:00이 시간대 안(끝 미포함)이면 15시 그대로
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 16 })), 15);
+    // 9~15시는 15:00에 못 보낸다 → 14시
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 15 })), 14);
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 12 })), 11);
+    // 한 시간짜리 시간대는 시작부터 (몫을 남길 틈이 없다)
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 10 })), 9);
+    // 15시 뒤에 열리는 시간대는 15시 — 열릴 때 이미 풀려 있다
+    assert.equal(reserveReleaseHour(settings({ dailyLimit: 10, sendWindowStart: 16, sendWindowEnd: 20 })), 15);
+});
+
+test("bulkCapForNow: 주소 설정을 넘기면 그 주소의 해제 시각을 쓴다, 안 넘기면 15:00 (예전 호출)", () => {
+    const early = settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 12 });
+    assert.deepEqual(bulkCapForNow(10, at("2026-10-05T10:00"), early), {
+        cap: 9,
+        reserve: 1,
+        releaseAt: kstToDate("2026-10-05", 11),
+    });
+    assert.deepEqual(bulkCapForNow(10, at("2026-10-05T11:00"), early), { cap: 10, reserve: 0, releaseAt: null });
+    assert.equal(bulkCapForNow(10, at("2026-10-05T11:00")).cap, 9);
+    assert.equal(capForPurpose(10, at("2026-10-05T11:00"), "bulk", early), 10);
+    assert.equal(capForPurpose(10, at("2026-10-05T11:00"), "bulk"), 9);
+});
+
+test("decideSlot bulk: 간격은 한도 전체로 나눈 값 그대로다", () => {
+    // 9~19시(10시간)에 10통 → 1시간 간격. 대량도 같은 간격을 지킨다
+    const s = settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 19, spreadEvenly: true });
+    const usage = { sentToday: 3, lastSentAt: at("2026-10-05T11:30") };
+    assert.deepEqual(deferredOf(decideSlot(s, at("2026-10-05T12:00"), usage, "bulk")), {
+        retryAt: iso("2026-10-05T12:30"),
+        reason: "spacing",
+    });
+    assert.deepEqual(decideSlot(s, at("2026-10-05T12:30"), usage, "bulk"), { ok: true });
+});
+
+/** 묶음 시험용 발송기: claimSender처럼 rankPool → 첫 주소에 한 자리. 주소별 사용량을 들고 다닌다 */
+function poolSender(pool: Array<{ id: number; over?: Partial<SenderLimitSettings> }>) {
+    const usage = new Map<number, PoolCandidate["usage"]>();
+    const sentBy = new Map<number, number>();
+    return {
+        send(now: Date, purpose: SendPurpose): { id: number } | { retryAt: string; reason: string } {
+            const today = kstParts(now).date;
+            const cands = pool.map((p) => {
+                const u = usage.get(p.id);
+                // 날이 바뀌면 사용량은 0부터 (email_sender_daily_usage는 날짜별 줄이다)
+                const fresh = u && u.lastSentAt && kstParts(u.lastSentAt).date === today ? u : NO_USAGE;
+                return { id: p.id, settings: settings(p.over ?? {}), usage: fresh };
+            });
+            const rank = rankPool(cands, now, purpose);
+            if (!rank.ok) return { retryAt: rank.retryAt.toISOString(), reason: rank.reason };
+            const id = rank.order[0];
+            const u = cands.find((c) => c.id === id)!.usage;
+            usage.set(id, { sentToday: u.sentToday + 1, lastSentAt: now });
+            sentBy.set(id, (sentBy.get(id) ?? 0) + 1);
+            return { id };
+        },
+        sentBy,
+    };
+}
+
+const minutesAfter = (start: Date, n: number): Date => new Date(start.getTime() + n * 60_000);
+const sortedCounts = (m: Map<number, number>): Array<[number, number]> => [...m.entries()].sort((a, b) => a[0] - b[0]);
+
+test("Q1: 한도 4·4·없음 묶음에 문의 12통 → 주소별 4·4·4, 한 통에 한 주소", () => {
+    const p = poolSender([{ id: 1, over: { dailyLimit: 4 } }, { id: 2, over: { dailyLimit: 4 } }, { id: 3 }]);
+    const start = at("2026-10-05T10:00");
+    const order: number[] = [];
+    for (let i = 0; i < 12; i++) {
+        const r = p.send(minutesAfter(start, i), "inbound");
+        assert.ok("id" in r, "한도 없는 주소가 있어 막히지 않는다");
+        order.push(r.id);
+    }
+    // 가장 오래 쉰 주소부터 돌아가며
+    assert.deepEqual(order, [1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3]);
+    assert.deepEqual(sortedCounts(p.sentBy), [[1, 4], [2, 4], [3, 4]]);
+});
+
+test("Q1: 15:00 뒤 대량도 4·4·4, 15:00 전 대량은 몫을 남겨 3·3·나머지", () => {
+    const pool = [{ id: 1, over: { dailyLimit: 4 } }, { id: 2, over: { dailyLimit: 4 } }, { id: 3 }];
+    const afternoon = poolSender(pool);
+    for (let i = 0; i < 12; i++) afternoon.send(minutesAfter(at("2026-10-05T15:00"), i), "bulk");
+    assert.deepEqual(sortedCounts(afternoon.sentBy), [[1, 4], [2, 4], [3, 4]]);
+
+    const morning = poolSender(pool);
+    for (let i = 0; i < 12; i++) morning.send(minutesAfter(at("2026-10-05T10:00"), i), "bulk");
+    // 한도 4의 몫 1을 남긴다 — 한도 없는 주소가 나머지를 받는다
+    assert.deepEqual(sortedCounts(morning.sentBy), [[1, 3], [2, 3], [3, 6]]);
+});
+
+test("Q2: 한도 10, 오전 대량은 9통까지, 15:00 뒤 10통째", () => {
+    const p = poolSender([{ id: 1, over: { dailyLimit: 10 } }]);
+    const start = at("2026-10-05T09:00");
+    for (let i = 0; i < 9; i++) assert.deepEqual(p.send(minutesAfter(start, i), "bulk"), { id: 1 });
+    assert.deepEqual(p.send(at("2026-10-05T10:00"), "bulk"), {
+        retryAt: iso("2026-10-05T15:00"),
+        reason: "daily_limit",
+    });
+    assert.deepEqual(p.send(at("2026-10-05T15:00"), "bulk"), { id: 1 });
+    assert.deepEqual(p.send(at("2026-10-05T15:01"), "bulk"), {
+        retryAt: kstToDate("2026-10-06", DEFAULT_RESUME_HOUR).toISOString(),
+        reason: "daily_limit",
+    });
+});
+
+test("Q3: 오전 대량 9통 뒤 문의 1건은 바로, 2건째는 다음 날", () => {
+    const p = poolSender([{ id: 1, over: { dailyLimit: 10 } }]);
+    for (let i = 0; i < 9; i++) p.send(minutesAfter(at("2026-10-05T09:00"), i), "bulk");
+    // 대량은 몫 앞에서 멈췄다
+    assert.equal("retryAt" in p.send(at("2026-10-05T10:30"), "bulk"), true);
+    // 문의는 남겨 둔 몫으로 바로
+    assert.deepEqual(p.send(at("2026-10-05T11:00"), "inbound"), { id: 1 });
+    // 몫도 다 썼다 — 다음 날 (대기열에서는 priority 1로 맨 앞)
+    assert.deepEqual(p.send(at("2026-10-05T11:05"), "inbound"), {
+        retryAt: kstToDate("2026-10-06", DEFAULT_RESUME_HOUR).toISOString(),
+        reason: "daily_limit",
+    });
+});
+
+test("Q9: 한도 없는 주소만 있는 묶음은 오전 대량도 예전처럼 바로 보낸다", () => {
+    const p = poolSender([{ id: 1 }, { id: 2 }]);
+    for (let i = 0; i < 200; i++) {
+        const r = p.send(minutesAfter(at("2026-10-05T08:00"), i), "bulk");
+        assert.ok("id" in r);
+    }
+    assert.deepEqual(sortedCounts(p.sentBy), [[1, 100], [2, 100]]);
+});
+
+test("rankPool bulk: 몫에 막힌 주소는 빼고 열린 주소로, 다 막히면 가장 이른 15:00", () => {
+    const now = at("2026-10-05T10:00");
+    const r = rankPool(
+        [cand(1, { dailyLimit: 10 }, { sentToday: 9, lastSentAt: null }), cand(2, { dailyLimit: 10 })],
+        now,
+        "bulk",
+    );
+    assert.deepEqual(r, { ok: true, order: [2] });
+    const pool = [
+        cand(1, { dailyLimit: 10 }, { sentToday: 9, lastSentAt: null }),
+        cand(2, { dailyLimit: 5 }, { sentToday: 5, lastSentAt: null }),
+    ];
+    assert.deepEqual(rankPool(pool, now, "bulk"), {
+        ok: false,
+        retryAt: at("2026-10-05T15:00"),
+        reason: "daily_limit",
+    });
+    // 같은 묶음을 문의로 보면 1번이 열려 있다
+    assert.deepEqual(rankPool(pool, now, "inbound"), { ok: true, order: [1] });
+});
+
+test("poolSpacingStepMs bulk: 몫에 막힌 주소는 묶음 속도에 세지 않는다", () => {
+    const now = at("2026-10-05T12:00");
+    const spread = { dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 19, spreadEvenly: true };
+    const spacing = cand(1, spread, { sentToday: 3, lastSentAt: at("2026-10-05T11:30") });
+    const reserved = cand(2, spread, { sentToday: 9, lastSentAt: at("2026-10-05T11:30") });
+    // 문의로는 둘 다 간격에 막혀 1시간/2 = 30분
+    assert.equal(poolSpacingStepMs([spacing, reserved], now, "inbound"), 30 * 60_000);
+    // 대량으로는 2번이 몫에 막혀(15:00까지) 1번만 센다
+    assert.equal(poolSpacingStepMs([spacing, reserved], now, "bulk"), 60 * 60_000);
+});
+
+/**
+ * 대기열 모델: pickBatch의 ORDER BY priority DESC, scheduled_at ASC, id ASC와 같은 정렬로 꺼내 priority로 목적을 정하고,
+ * 막히면 retryAt으로 미룬다 (email-send-queue.ts). 실제 SQL 순서는 시험 DB에서 따로 본다.
+ */
+interface ModelRow {
+    id: number;
+    priority: number;
+    scheduledAt: number;
+}
+
+function drainModel(
+    rows: ModelRow[],
+    sender: ReturnType<typeof poolSender>,
+    ticks: Date[],
+): Array<{ id: number; at: string }> {
+    const sent: Array<{ id: number; at: string }> = [];
+    for (const tick of ticks) {
+        const due = rows
+            .filter((r) => r.scheduledAt <= tick.getTime())
+            .sort((a, b) => b.priority - a.priority || a.scheduledAt - b.scheduledAt || a.id - b.id);
+        for (const row of due) {
+            const r = sender.send(tick, row.priority >= 1 ? "inbound" : "bulk");
+            if ("id" in r) {
+                sent.push({ id: row.id, at: tick.toISOString() });
+                rows.splice(rows.indexOf(row), 1);
+            } else {
+                row.scheduledAt = new Date(r.retryAt).getTime();
+            }
+        }
+    }
+    return sent;
+}
+
+test("Q4: 대량 15통이 밀린 다음 날 25통이 들어오면 15통이 먼저, 먼저 들어온 순 유지", () => {
+    // 한도 10 (대량 몫 9). 어제 밀린 15통(id 1~15)이 오늘 09:00에 열리고, 10:00에 25통(id 16~40)이 들어온다
+    const sender = poolSender([{ id: 7, over: { dailyLimit: 10 } }]);
+    const rows: ModelRow[] = [];
+    for (let id = 1; id <= 15; id++) rows.push({ id, priority: 0, scheduledAt: at("2026-10-05T09:00").getTime() });
+    for (let id = 16; id <= 40; id++) rows.push({ id, priority: 0, scheduledAt: at("2026-10-05T10:00").getTime() });
+
+    const ticks: Date[] = [];
+    for (let day = 5; day <= 9; day++) {
+        for (const hm of ["09:00", "10:00", "15:00", "16:00"]) ticks.push(at(`2026-10-0${day}T${hm}`));
+    }
+    const sent = drainModel(rows, sender, ticks);
+    assert.equal(sent.length, 40);
+    // 먼저 들어온 순 그대로 (밀린 15통이 먼저)
+    assert.deepEqual(
+        sent.map((s) => s.id),
+        Array.from({ length: 40 }, (_, i) => i + 1),
+    );
+    // 하루 10통 (오전 9통 + 15:00 이후 1통)
+    const perDay = new Map<string, number>();
+    for (const s of sent) {
+        const d = kstParts(new Date(s.at)).date;
+        perDay.set(d, (perDay.get(d) ?? 0) + 1);
+    }
+    assert.deepEqual([...perDay.values()], [10, 10, 10, 10]);
+});
+
+test("Q5: 같은 시각에 열린 문의 미룬 줄과 대량 줄 → 문의 먼저", () => {
+    const sender = poolSender([{ id: 7, over: { dailyLimit: 10 } }]);
+    const nine = at("2026-10-05T09:00").getTime();
+    // 대량 줄이 먼저 들어왔어도(id 작음) 문의 줄(priority 1)이 먼저 나간다
+    const rows: ModelRow[] = [
+        { id: 1, priority: 0, scheduledAt: nine },
+        { id: 2, priority: 0, scheduledAt: nine },
+        { id: 3, priority: 1, scheduledAt: nine },
+    ];
+    const sent = drainModel(rows, sender, [at("2026-10-05T09:00")]);
+    assert.deepEqual(
+        sent.map((s) => s.id),
+        [3, 1, 2],
+    );
+});
+
+test("Q2(시간대 9~13시): 오전 대량은 9통까지, 12:00에 10통째 — 문의가 없는 날 몫을 버리지 않는다", () => {
+    const p = poolSender([{ id: 1, over: { dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 13 } }]);
+    for (let i = 0; i < 9; i++) assert.deepEqual(p.send(minutesAfter(at("2026-10-05T09:00"), i), "bulk"), { id: 1 });
+    assert.deepEqual(p.send(at("2026-10-05T10:00"), "bulk"), { retryAt: iso("2026-10-05T12:00"), reason: "daily_limit" });
+    assert.deepEqual(p.send(at("2026-10-05T12:00"), "bulk"), { id: 1 });
+    assert.deepEqual(sortedCounts(p.sentBy), [[1, 10]]);
+});
+
+// ── REVIEW-2 정책 F2: 간격 미룸 펼치기는 목적별로 센다 — 문의가 대량 대기의 순번을 이어받지 않는다 ──
+
+test("spacingSpreadKey: 같은 묶음이라도 목적이 다르면 다른 키, 주소 순서·중복은 상관없다", () => {
+    assert.equal(spacingSpreadKey([3, 1, 3], "bulk"), "1,3|bulk");
+    assert.equal(spacingSpreadKey([1, 3], "bulk"), spacingSpreadKey([3, 1], "bulk"));
+    assert.notEqual(spacingSpreadKey([1, 3], "bulk"), spacingSpreadKey([1, 3], "inbound"));
+});
+
+test("간격 미룸: 대량 200줄을 펼친 직후 들어온 문의는 다음 간격 칸(base)에 — 며칠 뒤로 밀리지 않는다", () => {
+    // 한도 10, 9~18시, 고르게(54분 간격). 09:01에 대량 200줄이 간격에 막혀 펼쳐진다
+    const s = settings({ dailyLimit: 10, sendWindowStart: 9, sendWindowEnd: 18, spreadEvenly: true });
+    const usage = { sentToday: 1, lastSentAt: at("2026-10-05T09:00") };
+    const pool: PoolCandidate[] = [{ id: 7, settings: s, usage }];
+    const memo: SpacingSpreadMemo = new Map();
+    const bulkNow = at("2026-10-05T09:01");
+    const bulk = decideSlot(s, bulkNow, usage, "bulk");
+    assert.equal(bulk.ok, false);
+    const base = (bulk as Extract<SlotDecision, { ok: false }>).retryAt;
+    assert.equal(base.toISOString(), iso("2026-10-05T09:54"));
+    const step = poolSpacingStepMs(pool, bulkNow, "bulk");
+    let last = base;
+    for (let i = 0; i < 200; i++) {
+        last = spreadSpacingRetry(memo, spacingSpreadKey([7], "bulk"), base, step, bulkNow);
+    }
+    // 대량은 순번대로 뒤로 (마지막 줄은 base + 199 × 54분)
+    assert.equal(last.getTime(), base.getTime() + 199 * step);
+
+    // 09:06 문의 — 목적이 다른 키라 base 그대로 (예전에는 base + 200 × 54분 = 10/12 21:54)
+    const inboundNow = at("2026-10-05T09:06");
+    const inbound = decideSlot(s, inboundNow, usage, "inbound");
+    assert.equal((inbound as Extract<SlotDecision, { ok: false }>).retryAt.getTime(), base.getTime());
+    const spread = spreadSpacingRetry(memo, spacingSpreadKey([7], "inbound"), base, poolSpacingStepMs(pool, inboundNow, "inbound"), inboundNow);
+    assert.equal(spread.toISOString(), iso("2026-10-05T09:54"));
+    // 문의 두 번째는 문의끼리 다음 칸
+    const second = spreadSpacingRetry(memo, spacingSpreadKey([7], "inbound"), base, poolSpacingStepMs(pool, inboundNow, "inbound"), inboundNow);
+    assert.equal(second.toISOString(), iso("2026-10-05T10:48"));
 });

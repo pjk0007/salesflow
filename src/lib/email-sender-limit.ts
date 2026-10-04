@@ -1,5 +1,5 @@
 /**
- * 발신 주소 자리 잡기 (DB). docs/2026-10-02-sender-warmup/DESIGN.md 5절.
+ * 발신 주소 자리 잡기 (DB). docs/2026-10-02-sender-warmup/DESIGN.md 5절, 발송 목적(문의 몫)은 DESIGN-2-queue-policy.md 2절.
  *
  * 판정 규칙(한도·웜업·시간대·간격·묶음 순번)은 email-sender-limit-rules.ts(순수)에 있고,
  * 여기는 "오늘 사용량을 읽고, 한 통 자리를 원자적으로 잡고, 못 보냈으면 돌려주는" 일만 한다.
@@ -22,17 +22,26 @@ import { pickSenderCandidates } from "@/lib/email-sender-limit-paths";
 import {
     DEFAULT_LIMIT_SETTINGS,
     capForDate,
+    capForPurpose,
     capSchedule,
     decideSlot,
     hasAnyLimit,
+    inboundReserve,
     isSendableNow,
     poolSpacingStepMs,
     rankPool,
+    spacingSpreadKey,
     spreadGapMs,
     spreadSpacingRetry,
     warmupDayIndex,
 } from "@/lib/email-sender-limit-rules";
-import type { PoolCandidate, SlotDeferReason, SpacingSpreadMemo } from "@/lib/email-sender-limit-rules";
+import type {
+    PoolCandidate,
+    SendPurpose,
+    SenderLimitSettings,
+    SlotDeferReason,
+    SpacingSpreadMemo,
+} from "@/lib/email-sender-limit-rules";
 
 export interface SenderSlot {
     sender: ResolvedSender;
@@ -75,6 +84,10 @@ const NO_USAGE: DayUsage = { sentToday: 0, lastSentAt: null };
  * spreadDeferrals: 간격(spacing)으로 막혔을 때 같은 묶음·같은 retryAt으로 미뤄지는 메일을 순번 × 묶음 간격으로 펼친다.
  * 대기열로 다시 시도하는 경로(대기열·바로 보내는 AI·후속·템플릿)가 켠다 — 안 펼치면 밀린 줄 전부가 간격마다 한꺼번에
  * 깨어나 한 통만 나가고 다시 미뤄진다. 수동 발송은 안내 문구에 실제로 열리는 시각을 보여야 하므로 켜지 않는다.
+ *
+ * purpose: 발송 목적 (DESIGN-2 2절). 생략하면 "inbound" — 그날 한도 전체를 쓴다 (예전 동작).
+ * "bulk"(대량 명단·후속·템플릿 반복)는 15:00(KST) 전까지 주소마다 한도의 10%(문의 몫)를 남긴다.
+ * 판정(rankPool)과 자리 잡기 SQL의 조건(sent_count < $cap)이 같은 값을 쓴다 — 한 문장이라 원자성은 그대로다.
  */
 export async function claimSender(
     orgId: string,
@@ -84,14 +97,16 @@ export async function claimSender(
         config: LegacyEmailConfig | null;
         now?: Date;
         spreadDeferrals?: boolean;
+        purpose?: SendPurpose;
     }
 ): Promise<ClaimResult> {
     const now = opts.now ?? new Date();
+    const purpose: SendPurpose = opts.purpose ?? "inbound";
     // 날짜 키는 한 번만 계산해 판정과 SQL에 같이 쓴다 — 자정 경계에서 둘이 다른 날을 보지 않게
     const usageDate = kstParts(now).date;
 
     // 고정 주소면 먼저 한 문장으로 자리를 잡아 본다 (주소 설정 확인 + 예약). 못 잡으면 아래 원래 흐름 그대로
-    const fast = await reserveFixedInOneStatement(orgId, opts, now, usageDate);
+    const fast = await reserveFixedInOneStatement(orgId, opts, now, usageDate, purpose);
     if (fast) return fast;
 
     // 주소와 오늘 사용량을 한 문장으로 읽는다 (예전: 주소 1 + 사용량 1)
@@ -111,20 +126,22 @@ export async function claimSender(
             round === 0 && loaded.usage ? loaded.usage : await readUsageTolerant(candidates, usageDate, anyLimited);
         const pool = toPoolCandidates(candidates, usage);
 
-        const rank = rankPool(pool, now);
+        const rank = rankPool(pool, now, purpose);
         if (!rank.ok) {
             return {
                 ok: false,
-                retryAt: opts.spreadDeferrals ? spreadIfSpacing(pool, now, rank.retryAt, rank.reason) : rank.retryAt,
+                retryAt: opts.spreadDeferrals
+                    ? spreadIfSpacing(pool, now, rank.retryAt, rank.reason, purpose)
+                    : rank.retryAt,
                 reason: rank.reason,
-                profileId: blockingProfileId(pool, now, rank.retryAt, rank.reason),
+                profileId: blockingProfileId(pool, now, rank.retryAt, rank.reason, purpose),
             };
         }
 
         for (const id of rank.order) {
             const profile = byId.get(id);
             if (!profile) continue;
-            const reserved = await reserveSlot(profile, usageDate, now);
+            const reserved = await reserveSlot(profile, usageDate, now, purpose);
             if (reserved === "lost") continue; // 경쟁에서 졌다 — 다음 후보로
             return {
                 ok: true,
@@ -166,13 +183,15 @@ export type PoolBlockState =
  * 잡으러 가지 않아 DB에 쓰지 않는다. nextRetryAt()은 그 호출이 돌려줄 retryAt이다 — spreadDeferrals면 간격 미룸을
  * claimSender와 같은 기록(spacingSpreadMemo)으로 한 번 펼친다. 그래서 N줄에 N번 부르면 claimSender를 N번 부른 것과 같다.
  * 통과할 주소가 하나라도 있거나 레거시 설정 발신자면 { blocked: false } — 그 줄은 claimSender를 실제로 불러야 한다.
+ * purpose는 그 줄들이 claimSender에 넘길 목적과 같아야 한다 (대기열 줄의 priority로 정한다). 생략하면 "inbound".
  */
 export async function checkPoolsBlocked(
     orgId: string,
     pools: ReadonlyArray<ReadonlyArray<number | null | undefined>>,
-    opts: { config: LegacyEmailConfig | null; now?: Date; spreadDeferrals?: boolean }
+    opts: { config: LegacyEmailConfig | null; now?: Date; spreadDeferrals?: boolean; purpose?: SendPurpose }
 ): Promise<PoolBlockState[]> {
     const now = opts.now ?? new Date();
+    const purpose: SendPurpose = opts.purpose ?? "inbound";
     const usageDate = kstParts(now).date;
     const loaded = await loadProfilesAndUsage(orgId, usageDate);
 
@@ -186,7 +205,7 @@ export async function checkPoolsBlocked(
         const anyLimited = picked.some((p) => hasAnyLimit(p.limits));
         const usage = loaded.usage ?? (await readUsageTolerant(picked, usageDate, anyLimited));
         const pool = toPoolCandidates(picked, usage);
-        const rank = rankPool(pool, now);
+        const rank = rankPool(pool, now, purpose);
         if (rank.ok) {
             out.push({ blocked: false });
             continue;
@@ -195,9 +214,11 @@ export async function checkPoolsBlocked(
         out.push({
             blocked: true,
             reason,
-            profileId: blockingProfileId(pool, now, retryAt, reason),
+            profileId: blockingProfileId(pool, now, retryAt, reason, purpose),
             nextRetryAt: () =>
-                opts.spreadDeferrals ? spreadIfSpacing(pool, now, retryAt, reason) : new Date(retryAt.getTime()),
+                opts.spreadDeferrals
+                    ? spreadIfSpacing(pool, now, retryAt, reason, purpose)
+                    : new Date(retryAt.getTime()),
         });
     }
     return out;
@@ -238,6 +259,8 @@ export interface SenderUsageView {
     usageDate: string;
     sentToday: number;
     cap: number | null;
+    /** 오늘 한도 중 문의 몫 (10% 올림, 한도 1 이하·없음이면 0). 대량은 15:00 전까지 cap − 이 수까지 쓴다 */
+    inboundReserve: number;
     /** 웜업 며칠째 (시작일 = 0). 웜업이 꺼져 있으면 null */
     warmupDay: number | null;
     schedule: Array<{ date: string; cap: number | null }>;
@@ -263,9 +286,38 @@ export async function getSenderUsage(orgId: string, now: Date = new Date()): Pro
         usageDate,
         sentToday: usage.get(p.id)?.sentToday ?? 0,
         cap: capForDate(p.limits, usageDate),
+        inboundReserve: inboundReserve(capForDate(p.limits, usageDate)),
         warmupDay: p.limits.warmupEnabled ? warmupDayIndex(p.limits, usageDate) : null,
         schedule: capSchedule(p.limits, usageDate, SCHEDULE_DAYS),
     }));
+}
+
+/** 대기열 통계(GET /api/email/send-queue/stats)가 쓰는 주소 하나: 판정 설정과 오늘 사용량 */
+export interface SenderWithUsage {
+    id: number;
+    fromEmail: string;
+    fromName: string;
+    isDefault: boolean;
+    limits: SenderLimitSettings;
+    sentToday: number;
+}
+
+/**
+ * 조직의 발신 주소 전부(id 순)와 오늘(KST) 사용량. 자리 잡기와 같은 조회(주소 + 오늘 사용량 한 문장)를 쓴다 —
+ * 통계와 실제 판정이 같은 재료를 본다. 한 번 조회가 실패하면 getSenderUsage처럼 사용량을 따로 읽는다 (실패하면 던진다).
+ */
+export async function loadSendersWithUsage(orgId: string, now: Date = new Date()): Promise<SenderWithUsage[]> {
+    const usageDate = kstParts(now).date;
+    const loaded = await loadProfilesAndUsage(orgId, usageDate);
+    const profiles = loaded.profiles;
+    if (profiles.length === 0) return [];
+    const usage =
+        loaded.usage ??
+        (await readUsage(
+            profiles.map((p) => p.id),
+            usageDate
+        ));
+    return profiles.map((p) => ({ ...p, sentToday: usage.get(p.id)?.sentToday ?? 0 }));
 }
 
 /**
@@ -362,7 +414,8 @@ async function reserveFixedInOneStatement(
     orgId: string,
     opts: { mode: "pool" | "fixed"; ids: ReadonlyArray<number | null | undefined> },
     now: Date,
-    usageDate: string
+    usageDate: string,
+    purpose: SendPurpose
 ): Promise<ClaimResult | null> {
     if (opts.mode !== "fixed") return null;
     const firstId = opts.ids.find((id) => id !== null && id !== undefined);
@@ -373,9 +426,11 @@ async function reserveFixedInOneStatement(
     const profile = toOrgSenderProfile(row);
     const s = profile.limits;
     if (s.isPaused || !isSendableNow(s, now)) return null;
-    const cap = capForDate(s, usageDate);
+    const fullCap = capForDate(s, usageDate);
+    if (spreadGapMs(s, fullCap) > 0) return null;
+    // 목적별 한도 (bulk는 15:00 전까지 문의 몫을 뺀 값). 판정(decideSlot)과 같은 값을 아래 SQL 조건에 넣는다
+    const cap = capForPurpose(fullCap, now, purpose, s);
     if (cap !== null && cap < 1) return null;
-    if (spreadGapMs(s, cap) > 0) return null;
 
     // db.execute에서는 drizzle이 시각 직렬화를 꺼 두므로 ISO 문자열로 넘기고 형을 붙인다
     const nowIso = now.toISOString();
@@ -462,6 +517,7 @@ async function readUsageTolerant(
  * ON CONFLICT DO UPDATE는 겹친 줄을 잠근 뒤 최신 커밋 값으로 WHERE를 다시 본다 —
  * 그래서 같은 (주소, 날짜)의 동시 예약은 한 줄로 줄 서고 한도·간격을 넘지 않는다.
  * 그날 첫 insert가 겹치면 뒤쪽은 PK에서 기다렸다가 UPDATE 쪽으로 간다.
+ * $cap은 목적별 한도다 (bulk는 15:00 전까지 문의 몫을 뺀 값). 간격은 그날 한도 전체로 나눈 값 그대로다.
  *
  *   reserved    잡았다
  *   lost        조건(한도·간격)에 걸렸다 — 판정 뒤 다른 워커가 먼저 잡았다
@@ -470,10 +526,12 @@ async function readUsageTolerant(
 async function reserveSlot(
     profile: OrgSenderProfile,
     usageDate: string,
-    now: Date
+    now: Date,
+    purpose: SendPurpose
 ): Promise<"reserved" | "lost" | "unrecorded"> {
-    const cap = capForDate(profile.limits, usageDate);
-    const gapMs = spreadGapMs(profile.limits, cap);
+    const fullCap = capForDate(profile.limits, usageDate);
+    const gapMs = spreadGapMs(profile.limits, fullCap);
+    const cap = capForPurpose(fullCap, now, purpose, profile.limits);
     // db.execute에서는 drizzle이 시각 직렬화를 꺼 두므로 ISO 문자열로 넘기고 형을 붙인다
     const nowIso = now.toISOString();
 
@@ -498,17 +556,27 @@ async function reserveSlot(
 }
 
 /**
- * 간격 미룸 펼치기 기록 (이 프로세스 안에서만). 키는 묶음 주소 id들 + retryAt.
+ * 간격 미룸 펼치기 기록 (이 프로세스 안에서만). 키는 묶음 주소 id들 + 발송 목적 + retryAt (spacingSpreadKey).
  * 지난 retryAt의 기록은 spreadSpacingRetry가 부를 때마다 버리므로 쌓이지 않는다.
  */
 const spacingSpreadMemo: SpacingSpreadMemo = new Map();
 
 /** 간격으로 막혔으면 묶음 순번만큼 retryAt을 뒤로 펼친다. 다른 이유면 그대로 */
-function spreadIfSpacing(pool: readonly PoolCandidate[], now: Date, retryAt: Date, reason: SlotDeferReason): Date {
+function spreadIfSpacing(
+    pool: readonly PoolCandidate[],
+    now: Date,
+    retryAt: Date,
+    reason: SlotDeferReason,
+    purpose: SendPurpose
+): Date {
     if (reason !== "spacing") return retryAt;
-    const stepMs = poolSpacingStepMs(pool, now);
+    const stepMs = poolSpacingStepMs(pool, now, purpose);
     if (stepMs <= 0) return retryAt;
-    const poolKey = [...new Set(pool.map((c) => c.id))].sort((a, b) => a - b).join(",");
+    // 키에 목적을 넣는다 — 문의가 대량 대기 N줄을 펼친 순번을 이어받아 며칠 뒤로 밀리지 않게 (spacingSpreadKey)
+    const poolKey = spacingSpreadKey(
+        pool.map((c) => c.id),
+        purpose
+    );
     return spreadSpacingRetry(spacingSpreadMemo, poolKey, retryAt, stepMs, now);
 }
 
@@ -517,11 +585,12 @@ function blockingProfileId(
     pool: readonly PoolCandidate[],
     now: Date,
     retryAt: Date,
-    reason: SlotDeferReason
+    reason: SlotDeferReason,
+    purpose: SendPurpose
 ): number | null {
     if (pool.length === 1) return pool[0].id;
     for (const c of pool) {
-        const decision = decideSlot(c.settings, now, c.usage);
+        const decision = decideSlot(c.settings, now, c.usage, purpose);
         if (!decision.ok && decision.reason === reason && decision.retryAt.getTime() === retryAt.getTime()) {
             return c.id;
         }

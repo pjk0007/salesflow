@@ -505,6 +505,20 @@
       "when": 1773400000000,
       "tag": "0071_email_sender_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1773500000000,
+      "tag": "0072_send_queue_priority",
+      "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1773600000000,
+      "tag": "0073_reply_to_sender_email",
+      "breakpoints": true
     }
   ]
 }

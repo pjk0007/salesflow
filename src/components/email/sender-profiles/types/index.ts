@@ -46,8 +46,54 @@ export interface SenderUsageView {
     usageDate: string;
     sentToday: number;
     cap: number | null;
+    /** 오늘 한도 중 문의 몫 (10% 올림, 한도 1 이하·없음이면 0). 0072 이전 서버 응답에는 없다 */
+    inboundReserve?: number;
     warmupDay: number | null;
     schedule: Array<{ date: string; cap: number | null }>;
+}
+
+/**
+ * GET /api/email/send-queue/stats 의 규칙(AI 규칙) 한 줄. 날짜는 JSON이라 문자열로 온다.
+ * 용량은 대량 몫(문의 몫을 뺀 양) 기준이고, 예상 소진일은 지금 쌓인 양만 센다 (새로 들어올 양은 모른다).
+ */
+export interface SendQueueRuleStats {
+    linkId: number;
+    partitionId: number;
+    /** 대기 통수. inbound = 문의(한 건씩 생긴 레코드·수동)가 막혀 미뤄진 줄, bulk = 가져오기·예약 등록·후속·반복 */
+    pending: { total: number; inbound: number; bulk: number };
+    /** 가장 오래 기다린 줄의 예정 시각 (ISO). 대기가 없으면 null */
+    oldestScheduledAt: string | null;
+    capacity: {
+        /**
+         * 앞으로 14일 중 하루라도 한도 없는 주소가 보낼 수 있는 날이 있음(레거시 설정 발신자·발신자 없음 포함) —
+         * 용량 "제한 없음", 예상 소진일·경고 없음
+         */
+        unlimited: boolean;
+        /** 오늘 대량이 쓸 수 있는 양 (문의 몫이 풀리기 전(보통 15:00 KST 전) = 대량 몫 합계, 풀린 뒤 = 한도 합계). null = 제한 없음 */
+        today: number | null;
+        /** 오늘 지금부터 대량이 더 보낼 수 있는 양. null = 제한 없음 */
+        todayRemaining: number | null;
+        /** 앞으로 14일의 하루 용량 ("YYYY-MM-DD"). cap = 대량 몫, total = 한도 합계, null = 제한 없음 */
+        schedule: Array<{ date: string; cap: number | null; total?: number | null }>;
+    };
+    /** 지금 쌓인 대기가 다 나가는 한국 날짜 "YYYY-MM-DD". 한도 없음이거나 14일 안에 못 끝나면 null */
+    etaDate: string | null;
+    /** 대기 ÷ 오늘~내일(보낼 수 있는 앞의 두 날) 평균 하루 용량. 한도 없음이거나 보낼 수 있는 날이 없으면 null */
+    backlogDays: number | null;
+    /** backlogDays > 3, 또는 대기가 있는데 보낼 수 있는 날이 없음 (backlogDays null) */
+    warning: boolean;
+}
+
+export interface SendQueueStats {
+    rules: SendQueueRuleStats[];
+    totals: { pending: number; warnings: number };
+}
+
+/** 발송 이력 한 줄의 보낸 주소 (GET /api/email/logs). 프로필이 지워졌거나 기록이 없으면 null */
+export interface LogSenderProfile {
+    id: number;
+    name: string;
+    fromEmail: string;
 }
 
 /**
