@@ -52,7 +52,6 @@ import { mutate as globalMutate } from "swr";
 import { toast } from "sonner";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition } from "@/types";
-import PartitionHoldBanner from "@/components/email/send-health/ui/PartitionHoldBanner";
 
 export default function RecordsPage() {
     const [workspaceId, setWorkspaceId] = useState<number | null>(() => {
@@ -522,7 +521,6 @@ export default function RecordsPage() {
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
                     {partitionId ? (
                         <>
-                            <PartitionHoldBanner partitionId={partitionId} />
                             <RecordToolbar
                                 onSearch={handleSearch}
                                 onDistributionOrderChange={handleDistributionOrderChange}

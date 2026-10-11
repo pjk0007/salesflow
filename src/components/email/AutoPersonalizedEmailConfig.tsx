@@ -28,15 +28,6 @@ import { toast } from "sonner";
 import { Loader2, Plus, Pencil, Trash2, Copy, Send, Repeat2 } from "lucide-react";
 import AiAutoTestSendDialog from "./AiAutoTestSendDialog";
 import AiFollowupTestDialog from "./AiFollowupTestDialog";
-import { linkSenderPool } from "@/lib/email-sender-limit-rules";
-import { useSenderProfiles } from "@/components/email/sender-profiles/hooks/useSenderProfiles";
-import { splitKnownSenderIds } from "@/components/email/sender-profiles/utils/senderPool";
-import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
-import { useSendQueueStats } from "@/components/email/sender-profiles/hooks/useSendQueueStats";
-import RuleQueueBadges from "@/components/email/sender-profiles/ui/RuleQueueBadges";
-import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
-import { useSendHealth } from "@/components/email/send-health/hooks/useSendHealth";
-import RuleHealthBadges from "@/components/email/send-health/ui/RuleHealthBadges";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -66,13 +57,6 @@ export default function AutoPersonalizedEmailConfig({
 
     const { links, isLoading, createLink, updateLink, deleteLink } =
         useAutoPersonalizedEmail(selectedPartitionId);
-    // 복제할 때 지워진 발신 프로필을 묶음에서 빼려고 지금 프로필 목록을 본다
-    const { profiles: senderProfiles, isLoading: senderProfilesLoading, loadFailed: senderProfilesLoadFailed } =
-        useSenderProfiles();
-    // 규칙별 대기 통수·다 나가는 날·3일치 경고 (못 읽으면 배지를 붙이지 않는다)
-    const { byLinkId: queueByLinkId } = useSendQueueStats();
-    // 명단 보류·주소 자동 멈춤 배지 (DESIGN-SND 10절) — 못 읽으면 배지만 빠진다
-    const { view: healthView, holdByPartition } = useSendHealth();
 
     const handleCreate = () => {
         const params = selectedPartitionId !== "all" ? `?partitionId=${selectedPartitionId}` : "";
@@ -87,23 +71,9 @@ export default function AutoPersonalizedEmailConfig({
     const handleDuplicate = async (link: AutoPersonalizedLink) => {
         const dupPartitionId = selectedPartitionId !== "all" ? selectedPartitionId : link.partitionId;
         if (!dupPartitionId) return;
-        // 발신 주소 묶음도 복제한다. 묶음 칸이 생기기 전 규칙은 senderProfileId 하나를 묶음으로 옮긴다.
-        // 프로필을 지워도 규칙에는 id가 남는다 — 그대로 보내면 서버가 거절하므로 지금 있는 프로필만 남긴다.
-        // 목록을 아직 못 읽었으면 거르지 않고 보낸다 (지워진 id가 있으면 서버가 이유를 알려 준다)
-        const pool = linkSenderPool({
-            senderProfileId: link.senderProfileId ?? null,
-            senderProfileIds: link.senderProfileIds ?? null,
-        });
-        const canFilter = !senderProfilesLoading && !senderProfilesLoadFailed;
-        const { kept, dropped } = canFilter
-            ? splitKnownSenderIds(pool, senderProfiles.map((p) => p.id))
-            : { kept: pool, dropped: [] as number[] };
-        // 복제는 설정을 모두 그대로 옮기고 비활성으로만 바꾼다 (규칙명·CTA·서명·에셋·중복 방지·임시저장 포함)
         const result = await createLink({
-            name: link.name ?? undefined,
             partitionId: dupPartitionId,
             productId: link.productId,
-            ctaUrl: link.ctaUrl ?? undefined,
             recipientField: link.recipientField,
             companyField: link.companyField,
             prompt: link.prompt ?? undefined,
@@ -116,26 +86,10 @@ export default function AutoPersonalizedEmailConfig({
             useSignaturePersona: link.useSignaturePersona,
             useUnsubscribe: link.useUnsubscribe,
             followupConfig: link.followupConfig ?? undefined,
-            preventDuplicate: link.preventDuplicate,
-            senderProfileIds: kept,
-            signatureId: link.signatureId,
-            assetIds: link.assetIds ?? undefined,
-            isDraft: link.isDraft ?? 0,
             isActive: 0,
         });
-        if (!result.success) {
-            toast.error(result.error || "복제에 실패했습니다.");
-            return;
-        }
-        if (dropped.length === 0) {
-            toast.success("규칙이 복제되었습니다. (비활성 상태)");
-        } else {
-            // 묶음이 줄었거나 기본 발신 프로필로 바뀐 것을 알린다 — 켜기 전에 확인하게
-            toast.success(
-                `규칙이 복제되었습니다. (비활성 상태) 삭제된 발신 프로필 ${dropped.length}개는 빼고 복제했습니다` +
-                (kept.length === 0 ? " — 기본 발신 프로필로 보냅니다." : ".")
-            );
-        }
+        if (result.success) toast.success("규칙이 복제되었습니다. (비활성 상태)");
+        else toast.error("복제에 실패했습니다.");
     };
 
     const handleToggleActive = async (link: AutoPersonalizedLink) => {
@@ -217,19 +171,11 @@ export default function AutoPersonalizedEmailConfig({
                                         <Badge variant="outline">
                                             {FORMAT_OPTIONS.find((f) => f.value === link.format)?.label || "간결한 텍스트"}
                                         </Badge>
-                                        {followupBadgeLabel(link.followupConfig) && (
+                                        {link.followupConfig && (
                                             <Badge variant="outline">
-                                                {followupBadgeLabel(link.followupConfig)}
+                                                후속 {link.followupConfig.delayDays}일
                                             </Badge>
                                         )}
-                                        <RuleQueueBadges stats={queueByLinkId.get(link.id)} />
-                                        <RuleHealthBadges
-                                            hold={holdByPartition.get(link.partitionId)}
-                                            poolIds={linkSenderPool(link)}
-                                            senders={healthView?.senders ?? []}
-                                            heldCount={queueByLinkId.get(link.id)?.held}
-                                        />
-                                        <RuleReplyBadge kind="ai" ruleId={link.id} />
                                     </div>
                                     <p className="text-sm text-muted-foreground">
                                         수신: {link.recipientField} | 회사: {link.companyField}
@@ -254,7 +200,7 @@ export default function AutoPersonalizedEmailConfig({
                                     >
                                         <Send className="h-4 w-4" />
                                     </Button>
-                                    {followupBadgeLabel(link.followupConfig) && (
+                                    {link.followupConfig && (
                                         <Button
                                             variant="ghost"
                                             size="icon"

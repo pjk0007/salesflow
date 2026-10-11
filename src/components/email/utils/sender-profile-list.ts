@@ -1,6 +1,6 @@
 import type { SenderProfile } from "../types/sender-profile";
 
-export function getSenderProfilePage<T extends SenderProfile>(profiles: T[], query: string, requestedPage: number) {
+export function getSenderProfilePage(profiles: SenderProfile[], query: string, requestedPage: number) {
     const keyword = query.trim().toLowerCase();
     const filtered = profiles.filter((profile) =>
         [profile.name, profile.fromName, profile.fromEmail].some((value) => value.toLowerCase().includes(keyword))

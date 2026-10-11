@@ -49,8 +49,6 @@ export async function GET(req: NextRequest) {
                 checkAt: emailFollowupQueue.checkAt,
                 status: emailFollowupQueue.status,
                 result: emailFollowupQueue.result,
-                // 멈춘 까닭 (replied·bounced — DESIGN-RPL 7-2·7-4). 화면 취소 배지 옆 (회신)·(반송)
-                stopReason: emailFollowupQueue.stopReason,
                 processedAt: emailFollowupQueue.processedAt,
                 createdAt: emailFollowupQueue.createdAt,
                 recipientEmail: emailSendLogs.recipientEmail,

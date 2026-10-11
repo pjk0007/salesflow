@@ -191,8 +191,7 @@ export async function dispatchImportTriggers(
         for (const record of insertedRecords) {
             const triggerParams = { record, partitionId: p, triggerType: "on_create" as const, orgId: ctx.orgId };
             if (hasAlim) processAutoTrigger(triggerParams).catch((err) => console.error("[import] auto trigger error:", err));
-            // 가져오기·예약 등록 명단의 템플릿 첫 메일은 대량이다 — 15:00(KST) 전까지 주소마다 문의 몫을 남긴다 (DESIGN-2 2절)
-            if (hasEmailAuto) processEmailAutoTrigger({ ...triggerParams, purpose: "bulk" }).catch((err) => console.error("[import] email auto trigger error:", err));
+            if (hasEmailAuto) processEmailAutoTrigger(triggerParams).catch((err) => console.error("[import] email auto trigger error:", err));
             if (hasEnrich) processAutoEnrich(triggerParams).catch((err) => console.error("[import] auto enrich error:", err));
         }
     }

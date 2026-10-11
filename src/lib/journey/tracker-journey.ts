@@ -9,8 +9,6 @@ import type {
     NextAction,
 } from "@/components/journey/types";
 import { classifyInflow } from "@/components/journey/utils/referrer";
-import { buildTrackerLabelMaps } from "./tracker-label-maps";
-import type { TrackerLabelMaps } from "./tracker-label-maps";
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const STALE_DAYS = 14;
@@ -44,14 +42,21 @@ function trackerEventLabel(ev: { eventType: string; eventName: string | null; pa
     return ev.eventName ?? ev.pageTitle ?? ev.pageUrl ?? ev.eventType;
 }
 
-export type { TrackerLabelMaps };
+export type TrackerLabelMaps = {
+    /** 퍼널 단계로 등록된 CUSTOM 이벤트 이름 — [단계 전환] 행으로 분리 표시 */
+    funnelStageEventNames: Set<string>;
+    /** event_name → 한글 라벨 (퍼널 단계 라벨 우선, 이벤트 별칭 보완) */
+    customEventLabels: Map<string, string>;
+};
 
 /**
  * 사이트들의 퍼널 단계/이벤트 별칭에서 라벨 맵 구성.
- * ① 퍼널 단계 라벨(FunnelEditor) 우선, ② 이벤트 별칭 카드 보완. 만드는 규칙은 buildTrackerLabelMaps (알림 카드와 같이 쓴다).
+ * ① 퍼널 단계 라벨(FunnelEditor) 우선, ② 이벤트 별칭 카드 보완.
  */
 export async function loadTrackerLabelMaps(siteIds: number[]): Promise<TrackerLabelMaps> {
-    if (siteIds.length === 0) return buildTrackerLabelMaps([], []);
+    const funnelStageEventNames = new Set<string>();
+    const customEventLabels = new Map<string, string>();
+    if (siteIds.length === 0) return { funnelStageEventNames, customEventLabels };
 
     const [funnels, aliases] = await Promise.all([
         db.select({ stages: trackerFunnels.stages })
@@ -64,7 +69,20 @@ export async function loadTrackerLabelMaps(siteIds: number[]): Promise<TrackerLa
                 eq(trackerEventAliases.eventType, "CUSTOM"),
             )),
     ]);
-    return buildTrackerLabelMaps(funnels, aliases);
+    // ② 라벨 카드 먼저 (퍼널 라벨이 덮어쓰도록)
+    for (const a of aliases) {
+        if (a.label?.trim()) customEventLabels.set(a.eventName, a.label);
+    }
+    // ① 퍼널 단계 라벨 우선 적용
+    for (const f of funnels) {
+        for (const st of (f.stages ?? [])) {
+            if (st.match?.type === "custom_event") {
+                funnelStageEventNames.add(st.match.eventName);
+                if (st.label?.trim()) customEventLabels.set(st.match.eventName, st.label);
+            }
+        }
+    }
+    return { funnelStageEventNames, customEventLabels };
 }
 
 type TrkEvent = typeof trackerEvents.$inferSelect;

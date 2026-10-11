@@ -10,8 +10,6 @@ interface FollowupQueueItem {
     checkAt: string;
     status: string;
     result: string | null;
-    /** 멈춘 까닭 — replied(회신)·bounced(반송) (DESIGN-RPL 7-2·7-4) */
-    stopReason?: string | null;
     processedAt: string | null;
     createdAt: string;
     recipientEmail: string | null;
@@ -40,8 +38,7 @@ export function useFollowupQueue(params?: { status?: string; sourceType?: string
     const cancelItem = async (id: number) => {
         const res = await fetch(`/api/email/followup-queue/${id}`, { method: "PATCH" });
         const json = await res.json();
-        // 실패해도 다시 읽는다 — 그사이 처리 중·발송됨으로 바뀐 줄의 상태가 보이게
-        mutate();
+        if (json.success) mutate();
         return json;
     };
 

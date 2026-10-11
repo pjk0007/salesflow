@@ -9,7 +9,7 @@ interface LogsResponse {
 }
 
 
-export function useEmailLogs(params?: { partitionId?: number; search?: string; status?: string; triggerType?: string; templateLinkId?: number; autoPersonalizedLinkId?: number; isClicked?: string; hasReply?: string; startDate?: string; endDate?: string; page?: number }) {
+export function useEmailLogs(params?: { partitionId?: number; search?: string; status?: string; triggerType?: string; templateLinkId?: number; autoPersonalizedLinkId?: number; isClicked?: string; startDate?: string; endDate?: string; page?: number }) {
     const qs = new URLSearchParams();
     if (params?.partitionId) qs.set("partitionId", String(params.partitionId));
     if (params?.search) qs.set("search", params.search);
@@ -18,7 +18,6 @@ export function useEmailLogs(params?: { partitionId?: number; search?: string; s
     if (params?.templateLinkId) qs.set("templateLinkId", String(params.templateLinkId));
     if (params?.autoPersonalizedLinkId) qs.set("autoPersonalizedLinkId", String(params.autoPersonalizedLinkId));
     if (params?.isClicked) qs.set("isClicked", params.isClicked);
-    if (params?.hasReply) qs.set("hasReply", params.hasReply);
     if (params?.startDate) qs.set("startDate", params.startDate);
     if (params?.endDate) qs.set("endDate", params.endDate);
     if (params?.page) qs.set("page", String(params.page));
