@@ -2,7 +2,10 @@
 
 메일 링크를 클릭해 사이트를 방문한 고객의 한 방문을 Google Chat 카드로 정리한다. 회사·담당자, 유입 메일, 페이지 이동 순서, 페이지별 체류 추정, 영역별 체류 측정, 누른 버튼, 마지막 도달 단계와 CRM 링크를 담는다.
 
-전용 스페이스: [샌드비 고객 여정](https://chat.google.com/app/chat/AAQASH-gyo4)
+사업별 전용 스페이스:
+
+- [디자이너 하이어 고객여정](https://chat.google.com/app/chat/AAQASH-gyo4)
+- [백오피스랩 고객여정](https://chat.google.com/app/chat/AAQAbqhHk2A)
 
 ## 표시와 발송 기준
 
@@ -19,13 +22,13 @@
 ## 운영 연결
 
 1. 배포 시 `0077_customer_journey_alerts.sql`을 기존 마이그레이션 절차로 적용한다.
-2. 새 스페이스의 수신 웹훅을 만들고 배포 환경의 비밀 설정에 주소를 넣는다. 웹훅 주소는 저장소·문서에 기록하지 않는다.
+2. 각 스페이스의 수신 웹훅을 만들고 배포 환경의 비밀 설정에 사업별 주소를 넣는다. 웹훅 주소는 저장소·문서에 기록하지 않는다.
 3. 아래 설정으로 허용할 워크스페이스를 명시한다. 번호는 실제 운영 워크스페이스를 확인한 후 넣는다.
 
 ```dotenv
 JOURNEY_ALERT_MODE=dry_run
 JOURNEY_ALERT_WORKSPACE_IDS=<쉼표로 구분한 워크스페이스 번호>
-JOURNEY_ALERT_WEBHOOK_URL=<새 스페이스의 수신 웹훅 주소>
+JOURNEY_ALERT_WEBHOOKS_BY_WORKSPACE={"<디하 워크스페이스 번호>":"<디하 웹훅>","<백오피스랩 워크스페이스 번호>":"<백오피스랩 웹훅>"}
 JOURNEY_ALERT_START_AT=<운영을 시작할 시각, ISO 8601>
 NEXT_PUBLIC_BASE_URL=https://sendb.kr
 ```
@@ -35,11 +38,13 @@ NEXT_PUBLIC_BASE_URL=https://sendb.kr
 
 `live`는 기존 운영 서버 판정을 통과해야 한다. 로컬 통합 검증에서만 `JOURNEY_ALERT_TEST_SERVER_LIVE=1`을 쓰며 운영 설정에는 넣지 않는다. 기존 깊이 방문 알림의 설정과 발송 기록은 별개다.
 
+사업별 주소 목록을 지정한 경우 주소 없는 사업은 대기하고 다른 사업의 주소나 공통 웹훅으로 대체하지 않는다. 주소 목록 자체가 잘못되면 `configurationError`를 반환하고 발송을 중단한다. 목록의 키만으로 허용 사업이 늘어나지 않으며, 주소가 있는 사업부터 대기 카드를 조회하므로 연결되지 않은 사업 때문에 발송이 밀리지 않는다. 기존 단일 `JOURNEY_ALERT_WEBHOOK_URL`은 사업별 목록을 지정하지 않은 배포에만 호환용으로 남아 있다.
+
 ## 검증
 
-- 운영 main의 발신자 검색·페이지 이동을 통합한 최종 코드에서 전체 단위 시험 910개 통과. 고객 여정 카드 관련 시험 9개를 포함한다.
+- 운영 main의 발신자 검색·페이지 이동과 사업별 발송 경로를 통합한 코드에서 전체 단위 시험 916개 통과. 고객 여정 카드 시험 9개와 사업별 주소 설정 시험 6개를 포함한다.
 - TypeScript 검사 및 변경 코드 ESLint 통과.
-- 격리된 로컬 PostgreSQL에서 가상 고객으로 발송, 같은 방문 중복 방지, 완료/이탈 구분, 기계·진행 중 방문 제외, dry run, 실패 후 재시도, 웹훅의 요청 ID 미사용, 응답 불명확 시 자동 재전송 중지 등 10항목을 검증했다. 이 검증의 외부 발송은 대체 함수로 수행했다.
+- 격리된 로컬 PostgreSQL에서 가상 고객으로 발송, 같은 방문 중복 방지, 완료/이탈 구분, 기계·진행 중 방문 제외, dry run, 실패 후 재시도, 웹훅의 요청 ID 미사용, 응답 불명확 시 자동 재전송 중지, 두 사업의 스페이스 분리, 연결 누락 사업 대기, 잘못된 주소 목록 중단 등 13항목을 검증했다. 각 실행마다 별도 시험 조직·사업을 만들며 외부 발송은 대체 함수로 수행했다.
 - 최적화 프로덕션 빌드 통과. 전용 스페이스에 가상 고객 카드 1장을 실제 전송하고 Google Chat 화면에서 수신·표시를 확인했다.
 - 검증 결과와 가상 카드 JSON/텍스트: `F:/Dev/sendb-recovery-20261011/customer-journey/`.
 
@@ -47,6 +52,7 @@ NEXT_PUBLIC_BASE_URL=https://sendb.kr
 
 - `src/lib/customer-journey-card.ts`: 방문 요약·카드 생성 (DB/외부 호출 없음)
 - `src/lib/customer-journey-alert.ts`: 후보 조회·중복 방지·저장·발송
+- `src/lib/customer-journey-alert-config.ts`: 사업 허용 목록과 스페이스별 주소 설정
 - `src/lib/google-chat.ts`: 기존 텍스트 발송 경로를 유지하고 `cardsV2` 발송 추가
 - `drizzle/0077_customer_journey_alerts.sql`: 새 발송 기록 테이블
 - `src/app/api/tracker/journey-alerts/process/route.ts`: 전용 실행 엔드포인트

@@ -1,20 +1,16 @@
 import { queryClient } from "./db";
 import { buildJourneyCard, summarizeJourney, type JourneyCardInput, type JourneyCardMessage } from "./customer-journey-card";
-import { chatWebhookProblem, postGoogleChatMessage } from "./google-chat";
-import { isProductionServer, type EventInput } from "./deep-visitor-alert-rules";
+import { postGoogleChatMessage } from "./google-chat";
+import { type EventInput } from "./deep-visitor-alert-rules";
+import { journeyAlertConfig } from "./customer-journey-alert-config";
+
+export { journeyAlertConfig } from "./customer-journey-alert-config";
 
 type Env = Record<string, string | undefined>;
 type Connection = Awaited<ReturnType<typeof queryClient.reserve>>;
 const LOCK_KEY = 0x5c4edf10;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 50;
-
-export function journeyAlertConfig(env: Env) {
-    const ids = [...new Set((env.JOURNEY_ALERT_WORKSPACE_IDS ?? "").split(",").map((v) => Number(v.trim())).filter((v) => Number.isSafeInteger(v) && v > 0))];
-    const requested = (env.JOURNEY_ALERT_MODE ?? "off").trim();
-    const mode = requested === "live" && (isProductionServer(env) || env.JOURNEY_ALERT_TEST_SERVER_LIVE === "1") ? "live" : requested === "off" ? "off" : "dry_run";
-    return { ids, mode, webhook: (env.JOURNEY_ALERT_WEBHOOK_URL ?? "").trim(), baseUrl: env.NEXT_PUBLIC_BASE_URL || "https://sendb.kr" };
-}
 
 interface CandidateRow {
     org_id: string; workspace_id: number; business_name: string;
@@ -79,6 +75,7 @@ function cardInput(row: CandidateRow, baseUrl: string): JourneyCardInput {
 
 export interface JourneyAlertStats {
     mode: string; candidates: number; created: number; sent: number; failed: number; waitingForWebhook: boolean; skippedAsLocked?: boolean;
+    waitingWorkspaceIds?: number[]; configurationError?: string;
 }
 
 /** 기존 깊이 알림과 별도 피드. 방문당 카드 한 장, 같은 고객의 재방문은 같은 챗 스레드에 모인다. */
@@ -88,6 +85,7 @@ export async function processCustomerJourneyAlerts(opts: { env?: Env; now?: Date
     const now = opts.now ?? new Date();
     const stats: JourneyAlertStats = { mode: config.mode, candidates: 0, created: 0, sent: 0, failed: 0, waitingForWebhook: false };
     if (config.mode === "off" || !config.ids.length) return stats;
+    if (config.configurationError) return { ...stats, waitingForWebhook: true, waitingWorkspaceIds: config.ids, configurationError: config.configurationError };
     const conn = await queryClient.reserve();
     let acquired = false;
     try {
@@ -116,15 +114,17 @@ export async function processCustomerJourneyAlerts(opts: { env?: Env; now?: Date
             }
         }
         if (config.mode !== "live") return stats;
-        if (chatWebhookProblem(config.webhook)) return { ...stats, waitingForWebhook: true };
+        stats.waitingForWebhook = config.missingIds.length > 0;
+        if (config.missingIds.length) stats.waitingWorkspaceIds = config.missingIds;
+        if (!config.readyIds.length) return stats;
         const pending = await conn<{ id: number; org_id: string; workspace_id: number; record_id: number; message: JourneyCardMessage | string; attempts: number }[]>`
             SELECT id, org_id, workspace_id, record_id, message, attempts FROM customer_journey_alerts
-            WHERE status = 'pending' AND workspace_id = ANY(${config.ids}) AND next_attempt_at <= ${now.toISOString()}
+            WHERE status = 'pending' AND workspace_id = ANY(${config.readyIds}) AND next_attempt_at <= ${now.toISOString()}
             ORDER BY created_at, id LIMIT ${BATCH_SIZE}`;
         for (const alert of pending) {
             const message = typeof alert.message === "string" ? JSON.parse(alert.message) as JourneyCardMessage : alert.message;
             // 수신 웹훅은 requestId를 지원하지 않는다 (실제 API가 400으로 거절).
-            const result = await (opts.post ?? postGoogleChatMessage)(config.webhook, message, fetch, {
+            const result = await (opts.post ?? postGoogleChatMessage)(config.routes[alert.workspace_id], message, fetch, {
                 threadKey: `customer-journey-${alert.org_id}-${alert.workspace_id}-${alert.record_id}`,
             });
             if (result.ok) {
