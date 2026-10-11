@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { checkLinkTemplatesOwned } from "@/lib/email-template-ownership";
 
 export async function PUT(
     req: NextRequest,
@@ -33,6 +34,14 @@ export async function PUT(
 
     try {
         const { name, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig, preventDuplicate } = await req.json();
+
+        // 후속 템플릿이 이 조직 것인지 — 남의 템플릿 id를 넣어 그 내용을 후속으로 받아 보지 못하게
+        if (followupConfig !== undefined) {
+            const templates = await checkLinkTemplatesOwned(user.orgId, { followupConfig });
+            if (!templates.ok) {
+                return NextResponse.json({ success: false, error: templates.error }, { status: 400 });
+            }
+        }
 
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
         if (name !== undefined) updateData.name = name;
