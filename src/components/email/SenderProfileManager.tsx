@@ -19,6 +19,12 @@ import { useSenderUsage } from "./sender-profiles/hooks/useSenderUsage";
 import SenderLimitBadges from "./sender-profiles/ui/SenderLimitBadges";
 import SenderProfileDialog, { type SenderProfileDialogTarget } from "./sender-profiles/ui/SenderProfileDialog";
 import SenderProfileDeleteDialog from "./sender-profiles/ui/SenderProfileDeleteDialog";
+import { useSendHealth } from "./send-health/hooks/useSendHealth";
+import HealthStateBadge from "./send-health/ui/HealthStateBadge";
+import HoldBadge from "./send-health/ui/HoldBadge";
+import ReleaseDialog from "./send-health/ui/ReleaseDialog";
+import type { ReleaseTarget } from "./send-health/types";
+import { healthTooltip } from "./send-health/utils/labels";
 
 interface SenderProfileManagerProps {
     profiles: SenderProfile[];
@@ -40,6 +46,9 @@ export default function SenderProfileManager({
     // 서버가 한도 칸 변경에 관리자 권한을 요구한다. 멤버에게는 보기만 하게 해 저장이 403으로 막히지 않게 한다
     const isAdmin = !!user && hasMinRole(user.role, "admin");
     const { usageById } = useSenderUsage(profiles.length > 0);
+    // 발신 건강 배지·자동 멈춤 풀기 (DESIGN-SND 10절) — 못 읽으면 배지만 빠진다
+    const { senderById, releaseSender } = useSendHealth(profiles.length > 0);
+    const [releaseTarget, setReleaseTarget] = useState<ReleaseTarget | null>(null);
 
     const handleDelete = async (profile: SenderProfile) => {
         setDeleteTarget(null);
@@ -75,13 +84,50 @@ export default function SenderProfileManager({
                         </p>
                     ) : (
                         <div className="space-y-3">
-                            {profiles.map((p) => (
+                            {profiles.map((p) => {
+                                const health = senderById.get(p.id);
+                                const autoPaused = p.isPaused && p.pausedSource === "auto";
+                                return (
                                 <div key={p.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <span className="font-medium text-sm">{p.name}</span>
-                                            {p.isDefault && <Badge variant="secondary" className="text-xs">기본</Badge>}
+                                            {p.isDefault && (
+                                                <Badge
+                                                    variant="secondary"
+                                                    className="text-xs"
+                                                    title="자동 멈춤 안 함(기본 주소) — 기본 주소가 멈추면 이 조직의 템플릿 메일(폼 문의 첫 메일 포함)이 모두 멈추므로 발신 건강이 자동으로 멈추지 않고 알림만 합니다."
+                                                >
+                                                    기본
+                                                </Badge>
+                                            )}
                                             <SenderLimitBadges settings={toLimitSettings(p)} usage={usageById.get(p.id)} />
+                                            {health && health.state !== "ok" && (
+                                                <HealthStateBadge
+                                                    state={health.state}
+                                                    prefix="발송 "
+                                                    tooltip={healthTooltip({ final: health.final, failed: health.failed, rateBp: health.rateBp, dsnOnly: health.dsnOnly })}
+                                                />
+                                            )}
+                                            {autoPaused && <HoldBadge kind="auto_pause" reason={p.pausedReason} since={p.pausedAt} />}
+                                            {isAdmin && autoPaused && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-6 px-2 text-xs"
+                                                    onClick={() =>
+                                                        setReleaseTarget({
+                                                            kind: "sender",
+                                                            profileId: p.id,
+                                                            email: p.fromEmail,
+                                                            reason: p.pausedReason ?? null,
+                                                            preview: health?.releasePreview ?? null,
+                                                        })
+                                                    }
+                                                >
+                                                    풀기
+                                                </Button>
+                                            )}
                                         </div>
                                         <p className="text-xs text-muted-foreground mt-0.5 truncate">
                                             {p.fromName} &lt;{p.fromEmail}&gt;
@@ -101,7 +147,8 @@ export default function SenderProfileManager({
                                         </Button>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </CardContent>
@@ -121,6 +168,12 @@ export default function SenderProfileManager({
                 isAdmin={isAdmin}
                 onCancel={() => setDeleteTarget(null)}
                 onConfirm={handleDelete}
+            />
+
+            <ReleaseDialog
+                target={releaseTarget}
+                onClose={() => setReleaseTarget(null)}
+                onConfirm={(t, note) => releaseSender(t.kind === "sender" ? t.profileId : 0, note)}
             />
         </>
     );

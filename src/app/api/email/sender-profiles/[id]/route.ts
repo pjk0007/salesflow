@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailSenderProfiles } from "@/lib/db";
+import { db, emailConfigs, emailSenderProfiles } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
 import { kstParts } from "@/lib/kst";
-import { pickLimitPatch } from "@/lib/email-sender-limit";
+import { pickHealthPatch, pickLimitPatch } from "@/lib/email-sender-limit";
 import { toLimitSettings, validateLimitSettings } from "@/lib/email-sender-limit-rules";
 import type { SenderLimitSettings } from "@/lib/email-sender-limit-rules";
 import {
@@ -12,6 +12,11 @@ import {
     senderProfileChangeNeedsAdmin,
     senderProfileDeleteNeedsAdmin,
 } from "@/lib/email-sender-limit-paths";
+import { releaseSenderPause, senderWorkspaceIds } from "@/lib/partition-hold";
+import type { ReleaseSenderResult } from "@/lib/partition-hold";
+import { notifyRelease } from "@/lib/sender-health";
+import { newSenderDomainNeedsAdmin } from "@/lib/email-reply-rules";
+import { isReplyScopeOrg } from "@/lib/email-reply-list";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = getUserFromNextRequest(req);
@@ -25,9 +30,14 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         const body = await req.json();
         const { name, fromName, fromEmail, isDefault } = body;
 
-        // 한도는 하루 발송량을 바꾸는 설정이라 관리자만 바꾼다. 이름·주소만 고치는 예전 화면은 그대로 둔다
+        // 한도는 하루 발송량을 바꾸는 설정이라 관리자만 바꾼다. 이름·주소만 고치는 예전 화면은 그대로 둔다.
+        // 발신 건강 조치 방식(healthAction)도 한도 칸처럼 관리자만 (DESIGN-SND 9절 pickHealthPatch)
         const limitPatch = pickLimitPatch(body);
-        if (limitPatch) {
+        const healthPatch = pickHealthPatch(body);
+        if (healthPatch && !healthPatch.ok) {
+            return NextResponse.json({ success: false, error: healthPatch.error }, { status: 400 });
+        }
+        if (limitPatch || healthPatch) {
             const auth = await requireAdmin(req);
             if (!auth.ok) {
                 return NextResponse.json({ success: false, error: auth.error }, { status: auth.status });
@@ -68,6 +78,21 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                     const error = auth.status === 403 ? reason : auth.error;
                     return NextResponse.json({ success: false, error }, { status: auth.status });
                 }
+            } else {
+                // 회신 읽기 대상 조직에서 처음 쓰는 발신 도메인으로 바꾸는 것은 관리자만 (RH-SEC-2)
+                const configs = await db.select({ fromEmail: emailConfigs.fromEmail }).from(emailConfigs).where(eq(emailConfigs.orgId, user.orgId));
+                const domainReason = newSenderDomainNeedsAdmin({
+                    nextFromEmail,
+                    currentFromEmail: existing.fromEmail,
+                    knownEmails: [...others.map((p) => p.fromEmail), ...configs.map((c) => c.fromEmail)],
+                });
+                if (domainReason && (await isReplyScopeOrg(user.orgId))) {
+                    const auth = await requireAdmin(req);
+                    if (!auth.ok) {
+                        const error = auth.status === 403 ? domainReason : auth.error;
+                        return NextResponse.json({ success: false, error }, { status: auth.status });
+                    }
+                }
             }
         }
 
@@ -81,6 +106,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                 return NextResponse.json({ success: false, error: checked.error }, { status: 400 });
             }
             limits = checked.value;
+        }
+
+        // 정지 스위치 (DESIGN-SND 6-3·6-5): 켜면 사람이 멈춘 것으로 적는다. 자동으로 멈춘 주소를 끄면 풀기 API와 같은 기록
+        // (health_reset_at·웜업 시작일 미루기 — releaseSenderPause 한 함수)을 남긴다. 손으로 멈춘 주소를 끄면 멈춤 칸만 비운다
+        const pausing = !!limits && limits.isPaused && !existing.isPaused;
+        const unpausing = !!limits && !limits.isPaused && existing.isPaused;
+        let autoRelease: ReleaseSenderResult | null = null;
+        if (unpausing && existing.pausedSource === "auto") {
+            autoRelease = await releaseSenderPause(user.orgId, profileId);
+            // 이 요청이 웜업을 다시 시작하지 않았으면 미룬 시작일을 지킨다 (아래 update가 예전 시작일로 덮지 않게)
+            if (autoRelease.ok && limits && limits.warmupStartedOn === currentLimits.warmupStartedOn) {
+                limits = { ...limits, warmupStartedOn: autoRelease.warmupStartedOn };
+            }
         }
 
         // 주소를 바꾸면 웜업을 오늘 0일째부터 다시 센다 — 이전 주소의 웜업 날수가 처음 쓰는 주소로 넘어가면 안 된다
@@ -108,10 +146,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
                 ...(isDefault !== undefined && { isDefault }),
                 ...(limits ?? {}),
                 ...(restartedOn !== null && { warmupStartedOn: restartedOn }),
+                ...(pausing && { pausedSource: "manual", pausedAt: new Date(), pausedReason: null }),
+                ...(unpausing && !autoRelease && { pausedSource: null, pausedAt: null, pausedReason: null }),
+                ...(healthPatch?.ok ? healthPatch.value : {}),
                 updatedAt: new Date(),
             })
             .where(eq(emailSenderProfiles.id, profileId))
             .returning();
+
+        if (autoRelease?.ok) {
+            await notifyRelease({
+                orgId: user.orgId,
+                kind: "sender",
+                entityId: profileId,
+                workspaceIds: await senderWorkspaceIds(user.orgId, profileId, autoRelease.pausedAt),
+                name: autoRelease.fromEmail,
+                releasedAt: autoRelease.releasedAt,
+                actorUserId: user.userId,
+                actorName: user.name ?? null,
+                // 사람이 쓴 메모가 아니라 풀린 경로다 (HR-9)
+                note: null,
+                via: "settings",
+                todayCap: autoRelease.todayCap,
+                warmupDay: autoRelease.warmupDay,
+            });
+        }
 
         return NextResponse.json({ success: true, data: updated });
     } catch (error) {

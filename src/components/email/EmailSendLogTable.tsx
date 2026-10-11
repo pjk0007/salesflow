@@ -38,9 +38,14 @@ import {
     logSenderParts,
     type LogSenderSource,
 } from "@/components/email/sender-profiles/utils/logSender";
+import { ReplyKindBadge } from "@/components/email/replies/ui/ReplyKindBadge";
 
-/** 서버가 붙여 주는 클릭 수·보낸 주소(보낼 때 주소 senderEmail, 프로필의 지금 값 senderProfile)까지 담은 이력 한 줄 */
-type EmailSendLogRow = EmailSendLog & LogSenderSource & { clickCount?: number };
+/**
+ * 서버가 붙여 주는 클릭 수·보낸 주소(보낼 때 주소 senderEmail, 프로필의 지금 값 senderProfile)·회신(사람 회신 먼저, DESIGN-RPL 11절)까지
+ * 담은 이력 한 줄
+ */
+type EmailSendLogRow = EmailSendLog &
+    LogSenderSource & { clickCount?: number; reply?: { id: number; kind: string; receivedAt: string } | null };
 
 /** 표의 "보낸 주소" 칸. 보낼 때 주소가 없는 옛 이력은 프로필의 지금 주소 아래에 "(현재 프로필)"을 붙인다 */
 function LogSenderCell({ log }: { log: LogSenderSource }) {
@@ -108,6 +113,7 @@ export default function EmailSendLogTable() {
     const [triggerType, setTriggerType] = useState("");
     const [ruleFilter, setRuleFilter] = useState("");  // "link:ID" or "ai:ID"
     const [isClicked, setIsClicked] = useState("");
+    const [hasReply, setHasReply] = useState("");
     const [period, setPeriod] = useState("");
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<EmailSendLogRow | null>(null);
@@ -157,6 +163,7 @@ export default function EmailSendLogTable() {
         triggerType: triggerType || undefined,
         ...ruleParams,
         isClicked: isClicked || undefined,
+        hasReply: hasReply || undefined,
         ...dateRange,
     });
 
@@ -166,7 +173,9 @@ export default function EmailSendLogTable() {
         setSyncing(true);
         const result = await syncLogs();
         setSyncing(false);
-        if (result.success) {
+        if (result.success && result.data?.busy) {
+            toast.info(result.data.message || "다른 동기화가 도는 중입니다. 잠시 뒤 다시 눌러 주세요.");
+        } else if (result.success) {
             toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트`);
         } else {
             toast.error(result.error || "동기화에 실패했습니다.");
@@ -195,6 +204,7 @@ export default function EmailSendLogTable() {
         activeFilters.push({ key: "ruleFilter", value: ruleFilter, label: ruleLabel });
     }
     if (isClicked) activeFilters.push({ key: "isClicked", value: isClicked, label: isClicked === "1" ? "클릭" : "미클릭" });
+    if (hasReply) activeFilters.push({ key: "hasReply", value: hasReply, label: "회신 있음" });
     if (debouncedSearch) activeFilters.push({ key: "search", value: debouncedSearch, label: `"${debouncedSearch}"` });
 
     const clearFilter = useCallback((key: string) => {
@@ -203,6 +213,7 @@ export default function EmailSendLogTable() {
         if (key === "triggerType") setTriggerType("");
         if (key === "ruleFilter") setRuleFilter("");
         if (key === "isClicked") setIsClicked("");
+        if (key === "hasReply") setHasReply("");
         if (key === "search") { setSearchInput(""); setDebouncedSearch(""); }
         setPage(1);
     }, []);
@@ -213,6 +224,7 @@ export default function EmailSendLogTable() {
         setTriggerType("");
         setRuleFilter("");
         setIsClicked("");
+        setHasReply("");
         setSearchInput("");
         setDebouncedSearch("");
         setPage(1);
@@ -355,6 +367,20 @@ export default function EmailSendLogTable() {
                             {opt.label}
                         </button>
                     ))}
+
+                    <span className="text-xs text-muted-foreground mx-1">|</span>
+
+                    {/* 회신 (DESIGN-RPL 11절 2번) */}
+                    <button
+                        onClick={() => toggleFilter(setHasReply, hasReply, "1")}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                            hasReply === "1"
+                                ? "bg-emerald-600 text-white"
+                                : "bg-muted text-muted-foreground hover:bg-muted/80"
+                        }`}
+                    >
+                        회신 있음
+                    </button>
                 </div>
 
                 {/* 적용된 필터 요약 + 초기화 */}
@@ -429,7 +455,10 @@ export default function EmailSendLogTable() {
                                             {log.subject}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                                            <div className="flex flex-wrap items-center gap-1">
+                                                <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                                                {log.reply && <ReplyKindBadge kind={log.reply.kind} />}
+                                            </div>
                                         </TableCell>
                                         <TableCell>
                                             {log.status === "sent" ? (
@@ -529,6 +558,17 @@ export default function EmailSendLogTable() {
                                                 {formatDateFull(selectedLog.sentAt as unknown as string)}
                                             </span>
                                         </div>
+                                        {selectedLog.reply && (
+                                            <div className="grid grid-cols-3 gap-2 py-2 border-b">
+                                                <span className="text-sm text-muted-foreground">회신</span>
+                                                <span className="col-span-2 flex items-center gap-2 text-sm">
+                                                    <ReplyKindBadge kind={selectedLog.reply.kind} />
+                                                    <a className="text-primary hover:underline" href={`/email?tab=replies&reply=${selectedLog.reply.id}`}>
+                                                        회신 보기
+                                                    </a>
+                                                </span>
+                                            </div>
+                                        )}
                                         {selectedLog.resultMessage && (
                                             <div className="grid grid-cols-3 gap-2 py-2 border-b">
                                                 <span className="text-sm text-muted-foreground">결과</span>

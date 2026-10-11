@@ -212,7 +212,8 @@ async function main() {
     }
 
     // 미룸은 성공이 아니다 — 발신 한도·시간대에 막혀 보내지 않았고 로그도 없어 다음 실행에서 다시 대상이 된다
-    let done = 0, failed = 0, deferred = 0;
+    // 명단 보류(DESIGN-SND 6-2) 중이면 대량 재처리는 규칙을 돌리지 않고 held를 돌려준다 — 건수만 센다
+    let done = 0, failed = 0, deferred = 0, held = 0;
     let earliestRetry: Date | null = null;
     const startedAt = Date.now();
 
@@ -238,6 +239,8 @@ async function main() {
             if (res.status === "rejected") {
                 failed++;
                 console.error(`  #${batch[idx].id} 실패:`, res.reason instanceof Error ? res.reason.message : res.reason);
+            } else if (res.value.held) {
+                held++;
             } else {
                 // 실패가 섞여 있어도 미룬 규칙은 보내지 않았다 — 성공으로 세지 않는다
                 const d = deferredUntil(res.value);
@@ -256,7 +259,7 @@ async function main() {
 
         const elapsed = Math.round((Date.now() - startedAt) / 1000);
         console.log(
-            `진행 ${i + batch.length}/${targets.length} (성공 ${done} 미룸 ${deferred} 실패 ${failed}, ${elapsed}초 경과)`
+            `진행 ${i + batch.length}/${targets.length} (성공 ${done} 미룸 ${deferred} 보류 ${held} 실패 ${failed}, ${elapsed}초 경과)`
         );
 
         if (i + batchSize < targets.length) {
@@ -265,8 +268,11 @@ async function main() {
     }
 
     console.log(
-        `\n완료: 처리 ${done}건, 미룸 ${deferred}건, 실패 ${failed}건, ${Math.round((Date.now() - startedAt) / 1000)}초`
+        `\n완료: 처리 ${done}건, 미룸 ${deferred}건, 보류 ${held}건, 실패 ${failed}건, ${Math.round((Date.now() - startedAt) / 1000)}초`
     );
+    if (held > 0) {
+        console.log(`보류 ${held}건은 이 명단이 발송 실패가 많아 보류 중이라 보내지 않았습니다. 관리자가 보류를 푼 뒤 다시 돌리세요.`);
+    }
     if (deferred > 0) {
         // 이 스크립트는 대기열을 거치지 않아 미룬 건을 다시 시도할 곳이 없다 — 대기열에 넣어 워커가 열리는 시각에 보내게 한다.
         // 이 스크립트를 다시 돌리라고 하지 않는다: 열리는 시각을 사람이 맞춰야 하고, 그사이 대기열에 들어간 레코드와 겹칠 수 있다

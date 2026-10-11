@@ -10,6 +10,8 @@ interface FollowupQueueItem {
     checkAt: string;
     status: string;
     result: string | null;
+    /** 멈춘 까닭 — replied(회신)·bounced(반송) (DESIGN-RPL 7-2·7-4) */
+    stopReason?: string | null;
     processedAt: string | null;
     createdAt: string;
     recipientEmail: string | null;

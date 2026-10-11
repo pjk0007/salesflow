@@ -256,6 +256,36 @@ export function warmupDayIndex(s: SenderLimitSettings, date: string): number {
 }
 
 /**
+ * 발신 건강 자동 멈춤을 풀 때 웜업 시작일을 멈춘 동안의 "보낼 수 있는 날" 수만큼 뒤로 옮긴다 (DESIGN-SND 6-5, SND-10).
+ *
+ * warmupDayIndex는 정지한 날도 센다 (정지 이력이 없어서다). 자동 멈춤에는 멈춘 날(pausedOn, KST)이 남으므로 그 구멍만 메운다:
+ * 멈춘 날 ~ 풀린 날 전날 [pausedOn, releasedOn)의 보낼 수 있는 날 수 k만큼 시작일을 보낼 수 있는 날 기준으로 뒤로 민다.
+ * 그러면 풀린 날의 웜업 일차 = 멈춘 날의 웜업 일차 → 5일째(35통/일)에 멈춘 주소는 풀린 날 다시 5일째 한도로 시작한다.
+ * 웜업이 꺼졌거나 시작일·날짜가 없거나 같은 날 풀면 그대로 돌려준다. 손 정지·손 풀기는 지금 동작 그대로 둔다 (범위 밖).
+ */
+export function shiftWarmupStart(s: SenderLimitSettings, pausedOn: string | null, releasedOn: string): string | null {
+    const startedOn = s.warmupStartedOn;
+    if (!s.warmupEnabled || !isValidYmd(startedOn) || !isValidYmd(pausedOn) || !isValidYmd(releasedOn)) return startedOn;
+    // 시작일 전에 멈췄으면 시작일부터 센다 (그 전 날들은 원래 웜업 일차에 들어가지 않는다)
+    const from = pausedOn < startedOn ? startedOn : pausedOn;
+    const total = daysBetween(from, releasedOn);
+    if (total <= 0) return startedOn;
+    let k = 0;
+    for (let i = 0; i < total; i++) {
+        if (isAllowedYmd(s, addDaysYmd(from, i))) k++;
+    }
+    if (k === 0) return startedOn;
+    // 시작일에서 보낼 수 있는 날을 k개 지난 첫 날
+    let d = startedOn;
+    let passed = 0;
+    while (passed < k) {
+        if (isAllowedYmd(s, d)) passed++;
+        d = addDaysYmd(d, 1);
+    }
+    return d;
+}
+
+/**
  * 그날(KST) 이 주소가 보낼 수 있는 최대 수. null = 제한 없음.
  *
  * - 정지면 0. 평일만인데 주말이면 0 (그날은 아예 못 보낸다 — 미리보기에서 바로 보이게)

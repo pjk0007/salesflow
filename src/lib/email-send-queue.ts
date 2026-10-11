@@ -36,6 +36,9 @@ import type { SlotDeferReason } from "@/lib/email-sender-limit-rules";
 import { checkPoolsBlocked } from "@/lib/email-sender-limit";
 import type { PoolBlockState } from "@/lib/email-sender-limit";
 import { isDeferralOnlyBatch } from "@/lib/email-sender-limit-paths";
+import { loadReplyStops, type ReplyStop } from "@/lib/email-reply-guard";
+import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
+import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
 import type { DbRecord } from "@/lib/db";
 
 /** scheduled-registration(0x5c4edf01)과 다른 키를 쓴다 — 두 잡은 독립적으로 돌아야 한다. */
@@ -56,6 +59,8 @@ export interface QueueRunStats {
     requeued: number;
     /** 발신 주소 한도·시간대에 막혀 retryAt으로 미룬 줄 (실패가 아니라서 시도 횟수를 쓰지 않는다) */
     deferred: number;
+    /** 명단 보류로 held가 된 줄 (DESIGN-SND 6-2 — 시도 횟수를 쓰지 않는다) */
+    held: number;
     reclaimed: number;
     skippedAsLocked?: boolean;
     deadlineHit?: boolean;
@@ -102,6 +107,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
         failed: 0,
         requeued: 0,
         deferred: 0,
+        held: 0,
         reclaimed: 0,
     };
 
@@ -121,6 +127,8 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
         }
 
         stats.reclaimed = await reclaimStuck();
+        // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6)
+        await reviveOrphanHeldRows("send_queue");
 
         const drainable = new Map<string, DrainGroup>();
         const startedAt = Date.now();
@@ -154,7 +162,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
 
         console.log(
             `[send-queue] picked=${stats.picked} sent=${stats.sent} skipped=${stats.skipped} ` +
-            `failed=${stats.failed} requeued=${stats.requeued} deferred=${stats.deferred} ` +
+            `failed=${stats.failed} requeued=${stats.requeued} deferred=${stats.deferred} held=${stats.held} ` +
             `reclaimed=${stats.reclaimed}`
         );
         return stats;
@@ -183,6 +191,8 @@ export interface EnqueueParams {
  * 대량 명단이다 (priority 0) — 먼저 들어온 순으로 나가고, 15:00(KST) 전에는 주소마다 문의 몫(한도의 10%)을 남긴다.
  * 같은 규칙 묶음에 오늘 아침 다시 열리기를 기다리는 미룬 대량 줄이 있으면 새 줄은 그 줄들보다 일찍 꺼내지 않는다
  * (bulkFifoScheduledAt — 하한을 거는 경우는 그 함수 설명).
+ * 명단이 보류 중이면(DESIGN-SND 6-2) 줄을 held로 넣는다 — 워커가 한 번 꺼냈다 보류로 돌려놓는 헛걸음을 줄인다.
+ * 보류가 풀리면 pending으로 돌아가 들어온 순서대로 나간다.
  */
 export async function enqueueSends(params: EnqueueParams): Promise<number> {
     const { recordIds, partitionId, orgId, triggerType = "on_create" } = params;
@@ -191,6 +201,7 @@ export async function enqueueSends(params: EnqueueParams): Promise<number> {
     const now = new Date();
     const deferredUntil = await latestDeferredBulkAt(orgId, partitionId, triggerType, now);
     const scheduledAt = bulkFifoScheduledAt(params.scheduledAt ?? null, now, deferredUntil);
+    const hold = await getActiveHold(orgId, partitionId, "bulk");
 
     const inserted = await db
         .insert(emailSendQueue)
@@ -201,6 +212,7 @@ export async function enqueueSends(params: EnqueueParams): Promise<number> {
                 orgId,
                 triggerType,
                 priority: QUEUE_PRIORITY_BULK,
+                ...(hold ? { status: "held" } : {}),
                 ...(scheduledAt ? { scheduledAt } : {}),
             })),
         )
@@ -402,7 +414,7 @@ async function runBatch(
     const deferredFlags: boolean[] = [];
     const deferredGroups: PickedRow[] = [];
     const writes: QueueRowWrite[] = [];
-    const counts = { sent: 0, skipped: 0, failed: 0, deferred: 0, requeued: 0 };
+    const counts = { sent: 0, skipped: 0, failed: 0, deferred: 0, requeued: 0, held: 0 };
 
     for (let i = 0; i < batch.length; i++) {
         const row = batch[i];
@@ -432,7 +444,8 @@ async function runBatch(
 
         // 미룸만 낸 줄(NHN·AI를 부르지 않았다)만 센다 — 실패한 규칙을 빼며 미룬 줄은 이번에 그 규칙을 돌렸다
         const pureDeferral = processed.outcome === "defer" && plan.stat === "deferred";
-        deferredFlags.push(pureDeferral);
+        // 명단 보류도 NHN·AI를 부르지 않았다 — 쉬지 않는다
+        deferredFlags.push(pureDeferral || processed.outcome === "hold");
         if (pureDeferral) deferredGroups.push(row);
     }
 
@@ -490,13 +503,14 @@ function toDrainGroup(row: {
 
 function addCounts(
     stats: QueueRunStats,
-    counts: { sent: number; skipped: number; failed: number; deferred: number; requeued: number }
+    counts: { sent: number; skipped: number; failed: number; deferred: number; requeued: number; held: number }
 ): void {
     stats.sent += counts.sent;
     stats.skipped += counts.skipped;
     stats.failed += counts.failed;
     stats.deferred += counts.deferred;
     stats.requeued += counts.requeued;
+    stats.held += counts.held;
 }
 
 /**
@@ -509,6 +523,8 @@ function addCounts(
  *   보낸 줄(sent)       → 다시 꺼내지 않는다. 쿨다운(1시간)이 원래 막았을 두 번째 메일이 나중에 나가지 않게
  *   다시 꺼낼 줄(pending) → 둘 중 이른 시각에. 꺼낼 때 최신 레코드를 다시 읽으므로 따로 할 일이 없다
  * 이 문장의 SET 식은 모두 바꾸기 전 값(requeue_at 포함)을 본다.
+ * 명단 보류(held, DESIGN-SND 6-2): 잠금을 비우고 처리 시각·last_error·scheduled_at은 그대로 둔다 — 순서와 미룸 사유가 남아
+ * 대기열의 먼저 들어온 순 하한(latestDeferredBulkAt)과 화면의 미룸 사유가 깨지지 않는다 (SND-14). requeue_at은 비운다.
  *
  * run: 트랜잭션 안에서 쓸 때(묶어 미루기) 그 트랜잭션의 execute를 넘긴다.
  */
@@ -527,15 +543,16 @@ async function applyPlans(
                     THEN LEAST(COALESCE(v.scheduled_at, q.scheduled_at), q.requeue_at)
                 ELSE COALESCE(v.scheduled_at, q.scheduled_at) END,
             exhausted_link_ids = CASE WHEN v.revivable AND q.requeue_at IS NOT NULL THEN NULL ELSE v.exhausted END,
-            -- pending으로 되돌릴 때 locked_at을 비워야 stuck 판정에 다시 걸리지 않는다
-            locked_at = CASE WHEN v.pending OR (v.revivable AND q.requeue_at IS NOT NULL) THEN NULL
+            -- pending으로 되돌릴 때 locked_at을 비워야 stuck 판정에 다시 걸리지 않는다 (보류 줄도 비운다)
+            locked_at = CASE WHEN v.pending OR v.status = 'held' OR (v.revivable AND q.requeue_at IS NOT NULL) THEN NULL
                              WHEN v.stamp_lock THEN NOW()
                              ELSE q.locked_at END,
-            -- 끝난 줄만 처리 시각을 남긴다 (pending은 아직 끝나지 않았다)
+            -- 끝난 줄만 처리 시각을 남긴다 (pending·held는 아직 끝나지 않았다)
             processed_at = CASE WHEN v.revivable AND q.requeue_at IS NOT NULL THEN NULL
-                                WHEN v.pending THEN q.processed_at
+                                WHEN v.pending OR v.status = 'held' THEN q.processed_at
                                 ELSE NOW() END,
-            last_error = v.last_error,
+            -- 보류는 last_error를 건드리지 않는다 (SND-14)
+            last_error = CASE WHEN v.status = 'held' THEN q.last_error ELSE v.last_error END,
             requeue_at = NULL
         FROM jsonb_to_recordset(${JSON.stringify(writes)}::jsonb)
              AS v(id int, status varchar, attempts int, scheduled_at timestamptz, exhausted jsonb,
@@ -600,8 +617,11 @@ async function drainBlockedGroup(group: DrainGroup, stats: QueueRunStats): Promi
             `)) as unknown as DrainRow[];
             if (rows.length === 0) return { rows: 0, writes: [] as QueueRowWrite[], counts: null, left: 0 };
 
-            const resolved = await resolveDrainRows(group, rows);
-            const counts = { sent: 0, skipped: 0, failed: 0, deferred: 0, requeued: 0 };
+            // 명단이 보류 중이면 대량 줄은 모두 held로 — processAutoPersonalizedEmail이 규칙을 돌리기 전에 보는 것과 같다 (DESIGN-SND 6-2)
+            // 트랜잭션 연결로 본다 — 트랜잭션이 연결 하나를 쥔 채 풀 연결을 또 기다리지 않게 (F5)
+            const hold = await getActiveHold(group.orgId, group.partitionId, purposeOfQueuePriority(group.priority), tx);
+            const resolved = hold ? heldRows(rows, hold.id) : await resolveDrainRows(group, rows);
+            const counts = { sent: 0, skipped: 0, failed: 0, deferred: 0, requeued: 0, held: 0 };
             const writes: QueueRowWrite[] = [];
             for (const row of rows) {
                 const processed = resolved.get(row.id);
@@ -630,7 +650,7 @@ async function drainBlockedGroup(group: DrainGroup, stats: QueueRunStats): Promi
             console.log(
                 `[send-queue] 묶어 처리 org=${group.orgId} partition=${group.partitionId} trigger=${group.triggerType} ` +
                 `priority=${group.priority} ` +
-                `rows=${done.rows} deferred=${done.counts.deferred} skipped=${done.counts.skipped} ` +
+                `rows=${done.rows} deferred=${done.counts.deferred} skipped=${done.counts.skipped} held=${done.counts.held} ` +
                 `failed=${done.counts.failed} 줄마다처리로남김=${done.left}`
             );
         }
@@ -643,6 +663,15 @@ async function drainBlockedGroup(group: DrainGroup, stats: QueueRunStats): Promi
         );
         return { again: false };
     }
+}
+
+/** 명단 보류 중인 묶음의 줄 — 모두 hold (규칙을 돌리지 않았다) */
+function heldRows(rows: DrainRow[], holdId: number): Map<number, ProcessedRow> {
+    const out = new Map<number, ProcessedRow>();
+    for (const row of rows) {
+        out.set(row.id, toProcessedRow({ noMatchingRules: false, outcomes: [], held: { holdId } }));
+    }
+    return out;
 }
 
 /**
@@ -688,14 +717,16 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
     }
     const workspaceId = live.find((r) => r.workspace_id !== null)?.workspace_id ?? null;
 
-    const [cooldownIds, duplicates, unsubscribed] =
+    const [cooldownIds, duplicates, unsubscribed, replyStops] =
         links.length > 0 && live.length > 0
             ? await Promise.all([
                   loadCooldownRecordIds(live.map((r) => r.record_id)),
                   loadDuplicateRecipients(group.partitionId, [...dupEmails]),
                   workspaceId !== null ? loadUnsubscribedEmails(workspaceId, [...unsubEmails]) : Promise.resolve(new Set<string>()),
+                  // 보내기 직전 막기 (findReplyStop과 같은 조건, DESIGN-RPL 7-4) — 묶음 주소를 한 번에
+                  loadReplyStops(group.orgId, workspaceId, [...unsubEmails]),
               ])
-            : [new Set<number>(), new Set<string>(), new Set<string>()];
+            : [new Set<number>(), new Set<string>(), new Set<string>(), new Map<string, ReplyStop>()];
 
     const aiReady = new Map<string, boolean>();
     const aiClientReady = (model: string | undefined): boolean => {
@@ -723,6 +754,8 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
         workspaceId: row.workspace_id,
         isUnsubscribed: (email) =>
             row.workspace_id === workspaceId && unsubEmails.has(email) ? unsubscribed.has(email) : undefined,
+        isReplyStopped: (email) =>
+            row.workspace_id === workspaceId && unsubEmails.has(email) ? replyStops.get(email)?.reason ?? null : undefined,
         aiClientReady,
         quotaAllowed,
         emailClientReady: emailConfig === undefined ? undefined : emailConfig !== null,
@@ -784,10 +817,11 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
     return out;
 }
 
-/** checkCooldown과 같은 조건: 1시간 안에 ai_auto 발송(sent·pending) 이력이 있는 레코드 */
+/** checkCooldown과 같은 조건: 1시간 안에 ai_auto 발송(NHN이 받아 간 발송·pending, DESIGN-SND 6-6) 이력이 있는 레코드 */
 async function loadCooldownRecordIds(recordIds: number[]): Promise<Set<number>> {
     const out = new Set<number>();
     const since = new Date(Date.now() - COOLDOWN_MS);
+    const accepted = await acceptedOrPendingCondition();
     for (let i = 0; i < recordIds.length; i += IN_CHUNK) {
         const rows = await db
             .selectDistinct({ recordId: emailSendLogs.recordId })
@@ -797,7 +831,7 @@ async function loadCooldownRecordIds(recordIds: number[]): Promise<Set<number>> 
                     inArray(emailSendLogs.recordId, recordIds.slice(i, i + IN_CHUNK)),
                     eq(emailSendLogs.triggerType, "ai_auto"),
                     gte(emailSendLogs.sentAt, since),
-                    inArray(emailSendLogs.status, ["sent", "pending"])
+                    accepted
                 )
             );
         for (const r of rows) if (r.recordId !== null) out.add(r.recordId);
@@ -805,9 +839,13 @@ async function loadCooldownRecordIds(recordIds: number[]): Promise<Set<number>> 
     return out;
 }
 
-/** checkDuplicateRecipientForAiAuto와 같은 조건: 같은 파티션·같은 받는 주소(그대로 비교)로 ai_auto를 보낸 적이 있다 */
+/**
+ * checkDuplicateRecipientForAiAuto와 같은 조건: 같은 파티션·같은 받는 주소(그대로 비교)로 ai_auto를 NHN이 받아 간 적이 있다
+ * (배달 결과로 failed가 된 기록 포함 — DESIGN-SND 6-6). 미리 판정과 실제 판정이 같게 같은 조건 조각을 쓴다
+ */
 async function loadDuplicateRecipients(partitionId: number, emails: string[]): Promise<Set<string>> {
     const out = new Set<string>();
+    const accepted = await acceptedSendCondition();
     for (let i = 0; i < emails.length; i += IN_CHUNK) {
         const rows = await db
             .selectDistinct({ email: emailSendLogs.recipientEmail })
@@ -817,7 +855,7 @@ async function loadDuplicateRecipients(partitionId: number, emails: string[]): P
                     eq(emailSendLogs.partitionId, partitionId),
                     inArray(emailSendLogs.recipientEmail, emails.slice(i, i + IN_CHUNK)),
                     eq(emailSendLogs.triggerType, "ai_auto"),
-                    eq(emailSendLogs.status, "sent")
+                    accepted
                 )
             );
         for (const r of rows) out.add(r.email);

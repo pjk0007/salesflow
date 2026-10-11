@@ -519,6 +519,34 @@
       "when": 1773600000000,
       "tag": "0073_reply_to_sender_email",
       "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1773700000000,
+      "tag": "0074_email_replies",
+      "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1773800000000,
+      "tag": "0075_send_health",
+      "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1773900000000,
+      "tag": "0076_chat_alert_delivery",
+      "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1774000000000,
+      "tag": "0077_customer_journey_alerts",
+      "breakpoints": true
     }
   ]
 }

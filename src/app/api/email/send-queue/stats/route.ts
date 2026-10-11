@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
     try {
         const now = new Date();
-        const [rules, groups, senders] = await Promise.all([
+        const [rules, groups, senders, heldGroups] = await Promise.all([
             // 규칙 목록 API와 같은 조직 범위 (파티션 → 워크스페이스의 조직). 꺼진 규칙은 대기열 워커가 돌리지 않으므로 뺀다
             db
                 .select({
@@ -53,6 +53,16 @@ export async function GET(req: NextRequest) {
                 .where(and(eq(emailSendQueue.orgId, user.orgId), eq(emailSendQueue.status, "pending")))
                 .groupBy(emailSendQueue.partitionId, emailSendQueue.triggerType, emailSendQueue.priority),
             loadSendersWithUsage(user.orgId, now),
+            // 명단 보류(held) 줄 — 대기량·3일치 경고에 섞지 않고 "보류 N통"으로 따로 준다 (DESIGN-SND 6-2)
+            db
+                .select({
+                    partitionId: emailSendQueue.partitionId,
+                    triggerType: emailSendQueue.triggerType,
+                    count: sql<number>`count(*)::int`,
+                })
+                .from(emailSendQueue)
+                .where(and(eq(emailSendQueue.orgId, user.orgId), eq(emailSendQueue.status, "held")))
+                .groupBy(emailSendQueue.partitionId, emailSendQueue.triggerType),
         ]);
 
         const data = buildSendQueueStats({
@@ -64,6 +74,7 @@ export async function GET(req: NextRequest) {
             })),
             senders,
             now,
+            heldGroups: heldGroups.map((g) => ({ ...g, count: Number(g.count) || 0 })),
         });
         return NextResponse.json({ success: true, data });
     } catch (error) {

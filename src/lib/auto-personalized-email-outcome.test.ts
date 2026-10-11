@@ -185,3 +185,13 @@ test("미룸을 섞어도 기존 문자열은 그대로다 (W12)", () => {
         "link 1: sent; link 2: skipped (cooldown); link 7: failed (NHN 500); link 4: deferred (spacing) until 2026-10-03T00:00:00.000Z",
     );
 });
+
+test("명단 보류면 hold — 규칙을 돌리지 않았으므로 다른 결과와 섞이지 않는다 (DESIGN-SND 6-2)", () => {
+    const held: RecordOutcome = { noMatchingRules: false, outcomes: [], held: { holdId: 3 } };
+    assert.equal(foldOutcome(held), "hold");
+    assert.equal(deferredUntil(held), null);
+    assert.deepEqual(failedLinkIds(held), []);
+    assert.equal(describeOutcome(held), "partition held (hold 3)");
+    // 규칙이 없으면 보류보다 먼저 skip
+    assert.equal(foldOutcome({ noMatchingRules: true, outcomes: [], held: { holdId: 3 } }), "skip");
+});

@@ -27,11 +27,15 @@ import {
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
 import type { DbRecord, EmailTemplateLink } from "@/lib/db";
+import { findReplyStop, type ReplyStopReason } from "@/lib/email-reply-guard";
+import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
+import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
 
 // ============================================
 // 쿨다운 체크 (중복 발송 방지)
 // ============================================
 
+// "발송 이력"은 NHN이 받아 간 발송 + 보내는 중이다 — 배달 결과로 failed가 된 기록도 센다 (DESIGN-SND 6-6, SND-11)
 async function checkEmailCooldown(
     recordId: number,
     templateLinkId: number,
@@ -47,7 +51,7 @@ async function checkEmailCooldown(
                 eq(emailSendLogs.recordId, recordId),
                 eq(emailSendLogs.templateLinkId, templateLinkId),
                 gte(emailSendLogs.sentAt, since),
-                inArray(emailSendLogs.status, ["sent", "pending"])
+                await acceptedOrPendingCondition()
             )
         )
         .limit(1);
@@ -59,6 +63,7 @@ async function checkEmailCooldown(
 // 중복 수신자 체크 (같은 규칙 + 같은 이메일로 이미 발송한 이력)
 // ============================================
 
+// NHN이 받아 간 발송을 본다 — 반송·SST3으로 failed가 된 주소에 다시 보내지 않는다. 보낼 때 거절은 다시 보낼 수 있다 (SND-11)
 async function checkDuplicateRecipient(
     templateLinkId: number,
     recipientEmail: string
@@ -70,7 +75,7 @@ async function checkDuplicateRecipient(
             and(
                 eq(emailSendLogs.templateLinkId, templateLinkId),
                 eq(emailSendLogs.recipientEmail, recipientEmail),
-                eq(emailSendLogs.status, "sent")
+                await acceptedSendCondition()
             )
         )
         .limit(1);
@@ -89,11 +94,17 @@ function templatePurpose(triggerType: "auto" | "repeat"): SendPurpose {
     return triggerType === "repeat" ? "bulk" : "inbound";
 }
 
-/** 한 통 결과. deferred가 있으면 기본 발신 주소가 한도·시간대에 막혀 보내지 않았다 (retryAt에 다시) */
+/**
+ * 한 통 결과. deferred가 있으면 기본 발신 주소가 한도·시간대에 막혀 보내지 않았다 (retryAt에 다시).
+ * stopped가 있으면 보내기 직전 막기(그 사업에서 회신·조직에서 hard 반송, DESIGN-RPL 7-4)로 보내지 않았다 — 다시 시도하지 않는다.
+ * held가 있으면 명단 보류 중이라 대량 메일을 보내지 않았다 (DESIGN-SND 6-2) — 보류가 풀리면 다시 나간다
+ */
 interface TemplateSendResult {
     success: boolean;
     logId?: number;
     deferred?: { retryAt: Date; reason: SlotDeferReason };
+    stopped?: ReplyStopReason;
+    held?: { holdId: number };
 }
 
 async function sendEmailSingle(
@@ -129,6 +140,13 @@ async function sendEmailSingle(
     const workspaceId = await resolveWorkspaceId(link.partitionId);
     if (!workspaceId) return { success: false };
     if (await isUnsubscribed(workspaceId, email)) return { success: false };
+    // 명단 보류 (DESIGN-SND 6-2) — 대량(가져오기 명단의 첫 메일·반복)만. 폼 제출 등 문의 첫 메일(inbound)은 보지 않는다.
+    // 자리 잡기 전에 본다 (한도를 쓰지 않게). 보류 확인 → 회신 막기 순서
+    const hold = await getActiveHold(orgId, link.partitionId, purpose);
+    if (hold) return { success: false, held: { holdId: hold.id } };
+    // 보내기 직전 막기 — 자리 잡기 전에 본다 (DESIGN-RPL 7-4, on일 때만)
+    const replyStop = await findReplyStop(orgId, workspaceId, email);
+    if (replyStop) return { success: false, stopped: replyStop.reason };
 
     // 발신 주소 + 오늘 자리 (기본 프로필 → 레거시 fallback). 템플릿 규칙에는 발신 주소 칸이 없어 늘 기본 주소다.
     // 보낼 게 확실해진 뒤(템플릿·주소·수신거부 확인 뒤)에 잡아서 헛예약을 만들지 않는다
@@ -234,7 +252,11 @@ type TemplateFirstOutcome =
     | { kind: "sent" }
     | { kind: "skipped" }
     | { kind: "failed" }
-    | { kind: "deferred"; retryAt: Date; reason: SlotDeferReason };
+    | { kind: "deferred"; retryAt: Date; reason: SlotDeferReason }
+    /** 회신·hard 반송으로 막혔다 (m5) — 미뤄 둔 첫 메일 줄도 cancelled + stop_reason으로 닫는다 */
+    | { kind: "stopped"; reason: ReplyStopReason }
+    /** 명단 보류 (대량 첫 메일만, DESIGN-SND 6-2) — 반복 대기열에 held 줄로 남겨 보류가 풀리면 나간다 */
+    | { kind: "held"; holdId: number };
 
 /**
  * 템플릿 규칙 하나로 레코드에 첫 메일을 보낸다: 조건 → 쿨다운 → 중복 수신자 → 발송 → 후속·반복 큐 등록.
@@ -273,7 +295,9 @@ async function sendTemplateFirst(
     }
 
     // 발송
-    const { success, logId, deferred } = await sendEmailSingle(link, record, orgId, "auto", { purpose });
+    const { success, logId, deferred, stopped, held } = await sendEmailSingle(link, record, orgId, "auto", { purpose });
+    if (held) return { kind: "held", holdId: held.holdId };
+    if (stopped) return { kind: "stopped", reason: stopped };
     if (deferred) return { kind: "deferred", retryAt: deferred.retryAt, reason: deferred.reason };
     if (!success) return { kind: "failed" };
 
@@ -346,6 +370,25 @@ async function enqueueDeferredTemplateFirst(
     `);
 }
 
+/**
+ * 명단 보류로 보내지 않은 대량 템플릿 첫 메일(가져오기 명단)을 반복 대기열에 held 줄로 남긴다 (kind='first_bulk', DESIGN-SND 6-2).
+ * 보류가 풀리면 pending으로 돌아가 그때의 레코드로 조건·쿨다운·중복을 다시 보고 나간다.
+ * 같은 (규칙, 레코드)의 첫 메일 줄이 이미 pending·held로 있으면 넣지 않는다 — 여러 번 들어와도 한 통이다.
+ */
+async function enqueueHeldTemplateFirst(templateLinkId: number, recordId: number, orgId: string): Promise<void> {
+    await db.execute(sql`
+        INSERT INTO email_automation_queue (template_link_id, record_id, org_id, repeat_count, next_run_at, status, kind)
+        SELECT ${templateLinkId}::int, ${recordId}::int, ${orgId}::uuid, 0, now(), 'held', 'first_bulk'
+        WHERE NOT EXISTS (
+            SELECT 1 FROM email_automation_queue
+            WHERE template_link_id = ${templateLinkId}::int
+              AND record_id = ${recordId}::int
+              AND kind IN (${sql.join(TEMPLATE_FIRST_KINDS.map((k) => sql`${k}::varchar`), sql`, `)})
+              AND status IN ('pending', 'held')
+        )
+    `);
+}
+
 // ============================================
 // 자동 트리거 처리 (레코드 생성/수정 후 호출)
 // ============================================
@@ -388,6 +431,11 @@ export async function processEmailAutoTrigger(params: EmailAutoTriggerParams): P
                 `until ${outcome.retryAt.toISOString()}`
             );
             await enqueueDeferredTemplateFirst(link.id, record.id, orgId, outcome.retryAt, purpose);
+        } else if (outcome.kind === "stopped") {
+            console.log(`[EmailAuto] linkId=${link.id}, record=${record.id}: stopped (${outcome.reason})`);
+        } else if (outcome.kind === "held") {
+            console.log(`[EmailAuto] linkId=${link.id}, record=${record.id}: partition held (hold ${outcome.holdId})`);
+            await enqueueHeldTemplateFirst(link.id, record.id, orgId);
         }
     }
 }
@@ -407,6 +455,10 @@ export interface RepeatQueueRunStats {
     failed: number;
     /** 발신 한도·시간대에 막혀 next_run_at을 retryAt으로 옮긴 줄 (반복 횟수를 쓰지 않는다). 한꺼번에 옮긴 줄도 센다 */
     deferred: number;
+    /** 보내기 직전 막기(회신·반송)로 cancelled + stop_reason이 된 줄 (DESIGN-RPL 7-4) */
+    stopped: number;
+    /** 명단 보류로 held가 된 줄 (반복·가져오기 명단의 첫 메일만, DESIGN-SND 6-2) */
+    held: number;
     skippedAsLocked?: boolean;
     deadlineHit?: boolean;
 }
@@ -429,7 +481,7 @@ export interface RepeatQueueRunStats {
  *   - 한 줄이 던져도 회차를 멈추지 않는다
  */
 export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
-    const stats: RepeatQueueRunStats = { processed: 0, sent: 0, completed: 0, failed: 0, deferred: 0 };
+    const stats: RepeatQueueRunStats = { processed: 0, sent: 0, completed: 0, failed: 0, deferred: 0, stopped: 0, held: 0 };
 
     // 락을 잡은 커넥션에서 해제해야 하므로 전용 커넥션을 확보한다 (email-send-queue.ts와 같은 방식)
     const conn = await queryClient.reserve();
@@ -444,6 +496,8 @@ export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
             console.log("[EmailRepeat] another worker running, skip");
             return { ...stats, skippedAsLocked: true };
         }
+        // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6)
+        await reviveOrphanHeldRows("automation");
 
         const startedAt = Date.now();
         const runStart = new Date(startedAt);
@@ -499,7 +553,7 @@ export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
 
         console.log(
             `[EmailRepeat] processed=${stats.processed} sent=${stats.sent} completed=${stats.completed} ` +
-            `failed=${stats.failed} deferred=${stats.deferred}`
+            `failed=${stats.failed} deferred=${stats.deferred} stopped=${stats.stopped} held=${stats.held}`
         );
         return stats;
     } finally {
@@ -538,10 +592,7 @@ async function processRepeatItem(
         .limit(1);
 
     if (!record) {
-        await db
-            .update(emailAutomationQueue)
-            .set({ status: "cancelled", updatedAt: now })
-            .where(eq(emailAutomationQueue.id, item.id));
+        await finishRepeatItem(item.id, { status: "cancelled", updatedAt: now });
         stats.completed++;
         return;
     }
@@ -556,10 +607,7 @@ async function processRepeatItem(
     const firstPurpose = templateFirstPurpose(item.kind);
     if (firstPurpose) {
         if (!link || link.isActive !== 1) {
-            await db
-                .update(emailAutomationQueue)
-                .set({ status: "cancelled", updatedAt: now })
-                .where(eq(emailAutomationQueue.id, item.id));
+            await finishRepeatItem(item.id, { status: "cancelled", updatedAt: now });
             stats.completed++;
             return;
         }
@@ -583,23 +631,31 @@ async function processRepeatItem(
             return;
         }
 
+        if (outcome.kind === "stopped") {
+            // 회신·반송으로 막혔다 — 이 첫 메일 줄을 닫는다 (m5, R63)
+            await finishRepeatItem(item.id, { status: "cancelled", stopReason: outcome.reason, updatedAt: now });
+            stats.stopped++;
+            return;
+        }
+
+        if (outcome.kind === "held") {
+            // 명단 보류 (가져오기 명단의 첫 메일 'first_bulk'만 — 문의 'first'는 보류를 보지 않는다). 보류가 풀리면 pending으로
+            await finishRepeatItem(item.id, { status: "held", updatedAt: now });
+            stats.held++;
+            return;
+        }
+
         if (outcome.kind === "sent") stats.sent++;
         else if (outcome.kind === "failed") stats.failed++;
 
         // 보냈든(반복은 sendTemplateFirst가 따로 넣었다) 조건·쿨다운으로 건너뛰었든 이 줄의 일은 끝났다
-        await db
-            .update(emailAutomationQueue)
-            .set({ status: "completed", updatedAt: now })
-            .where(eq(emailAutomationQueue.id, item.id));
+        await finishRepeatItem(item.id, { status: "completed", updatedAt: now });
         stats.completed++;
         return;
     }
 
     if (!link || link.isActive !== 1 || !link.repeatConfig) {
-        await db
-            .update(emailAutomationQueue)
-            .set({ status: "cancelled", updatedAt: now })
-            .where(eq(emailAutomationQueue.id, item.id));
+        await finishRepeatItem(item.id, { status: "cancelled", updatedAt: now });
         stats.completed++;
         return;
     }
@@ -613,10 +669,7 @@ async function processRepeatItem(
     // 중단 조건 평가
     const data = record.data as Record<string, unknown>;
     if (evaluateCondition(config.stopCondition, data)) {
-        await db
-            .update(emailAutomationQueue)
-            .set({ status: "completed", updatedAt: now })
-            .where(eq(emailAutomationQueue.id, item.id));
+        await finishRepeatItem(item.id, { status: "completed", updatedAt: now });
         stats.completed++;
         return;
     }
@@ -630,7 +683,21 @@ async function processRepeatItem(
     }
 
     // 발송
-    const { success, deferred } = await sendEmailSingle(link, record, item.orgId, "repeat");
+    const { success, deferred, stopped, held } = await sendEmailSingle(link, record, item.orgId, "repeat");
+
+    if (held) {
+        // 명단 보류 — 반복 횟수를 쓰지 않고 held로 둔다. 보류가 풀리면 pending으로 돌아가 next_run_at(지금 이후)에 나간다 (DESIGN-SND 6-2)
+        await finishRepeatItem(item.id, { status: "held", updatedAt: now });
+        stats.held++;
+        return;
+    }
+
+    if (stopped) {
+        // 회신·반송으로 막혔다 — 반복 줄을 닫는다 (반복 횟수를 쓰지 않는다)
+        await finishRepeatItem(item.id, { status: "cancelled", stopReason: stopped, updatedAt: now });
+        stats.stopped++;
+        return;
+    }
 
     if (deferred) {
         // 한도·시간대에 막혀 보내지 않았다 — 반복 횟수를 쓰지 않고 열리는 시각에 다시 본다.
@@ -648,24 +715,33 @@ async function processRepeatItem(
     if (success) stats.sent++;
     else stats.failed++;
 
-    await db
-        .update(emailAutomationQueue)
-        .set({
-            repeatCount: newCount,
-            status: isMaxReached ? "completed" : "pending",
-            nextRunAt: isMaxReached ? item.nextRunAt : new Date(Date.now() + config.intervalHours * 60 * 60 * 1000),
-            updatedAt: now,
-        })
-        .where(eq(emailAutomationQueue.id, item.id));
+    await finishRepeatItem(item.id, {
+        repeatCount: newCount,
+        status: isMaxReached ? "completed" : "pending",
+        nextRunAt: isMaxReached ? item.nextRunAt : new Date(Date.now() + config.intervalHours * 60 * 60 * 1000),
+        updatedAt: now,
+    });
 
     if (isMaxReached) stats.completed++;
 }
 
+/**
+ * 줄의 마지막 쓰기. 아직 pending일 때만 쓴다 (DESIGN-RPL m5) — 이 표에는 processing 상태가 없어서, 처리하는 사이
+ * 회신으로 cancelled가 되거나 명단 보류로 held가 된 줄을 덮지 않게 하는 유일한 보호다
+ */
+async function finishRepeatItem(id: number, set: Partial<typeof emailAutomationQueue.$inferInsert>): Promise<void> {
+    await db
+        .update(emailAutomationQueue)
+        .set(set)
+        .where(and(eq(emailAutomationQueue.id, id), eq(emailAutomationQueue.status, "pending")));
+}
+
 async function deferRepeatItem(id: number, retryAt: Date, now: Date): Promise<void> {
+    // pending일 때만 — 처리하는 사이 회신 멈춤(cancelled)·명단 보류(held)가 된 줄의 상태를 그대로 둔다 (finishRepeatItem과 같은 이유)
     await db
         .update(emailAutomationQueue)
         .set({ nextRunAt: retryAt, updatedAt: now })
-        .where(eq(emailAutomationQueue.id, id));
+        .where(and(eq(emailAutomationQueue.id, id), eq(emailAutomationQueue.status, "pending")));
 }
 
 /**

@@ -15,6 +15,8 @@ import {
     appendUnsubscribeFooter,
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
+import { getActiveHoldsFor } from "@/lib/partition-hold";
+import { manualHoldMessage } from "@/lib/sender-health-rules";
 
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -105,6 +107,19 @@ export async function POST(req: NextRequest) {
             .from(records)
             .where(and(inArray(records.id, recordIds), eq(records.orgId, user.orgId)));
 
+        // 명단 보류 (DESIGN-SND 6-2, SND-16) — 레코드마다 레코드의 명단으로 본다 (템플릿 연결의 명단이 아니라).
+        // 레코드가 2건 이상이면 대량이다 — 그중 보류 명단의 레코드가 있으면 보내지 않는다. 1건은 사람이 한 명에게 쓰는 메일이라 막지 않는다
+        if (recordList.length >= 2) {
+            const holds = await getActiveHoldsFor(user.orgId, recordList.map((r) => r.partitionId));
+            const first = [...holds.values()][0];
+            if (first) {
+                return NextResponse.json(
+                    { success: false, error: manualHoldMessage({ partitionName: first.partitionName, reasonText: first.reasonText, heldAt: first.heldAt }) },
+                    { status: 409 }
+                );
+            }
+        }
+
         // 보내지 않은 레코드와 이유. 화면이 누구인지 보이도록 이미 읽은 레코드 코드와 수신 이메일 칸 값을 함께 준다
         const errors: Array<{ recordId: number; error: string; email: string | null; code: string | null }> = [];
         let successCount = 0;
@@ -188,7 +203,8 @@ export async function POST(req: NextRequest) {
                 const [logEntry] = await db.insert(emailSendLogs).values({
                     orgId: user.orgId,
                     templateLinkId: templateLink.id,
-                    partitionId: templateLink.partitionId,
+                    // 레코드의 명단으로 적는다 — 그 실패가 실제 명단의 실패율에 쌓이게 (DESIGN-SND 6-2, SND-16)
+                    partitionId: record.partitionId ?? templateLink.partitionId,
                     recordId: record.id,
                     emailTemplateId: template.id,
                     recipientEmail: email,

@@ -34,6 +34,9 @@ import { splitKnownSenderIds } from "@/components/email/sender-profiles/utils/se
 import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
 import { useSendQueueStats } from "@/components/email/sender-profiles/hooks/useSendQueueStats";
 import RuleQueueBadges from "@/components/email/sender-profiles/ui/RuleQueueBadges";
+import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
+import { useSendHealth } from "@/components/email/send-health/hooks/useSendHealth";
+import RuleHealthBadges from "@/components/email/send-health/ui/RuleHealthBadges";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -68,6 +71,8 @@ export default function AutoPersonalizedEmailConfig({
         useSenderProfiles();
     // 규칙별 대기 통수·다 나가는 날·3일치 경고 (못 읽으면 배지를 붙이지 않는다)
     const { byLinkId: queueByLinkId } = useSendQueueStats();
+    // 명단 보류·주소 자동 멈춤 배지 (DESIGN-SND 10절) — 못 읽으면 배지만 빠진다
+    const { view: healthView, holdByPartition } = useSendHealth();
 
     const handleCreate = () => {
         const params = selectedPartitionId !== "all" ? `?partitionId=${selectedPartitionId}` : "";
@@ -218,6 +223,13 @@ export default function AutoPersonalizedEmailConfig({
                                             </Badge>
                                         )}
                                         <RuleQueueBadges stats={queueByLinkId.get(link.id)} />
+                                        <RuleHealthBadges
+                                            hold={holdByPartition.get(link.partitionId)}
+                                            poolIds={linkSenderPool(link)}
+                                            senders={healthView?.senders ?? []}
+                                            heldCount={queueByLinkId.get(link.id)?.held}
+                                        />
+                                        <RuleReplyBadge kind="ai" ruleId={link.id} />
                                     </div>
                                     <p className="text-sm text-muted-foreground">
                                         수신: {link.recipientField} | 회사: {link.companyField}

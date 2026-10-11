@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs, emailClickLogs, emailSenderProfiles } from "@/lib/db";
 import { eq, and, desc, sql, gte, lte, inArray, or, ilike } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { repliesForSendLogs } from "@/lib/email-reply-list";
+import { pgErrorOf } from "@/lib/email-reply-rules";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -63,6 +65,12 @@ export async function GET(req: NextRequest) {
             conditions.push(sql`NOT EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id)`);
             conditions.push(eq(emailSendLogs.status, "sent"));
         }
+        // "회신 있음" 거르개 (DESIGN-RPL 11절) — 사람 회신이 이어진 발송
+        if (searchParams.get("hasReply") === "1") {
+            conditions.push(
+                sql`EXISTS (SELECT 1 FROM email_replies er WHERE er.send_log_id = email_send_logs.id AND er.org_id = email_send_logs.org_id AND er.kind = 'human')`
+            );
+        }
 
         const [countResult] = await db
             .select({ count: sql<number>`count(*)` })
@@ -116,9 +124,18 @@ export async function GET(req: NextRequest) {
             }
         }
 
+        // 회신 붙이기 (클릭 수와 같은 방식, 사람 회신 먼저) — 표가 없으면(마이그레이션 전) 회신 없이
+        let replies = new Map<number, { id: number; kind: string; receivedAt: Date }>();
+        try {
+            replies = await repliesForSendLogs(user.orgId, logIds);
+        } catch (e) {
+            if (pgErrorOf(e)?.code !== "42P01") throw e;
+        }
+
         const logsWithClicks = logs.map(log => ({
             ...log,
             clickCount: clickCounts[log.id] || 0,
+            reply: replies.get(log.id) ?? null,
         }));
 
         return NextResponse.json({

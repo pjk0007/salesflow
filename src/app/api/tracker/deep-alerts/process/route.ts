@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processDeepVisitorAlerts, describeDeepAlertError } from "@/lib/deep-visitor-alert";
+import { processCustomerJourneyAlerts } from "@/lib/customer-journey-alert";
 
 export async function POST(req: NextRequest) {
     // CRON_SECRET 검증
@@ -16,7 +17,8 @@ export async function POST(req: NextRequest) {
 
     try {
         const stats = await processDeepVisitorAlerts();
-        return NextResponse.json({ success: true, data: stats });
+        const journey = await processCustomerJourneyAlerts();
+        return NextResponse.json({ success: true, data: { ...stats, journey } });
     } catch (error) {
         // 오류 객체를 통째로 찍지 않는다 — 실패한 쿼리의 매개변수(카드 글자)가 로그에 남는다
         console.error("[deep-alert] process error:", describeDeepAlertError(error));

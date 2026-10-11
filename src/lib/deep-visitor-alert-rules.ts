@@ -18,6 +18,8 @@ import {
     nextBusinessStart,
     nextWeekdayYmd,
 } from "@/lib/kst";
+import { chatSafe } from "@/lib/chat-text";
+import { chatWebhookProblem } from "@/lib/google-chat";
 
 // ============================================
 // 입력 타입 (워커가 DB에서 읽어 채운다)
@@ -238,8 +240,15 @@ export interface DeepAlertConfig {
     mode: DeepAlertMode;
     /** 비면 아무것도 처리하지 않는다 */
     workspaceIds: number[];
-    /** 워크스페이스별 웹훅 (공통 주소 반영 후). 없는 워크스페이스는 키가 없다 */
+    /** 워크스페이스별 웹훅 (공통 주소 반영 후, 구글 챗 주소만). 없는 워크스페이스는 키가 없다 */
     webhookByWorkspace: Record<number, string>;
+    /**
+     * 워크스페이스마다 웹훅을 정하는 환경 변수 이름과 그 값 — 주소 없음·형식 오류를 운영 스페이스에 알릴 때 쓴다
+     * (값은 로그·알림에 넣지 않는다, WPN-2)
+     */
+    webhookChecks: Array<{ workspaceId: number; source: string; url: string | null }>;
+    /** 설정 경고 (한국어) — 시험 서버에서 live를 dry_run으로 내린 경우 등 */
+    warnings: string[];
 }
 
 // ============================================
@@ -741,6 +750,40 @@ export function nextAlertTime(now: Date): Date {
     return nextBusinessStart(now);
 }
 
+/** 이보다 늦게 나가는 카드에는 "늦게 보냄" 줄을 붙인다 (WPN-12) */
+export const LATE_SEND_NOTE_AFTER_MS = HOUR_MS;
+
+/**
+ * 보낼 때 카드 첫 줄(⏰ 기한)을 보내는 때 기준으로 다시 쓴다 (DV-5·RC-12). 기한 글자는 탐지 때 만들어 저장된다 —
+ * 웹훅 설정 오류·재시도로 늦게 나가면 이미 지난 "1시간 안 · 11:00까지"가 그대로 갔다.
+ * 예약 시각보다 1시간 넘게 늦으면 맨 위에 "⏱ … 늦게 보냅니다 (원래 …)"를 붙인다. 카드 길이 상한 안에서 센다.
+ */
+export function refreshCardForSend(message: string, opts: { deadline: string | null; scheduledAt: Date | null; now: Date }): string {
+    const lines = message.split("\n");
+    if (opts.deadline && lines[0]?.startsWith("⏰ *")) lines[0] = `⏰ *${opts.deadline}*`;
+    if (opts.scheduledAt && opts.now.getTime() - opts.scheduledAt.getTime() > LATE_SEND_NOTE_AFTER_MS) {
+        const hours = Math.max(1, Math.round((opts.now.getTime() - opts.scheduledAt.getTime()) / HOUR_MS));
+        lines.unshift(`⏱ 웹훅 문제 등으로 ${hours}시간 늦게 보냅니다 (원래 ${formatKstShort(opts.scheduledAt)})`);
+    }
+    return fitLines(lines, MESSAGE_MAX_CHARS);
+}
+
+/** 줄 단위로 상한에 맞춘다 — 끝의 안내 줄(MESSAGE_FOOTER)은 남기고 그 앞 본문 줄을 뒤에서부터 뺀다 */
+function fitLines(lines: string[], max: number): string {
+    let text = lines.join("\n");
+    if (text.length <= max) return text;
+    const footerAt = lines.lastIndexOf(MESSAGE_FOOTER);
+    const tail = footerAt >= 0 ? lines.slice(footerAt) : [];
+    const body = footerAt >= 0 ? lines.slice(0, footerAt) : [...lines];
+    while (body.length > 1) {
+        const withNote = [...body, ...(body.includes(MESSAGE_TRUNCATION_NOTE) ? [] : [MESSAGE_TRUNCATION_NOTE]), "", ...tail];
+        text = withNote.join("\n").replace(/\n{3,}/g, "\n\n");
+        if (text.length <= max) return text;
+        body.pop();
+    }
+    return text.slice(0, max);
+}
+
 /** existing에 이미 있는 수준들을 보고 level을 새로 만들지 (deep → intent만 올라감) */
 export function isLevelUpgrade(existing: readonly DeepAlertLevel[], level: DeepAlertLevel): boolean {
     if (level === "deep") return existing.length === 0;
@@ -913,6 +956,7 @@ const CAP_CUSTOM = 10;
 const CAP_EMAILS = 8;
 const CAP_STATUS = 8;
 const CAP_MEMOS = 3;
+const CAP_OTHER_RECORDS = 5;
 const FIELD_VALUE_MAX = 120;
 const FIELD_LABEL_MAX = 40;
 const RESEARCH_DESC_MAX = 200;
@@ -930,13 +974,65 @@ const STATUS_TEXT_MAX = 80;
 export const MESSAGE_TRUNCATION_NOTE = "… 나머지는 레코드에서 보세요";
 export const MESSAGE_FOOTER = '_고객에게 "사이트에서 무엇을 봤는지"는 말하지 않습니다._';
 
-/** 사용자 값 → 한 줄 글자. `<` `>`를 바꿔 `<주소|글자>` 링크·멘션 문법이 끼어들지 못하게 한다 */
+/**
+ * CRM 칸 값 → 한 줄 글자 (120자, 코드 포인트로 자름). 워커가 카드 근거를 만들 때 쓴다.
+ */
+export function formatFieldValue(value: unknown): string | null {
+    let text: string;
+    if (value === null || value === undefined) return null;
+    if (typeof value === "string") {
+        text = value.trim();
+    } else if (typeof value === "number" || typeof value === "bigint") {
+        text = String(value);
+    } else if (typeof value === "boolean") {
+        text = value ? "예" : "아니오";
+    } else if (Array.isArray(value)) {
+        const primitives = value.every((v) => v === null || ["string", "number", "boolean"].includes(typeof v));
+        text = primitives
+            ? value.filter((v) => v !== null && String(v).trim() !== "").map((v) => String(v).trim()).join(", ")
+            : JSON.stringify(value);
+    } else if (typeof value === "object") {
+        if (Object.keys(value).length === 0) return null;
+        text = JSON.stringify(value);
+    } else {
+        return null;
+    }
+    if (text === "" || text === "[]") return null;
+    // 코드 포인트로 자른다 — UTF-16으로 자르면 이모지가 반으로 갈려 저장(json)이 거절되고 그 워크스페이스 탐지가 통째로 막혔다 (DV-1)
+    const chars = Array.from(text);
+    return chars.length > FIELD_VALUE_MAX ? chars.slice(0, FIELD_VALUE_MAX - 1).join("") + "…" : text;
+}
+
+/**
+ * 사용자 값 → 한 줄 글자. `<` `>`를 바꿔 `<주소|글자>` 링크·멘션 문법이 끼어들지 못하게 하고,
+ * * _ ~ ` 는 모양이 비슷한 글자로 바꿔 굵게·기울임이 섞이지 않게 한다 (DV-9).
+ * 맨 URL도 눌리지 않게 바꾼다 (https:// → hxxps://) — 방문 기록·CRM 값은 메일을 받은 사람이 넣을 수 있고, 구글 챗은 맨 주소를
+ * 저절로 링크로 만든다. 회신 카드·발송 건강 글과 같은 규칙이다 (chat-text.ts)
+ */
 function clean(value: unknown): string {
-    return String(value ?? "")
-        .replace(/</g, "‹")
-        .replace(/>/g, "›")
-        .replace(/\s+/g, " ")
-        .trim();
+    return chatSafe(value, { defangUrls: true });
+}
+
+/**
+ * 받은 메일 줄의 [발송 종류] — 규칙 이름이 없을 때 발송 기록의 trigger_type 코드 대신 보일 한국어 이름
+ * (발송 기록 화면 EmailSendLogTable과 같은 말). 모르는 코드는 보이지 않는다 (개발 코드를 사업 스페이스에 내보내지 않게)
+ */
+const SEND_KIND_LABELS: Record<string, string> = {
+    manual: "직접 보냄",
+    auto: "자동 메일",
+    repeat: "반복 메일",
+    ai_auto: "AI 자동 메일",
+    ai_followup: "AI 후속 메일",
+    followup: "후속 메일",
+    test_followup: "후속 메일 시험",
+    on_create: "레코드 추가 때 자동 메일",
+    on_update: "레코드 변경 때 자동 메일",
+    partition_import: "명단 가져올 때 자동 메일",
+};
+
+function sendKindLabel(triggerType: string | null | undefined): string {
+    const key = (triggerType ?? "").trim();
+    return key && Object.prototype.hasOwnProperty.call(SEND_KIND_LABELS, key) ? SEND_KIND_LABELS[key] : "";
 }
 
 /** 글자 수로 자른다. 이모지 같은 서로게이트 쌍을 반으로 가르지 않게 코드 포인트로 센다 */
@@ -1173,7 +1269,7 @@ export function buildAlertMessage(evidence: AlertEvidence, now: Date): string {
         const startIdx = Math.max(0, evidence.emails.length - CAP_EMAILS);
         const lines = evidence.emails.slice(startIdx).map((m, i) => {
             const n = offset + startIdx + i + 1;
-            const tag = clip(clean(m.ruleName) || clean(m.triggerType), TAG_MAX);
+            const tag = clip(clean(m.ruleName) || sendKindLabel(m.triggerType), TAG_MAX);
             return [
                 `${n}.`,
                 m.sentAt ? formatKstShort(m.sentAt) : "-",
@@ -1213,9 +1309,9 @@ export function buildAlertMessage(evidence: AlertEvidence, now: Date): string {
         blocks.push([`*메모*${head}`, ...lines].join("\n"));
     }
 
-    // 같은 사람의 다른 레코드
+    // 같은 사람의 다른 레코드 (5개까지, 나머지는 수만 — 알림톡 줄을 밀어내지 않게, DV-10)
     if (evidence.otherRecords.length) {
-        const lines = evidence.otherRecords.map(
+        const lines = evidence.otherRecords.slice(0, CAP_OTHER_RECORDS).map(
             (o) =>
                 "• " +
                 [
@@ -1227,6 +1323,8 @@ export function buildAlertMessage(evidence: AlertEvidence, now: Date): string {
                     .filter(Boolean)
                     .join(" ")
         );
+        const more = evidence.otherRecords.length - CAP_OTHER_RECORDS;
+        if (more > 0) lines.push(`• 외 ${more}개 — 레코드에서 보기`);
         blocks.push(["*같은 사람의 다른 레코드*", ...lines].join("\n"));
     }
 
@@ -1418,11 +1516,46 @@ export function renderDeepAlertPreviewErrorHtml(message: string): string {
 // 설정
 // ============================================
 
+/** 운영 서버 주소 — 회신 알림(REPLY_PRODUCTION_ORIGIN)과 같다 */
+const PRODUCTION_ORIGIN = "https://sendb.kr";
+
+function originOf(url: string | undefined): string | null {
+    try {
+        return new URL((url ?? "").trim()).origin;
+    } catch {
+        return null;
+    }
+}
+
+function isLocalDatabase(url: string | undefined): boolean {
+    try {
+        const host = new URL((url ?? "").trim()).hostname;
+        return host === "127.0.0.1" || host === "localhost";
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * 운영 서버인가 (회신 알림과 같은 판정, DV-4): NEXT_PUBLIC_BASE_URL이 운영 주소이거나, 이 PC의 시험 DB에서
+ * REPLY_TEST_ASSUME_PRODUCTION=1. 개발 DB는 실제 고객 사본이다 — 개발 서버에서 live로 실제 사업 스페이스에 보내지 않게
+ */
+export function isProductionServer(env: Record<string, string | undefined>): boolean {
+    if (originOf(env.NEXT_PUBLIC_BASE_URL) === PRODUCTION_ORIGIN) return true;
+    return (env.REPLY_TEST_ASSUME_PRODUCTION ?? "").trim() === "1" && isLocalDatabase(env.DATABASE_URL);
+}
+
 /** 설계 2절. env는 process.env 꼴 */
 export function resolveAlertConfig(env: Record<string, string | undefined>): DeepAlertConfig {
     const rawMode = (env.DEEP_ALERT_MODE ?? "").trim().toLowerCase();
     // 모르는 값은 dry_run — 오타 하나로 실제 발송이 켜지거나 기록이 꺼지지 않게
-    const mode: DeepAlertMode = rawMode === "off" || rawMode === "live" ? rawMode : "dry_run";
+    let mode: DeepAlertMode = rawMode === "off" || rawMode === "live" ? rawMode : "dry_run";
+    const warnings: string[] = [];
+    // 시험(개발) 서버에서는 live를 dry_run으로 내린다 — 시험 스페이스로 일부러 시험할 때만 DEEP_ALERT_TEST_SERVER_LIVE=1 (DV-4)
+    if (mode === "live" && !isProductionServer(env) && (env.DEEP_ALERT_TEST_SERVER_LIVE ?? "").trim() !== "1") {
+        mode = "dry_run";
+        warnings.push("시험 서버 — 운영 주소(NEXT_PUBLIC_BASE_URL)가 아니라 live를 dry_run으로 돌립니다 (시험 스페이스로만 시험할 때 DEEP_ALERT_TEST_SERVER_LIVE=1)");
+    }
 
     const workspaceIds: number[] = [];
     for (const part of (env.DEEP_ALERT_WORKSPACE_IDS ?? "").split(",")) {
@@ -1434,11 +1567,15 @@ export function resolveAlertConfig(env: Record<string, string | undefined>): Dee
 
     const common = (env.DEEP_ALERT_WEBHOOK_URL ?? "").trim();
     const webhookByWorkspace: Record<number, string> = {};
+    const webhookChecks: DeepAlertConfig["webhookChecks"] = [];
     for (const id of workspaceIds) {
         // 워크스페이스별 값이 있으면 그것만 본다. 잘못 적었다고 공통 스페이스로 새면 다른 사업 담당이 받게 된다
         const own = (env[`DEEP_ALERT_WEBHOOK_URL_${id}`] ?? "").trim();
         const url = own || common;
-        if (/^https:\/\//i.test(url)) webhookByWorkspace[id] = url;
+        const source = own || !common ? `DEEP_ALERT_WEBHOOK_URL_${id}` : "DEEP_ALERT_WEBHOOK_URL";
+        webhookChecks.push({ workspaceId: id, source, url: url || null });
+        // 구글 챗 수신 웹훅 주소만 (https://chat.googleapis.com/v1/spaces/…/messages) — 오타 도메인으로 고객 정보가 나가지 않게 (DV-3)
+        if (!chatWebhookProblem(url)) webhookByWorkspace[id] = url;
     }
-    return { mode, workspaceIds, webhookByWorkspace };
+    return { mode, workspaceIds, webhookByWorkspace, webhookChecks, warnings };
 }

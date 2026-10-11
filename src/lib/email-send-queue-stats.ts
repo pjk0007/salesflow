@@ -236,6 +236,8 @@ export interface RuleQueueStats {
     partitionId: number;
     triggerType: "on_create" | "on_update";
     pending: PendingCounts;
+    /** 명단 보류(held, DESIGN-SND 6-2)로 멈춘 줄. 대기량·3일치 경고에는 넣지 않는다 */
+    held: number;
     /** 가장 일찍 예정된 대기 줄의 시각 (ISO). 대기가 없으면 null */
     oldestScheduledAt: string | null;
     /** 이 규칙이 실제로 쓰는 주소 id (묶음 → 없으면 기본 주소). 비면 레거시 설정 발신자·발신자 없음 */
@@ -268,6 +270,8 @@ export interface SendQueueStatsView {
         pending: number;
         inbound: number;
         bulk: number;
+        /** 명단 보류로 멈춘 줄 (대기량에 넣지 않는다) */
+        held: number;
         oldestScheduledAt: string | null;
         /** 경고 규칙 수 */
         warnings: number;
@@ -303,10 +307,20 @@ export function buildSendQueueStats(input: {
     senders: readonly QueueStatsSender[];
     now: Date;
     days?: number;
+    /** 명단 보류(held) 줄을 (파티션, 트리거)로 묶은 수 — 대기량과 따로 센다 (DESIGN-SND 6-2) */
+    heldGroups?: ReadonlyArray<{ partitionId: number; triggerType: string; count: number }>;
 }): SendQueueStatsView {
     const { rules, groups, senders, now } = input;
     const days = input.days ?? QUEUE_STATS_DAYS;
     const today = kstParts(now).date;
+    const heldByKey = new Map<string, number>();
+    let heldTotal = 0;
+    for (const g of input.heldGroups ?? []) {
+        const n = Math.max(0, Math.floor(Number(g.count) || 0));
+        const key = `${g.partitionId}|${normalizeTrigger(g.triggerType)}`;
+        heldByKey.set(key, (heldByKey.get(key) ?? 0) + n);
+        heldTotal += n;
+    }
 
     const byKey = new Map<string, { counts: PendingCounts; oldest: number | null }>();
     const all = { counts: emptyCounts(), oldest: null as number | null };
@@ -348,6 +362,7 @@ export function buildSendQueueStats(input: {
             partitionId: rule.partitionId,
             triggerType: trigger,
             pending: counts,
+            held: heldByKey.get(`${rule.partitionId}|${trigger}`) ?? 0,
             oldestScheduledAt: entry?.oldest != null ? new Date(entry.oldest).toISOString() : null,
             poolProfileIds: members.map((m) => m.id),
             capacity: {
@@ -376,6 +391,7 @@ export function buildSendQueueStats(input: {
             pending: all.counts.total,
             inbound: all.counts.inbound,
             bulk: all.counts.bulk,
+            held: heldTotal,
             oldestScheduledAt: all.oldest !== null ? new Date(all.oldest).toISOString() : null,
             warnings: warned.length,
             warningLinkIds: warned,
