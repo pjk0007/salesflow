@@ -79,6 +79,9 @@ function DialogBody({
     // 한도는 "열 때 저장돼 있던 값"과 입력을 따로 든다 — 저장할 때 달라진 칸만 보내려고
     const [storedLimits] = useState<SenderLimitSettings>(() => (editing ? toLimitSettings(editing) : DEFAULT_LIMIT_SETTINGS));
     const [limits, setLimits] = useState<SenderLimitForm>(() => limitFormFromSettings(storedLimits));
+    // 발신 건강 조치 방식 (DESIGN-SND 6-3) — 한도 칸처럼 관리자만, 바뀌었을 때만 보낸다
+    const storedHealthAction: "auto" | "alert" = editing?.healthAction === "alert" ? "alert" : "auto";
+    const [healthAction, setHealthAction] = useState<"auto" | "alert">(storedHealthAction);
     const [saving, setSaving] = useState(false);
     const [verifying, setVerifying] = useState(false);
     // 기존 프로필은 이미 검증됨
@@ -140,8 +143,9 @@ function DialogBody({
             limitPatch = changedLimitFields(storedLimits, check.value);
         }
         setSaving(true);
+        const healthPatch = canEditLimits && editing && healthAction !== storedHealthAction ? { healthAction } : {};
         const result = editing
-            ? await updateProfile(editing.id, { ...form, ...limitPatch })
+            ? await updateProfile(editing.id, { ...form, ...limitPatch, ...healthPatch })
             : await createProfile({ ...form, ...limitPatch });
         setSaving(false);
         if (result.success) {
@@ -223,6 +227,17 @@ function DialogBody({
                         check={check}
                         sentToday={editing ? usage?.sentToday ?? null : 0}
                         readOnly={!canEditLimits}
+                        health={
+                            editing
+                                ? {
+                                      pausedSource: editing.pausedSource ?? null,
+                                      pausedReason: editing.pausedReason ?? null,
+                                      isDefault: editing.isDefault,
+                                      healthAction,
+                                      onHealthActionChange: setHealthAction,
+                                  }
+                                : undefined
+                        }
                     />
                 </div>
             </div>

@@ -413,6 +413,7 @@ function lookups(over: Partial<QueueWalkLookups> = {}): QueueWalkLookups {
         isDuplicate: () => false,
         workspaceId: 1,
         isUnsubscribed: () => false,
+        isReplyStopped: () => null,
         aiClientReady: () => true,
         quotaAllowed: true,
         emailClientReady: true,
@@ -460,6 +461,7 @@ test("walkQueueRow: 검사 순서가 processAutoPersonalizedEmail과 같다 (앞
         ["invalid_email", {}], // 아래에서 data로 건다
         ["workspace_not_found", { workspaceId: null }],
         ["unsubscribed", { isUnsubscribed: () => true }],
+        ["replied", { isReplyStopped: () => "replied" }],
         ["no_ai_client", { aiClientReady: () => false }],
         ["quota_exceeded", { quotaAllowed: false }],
         ["no_email_client", { emailClientReady: false }],
@@ -561,6 +563,13 @@ test("walkQueueRow: 원래 함수에서 던질 값(문자열 아닌 받는 값·
     assert.equal(walkQueueRow({ data: [1], links: [LINK], skipLinkIds: [] }, lookups()).kind, "process");
     // 읽어 두지 않은 주소면(undefined) 짐작하지 않는다
     assert.equal(walk({ isUnsubscribed: () => undefined }).kind, "process");
+    assert.equal(walk({ isReplyStopped: () => undefined }).kind, "process");
+});
+
+test("walkQueueRow: 회신·hard 반송 막기는 수신거부 바로 뒤, 규칙별 결과 replied·bounced (DESIGN-RPL 7-4)", () => {
+    assert.deepEqual(skippedReasons(walk({ isReplyStopped: () => "bounced" })), ["bounced"]);
+    assert.deepEqual(skippedReasons(walk({ isReplyStopped: () => "replied", isUnsubscribed: () => true })), ["unsubscribed"]);
+    assert.deepEqual(skippedReasons(walk({ isReplyStopped: () => "replied", aiClientReady: () => false })), ["replied"]);
 });
 
 test("walkQueueRow: 받는 칸이 숫자면(중복 확인 없음) invalid_email로 건너뛴다 — 원래 함수와 같다", () => {
@@ -817,6 +826,28 @@ test("sortPickedRows: RETURNING이 뒤섞어 돌려준 줄을 배치 안 차례(
         rows.map((r) => r.id),
         [7, 10, 6, 3, 21, 8]
     );
+});
+
+// ── 명단 보류 (DESIGN-SND 6-2, H20·H21) ──
+
+test("명단 보류(hold)는 held — 꺼낼 때 올린 시도 1을 되돌리고(0 아래 안 감) 다시 꺼내지 않는다", () => {
+    assert.equal(nextStatus("hold", 1), "held");
+    const plan = planQueueRow({ outcome: "hold", attempts: 2, deferral: null, failedLinkIds: [], exhaustedLinkIds: [5] });
+    assert.deepEqual(plan, { status: "held", attempts: 1, scheduledAt: null, exhaustedLinkIds: [5], stat: "held" });
+    assert.equal(planQueueRow({ outcome: "hold", attempts: 0, deferral: null, failedLinkIds: [], exhaustedLinkIds: [] }).attempts, 0);
+    assert.equal(revivesOnRequeue("held"), false);
+});
+
+test("보류 결과는 hold로 접히고 줄 쓰기는 pending도 되살리기도 아니다", () => {
+    const processed = toProcessedRow({ noMatchingRules: false, outcomes: [], held: { holdId: 9 } });
+    assert.equal(processed.outcome, "hold");
+    assert.equal(processed.detail, "partition held (hold 9)");
+    const plan = planQueueRow({ outcome: processed.outcome, attempts: 1, deferral: processed.deferral, failedLinkIds: [], exhaustedLinkIds: [] });
+    const w = toQueueRowWrite(1, plan, describePlan(plan, processed, []));
+    assert.equal(w.status, "held");
+    assert.equal(w.pending, false);
+    assert.equal(w.revivable, false);
+    assert.equal(w.scheduled_at, null);
 });
 
 test("sortPickedRows: 배치 안에서는 예정 시각이 아니라 들어온 순 — 앞 칸을 문의에 내준 대량 줄이 계속 밀리지 않는다 (재검증 S7)", () => {

@@ -39,6 +39,8 @@ import {
     type JourneyVerdict,
     type SendJourneyInput,
     type SessionInput,
+    formatFieldValue,
+    refreshCardForSend,
 } from "./deep-visitor-alert-rules";
 
 // ── 고정 자료: 디하(워크스페이스 8, 자기 사이트 1)에 콜드메일 후속 1차가 나간 레코드 ──
@@ -1009,15 +1011,15 @@ test("카드는 설계 5절 모양 그대로다 (B17)", () => {
         "• 공고키워드: UIUX 디자이너",
         "",
         "*회사 조사*",
-        "업종 화장품 제조 · 직원 12명 · 웹사이트 https://sample.example",
+        "업종 화장품 제조 · 직원 12명 · 웹사이트 hxxps://sample.example",
         "기초 화장품을 만들어 온라인으로 판다.",
         "",
         "*받은 메일* (2통)",
         "1. 9/24 10:00 [디하 첫 메일] 디자인 외주, 이제 구독으로 — 클릭 없음",
-        "2. 10/1 10:00 [followup] 디자이너 채용, 월 구독으로 해결하세요 — 클릭 10:06 (사람) ← 이번 알림",
+        "2. 10/1 10:00 [후속 메일] 디자이너 채용, 월 구독으로 해결하세요 — 클릭 10:06 (사람) ← 이번 알림",
         "",
         "*상태 이력*",
-        "• 9/24 10:00 email_sent: 첫 메일 발송",
+        "• 9/24 10:00 email＿sent: 첫 메일 발송",
         "• 9/30 10:00 콜 상태: 부재",
         "",
         "*메모*",
@@ -1075,7 +1077,9 @@ test("사용자 값의 < > 는 ‹ › 로 바뀌어 링크·멘션 문법이 �
     assert.equal(msg.split("<").length - 1, 2);
     assert.equal(msg.split(">").length - 1, 2);
     assert.ok(msg.includes("*디하‹b› · 깊이 들어온 사람*"));
-    assert.ok(msg.includes('"‹https://evil.example|여기를 누르세요›"'));
+    // 맨 URL도 눌리지 않게 (hxxps) — 회신 카드·발송 건강 글과 같은 규칙
+    assert.ok(msg.includes('"‹hxxps://evil.example|여기를 누르세요›"'));
+    assert.ok(!/https?:\/\/evil/.test(msg), msg);
     assert.ok(msg.includes("• 담당자 ‹메모›: ‹users/all› 확인 부탁"));
     assert.ok(msg.includes("• 본 페이지: /‹img src=x›/"));
     assert.ok(msg.includes("• 누른 것: ‹users/all›"));
@@ -1096,6 +1100,22 @@ test("카드는 3,800자에서 줄 단위로 잘리고 안내 줄과 마지막 �
 test("짧은 카드에는 자르기 안내가 붙지 않는다 (B17)", () => {
     const msg = buildAlertMessage(evidence(), NOW);
     assert.ok(!msg.includes(MESSAGE_TRUNCATION_NOTE));
+});
+
+test("받은 메일 줄: 규칙 이름이 없으면 발송 종류를 한국어로, 모르는 코드는 보이지 않는다 · 맨 URL은 hxxps (구글 챗 QA N1·N5)", () => {
+    const mail = (triggerType: string | null, subject: string) => ({ sentAt: SENT, subject, ruleName: null, triggerType, clicks: [], isAlertSend: false });
+    const msg = buildAlertMessage(
+        evidence({
+            emails: [mail("ai_auto", "첫 메일"), mail("weird_code", "둘째 메일"), mail(null, "셋째 메일")],
+            alertSend: { sentAt: SENT, subject: "셋째 메일", nth: 3, totalSends: 3 },
+            fields: [{ label: "홈페이지", value: "https://evil.test/phish www.evil.test" }],
+        }),
+        NOW
+    );
+    assert.ok(msg.includes("1. 10/1 10:00 [AI 자동 메일] 첫 메일 — 클릭 없음"), msg);
+    assert.ok(msg.includes("2. 10/1 10:00 둘째 메일 — 클릭 없음"), msg);
+    assert.ok(!/ai＿auto|ai_auto|weird/.test(msg), msg);
+    assert.ok(msg.includes("• 홈페이지: hxxps://evil.test/phish www[.]evil.test"), msg);
 });
 
 test("목록은 정한 개수까지만 보이고 나머지 수를 알린다 (B17)", () => {
@@ -1435,19 +1455,121 @@ test("미리보기 HTML: 카드가 없을 때와 오류일 때, 사용자 값·�
     assert.ok(err.includes("다른 미리보기가 &lt;도는&gt; 중입니다."));
 });
 
+// ── 구글 챗 QA (DV-1·DV-5·DV-9·DV-10·WPN-12) ──
+
+test("칸 값 120자 컷은 코드 포인트로 자른다 — 이모지를 반으로 가르지 않는다 (DV-1)", () => {
+    const v = formatFieldValue("ㄱ".repeat(118) + "😀" + "끝".repeat(5));
+    assert.equal(v, "ㄱ".repeat(118) + "😀…");
+    assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(v ?? ""));
+    assert.equal(formatFieldValue("비고 " + "가나다라마바사🙂".repeat(30))?.endsWith("…"), true);
+    assert.equal(formatFieldValue("짧음"), "짧음");
+});
+
+test("사업 이름 등 사용자 값의 * _ ~ ` 는 꾸밈으로 읽히지 않게 바꾼다, 메일 주소의 밑줄은 둔다 (DV-9)", () => {
+    const msg = buildAlertMessage(
+        evidence({
+            businessName: "*QA1* 사업_A",
+            fields: [
+                { label: "담당자", value: "_이름_" },
+                { label: "이메일", value: "a_b_c@x.com" },
+                { label: "비고", value: "*급함* 오늘 ~취소~ `코드`" },
+            ],
+        }),
+        NOW
+    );
+    const head = msg.split("\n").find((l) => l.startsWith("🔔"))!;
+    assert.equal(head.split(" — ")[0], "🔔 *＊QA1＊ 사업＿A · 깊이 들어온 사람*");
+    assert.match(msg, /a_b_c@x\.com/);
+    assert.match(msg, /• 비고: ＊급함＊ 오늘 ～취소～ ｀코드｀/);
+    assert.ok(!msg.includes("_이름_"));
+});
+
+test("같은 사람의 다른 레코드는 5개까지, 나머지는 수만 — 알림톡 줄을 밀어내지 않는다 (DV-10)", () => {
+    const otherRecords = Array.from({ length: 25 }, (_, i) => ({
+        partitionName: `명단 ${i}`,
+        integratedCode: `DH-${i}`,
+        createdAt: null,
+        stage: null,
+    }));
+    const msg = buildAlertMessage(evidence({ otherRecords }), NOW);
+    const block = msg.split("\n\n").find((b) => b.startsWith("*같은 사람의 다른 레코드*"))!;
+    assert.equal(block.split("\n").length, 1 + 5 + 1);
+    assert.match(block, /• 외 20개 — 레코드에서 보기$/);
+    assert.match(msg, /\*알림톡\* 1건 보냄/);
+});
+
+test("보낼 때 기한 줄을 보내는 때 기준으로 다시 쓰고, 1시간 넘게 늦으면 맨 위에 늦게 보냄을 붙인다 (DV-5·WPN-12)", () => {
+    const msg = buildAlertMessage(evidence({ angle: "A", deadline: "1시간 안 · 10/12(월) 11:00까지" }), NOW);
+    const sendAt = new Date("2026-10-13T10:05:00+09:00");
+    const sent = refreshCardForSend(msg, {
+        deadline: "1시간 안 · 10/13(화) 11:05까지",
+        scheduledAt: new Date("2026-10-12T10:00:00+09:00"),
+        now: sendAt,
+    });
+    const lines = sent.split("\n");
+    assert.equal(lines[0], "⏱ 웹훅 문제 등으로 24시간 늦게 보냅니다 (원래 10/12 10:00)");
+    assert.equal(lines[1], "⏰ *1시간 안 · 10/13(화) 11:05까지*");
+    // 늦지 않으면 기한만 바꾼다
+    const onTime = refreshCardForSend(msg, { deadline: "새 기한", scheduledAt: sendAt, now: sendAt });
+    assert.equal(onTime.split("\n")[0], "⏰ *새 기한*");
+    // 상한 안에서 센다 — 끝 안내 줄은 남긴다
+    const long = buildAlertMessage(
+        evidence({ fields: Array.from({ length: 60 }, (_, i) => ({ label: `칸${i}`, value: "값".repeat(100) })) }),
+        NOW
+    );
+    const longSent = refreshCardForSend(long, { deadline: null, scheduledAt: new Date(sendAt.getTime() - 5 * 3600 * 1000), now: sendAt });
+    assert.ok(longSent.length <= MESSAGE_MAX_CHARS, String(longSent.length));
+    assert.ok(longSent.endsWith(MESSAGE_FOOTER));
+    assert.ok(longSent.startsWith("⏱ "));
+});
+
 // ── 설정 — B18 ──
 
-const COMMON_HOOK = "https://chat.example.test/v1/spaces/COMMON/messages?key=fake-key&token=fake-token";
-const BOL_HOOK = "https://chat.example.test/v1/spaces/BOL/messages?key=fake-key&token=fake-token-2";
+// 진짜 주소가 아니다 (구글 챗 수신 웹훅 모양만)
+const COMMON_HOOK = "https://chat.googleapis.com/v1/spaces/COMMON/messages?key=fake-key&token=fake-token";
+const BOL_HOOK = "https://chat.googleapis.com/v1/spaces/BOL/messages?key=fake-key&token=fake-token-2";
+const PROD = { NEXT_PUBLIC_BASE_URL: "https://sendb.kr" };
 
 test("모드 기본값 dry_run, 허용 워크스페이스 없으면 처리 안 함 (B18)", () => {
-    assert.deepEqual(resolveAlertConfig({}), { mode: "dry_run", workspaceIds: [], webhookByWorkspace: {} });
+    assert.deepEqual(resolveAlertConfig({}), { mode: "dry_run", workspaceIds: [], webhookByWorkspace: {}, webhookChecks: [], warnings: [] });
     assert.equal(resolveAlertConfig({ DEEP_ALERT_MODE: "on" }).mode, "dry_run");
     assert.equal(resolveAlertConfig({ DEEP_ALERT_MODE: "" }).mode, "dry_run");
-    assert.equal(resolveAlertConfig({ DEEP_ALERT_MODE: " live " }).mode, "live");
+    assert.equal(resolveAlertConfig({ ...PROD, DEEP_ALERT_MODE: " live " }).mode, "live");
     assert.equal(resolveAlertConfig({ DEEP_ALERT_MODE: "off" }).mode, "off");
     // 공통 웹훅이 있어도 허용 목록이 비면 아무 워크스페이스에도 웹훅이 붙지 않는다
     assert.deepEqual(resolveAlertConfig({ DEEP_ALERT_WEBHOOK_URL: COMMON_HOOK }).webhookByWorkspace, {});
+});
+
+test("시험(개발) 서버에서는 live를 dry_run으로 내린다 — 개발 DB는 실제 고객 사본이다 (DV-4)", () => {
+    const dev = { DEEP_ALERT_MODE: "live", NEXT_PUBLIC_BASE_URL: "https://port-next-sendb-dev.example.test", DEEP_ALERT_WORKSPACE_IDS: "8" };
+    const a = resolveAlertConfig(dev);
+    assert.equal(a.mode, "dry_run");
+    assert.match(a.warnings[0] ?? "", /시험 서버/);
+    assert.equal(resolveAlertConfig({ ...dev, DEEP_ALERT_TEST_SERVER_LIVE: "1" }).mode, "live");
+    // 이 PC의 시험 DB에서만 운영처럼 (회신 알림과 같은 조건)
+    const local = { ...dev, NEXT_PUBLIC_BASE_URL: "http://localhost:3100", REPLY_TEST_ASSUME_PRODUCTION: "1" };
+    assert.equal(resolveAlertConfig({ ...local, DATABASE_URL: "postgres://u:p@127.0.0.1:54329/salesflow_test" }).mode, "live");
+    assert.equal(resolveAlertConfig({ ...local, DATABASE_URL: "postgres://u:p@db.cloudtype.example:5432/x" }).mode, "dry_run");
+    assert.equal(resolveAlertConfig({ ...dev, NEXT_PUBLIC_BASE_URL: "https://sendb.kr" }).warnings.length, 0);
+});
+
+test("구글 챗 수신 웹훅 주소만 받는다 — 오타 도메인·다른 호스트로 고객 정보가 나가지 않게 (DV-3)", () => {
+    const cfg = resolveAlertConfig({
+        ...PROD,
+        DEEP_ALERT_MODE: "live",
+        DEEP_ALERT_WORKSPACE_IDS: "8,9,10",
+        DEEP_ALERT_WEBHOOK_URL_8: "https://chat.googleapi.com/v1/spaces/QA1-TYPO/messages?key=k&token=t",
+        DEEP_ALERT_WEBHOOK_URL_9: "https://example.com/hook",
+        DEEP_ALERT_WEBHOOK_URL_10: BOL_HOOK,
+    });
+    assert.deepEqual(cfg.webhookByWorkspace, { 10: BOL_HOOK });
+    assert.deepEqual(
+        cfg.webhookChecks.map((c) => [c.workspaceId, c.source]),
+        [[8, "DEEP_ALERT_WEBHOOK_URL_8"], [9, "DEEP_ALERT_WEBHOOK_URL_9"], [10, "DEEP_ALERT_WEBHOOK_URL_10"]]
+    );
+    // 공통 주소를 쓰는 워크스페이스는 공통 변수 이름으로 남는다 (고칠 곳)
+    const common = resolveAlertConfig({ ...PROD, DEEP_ALERT_WORKSPACE_IDS: "8", DEEP_ALERT_WEBHOOK_URL: COMMON_HOOK });
+    assert.deepEqual(common.webhookChecks, [{ workspaceId: 8, source: "DEEP_ALERT_WEBHOOK_URL", url: COMMON_HOOK }]);
 });
 
 test("워크스페이스 번호는 양의 정수만, 중복 없이 읽는다 (B18)", () => {
@@ -1470,7 +1592,7 @@ test("https가 아닌 웹훅은 넣지 않고, 워크스페이스별 값이 잘�
     const cfg = resolveAlertConfig({
         DEEP_ALERT_WORKSPACE_IDS: "8,9",
         DEEP_ALERT_WEBHOOK_URL: COMMON_HOOK.replace("https://", "http://"),
-        DEEP_ALERT_WEBHOOK_URL_9: "chat.example.test/v1/spaces/BOL",
+        DEEP_ALERT_WEBHOOK_URL_9: "chat.googleapis.com/v1/spaces/BOL",
     });
     assert.deepEqual(cfg.webhookByWorkspace, {});
 

@@ -29,6 +29,7 @@ import {
     RESERVE_RELEASE_HOUR,
     reserveReleaseHour,
     spacingSpreadKey,
+    shiftWarmupStart,
     type PoolCandidate,
     type SendPurpose,
     type SenderLimitSettings,
@@ -1237,4 +1238,38 @@ test("간격 미룸: 대량 200줄을 펼친 직후 들어온 문의는 다음 �
     // 문의 두 번째는 문의끼리 다음 칸
     const second = spreadSpacingRetry(memo, spacingSpreadKey([7], "inbound"), base, poolSpacingStepMs(pool, inboundNow, "inbound"), inboundNow);
     assert.equal(second.toISOString(), iso("2026-10-05T10:48"));
+});
+
+// ── shiftWarmupStart — 자동 멈춤을 풀면 멈춘 날만큼 웜업을 미룬다 (DESIGN-SND 6-5, SND-10, H26) ──
+
+test("shiftWarmupStart: 5일째(35통)에 멈추고 10일 뒤 풀면 풀린 날도 5일째 35통", () => {
+    const s = settings({ warmupEnabled: true, warmupStartCount: 10, warmupStep: 5, dailyLimit: 200, warmupStartedOn: "2026-10-01" });
+    // 10/06 = 5일째 (10/01부터 5일 지남) → 10 + 5×5 = 35
+    assert.equal(capForDate(s, "2026-10-06"), 35);
+    const shifted = shiftWarmupStart(s, "2026-10-06", "2026-10-16");
+    assert.equal(shifted, "2026-10-11");
+    const after = { ...s, warmupStartedOn: shifted };
+    assert.equal(warmupDayIndex(after, "2026-10-16"), 5);
+    assert.equal(capForDate(after, "2026-10-16"), 35);
+    // 예전 판(미루지 않음)이면 풀린 날 85통이었다
+    assert.equal(capForDate(s, "2026-10-16"), 85);
+});
+
+test("shiftWarmupStart: 평일만이면 멈춘 동안의 평일만큼 (평일 10일 = 달력 14일)", () => {
+    // 10/05(월) 시작, 10/12(월) = 5일째(평일 5일 지남) → 35
+    const s = settings({ warmupEnabled: true, warmupStartCount: 10, warmupStep: 5, dailyLimit: 200, weekdaysOnly: true, warmupStartedOn: "2026-10-05" });
+    assert.equal(capForDate(s, "2026-10-12"), 35);
+    // 10/12(월)에 멈추고 10/26(월)에 풀면 멈춘 평일 10일
+    const shifted = shiftWarmupStart(s, "2026-10-12", "2026-10-26");
+    const after = { ...s, warmupStartedOn: shifted };
+    assert.equal(warmupDayIndex(after, "2026-10-26"), 5);
+    assert.equal(capForDate(after, "2026-10-26"), 35);
+});
+
+test("shiftWarmupStart: 웜업이 꺼졌거나·같은 날 풀거나·날짜가 없으면 그대로", () => {
+    const s = settings({ warmupEnabled: true, warmupStartedOn: "2026-10-01" });
+    assert.equal(shiftWarmupStart(s, "2026-10-06", "2026-10-06"), "2026-10-01");
+    assert.equal(shiftWarmupStart(s, null, "2026-10-16"), "2026-10-01");
+    assert.equal(shiftWarmupStart(settings({ warmupEnabled: false, warmupStartedOn: "2026-10-01" }), "2026-10-06", "2026-10-16"), "2026-10-01");
+    assert.equal(shiftWarmupStart(settings({ warmupEnabled: true, warmupStartedOn: null }), "2026-10-06", "2026-10-16"), null);
 });

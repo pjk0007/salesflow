@@ -43,6 +43,17 @@ interface SenderLimitSectionProps {
     sentToday: number | null;
     /** 관리자가 아니면 보기만 한다 (서버가 한도 칸 변경에 관리자 권한을 요구한다) */
     readOnly?: boolean;
+    /**
+     * 발신 건강 (DESIGN-SND 6-3·10절): 자동 멈춤이면 정지 스위치 옆에 "자동으로 멈춤 — 사유", 건강 조치 방식(자동 멈춤 / 알림만) 선택.
+     * 새 프로필이면 없다
+     */
+    health?: {
+        pausedSource: string | null;
+        pausedReason: string | null;
+        isDefault: boolean;
+        healthAction: "auto" | "alert";
+        onHealthActionChange: (v: "auto" | "alert") => void;
+    };
 }
 
 function ToggleRow({
@@ -149,6 +160,7 @@ export default function SenderLimitSection({
     check,
     sentToday,
     readOnly = false,
+    health,
 }: SenderLimitSectionProps) {
     const uid = useId();
     const today = todayKstYmd();
@@ -216,7 +228,43 @@ export default function SenderLimitSection({
                         checked={value.isPaused}
                         onCheckedChange={(v) => set("isPaused", v)}
                         disabled={readOnly}
-                    />
+                    >
+                        {health?.pausedSource === "auto" && stored.isPaused && (
+                            <p className="text-xs text-orange-700">
+                                자동으로 멈춤 — {health.pausedReason || "발송 실패가 많음"}. 정지를 끄면 풀기로 기록되고, 웜업 중이면 멈춘 날의 한도로 다시 시작합니다.
+                            </p>
+                        )}
+                    </ToggleRow>
+
+                    {health && (
+                        <div className="space-y-1.5">
+                            <Label htmlFor={`${uid}-health`}>발송 실패가 많을 때 (발신 건강)</Label>
+                            {health.isDefault ? (
+                                <p className="text-xs text-muted-foreground">
+                                    조직 기본 주소는 자동으로 멈추지 않고 알림만 합니다 — 멈추면 이 조직의 템플릿 메일(폼 문의 첫 메일 포함)이 모두 멈춥니다.
+                                </p>
+                            ) : (
+                                <>
+                                    <Select
+                                        value={health.healthAction}
+                                        onValueChange={(v) => health.onHealthActionChange(v === "alert" ? "alert" : "auto")}
+                                        disabled={readOnly}
+                                    >
+                                        <SelectTrigger id={`${uid}-health`} className="w-56">
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="auto">자동 멈춤 + 알림</SelectItem>
+                                            <SelectItem value="alert">알림만</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        실험 주소처럼 흔들면 안 되는 주소는 &ldquo;알림만&rdquo;으로 두세요.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    )}
 
                     <div className="space-y-1.5">
                         <Label htmlFor={`${uid}-daily`}>하루 최대 발송 수</Label>

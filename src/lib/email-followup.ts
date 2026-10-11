@@ -26,6 +26,12 @@ import {
     buildListUnsubscribeHeaders,
 } from "@/lib/email-unsubscribe";
 import { substitutePromptVariables } from "@/lib/email-utils";
+import { findReplyStop, type ReplyStopReason } from "@/lib/email-reply-guard";
+import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
+import { isRecipientSideFailure } from "@/lib/email-status-sync-rules";
+
+/** 후속 줄의 stop_reason — 회신·반송 막기(RPL 7-4)와 원본 메일 실패(F4) */
+type FollowupStopReason = ReplyStopReason | "first_failed";
 
 // ============================================
 // 타입 정의
@@ -50,8 +56,13 @@ type FollowupConfig = TemplateFollowupStep | AiFollowupStep;
  *   sent      보냈다
  *   skipped   보내지 않는 게 맞다 (설정 없음·수신거부·NHN 실패 등 — 예전 false)
  *   deferred  첫 메일 주소가 한도·시간대에 막혀 retryAt까지 미룬다 (다른 주소로 넘기지 않는다)
+ *   stopped   보내기 직전 막기 — 그 사업에서 회신했거나 조직에서 hard 반송된 주소다 (DESIGN-RPL 7-4). 줄을 cancelled + stop_reason으로
  */
-type FollowupHandlerResult = { kind: "sent" } | { kind: "skipped" } | { kind: "deferred"; retryAt: Date };
+type FollowupHandlerResult =
+    | { kind: "sent" }
+    | { kind: "skipped" }
+    | { kind: "deferred"; retryAt: Date }
+    | { kind: "stopped"; reason: ReplyStopReason };
 
 const SENT: FollowupHandlerResult = { kind: "sent" };
 const SKIPPED: FollowupHandlerResult = { kind: "skipped" };
@@ -67,8 +78,12 @@ export interface FollowupRunStats {
     sent: number;
     skipped: number;
     cancelled: number;
+    /** 보내기 직전 막기(회신·반송)로 cancelled가 된 줄 — cancelled에도 들어 있다 (DESIGN-RPL 7-4) */
+    stopped: number;
     /** 발신 한도·시간대에 막혀 check_at을 retryAt으로 옮긴 줄 */
     deferred: number;
+    /** 원본 메일의 명단이 보류 중이라 held로 둔 줄 (DESIGN-SND 6-2) */
+    held: number;
     /** 멈춘 processing 줄을 pending으로 되돌린 수 */
     reclaimed: number;
     skippedAsLocked?: boolean;
@@ -273,7 +288,9 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
         sent: 0,
         skipped: 0,
         cancelled: 0,
+        stopped: 0,
         deferred: 0,
+        held: 0,
         reclaimed: 0,
     };
 
@@ -293,6 +310,8 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
         }
 
         stats.reclaimed = await reclaimStuckFollowups();
+        // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6)
+        await reviveOrphanHeldRows("followup");
 
         const startedAt = Date.now();
         while (!isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
@@ -307,9 +326,9 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
                 }
             }
 
-            // 미룸만 나온 배치는 NHN을 부르지 않았으니 쉬지 않는다
+            // 미룸·명단 보류만 나온 배치는 NHN을 부르지 않았으니 쉬지 않는다
             const deferredOnly = isDeferralOnlyBatch(
-                results.map((r) => r.status === "fulfilled" && r.value === "deferred")
+                results.map((r) => r.status === "fulfilled" && (r.value === "deferred" || r.value === "held"))
             );
             if (!deferredOnly && !isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
                 await new Promise((r) => setTimeout(r, FOLLOWUP_BATCH_DELAY_MS));
@@ -322,7 +341,7 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
 
         console.log(
             `[Followup] processed=${stats.processed} sent=${stats.sent} skipped=${stats.skipped} ` +
-            `cancelled=${stats.cancelled} deferred=${stats.deferred} reclaimed=${stats.reclaimed}`
+            `cancelled=${stats.cancelled} stopped=${stats.stopped} deferred=${stats.deferred} held=${stats.held} reclaimed=${stats.reclaimed}`
         );
         return stats;
     } finally {
@@ -391,7 +410,7 @@ async function claimFollowupBatch(): Promise<FollowupQueueItem[]> {
 async function processFollowupItem(
     item: FollowupQueueItem,
     stats: FollowupRunStats
-): Promise<"sent" | "skipped" | "deferred" | "cancelled"> {
+): Promise<"sent" | "skipped" | "deferred" | "cancelled" | "held"> {
     stats.processed++;
 
     try {
@@ -406,6 +425,27 @@ async function processFollowupItem(
             await updateQueueStatus(item.id, "cancelled", null);
             stats.cancelled++;
             return "cancelled";
+        }
+
+        // 1-0. 원본(앞) 메일이 받는 쪽에서 실패했으면(SST3·반송 안내) 후속을 보내지 않는다 (F4, PRD SEQ-1).
+        // 명단 보류를 풀 때 되살아난 줄도 여기서 닫힌다 — 죽은 주소로 다시 보내 실패율을 다시 쌓지 않게. AI 후속이면 토큰도 아낀다
+        // 반송 안내(dsn)로 실패한 원본은 반송 막기와 같은 사유('bounced')로, NHN SST3로 실패한 원본은 'first_failed'로 남긴다
+        if (isRecipientSideFailure(parentLog)) {
+            await updateQueueStatus(item.id, "cancelled", null, parentLog.deliveryFailSource === "dsn" ? "bounced" : "first_failed");
+            stats.cancelled++;
+            stats.stopped++;
+            return "cancelled";
+        }
+
+        // 1-1. 명단 보류 (DESIGN-SND 6-2) — 후속은 대량이다. 원본 메일의 명단이 보류 중이면 AI·발신 자리 잡기 전에 held로 둔다.
+        // check_at은 그대로 — 보류가 풀리면 pending으로 돌아가 그때 나간다
+        if (parentLog.partitionId !== null) {
+            const hold = await getActiveHold(item.orgId, parentLog.partitionId, "bulk");
+            if (hold) {
+                await holdQueueItem(item.id);
+                stats.held++;
+                return "held";
+            }
         }
 
         // 2. 링크 클릭 여부로 분기 판정 (수신확인보다 정확 — 우리가 직접 기록)
@@ -426,6 +466,13 @@ async function processFollowupItem(
             await deferQueueItem(item.id, outcome.retryAt);
             stats.deferred++;
             return "deferred";
+        }
+        if (outcome.kind === "stopped") {
+            // 회신·반송으로 막혔다 — 다음 단계도 잡히지 않는다 (보냈을 때만 잡힌다)
+            await updateQueueStatus(item.id, "cancelled", result, outcome.reason);
+            stats.cancelled++;
+            stats.stopped++;
+            return "cancelled";
         }
         if (outcome.kind === "sent") {
             await updateQueueStatus(item.id, "sent", result);
@@ -450,11 +497,12 @@ async function processFollowupItem(
 async function updateQueueStatus(
     queueId: number,
     status: string,
-    result: string | null
+    result: string | null,
+    stopReason: FollowupStopReason | null = null
 ) {
     await db
         .update(emailFollowupQueue)
-        .set({ status, result, processedAt: new Date() })
+        .set({ status, result, processedAt: new Date(), ...(stopReason ? { stopReason } : {}) })
         .where(eq(emailFollowupQueue.id, queueId));
 }
 
@@ -468,6 +516,17 @@ async function deferQueueItem(queueId: number, retryAt: Date) {
     await db
         .update(emailFollowupQueue)
         .set({ status: "pending", checkAt: retryAt, lockedAt: null })
+        .where(and(eq(emailFollowupQueue.id, queueId), ne(emailFollowupQueue.status, "cancelled")));
+}
+
+/**
+ * 명단 보류로 줄을 held로 둔다 (DESIGN-SND 6-2). 잠금만 비우고 check_at·result는 그대로 — 보류가 풀리면 pending으로 돌아간다.
+ * 처리하는 사이 취소·회신 멈춤(cancelled)이 된 줄은 되살리지 않는다 (deferQueueItem과 같은 이유)
+ */
+async function holdQueueItem(queueId: number) {
+    await db
+        .update(emailFollowupQueue)
+        .set({ status: "held", lockedAt: null })
         .where(and(eq(emailFollowupQueue.id, queueId), ne(emailFollowupQueue.status, "cancelled")));
 }
 
@@ -526,6 +585,9 @@ async function handleTemplateFollowup(
     const workspaceId = await resolveWorkspaceId(link.partitionId);
     if (!workspaceId) return SKIPPED;
     if (await isUnsubscribed(workspaceId, parentLog.recipientEmail)) return SKIPPED;
+    // 6-1. 보내기 직전 막기 — 이 사업에서 회신했거나 조직에서 hard 반송된 주소면 멈춘다 (DESIGN-RPL 7-4, on일 때만)
+    const replyStop = await findReplyStop(item.orgId, workspaceId, parentLog.recipientEmail);
+    if (replyStop) return { kind: "stopped", reason: replyStop.reason };
 
     // 7. 변수 치환 + 서명
     const mappings = (link.variableMappings as Record<string, string>) || {};
@@ -673,6 +735,9 @@ async function handleAiFollowup(
     const workspaceId = await resolveWorkspaceId(link.partitionId);
     if (!workspaceId) return SKIPPED;
     if (await isUnsubscribed(workspaceId, parentLog.recipientEmail)) return SKIPPED;
+    // 3-1. 보내기 직전 막기 — 회신·hard 반송 주소면 AI 호출 전에 멈춘다 (DESIGN-RPL 7-4, on일 때만)
+    const replyStop = await findReplyStop(item.orgId, workspaceId, parentLog.recipientEmail);
+    if (replyStop) return { kind: "stopped", reason: replyStop.reason };
 
     // 4. AI 클라이언트 확인
     const aiClient = getAiClient(link.model || undefined);

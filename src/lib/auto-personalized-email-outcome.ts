@@ -30,21 +30,32 @@ export type SkipReason =
     | "no_email_client"
     | "no_sender"
     /** 대기열 줄에서 이 규칙이 시도 횟수를 다 써 빠졌다 — 돌리지 않았다 (email-send-queue-rules.ts planQueueRow) */
-    | "retry_exhausted";
+    | "retry_exhausted"
+    /** 보내기 직전 막기: 이 사업에서 회신한 주소 (DESIGN-RPL 7-4) */
+    | "replied"
+    /** 보내기 직전 막기: 이 조직에서 hard 반송된 주소 (DESIGN-RPL 7-4) */
+    | "bounced";
 
 /** 레코드 하나에 대한 전체 결과 */
 export interface RecordOutcome {
     /** 매칭된 규칙이 하나도 없었다 */
     noMatchingRules: boolean;
     outcomes: LinkOutcome[];
+    /**
+     * 명단 보류 중이라 규칙을 하나도 돌리지 않았다 (DESIGN-SND 6-2, 대량만). 대기열 줄은 held로 두고 시도 횟수를 쓰지 않는다 —
+     * 보류가 풀리면 pending으로 돌아가 원래 순서대로 나간다
+     */
+    held?: { holdId: number };
 }
 
-export type QueueOutcome = "ok" | "skip" | "error" | "defer";
+/** hold = 명단 보류 (대기열 줄을 held로) */
+export type QueueOutcome = "ok" | "skip" | "error" | "defer" | "hold";
 
 /**
  * 규칙별 결과를 큐 상태 하나로 접는다.
  *
- * 우선순위: 미매칭 → skip, 실패 → error, 미룸 → defer, 발송 → ok, 그 밖 → skip.
+ * 우선순위: 미매칭 → skip, 명단 보류 → hold, 실패 → error, 미룸 → defer, 발송 → ok, 그 밖 → skip.
+ * 보류는 규칙을 하나도 돌리지 않았으므로 다른 결과와 섞이지 않는다 (DESIGN-SND 6-2).
  * 발송이 하나라도 있어도 error를 우선한다 — 나머지 규칙을 재시도해야 하고,
  * 이미 보낸 건은 쿨다운(checkCooldown)이 중복 발송을 막는다.
  * 실패가 미룸보다 앞인 것도 같은 이유다 — 실패한 규칙은 미룬 시각까지 기다릴 까닭이 없다.
@@ -54,6 +65,7 @@ export type QueueOutcome = "ok" | "skip" | "error" | "defer";
  */
 export function foldOutcome(result: RecordOutcome): QueueOutcome {
     if (result.noMatchingRules) return "skip";
+    if (result.held) return "hold";
     if (result.outcomes.some((o) => o.kind === "failed")) return "error";
     if (result.outcomes.some((o) => o.kind === "deferred")) return "defer";
     if (result.outcomes.some((o) => o.kind === "sent")) return "ok";
@@ -91,6 +103,7 @@ export function failedLinkIds(result: RecordOutcome): number[] {
 /** 큐의 last_error에 남길 사람이 읽을 수 있는 요약 */
 export function describeOutcome(result: RecordOutcome): string {
     if (result.noMatchingRules) return "no matching rules";
+    if (result.held) return `partition held (hold ${result.held.holdId})`;
     if (result.outcomes.length === 0) return "no outcomes";
     return result.outcomes
         .map((o) => {

@@ -333,6 +333,19 @@ export function pickLimitPatch(body: Record<string, unknown> | null | undefined)
     return Object.keys(patch).length > 0 ? patch : null;
 }
 
+/**
+ * 요청 본문의 발신 건강 조치 방식 칸 (DESIGN-SND 6-3). 없으면 null. auto(자동 멈춤)·alert(알림만)만 받는다.
+ * 한도 칸처럼 관리자만 바꾼다 — 11/2 실험 주소처럼 흔들면 안 되는 주소에 "알림만"을 켠다
+ */
+export function pickHealthPatch(
+    body: Record<string, unknown> | null | undefined
+): { ok: true; value: { healthAction: "auto" | "alert" } } | { ok: false; error: string } | null {
+    if (!body || typeof body !== "object" || body.healthAction === undefined) return null;
+    const v = body.healthAction;
+    if (v === "auto" || v === "alert") return { ok: true, value: { healthAction: v } };
+    return { ok: false, error: "건강 조치는 '자동 멈춤(auto)' 또는 '알림만(alert)'만 고를 수 있습니다." };
+}
+
 // ============================================
 // 내부
 // ============================================

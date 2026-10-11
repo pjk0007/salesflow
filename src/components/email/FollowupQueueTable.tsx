@@ -31,6 +31,21 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
     sent: { label: "발송", variant: "default" },
     skipped: { label: "건너뜀", variant: "secondary" },
     cancelled: { label: "취소", variant: "destructive" },
+    // 원본 메일의 명단이 발송 실패가 많아 보류 중 (DESIGN-SND 6-2). 관리자가 풀면 대기로 돌아간다
+    held: { label: "명단 보류", variant: "outline" },
+};
+
+/** 멈춘 까닭 (DESIGN-RPL 11절 5번) — 취소 배지 옆 */
+const STOP_REASON_MAP: Record<string, string> = {
+    replied: "(회신)",
+    bounced: "(반송)",
+    first_failed: "(앞 메일 실패)",
+};
+
+const STOP_REASON_TITLE: Record<string, string> = {
+    replied: "고객이 회신해서 자동 메일을 멈췄습니다",
+    bounced: "반송된 주소라 자동 메일을 멈췄습니다",
+    first_failed: "앞 메일이 받는 쪽에서 실패해(NHN 발송 실패 — 주소 없음 등) 후속을 보내지 않았습니다",
 };
 
 const SOURCE_TYPE_MAP: Record<string, string> = {
@@ -98,6 +113,7 @@ export default function FollowupQueueTable() {
                         <SelectItem value="sent">발송</SelectItem>
                         <SelectItem value="skipped">건너뜀</SelectItem>
                         <SelectItem value="cancelled">취소</SelectItem>
+                        <SelectItem value="held">명단 보류</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -169,6 +185,14 @@ export default function FollowupQueueTable() {
                                             <TableCell>{formatDate(item.checkAt)}</TableCell>
                                             <TableCell>
                                                 <Badge variant={st.variant}>{st.label}</Badge>
+                                                {item.stopReason && STOP_REASON_MAP[item.stopReason] && (
+                                                    <span
+                                                        className="ml-1 text-xs text-muted-foreground"
+                                                        title={STOP_REASON_TITLE[item.stopReason]}
+                                                    >
+                                                        {STOP_REASON_MAP[item.stopReason]}
+                                                    </span>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 {item.result === "clicked" ? (
@@ -181,7 +205,7 @@ export default function FollowupQueueTable() {
                                             </TableCell>
                                             <TableCell>{formatDate(item.processedAt)}</TableCell>
                                             <TableCell>
-                                                {item.status === "pending" && (
+                                                {(item.status === "pending" || item.status === "held") && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"

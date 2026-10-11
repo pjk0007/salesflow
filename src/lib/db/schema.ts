@@ -16,6 +16,7 @@ import {
     numeric,
     primaryKey,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { FormulaConfig } from "@/types";
 
 // timestamptz 헬퍼
@@ -725,7 +726,25 @@ export const emailSendLogs = pgTable("email_send_logs", {
     senderProfileId: integer("sender_profile_id"),  // 후속 메일이 원본 발신자를 상속하기 위한 값. 마이그레이션 이전 로그는 null
     // 보낼 때 실제로 쓴 발신 주소 (DESIGN-3 4-1). 프로필 주소를 나중에 바꿔도 그대로다. 0073 전 로그는 null
     senderEmail: varchar("sender_email", { length: 200 }),
-});
+    // ── 발송 결과 자동 맞추기 (0075, DESIGN-SND 3절·4절). 이 칸을 쓰는 곳은 applyNhnStatuses·recordBounceSignal 둘뿐이다
+    /** NHN 상태 코드 그대로 (SST0~SST8). NULL = 아직 NHN 결과를 받지 못함 */
+    nhnStatusCode: varchar("nhn_status_code", { length: 8 }),
+    nhnCheckedAt: timestamptz("nhn_checked_at"),
+    /** 3-3 보조 질문(요청 번호 조회) 횟수 — 3번까지 */
+    nhnCheckCount: smallint("nhn_check_count").default(0).notNull(),
+    /** 'nhn' = SST3, 'dsn' = 회신 메일함에 온 반송 안내. 먼저 온 쪽이 남는다 (한 기록에 실패는 한 번) */
+    deliveryFailSource: varchar("delivery_fail_source", { length: 8 }),
+    deliveryFailedAt: timestamptz("delivery_failed_at"),
+    /** 5.1.1 같은 상태 (NHN dsnCode 또는 반송 안내 Status) */
+    deliveryStatusCode: varchar("delivery_status_code", { length: 16 }),
+    /** recipient | sender (SST7·8, 5.7.x·SPF·DKIM·DMARC) */
+    deliveryFailSide: varchar("delivery_fail_side", { length: 10 }),
+}, (table) => [
+    // 마이그레이션에는 없다 — 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (src/lib/db/send-log-indexes.ts, DESIGN-SND 8-3).
+    // 이 저장소는 db:generate를 쓰지 않으므로 이 선언이 마이그레이션을 만들지 않는다. 이름은 send-log-indexes.ts와 같다
+    index("email_send_logs_org_sent_at_idx").on(table.orgId, table.sentAt),
+    index("email_send_logs_request_id_idx").on(table.requestId).where(sql`request_id IS NOT NULL`),
+]);
 
 // ============================================
 // 이메일 클릭 추적
@@ -789,10 +808,12 @@ export const emailAutomationQueue = pgTable(
         orgId: uuid("org_id").notNull(),
         repeatCount: integer("repeat_count").default(0).notNull(),
         nextRunAt: timestamptz("next_run_at").notNull(),
-        status: varchar("status", { length: 20 }).default("pending").notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | completed | cancelled | held(명단 보류, DESIGN-SND 6-2)
         // repeat = 반복 발송, first = 발신 한도로 미룬 템플릿 자동 첫 메일(문의),
         // first_bulk = 가져오기·예약 등록 명단의 미룬 첫 메일(대량 — 15:00 KST 전까지 문의 몫을 남긴다, DESIGN-2 2절)
         kind: varchar("kind", { length: 10 }).default("repeat").notNull(),
+        // 멈춘 까닭 (0074, DESIGN-RPL 7-2·7-4): replied(회신) | bounced(반송). 사람이 고른 취소·규칙 꺼짐은 NULL
+        stopReason: varchar("stop_reason", { length: 30 }),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },
@@ -885,11 +906,13 @@ export const emailFollowupQueue = pgTable(
         orgId: uuid("org_id").notNull(),
         stepIndex: integer("step_index").default(0).notNull(),
         checkAt: timestamptz("check_at").notNull(),
-        status: varchar("status", { length: 20 }).default("pending").notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | processing | sent | skipped | cancelled | held(명단 보류, DESIGN-SND 6-2)
         result: varchar("result", { length: 20 }),
         processedAt: timestamptz("processed_at"),
         /** processing 진입 시각 — 멈춘 줄 회수에 쓴다 */
         lockedAt: timestamptz("locked_at"),
+        /** 멈춘 까닭 (0074, DESIGN-RPL 7-2·7-4): replied(회신) | bounced(반송). 사람이 취소한 줄은 NULL */
+        stopReason: varchar("stop_reason", { length: 30 }),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
     },
     (table) => ({
@@ -916,7 +939,7 @@ export const emailSendQueue = pgTable(
             .notNull(),
         orgId: uuid("org_id").notNull(),
         triggerType: varchar("trigger_type", { length: 20 }).notNull(),
-        status: varchar("status", { length: 20 }).default("pending").notNull(),
+        status: varchar("status", { length: 20 }).default("pending").notNull(), // pending | processing | sent | skipped | failed | held(명단 보류 — 대량 줄만, DESIGN-SND 6-2)
         attempts: integer("attempts").default(0).notNull(),
         lastError: text("last_error"),
         /** processing 진입 시각 — stuck 판정에 쓴다 */
@@ -1224,6 +1247,15 @@ export const emailSenderProfiles = pgTable("email_sender_profiles", {
     weekdaysOnly: boolean("weekdays_only").default(false).notNull(),
     spreadEvenly: boolean("spread_evenly").default(false).notNull(),
     isPaused: boolean("is_paused").default(false).notNull(),
+    // 발신 건강 (0075, DESIGN-SND 6-3·6-5). 자리 잡기 판정과는 상관없다 — 판정은 is_paused 하나만 본다
+    /** 누가 멈췄나: manual(사람) | auto(발신 건강 자동 멈춤). 멈춰 있지 않으면 NULL */
+    pausedSource: varchar("paused_source", { length: 10 }),
+    pausedReason: text("paused_reason"),
+    pausedAt: timestamptz("paused_at"),
+    /** 건강 조치 방식: auto(자동 멈춤) | alert(알림만). 조직 기본 주소는 이 값과 상관없이 늘 알림만 (코드가 막는다) */
+    healthAction: varchar("health_action", { length: 10 }).default("auto").notNull(),
+    /** 자동 멈춤을 푼 시각 — 이 시각 뒤 발송만으로 다시 판정한다 (5-2 재판정 유예) */
+    healthResetAt: timestamptz("health_reset_at"),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
@@ -1718,3 +1750,356 @@ export const deepVisitorAlerts = pgTable("deep_visitor_alerts", {
 
 export type DeepVisitorAlert = typeof deepVisitorAlerts.$inferSelect;
 export type NewDeepVisitorAlert = typeof deepVisitorAlerts.$inferInsert;
+
+// 메일 링크에서 유입된 고객 여정 카드 — 방문당 한 장, 깊이 알림과 별도 스페이스
+export const customerJourneyAlerts = pgTable("customer_journey_alerts", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+    workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }).notNull(),
+    recordId: integer("record_id").notNull(),
+    sessionId: integer("session_id").notNull(),
+    lastActivityAt: timestamptz("last_activity_at").notNull(),
+    stage: varchar("stage", { length: 100 }).notNull(),
+    message: jsonb("message").notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    nextAttemptAt: timestamptz("next_attempt_at").defaultNow().notNull(),
+    lastError: text("last_error"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    sentAt: timestamptz("sent_at"),
+}, (table) => [
+    uniqueIndex("cja_org_session_unique").on(table.orgId, table.sessionId),
+    index("cja_status_next_idx").on(table.status, table.nextAttemptAt),
+]);
+
+// ============================================
+// 회신 받기 (Gmail 회신 메일함) — docs/2026-10-11-reply-and-health/DESIGN-RPL.md 9절, 마이그레이션 0074
+// ============================================
+// 샌드비 발신 주소 앞으로 온 메일만 남는다 (4절 개인정보 거르기). 본문 원문·첨부·Cc 목록은 남기지 않는다 —
+// 발췌(인용 뗀 앞 500자)와 분류만. Gmail 메시지 번호는 메일함마다 다르므로 (메일함, 번호)가 유일 키다.
+export const emailReplies = pgTable("email_replies", {
+    id: serial("id").primaryKey(),
+    /** 애매함(ambiguous)이면 NULL */
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }),
+    workspaceId: integer("workspace_id"),
+    /** 못 이었지만 발신 주소로 사업을 추정했다 (6-3) */
+    workspaceGuessed: boolean("workspace_guessed").default(false).notNull(),
+    /** 레코드를 지워도 막기 기록은 남긴다. 넣을 때는 records에 있는 것만 (M6) */
+    recordId: integer("record_id").references(() => records.id, { onDelete: "set null" }),
+    // 발송 기록은 FK를 걸지 않는다 (깊이 알림과 같은 이유 — 큰 표에 잠금을 걸지 않게)
+    sendLogId: integer("send_log_id"),
+    rootLogId: integer("root_log_id"),
+    ruleKind: varchar("rule_kind", { length: 10 }), // ai | template | manual
+    ruleId: integer("rule_id"),
+    /** 0 = 첫 메일, n = n번째 후속 */
+    stepIndex: integer("step_index"),
+    mailbox: varchar("mailbox", { length: 200 }).notNull(),
+    gmailMessageId: varchar("gmail_message_id", { length: 64 }).notNull(),
+    gmailThreadId: varchar("gmail_thread_id", { length: 64 }),
+    rfcMessageId: varchar("rfc_message_id", { length: 300 }),
+    /** 정규화한 보낸 사람 주소 */
+    fromEmail: varchar("from_email", { length: 200 }).notNull(),
+    fromName: varchar("from_name", { length: 200 }),
+    /** 받은 우리 발신 주소 */
+    toEmail: varchar("to_email", { length: 200 }).notNull(),
+    /** 사람·자동응답 = 보낸 사람, 반송 = 반송된 받는 주소 (Final → Original) */
+    contactEmail: varchar("contact_email", { length: 200 }).notNull(),
+    /** 이어진 발송의 받는 주소(원래 받은 사람). 멈춤·막기는 contactEmail과 둘 다 (M3) */
+    matchedRecipient: varchar("matched_recipient", { length: 200 }),
+    subject: varchar("subject", { length: 300 }),
+    /** 인용 뗀 앞 500자. 반송·시스템·큰 메일은 NULL */
+    excerpt: text("excerpt"),
+    kind: varchar("kind", { length: 20 }).notNull(), // human | auto_reply | bounce | system | internal | unknown
+    bounceType: varchar("bounce_type", { length: 10 }), // hard | expired | soft | unknown
+    dsnStatus: varchar("dsn_status", { length: 20 }),
+    dsnDiagnostic: varchar("dsn_diagnostic", { length: 300 }),
+    unsubscribeHint: boolean("unsubscribe_hint").default(false).notNull(),
+    oursReason: varchar("ours_reason", { length: 20 }).notNull(), // address | domain_thread
+    matchStatus: varchar("match_status", { length: 20 }).notNull(), // matched | unmatched | ambiguous
+    matchMethod: varchar("match_method", { length: 20 }),
+    /** Gmail internalDate */
+    receivedAt: timestamptz("received_at").notNull(),
+    detectedAt: timestamptz("detected_at").defaultNow().notNull(),
+    detectedMode: varchar("detected_mode", { length: 10 }).notNull(), // dry_run | on
+    /** 메일 하나의 데이터 오류 (SQLSTATE·제약 이름만, M6) */
+    processError: varchar("process_error", { length: 80 }),
+    effectsAppliedAt: timestamptz("effects_applied_at"),
+    /** 효과를 적용할 때의 kind — 사람으로 고치면 다시 적용 (M5) */
+    effectsAppliedKind: varchar("effects_applied_kind", { length: 20 }),
+    effects: jsonb("effects").$type<Record<string, unknown>>(),
+    /** 담당이 끄면 보내기 직전 막기에서 빠진다 */
+    stopAutomation: boolean("stop_automation").default(true).notNull(),
+    alertStatus: varchar("alert_status", { length: 20 }), // NULL | pending | processing | sent | failed | skipped | dry_run
+    alertAttempts: integer("alert_attempts").default(0).notNull(),
+    alertNextAt: timestamptz("alert_next_at"),
+    alertLockedAt: timestamptz("alert_locked_at"),
+    alertMessage: text("alert_message"),
+    alertLastError: text("alert_last_error"),
+    alertSentAt: timestamptz("alert_sent_at"),
+    handledBy: uuid("handled_by"),
+    handledAt: timestamptz("handled_at"),
+    kindChangedBy: uuid("kind_changed_by"),
+    kindChangedAt: timestamptz("kind_changed_at"),
+}, (table) => [
+    uniqueIndex("er_mailbox_gmail_idx").on(table.mailbox, table.gmailMessageId),
+    uniqueIndex("er_org_rfc_idx")
+        .on(table.orgId, table.rfcMessageId)
+        .where(sql`"org_id" IS NOT NULL AND "rfc_message_id" IS NOT NULL`),
+    index("er_stop_idx").on(table.workspaceId, table.contactEmail),
+    index("er_stop_recipient_idx").on(table.workspaceId, table.matchedRecipient).where(sql`"matched_recipient" IS NOT NULL`),
+    index("er_send_log_idx").on(table.sendLogId),
+    index("er_record_idx").on(table.recordId),
+    index("er_org_received_idx").on(table.orgId, table.receivedAt),
+    index("er_alert_pickup_idx").on(table.alertStatus, table.alertNextAt, table.id),
+]);
+
+export type EmailReply = typeof emailReplies.$inferSelect;
+export type NewEmailReply = typeof emailReplies.$inferInsert;
+
+/** 메일함마다 어디까지 읽었나. 남의 메일에 대해서는 건수(stats)만 남는다 */
+export const emailReplyMailboxState = pgTable("email_reply_mailbox_state", {
+    mailbox: varchar("mailbox", { length: 200 }).primaryKey(),
+    historyId: varchar("history_id", { length: 32 }),
+    backfillAfter: timestamptz("backfill_after"),
+    backfillBefore: timestamptz("backfill_before"),
+    backfillDoneAt: timestamptz("backfill_done_at"),
+    lastRunAt: timestamptz("last_run_at"),
+    lastSuccessAt: timestamptz("last_success_at"),
+    /** auth | scope | mailbox_mismatch | rate_limited | transient | config | stale */
+    lastErrorCode: varchar("last_error_code", { length: 30 }),
+    /** 한국어 한 줄. 비밀값·주소 없음 */
+    lastError: text("last_error"),
+    lastErrorAt: timestamptz("last_error_at"),
+    opsAlertedAt: timestamptz("ops_alerted_at"),
+    /** 마지막으로 운영 알림을 보낸 원인 (같은 원인은 6시간에 한 번, 원인이 바뀌면 바로 — RO-7) */
+    opsAlertedCode: varchar("ops_alerted_code", { length: 30 }),
+    /** 회복 글을 아직 못 보냈다 (그 원인) — 다음 성공 회차에 다시 보낸다 (RO-6) */
+    opsRecoveryCode: varchar("ops_recovery_code", { length: 30 }),
+    /** 마지막으로 회복한 때 — 1시간 안에 같은 문제가 다시 나면 바로 알리지 않는다 (RO-15) */
+    opsRecoveredAt: timestamptz("ops_recovered_at"),
+    /** 마지막 회차와 오늘(KST) 누적 숫자 + excluded(뺀 주소, 가린 모양)·serverKind */
+    stats: jsonb("stats").$type<Record<string, unknown>>(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+export type EmailReplyMailboxState = typeof emailReplyMailboxState.$inferSelect;
+
+// ============================================
+// 발신 건강 (0075, docs/2026-10-11-reply-and-health/DESIGN-SND.md 8절)
+// ============================================
+
+/** 명단 보류. 풀어도 줄을 남긴다 (언제·왜·누가 풀었나). 명단 하나에 풀리지 않은 보류는 하나뿐이다 */
+export const emailPartitionHolds = pgTable("email_partition_holds", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    workspaceId: integer("workspace_id").notNull(),
+    partitionId: integer("partition_id")
+        .references(() => partitions.id, { onDelete: "cascade" })
+        .notNull(),
+    /** bulk(대량만, 자동 보류는 늘 이것) | all(나중의 손 보류) */
+    scope: varchar("scope", { length: 8 }).default("bulk").notNull(),
+    /** auto | manual(나중) */
+    source: varchar("source", { length: 10 }).default("auto").notNull(),
+    reasonCode: varchar("reason_code", { length: 30 }).notNull(),
+    /** 사람이 읽는 한 줄 (받는 주소 없음) */
+    reasonText: text("reason_text").notNull(),
+    metrics: jsonb("metrics").$type<Record<string, unknown>>(),
+    eventId: integer("event_id"),
+    heldAt: timestamptz("held_at").defaultNow().notNull(),
+    releasedAt: timestamptz("released_at"),
+    releasedBy: uuid("released_by"),
+    releaseNote: text("release_note"),
+}, (table) => [
+    uniqueIndex("eph_active_partition_idx").on(table.partitionId).where(sql`"released_at" IS NULL`),
+    index("eph_org_held_idx").on(table.orgId, table.heldAt),
+    index("eph_partition_released_idx").on(table.partitionId, table.releasedAt),
+]);
+
+export type EmailPartitionHold = typeof emailPartitionHolds.$inferSelect;
+
+/** 반송 안내·스팸 신고 신호 (회신 읽기가 넘겨준 것, DESIGN-SND 4절). send_log_id는 FK 없음 — 큰 표에 잠금을 걸지 않게 */
+export const emailBounceSignals = pgTable("email_bounce_signals", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    sendLogId: integer("send_log_id"),
+    recordId: integer("record_id"),
+    /** 소문자. Final-Recipient(없으면 Original). complaint는 이어진 발송의 받는 주소 */
+    recipientEmail: varchar("recipient_email", { length: 200 }).notNull(),
+    originalRecipient: varchar("original_recipient", { length: 200 }),
+    /** 소문자, 우리 발신 주소 */
+    senderEmail: varchar("sender_email", { length: 200 }).notNull(),
+    dsnAction: varchar("dsn_action", { length: 16 }),
+    dsnStatus: varchar("dsn_status", { length: 16 }),
+    /** 앞 300자 */
+    diagnostic: text("diagnostic"),
+    /** hard | expired | soft | unknown | complaint */
+    kind: varchar("kind", { length: 10 }).notNull(),
+    /** same | different | NULL(못 이음) */
+    recipientMatch: varchar("recipient_match", { length: 10 }),
+    /** recipient | sender */
+    failSide: varchar("fail_side", { length: 10 }),
+    gmailMessageId: varchar("gmail_message_id", { length: 64 }).notNull(),
+    receivedAt: timestamptz("received_at").notNull(),
+    /** 발송 기록에 적용한 때. RPL dry_run이면 NULL (뒤에 applyPendingBounceSignals) */
+    appliedAt: timestamptz("applied_at"),
+    /** 이 신호로 발송 기록이 처음 실패가 됐나 */
+    counted: boolean("counted").default(false).notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex("ebs_message_recipient_idx").on(table.orgId, table.gmailMessageId, table.recipientEmail),
+    index("ebs_org_received_idx").on(table.orgId, table.receivedAt),
+    index("ebs_org_recipient_idx").on(table.orgId, table.recipientEmail).where(sql`"kind" = 'hard'`),
+]);
+
+export type EmailBounceSignal = typeof emailBounceSignals.$inferSelect;
+
+/** 건강 사건 (감사 기록). dedupe_key가 조직 안에서 유일하다 (DESIGN-SND 7-1) */
+export const emailHealthEvents = pgTable("email_health_events", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    workspaceId: integer("workspace_id"),
+    /** partition | sender | domain | org */
+    entityType: varchar("entity_type", { length: 10 }).notNull(),
+    /** 파티션 id·프로필 id (0 = 프로필 없는 기본 주소) */
+    entityId: integer("entity_id"),
+    /** 도메인 사건이면 도메인 */
+    entityKey: varchar("entity_key", { length: 220 }),
+    /** danger | danger_with | auth_burst | release | report | cap | sync */
+    kind: varchar("kind", { length: 12 }).notNull(),
+    /** danger | caution | info */
+    level: varchar("level", { length: 8 }).notNull(),
+    /** dry_run | alert | enforce */
+    mode: varchar("mode", { length: 8 }).notNull(),
+    /** none | hold | pause | release */
+    action: varchar("action", { length: 8 }).default("none").notNull(),
+    /** mode | opt_out | cap | cap_auth | no_profile | already | default_sender | sync_stale | sync_initial | unconfirmed_high */
+    actionNote: varchar("action_note", { length: 20 }),
+    /** 7d | 30d */
+    evalWindow: varchar("eval_window", { length: 4 }),
+    dedupeKey: varchar("dedupe_key", { length: 200 }).notNull(),
+    metrics: jsonb("metrics").$type<Record<string, unknown>>(),
+    summary: text("summary").notNull(),
+    actorUserId: uuid("actor_user_id"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex("ehe_org_dedupe_idx").on(table.orgId, table.dedupeKey),
+    index("ehe_org_created_idx").on(table.orgId, table.createdAt),
+]);
+
+export type EmailHealthEvent = typeof emailHealthEvents.$inferSelect;
+
+/** 알림 보낼 줄 — 한 회차의 새 사건을 조직·받는 곳마다 한 통으로 묶는다 (SND-13) */
+export const emailHealthAlerts = pgTable("email_health_alerts", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").notNull(),
+    /** run:<회차 시작 ms> | report:<날짜> | release:<…> | sync:<…> */
+    batchKey: varchar("batch_key", { length: 80 }).notNull(),
+    eventIds: integer("event_ids").array().notNull(),
+    /** ops | ws:<워크스페이스 id> */
+    target: varchar("target", { length: 20 }).notNull(),
+    workspaceId: integer("workspace_id"),
+    message: text("message").notNull(),
+    /** pending | processing | sent | failed | skipped | dry_run */
+    status: varchar("status", { length: 12 }).default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    scheduledAt: timestamptz("scheduled_at").defaultNow().notNull(),
+    lockedAt: timestamptz("locked_at"),
+    sentAt: timestamptz("sent_at"),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex("eha_org_batch_target_idx").on(table.orgId, table.batchKey, table.target),
+    index("eha_pickup_idx").on(table.status, table.scheduledAt, table.id),
+]);
+
+export type EmailHealthAlert = typeof emailHealthAlerts.$inferSelect;
+
+/** 하루 건강 (대상별, 회차마다 오늘 줄을 덮어쓴다 — 날짜별로 남는다) */
+export const emailHealthDaily = pgTable("email_health_daily", {
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    /** KST "YYYY-MM-DD" */
+    healthDate: varchar("health_date", { length: 10 }).notNull(),
+    /** p:<id> | s:<id> | s:0 | d:<도메인> */
+    entityKey: varchar("entity_key", { length: 220 }).notNull(),
+    workspaceId: integer("workspace_id"),
+    finalCount: integer("final_count").default(0).notNull(),
+    failedCount: integer("failed_count").default(0).notNull(),
+    senderSideCount: integer("sender_side_count").default(0).notNull(),
+    nhnUnsubCount: integer("nhn_unsub_count").default(0).notNull(),
+    unknownCount: integer("unknown_count").default(0).notNull(),
+    dsnOnlyCount: integer("dsn_only_count").default(0).notNull(),
+    rateBp: integer("rate_bp"),
+    /** ok | caution | danger | insufficient */
+    state: varchar("state", { length: 12 }).notNull(),
+    /** 7d | 30d (느린 명단) */
+    evalWindow: varchar("eval_window", { length: 4 }).default("7d").notNull(),
+    reasons: jsonb("reasons").$type<Record<string, unknown>>(),
+    windowStart: timestamptz("window_start").notNull(),
+    evaluatedAt: timestamptz("evaluated_at").defaultNow().notNull(),
+}, (table) => [
+    // 이름을 마이그레이션 SQL의 기본 이름과 맞춘다 — 다르면 drizzle-kit이 PK를 다시 만들려 한다
+    primaryKey({ name: "email_health_daily_pkey", columns: [table.orgId, table.healthDate, table.entityKey] }),
+]);
+
+export type EmailHealthDailyRow = typeof emailHealthDaily.$inferSelect;
+
+/** NHN 결과 동기화 상태 (조직마다 한 줄. 같은 appKey 묶음은 대표 조직 줄의 커서를 따른다, DESIGN-SND 3-2) */
+export const emailStatusSyncState = pgTable("email_status_sync_state", {
+    orgId: uuid("org_id")
+        .primaryKey()
+        .references(() => organizations.id, { onDelete: "cascade" }),
+    /** update-mails를 여기까지 다 읽었다 */
+    updateCursor: timestamptz("update_cursor"),
+    /** 처음 커서 (now − 8일) */
+    initialFrom: timestamptz("initial_from"),
+    /** 커서가 지금을 따라잡은 때. 비면 6-1 관문 */
+    initialDoneAt: timestamptz("initial_done_at"),
+    lastRunAt: timestamptz("last_run_at"),
+    lastOkAt: timestamptz("last_ok_at"),
+    lastError: text("last_error"),
+    /** auth | rate_limited | transient | config */
+    lastErrorCode: varchar("last_error_code", { length: 20 }),
+    consecutiveErrors: integer("consecutive_errors").default(0).notNull(),
+    /** 운영 알림 6시간 간격 */
+    opsAlertedAt: timestamptz("ops_alerted_at"),
+    /** 마지막으로 알린 원인 (auth | stale) — 같은 원인은 마지막 알림 6시간 뒤에 다시 (HS-1·HS-6) */
+    opsAlertedCause: varchar("ops_alerted_cause", { length: 12 }),
+    /** 마지막 회차 숫자: calls·windows·updated·unpaired·fallbackCalls·skippedWindows */
+    stats: jsonb("stats").$type<Record<string, unknown>>(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+export type EmailStatusSyncState = typeof emailStatusSyncState.$inferSelect;
+
+/**
+ * 구글 챗 웹훅(받는 곳)마다 전달 상태 (구글 챗 QA WPN-1~5). 웹훅을 정하는 환경 변수 이름 하나가 한 줄 — 주소(비밀값)는 넣지 않는다.
+ * 깊이·회신·발송 건강·운영 알림이 함께 쓰고, 문제가 생기면 운영 스페이스에 6시간에 한 번, 고쳐지면 한 번 알린다
+ */
+export const chatWebhookStatus = pgTable("chat_webhook_status", {
+    /** DEEP_ALERT_WEBHOOK_URL_7 · SEND_HEALTH_WEBHOOK_URL · REPLY_OPS_WEBHOOK_URL … */
+    source: varchar("source", { length: 80 }).primaryKey(),
+    workspaceId: integer("workspace_id"),
+    /** config(401·403·404) | missing | invalid | unreachable | null(정상) */
+    kind: varchar("kind", { length: 12 }),
+    lastStatus: integer("last_status"),
+    /** 한국어 한 줄 (주소·key·token 없음) */
+    lastError: text("last_error"),
+    problemSince: timestamptz("problem_since"),
+    lastOkAt: timestamptz("last_ok_at"),
+    lastFailAt: timestamptz("last_fail_at"),
+    opsAlertedAt: timestamptz("ops_alerted_at"),
+    opsAlertedKind: varchar("ops_alerted_kind", { length: 12 }),
+    /** 문제가 난 주소의 지문 (sha256 앞 16자) — 주소를 바꾸면 고장 표시를 믿지 않는다 */
+    urlHash: varchar("url_hash", { length: 16 }),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+});
+
+export type ChatWebhookStatus = typeof chatWebhookStatus.$inferSelect;

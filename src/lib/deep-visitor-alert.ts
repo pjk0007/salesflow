@@ -31,7 +31,21 @@ import {
     type SiteFunnel,
 } from "@/lib/deep-visitor-alert-batch";
 import { isDeadlineExceeded } from "@/lib/email-send-queue-rules";
-import { postGoogleChatText } from "@/lib/google-chat";
+import {
+    chatRequestIdEnabled,
+    chatRequestIdFor,
+    chatThreadsEnabled,
+    chatWebhookProblem,
+    postGoogleChatText,
+    type GoogleChatResult,
+} from "@/lib/google-chat";
+import {
+    clearChatWebhookConfigProblem,
+    notifyWebhookProblems,
+    recordChatWebhookConfig,
+    recordChatWebhookResult,
+} from "@/lib/chat-webhook-status";
+import { toWellFormedText } from "@/lib/chat-text";
 import {
     LOOKBACK_MS,
     HUMAN_CLICK_AFTER_MS,
@@ -60,6 +74,8 @@ import {
     rotateStart,
     buildAlertMessage,
     resolveAlertConfig,
+    refreshCardForSend,
+    formatFieldValue,
     listTypeOf,
     type AlertEvidence,
     type AlertEmailEvidence,
@@ -76,7 +92,7 @@ import {
     type UnsubscribeRow,
 } from "@/lib/deep-visitor-alert-rules";
 import {
-    NO_WEBHOOK_ERROR,
+    NO_WEBHOOK_WAIT,
     deliverClaimedBatch,
     type ClaimedAlert,
     type DeliveryDeps,
@@ -91,7 +107,6 @@ const LOCK_KEY = 0x5c4edf03;
 const PREVIEW_LOCK_KEY = 0x5c4edf04;
 
 const DELIVERY_BATCH = 20;
-const FIELD_VALUE_MAX = 120;
 const EVENT_LOOKBEHIND_MS = 60 * 1000;
 /** 보내기 전 재확인에서 제출·가입 신호를 찾을 범위: 탐지 1시간 전부터 (늦게 들어온 이벤트까지) */
 const SUBMIT_RECHECK_LOOKBEHIND_MS = 60 * 60 * 1000;
@@ -376,11 +391,21 @@ export async function processDeepVisitorAlerts(
         const startedAt = Date.now();
         const overBudget = () => isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS);
 
-        // 웹훅 주소는 비밀값이다 — 로그에는 있음/없음만 남긴다
-        const webhookNote = config.workspaceIds
-            .map((id) => `${id}(${config.webhookByWorkspace[id] ? "웹훅 있음" : "웹훅 없음"})`)
+        // 웹훅 주소는 비밀값이다 — 로그에는 있음/없음/형식 오류만 남긴다
+        const webhookNote = config.webhookChecks
+            .map((c) => `${c.workspaceId}(${config.webhookByWorkspace[c.workspaceId] ? "웹훅 있음" : c.url ? "웹훅 형식 오류" : "웹훅 없음"})`)
             .join(",");
         console.log(`[deep-alert] mode=${config.mode} workspaces=${webhookNote}`);
+        for (const w of config.warnings) console.warn(`[deep-alert] ${w}`);
+        if (config.mode === "live") {
+            // 허용 목록에 있는데 웹훅이 없거나 형식이 틀린 사업을 운영 스페이스에 알리려고 남긴다 (WPN-2). 고쳐졌으면 지운다
+            for (const c of config.webhookChecks) {
+                if (chatWebhookProblem(c.url)) await recordChatWebhookConfig(c.source, c.workspaceId, c.url);
+                else await clearChatWebhookConfigProblem(c.source, c.workspaceId);
+            }
+        }
+        // 한 회차의 두 번 보내기(탐지 앞·뒤)가 웹훅 고장 목록과 보내기 간격을 함께 쓴다 (DV-6·DV-7·WPN-7)
+        const shared: DeliveryShared = { state: { posted: 0 }, broken: new Set<number>() };
 
         try {
             // 발송이 실패해도 탐지는 한다 (탐지 결과는 남고 다음 회차에 나간다). 오류는 끝에 다시 던져 500으로 드러낸다
@@ -395,8 +420,10 @@ export async function processDeepVisitorAlerts(
                     const pre = await deliverDue(
                         now,
                         config,
+                        env,
                         stats,
                         () => overBudget() || isDeadlineExceeded(preStartedAt, Date.now(), PRE_DELIVERY_BUDGET_MS),
+                        shared,
                         firstBatch
                     );
                     preDeliveryClaimedAny = pre.claimedAny;
@@ -417,7 +444,7 @@ export async function processDeepVisitorAlerts(
                 deliveryError === null &&
                 needsPostDetectionDelivery({ preDeliveryClaimedAny, createdDueNow })
             ) {
-                const delivery = await deliverDue(now, config, stats, overBudget);
+                const delivery = await deliverDue(now, config, env, stats, overBudget, shared);
                 if (delivery.budgetHit) stats.deadlineHit = true;
             }
             if (deliveryError !== null) throw deliveryError;
@@ -438,6 +465,8 @@ export async function processDeepVisitorAlerts(
             `${stats.failedWorkspaces?.length ? ` failedWorkspaces=${stats.failedWorkspaces.join(",")}` : ""}` +
             `${stats.deadlineHit ? " deadlineHit" : ""}`
         );
+        // 웹훅 문제(설정 오류·없음·연결 실패가 이어짐)를 운영 스페이스에 알린다 — 6시간에 한 번, 고쳐지면 한 번 (WPN-1)
+        if (config.mode === "live") await notifyWebhookProblems({ env }).catch(() => {});
         return stats;
     } finally {
         if (lockState === "held") {
@@ -563,7 +592,8 @@ async function persistAlerts(
     const values = dets.flatMap((det, i) => {
         const hasWebhook = Boolean(config.webhookByWorkspace[det.ws.id]);
         return (alertsByDet[i] ?? []).map((a) => {
-            const status = config.mode === "dry_run" ? "dry_run" : hasWebhook ? "pending" : "skipped";
+            // 웹훅이 없어도 닫지 않고 기다린다 — 넣으면 다음 회차에 나가고 24시간 지나면 묵은 줄로 닫힌다 (DV-15)
+            const status = config.mode === "dry_run" ? "dry_run" : "pending";
             return {
                 org_id: det.ws.orgId,
                 workspace_id: det.ws.id,
@@ -576,8 +606,9 @@ async function persistAlerts(
                 angle: a.angle,
                 deepest_stage: a.verdict.deepestStage,
                 status,
-                last_error: status === "skipped" ? NO_WEBHOOK_ERROR : null,
-                message: a.message,
+                last_error: status === "pending" && !hasWebhook ? NO_WEBHOOK_WAIT : null,
+                // 짝 없는 서로게이트(반쪽 이모지)는 Postgres json이 거절한다 — 워크스페이스 묶음 전체가 막히지 않게 (DV-1)
+                message: toWellFormedText(a.message),
                 detected_at: nowIso,
                 scheduled_at: scheduledIso,
             };
@@ -585,7 +616,49 @@ async function persistAlerts(
     });
     if (values.length === 0) return { created: 0, dueNow: 0 };
 
-    const inserted = await runSql<{ id: number; record_id: number; level: string; status: string }>(exec, sql`
+    let inserted: InsertedAlert[];
+    try {
+        inserted = await insertAlertRows(exec, values);
+    } catch (e) {
+        if (isAlertTableMissing(e) || values.length === 1) throw e;
+        // 레코드 하나의 값 때문에 묶음 전체가 실패했다 — 하나씩 넣어 나머지는 남긴다 (DV-1)
+        console.error(`[deep-alert] 알림 ${values.length}건 한 번에 저장 실패, 하나씩 다시: ${describeDeepAlertError(e)}`);
+        inserted = [];
+        for (const v of values) {
+            try {
+                inserted.push(...(await insertAlertRows(exec, [v])));
+            } catch (one) {
+                if (isAlertTableMissing(one)) throw one;
+                console.error(`[deep-alert] record=${v.record_id} level=${v.level} 알림 저장 실패, 건너뜀: ${describeDeepAlertError(one)}`);
+            }
+        }
+    }
+
+    // 줄마다 찍지 않는다 (수백 줄이면 로그 쓰기만으로 느려진다) — 같은 내용을 한 줄에
+    if (inserted.length > 0) {
+        console.log(
+            `[deep-alert] created ${inserted.length}: ` +
+            inserted.map((r) => `id=${r.id} record=${r.record_id} level=${r.level} status=${r.status}`).join(", ")
+        );
+    }
+    // 지금 보낼 줄 = pending이고 웹훅이 있는 워크스페이스 (웹훅 없는 줄은 기다린다)
+    const dueNow =
+        scheduledAt.getTime() <= now.getTime()
+            ? inserted.filter((r) => r.status === "pending" && config.webhookByWorkspace[Number(r.workspace_id)]).length
+            : 0;
+    return { created: inserted.length, dueNow };
+}
+
+interface InsertedAlert {
+    id: number;
+    record_id: number;
+    level: string;
+    status: string;
+    workspace_id: number;
+}
+
+async function insertAlertRows(exec: Exec, values: ReadonlyArray<Record<string, unknown>>): Promise<InsertedAlert[]> {
+    return runSql<InsertedAlert>(exec, sql`
         INSERT INTO deep_visitor_alerts
             (org_id, workspace_id, site_id, record_id, send_log_id, session_id, visitor_id, level, angle,
              deepest_stage, status, last_error, message, detected_at, scheduled_at)
@@ -603,18 +676,8 @@ async function persistAlerts(
         ORDER BY v.ord
         -- dva_record_level_idx — 이미 같은 수준 알림이 있는 레코드는 다시 만들지 않는다
         ON CONFLICT DO NOTHING
-        RETURNING id, record_id, level, status
+        RETURNING id, record_id, level, status, workspace_id
     `);
-
-    // 줄마다 찍지 않는다 (수백 줄이면 로그 쓰기만으로 느려진다) — 같은 내용을 한 줄에
-    if (inserted.length > 0) {
-        console.log(
-            `[deep-alert] created ${inserted.length}: ` +
-            inserted.map((r) => `id=${r.id} record=${r.record_id} level=${r.level} status=${r.status}`).join(", ")
-        );
-    }
-    const dueNow = scheduledAt.getTime() <= now.getTime() ? inserted.filter((r) => r.status === "pending").length : 0;
-    return { created: inserted.length, dueNow };
 }
 
 /** 첫 문장에서 함께 읽은 탐지 재료 */
@@ -673,7 +736,7 @@ async function runStart(conn: Exec, now: Date, config: DeepAlertConfig): Promise
         ),
         expired AS (
             UPDATE deep_visitor_alerts
-            SET status = 'skipped', last_error = ${STALE_ERROR}, locked_at = NULL
+            SET status = 'skipped', last_error = ${STALE_ERROR}::text || COALESCE(' — 직전: ' || left(last_error, 300), ''), locked_at = NULL
             WHERE (SELECT ok FROM go)
               AND status = 'pending'
               AND scheduled_at < ${staleBeforeIso}::timestamptz
@@ -694,7 +757,8 @@ async function runStart(conn: Exec, now: Date, config: DeepAlertConfig): Promise
                 LIMIT ${DELIVERY_BATCH}
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id, org_id, workspace_id, site_id, record_id, send_log_id, visitor_id, level, message, attempts, detected_at
+            RETURNING id, org_id, workspace_id, site_id, record_id, send_log_id, visitor_id, level, angle, message, attempts,
+                      detected_at, scheduled_at
         ),
         ctx AS MATERIALIZED (${contextsSql(ids, undefined)}),
         cand AS (${candidatesSql(now, sql`(SELECT ok FROM lk)`)})
@@ -732,33 +796,66 @@ interface ClaimedRow {
     send_log_id: number | null;
     visitor_id: number | null;
     level: string;
+    angle: string | null;
     message: string;
     attempts: number;
     detected_at: string | Date;
+    scheduled_at: string | Date | null;
+}
+
+/** 한 회차의 두 번 보내기(탐지 앞·뒤)가 함께 쓰는 것 — 웹훅이 고장 난 워크스페이스와 보내기 간격 (DV-6·DV-7) */
+interface DeliveryShared {
+    state: { posted: number };
+    broken: Set<number>;
 }
 
 /**
  * 예약 시각이 된 pending을 집어 보내기 전에 다시 확인하고 한 통씩 보낸다.
  *
  * 허용 목록에서 빠진 워크스페이스의 줄은 집지 않는다 — 설정을 바꾼 뒤에 그 사업 고객 정보가
- * 챗으로 나가면 안 된다. 웹훅 설정 오류가 난 워크스페이스는 이번 호출 끝까지 집지 않는다.
+ * 챗으로 나가면 안 된다. 웹훅 설정 오류·웹훅 없음·느린 웹훅이 난 워크스페이스는 이번 회차 끝까지 집지 않는다
+ * (shared를 탐지 앞·뒤 보내기가 함께 쓴다).
+ * 보낼 때 첫 줄(기한)을 보내는 때 기준으로 다시 쓰고, 늦게 나가면 "늦게 보냄" 줄을 붙인다 (DV-5·WPN-12).
  * firstBatch: 이미 집어 둔 첫 묶음 (expireStaleAndClaim) — 그 묶음부터 보낸 뒤 이어서 집는다.
  * claimedAny: 한 줄이라도 집었는가 (탐지 뒤 발송을 할지 정한다)
  */
 async function deliverDue(
     now: Date,
     config: DeepAlertConfig,
+    env: Record<string, string | undefined>,
     stats: DeepAlertRunStats,
     overBudget: () => boolean,
+    shared: DeliveryShared,
     firstBatch?: ClaimedRow[]
 ): Promise<{ budgetHit: boolean; claimedAny: boolean }> {
-    const state = { posted: 0 };
-    const broken = new Set<number>();
+    const { state, broken } = shared;
+    const rowsById = new Map<number, ClaimedRow>();
+    const sourceOf = new Map(config.webhookChecks.map((c) => [c.workspaceId, c.source]));
+    const threads = chatThreadsEnabled(env);
     const deps: DeliveryDeps = {
         now,
         overBudget,
         webhookFor: (workspaceId) => config.webhookByWorkspace[workspaceId],
-        post: postSafely,
+        // 같은 레코드의 카드(깊이 → 신청 이어 하기)는 한 스레드로 (GOOGLE_CHAT_THREADS=on, DV-8)
+        post: (url, text, row) =>
+            postSafely(url, text, {
+                threadKey: threads && row?.recordId ? `deep-record-${row.recordId}` : undefined,
+                requestId: row ? chatRequestIdFor(env, "deep", row.id) : undefined,
+            }),
+        prepareText: (row) => {
+            const r = rowsById.get(row.id);
+            if (!r) return row.message;
+            const angle = r.angle as DeepAlertAngle | null;
+            return refreshCardForSend(row.message, {
+                deadline: angle ? deadlineText(angle, now) : null,
+                scheduledAt: toDate(r.scheduled_at),
+                now,
+            });
+        },
+        onResult: (row, result) => recordChatWebhookResult(sourceOf.get(row.workspaceId), row.workspaceId, result, config.webhookByWorkspace[row.workspaceId]),
+        // 다시 보낼 때도 근무시간에 (밤에 다시 나가지 않게, DV-5)
+        retryAt: (base) => nextAlertTime(base),
+        idempotent: chatRequestIdEnabled(env),
         markSent: async (id) => {
             await db
                 .update(deepVisitorAlerts)
@@ -796,6 +893,7 @@ async function deliverDue(
         pending = undefined;
         if (batch.length === 0) return { budgetHit: false, claimedAny };
         claimedAny = true;
+        for (const r of batch) rowsById.set(r.id, r);
 
         let skipReasons: Map<number, string>;
         try {
@@ -814,7 +912,7 @@ async function deliverDue(
         stats.requeued += tally.requeued;
         stats.skippedAtSend += tally.skipped;
         stats.deferred += tally.deferred;
-        for (const id of tally.brokenWorkspaces) broken.add(id);
+        for (const id of [...tally.brokenWorkspaces, ...tally.stalledWorkspaces]) broken.add(id);
         if (tally.budgetHit) return { budgetHit: true, claimedAny };
     }
     // 집어 둔 첫 묶음을 보내지 못하고 예산이 끝났으면 되돌린다 (processing에 15분 묶이지 않게)
@@ -838,10 +936,11 @@ function toClaimedAlert(row: ClaimedRow): ClaimedAlert {
 /** postGoogleChatText는 오류를 돌려주게 돼 있지만, 예외가 새어도 줄이 processing에 묶이지 않게 감싼다 */
 async function postSafely(
     webhookUrl: string,
-    text: string
-): Promise<{ ok: true } | { ok: false; status: number | null; error: string; retryable: boolean }> {
+    text: string,
+    opts: { threadKey?: string; requestId?: string } = {}
+): Promise<GoogleChatResult> {
     try {
-        return await postGoogleChatText(webhookUrl, text);
+        return await postGoogleChatText(webhookUrl, text, fetch, opts);
     } catch (e) {
         return { ok: false, status: null, error: e instanceof Error ? e.message : String(e), retryable: true };
     }
@@ -971,7 +1070,7 @@ async function loadSubmittedSince(now: Date, batch: ClaimedRow[]): Promise<Set<n
 
 /** claimBatch·expireStaleAndClaim이 돌려주는 칸 */
 const CLAIMED_COLUMNS = sql.raw(
-    "id, org_id, workspace_id, site_id, record_id, send_log_id, visitor_id, level, message, attempts, detected_at"
+    "id, org_id, workspace_id, site_id, record_id, send_log_id, visitor_id, level, angle, message, attempts, detected_at, scheduled_at"
 );
 
 /**
@@ -1016,7 +1115,7 @@ async function expireStaleAndClaim(
     const rows = (await db.execute(sql`
         WITH expired AS (
             UPDATE deep_visitor_alerts
-            SET status = 'skipped', last_error = ${STALE_ERROR}, locked_at = NULL
+            SET status = 'skipped', last_error = ${STALE_ERROR}::text || COALESCE(' — 직전: ' || left(last_error, 300), ''), locked_at = NULL
             WHERE status = 'pending'
               AND scheduled_at < ${staleBefore.toISOString()}::timestamptz
               AND workspace_id IN ${workspaceIds}
@@ -2279,30 +2378,6 @@ function fieldLabelsOf(defs: FieldDefRow[]): Record<string, string> {
     const out = new Map<string, string>();
     for (const def of defs) if (!out.has(def.key) && def.label.trim()) out.set(def.key, def.label.trim());
     return Object.fromEntries(out);
-}
-
-function formatFieldValue(value: unknown): string | null {
-    let text: string;
-    if (value === null || value === undefined) return null;
-    if (typeof value === "string") {
-        text = value.trim();
-    } else if (typeof value === "number" || typeof value === "bigint") {
-        text = String(value);
-    } else if (typeof value === "boolean") {
-        text = value ? "예" : "아니오";
-    } else if (Array.isArray(value)) {
-        const primitives = value.every((v) => v === null || ["string", "number", "boolean"].includes(typeof v));
-        text = primitives
-            ? value.filter((v) => v !== null && String(v).trim() !== "").map((v) => String(v).trim()).join(", ")
-            : JSON.stringify(value);
-    } else if (typeof value === "object") {
-        if (Object.keys(value).length === 0) return null;
-        text = JSON.stringify(value);
-    } else {
-        return null;
-    }
-    if (text === "" || text === "[]") return null;
-    return text.length > FIELD_VALUE_MAX ? text.slice(0, FIELD_VALUE_MAX - 1) + "…" : text;
 }
 
 function companyResearchOf(data: Record<string, unknown>): AlertEvidence["companyResearch"] {

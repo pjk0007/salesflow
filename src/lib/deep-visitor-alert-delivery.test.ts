@@ -3,8 +3,9 @@ import assert from "node:assert";
 import {
     deliverClaimedBatch,
     isWebhookConfigError,
-    NO_WEBHOOK_ERROR,
+    NO_WEBHOOK_WAIT,
     POST_INTERVAL_MS,
+    UNCERTAIN_GIVE_UP_NOTE,
     type ClaimedAlert,
     type DeliveryDeps,
 } from "./deep-visitor-alert-delivery";
@@ -14,6 +15,7 @@ import type { GoogleChatResult } from "./google-chat";
 // 진짜 주소가 아니다
 const HOOK_8 = "https://chat.example.test/v1/spaces/AAAA8/messages?key=fake-key&token=fake-token-8";
 const HOOK_9 = "https://chat.example.test/v1/spaces/AAAA9/messages?key=fake-key&token=fake-token-9";
+const HOOK_10 = "https://chat.example.test/v1/spaces/AAAA10/messages?key=fake-key&token=fake-token-10";
 const NOW = new Date("2026-10-05T09:00:00+09:00");
 
 const row = (id: number, workspaceId = 8, attempts = 1): ClaimedAlert => ({
@@ -45,9 +47,9 @@ function fakeDeps(opts: FakeOpts = {}): { deps: DeliveryDeps; calls: Call[] } {
     const deps: DeliveryDeps = {
         now: NOW,
         overBudget: () => opts.budgetAfterChecks !== undefined && budgetChecks++ >= opts.budgetAfterChecks,
-        webhookFor: (ws) => (opts.webhooks ?? { 8: HOOK_8, 9: HOOK_9 })[ws],
+        webhookFor: (ws) => (opts.webhooks ?? { 8: HOOK_8, 9: HOOK_9, 10: HOOK_10 })[ws],
         post: async (url, text) => {
-            calls.push(["post", url === HOOK_8 ? "hook8" : url === HOOK_9 ? "hook9" : url, text]);
+            calls.push(["post", url === HOOK_8 ? "hook8" : url === HOOK_9 ? "hook9" : url === HOOK_10 ? "hook10" : url, text]);
             const list = opts.results?.[url] ?? [{ ok: true }];
             const n = posts.get(url) ?? 0;
             posts.set(url, n + 1);
@@ -117,21 +119,24 @@ test("보내기 전 재확인에 걸린 줄은 보내지 않고 이유를 남겨
     assert.equal(tally.sent, 1);
 });
 
-test("웹훅이 없는 워크스페이스 줄은 skipped로 닫는다", async () => {
+test("웹훅이 없는 워크스페이스 줄은 닫지 않고 기다린다 — 넣으면 다음 회차에 나간다 (DV-15·RC-4)", async () => {
     const { deps, calls } = fakeDeps({ webhooks: { 9: HOOK_9 } });
-    const tally = await deliverClaimedBatch([row(1, 8)], new Map(), deps, { posted: 0 });
-    assert.deepEqual(calls, [["markSkipped", 1, NO_WEBHOOK_ERROR]]);
-    assert.equal(tally.skipped, 1);
+    const tally = await deliverClaimedBatch([row(1, 8), row(2, 8)], new Map(), deps, { posted: 0 });
+    assert.deepEqual(calls, [["release", [1], NO_WEBHOOK_WAIT], ["release", [2]]]);
+    assert.deepEqual([tally.deferred, tally.skipped], [2, 0]);
+    assert.deepEqual(tally.brokenWorkspaces, [8]);
 });
 
 test("400은 그 줄만 실패, 429·5xx는 시도가 남았으면 10분 뒤 다시, 다 썼으면 실패", async () => {
     const { deps, calls } = fakeDeps({
         results: {
-            [HOOK_8]: [fail(400, false), fail(503, true), fail(503, true)],
+            [HOOK_8]: [fail(400, false)],
+            [HOOK_9]: [fail(503, true)],
+            [HOOK_10]: [fail(503, true)],
         },
     });
     const tally = await deliverClaimedBatch(
-        [row(1), row(2, 8, 1), row(3, 8, MAX_ATTEMPTS)],
+        [row(1, 8), row(2, 9, 1), row(3, 10, MAX_ATTEMPTS)],
         new Map(),
         deps,
         { posted: 0 }
@@ -145,6 +150,46 @@ test("400은 그 줄만 실패, 429·5xx는 시도가 남았으면 10분 뒤 다
     assert.deepEqual([tally.failed, tally.requeued], [2, 1]);
 });
 
+test("늦거나 다시 보내도 실패한 웹훅의 남은 줄은 이번 회차에 보내지 않고 다른 사업 줄을 먼저 보낸다 (CT-5·RC-8)", async () => {
+    const timeout: GoogleChatResult = { ok: false, status: null, error: "시간 초과", retryable: true, uncertain: true };
+    const { deps, calls } = fakeDeps({ results: { [HOOK_8]: [timeout] } });
+    const tally = await deliverClaimedBatch([row(1, 8), row(2, 8), row(3, 9)], new Map(), deps, { posted: 0 });
+    assert.deepEqual(
+        calls.filter((c) => c[0] !== "sleep").map((c) => c.slice(0, 2)),
+        [["post", "hook8"], ["requeue", 1], ["release", [2]], ["post", "hook9"], ["markSent", 3]]
+    );
+    assert.deepEqual(tally.stalledWorkspaces, [8]);
+    assert.deepEqual([tally.requeued, tally.deferred, tally.sent], [1, 1, 1]);
+});
+
+test("시간 초과(이미 올라갔을 수 있음)는 requestId 없이 두 번째 시도에서 그친다, requestId를 쓰면 시도 수를 다 쓴다 (CT-1)", async () => {
+    const timeout: GoogleChatResult = { ok: false, status: null, error: "시간 초과", retryable: true, uncertain: true };
+    const a = fakeDeps({ results: { [HOOK_8]: [timeout] } });
+    await deliverClaimedBatch([row(1, 8, 2)], new Map(), a.deps, { posted: 0 });
+    assert.deepEqual(a.calls.find((c) => c[0] === "markFailed"), ["markFailed", 1, `시간 초과 — ${UNCERTAIN_GIVE_UP_NOTE}`]);
+
+    const b = fakeDeps({ results: { [HOOK_8]: [timeout] } });
+    b.deps.idempotent = true;
+    await deliverClaimedBatch([row(1, 8, 2)], new Map(), b.deps, { posted: 0 });
+    assert.equal(b.calls.find((c) => c[0] === "requeue")?.[1], 1);
+});
+
+test("보낼 때 글을 고치고(prepareText), 결과를 남기고(onResult), 다시 보낼 때를 정한다(retryAt)", async () => {
+    const { deps, calls } = fakeDeps({ results: { [HOOK_9]: [fail(500, true)] } });
+    const seen: Array<[number, boolean]> = [];
+    deps.prepareText = (r) => `고친 ${r.message}`;
+    deps.onResult = async (r, res) => {
+        seen.push([r.id, res.ok]);
+        throw new Error("기록 실패는 보내기를 막지 않는다");
+    };
+    const later = new Date("2026-10-06T09:00:00+09:00");
+    deps.retryAt = () => later;
+    await deliverClaimedBatch([row(1, 8), row(2, 9)], new Map(), deps, { posted: 0 });
+    assert.deepEqual(calls.filter((c) => c[0] === "post").map((c) => c[2]), ["고친 카드 1", "고친 카드 2"]);
+    assert.deepEqual(seen, [[1, true], [2, false]]);
+    assert.deepEqual(calls.find((c) => c[0] === "requeue")?.[3], later.toISOString());
+});
+
 test("웹훅 설정 오류(401·403·404)는 시도로 세지 않고 되돌리며, 그 워크스페이스 남은 줄은 보내지 않는다", async () => {
     assert.deepEqual([401, 403, 404].map(isWebhookConfigError), [true, true, true]);
     assert.deepEqual([400, 429, 500, null].map(isWebhookConfigError), [false, false, false, false]);
@@ -155,7 +200,7 @@ test("웹훅 설정 오류(401·403·404)는 시도로 세지 않고 되돌리�
     const release = calls.filter((c) => c[0] === "release");
     assert.equal(release.length, 2);
     assert.deepEqual(release[0].slice(0, 2), ["release", [1]]);
-    assert.match(String(release[0][2]), /^웹훅 설정 오류/);
+    assert.match(String(release[0][2]), /^웹훅을 고칠 때까지 기다림 — /);
     // 오류 글에 웹훅 주소가 남지 않는다
     assert.ok(!String(release[0][2]).includes("fake-token-8"), String(release[0][2]));
     assert.deepEqual(release[1], ["release", [3]]);

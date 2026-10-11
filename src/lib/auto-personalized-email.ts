@@ -23,10 +23,14 @@ import {
 import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
 import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
+import { findReplyStop } from "@/lib/email-reply-guard";
+import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
+import { getActiveHold } from "@/lib/partition-hold";
 
 // ============================================
 // 쿨다운 체크 (같은 record + ai_auto에 1시간 내 발송 이력)
 // ============================================
+// "발송 이력"은 NHN이 받아 간 발송 + 보내는 중이다 — 배달 결과로 failed가 된 기록도 센다 (DESIGN-SND 6-6, SND-11)
 async function checkCooldown(recordId: number, cooldownHours: number = 1): Promise<boolean> {
     const since = new Date(Date.now() - cooldownHours * 60 * 60 * 1000);
     const [existing] = await db
@@ -37,7 +41,7 @@ async function checkCooldown(recordId: number, cooldownHours: number = 1): Promi
                 eq(emailSendLogs.recordId, recordId),
                 eq(emailSendLogs.triggerType, "ai_auto"),
                 gte(emailSendLogs.sentAt, since),
-                inArray(emailSendLogs.status, ["sent", "pending"])
+                await acceptedOrPendingCondition()
             )
         )
         .limit(1);
@@ -47,6 +51,8 @@ async function checkCooldown(recordId: number, cooldownHours: number = 1): Promi
 // ============================================
 // 중복 수신자 체크 (같은 파티션 + 같은 이메일로 AI 자동 발송 이력)
 // ============================================
+// NHN이 받아 간 발송을 본다 — 반송·SST3으로 failed가 된 주소를 다시 가져와도 AI 메일을 다시 쓰지 않는다 (SND-11).
+// 보낼 때 거절(NHN이 받지 않음)은 지금처럼 다시 보낼 수 있다
 async function checkDuplicateRecipientForAiAuto(
     partitionId: number,
     recipientEmail: string
@@ -59,7 +65,7 @@ async function checkDuplicateRecipientForAiAuto(
                 eq(emailSendLogs.partitionId, partitionId),
                 eq(emailSendLogs.recipientEmail, recipientEmail),
                 eq(emailSendLogs.triggerType, "ai_auto"),
-                eq(emailSendLogs.status, "sent")
+                await acceptedSendCondition()
             )
         )
         .limit(1);
@@ -122,6 +128,14 @@ export async function processAutoPersonalizedEmail(
     }
     console.log(`[AutoEmail] Found ${links.length} rules`);
 
+    // 1-1. 명단 보류 (DESIGN-SND 6-2) — 대량 줄만 본다. AI 호출·발신 자리 잡기보다 먼저 해서 토큰·한도를 쓰지 않는다.
+    // 문의(바로 보내는 경로·대기열 priority 1)는 보지 않는다 (getActiveHold가 inbound면 늘 null) — 주소 멈춤·반송 막기는 그대로 따른다
+    const hold = await getActiveHold(orgId, partitionId, purpose);
+    if (hold) {
+        console.log(`[AutoEmail] partition ${partitionId} is held (hold ${hold.id}) — bulk send not run`);
+        return { noMatchingRules: false, outcomes, held: { holdId: hold.id } };
+    }
+
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
@@ -181,6 +195,14 @@ export async function processAutoPersonalizedEmail(
             if (await isUnsubscribed(workspaceId, email)) {
                 console.log(`[AutoEmail] Rule ${link.id}: skipped, unsubscribed (${email})`);
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "unsubscribed" });
+                continue;
+            }
+            // 보내기 직전 막기 — 이 사업에서 회신했거나 조직에서 hard 반송된 주소 (DESIGN-RPL 7-4, on일 때만).
+            // 대기열 미리 판정(walkQueueRow의 isReplyStopped)이 같은 자리·같은 조건을 본다
+            const replyStop = await findReplyStop(orgId, workspaceId, email);
+            if (replyStop) {
+                console.log(`[AutoEmail] Rule ${link.id}: skipped, ${replyStop.reason}`);
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: replyStop.reason });
                 continue;
             }
 

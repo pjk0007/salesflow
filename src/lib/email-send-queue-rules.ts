@@ -20,9 +20,10 @@ export const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
 /** 한 회차의 처리 예산. cron 주기(10분) 안에 여유를 남긴다. */
 export const DEADLINE_BUDGET_MS = 8 * 60 * 1000;
 
-/** defer = 발신 주소 한도·시간대에 막혀 미뤘다 (실패 아님) */
-export type ProcessOutcome = "ok" | "skip" | "error" | "defer";
-export type QueueStatus = "pending" | "processing" | "sent" | "skipped" | "failed";
+/** defer = 발신 주소 한도·시간대에 막혀 미뤘다 (실패 아님). hold = 명단 보류 중 (DESIGN-SND 6-2, 대량 줄만) */
+export type ProcessOutcome = "ok" | "skip" | "error" | "defer" | "hold";
+/** held = 명단 보류. pending만 집는 워커가 집지 않는다 — 관리자가 보류를 풀면 pending으로 돌아간다 */
+export type QueueStatus = "pending" | "processing" | "sent" | "skipped" | "failed" | "held";
 
 /**
  * 처리 결과와 누적 시도 횟수로 다음 상태를 정한다.
@@ -36,6 +37,8 @@ export function nextStatus(
     maxAttempts: number = MAX_ATTEMPTS
 ): QueueStatus {
     if (outcome === "ok") return "sent";
+    // 명단 보류는 실패가 아니다 — 풀릴 때까지 기다린다 (DESIGN-SND 6-2)
+    if (outcome === "hold") return "held";
     // 규칙 미매칭·쿨다운·중복수신자·구독취소는 실패가 아니다. 재시도해도 같은 결과다.
     if (outcome === "skip") return "skipped";
     // 미룸은 시도 횟수와 상관없이 다시 기다린다 — 한도는 실패가 아니라서 failed로 닫으면 메일이 사라진다.
@@ -56,7 +59,7 @@ export interface QueueRowPlan {
     /** 시도 횟수를 다 써 이 줄에서 빼 둔 규칙 id. 다음에 꺼낼 때 그 규칙은 돌리지 않는다 */
     exhaustedLinkIds: number[];
     /** 회차 통계에 셀 칸 */
-    stat: "sent" | "skipped" | "failed" | "requeued" | "deferred";
+    stat: "sent" | "skipped" | "failed" | "requeued" | "deferred" | "held";
 }
 
 export interface QueueRowResult {
@@ -77,6 +80,7 @@ export interface QueueRowResult {
  *   발송(ok)          sent
  *   보낼 것 없음(skip) skipped. 단 시도 횟수를 다 써 빼 둔 규칙이 있으면 failed — 그 규칙은 끝내 실패했다
  *   미룸(defer)       pending, scheduled_at = retryAt, 꺼낼 때 올린 시도 1을 되돌린다 (W14 — 한도는 실패가 아니다)
+ *   명단 보류(hold)   held, 꺼낼 때 올린 시도 1을 되돌린다 (0 아래로 가지 않는다). scheduled_at·last_error는 그대로 (DESIGN-SND 6-2·SND-14)
  *   실패(error)       시도가 남았으면 pending으로 같은 회차에 바로 다시, 다 썼으면 failed (B6)
  *
  * 실패와 미룸이 함께 나온 줄(앞 규칙 실패 + 뒤 규칙 한도): 시도가 남았으면 보통 실패처럼 바로 다시 시도한다 —
@@ -91,6 +95,9 @@ export function planQueueRow(input: QueueRowResult, maxAttempts: number = MAX_AT
 
     if (outcome === "ok") {
         return { status: "sent", attempts, scheduledAt: null, exhaustedLinkIds: exhausted, stat: "sent" };
+    }
+    if (outcome === "hold") {
+        return { status: "held", attempts: Math.max(attempts - 1, 0), scheduledAt: null, exhaustedLinkIds: exhausted, stat: "held" };
     }
     if (outcome === "skip") {
         const status = exhausted.length > 0 ? "failed" : "skipped";
@@ -130,6 +137,7 @@ export function planQueueRow(input: QueueRowResult, maxAttempts: number = MAX_AT
  *   skipped·failed → 다시 꺼낸다. 워커는 고치기 전 레코드를 읽었을 수 있다 — 그대로 끝내면 고친 뒤 미룬 메일이 사라진다
  *   sent           → 다시 꺼내지 않는다. 쿨다운(1시간)이 원래 막았을 두 번째 메일이 나중에 나가지 않게
  *   pending        → 어차피 다시 꺼낸다 (둘 중 이른 시각에). 꺼낼 때 최신 레코드를 읽는다
+ *   held           → 되살리지 않는다. 명단 보류는 풀릴 때까지 그대로다 (requeue_at은 비운다, DESIGN-SND 6-2)
  */
 export function revivesOnRequeue(status: QueueRowPlan["status"]): boolean {
     return status === "skipped" || status === "failed";
@@ -473,6 +481,11 @@ export interface QueueWalkLookups {
     workspaceId: number | null;
     /** isUnsubscribed(workspaceId, email). 모르면 undefined */
     isUnsubscribed: (email: string) => boolean | undefined;
+    /**
+     * 보내기 직전 막기 (findReplyStop(orgId, workspaceId, email), DESIGN-RPL 7-4): 회신이면 "replied", hard 반송이면 "bounced",
+     * 막히지 않았으면 null. 모르면 undefined
+     */
+    isReplyStopped: (email: string) => "replied" | "bounced" | null | undefined;
     /** getAiClient(model)가 null이 아니다 */
     aiClientReady: (model: string | undefined) => boolean;
     /** checkTokenQuota(orgId).allowed */
@@ -500,6 +513,7 @@ export type QueueWalk =
  * processAutoPersonalizedEmail (auto-personalized-email.ts)의 규칙 하나마다:
  *   1 시도를 다 써 뺀 규칙 → skipped(retry_exhausted)        5 워크스페이스 없음 → skipped(workspace_not_found)
  *   2 조건 불충족 → skipped(condition_not_met)               6 수신거부 → skipped(unsubscribed)
+ *                                                            6-1 회신·hard 반송 막기 → skipped(replied·bounced)
  *   3 쿨다운 → skipped(cooldown)                             7 AI 클라이언트 없음 → skipped(no_ai_client)
  *   3-1 중복 수신자(preventDuplicate) → skipped(duplicate)    8 토큰 쿼터 → skipped(quota_exceeded)
  *   4 받는 주소가 메일 모양이 아님 → skipped(invalid_email)   9 메일 클라이언트 없음 → skipped(no_email_client)
@@ -563,6 +577,12 @@ export function walkQueueRow(
         if (unsubscribed === undefined) return { kind: "process", why: "unsubscribe_unknown" };
         if (unsubscribed) {
             outcomes.push({ kind: "skipped", linkId: link.id, reason: "unsubscribed" });
+            continue;
+        }
+        const replyStop = lookups.isReplyStopped(email);
+        if (replyStop === undefined) return { kind: "process", why: "reply_stop_unknown" };
+        if (replyStop) {
+            outcomes.push({ kind: "skipped", linkId: link.id, reason: replyStop });
             continue;
         }
         if (!lookups.aiClientReady(link.model || undefined)) {

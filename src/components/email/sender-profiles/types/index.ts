@@ -21,6 +21,12 @@ export interface SenderProfile extends SenderLimitSettings {
     isDefault: boolean;
     createdAt: string;
     updatedAt: string;
+    /** 발신 건강 (0075, DESIGN-SND 6-3): 누가 멈췄나 manual | auto. 그 전 서버 응답에는 없다 */
+    pausedSource?: string | null;
+    pausedReason?: string | null;
+    pausedAt?: string | null;
+    /** auto(자동 멈춤) | alert(알림만). 기본 주소는 이 값과 상관없이 자동으로 멈추지 않는다 */
+    healthAction?: string;
 }
 
 export interface SenderProfileInput {
@@ -34,7 +40,7 @@ export type SenderLimitPatch = Partial<Omit<SenderLimitSettings, "warmupStartedO
 
 export type SenderProfileCreate = SenderProfileInput & SenderLimitPatch;
 
-export type SenderProfileUpdate = Partial<SenderProfileInput & { isDefault: boolean }> & SenderLimitPatch;
+export type SenderProfileUpdate = Partial<SenderProfileInput & { isDefault: boolean; healthAction: "auto" | "alert" }> & SenderLimitPatch;
 
 /**
  * GET /api/email/sender-profiles/usage 한 줄 — 서버 `SenderUsageView`(email-sender-limit.ts)와 같은 모양.
@@ -61,6 +67,8 @@ export interface SendQueueRuleStats {
     partitionId: number;
     /** 대기 통수. inbound = 문의(한 건씩 생긴 레코드·수동)가 막혀 미뤄진 줄, bulk = 가져오기·예약 등록·후속·반복 */
     pending: { total: number; inbound: number; bulk: number };
+    /** 명단 보류(held, DESIGN-SND 6-2)로 멈춘 줄. 대기·3일치 경고에는 넣지 않는다. 0075 이전 서버 응답에는 없다 */
+    held?: number;
     /** 가장 오래 기다린 줄의 예정 시각 (ISO). 대기가 없으면 null */
     oldestScheduledAt: string | null;
     capacity: {
@@ -86,7 +94,7 @@ export interface SendQueueRuleStats {
 
 export interface SendQueueStats {
     rules: SendQueueRuleStats[];
-    totals: { pending: number; warnings: number };
+    totals: { pending: number; warnings: number; held?: number };
 }
 
 /** 발송 이력 한 줄의 보낸 주소 (GET /api/email/logs). 프로필이 지워졌거나 기록이 없으면 null */

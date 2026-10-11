@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailSenderProfiles } from "@/lib/db";
+import { db, emailConfigs, emailSenderProfiles } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
@@ -7,6 +7,8 @@ import { kstParts } from "@/lib/kst";
 import { pickLimitPatch } from "@/lib/email-sender-limit";
 import { DEFAULT_LIMIT_SETTINGS, toLimitSettings, validateLimitSettings } from "@/lib/email-sender-limit-rules";
 import { senderProfileChangeNeedsAdmin } from "@/lib/email-sender-limit-paths";
+import { newSenderDomainNeedsAdmin } from "@/lib/email-reply-rules";
+import { isReplyScopeOrg } from "@/lib/email-reply-list";
 import type { SenderLimitSettings } from "@/lib/email-sender-limit-rules";
 
 export async function GET(req: NextRequest) {
@@ -70,13 +72,32 @@ export async function POST(req: NextRequest) {
             .where(eq(emailSenderProfiles.orgId, user.orgId));
 
         // 한도가 걸린 주소와 같은 주소로 한도 없는 프로필을 더 만들면 한도를 피해 간다 — 그때는 관리자만
-        if (!limitPatch) {
+        let adminChecked = !!limitPatch;
+        if (!adminChecked) {
             const reason = senderProfileChangeNeedsAdmin({
                 current: null,
                 nextFromEmail: String(fromEmail),
                 others: existing.map((p) => ({ fromEmail: p.fromEmail, limits: toLimitSettings(p) })),
             });
             if (reason) {
+                const auth = await requireAdmin(req);
+                if (!auth.ok) {
+                    const error = auth.status === 403 ? reason : auth.error;
+                    return NextResponse.json({ success: false, error }, { status: auth.status });
+                }
+                adminChecked = true;
+            }
+        }
+
+        // 회신 읽기 대상 조직에서 처음 쓰는 발신 도메인은 관리자만 (RH-SEC-2) — 발신 주소 앞으로 온 메일을 대표 메일함에서 읽는다
+        if (!adminChecked) {
+            const configs = await db.select({ fromEmail: emailConfigs.fromEmail }).from(emailConfigs).where(eq(emailConfigs.orgId, user.orgId));
+            const reason = newSenderDomainNeedsAdmin({
+                nextFromEmail: String(fromEmail),
+                currentFromEmail: null,
+                knownEmails: [...existing.map((p) => p.fromEmail), ...configs.map((c) => c.fromEmail)],
+            });
+            if (reason && (await isReplyScopeOrg(user.orgId))) {
                 const auth = await requireAdmin(req);
                 if (!auth.ok) {
                     const error = auth.status === 403 ? reason : auth.error;
@@ -97,6 +118,8 @@ export async function POST(req: NextRequest) {
                 fromEmail: fromEmail.trim().toLowerCase(),
                 isDefault,
                 ...(limits ?? {}),
+                // 멈춘 채로 만들면 사람이 멈춘 것이다 (DESIGN-SND 6-3 — 자동 멈춤과 가른다)
+                ...(limits?.isPaused ? { pausedSource: "manual", pausedAt: new Date() } : {}),
             })
             .returning();
 
