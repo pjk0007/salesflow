@@ -2,9 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Plus, Pencil, Trash2, Star } from "lucide-react";
+import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/SessionContext";
 import { hasMinRole } from "@/lib/auth-admin-rules";
@@ -25,6 +24,7 @@ import HoldBadge from "./send-health/ui/HoldBadge";
 import ReleaseDialog from "./send-health/ui/ReleaseDialog";
 import type { ReleaseTarget } from "./send-health/types";
 import { healthTooltip } from "./send-health/utils/labels";
+import SenderProfileList from "./ui/sender-profile-list";
 
 interface SenderProfileManagerProps {
     profiles: SenderProfile[];
@@ -78,79 +78,42 @@ export default function SenderProfileManager({
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {profiles.length === 0 ? (
-                        <p className="text-sm text-muted-foreground text-center py-6">
-                            발신자 프로필이 없습니다. 추가 버튼을 눌러 생성하세요.
-                        </p>
-                    ) : (
-                        <div className="space-y-3">
-                            {profiles.map((p) => {
-                                const health = senderById.get(p.id);
-                                const autoPaused = p.isPaused && p.pausedSource === "auto";
-                                return (
-                                <div key={p.id} className="flex items-center justify-between gap-3 p-3 border rounded-lg">
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="font-medium text-sm">{p.name}</span>
-                                            {p.isDefault && (
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="text-xs"
-                                                    title="자동 멈춤 안 함(기본 주소) — 기본 주소가 멈추면 이 조직의 템플릿 메일(폼 문의 첫 메일 포함)이 모두 멈추므로 발신 건강이 자동으로 멈추지 않고 알림만 합니다."
-                                                >
-                                                    기본
-                                                </Badge>
-                                            )}
-                                            <SenderLimitBadges settings={toLimitSettings(p)} usage={usageById.get(p.id)} />
-                                            {health && health.state !== "ok" && (
-                                                <HealthStateBadge
-                                                    state={health.state}
-                                                    prefix="발송 "
-                                                    tooltip={healthTooltip({ final: health.final, failed: health.failed, rateBp: health.rateBp, dsnOnly: health.dsnOnly })}
-                                                />
-                                            )}
-                                            {autoPaused && <HoldBadge kind="auto_pause" reason={p.pausedReason} since={p.pausedAt} />}
-                                            {isAdmin && autoPaused && (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="h-6 px-2 text-xs"
-                                                    onClick={() =>
-                                                        setReleaseTarget({
-                                                            kind: "sender",
-                                                            profileId: p.id,
-                                                            email: p.fromEmail,
-                                                            reason: p.pausedReason ?? null,
-                                                            preview: health?.releasePreview ?? null,
-                                                        })
-                                                    }
-                                                >
-                                                    풀기
-                                                </Button>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                                            {p.fromName} &lt;{p.fromEmail}&gt;
-                                        </p>
-                                    </div>
-                                    <div className="flex shrink-0 items-center gap-1">
-                                        {!p.isDefault && (
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSetDefault(p.id)} title="기본으로 설정" aria-label="기본으로 설정">
-                                                <Star className="h-4 w-4" />
-                                            </Button>
-                                        )}
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setDialogTarget({ mode: "edit", profile: p })} title="수정" aria-label="수정">
-                                            <Pencil className="h-4 w-4" />
+                    <SenderProfileList
+                        profiles={profiles}
+                        onEdit={(profile) => setDialogTarget({ mode: "edit", profile })}
+                        onDelete={setDeleteTarget}
+                        onSetDefault={handleSetDefault}
+                        renderBadges={(p) => {
+                            const health = senderById.get(p.id);
+                            const autoPaused = p.isPaused && p.pausedSource === "auto";
+                            return (
+                                <>
+                                    <SenderLimitBadges settings={toLimitSettings(p)} usage={usageById.get(p.id)} />
+                                    {health && health.state !== "ok" && (
+                                        <HealthStateBadge
+                                            state={health.state}
+                                            prefix="발송 "
+                                            tooltip={healthTooltip({ final: health.final, failed: health.failed, rateBp: health.rateBp, dsnOnly: health.dsnOnly })}
+                                        />
+                                    )}
+                                    {autoPaused && <HoldBadge kind="auto_pause" reason={p.pausedReason} since={p.pausedAt} />}
+                                    {isAdmin && autoPaused && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-6 px-2 text-xs"
+                                            onClick={() => setReleaseTarget({
+                                                kind: "sender", profileId: p.id, email: p.fromEmail,
+                                                reason: p.pausedReason ?? null, preview: health?.releasePreview ?? null,
+                                            })}
+                                        >
+                                            풀기
                                         </Button>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setDeleteTarget(p)} title="삭제" aria-label="삭제">
-                                            <Trash2 className="h-4 w-4" />
-                                        </Button>
-                                    </div>
-                                </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                                    )}
+                                </>
+                            );
+                        }}
+                    />
                 </CardContent>
             </Card>
 
