@@ -23,18 +23,19 @@
 
 1. 배포 시 `0077_customer_journey_alerts.sql`을 기존 마이그레이션 절차로 적용한다.
 2. 각 스페이스의 수신 웹훅을 만들고 배포 환경의 비밀 설정에 사업별 주소를 넣는다. 웹훅 주소는 저장소·문서에 기록하지 않는다.
-3. 아래 설정으로 허용할 워크스페이스를 명시한다. 번호는 실제 운영 워크스페이스를 확인한 후 넣는다.
+3. 아래 설정으로 허용할 워크스페이스를 명시한다. 운영 DB에서 디하 8번, 백오피스랩 9번과 각각의 활성 사이트를 확인했다.
 
 ```dotenv
 JOURNEY_ALERT_MODE=dry_run
-JOURNEY_ALERT_WORKSPACE_IDS=<쉼표로 구분한 워크스페이스 번호>
-JOURNEY_ALERT_WEBHOOKS_BY_WORKSPACE={"<디하 워크스페이스 번호>":"<디하 웹훅>","<백오피스랩 워크스페이스 번호>":"<백오피스랩 웹훅>"}
+JOURNEY_ALERT_SCHEDULER=on
+JOURNEY_ALERT_WORKSPACE_IDS=8,9
+JOURNEY_ALERT_WEBHOOKS_BY_WORKSPACE={"8":"<디하 웹훅>","9":"<백오피스랩 웹훅>"}
 JOURNEY_ALERT_START_AT=<운영을 시작할 시각, ISO 8601>
 NEXT_PUBLIC_BASE_URL=https://sendb.kr
 ```
 
 4. `dry_run`으로 카드와 대상이 맞는지 확인한 후 `JOURNEY_ALERT_MODE=live`로 전환한다. `dry_run`으로 기록한 방문은 전환 후 소급 전송하지 않는다. 기본값은 `off`다.
-5. 기존 `POST /api/tracker/deep-alerts/process`가 새 워커도 함께 호출하도록 연결했다. 운영 스케줄러에 이 경로가 5분 주기로 등록되어 있는지 확인한다. 필요하면 전용 `POST /api/tracker/journey-alerts/process`를 `x-secret: <CRON_SECRET>` 또는 Bearer 헤더로 호출할 수 있다. 중복 호출은 DB 잠금과 방문별 고유 키로 막는다.
+5. `JOURNEY_ALERT_SCHEDULER=on`이면 운영 Node 서버가 마이그레이션 완료 후 첫 회차를 20초 뒤에 실행하고, 각 회차 완료 후 5분 뒤 다음 회차를 예약한다. 서버 재시작 시 다시 시작하며 프로세스당 한 번만 등록한다. 실행 중에 다른 회차를 겹치지 않는다. `GET /api/tracker/journey-alerts/process`에 `x-secret: <CRON_SECRET>` 또는 Bearer 헤더를 보내 최근 자동 실행 시각·결과를 확인한다. 필요하면 같은 경로의 POST로 수동 처리할 수 있다. 기존 `POST /api/tracker/deep-alerts/process`도 새 워커를 호출하며 중복 호출은 DB 잠금과 방문별 고유 키로 막는다.
 
 `live`는 기존 운영 서버 판정을 통과해야 한다. 로컬 통합 검증에서만 `JOURNEY_ALERT_TEST_SERVER_LIVE=1`을 쓰며 운영 설정에는 넣지 않는다. 기존 깊이 방문 알림의 설정과 발송 기록은 별개다.
 
@@ -42,10 +43,11 @@ NEXT_PUBLIC_BASE_URL=https://sendb.kr
 
 ## 검증
 
-- 운영 main의 발신자 검색·페이지 이동과 사업별 발송 경로를 통합한 코드에서 전체 단위 시험 916개 통과. 고객 여정 카드 시험 9개와 사업별 주소 설정 시험 6개를 포함한다.
+- 운영 main의 발신자 검색·페이지 이동과 사업별 발송 경로 및 자동 실행을 통합한 코드에서 전체 단위 시험 921개 통과. 고객 여정 카드 시험 9개와 사업별 주소 설정 시험 6개를 포함한다.
 - TypeScript 검사 및 변경 코드 ESLint 통과.
+- 자동 실행의 시작 지연, 완료 후 예약, 오래 걸리는 회차의 겹침 방지, 실패 후 재예약, 실행 중 정지 및 운영 설정 조건을 검증하는 시험 5개를 추가했다.
 - 격리된 로컬 PostgreSQL에서 가상 고객으로 발송, 같은 방문 중복 방지, 완료/이탈 구분, 기계·진행 중 방문 제외, dry run, 실패 후 재시도, 웹훅의 요청 ID 미사용, 응답 불명확 시 자동 재전송 중지, 두 사업의 스페이스 분리, 연결 누락 사업 대기, 잘못된 주소 목록 중단 등 13항목을 검증했다. 각 실행마다 별도 시험 조직·사업을 만들며 외부 발송은 대체 함수로 수행했다.
-- 최적화 프로덕션 빌드 통과. 전용 스페이스에 가상 고객 카드 1장을 실제 전송하고 Google Chat 화면에서 수신·표시를 확인했다.
+- 최적화 프로덕션 빌드 통과. 두 전용 스페이스 각각에 가상 고객 카드를 실제 전송해 성공 응답을 확인했고, 디하 스페이스에서 카드 표시를 확인했다.
 - 검증 결과와 가상 카드 JSON/텍스트: `F:/Dev/sendb-recovery-20261011/customer-journey/`.
 
 ## 구현 위치
@@ -53,6 +55,7 @@ NEXT_PUBLIC_BASE_URL=https://sendb.kr
 - `src/lib/customer-journey-card.ts`: 방문 요약·카드 생성 (DB/외부 호출 없음)
 - `src/lib/customer-journey-alert.ts`: 후보 조회·중복 방지·저장·발송
 - `src/lib/customer-journey-alert-config.ts`: 사업 허용 목록과 스페이스별 주소 설정
+- `src/lib/customer-journey-scheduler.ts`: 운영 서버 정기 처리 및 실행 상태
 - `src/lib/google-chat.ts`: 기존 텍스트 발송 경로를 유지하고 `cardsV2` 발송 추가
 - `drizzle/0077_customer_journey_alerts.sql`: 새 발송 기록 테이블
 - `src/app/api/tracker/journey-alerts/process/route.ts`: 전용 실행 엔드포인트
