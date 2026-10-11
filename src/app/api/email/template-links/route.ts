@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { checkLinkTemplatesOwned } from "@/lib/email-template-ownership";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -91,6 +92,12 @@ export async function POST(req: NextRequest) {
 
         if (!partition) {
             return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
+        }
+
+        // 첫 메일·후속 템플릿이 이 조직 것인지 — 남의 템플릿 id를 넣은 규칙으로 그 내용을 받아 보지 못하게
+        const templates = await checkLinkTemplatesOwned(user.orgId, { emailTemplateId, followupConfig });
+        if (!templates.ok) {
+            return NextResponse.json({ success: false, error: templates.error }, { status: 400 });
         }
 
         const [created] = await db

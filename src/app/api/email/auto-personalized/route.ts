@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, partitions, workspaces, products } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { resolveRuleSenderPool } from "@/lib/email-sender-resolver";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest) {
             useUnsubscribe: emailAutoPersonalizedLinks.useUnsubscribe,
             followupConfig: emailAutoPersonalizedLinks.followupConfig,
             senderProfileId: emailAutoPersonalizedLinks.senderProfileId,
+            senderProfileIds: emailAutoPersonalizedLinks.senderProfileIds,
             signatureId: emailAutoPersonalizedLinks.signatureId,
             assetIds: emailAutoPersonalizedLinks.assetIds,
             preventDuplicate: emailAutoPersonalizedLinks.preventDuplicate,
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
             isDraft,
             preventDuplicate = 0,
             senderProfileId,
+            senderProfileIds,
             signatureId,
             assetIds,
         } = await req.json();
@@ -153,6 +156,12 @@ export async function POST(req: NextRequest) {
             }
         }
 
+        // 발신 주소 묶음: 이 조직 주소인지 확인하고 senderProfileId를 묶음의 첫 주소로 맞춘다
+        const senderPool = await resolveRuleSenderPool(user.orgId, { senderProfileId, senderProfileIds });
+        if (!senderPool.ok) {
+            return NextResponse.json({ success: false, error: senderPool.error }, { status: 400 });
+        }
+
         const [created] = await db
             .insert(emailAutoPersonalizedLinks)
             .values({
@@ -177,7 +186,8 @@ export async function POST(req: NextRequest) {
                 isActive: isDraftFlag ? 0 : (isActive ?? 1),
                 isDraft: isDraftFlag,
                 preventDuplicate: preventDuplicate ? 1 : 0,
-                senderProfileId: senderProfileId || null,
+                senderProfileId: senderPool.value?.senderProfileId ?? null,
+                senderProfileIds: senderPool.value?.senderProfileIds ?? null,
                 signatureId: signatureId || null,
                 assetIds: Array.isArray(assetIds) && assetIds.length > 0 ? assetIds : null,
             })

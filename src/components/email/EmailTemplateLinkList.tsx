@@ -5,6 +5,7 @@ import { useFields } from "@/hooks/useFields";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
 import { Switch } from "@/components/ui/switch";
 import {
     Select,
@@ -150,6 +151,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                                 후속 {(link.followupConfig as { delayDays: number }).delayDays}일
                                             </Badge>
                                         )}
+                                        <RuleReplyBadge kind="template" ruleId={link.id} />
                                     </div>
                                     <p className="text-sm text-muted-foreground">
                                         수신: {fieldLabelMap[link.recipientField] || link.recipientField}

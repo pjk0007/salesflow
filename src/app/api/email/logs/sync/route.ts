@@ -1,135 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailSendLogs } from "@/lib/db";
-import { eq, and, gte } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { getEmailClient, parseNhnDate } from "@/lib/nhn-email";
+import { syncOrgStatuses } from "@/lib/email-status-sync";
 
+/**
+ * 발송 이력 화면의 "동기화" 버튼 (DESIGN-SND 3-7).
+ * 10분 cron(POST /api/email/status-sync/process)과 같은 함수를 부른다 — 그 조직이 든 appKey 묶음의 커서 따라잡기 + 늦은 기록 보조 질문.
+ * 결과 기록 규칙이 두 벌이면 한쪽만 고쳐진다. 예전 "30일 sent 전부 다시 보기" 단계는 없앴다 (대량에서 끝까지 못 돌았다).
+ * 응답 이름(synced·updated)은 화면이 읽던 그대로 둔다.
+ */
 export async function POST(req: NextRequest) {
     const user = getUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const client = await getEmailClient(user.orgId);
-    if (!client) {
-        return NextResponse.json({ success: false, error: "이메일 설정이 필요합니다." }, { status: 400 });
-    }
-
     try {
-        let updated = 0;
-
-        // ── 단계 1: pending 상태 동기화 ──
-        const pendingLogs = await db
-            .select()
-            .from(emailSendLogs)
-            .where(
-                and(
-                    eq(emailSendLogs.orgId, user.orgId),
-                    eq(emailSendLogs.status, "pending")
-                )
-            )
-            .limit(100);
-
-        const pendingRequestIds = [...new Set(pendingLogs.map((l) => l.requestId).filter(Boolean))];
-
-        for (const requestId of pendingRequestIds) {
-            if (!requestId) continue;
-
-            try {
-                const result = await client.queryMails({ requestId });
-                if (!result.header.isSuccessful || !result.data) continue;
-
-                for (const mail of result.data) {
-                    let newStatus: string | null = null;
-                    if (mail.mailStatusCode === "SST2") newStatus = "sent";
-                    else if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST7") newStatus = "failed";
-
-                    if (!newStatus) continue;
-
-                    const matchingLogs = pendingLogs.filter(
-                        (l) => l.requestId === requestId && l.recipientEmail === mail.receiveMailAddr
-                    );
-
-                    for (const log of matchingLogs) {
-                        await db
-                            .update(emailSendLogs)
-                            .set({
-                                status: newStatus,
-                                resultCode: mail.resultCode,
-                                resultMessage: mail.resultCodeName,
-                                completedAt: parseNhnDate(mail.resultDate) ?? new Date(),
-                            })
-                            .where(eq(emailSendLogs.id, log.id));
-                        updated++;
-                    }
-                }
-            } catch {
-                // 개별 조회 실패는 무시
-            }
+        const stats = await syncOrgStatuses(user.orgId, { maxCalls: 100, trigger: "manual" });
+        if (!stats) {
+            return NextResponse.json({ success: false, error: "이메일 설정이 필요합니다." }, { status: 400 });
         }
-
-        // ── 단계 2: sent 상태 동기화 (실제 NHN 상태 반영, 최근 30일) ──
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        let statusCorrected = 0;
-
-        const sentLogs = await db
-            .select()
-            .from(emailSendLogs)
-            .where(
-                and(
-                    eq(emailSendLogs.orgId, user.orgId),
-                    eq(emailSendLogs.status, "sent"),
-                    gte(emailSendLogs.sentAt, thirtyDaysAgo)
-                )
-            );
-
-        // requestId 기준으로 그룹핑해 NHN API 호출 최소화
-        const logsByRequestId = new Map<string, typeof sentLogs>();
-        for (const log of sentLogs) {
-            if (!log.requestId) continue;
-            const group = logsByRequestId.get(log.requestId);
-            if (group) group.push(log);
-            else logsByRequestId.set(log.requestId, [log]);
+        if (stats.skippedAsLocked) {
+            return NextResponse.json({
+                success: true,
+                data: { synced: 0, updated: 0, statusCorrected: 0, busy: true, message: "다른 동기화가 도는 중입니다. 잠시 뒤 다시 눌러 주세요." },
+            });
         }
-
-        for (const [requestId, logs] of logsByRequestId) {
-            try {
-                const result = await client.queryMails({ requestId });
-                if (!result.header.isSuccessful || !result.data) continue;
-
-                for (const mail of result.data) {
-                    const matchingLogs = logs.filter(
-                        (l) => l.recipientEmail === mail.receiveMailAddr
-                    );
-
-                    for (const log of matchingLogs) {
-                        // 실제 NHN 상태가 실패/미인증이면 상태 보정
-                        if (mail.mailStatusCode === "SST3" || mail.mailStatusCode === "SST7") {
-                            await db
-                                .update(emailSendLogs)
-                                .set({
-                                    status: "failed",
-                                    resultCode: mail.resultCode,
-                                    resultMessage: mail.resultCodeName,
-                                    completedAt: parseNhnDate(mail.resultDate) ?? new Date(),
-                                })
-                                .where(eq(emailSendLogs.id, log.id));
-                            statusCorrected++;
-                        }
-                    }
-                }
-            } catch {
-                // 개별 조회 실패는 무시
-            }
-        }
-
         return NextResponse.json({
             success: true,
-            data: { synced: pendingLogs.length, updated, sentChecked: sentLogs.length, statusCorrected },
+            data: {
+                synced: stats.finalized,
+                updated: stats.updated,
+                statusCorrected: stats.failedNew,
+                calls: stats.calls,
+                windows: stats.windows,
+                unpaired: stats.unpaired,
+                errors: stats.errors,
+            },
         });
     } catch (error) {
-        console.error("Email sync error:", error);
+        // 오류 객체를 통째로 찍지 않는다 — 쿼리 매개변수에 받는 주소가 섞일 수 있다
+        console.error("Email sync error:", error instanceof Error ? error.message.slice(0, 200) : "unknown");
         return NextResponse.json({ success: false, error: "동기화에 실패했습니다." }, { status: 500 });
     }
 }

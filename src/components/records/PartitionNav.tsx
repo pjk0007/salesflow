@@ -31,6 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { useFieldTypes } from "@/hooks/useFieldTypes";
 import { toast } from "sonner";
 import type { PartitionTree } from "@/hooks/usePartitions";
+import { usePartitionHolds } from "@/components/email/send-health/hooks/useSendHealth";
+import { holdLine } from "@/components/email/send-health/utils/labels";
 
 interface PartitionNavProps {
     workspaceId: number | null;
@@ -73,6 +75,19 @@ export default function PartitionNav({
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
     const { fieldTypes: types } = useFieldTypes();
     const [openFolders, setOpenFolders] = useState<Set<number>>(new Set());
+    // 발송 실패가 많아 보류된 명단 — 이름 옆 빨간 점 (DESIGN-SND 10절)
+    const { byPartition: holdByPartition } = usePartitionHolds();
+    const holdDot = (partitionId: number) => {
+        const hold = holdByPartition.get(partitionId);
+        if (!hold) return null;
+        return (
+            <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"
+                title={`명단 보류 — 발송 실패가 많아 대량 발송을 잠시 멈췄습니다 (${holdLine(hold)})`}
+                aria-label="명단 보류"
+            />
+        );
+    };
 
     const changePartitionType = async (partitionId: number, newTypeId: number | null) => {
         const res = await fetch(`/api/partitions/${partitionId}`, {
@@ -247,6 +262,7 @@ export default function PartitionNav({
                                             >
                                                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                                 <span className="truncate">{pt.name}</span>
+                                                {holdDot(pt.id)}
                                                 <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
                                                     {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
                                                 </Badge>
@@ -347,6 +363,7 @@ export default function PartitionNav({
                                 >
                                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                     <span className="truncate">{pt.name}</span>
+                                    {holdDot(pt.id)}
                                     <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
                                         {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
                                     </Badge>

@@ -17,6 +17,7 @@ import { RecordVisitorActivity } from "@/components/tracker/ui/RecordVisitorActi
 import SendAlimtalkDialog from "@/components/alimtalk/SendAlimtalkDialog";
 import SendEmailDialog from "./SendEmailDialog";
 import UnifiedLogTable from "@/components/logs/UnifiedLogTable";
+import { RecordReplyBadge } from "@/components/email/replies/ui/RecordReplyBadge";
 import type { DbRecord } from "@/lib/db";
 import type { FieldDefinition } from "@/types";
 
@@ -51,6 +52,8 @@ export default function RecordDetailDialog({
                     <SheetHeader>
                         <SheetTitle>{record.integratedCode}</SheetTitle>
                         <SheetDescription>레코드 상세 정보</SheetDescription>
+                        {/* 회신함 배지·최근 발췌 (DESIGN-RPL 11절 4번) — 사람 회신이 없으면 보이지 않는다 */}
+                        <RecordReplyBadge recordId={record.id} />
                         <Button
                             variant="outline"
                             size="sm"

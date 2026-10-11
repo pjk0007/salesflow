@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useFollowupQueue } from "@/hooks/useFollowupQueue";
+import { toast } from "sonner";
 import {
     Table,
     TableBody,
@@ -25,9 +26,26 @@ import { ChevronLeft, ChevronRight, Clock, X } from "lucide-react";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
     pending: { label: "대기", variant: "outline" },
+    // 워커가 집어 가서 보내는 중. 잠금이 30분 넘게 풀리지 않으면 다음 회차가 대기로 되돌린다
+    processing: { label: "처리 중", variant: "secondary" },
     sent: { label: "발송", variant: "default" },
     skipped: { label: "건너뜀", variant: "secondary" },
     cancelled: { label: "취소", variant: "destructive" },
+    // 원본 메일의 명단이 발송 실패가 많아 보류 중 (DESIGN-SND 6-2). 관리자가 풀면 대기로 돌아간다
+    held: { label: "명단 보류", variant: "outline" },
+};
+
+/** 멈춘 까닭 (DESIGN-RPL 11절 5번) — 취소 배지 옆 */
+const STOP_REASON_MAP: Record<string, string> = {
+    replied: "(회신)",
+    bounced: "(반송)",
+    first_failed: "(앞 메일 실패)",
+};
+
+const STOP_REASON_TITLE: Record<string, string> = {
+    replied: "고객이 회신해서 자동 메일을 멈췄습니다",
+    bounced: "반송된 주소라 자동 메일을 멈췄습니다",
+    first_failed: "앞 메일이 받는 쪽에서 실패해(NHN 발송 실패 — 주소 없음 등) 후속을 보내지 않았습니다",
 };
 
 const SOURCE_TYPE_MAP: Record<string, string> = {
@@ -72,8 +90,10 @@ export default function FollowupQueueTable() {
 
     const handleCancel = async (id: number) => {
         setCancellingId(id);
-        await cancelItem(id);
+        const result = await cancelItem(id);
         setCancellingId(null);
+        // 그사이 발송 처리에 들어간 줄은 취소되지 않는다 — 이유를 보여 준다
+        if (!result?.success) toast.error(result?.error || "취소에 실패했습니다.");
     };
 
     const totalPages = Math.ceil(totalCount / 50);
@@ -89,9 +109,11 @@ export default function FollowupQueueTable() {
                     <SelectContent>
                         <SelectItem value="all">전체 상태</SelectItem>
                         <SelectItem value="pending">대기</SelectItem>
+                        <SelectItem value="processing">처리 중</SelectItem>
                         <SelectItem value="sent">발송</SelectItem>
                         <SelectItem value="skipped">건너뜀</SelectItem>
                         <SelectItem value="cancelled">취소</SelectItem>
+                        <SelectItem value="held">명단 보류</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -163,6 +185,14 @@ export default function FollowupQueueTable() {
                                             <TableCell>{formatDate(item.checkAt)}</TableCell>
                                             <TableCell>
                                                 <Badge variant={st.variant}>{st.label}</Badge>
+                                                {item.stopReason && STOP_REASON_MAP[item.stopReason] && (
+                                                    <span
+                                                        className="ml-1 text-xs text-muted-foreground"
+                                                        title={STOP_REASON_TITLE[item.stopReason]}
+                                                    >
+                                                        {STOP_REASON_MAP[item.stopReason]}
+                                                    </span>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 {item.result === "clicked" ? (
@@ -175,7 +205,7 @@ export default function FollowupQueueTable() {
                                             </TableCell>
                                             <TableCell>{formatDate(item.processedAt)}</TableCell>
                                             <TableCell>
-                                                {item.status === "pending" && (
+                                                {(item.status === "pending" || item.status === "held") && (
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
