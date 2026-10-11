@@ -6,17 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { SenderProfile } from "../types/sender-profile";
 import { useSenderProfileList } from "../hooks/use-sender-profile-list";
-import type { ReactNode } from "react";
 
-interface SenderProfileListProps<T extends SenderProfile> {
-    profiles: T[];
-    onEdit: (profile: T) => void;
-    onDelete: (profile: T) => void;
+interface SenderProfileListProps {
+    profiles: SenderProfile[];
+    onEdit: (profile: SenderProfile) => void;
+    onDelete: (id: number) => void;
     onSetDefault: (id: number) => void;
-    renderBadges?: (profile: T) => ReactNode;
 }
 
-export default function SenderProfileList<T extends SenderProfile>({ profiles, onEdit, onDelete, onSetDefault, renderBadges }: SenderProfileListProps<T>) {
+export default function SenderProfileList({ profiles, onEdit, onDelete, onSetDefault }: SenderProfileListProps) {
     const { items, total, totalPages, page, query, handleSearch, handleClear, handlePrevious, handleNext } = useSenderProfileList(profiles);
 
     return (
@@ -43,7 +41,7 @@ export default function SenderProfileList<T extends SenderProfile>({ profiles, o
                             <li key={profile.id} className="grid grid-cols-[minmax(0,1fr)_6.5rem] items-center gap-x-4 gap-y-1 px-3 py-2 hover:bg-muted/30 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_6.5rem]">
                                 <div className="flex min-w-0 items-center gap-2">
                                     <span className="truncate text-sm font-medium" title={profile.name}>{profile.name}</span>
-                                    {profile.isDefault && <Badge variant="secondary" className="shrink-0 text-xs" title="기본 주소는 발신 건강 판정에서 자동으로 멈추지 않고 알림만 합니다.">기본</Badge>}
+                                    {profile.isDefault && <Badge variant="secondary" className="shrink-0 text-xs">기본</Badge>}
                                 </div>
                                 <div className="col-start-1 row-start-2 min-w-0 text-xs sm:col-start-2 sm:row-start-1">
                                     <p className="truncate text-muted-foreground" title={profile.fromName}>{profile.fromName}</p>
@@ -58,11 +56,10 @@ export default function SenderProfileList<T extends SenderProfile>({ profiles, o
                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEdit(profile)} title="수정" aria-label={`${profile.name} 수정`}>
                                         <Pencil className="h-4 w-4" />
                                     </Button>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(profile)} title="삭제" aria-label={`${profile.name} 삭제`}>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(profile.id)} title="삭제" aria-label={`${profile.name} 삭제`}>
                                         <Trash2 className="h-4 w-4" />
                                     </Button>
                                 </div>
-                                {renderBadges && <div className="col-span-2 flex flex-wrap items-center gap-2 sm:col-span-3">{renderBadges(profile)}</div>}
                             </li>
                         ))}
                     </ul>

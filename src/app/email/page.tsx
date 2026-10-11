@@ -19,8 +19,6 @@ import EmailCategoryManager from "@/components/email/EmailCategoryManager";
 import AutoPersonalizedEmailConfig from "@/components/email/AutoPersonalizedEmailConfig";
 import FollowupQueueTable from "@/components/email/FollowupQueueTable";
 import AssetManager from "@/components/email/assets/ui/AssetManager";
-import RepliesTab from "@/components/email/replies/ui/RepliesTab";
-import { useRepliesEnabled } from "@/components/email/replies/hooks/useRepliesEnabled";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
 
@@ -36,8 +34,6 @@ function EmailPageContent() {
 
     const { config, isLoading: configLoading } = useEmailConfig();
     const { profiles, isLoading: profilesLoading } = useSenderProfiles();
-    // 회신 탭은 회신 읽기 대상 조직에만 (대표 메일함 하나를 읽는다 — 다른 조직에는 보이지 않는다)
-    const repliesEnabled = useRepliesEnabled();
 
     const isReady = !!config?.appKey && (profiles?.length ?? 0) > 0;
     const isSetupLoading = configLoading || profilesLoading;
@@ -112,7 +108,6 @@ function EmailPageContent() {
                             <TabsTrigger value="ai-auto">AI 자동발송</TabsTrigger>
                             <TabsTrigger value="assets">에셋</TabsTrigger>
                             <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
-                            {repliesEnabled && <TabsTrigger value="replies">회신</TabsTrigger>}
                             <TabsTrigger value="logs">발송 이력</TabsTrigger>
                         </TabsList>
                         </div>
@@ -140,12 +135,6 @@ function EmailPageContent() {
                         <TabsContent value="followup-queue" className="mt-6">
                             <FollowupQueueTable />
                         </TabsContent>
-
-                        {repliesEnabled && (
-                            <TabsContent value="replies" className="mt-6">
-                                <RepliesTab />
-                            </TabsContent>
-                        )}
 
                         <TabsContent value="logs" className="mt-6">
                             <EmailSendLogTable />

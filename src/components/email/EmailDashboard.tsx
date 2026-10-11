@@ -33,9 +33,6 @@ import {
 } from "recharts";
 import { DailyEmailTable } from "./DailyEmailTable";
 import { KeyLeadsCard } from "./KeyLeadsCard";
-import SendQueueOverviewCard from "./sender-profiles/ui/SendQueueOverviewCard";
-import SendHealthBanner from "./send-health/ui/SendHealthBanner";
-import SendHealthCard from "./send-health/ui/SendHealthCard";
 
 interface EmailDashboardProps {
     onTabChange?: (tab: string) => void;
@@ -128,9 +125,6 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
 
     return (
         <div className="space-y-6">
-            {/* 발신 건강 띠 — 명단 보류·주소 자동 멈춤이 있을 때만 (DESIGN-SND 10절) */}
-            <SendHealthBanner />
-
             {/* 기간 선택 */}
             <div className="flex items-center gap-2">
                 {PERIOD_PRESETS.map((preset) => (
@@ -164,12 +158,6 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                     </Card>
                 ))}
             </div>
-
-            {/* 발송 대기열 — 대기 합계와 3일치 넘은 규칙 (대기가 없으면 보이지 않는다) */}
-            <SendQueueOverviewCard />
-
-            {/* 발송 건강 — 명단·주소 실패율, 보류·멈춤과 풀기 (알림 링크 #send-health) */}
-            <SendHealthCard />
 
             {/* triggerType별 성과 테이블 */}
             {triggerBreakdown.length > 0 && (
