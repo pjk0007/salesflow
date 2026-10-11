@@ -16,5 +16,7 @@ export async function register() {
         // email_send_logs 색인은 마이그레이션 뒤 트랜잭션 밖에서 CONCURRENTLY로 (DESIGN-SND 8-3). 기다리지 않는다 — 서버가 뜨는 것을 늦추지 않게
         const { ensureSendLogIndexes } = await import("@/lib/db/send-log-indexes");
         void ensureSendLogIndexes();
+        const { startCustomerJourneyScheduler } = await import("@/lib/customer-journey-scheduler");
+        startCustomerJourneyScheduler();
     }
 }
