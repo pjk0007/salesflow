@@ -10,6 +10,7 @@
 - 디자이너 하이어 고객여정 → **이효정**, 백오피스랩 고객여정 → **양윤지**. 기존 웹훅의 스페이스 ID와 확인한 Google 사용자 ID를 연결했습니다. 같은 이름의 다른 사업이나 미등록 스페이스로 담당자를 추정하지 않습니다. 스페이스를 새로 만들거나 담당자가 바뀌면 `customer-journey-owner.ts`를 갱신해야 합니다.
 - 같은 고객의 태그는 사업별로 **24시간 1회**입니다. 그 안의 새 방문 카드는 같은 기존 스레드에 계속 보냅니다. 일반 강조는 멘션하지 않습니다.
 - 내부자·공유 방문자·기존 반복 방문·수신거부는 카드 전송과 순위 집계에서 제외합니다. 이미 신청/구매한 고객은 완료 카드로 처리하고 순위·이탈 태그에서 제외합니다.
+- **총 체류 3초 미만**인 방문은 버튼·영역 이벤트나 핵심 ICP 표시가 있어도 카드·담당자 태그·관심도 집계에서 제외합니다. 총 체류가 없으면 종료 시각으로 계산하고, 둘 다 없으면 0초로 간주하지 않습니다. 전송 대기 중 짧은 방문으로 확인된 경우에도 전송과 순위 집계를 중단합니다. 원본 추적 이벤트를 삭제하는 변경은 아닙니다.
 
 ## 행동 기준
 
@@ -53,9 +54,9 @@
 
 ```text
 npx tsc --noEmit
-npx eslint src/lib/customer-journey-priority.ts src/lib/customer-journey-priority.test.ts src/lib/customer-journey-audience.ts src/lib/customer-journey-owner.ts src/lib/customer-journey-alert.ts src/lib/customer-journey-card.ts src/lib/google-chat.ts scripts/check-customer-journey-priority.cjs
+npx eslint src/lib/customer-journey-priority.ts src/lib/customer-journey-priority.test.ts src/lib/customer-journey-audience.ts src/lib/customer-journey-owner.ts src/lib/customer-journey-alert.ts src/lib/customer-journey-card.ts src/lib/customer-journey-card.test.ts src/lib/google-chat.ts scripts/check-customer-journey-priority.cjs
 node --import tsx --test src/lib/customer-journey-priority.test.ts src/lib/customer-journey-card.test.ts src/lib/customer-journey-alert-config.test.ts src/lib/customer-journey-scheduler.test.ts src/lib/google-chat.test.ts src/lib/deep-visitor-alert-rules.test.ts
 node --import tsx scripts/check-customer-journey-priority.cjs
 ```
 
-단위 테스트 145개 및 PGlite의 실제 후보/집계/전송 직전 재확인 SQL 6개 시나리오를 통과했습니다. 통합 검사는 조직 격리, 여러 조직에 가입한 내부 사용자, 개인 메일 내부자, identify, 공유 브라우저, 스캐너, 수신거부, CRM 완료, 담당자 라우팅, 태그 24시간 제한, 불명확 응답, 대기 중 상태 변화, 비교 표본 및 dry_run을 확인합니다. 잠금 함수만 단일 메모리 DB에 맞춰 대체합니다. 모든 데이터가 가상이며 외부 요청과 운영/개발 DB 접근은 0건입니다. 격리 검사 의존성 설치 방법은 실행기 상단에 있습니다.
+단위 테스트 147개 및 PGlite의 실제 후보/집계/전송 직전 재확인 SQL 8개 시나리오를 통과했습니다. 통합 검사는 조직 격리, 여러 조직에 가입한 내부 사용자, 개인 메일 내부자, identify, 공유 브라우저, 스캐너, 수신거부, CRM 완료, 담당자 라우팅, 태그 24시간 제한, 불명확 응답, 대기 중 상태 변화, 비교 표본 및 dry_run을 확인합니다. 짧은 방문은 버튼·영역 이벤트가 있는 1초 방문과 전송 대기 중 1초로 수정된 방문의 카드·태그·순위 제외를 검증합니다. 단위 검사에는 0/1/2.99/3초 경계와 종료 시각 대체·측정 없음도 포함합니다. 잠금 함수만 단일 메모리 DB에 맞춰 대체합니다. 모든 데이터가 가상이며 외부 요청과 운영/개발 DB 접근은 0건입니다. 격리 검사 의존성 설치 방법은 실행기 상단에 있습니다.

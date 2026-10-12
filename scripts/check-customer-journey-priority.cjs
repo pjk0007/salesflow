@@ -153,10 +153,31 @@ async function main() {
     assert.equal(calls[0].message.journeyPriority.cohortSize, 20); assert.equal(calls[0].message.journeyPriority.score, 75);
     console.log('PASS 사업별 최근 30일 20명 이상 비교에서만 상위 5% 판정, 75점의 강한 행동 리드 태그');
 
+    await reset(); await seed(70, { weak: true }); await seed(71);
+    await insert('tracker_events', { site_id: 2, visitor_id: 70, session_id: 70, event_type: 'CUSTOM', event_name: 'subscribe_step_1', occurred_at: at(0.5) });
+    await insert('tracker_events', { site_id: 2, visitor_id: 70, session_id: 70, event_type: 'SECTION_VIEW', event_name: 'service-pricing', occurred_at: at(1), properties: JSON.stringify({ dwell_ms: 1000 }) });
+    await run();
+    assert.equal(calls.length, 1); assert.ok(calls[0].message.text.includes('가상 회사 71'));
+    const short = (await pg.query('SELECT status,message FROM customer_journey_alerts WHERE record_id=70')).rows[0];
+    assert.equal(short.status, 'skipped'); assert.equal(short.message.journeyPriority.rankEligible, false);
+    assert.equal(short.message.journeyPriority.score, 0); assert.equal(short.message.journeyPriority.excludedReason, '3초 미만 짧은 방문');
+    console.log('PASS 1초 방문에 버튼·영역 이벤트가 있어도 카드·태그·관심도 집계 제외, 정상 방문은 유지');
+
+    await reset(); await seed(72);
+    beforePending = async () => {
+      await pg.query('UPDATE tracker_sessions SET duration=1,ended_at=$1,page_count=1 WHERE id=72', [at(1)]);
+      await pg.query('DELETE FROM tracker_events WHERE session_id=72 AND occurred_at>$1', [at(1)]);
+      await insert('tracker_events', { site_id: 2, visitor_id: 72, session_id: 72, event_type: 'CUSTOM', event_name: 'subscribe_step_1', occurred_at: at(0.5) });
+    };
+    await run(); assert.equal(calls.length, 0);
+    const pendingShort = (await pg.query('SELECT status,message FROM customer_journey_alerts WHERE record_id=72')).rows[0];
+    assert.equal(pendingShort.status, 'skipped'); assert.equal(pendingShort.message.journeyPriority.rankEligible, false);
+    console.log('PASS 전송 대기 중 1초 방문으로 확인되면 전송 직전 재판정에서 카드·태그 중단');
+
     await reset(); await seed(60); const dry = await run(now, { JOURNEY_ALERT_MODE: 'dry_run' });
     assert.equal(dry.mode, 'dry_run'); assert.equal(calls.length, 0);
     assert.equal((await pg.query('SELECT status FROM customer_journey_alerts')).rows[0].status, 'dry_run');
-    console.log(JSON.stringify({ result: 'passed', externalRequests: 0, productionOrDevelopmentDbAccess: false, scenarios: 6 }));
+    console.log(JSON.stringify({ result: 'passed', externalRequests: 0, productionOrDevelopmentDbAccess: false, scenarios: 8 }));
   } finally { global.fetch = realFetch; await pg.close(); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

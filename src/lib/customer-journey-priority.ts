@@ -2,6 +2,8 @@
 import { createHash } from "node:crypto";
 import { AI_START_RE, CONTENT_PAGE_RE, DETAIL_SECTIONS_RE, normalizeEmail, pathOf, START_RE, TRUST_RE, type EventInput, type SessionInput } from "./deep-visitor-alert-rules";
 
+export const MIN_JOURNEY_SECONDS = 3;
+
 export interface JourneyAudience {
     internal: boolean;
     sharedVisitor: boolean;
@@ -61,6 +63,7 @@ export function classifyJourneyPriority(input: {
         : a?.existingVisitor ? "메일 이전부터 반복 방문한 계정"
         : a?.unsubscribed ? "수신거부"
         : input.completed || a?.alreadyConverted ? "이미 신청·구매 완료"
+        : input.totalSeconds !== null && input.totalSeconds < MIN_JOURNEY_SECONDS ? `${MIN_JOURNEY_SECONDS}초 미만 짧은 방문`
         : !input.eligible ? "방문 중이거나 자동 방문 의심" : null;
     const coreIcp = isCoreIcp(input.fields);
     const customerKey = journeyCustomerKey(input.recipientEmail);

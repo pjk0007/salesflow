@@ -73,6 +73,38 @@ test("발송 직후 1초짜리 방문은 카드 대상에서 제외한다", () =
     assert.equal(summarizeJourney(f, at(1000)).eligible, false);
 });
 
+test("버튼·영역 이벤트와 핵심 ICP가 있어도 총 체류 3초 미만은 카드·순위에서 제외한다", () => {
+    for (const seconds of [0, 1, 2.99, 3]) {
+        const f = fixture();
+        f.session = { ...f.session, duration: seconds, endedAt: at(seconds), pageCount: 1 };
+        f.fields.push({ key: "icp", label: "ICP", fieldType: "text", value: "핵심" });
+        f.events = [f.events[0], { ...f.events[2], occurredAt: at(seconds), properties: { dwell_ms: seconds * 1000 } },
+            { ...f.events[4], occurredAt: at(seconds) }];
+        const s = summarizeJourney(f, at(1000));
+        assert.equal(s.eligible, seconds >= 3, `${seconds}초 방문`);
+        assert.equal(s.priority.rankEligible, seconds >= 3, `${seconds}초 순위`);
+        if (seconds < 3) {
+            assert.equal(s.priority.score, 0);
+            assert.equal(s.priority.tier, "normal");
+            assert.equal(s.priority.excludedReason, "3초 미만 짧은 방문");
+        }
+    }
+});
+
+test("duration이 없으면 종료 시각으로 짧은 방문을 판정하고 측정 없음은 0초로 간주하지 않는다", () => {
+    const f = fixture();
+    f.events = [f.events[0], { ...f.events[4], occurredAt: at(1) }];
+    f.session = { ...f.session, duration: null, endedAt: at(1), pageCount: 1 };
+    const measured = summarizeJourney(f, at(1000));
+    assert.equal(measured.totalSeconds, 1);
+    assert.equal(measured.eligible, false);
+    assert.equal(measured.priority.rankEligible, false);
+    f.session.endedAt = null;
+    const unknown = summarizeJourney(f, at(1000));
+    assert.equal(unknown.totalSeconds, null);
+    assert.equal(unknown.eligible, true);
+});
+
 test("측정되지 않은 마지막 페이지 체류를 현재 시각으로 부풀리지 않는다", () => {
     const f = fixture(); f.session = { ...f.session, duration: null, endedAt: null };
     const s = summarizeJourney(f, at(86400));

@@ -179,7 +179,9 @@ export async function processCustomerJourneyAlerts(opts: { env?: Env; now?: Date
                 continue;
             }
             if (!summary.eligible) {
-                await conn`UPDATE customer_journey_alerts SET status = 'skipped', last_error = ${summary.priority.excludedReason} WHERE id = ${alert.id}`;
+                await conn`UPDATE customer_journey_alerts SET status = 'skipped',
+                    message = jsonb_set(message, '{journeyPriority,rankEligible}', 'false'::jsonb),
+                    last_error = ${summary.priority.excludedReason} WHERE id = ${alert.id}`;
                 continue;
             }
             const owner = summary.priority.tier === "urgent" ? journeyOwner(config.routes[alert.workspace_id]) : undefined;

@@ -2,7 +2,7 @@
 import { contactKindOf, evaluateSend, pathOf, STAGE_LABELS, type EventInput, type SessionInput } from "./deep-visitor-alert-rules";
 import { chatSafe, clipChars } from "./chat-text";
 import { formatKstShort } from "./kst";
-import { classifyJourneyPriority, PRIORITY_LABELS, type JourneyAudience, type JourneyCohortMember, type JourneyPriority } from "./customer-journey-priority";
+import { classifyJourneyPriority, MIN_JOURNEY_SECONDS, PRIORITY_LABELS, type JourneyAudience, type JourneyCohortMember, type JourneyPriority } from "./customer-journey-priority";
 
 export interface JourneyCardInput {
     recordId: number;
@@ -88,9 +88,10 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         : verdict.sawPrice ? "가격을 확인했습니다. 기존 CRM 맥락을 확인한 뒤 요금·적용 사례를 안내해 주세요."
         : verdict.sawCases || verdict.sawDetail ? "사례·서비스 상세를 확인했습니다. 해당 회사와 관련된 사례로 후속 연락을 준비해 주세요."
         : "초기 방문입니다. 추가 방문·클릭이 있는지 고객 여정에서 확인해 주세요.";
-    const eligible = !verdict.machine && !!verdict.chosenSession && lastActivityAt.getTime() <= now.getTime() - SETTLE_MS
-        && !input.audience?.internal && !input.audience?.sharedVisitor && !input.audience?.existingVisitor && !input.audience?.unsubscribed;
     const totalSeconds = s.duration !== null && Number.isFinite(s.duration) && s.duration >= 0 ? s.duration : s.endedAt && s.endedAt <= now ? Math.max(0, (s.endedAt.getTime() - s.startedAt.getTime()) / 1000) : null;
+    const eligible = (totalSeconds === null || totalSeconds >= MIN_JOURNEY_SECONDS)
+        && !verdict.machine && !!verdict.chosenSession && lastActivityAt.getTime() <= now.getTime() - SETTLE_MS
+        && !input.audience?.internal && !input.audience?.sharedVisitor && !input.audience?.existingVisitor && !input.audience?.unsubscribed;
     const priority = classifyJourneyPriority({ ...input, eligible, completed, totalSeconds, events }, now);
     return {
         eligible,
