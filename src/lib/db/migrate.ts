@@ -90,11 +90,34 @@ async function seedMigrationHistory(client: postgres.Sql) {
     console.log(`[migrate] 시딩 완료 (${EXISTING_MIGRATIONS.length}개)`);
 }
 
-export async function runMigrations() {
+/**
+ * 잠금을 못 얻어 실패한 마이그레이션을 다시 해 보는 간격 (55P03 lock_not_available — 0075의 SET LOCAL lock_timeout).
+ * drizzle은 밀린 마이그레이션을 한 트랜잭션으로 돌려 실패하면 모두 되돌린다 — 다시 해도 처음부터 같다 (IF NOT EXISTS)
+ */
+const LOCK_RETRY_DELAYS_MS = [3_000, 10_000, 20_000];
+
+/** 오류(또는 그 cause)의 Postgres SQLSTATE */
+function sqlStateOf(err: unknown): string | null {
+    let cur: unknown = err;
+    for (let depth = 0; depth < 5 && cur; depth++) {
+        const code = (cur as { code?: unknown }).code;
+        if (typeof code === "string") return code;
+        cur = (cur as { cause?: unknown }).cause;
+    }
+    return null;
+}
+
+/**
+ * 마이그레이션. 성공하면 true, 실패하면 false (instrumentation.ts가 서버를 띄우지 않고 끝낸다 — F1·OPS-1).
+ * 실패를 삼키고 서버를 띄우면 schema.ts는 새 칸을 아는데 DB에는 없어, drizzle insert(넘기지 않은 칸까지 default로 적는다)와
+ * 전체 칸 select가 모두 42703으로 실패한다 — 발송 기록을 먼저 적는 모든 발송 경로가 멈춘다.
+ * 잠금 시간 초과(55P03)는 몇 번 다시 해 본다 (배포 순간 긴 조회와 겹친 경우).
+ */
+export async function runMigrations(): Promise<boolean> {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
         console.error("[migrate] DATABASE_URL 환경변수가 설정되지 않았습니다.");
-        return;
+        return false;
     }
 
     console.log("[migrate] 마이그레이션 시작...");
@@ -103,12 +126,28 @@ export async function runMigrations() {
 
     try {
         await seedMigrationHistory(client);
-        await migrate(db, {
-            migrationsFolder: path.join(process.cwd(), "drizzle"),
-        });
-        console.log("[migrate] 마이그레이션 완료!");
+        for (let attempt = 0; ; attempt++) {
+            try {
+                await migrate(db, {
+                    migrationsFolder: path.join(process.cwd(), "drizzle"),
+                });
+                console.log("[migrate] 마이그레이션 완료!");
+                return true;
+            } catch (err) {
+                if (sqlStateOf(err) === "55P03" && attempt < LOCK_RETRY_DELAYS_MS.length) {
+                    const wait = LOCK_RETRY_DELAYS_MS[attempt];
+                    console.warn(
+                        `[migrate] 표 잠금을 얻지 못함 (55P03, 다른 조회가 오래 쥐고 있음) — ${wait / 1000}초 뒤 다시 (${attempt + 1}/${LOCK_RETRY_DELAYS_MS.length})`
+                    );
+                    await new Promise((r) => setTimeout(r, wait));
+                    continue;
+                }
+                throw err;
+            }
+        }
     } catch (err) {
         console.error("[migrate] 마이그레이션 에러:", err);
+        return false;
     } finally {
         await client.end();
     }

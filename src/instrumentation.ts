@@ -2,6 +2,21 @@ export async function register() {
     console.log("[instrumentation] register() called, NEXT_RUNTIME:", process.env.NEXT_RUNTIME);
     if (process.env.NEXT_RUNTIME === "nodejs") {
         const { runMigrations } = await import("@/lib/db/migrate");
-        await runMigrations();
+        const migrated = await runMigrations();
+        if (!migrated) {
+            // 스키마와 코드가 어긋난 채로 띄우지 않는다 (F1·OPS-1) — 옛 스키마로 뜨면 발송 기록 insert가 모두 42703으로 실패한다.
+            // 끝내면 플랫폼이 다시 띄우며 마이그레이션을 다시 한다. 급할 때만 MIGRATION_FAILURE_MODE=continue로 예전처럼 띄운다
+            if ((process.env.MIGRATION_FAILURE_MODE ?? "").trim().toLowerCase() === "continue") {
+                console.error("[instrumentation] 마이그레이션 실패 — MIGRATION_FAILURE_MODE=continue라 그대로 띄움 (새 칸을 쓰는 경로가 실패할 수 있음)");
+            } else {
+                console.error("[instrumentation] 마이그레이션 실패 — 서버를 띄우지 않고 끝냅니다 (다시 띄우면 다시 시도)");
+                process.exit(1);
+            }
+        }
+        // email_send_logs 색인은 마이그레이션 뒤 트랜잭션 밖에서 CONCURRENTLY로 (DESIGN-SND 8-3). 기다리지 않는다 — 서버가 뜨는 것을 늦추지 않게
+        const { ensureSendLogIndexes } = await import("@/lib/db/send-log-indexes");
+        void ensureSendLogIndexes();
+        const { startCustomerJourneyScheduler } = await import("@/lib/customer-journey-scheduler");
+        startCustomerJourneyScheduler();
     }
 }

@@ -1,5 +1,7 @@
 # Salesflow (Sendb) - Claude Code Guidelines
 
+작업 환경·브랜치·배포·DB 규칙은 먼저 루트 `AGENTS.md`를 따른다. 기본 작업 대상은 `dev` / `sendb-dev` / `sendb-dev-db`이며 `main`은 운영 브랜치다.
+
 ## 폴더 구조 규칙
 
 ### 새로운 기능 또는 기존 기능 수정 시 반드시 아래 구조를 따를 것
@@ -48,5 +50,5 @@ src/components/{feature-name}/
 ## DB
 
 - 로컬: `postgresql://jaehun@localhost:5432/salesflow`
-- 운영: CloudType (주석 처리된 URL 참고)
+- 개발: CloudType `sendb-dev-db`의 기존 개발 설정을 사용한다. 운영 DB에는 읽기 전용으로도 접근하지 않는다.
 - 마이그레이션: `drizzle/` 디렉토리에 SQL, `meta/_journal.json`에 등록

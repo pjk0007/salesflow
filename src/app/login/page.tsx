@@ -6,11 +6,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "@/contexts/SessionContext";
 import { Mail, Lock } from "lucide-react";
+import { safeNextPath } from "@/lib/safe-next-path";
 
 function LoginPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const inviteToken = searchParams.get("invite");
+    const nextPath = safeNextPath(searchParams.get("next"));
     const { refreshSession } = useSession();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -44,7 +46,7 @@ function LoginPageContent() {
                     }
                 }
                 await refreshSession();
-                router.push("/");
+                router.push(nextPath ?? "/");
             } else {
                 setError(data.error || "로그인에 실패했습니다.");
             }

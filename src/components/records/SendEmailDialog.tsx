@@ -1,8 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { useEmailSend } from "@/hooks/useEmailSend";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
 import { useSignatures } from "@/hooks/useSignatures";
+import { useSenderUsage } from "@/components/email/sender-profiles/hooks/useSenderUsage";
+import SenderSendHint from "@/components/email/sender-profiles/ui/SenderSendHint";
+import { groupNotSent } from "@/components/email/sender-profiles/utils/sendResult";
+import type { SendErrorEntry } from "@/components/email/sender-profiles/types";
 import {
     Dialog,
     DialogContent,
@@ -19,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Send, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 
 interface SendEmailDialogProps {
@@ -33,7 +37,14 @@ interface EmailSendResult {
     totalCount: number;
     successCount: number;
     failCount: number;
+    /** 발신 프로필 한도(하루 최대·시간대·정지·간격)에 걸려 보내지 않은 건수 */
+    limitedCount?: number;
+    /** 보내지 않은 레코드와 이유 (주소 없음·수신거부·한도·NHN 실패), 레코드 코드·이메일. 없으면 빠진다 */
+    errors?: SendErrorEntry[];
 }
+
+/** 이유마다 처음 보이는 레코드 수. 더 있으면 "모두 보기"로 펼친다 — 1,000건을 한꺼번에 늘어놓지 않으려고 */
+const RECIPIENT_PREVIEW = 8;
 
 export default function SendEmailDialog({
     open,
@@ -44,22 +55,20 @@ export default function SendEmailDialog({
     const { templateLinks } = useEmailTemplateLinks(partitionId);
     const { sendEmail } = useEmailSend();
     const { profiles, defaultProfile } = useSenderProfiles();
+    const { usageById, mutate: refreshUsage } = useSenderUsage(open);
     const { signatures, defaultSignature } = useSignatures();
     const [selectedLinkId, setSelectedLinkId] = useState<number | null>(null);
-    const [selectedProfileId, setSelectedProfileId] = useState<string>("");
-    const [selectedSigId, setSelectedSigId] = useState<string>("");
+    // 사용자가 고른 값. 고르기 전에는 기본 프로필·기본 서명을 쓴다 (effect로 상태를 채우지 않고 그때그때 계산한다)
+    const [pickedProfileId, setPickedProfileId] = useState<string>("");
+    const [pickedSigId, setPickedSigId] = useState<string>("");
+    const selectedProfileId = pickedProfileId || (defaultProfile ? String(defaultProfile.id) : "");
+    const selectedSigId = pickedSigId || (defaultSignature ? String(defaultSignature.id) : "");
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<EmailSendResult | null>(null);
+    // "모두 보기"로 펼친 이유
+    const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
 
     const activeLinks = templateLinks.filter((l) => l.isActive === 1);
-
-    useEffect(() => {
-        if (defaultProfile && !selectedProfileId) setSelectedProfileId(String(defaultProfile.id));
-    }, [defaultProfile, selectedProfileId]);
-
-    useEffect(() => {
-        if (defaultSignature && !selectedSigId) setSelectedSigId(String(defaultSignature.id));
-    }, [defaultSignature, selectedSigId]);
 
     const handleSend = async () => {
         if (!selectedLinkId) {
@@ -81,10 +90,17 @@ export default function SendEmailDialog({
         setLoading(false);
 
         if (sendResult.success) {
-            setResult(sendResult.data);
-            toast.success(
-                `발송 완료: 성공 ${sendResult.data.successCount}건, 실패 ${sendResult.data.failCount}건`
-            );
+            const data = sendResult.data as EmailSendResult;
+            setResult(data);
+            // 방금 보낸 만큼 오늘 사용량이 바뀌었다 — 다음 발송 안내가 옛 숫자를 보이지 않게
+            refreshUsage();
+            const limited = data.limitedCount ?? 0;
+            // 결과 대화상자 제목과 같은 말을 쓴다 — 일부라도 못 보냈으면 "발송 완료"라고 하지 않는다
+            const notSent = data.failCount + limited;
+            const head = notSent === 0 ? "발송 완료" : data.successCount === 0 ? "보내지 못했습니다" : "일부만 보냈습니다";
+            const message = `${head}: 성공 ${data.successCount}건, 실패 ${data.failCount}건${limited > 0 ? `, 발송 제한 ${limited}건` : ""}`;
+            if (notSent > 0) toast.warning(message);
+            else toast.success(message);
         } else {
             toast.error(sendResult.error || "발송에 실패했습니다.");
         }
@@ -92,15 +108,16 @@ export default function SendEmailDialog({
 
     const handleClose = () => {
         setSelectedLinkId(null);
-        setSelectedProfileId(defaultProfile ? String(defaultProfile.id) : "");
-        setSelectedSigId(defaultSignature ? String(defaultSignature.id) : "");
+        setPickedProfileId("");
+        setPickedSigId("");
         setResult(null);
+        setExpanded(new Set());
         onOpenChange(false);
     };
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>이메일 발송</DialogTitle>
                     <DialogDescription>
@@ -109,10 +126,23 @@ export default function SendEmailDialog({
                 </DialogHeader>
 
                 {result ? (
-                    <div className="space-y-4">
+                    // 대화상자가 grid라 긴 발신자 이름이 칸을 밀어 넓히지 않게 min-w-0을 준다
+                    <div className="min-w-0 space-y-4">
                         <div className="text-center py-4">
-                            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                            <p className="text-lg font-medium">발송 완료</p>
+                            {/* 한도·주소 없음·수신거부·NHN 실패 무엇이든 못 보낸 레코드가 있으면 "완료"로 보이지 않는다 */}
+                            {result.successCount < result.totalCount ? (
+                                <>
+                                    <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
+                                    <p className="text-lg font-medium">
+                                        {result.successCount > 0 ? "일부는 보내지 못했습니다" : "보내지 못했습니다"}
+                                    </p>
+                                </>
+                            ) : (
+                                <>
+                                    <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                                    <p className="text-lg font-medium">발송 완료</p>
+                                </>
+                            )}
                         </div>
                         <div className="flex justify-center gap-4">
                             <div className="text-center">
@@ -127,13 +157,66 @@ export default function SendEmailDialog({
                                 </p>
                                 <p className="text-xs text-muted-foreground">실패</p>
                             </div>
+                            {(result.limitedCount ?? 0) > 0 && (
+                                <div className="text-center">
+                                    <p className="text-2xl font-bold text-amber-600">
+                                        {result.limitedCount}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">발송 제한</p>
+                                </div>
+                            )}
                         </div>
+                        {(() => {
+                            const groups = groupNotSent(result.errors);
+                            if (groups.length === 0) return null;
+                            const total = groups.reduce((n, g) => n + g.count, 0);
+                            return (
+                                <div className="max-h-[45vh] space-y-3 overflow-y-auto rounded-lg bg-muted p-3 text-xs">
+                                    <p className="font-medium">보내지 않은 레코드 {total.toLocaleString()}건</p>
+                                    {groups.map((g) => {
+                                        const open = expanded.has(g.message);
+                                        const shown = open ? g.recipients : g.recipients.slice(0, RECIPIENT_PREVIEW);
+                                        return (
+                                            <section key={g.message} className="space-y-1">
+                                                <div className="flex justify-between gap-3">
+                                                    <p className="break-all text-foreground">{g.message}</p>
+                                                    <span className="shrink-0 tabular-nums text-muted-foreground">{g.count.toLocaleString()}건</span>
+                                                </div>
+                                                <ul className="flex flex-wrap gap-1">
+                                                    {shown.map((r) => (
+                                                        <li key={r.recordId} className="rounded border bg-background px-1.5 py-0.5 text-muted-foreground break-all">
+                                                            {r.label}
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                                {g.recipients.length > RECIPIENT_PREVIEW && (
+                                                    <button
+                                                        type="button"
+                                                        className="text-primary hover:underline"
+                                                        onClick={() =>
+                                                            setExpanded((prev) => {
+                                                                const next = new Set(prev);
+                                                                if (open) next.delete(g.message);
+                                                                else next.add(g.message);
+                                                                return next;
+                                                            })
+                                                        }
+                                                    >
+                                                        {open ? "접기" : `외 ${(g.recipients.length - RECIPIENT_PREVIEW).toLocaleString()}건 모두 보기`}
+                                                    </button>
+                                                )}
+                                            </section>
+                                        );
+                                    })}
+                                </div>
+                            );
+                        })()}
                         <Button className="w-full" onClick={handleClose}>
                             닫기
                         </Button>
                     </div>
                 ) : (
-                    <div className="space-y-4">
+                    <div className="min-w-0 space-y-4">
                         <div className="space-y-2">
                             <p className="text-sm font-medium">템플릿 선택</p>
                             {activeLinks.length === 0 ? (
@@ -192,7 +275,7 @@ export default function SendEmailDialog({
                         {profiles.length > 0 && (
                             <div className="space-y-2">
                                 <p className="text-sm font-medium">발신자</p>
-                                <Select value={selectedProfileId} onValueChange={setSelectedProfileId}>
+                                <Select value={selectedProfileId} onValueChange={setPickedProfileId}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="발신자 선택" />
                                     </SelectTrigger>
@@ -204,6 +287,11 @@ export default function SendEmailDialog({
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                <SenderSendHint
+                                    profile={profiles.find((p) => String(p.id) === selectedProfileId)}
+                                    usage={selectedProfileId ? usageById.get(Number(selectedProfileId)) : undefined}
+                                    recordCount={recordIds.length}
+                                />
                             </div>
                         )}
 
@@ -211,7 +299,7 @@ export default function SendEmailDialog({
                         {signatures.length > 0 && (
                             <div className="space-y-2">
                                 <p className="text-sm font-medium">서명</p>
-                                <Select value={selectedSigId} onValueChange={setSelectedSigId}>
+                                <Select value={selectedSigId} onValueChange={setPickedSigId}>
                                     <SelectTrigger>
                                         <SelectValue placeholder="서명 선택" />
                                     </SelectTrigger>
