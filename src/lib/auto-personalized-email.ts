@@ -26,6 +26,10 @@ import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-o
 import { findReplyStop } from "@/lib/email-reply-guard";
 import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
 import { getActiveHold } from "@/lib/partition-hold";
+import { beginPreparedDelivery, cancelPreparedSend, finishPreparedDelivery, loadPreparedSend, reservePreparedSend, savePreparedContent } from "./email-prepared-sends";
+import type { PreparationReservation } from "./email-prepared-sends";
+import { isDeliveryDue, preparedSourceHash, PREPARATION_LEAD_MS } from "./email-random-schedule-rules";
+import type { PreparedEmailPayload } from "./db";
 
 // ============================================
 // 쿨다운 체크 (같은 record + ai_auto에 1시간 내 발송 이력)
@@ -76,6 +80,8 @@ async function checkDuplicateRecipientForAiAuto(
 // 메인 자동화 함수
 // ============================================
 interface AutoPersonalizedParams {
+    /** 대량 큐의 영속 예약·미리 작성한 본문을 연결하는 키. */
+    queueId?: number;
     record: DbRecord;
     partitionId: number;
     triggerType: "on_create" | "on_update";
@@ -148,6 +154,9 @@ export async function processAutoPersonalizedEmail(
         // 잡은 발신 자리. sendEachMail을 부르기 전에 끝나면 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
         let slot: SenderSlot | null = null;
         let sendAttempted = false;
+        let sendCompleted = false;
+        let preparedLogId: number | null = null;
+        let planned: Extract<PreparationReservation, { kind: "reserved" }> | null = null;
         try {
             // 2. 조건 평가
             if (!evaluateCondition(link.triggerCondition as Parameters<typeof evaluateCondition>[0], data)) {
@@ -206,16 +215,20 @@ export async function processAutoPersonalizedEmail(
                 continue;
             }
 
-            // 5. AI 클라이언트 확인
-            const aiClient = getAiClient(link.model || undefined);
-            if (!aiClient) {
+            const sourceHash = preparedSourceHash(data, link);
+            const cached = purpose === "bulk" && params.queueId ? await loadPreparedSend(params.queueId, link.id) : undefined;
+            let content: PreparedEmailPayload | null = cached?.sourceHash === sourceHash ? cached.payload : null;
+
+            // 이미 작성한 메일은 AI API·토큰 쿼터와 무관하게 예약 시각에 전송할 수 있다.
+            const aiClient = content ? null : getAiClient(link.model || undefined);
+            if (!content && !aiClient) {
                 console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`);
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_ai_client" });
                 continue;
             }
 
             // 5-1. 토큰 쿼터 확인
-            const quota = await checkTokenQuota(orgId);
+            const quota = content ? { allowed: true } : await checkTokenQuota(orgId);
             if (!quota.allowed) {
                 console.log(`[AutoEmail] Rule ${link.id}: quota exceeded`);
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "quota_exceeded" });
@@ -231,178 +244,242 @@ export async function processAutoPersonalizedEmail(
             }
             const emailConfig = await getEmailConfig(orgId);
 
-            // 6-1. 발신 주소 고르기 + 오늘 자리 잡기 (규칙 묶음 중 가장 오래 쉰 주소 → 기본 프로필 → 레거시 fallback).
-            // 회사 조사·AI 생성(토큰)보다 먼저 해서 막힌 메일에 토큰을 쓰지 않는다
-            // 막히면 대기열이 retryAt에 다시 꺼낸다 — 간격 미룸은 순번대로 펼쳐 한꺼번에 깨어나지 않게 한다
-            // 여기까지의 검사 순서·조건은 대기열의 묶어 미루기(email-send-queue-rules.ts walkQueueRow)가 그대로 따른다 —
-            // 바꾸면 그쪽도 함께 바꿀 것 (같은 줄을 줄마다 처리한 결과와 같아야 한다)
-            // 함께 처리하는 줄이 있으면 꺼낸 순서대로 하나씩 잡는다 — 같은 사용량을 읽어 한 주소에 몰리지 않게 (claimTurn)
-            const claimNow = () =>
-                claimSender(orgId, {
-                    mode: "pool",
-                    ids: linkSenderPool(link),
-                    config: emailConfig,
-                    spreadDeferrals: true,
-                    purpose,
-                });
-            const claim = params.claimTurn ? await params.claimTurn.run(claimNow) : await claimNow();
-            if (!claim.ok) {
-                console.log(
-                    `[AutoEmail] Rule ${link.id}: deferred (${claim.reason}) until ${claim.retryAt.toISOString()}`
-                );
-                outcomes.push({ kind: "deferred", linkId: link.id, retryAt: claim.retryAt, reason: claim.reason });
-                // 뒤 규칙은 보지 않는다 — 이 규칙의 로그가 없어 뒤 규칙이 쿨다운을 통과해 먼저 나가 버린다.
-                // 레코드를 통째로 미루고, 다시 꺼낼 때 이 규칙부터 본다
-                break;
+            const reserve = (forceReplan = false) => reservePreparedSend({
+                queueId: params.queueId!, linkId: link.id, orgId, ids: linkSenderPool(link),
+                config: emailConfig, sourceHash, forceReplan,
+            });
+            let immediateIds = linkSenderPool(link);
+            if (purpose === "bulk" && params.queueId) {
+                const reservation = params.claimTurn ? await params.claimTurn.run(() => reserve()) : await reserve();
+                if (reservation.kind === "deferred") {
+                    outcomes.push({ kind: "deferred", linkId: link.id, retryAt: reservation.retryAt, reason: reservation.reason });
+                    break;
+                }
+                if (reservation.kind === "uncertain") {
+                    outcomes.push({ kind: "skipped", linkId: link.id, reason: "delivery_uncertain" });
+                    break;
+                }
+                if (reservation.kind === "sent") {
+                    outcomes.push({ kind: "sent", linkId: link.id });
+                    continue;
+                }
+                if (reservation.kind === "reserved") {
+                    planned = reservation;
+                    content = reservation.row.payload;
+                }
+                if (reservation.kind === "legacy" && reservation.ids) immediateIds = reservation.ids;
             }
-            slot = claim.slot;
-            const sender = slot.sender;
+
+            // 대량 예약은 오늘 작성할 자리만 확보했다. 실제 사용량은 예약 시각에 올린다.
+            // 문의·한도 없는 주소는 기존 자리 잡기 → 작성 → 즉시 전송 흐름을 따른다.
+            let sender: SenderSlot["sender"];
+            if (planned) {
+                sender = { fromEmail: planned.sender.fromEmail, fromName: planned.sender.fromName, profileId: planned.sender.id };
+            } else {
+                const claimNow = () =>
+                    claimSender(orgId, {
+                        mode: "pool",
+                        ids: immediateIds,
+                        config: emailConfig,
+                        spreadDeferrals: true,
+                        purpose,
+                    });
+                const claim = params.claimTurn ? await params.claimTurn.run(claimNow) : await claimNow();
+                if (!claim.ok) {
+                    console.log(
+                        `[AutoEmail] Rule ${link.id}: deferred (${claim.reason}) until ${claim.retryAt.toISOString()}`
+                    );
+                    outcomes.push({ kind: "deferred", linkId: link.id, retryAt: claim.retryAt, reason: claim.reason });
+                    // 뒤 규칙은 보지 않는다 — 이 규칙의 로그가 없어 뒤 규칙이 쿨다운을 통과해 먼저 나가 버린다.
+                    // 레코드를 통째로 미루고, 다시 꺼낼 때 이 규칙부터 본다
+                    break;
+                }
+                slot = claim.slot;
+                sender = slot.sender;
+            }
             if (!sender.fromEmail) {
                 await releaseSenderSlot(slot);
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_sender" });
                 continue;
             }
-            const senderFromEmail = sender.fromEmail;
+            let senderFromEmail = sender.fromEmail;
 
-            // 6-2. 서명 결정. DB의 null은 "미지정"이므로 undefined로 정규화한다
-            // (HTTP body에서 온 값과 달리 여기서는 null이 "서명 없음"을 뜻하지 않는다)
-            const signatureJson = await resolveSignature(orgId, {
-                requestedId: link.signatureId ?? undefined,
-                config: emailConfig,
-            });
+            const newlyPrepared = !content;
+            if (!content) {
+                // 6-2. 서명 결정. DB의 null은 "미지정"이므로 undefined로 정규화한다
+                // (HTTP body에서 온 값과 달리 여기서는 null이 "서명 없음"을 뜻하지 않는다)
+                const signatureJson = await resolveSignature(orgId, {
+                    requestedId: link.signatureId ?? undefined,
+                    config: emailConfig,
+                });
 
-            // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
-            const recordData = { ...data };
-            if (link.autoResearch === 1 && !recordData._companyResearch) {
-                const companyName = data[link.companyField] as string;
-                const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → SEARCH_MODEL_ID 고정
-                if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
-                    // 같은 org에서 이미 조사한 회사면 재사용한다 — 웹서치 1건이 약 19,000 input tokens라
-                    // 대량 발송에서 회사가 겹치는 만큼 그대로 중복 과금된다.
-                    const cached = await findCachedCompanyResearch(orgId, companyName);
+                // 7. 회사 조사 (autoResearch && _companyResearch 없으면)
+                const recordData = { ...data };
+                if (link.autoResearch === 1 && !recordData._companyResearch) {
+                    const companyName = data[link.companyField] as string;
+                    const searchClient = getSearchAiClient();  // 회사 리서치는 웹검색 필요 → SEARCH_MODEL_ID 고정
+                    if (searchClient && companyName && typeof companyName === "string" && companyName.trim()) {
+                        // 같은 org에서 이미 조사한 회사면 재사용한다 — 웹서치 1건이 약 19,000 input tokens라
+                        // 대량 발송에서 회사가 겹치는 만큼 그대로 중복 과금된다.
+                        const cached = await findCachedCompanyResearch(orgId, companyName);
 
-                    if (cached) {
-                        recordData._companyResearch = { ...cached, researchedAt: new Date().toISOString() };
-                        await db
-                            .update(records)
-                            .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
-                            .where(eq(records.id, record.id));
-                        console.log(`[AutoEmail] Company research cache hit: ${companyName}`);
-                    } else {
-                        const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
-                        recordData._companyResearch = {
-                            ...research,
-                            sources: research.sources,
-                            researchedAt: new Date().toISOString(),
-                        };
+                        if (cached) {
+                            recordData._companyResearch = { ...cached, researchedAt: new Date().toISOString() };
+                            await db
+                                .update(records)
+                                .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
+                                .where(eq(records.id, record.id));
+                            console.log(`[AutoEmail] Company research cache hit: ${companyName}`);
+                        } else {
+                            const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
+                            recordData._companyResearch = {
+                                ...research,
+                                sources: research.sources,
+                                researchedAt: new Date().toISOString(),
+                            };
 
-                        // 레코드에 _companyResearch 저장
-                        await db
-                            .update(records)
-                            .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
-                            .where(eq(records.id, record.id));
+                            // 레코드에 _companyResearch 저장
+                            await db
+                                .update(records)
+                                .set({ data: { ...data, _companyResearch: recordData._companyResearch } })
+                                .where(eq(records.id, record.id));
 
-                        const researchTokens = research.usage.promptTokens + research.usage.completionTokens;
-                        await updateTokenUsage(orgId, researchTokens);
+                            const researchTokens = research.usage.promptTokens + research.usage.completionTokens;
+                            await updateTokenUsage(orgId, researchTokens);
 
-                        await logAiUsage({
-                            orgId,
-                            userId: null,
-                            provider: searchClient.provider,
-                            model: searchClient.model,
-                            promptTokens: research.usage.promptTokens,
-                            completionTokens: research.usage.completionTokens,
-                            purpose: "auto_company_research",
-                        });
+                            await logAiUsage({
+                                orgId,
+                                userId: null,
+                                provider: searchClient.provider,
+                                model: searchClient.model,
+                                promptTokens: research.usage.promptTokens,
+                                completionTokens: research.usage.completionTokens,
+                                purpose: "auto_company_research",
+                            });
+                        }
                     }
                 }
+
+                // 8. 제품 조회
+                let product = null;
+                if (link.productId) {
+                    const [p] = await db
+                        .select()
+                        .from(products)
+                        .where(eq(products.id, link.productId))
+                        .limit(1);
+                    product = p ?? null;
+                }
+
+                // 8-0. 에셋 URL 조회 (규칙에 assetIds가 있으면)
+                let assetUrls: string[] = [];
+                const assetIds = (link as Record<string, unknown>).assetIds as number[] | null | undefined;
+                if (Array.isArray(assetIds) && assetIds.length > 0) {
+                    const assets = await db
+                        .select({ id: emailAssets.id, url: emailAssets.url })
+                        .from(emailAssets)
+                        .where(inArray(emailAssets.id, assetIds));
+                    // 규칙에 저장된 순서를 유지
+                    const urlById = new Map(assets.map((a) => [a.id, a.url]));
+                    assetUrls = assetIds.map((id) => urlById.get(id)).filter((u): u is string => !!u);
+                }
+
+                // 8-1. 발신자 페르소나 (서명에서 추출)
+                let senderPersona: { name: string; title?: string; company?: string } | null = null;
+                if (link.useSignaturePersona === 1 && signatureJson) {
+                    try {
+                        const sig = JSON.parse(signatureJson);
+                        if (sig && typeof sig === "object" && sig.name) {
+                            senderPersona = {
+                                name: sig.name,
+                                title: sig.title || undefined,
+                                company: sig.company || undefined,
+                            };
+                        }
+                    } catch { /* legacy plain text signature — skip */ }
+                }
+
+                // 8-2. AI 이메일 생성 — 프롬프트의 ##필드명## 변수를 레코드 값으로 치환
+                const rawPrompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
+                const prompt = substitutePromptVariables(rawPrompt, recordData);
+                if (!aiClient) throw new Error("메일 작성 클라이언트를 사용할 수 없습니다.");
+                const emailResult = await generateEmail(aiClient, {
+                    prompt,
+                    product,
+                    recordData,
+                    tone: link.tone || undefined,
+                    ctaUrl: link.ctaUrl || product?.url || undefined,
+                    assetUrls: assetUrls.length > 0 ? assetUrls : undefined,
+                    format: (link.format as "plain" | "designed") || "plain",
+                    senderPersona,
+                });
+                console.log(`[AutoEmail] Email generated for record ${record.id}: subject="${emailResult.subject}"`);
+
+                const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
+                await updateTokenUsage(orgId, emailTokens);
+
+                await logAiUsage({
+                    orgId,
+                    userId: null,
+                    provider: aiClient.provider,
+                    model: aiClient.model,
+                    promptTokens: emailResult.usage.promptTokens,
+                    completionTokens: emailResult.usage.completionTokens,
+                    purpose: "auto_personalized_email",
+                });
+
+                // 9. NHN Cloud 이메일 발송
+                let finalBody = emailResult.htmlBody;
+                if (signatureJson) {
+                    finalBody = appendSignature(finalBody, signatureJson);
+                }
+
+                const unsubscribeToken = link.useUnsubscribe ? generateUnsubscribeToken() : null;
+                if (unsubscribeToken) {
+                    finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
+                }
+
+                content = { recipientEmail: email, subject: emailResult.subject, body: finalBody, unsubscribeToken };
+                if (planned) await savePreparedContent(planned.row.id, content);
             }
 
-            // 8. 제품 조회
-            let product = null;
-            if (link.productId) {
-                const [p] = await db
-                    .select()
-                    .from(products)
-                    .where(eq(products.id, link.productId))
-                    .limit(1);
-                product = p ?? null;
+            if (planned) {
+                // 준비가 오래 걸리거나 서버가 늦게 깨어났으면 즉시 몰아서 보내지 않고 미래 구간에 다시 배정한다.
+                if (newlyPrepared && planned.row.scheduledAt.getTime() < Date.now() + PREPARATION_LEAD_MS) {
+                    const replacement = await reserve(true);
+                    if (replacement.kind === "reserved") planned = replacement;
+                    else if (replacement.kind === "deferred") {
+                        outcomes.push({ kind: "deferred", linkId: link.id, retryAt: replacement.retryAt, reason: replacement.reason });
+                        break;
+                    } else throw new Error("메일 예약을 다시 배정하지 못했습니다.");
+                }
+                if (newlyPrepared || !isDeliveryDue(planned.row.scheduledAt, new Date())) {
+                    outcomes.push({ kind: "deferred", linkId: link.id, retryAt: planned.row.scheduledAt, reason: "scheduled" });
+                    break;
+                }
+                const claimNow = () => claimSender(orgId, {
+                    mode: "fixed", ids: [planned!.sender.id], config: emailConfig, purpose: "bulk", prepared: true,
+                });
+                const claim = params.claimTurn ? await params.claimTurn.run(claimNow) : await claimNow();
+                if (!claim.ok) {
+                    outcomes.push({ kind: "deferred", linkId: link.id, retryAt: claim.retryAt, reason: claim.reason });
+                    break;
+                }
+                slot = claim.slot;
+                sender = slot.sender;
+                if (!sender.fromEmail) throw new Error("예약한 발신 주소를 찾을 수 없습니다.");
+                senderFromEmail = sender.fromEmail;
             }
-
-            // 8-0. 에셋 URL 조회 (규칙에 assetIds가 있으면)
-            let assetUrls: string[] = [];
-            const assetIds = (link as Record<string, unknown>).assetIds as number[] | null | undefined;
-            if (Array.isArray(assetIds) && assetIds.length > 0) {
-                const assets = await db
-                    .select({ id: emailAssets.id, url: emailAssets.url })
-                    .from(emailAssets)
-                    .where(inArray(emailAssets.id, assetIds));
-                // 규칙에 저장된 순서를 유지
-                const urlById = new Map(assets.map((a) => [a.id, a.url]));
-                assetUrls = assetIds.map((id) => urlById.get(id)).filter((u): u is string => !!u);
-            }
-
-            // 8-1. 발신자 페르소나 (서명에서 추출)
-            let senderPersona: { name: string; title?: string; company?: string } | null = null;
-            if (link.useSignaturePersona === 1 && signatureJson) {
-                try {
-                    const sig = JSON.parse(signatureJson);
-                    if (sig && typeof sig === "object" && sig.name) {
-                        senderPersona = {
-                            name: sig.name,
-                            title: sig.title || undefined,
-                            company: sig.company || undefined,
-                        };
-                    }
-                } catch { /* legacy plain text signature — skip */ }
-            }
-
-            // 8-2. AI 이메일 생성 — 프롬프트의 ##필드명## 변수를 레코드 값으로 치환
-            const rawPrompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
-            const prompt = substitutePromptVariables(rawPrompt, recordData);
-            const emailResult = await generateEmail(aiClient, {
-                prompt,
-                product,
-                recordData,
-                tone: link.tone || undefined,
-                ctaUrl: link.ctaUrl || product?.url || undefined,
-                assetUrls: assetUrls.length > 0 ? assetUrls : undefined,
-                format: (link.format as "plain" | "designed") || "plain",
-                senderPersona,
-            });
-            console.log(`[AutoEmail] Email generated for record ${record.id}: subject="${emailResult.subject}"`);
-
-            const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
-            await updateTokenUsage(orgId, emailTokens);
-
-            await logAiUsage({
-                orgId,
-                userId: null,
-                provider: aiClient.provider,
-                model: aiClient.model,
-                promptTokens: emailResult.usage.promptTokens,
-                completionTokens: emailResult.usage.completionTokens,
-                purpose: "auto_personalized_email",
-            });
-
-            // 9. NHN Cloud 이메일 발송
-            let finalBody = emailResult.htmlBody;
-            if (signatureJson) {
-                finalBody = appendSignature(finalBody, signatureJson);
-            }
-
-            const unsubscribeToken = link.useUnsubscribe ? generateUnsubscribeToken() : null;
-            if (unsubscribeToken) {
-                finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
-            }
+            const finalBody = content.body;
+            const unsubscribeToken = content.unsubscribeToken;
 
             // 10. 로그 먼저 insert → 트래킹 URL 삽입 → 발송 → status 업데이트
-            const [inserted] = await db.insert(emailSendLogs).values({
+            const logValues = {
                 orgId,
                 partitionId,
                 recordId: record.id,
                 recipientEmail: email,
-                subject: emailResult.subject,
+                subject: content.subject,
                 body: finalBody,
                 status: "pending",
                 triggerType: "ai_auto",
@@ -412,7 +489,21 @@ export async function processAutoPersonalizedEmail(
                 senderProfileId: sender.profileId,
                 // 보낼 때 쓴 주소 그대로 — 프로필 주소를 나중에 바꿔도 이력의 보낸 주소는 그대로다 (DESIGN-3 4-1)
                 senderEmail: senderFromEmail,
-            }).returning({ id: emailSendLogs.id });
+            };
+            let inserted: { id: number };
+            if (planned) {
+                const delivery = await beginPreparedDelivery(planned.row.id, logValues, link.preventDuplicate === 1);
+                if ("skip" in delivery) {
+                    await releaseSenderSlot(slot);
+                    slot = null;
+                    outcomes.push({ kind: "skipped", linkId: link.id, reason: delivery.skip });
+                    break;
+                }
+                inserted = { id: delivery.logId };
+                preparedLogId = delivery.logId;
+            } else {
+                [inserted] = await db.insert(emailSendLogs).values(logValues).returning({ id: emailSendLogs.id });
+            }
 
             const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
@@ -420,18 +511,20 @@ export async function processAutoPersonalizedEmail(
             const nhnResult = await emailClient.sendEachMail({
                 senderAddress: senderFromEmail,
                 senderName: sender.fromName,
-                title: emailResult.subject,
+                title: content.subject,
                 body: trackedBody,
                 receiverList: [{ receiveMailAddr: email, receiveType: "MRT0" }],
                 ...(unsubscribeToken
                     ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
                     : {}),
             });
+            sendCompleted = true;
 
             const sendResult = nhnResult.data?.results?.[0];
             const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
             // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다. 로그 갱신보다 먼저 해야 갱신이 던져도 돌려준다
             if (!isSuccess) await releaseSenderSlot(slot);
+            if (planned) await finishPreparedDelivery(planned.row.id, isSuccess ? "sent" : "ready");
 
             await db.update(emailSendLogs)
                 .set({
@@ -471,6 +564,12 @@ export async function processAutoPersonalizedEmail(
             // 회사 조사·AI·로그 insert에서 던졌으면 메일이 나가지 않았다 → 자리를 돌려준다.
             // sendEachMail이 던졌거나 발송 뒤 DB 갱신이 던졌으면 나갔을 수 있다 → 돌려주지 않는다 (한도를 넘지 않는 쪽)
             if (!sendAttempted) await releaseSenderSlot(slot);
+            if (planned && preparedLogId && !sendAttempted) {
+                await db.update(emailSendLogs).set({ status: "failed", resultMessage: "전송 요청 전 준비 실패" })
+                    .where(eq(emailSendLogs.id, preparedLogId));
+                await finishPreparedDelivery(planned.row.id, "ready");
+            }
+            if (planned && sendAttempted && !sendCompleted) await finishPreparedDelivery(planned.row.id, "uncertain");
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);
             // 삼키지 않는다 — 큐 워커가 재시도 여부를 판단하려면 실패가 결과에 남아야 한다
             outcomes.push({
@@ -478,6 +577,10 @@ export async function processAutoPersonalizedEmail(
                 linkId: link.id,
                 error: err instanceof Error ? err.message : String(err),
             });
+        } finally {
+            if (purpose === "bulk" && params.queueId && outcomes.at(-1)?.kind === "skipped") {
+                await cancelPreparedSend(params.queueId, link.id);
+            }
         }
     }
 

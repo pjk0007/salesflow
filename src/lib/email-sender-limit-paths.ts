@@ -94,6 +94,8 @@ export function describeLimitedSend(reason: SlotDeferReason, retryAt: Date): str
             return `발신 프로필의 오늘 발송 한도를 다 써서 보내지 않았습니다 (${at}부터 보낼 수 있음).`;
         case "spacing":
             return `고르게 나눠 보내기 간격이 지나지 않아 보내지 않았습니다 (${at}부터 보낼 수 있음).`;
+        case "scheduled":
+            return `메일 작성을 마쳤으며 무작위 예약 시각(${at})까지 기다립니다.`;
     }
 }
 

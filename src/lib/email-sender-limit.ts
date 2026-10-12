@@ -42,6 +42,7 @@ import type {
     SlotDeferReason,
     SpacingSpreadMemo,
 } from "@/lib/email-sender-limit-rules";
+import { preparedMinimumGapMs } from "./email-random-schedule-rules";
 
 export interface SenderSlot {
     sender: ResolvedSender;
@@ -98,6 +99,8 @@ export async function claimSender(
         now?: Date;
         spreadDeferrals?: boolean;
         purpose?: SendPurpose;
+        /** DB에 저장한 대량 예약의 실제 전송. 고정 주소만 쓰며 기존 균등 간격 대신 예약표를 따른다. */
+        prepared?: boolean;
     }
 ): Promise<ClaimResult> {
     const now = opts.now ?? new Date();
@@ -106,12 +109,19 @@ export async function claimSender(
     const usageDate = kstParts(now).date;
 
     // 고정 주소면 먼저 한 문장으로 자리를 잡아 본다 (주소 설정 확인 + 예약). 못 잡으면 아래 원래 흐름 그대로
-    const fast = await reserveFixedInOneStatement(orgId, opts, now, usageDate, purpose);
+    const prepared = opts.prepared === true && opts.mode === "fixed" && purpose === "bulk";
+    const fast = prepared ? null : await reserveFixedInOneStatement(orgId, opts, now, usageDate, purpose);
     if (fast) return fast;
 
     // 주소와 오늘 사용량을 한 문장으로 읽는다 (예전: 주소 1 + 사용량 1)
     const loaded = await loadProfilesAndUsage(orgId, usageDate);
-    const picked = pickSenderCandidates(loaded.profiles, opts);
+    if (prepared && !loaded.profiles.some((p) => p.id === opts.ids[0])) {
+        return { ok: false, retryAt: new Date(now.getTime() + 60 * 60 * 1000), reason: "paused", profileId: null };
+    }
+    const profiles = prepared
+        ? loaded.profiles.map((p) => ({ ...p, limits: { ...p.limits, spreadEvenly: false } }))
+        : loaded.profiles;
+    const picked = pickSenderCandidates(profiles, opts);
     if (!Array.isArray(picked)) {
         return { ok: true, slot: { sender: picked, reservation: null } };
     }
@@ -124,6 +134,14 @@ export async function claimSender(
         // 첫 회차는 주소와 함께 읽은 사용량을 쓴다. 경쟁에서 진 뒤(다음 회차)에는 예전처럼 사용량만 다시 읽는다
         const usage =
             round === 0 && loaded.usage ? loaded.usage : await readUsageTolerant(candidates, usageDate, anyLimited);
+        if (prepared && candidates.length === 1) {
+            const p = candidates[0];
+            const last = usage.get(p.id)?.lastSentAt;
+            const earliest = last ? last.getTime() + preparedMinimumGapMs(p.limits, usageDate) : 0;
+            if (earliest > now.getTime()) return {
+                ok: false, retryAt: new Date(earliest), reason: "spacing", profileId: p.id,
+            };
+        }
         const pool = toPoolCandidates(candidates, usage);
 
         const rank = rankPool(pool, now, purpose);
@@ -141,7 +159,8 @@ export async function claimSender(
         for (const id of rank.order) {
             const profile = byId.get(id);
             if (!profile) continue;
-            const reserved = await reserveSlot(profile, usageDate, now, purpose);
+            const reserved = await reserveSlot(profile, usageDate, now, purpose,
+                prepared ? preparedMinimumGapMs(profile.limits, usageDate) : undefined);
             if (reserved === "lost") continue; // 경쟁에서 졌다 — 다음 후보로
             return {
                 ok: true,
@@ -540,10 +559,11 @@ async function reserveSlot(
     profile: OrgSenderProfile,
     usageDate: string,
     now: Date,
-    purpose: SendPurpose
+    purpose: SendPurpose,
+    minimumGapMs?: number,
 ): Promise<"reserved" | "lost" | "unrecorded"> {
     const fullCap = capForDate(profile.limits, usageDate);
-    const gapMs = spreadGapMs(profile.limits, fullCap);
+    const gapMs = minimumGapMs ?? spreadGapMs(profile.limits, fullCap);
     const cap = capForPurpose(fullCap, now, purpose, profile.limits);
     // db.execute에서는 drizzle이 시각 직렬화를 꺼 두므로 ISO 문자열로 넘기고 형을 붙인다
     const nowIso = now.toISOString();

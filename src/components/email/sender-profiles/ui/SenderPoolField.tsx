@@ -105,7 +105,10 @@ export default function SenderPoolField({ value, onChange }: SenderPoolFieldProp
             ) : (
                 <>
                     <p className="text-xs text-muted-foreground">
-                        메일 한 통은 이 중 한 주소로만 나갑니다. 오늘 보낼 수 있는 주소 중 가장 오래 쉰 주소부터 돌아가며 고르게 보냅니다.
+                        메일 한 통은 선택한 주소 중 하나로 나가며, 주소마다 설정한 하루 한도와 웜업을 지킵니다.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                        하루 한도가 있는 주소는 대량 명단의 메일을 미리 작성한 뒤, 주소별 시간대 안에서 매일 다른 예약 시각에 나눠 보냅니다. 시간대 미지정 시 한국 시간 09~18시를 사용합니다. 한도가 없는 주소는 기존 방식으로 발송합니다.
                     </p>
                     {profiles.length > 0 && (
                         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -1283,6 +1283,46 @@ export const emailSenderDailyUsage = pgTable(
 );
 
 // ============================================
+// 미리 작성한 대량 AI 메일과 주소별 하루 무작위 예약. 사용량 카운터는 실제 발송 직전에만 올린다.
+// ============================================
+export const emailSenderDailyPlans = pgTable("email_sender_daily_plans", {
+    senderProfileId: integer("sender_profile_id").references(() => emailSenderProfiles.id, { onDelete: "cascade" }).notNull(),
+    usageDate: varchar("usage_date", { length: 10 }).notNull(),
+    /** 처음 준비한 시점 이후 남은 시간대에 하루 할당량을 배분하며 재시작해도 기준을 유지한다. */
+    startAt: timestamptz("start_at").notNull(),
+}, (table) => [primaryKey({ columns: [table.senderProfileId, table.usageDate] })]);
+
+export interface PreparedEmailPayload {
+    recipientEmail: string;
+    subject: string;
+    body: string;
+    unsubscribeToken: string | null;
+}
+
+export const emailPreparedSends = pgTable("email_prepared_sends", {
+    id: serial("id").primaryKey(),
+    queueId: integer("queue_id").references(() => emailSendQueue.id, { onDelete: "cascade" }).notNull(),
+    linkId: integer("link_id").references(() => emailAutoPersonalizedLinks.id, { onDelete: "cascade" }).notNull(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+    senderProfileId: integer("sender_profile_id").references(() => emailSenderProfiles.id, { onDelete: "cascade" }).notNull(),
+    usageDate: varchar("usage_date", { length: 10 }).notNull(),
+    ordinal: integer("ordinal").notNull(),
+    scheduledAt: timestamptz("scheduled_at").notNull(),
+    sourceHash: varchar("source_hash", { length: 64 }).notNull(),
+    payload: jsonb("payload").$type<PreparedEmailPayload>(),
+    status: varchar("status", { length: 20 }).default("reserved").notNull(), // reserved | ready | sending | sent | uncertain | cancelled
+    logId: integer("log_id").references(() => emailSendLogs.id, { onDelete: "set null" }),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => [
+    uniqueIndex("eps_queue_link_idx").on(table.queueId, table.linkId),
+    uniqueIndex("eps_slot_idx").on(table.senderProfileId, table.usageDate, table.ordinal).where(sql`${table.status} <> 'cancelled'`),
+    index("eps_sender_day_idx").on(table.senderProfileId, table.usageDate, table.status),
+]);
+
+export type PreparedSend = typeof emailPreparedSends.$inferSelect;
+
+// ============================================
 // 이메일 서명 (조직별 다중)
 // ============================================
 export const emailSignatures = pgTable("email_signatures", {

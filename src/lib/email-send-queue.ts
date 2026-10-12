@@ -43,6 +43,7 @@ import type { DbRecord } from "@/lib/db";
 
 /** scheduled-registration(0x5c4edf01)과 다른 키를 쓴다 — 두 잡은 독립적으로 돌아야 한다. */
 const LOCK_KEY = 0x5c4edf02;
+const DELIVERY_LOCK_KEY = 0x5c4edf11;
 
 const BATCH_SIZE = 5;
 const BATCH_DELAY_MS = 1000;
@@ -99,7 +100,9 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 배치 줄이 발신 한도로 미뤄지면 그 규칙 묶음(조직·파티션·트리거)의 남은 줄을 drainBlockedGroup이 한꺼번에 본다 —
  * 한도에 닿은 뒤 쌓인 줄을 5건씩 줄마다 조회하며 미루지 않게. 결과(미룬 시각·건너뛴 이유)는 줄마다 처리한 것과 같다.
  */
-export async function processEmailSendQueue(): Promise<QueueRunStats> {
+export async function processEmailSendQueue(options: { deliveryOnly?: boolean } = {}): Promise<QueueRunStats> {
+    const lockKey = options.deliveryOnly ? DELIVERY_LOCK_KEY : LOCK_KEY;
+    const budgetMs = options.deliveryOnly ? 20_000 : DEADLINE_BUDGET_MS;
     const stats: QueueRunStats = {
         picked: 0,
         sent: 0,
@@ -118,7 +121,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
 
     try {
         const lockResult = await conn<{ acquired: boolean }[]>`
-            SELECT pg_try_advisory_lock(${LOCK_KEY}) AS acquired
+            SELECT pg_try_advisory_lock(${lockKey}) AS acquired
         `;
         acquired = lockResult[0]?.acquired === true;
         if (!acquired) {
@@ -126,13 +129,13 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
             return { ...stats, skippedAsLocked: true };
         }
 
-        stats.reclaimed = await reclaimStuck();
+        if (!options.deliveryOnly) stats.reclaimed = await reclaimStuck();
         // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6)
         await reviveOrphanHeldRows("send_queue");
 
         const drainable = new Map<string, DrainGroup>();
         const startedAt = Date.now();
-        while (!isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
+        while (!isDeadlineExceeded(startedAt, Date.now(), budgetMs)) {
             // 이번 회차에 막힌 것을 본 묶음이 있으면 그 묶음의 줄부터 한꺼번에 본다.
             // NHN·AI를 부르지 않으므로 배치 사이 쉼도 없다
             const next = drainable.entries().next();
@@ -143,7 +146,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
                 continue;
             }
 
-            const batch = await pickBatch();
+            const batch = await pickBatch(options.deliveryOnly === true);
             if (batch.length === 0) break;
 
             stats.picked += batch.length;
@@ -151,12 +154,12 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
             for (const g of deferredGroups) drainable.set(drainGroupKey(g), toDrainGroup(g));
 
             // 미룸만 나온 배치는 NHN을 부르지 않았으니 쉬지 않는다 — 한도에 닿은 뒤 쌓인 줄을 빨리 넘긴다
-            if (!deferredOnly && !isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
+            if (!deferredOnly && !isDeadlineExceeded(startedAt, Date.now(), budgetMs)) {
                 await sleep(BATCH_DELAY_MS);
             }
         }
 
-        if (isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
+        if (isDeadlineExceeded(startedAt, Date.now(), budgetMs)) {
             stats.deadlineHit = true;
         }
 
@@ -168,7 +171,7 @@ export async function processEmailSendQueue(): Promise<QueueRunStats> {
         return stats;
     } finally {
         if (acquired) {
-            await conn`SELECT pg_advisory_unlock(${LOCK_KEY})`;
+            await conn`SELECT pg_advisory_unlock(${lockKey})`;
         }
         conn.release();
     }
@@ -383,7 +386,7 @@ async function reclaimStuck(): Promise<number> {
  * 대량 명단끼리는 먼저 들어온 순이 지켜진다 — 함께 미뤄진 줄은 같은 retryAt을 받아 id 순으로 다시 꺼내진다.
  * 색인 esq_pickup_priority_idx (status, priority DESC, scheduled_at, id)가 이 순서다 (0072).
  */
-async function pickBatch(): Promise<PickedRow[]> {
+async function pickBatch(deliveryOnly: boolean): Promise<PickedRow[]> {
     // RETURNING은 하위 쿼리의 ORDER BY를 지키지 않는다 — 자리 잡기 차례(runBatch)를 문의 먼저·먼저 들어온 순으로 다시 세운다
     const rows = (await db.execute(sql`
         UPDATE email_send_queue
@@ -392,7 +395,16 @@ async function pickBatch(): Promise<PickedRow[]> {
             SELECT id FROM email_send_queue
             WHERE status = 'pending'
               AND scheduled_at <= NOW()
-            ORDER BY priority DESC, scheduled_at ASC, id ASC
+               ${deliveryOnly ? sql`AND EXISTS (
+                   SELECT 1 FROM email_prepared_sends p
+                   WHERE p.queue_id = email_send_queue.id AND p.status = 'ready'
+               )` : sql``}
+            ORDER BY priority DESC,
+                CASE WHEN EXISTS (
+                    SELECT 1 FROM email_prepared_sends p
+                    WHERE p.queue_id = email_send_queue.id AND p.status = 'ready'
+                ) THEN 0 ELSE 1 END,
+                scheduled_at ASC, id ASC
             LIMIT ${BATCH_SIZE}
             FOR UPDATE SKIP LOCKED
         )
@@ -446,7 +458,8 @@ async function runBatch(
         const pureDeferral = processed.outcome === "defer" && plan.stat === "deferred";
         // 명단 보류도 NHN·AI를 부르지 않았다 — 쉬지 않는다
         deferredFlags.push(pureDeferral || processed.outcome === "hold");
-        if (pureDeferral) deferredGroups.push(row);
+        // 대량 줄은 작성·예약 단계도 포함한다. 옛 '지금 발송 가능' 판정으로 묶어 미루면 준비가 생략된다.
+        if (pureDeferral && row.priority === QUEUE_PRIORITY_INBOUND) deferredGroups.push(row);
     }
 
     // 배치의 결과를 한 문장으로 쓴다 (예전: 줄마다 한 문장). 줄마다 쓰는 값은 예전과 같다
@@ -467,6 +480,7 @@ async function processRow(row: PickedRow, claimTurn: ClaimTurn): Promise<Process
     if (!record) return recordDeletedRow();
 
     const result = await processAutoPersonalizedEmail({
+        queueId: row.id,
         record: record as DbRecord,
         partitionId: row.partition_id,
         triggerType: normalizeTriggerType(row.trigger_type),
