@@ -120,7 +120,6 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date) {
                         paragraph(lines),
                         ...(sections ? [paragraph(`<b>영역별 체류 (측정값)</b><br>${sections}`)] : []),
                         ...(summary.actions.length ? [paragraph(`<b>누른 버튼·행동</b><br>${summary.actions.slice(0, 8).map(html).join(" → ")}`)] : []),
-                        paragraph("페이지별 시간은 이동 간격 기준 추정입니다. 영역별 시간은 서로 겹칠 수 있습니다. 이탈 이유는 확인되지 않았습니다."),
                     ] },
                     { header: "다음 연락", widgets: [paragraph(html(summary.recommendation)), { buttonList: { buttons: [
                         { text: "CRM 고객 열기", onClick: { openLink: { url: `${origin}/records?id=${input.recordId}` } } },
