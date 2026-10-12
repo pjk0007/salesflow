@@ -2,6 +2,11 @@
 -- (레코드, 수준)당 한 줄만 둔다 — 5분마다 도는 워커가 같은 사람을 같은 수준으로 다시 보내지 않게 유니크 키로 막는다.
 -- message에 카드 글자를 그대로 남겨 dry_run에서 무엇이 나갈지 확인할 수 있게 한다.
 -- send_log_id·session_id·visitor_id는 FK를 걸지 않는다 — 원본이 지워져도 알림 기록은 남긴다.
+-- 0070~0077은 밀린 것 전부가 한 트랜잭션이다. 여기서 잠금 대기 한도를 걸어 두지 않으면 0073이 email_send_logs 잠금을
+-- 무한정 기다리는 동안 앞에서 잡은 workspaces·대기열 잠금이 풀리지 않아 운영 서버가 멈춘다. 5초를 넘기면 55P03으로
+-- 되돌리고 migrate.ts가 다시 시도한다 (0075와 같은 값).
+SET LOCAL lock_timeout = '5s';
+
 CREATE TABLE IF NOT EXISTS "deep_visitor_alerts" (
     "id" serial PRIMARY KEY NOT NULL,
     "org_id" uuid NOT NULL,
