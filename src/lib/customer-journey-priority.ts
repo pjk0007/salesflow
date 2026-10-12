@@ -113,4 +113,4 @@ export function classifyJourneyPriority(input: {
         evidence: excludedReason ? [] : evidence, excludedReason, rankEligible: !excludedReason, customerKey, ...rank };
 }
 
-export const PRIORITY_LABELS = { normal: "일반 방문", highlight: "관심 높음 · 이탈", urgent: "핵심 리드 이탈 · 담당자 확인 필요" } as const;
+export { PRIORITY_LABELS } from "../components/lead-followup/utils/labels";

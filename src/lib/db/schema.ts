@@ -1812,6 +1812,31 @@ export const customerJourneyAlerts = pgTable("customer_journey_alerts", {
     index("cja_status_next_idx").on(table.status, table.nextAttemptAt),
 ]);
 
+// 사업·수신 이메일별 후속 대응. 재방문·중복 CRM 레코드가 있어도 담당자 처리 상태는 유지한다.
+export const journeyLeadFollowups = pgTable("journey_lead_followups", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+    workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }).notNull(),
+    customerKey: varchar("customer_key", { length: 64 }).notNull(),
+    recordId: integer("record_id").notNull(),
+    firstUrgentAt: timestamptz("first_urgent_at"),
+    status: varchar("status", { length: 20 }).default("new").notNull(),
+    dueAt: timestamptz("due_at"),
+    note: text("note").default("").notNull(),
+    revision: integer("revision").default(0).notNull(),
+    updatedBy: uuid("updated_by"),
+    updatedByName: varchar("updated_by_name", { length: 100 }),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+    lastRemindedAt: timestamptz("last_reminded_at"),
+    nextReminderCheckAt: timestamptz("next_reminder_check_at").defaultNow().notNull(),
+    reminderCount: integer("reminder_count").default(0).notNull(),
+    reminderResult: varchar("reminder_result", { length: 20 }),
+}, (table) => [
+    uniqueIndex("jlf_customer_idx").on(table.orgId, table.workspaceId, table.customerKey),
+    index("jlf_due_idx").on(table.status, table.dueAt),
+]);
+
 // ============================================
 // 회신 받기 (Gmail 회신 메일함) — docs/2026-10-11-reply-and-health/DESIGN-RPL.md 9절, 마이그레이션 0074
 // ============================================

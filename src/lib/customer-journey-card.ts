@@ -2,7 +2,9 @@
 import { contactKindOf, evaluateSend, pathOf, STAGE_LABELS, type EventInput, type SessionInput } from "./deep-visitor-alert-rules";
 import { chatSafe, clipChars } from "./chat-text";
 import { formatKstShort } from "./kst";
-import { classifyJourneyPriority, MIN_JOURNEY_SECONDS, PRIORITY_LABELS, type JourneyAudience, type JourneyCohortMember, type JourneyPriority } from "./customer-journey-priority";
+import { classifyJourneyPriority, MIN_JOURNEY_SECONDS, type JourneyAudience, type JourneyCohortMember, type JourneyPriority } from "./customer-journey-priority";
+import { FOLLOWUP_LABELS, type LeadFollowup } from "../components/lead-followup/types";
+import { journeyPriorityLabel } from "../components/lead-followup/utils/labels";
 
 export interface JourneyCardInput {
     recordId: number;
@@ -103,7 +105,7 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
     };
 }
 
-export function buildJourneyCard(input: JourneyCardInput, now: Date, notification?: { ownerName: string; state: "tag" | "cooldown" }) {
+export function buildJourneyCard(input: JourneyCardInput, now: Date, notification?: { ownerName: string; state: "tag" | "cooldown" | "handled" }, followup?: LeadFollowup, assessedPriority?: JourneyPriority) {
     const summary = summarizeJourney(input, now);
     const exit = summary.pages.at(-1);
     const outcome = summary.completed ? `완료 · ${summary.stage}` : `이탈 추정 · ${summary.stage}`;
@@ -113,11 +115,12 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date, notificatio
     const base = new URL(input.baseUrl);
     if (!["https:", "http:"].includes(base.protocol)) throw new Error("고객 여정 링크의 주소가 올바르지 않습니다.");
     const origin = base.origin;
-    const priority = summary.priority;
-    const priorityLabel = priority.tier === "highlight" && priority.coreIcp ? "핵심 ICP · 이탈" : PRIORITY_LABELS[priority.tier];
+    const priority = assessedPriority ?? summary.priority;
+    const priorityLabel = journeyPriorityLabel(priority);
     const prefix = priority.tier === "normal" ? "" : priority.tier === "urgent" ? `🔴 ${priorityLabel} | ` : `🟠 ${priorityLabel} | `;
     const text = `${prefix}${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}`;
     const ownerNote = notification ? notification.state === "tag" ? `담당자: ${clean(notification.ownerName)} · 확인 요청`
+        : notification.state === "handled" ? `담당자: ${clean(notification.ownerName)} · 후속 대응 상태에 따라 추가 태그 생략`
         : `담당자: ${clean(notification.ownerName)} · 최근 24시간 내 확인 요청이 있어 재태그 생략` : "담당자 태그 연결 없음 · CRM에서 담당자 확인 필요";
     return {
         text,
@@ -142,7 +145,10 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date, notificatio
                         ...(summary.actions.length ? [paragraph(`<b>누른 버튼·행동</b><br>${summary.actions.slice(0, 8).map(html).join(" → ")}`)] : []),
                         paragraph("페이지별 시간은 이동 간격 기준 추정입니다. 영역별 시간은 서로 겹칠 수 있습니다. 이탈 이유는 확인되지 않았습니다."),
                     ] },
-                    { header: "다음 연락", widgets: [paragraph(html(summary.recommendation)), { buttonList: { buttons: [
+                    { header: "다음 연락", widgets: [paragraph(html(summary.recommendation)),
+                        ...(priority.tier !== "normal" || followup ? [paragraph(`후속 대응: <b>${FOLLOWUP_LABELS[followup?.status ?? "new"]}</b>${followup?.dueAt ? `<br>연락 예정 ${formatKstShort(new Date(followup.dueAt))} (KST)` : ""}<br>아래 링크에서 현재 상태와 처리 이력을 확인할 수 있습니다.`)] : []),
+                        { buttonList: { buttons: [
+                        { text: "처리 상태 관리", onClick: { openLink: { url: `${origin}/records/${input.recordId}/journey#lead-followup` } } },
                         { text: "CRM 고객 열기", onClick: { openLink: { url: `${origin}/records?id=${input.recordId}` } } },
                         { text: "전체 고객 여정", onClick: { openLink: { url: `${origin}/records/${input.recordId}/journey` } } },
                     ] } }] },

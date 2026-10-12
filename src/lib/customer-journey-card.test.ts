@@ -119,6 +119,20 @@ test("다른 세션·미래 이벤트가 이탈 단계와 체류에 섞이지 �
     assert.equal(summarizeJourney(f, at(1000)).completed, false);
 });
 
+test("카드는 저장한 판정·현재 처리 상태·관리 링크를 표시하고 대응 메모는 챗에 넣지 않는다", () => {
+    const f = fixture();
+    const assessed = { ...summarizeJourney(f, at(1000)).priority, tier: "urgent" as const, score: 75, evidence: ["저장된 상위 리드 근거"] };
+    const card = buildJourneyCard(f, at(1000), { ownerName: "이효정", state: "handled" }, {
+        status: "planned", dueAt: at(90000).toISOString(), note: "챗에 보내지 않을 대응 메모", revision: 1,
+        updatedAt: at(500).toISOString(), updatedBy: "가상 담당자", lastRemindedAt: null, reminderCount: 0,
+    }, assessed);
+    assert.match(card.text, /🔴 핵심 리드/);
+    assert.match(JSON.stringify(card), /저장된 상위 리드 근거/);
+    assert.match(JSON.stringify(card), /연락 예정/);
+    assert.match(JSON.stringify(card), /journey#lead-followup/);
+    assert.doesNotMatch(JSON.stringify(card), /챗에 보내지 않을 대응 메모/);
+});
+
 test("cardsV2 전송은 기존 스레드·요청 ID·429 재시도를 함께 쓴다", async () => {
     const calls: { url: string; body: Record<string, unknown> }[] = [];
     const post: typeof fetch = async (url, init) => {

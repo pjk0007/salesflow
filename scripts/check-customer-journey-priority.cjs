@@ -13,6 +13,9 @@ const { PgDialect, getTableConfig } = require('drizzle-orm/pg-core');
 const { SQL } = require('drizzle-orm');
 const schema = require('../src/lib/db/schema.ts');
 const { processCustomerJourneyAlerts } = require('../src/lib/customer-journey-alert.ts');
+const { listAssessedLeads } = require('../src/lib/customer-journey-leads.ts');
+const { getLeadFollowup, saveLeadFollowup } = require('../src/lib/customer-journey-followup.ts');
+const { parseFollowupPatch } = require('../src/lib/customer-journey-followup-rules.ts');
 const dialect = new PgDialect();
 const org = '00000000-0000-4000-8000-000000000001';
 const otherOrg = '00000000-0000-4000-8000-000000000002';
@@ -31,6 +34,8 @@ async function main() {
   await pg.waitReady;
   const realFetch = global.fetch;
   let beforePending;
+  let beforeReminderClaim;
+  let afterReminderClaim;
   const calls = [];
   let nextResult = { ok: true };
   global.fetch = async () => { throw new Error('외부 네트워크 차단: 격리 검사'); };
@@ -40,7 +45,9 @@ async function main() {
     if (sql.includes('pg_try_advisory_lock')) return [{ ok: true }];
     if (sql.includes('pg_advisory_unlock')) return [{}];
     if (beforePending && sql.includes('SELECT id, org_id, workspace_id')) { const f = beforePending; beforePending = undefined; await f(); }
+    if (beforeReminderClaim && sql.includes('SET last_reminded_at=')) { const f = beforeReminderClaim; beforeReminderClaim = undefined; await f(); }
     const rows = (await pg.query(sql, params)).rows;
+    if (afterReminderClaim && sql.includes('SET last_reminded_at=') && rows.length) { const f = afterReminderClaim; afterReminderClaim = undefined; await f(); }
     // 운영 postgres-js의 jsonb 문자열 경로도 재현한다.
     for (const r of rows) if (r.data && typeof r.data === 'object') r.data = JSON.stringify(r.data);
     return rows;
@@ -74,14 +81,15 @@ async function main() {
     await addSession(id, visitor, site, `click-${id}`, startAt, opts.weak, opts.twoCategories);
   };
   const reset = async () => {
-    await pg.exec('TRUNCATE customer_journey_alerts,tracker_events,tracker_sessions,tracker_visitors,visitor_record_links,email_click_logs,email_send_logs,records,email_unsubscribes,record_events,tracker_funnels RESTART IDENTITY');
-    calls.length = 0; nextResult = { ok: true }; beforePending = undefined;
+    await pg.exec('TRUNCATE journey_lead_followups,customer_journey_alerts,tracker_events,tracker_sessions,tracker_visitors,visitor_record_links,email_click_logs,email_send_logs,records,email_unsubscribes,record_events,tracker_funnels RESTART IDENTITY');
+    calls.length = 0; nextResult = { ok: true }; beforePending = undefined; beforeReminderClaim = undefined; afterReminderClaim = undefined;
   };
   try {
     for (const table of [schema.organizations, schema.users, schema.organizationMembers, schema.workspaces, schema.fieldDefinitions, schema.partitions, schema.records,
       schema.emailSenderProfiles, schema.emailSendLogs, schema.emailClickLogs, schema.emailUnsubscribes, schema.trackerSites, schema.trackerSessions,
       schema.trackerVisitors, schema.visitorRecordLinks, schema.trackerEvents, schema.trackerEventAliases, schema.trackerFunnels, schema.recordEvents]) await pg.exec(ddl(table));
     await pg.exec(fs.readFileSync(path.join(root, 'drizzle/0077_customer_journey_alerts.sql'), 'utf8'));
+    await pg.exec(fs.readFileSync(path.join(root, 'drizzle/0079_journey_lead_followups.sql'), 'utf8'));
     await insert('organizations', { id: org, name: '가상 조직', slug: 'fixture' });
     await insert('organizations', { id: otherOrg, name: '가상 다른 조직', slug: 'other' });
     await insert('users', { org_id: org, name: '가상 내부자', email: 'employee@gmail.test', password: 'fixture' });
@@ -151,6 +159,9 @@ async function main() {
       message: JSON.stringify({ journeyPriority: { version: 1, rankEligible: true, customerKey: journeyCustomerKey(`cohort-${i}@example.test`), score: i } }) });
     await run(); assert.equal(calls.length, 1); assert.ok(calls[0].options.mentionUserId);
     assert.equal(calls[0].message.journeyPriority.cohortSize, 20); assert.equal(calls[0].message.journeyPriority.score, 75);
+    await run(new Date(now.getTime() + 86400_000));
+    assert.equal(calls.length, 2); assert.match(calls[1].message.text, /🔴 핵심 리드/);
+    assert.match(JSON.stringify(calls[1].message), /최근 30일 비교 고객 20명/);
     console.log('PASS 사업별 최근 30일 20명 이상 비교에서만 상위 5% 판정, 75점의 강한 행동 리드 태그');
 
     await reset(); await seed(70, { weak: true }); await seed(71);
@@ -174,10 +185,116 @@ async function main() {
     assert.equal(pendingShort.status, 'skipped'); assert.equal(pendingShort.message.journeyPriority.rankEligible, false);
     console.log('PASS 전송 대기 중 1초 방문으로 확인되면 전송 직전 재판정에서 카드·태그 중단');
 
+    const tomorrow = new Date(now.getTime() + 86400_000);
+    const list = (time = now, tenant = org) => listAssessedLeads(conn, { orgId: tenant, now: time, env });
+    const actor = { orgId: org, userId: memberId, name: '가상 담당자' };
+    const save = (id, status, revision, time = now, dueAt = null) => saveLeadFollowup(conn, actor, id,
+      parseFollowupPatch({ status, revision, dueAt, note: '가상 연락 기록' }), time, env);
+
+    await reset(); await seed(80); await seed(81, { weak: true }); await seed(82, { email: 'ceo@matchesplan.com' });
+    await seed(83, { twoCategories: true }); await seed(85, { workspace: 9 }); await run();
+    const canonical = await list(); assert.deepEqual(canonical.map((l) => l.recordId).sort(), [80, 83, 85]);
+    for (const lead of canonical) {
+      const stored = (await pg.query('SELECT message FROM customer_journey_alerts WHERE id=$1', [lead.alertId])).rows[0].message.journeyPriority;
+      assert.deepEqual(lead.priority, stored);
+    }
+    assert.equal((await list(now, otherOrg)).length, 0);
+    await addSession(86, 80, 2, 'click-80', new Date(startAt.getTime() + 3600_000));
+    await pg.query('DELETE FROM tracker_events WHERE session_id=86 AND event_type<>$1', ['PAGE_VIEW']);
+    await pg.query('DELETE FROM tracker_events WHERE session_id=86 AND occurred_at>$1', [at(0, new Date(startAt.getTime() + 3600_000))]);
+    await pg.query('UPDATE tracker_sessions SET duration=30,ended_at=$1,page_count=1 WHERE id=86', [at(30, new Date(startAt.getTime() + 3600_000))]);
+    const later = new Date(now.getTime() + 3600_000); await run(later);
+    assert.ok(!(await list(later)).some((l) => l.recordId === 80));
+    console.log('PASS CRM·챗 판정 완전 일치, 내부·짧은 방문·다른 조직 제외, 최신 일반 방문이면 옛 긴급 판정 사용 안 함');
+
+    await reset(); await seed(90, { email: 'shared-email@example.test' }); await seed(91, { email: 'shared-email@example.test' });
+    await seed(92, { workspace: 9, email: 'shared-email@example.test' }); await run();
+    assert.equal((await list()).length, 2); // 같은 사업의 중복 레코드는 한 명
+    const planned = await save(90, 'planned', 0, now, new Date(now.getTime() + 3 * 86400_000).toISOString());
+    assert.equal(planned.lead.followup.status, 'planned');
+    assert.equal((await getLeadFollowup(conn, org, 91, now, env)).lead.followup.revision, 1);
+    assert.equal((await getLeadFollowup(conn, org, 92, now, env)).lead.followup.status, 'new');
+    await assert.rejects(save(90, 'contacted', 0), (e) => e.status === 409);
+    assert.equal((await getLeadFollowup(conn, org, 90, now, env)).history.length, 1);
+    await assert.rejects(getLeadFollowup(conn, otherOrg, 90, now, env), (e) => e.status === 404);
+    await save(91, 'contacted', 1);
+    await addSession(93, 91, 2, 'click-91', new Date(startAt.getTime() + 2 * 86400_000));
+    const twoDays = new Date(now.getTime() + 2 * 86400_000); await run(twoDays);
+    const repeated = calls.filter((c) => c.message.text.includes('가상 회사 91')).at(-1);
+    assert.equal(repeated.options.mentionUserId, undefined); assert.match(JSON.stringify(repeated.message), /연락 완료/);
+    assert.equal((await getLeadFollowup(conn, org, 90, twoDays, env)).lead.followup.status, 'contacted');
+    console.log('PASS 중복 CRM 고객 상태 공유·사업별 분리, 수정 충돌 방지·원자적 이력, 연락 완료 뒤 재방문 태그 억제');
+
+    await reset(); await seed(100); await run(); await run(tomorrow); await run(tomorrow);
+    assert.equal(calls.length, 2); assert.match(calls[1].message.text, /후속 대응 재알림/);
+    assert.equal(calls[1].options.mentionUserId, '110605666755540583322');
+    for (let days = 2; days <= 4; days++) await run(new Date(now.getTime() + days * 86400_000));
+    assert.equal(calls.length, 4); assert.equal((await pg.query('SELECT reminder_count FROM journey_lead_followups')).rows[0].reminder_count, 3);
+    console.log('PASS 미확인 24시간 뒤 재알림, 같은 날 중복 없음, 하루 한 번 최대 3회');
+
+    await reset(); await seed(110); await run(); nextResult = { ok: false, uncertain: true, retryable: true };
+    await run(tomorrow); await run(new Date(tomorrow.getTime() + 660_000));
+    assert.equal(calls.length, 2); assert.equal((await pg.query('SELECT reminder_result FROM journey_lead_followups')).rows[0].reminder_result, 'uncertain');
+    nextResult = { ok: true };
+    await addSession(111, 110, 2, 'click-110', new Date(startAt.getTime() + 86400_000 + 3600_000));
+    await run(new Date(tomorrow.getTime() + 3600_000));
+    assert.equal(calls.at(-1).options.mentionUserId, undefined);
+    console.log('PASS 재알림 결과 불명확 시 재전송 없음, 재방문과 재알림의 담당자 태그 24시간 제한 공유');
+
+    await reset(); for (const id of [120, 121, 122, 123]) await seed(id); await run();
+    await pg.query('UPDATE tracker_visitors SET email=$1 WHERE id=120', ['employee@gmail.test']);
+    await insert('tracker_events', { site_id: 2, visitor_id: 121, session_id: 121, event_type: 'CUSTOM', event_name: 'signup_complete', occurred_at: new Date(now.getTime() + 1000).toISOString() });
+    await pg.query('UPDATE tracker_sessions SET duration=1,ended_at=$1 WHERE id=122', [at(1)]);
+    await insert('tracker_events', { site_id: 2, visitor_id: 123, session_id: 123, event_type: 'CLICK', event_name: 'faq-open', occurred_at: new Date(tomorrow.getTime() - 30_000).toISOString() });
+    await run(tomorrow); assert.equal(calls.length, 4);
+    assert.equal((await list(tomorrow)).length, 0);
+    console.log('PASS 재알림 직전 내부자·완료·짧은 방문·최근 활동 재확인, CRM에서도 현재 제외');
+
+    await reset(); await seed(130); await run(); await save(130, 'planned', 0, now, new Date(tomorrow.getTime() + 3600_000).toISOString());
+    await run(tomorrow); assert.equal(calls.length, 1);
+    await run(new Date(tomorrow.getTime() + 3600_000)); assert.equal(calls.length, 2);
+    await save(130, 'consulting', 1, new Date(tomorrow.getTime() + 3600_000));
+    await insert('tracker_funnels', { org_id: org, site_id: 2, name: '가상 상담 단계', kind: 'marketing', is_default: 1,
+      stages: JSON.stringify([{ match: { type: 'record_field', field: 'stage', value: '상담 진행' } }]) });
+    await run(new Date(now.getTime() + 2 * 86400_000)); assert.equal(calls.length, 2);
+    assert.equal((await list(new Date(now.getTime() + 2 * 86400_000))).length, 1);
+    console.log('PASS 연락 예정 기한 전에는 대기, 기한 이후 재알림, 상담 진행이면 중단');
+
+    await reset(); await seed(140); await run();
+    beforeReminderClaim = async () => { await save(140, 'contacted', 0, tomorrow); };
+    await run(tomorrow); assert.equal(calls.length, 1);
+    console.log('PASS 재알림 선점 전에 담당자가 처리하면 수정 버전 확인으로 전송 취소');
+
+    await reset(); await seed(141); await run();
+    afterReminderClaim = async () => { await save(141, 'contacted', 0, tomorrow); };
+    await run(tomorrow); assert.equal(calls.length, 1);
+    assert.equal((await pg.query('SELECT reminder_result FROM journey_lead_followups')).rows[0].reminder_result, 'cancelled');
+    console.log('PASS 선점 이후 담당자가 처리한 경우에도 전송 직전 재확인으로 취소');
+
+    await reset(); await seed(150); await run(now, { JOURNEY_ALERT_MODE: 'dry_run' });
+    await pg.exec('TRUNCATE journey_lead_followups');
+    const migration = fs.readFileSync(path.join(root, 'drizzle/0079_journey_lead_followups.sql'), 'utf8');
+    await pg.exec(migration); await pg.exec(migration);
+    const backfilled = (await pg.query('SELECT status,revision,first_urgent_at FROM journey_lead_followups')).rows;
+    assert.equal(backfilled.length, 1); assert.equal(backfilled[0].status, 'new'); assert.equal(backfilled[0].revision, 0); assert.ok(backfilled[0].first_urgent_at);
+    console.log('PASS 기존 최근 판정의 처리 상태 준비, 마이그레이션 재실행 시 중복 생성·덮어쓰기 없음');
+
+    await reset();
+    await insert('field_definitions', { workspace_id: 8, key: 'icp', label: 'ICP', field_type: 'text' });
+    for (let id = 160; id <= 211; id++) await seed(id);
+    await pg.query("UPDATE records SET data=jsonb_set(data,'{icp}',to_jsonb($1::text))", ['핵심']);
+    await run(); await run(); assert.equal(calls.length, 52);
+    await pg.query('UPDATE tracker_visitors SET email=$1 WHERE id BETWEEN 160 AND 210', ['employee@gmail.test']);
+    await run(tomorrow); assert.equal(calls.length, 52);
+    await run(new Date(tomorrow.getTime() + 300_000)); assert.equal(calls.length, 53);
+    assert.ok(calls.at(-1).message.text.includes('가상 회사 211'));
+    console.log('PASS 제외 대상이 50건 이상 쌓여도 다음 회차에서 뒤의 정상 고객 재알림 처리');
+
     await reset(); await seed(60); const dry = await run(now, { JOURNEY_ALERT_MODE: 'dry_run' });
     assert.equal(dry.mode, 'dry_run'); assert.equal(calls.length, 0);
     assert.equal((await pg.query('SELECT status FROM customer_journey_alerts')).rows[0].status, 'dry_run');
-    console.log(JSON.stringify({ result: 'passed', externalRequests: 0, productionOrDevelopmentDbAccess: false, scenarios: 8 }));
+    await run(tomorrow, { JOURNEY_ALERT_MODE: 'dry_run' }); assert.equal(calls.length, 0);
+    console.log(JSON.stringify({ result: 'passed', externalRequests: 0, productionOrDevelopmentDbAccess: false, scenarios: 18 }));
   } finally { global.fetch = realFetch; await pg.close(); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });
