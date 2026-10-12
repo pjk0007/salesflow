@@ -13,7 +13,7 @@
  *   - 429·5xx·연결 오류는 무작위 지연을 더해 다시 보낸다 (429는 Retry-After를 따른다)
  *   - 응답 시간 초과는 구글이 이미 글을 올렸을 수 있다 — 바로 다시 보내지 않고 uncertain으로 돌려준다 (CT-1).
  *     다시 보낼지는 워커가 정한다 (requestId를 켜면 구글이 같은 요청을 한 번만 만든다)
- *   - 어떤 패밀리도 멘션을 쓰지 않는다 — 마지막 방어로 '<users/'를 '‹users/'로 바꾼다 (CT-4)
+ *   - 사용자 본문의 멘션은 차단한다. 고객 여정의 검증된 담당자만 별도 옵션으로 멘션한다 (CT-4).
  */
 
 import { createHash } from "node:crypto";
@@ -40,6 +40,8 @@ export interface ChatPostOptions {
     threadKey?: string;
     /** 같은 요청을 한 번만 만들게 하는 값 (GOOGLE_CHAT_REQUEST_ID=on일 때만 부른 쪽이 넘긴다) */
     requestId?: string;
+    /** 서버가 지정한 담당자 한 명. 본문에서 읽지 않는다. 숫자 Google Chat 사용자 ID만 허용한다. */
+    mentionUserId?: string;
 }
 
 export const REQUEST_TIMEOUT_MS = 10_000;
@@ -284,7 +286,7 @@ function uuidFrom(input: string): string {
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-/** 어떤 패밀리도 멘션을 쓰지 않는다 — 사용자 값으로 들어온 '<users/…>'(전체 멘션)를 마지막에 막는다 */
+/** 사용자 값의 전체·개별 멘션은 항상 막는다. 신뢰한 담당자 멘션은 차단 후 별도로 붙인다. */
 export function stripMentions(text: string): string {
     return text.replace(/<users\//gi, "‹users/");
 }
@@ -321,7 +323,12 @@ export async function postGoogleChatMessage(
         if (opts.requestId) u.searchParams.set("requestId", opts.requestId);
         url = u.toString();
     }
-    const payload: { text: string; cardsV2?: unknown[]; thread?: { threadKey: string } } = { ...message, text: stripMentions(message.text) };
+    if (opts.mentionUserId !== undefined && !/^[1-9]\d{5,24}$/.test(opts.mentionUserId)) {
+        return { ok: false, status: null, error: "담당자 멘션의 사용자 ID가 올바르지 않습니다.", retryable: false };
+    }
+    const text = stripMentions(message.text) + (opts.mentionUserId ? `\n담당자 확인 요청: <users/${opts.mentionUserId}>` : "");
+    // 저장용 판정 메타데이터를 Google Chat API에 넘기지 않는다.
+    const payload: { text: string; cardsV2?: unknown[]; thread?: { threadKey: string } } = { text, ...(message.cardsV2 ? { cardsV2: message.cardsV2 } : {}) };
     if (opts.threadKey) payload.thread = { threadKey: opts.threadKey.slice(0, 4000) };
     const body = JSON.stringify(payload);
 

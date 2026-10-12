@@ -2,6 +2,7 @@
 import { contactKindOf, evaluateSend, pathOf, STAGE_LABELS, type EventInput, type SessionInput } from "./deep-visitor-alert-rules";
 import { chatSafe, clipChars } from "./chat-text";
 import { formatKstShort } from "./kst";
+import { classifyJourneyPriority, PRIORITY_LABELS, type JourneyAudience, type JourneyCohortMember, type JourneyPriority } from "./customer-journey-priority";
 
 export interface JourneyCardInput {
     recordId: number;
@@ -16,6 +17,8 @@ export interface JourneyCardInput {
     fields: { key: string; label: string; fieldType: string; value: string }[];
     labels: Record<string, string>;
     baseUrl: string;
+    audience?: JourneyAudience;
+    cohort?: readonly JourneyCohortMember[];
 }
 
 export interface JourneyCardSummary {
@@ -30,6 +33,7 @@ export interface JourneyCardSummary {
     sections: { label: string; seconds: number }[];
     actions: string[];
     recommendation: string;
+    priority: JourneyPriority;
 }
 
 const SETTLE_MS = 10 * 60 * 1000;
@@ -47,7 +51,7 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         foundSessions: [s], ownSiteId: s.siteId, visitorSessions: [s], visitorEvents: events,
         distinctClickedRecordsForVisitor: 1, alreadyInFunnel: false, unsubscribed: false,
     }, now);
-    const lastActivityAt = verdict.lastActivityAt ?? s.startedAt;
+    const lastActivityAt = new Date(Math.max((verdict.lastActivityAt ?? s.startedAt).getTime(), input.audience?.lastActivityAt.getTime() ?? 0));
     const contacts = { company: "", name: "" };
     for (const f of input.fields) {
         const kind = contactKindOf(f);
@@ -76,7 +80,7 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         }
         if ((e.eventType === "CLICK" || e.eventType === "CUSTOM") && label && !actions.includes(label)) actions.push(label);
     }
-    const completed = verdict.submitted || events.some((e) => e.eventType === "PURCHASE");
+    const completed = verdict.submitted || events.some((e) => e.eventType === "PURCHASE") || input.audience?.alreadyConverted === true;
     const stage = completed ? "신청·구독·구매 완료" : STAGE_LABELS[verdict.deepestStage];
     const recommendation = completed ? "완료 고객입니다. 신청·구매 내역을 확인하고 온보딩을 이어 주세요."
         : verdict.signupStart || verdict.aiStart || verdict.coupon ? "신청을 시작한 뒤 완료하지 않았습니다. 진행 중 막힌 부분이 있는지 확인해 주세요."
@@ -84,17 +88,21 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         : verdict.sawPrice ? "가격을 확인했습니다. 기존 CRM 맥락을 확인한 뒤 요금·적용 사례를 안내해 주세요."
         : verdict.sawCases || verdict.sawDetail ? "사례·서비스 상세를 확인했습니다. 해당 회사와 관련된 사례로 후속 연락을 준비해 주세요."
         : "초기 방문입니다. 추가 방문·클릭이 있는지 고객 여정에서 확인해 주세요.";
+    const eligible = !verdict.machine && !!verdict.chosenSession && lastActivityAt.getTime() <= now.getTime() - SETTLE_MS
+        && !input.audience?.internal && !input.audience?.sharedVisitor && !input.audience?.existingVisitor && !input.audience?.unsubscribed;
+    const totalSeconds = s.duration !== null && Number.isFinite(s.duration) && s.duration >= 0 ? s.duration : s.endedAt && s.endedAt <= now ? Math.max(0, (s.endedAt.getTime() - s.startedAt.getTime()) / 1000) : null;
+    const priority = classifyJourneyPriority({ ...input, eligible, completed, totalSeconds, events }, now);
     return {
-        eligible: !verdict.machine && !!verdict.chosenSession && lastActivityAt.getTime() <= now.getTime() - SETTLE_MS,
+        eligible,
         lastActivityAt, company: contacts.company || "회사 정보 없음", person: contacts.name || clean(input.recipientEmail, 120),
         stage, completed,
-        totalSeconds: s.duration !== null && s.duration >= 0 ? s.duration : s.endedAt && s.endedAt <= now ? Math.max(0, (s.endedAt.getTime() - s.startedAt.getTime()) / 1000) : null,
+        totalSeconds,
         pages, sections: [...sectionMap].map(([label, seconds]) => ({ label, seconds })).sort((a, b) => b.seconds - a.seconds),
-        actions, recommendation,
+        actions, recommendation, priority,
     };
 }
 
-export function buildJourneyCard(input: JourneyCardInput, now: Date) {
+export function buildJourneyCard(input: JourneyCardInput, now: Date, notification?: { ownerName: string; state: "tag" | "cooldown" }) {
     const summary = summarizeJourney(input, now);
     const exit = summary.pages.at(-1);
     const outcome = summary.completed ? `완료 · ${summary.stage}` : `이탈 추정 · ${summary.stage}`;
@@ -104,7 +112,12 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date) {
     const base = new URL(input.baseUrl);
     if (!["https:", "http:"].includes(base.protocol)) throw new Error("고객 여정 링크의 주소가 올바르지 않습니다.");
     const origin = base.origin;
-    const text = `${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}`;
+    const priority = summary.priority;
+    const priorityLabel = priority.tier === "highlight" && priority.coreIcp ? "핵심 ICP · 이탈" : PRIORITY_LABELS[priority.tier];
+    const prefix = priority.tier === "normal" ? "" : priority.tier === "urgent" ? `🔴 ${priorityLabel} | ` : `🟠 ${priorityLabel} | `;
+    const text = `${prefix}${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}`;
+    const ownerNote = notification ? notification.state === "tag" ? `담당자: ${clean(notification.ownerName)} · 확인 요청`
+        : `담당자: ${clean(notification.ownerName)} · 최근 24시간 내 확인 요청이 있어 재태그 생략` : "담당자 태그 연결 없음 · CRM에서 담당자 확인 필요";
     return {
         text,
         cardsV2: [{
@@ -112,6 +125,12 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date) {
             card: {
                 header: { title: html(`${summary.company} · ${summary.person}`), subtitle: html(`${clean(input.businessName)} · ${outcome}`) },
                 sections: [
+                    ...(priority.tier !== "normal" ? [{ header: priorityLabel, widgets: [
+                        paragraph(`<font color="${priority.tier === "urgent" ? "#B3261E" : "#9A6700"}"><b>${html(priorityLabel)}</b></font><br>${priority.evidence.map(html).join("<br>")}`),
+                        paragraph(priority.percentile === null ? "비교할 고객이 20명 미만이어서 엄격한 고정 기준을 적용했습니다."
+                            : `같은 사업의 최근 30일 비교 고객 ${priority.cohortSize}명 · 관심도 백분위 ${priority.percentile} (동점 제외)`),
+                        ...(priority.tier === "urgent" ? [paragraph(html(ownerNote))] : []),
+                    ] }] : []),
                     { header: "누가 · 어떤 메일에서 왔나", widgets: [
                         paragraph(`${html(clean(input.recipientEmail))}<br>메일: ${html(clean(input.subject || "제목 없음"))}<br>링크 클릭 ${formatKstShort(input.clickedAt)} · 방문 ${formatKstShort(input.session.startedAt)}<br>메일 열람 여부: 수집하지 않음 · 링크 클릭 확인`),
                     ] },
