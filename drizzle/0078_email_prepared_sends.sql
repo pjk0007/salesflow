@@ -1,3 +1,8 @@
+-- 운영은 0077까지 적용돼 있어 이번에는 0078·0079만 한 트랜잭션으로 돈다 — 0070의 SET LOCAL이 닿지 않는다.
+-- FK가 email_send_queue·email_send_logs 등에 잠금을 거는 동안 무한정 기다리면 운영 발송이 멈추므로 5초에서 끊고
+-- migrate.ts가 55P03을 다시 시도하게 한다 (0070·0075와 같은 값). 같은 트랜잭션이라 0079까지 적용된다.
+SET LOCAL lock_timeout = '5s';
+
 CREATE TABLE IF NOT EXISTS "email_prepared_sends" (
     "id" serial PRIMARY KEY,
     "queue_id" integer NOT NULL REFERENCES "email_send_queue"("id") ON DELETE CASCADE,
