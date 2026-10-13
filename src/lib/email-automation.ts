@@ -30,6 +30,9 @@ import type { DbRecord, EmailTemplateLink } from "@/lib/db";
 import { findReplyStop, type ReplyStopReason } from "@/lib/email-reply-guard";
 import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
 import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
+import { findVisitFollowupStop } from "./email-visit-ack";
+import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
+type AutomationStopReason = ReplyStopReason | "site_visit";
 
 // ============================================
 // 쿨다운 체크 (중복 발송 방지)
@@ -103,7 +106,7 @@ interface TemplateSendResult {
     success: boolean;
     logId?: number;
     deferred?: { retryAt: Date; reason: SlotDeferReason };
-    stopped?: ReplyStopReason;
+    stopped?: AutomationStopReason;
     held?: { holdId: number };
 }
 
@@ -147,6 +150,7 @@ async function sendEmailSingle(
     // 보내기 직전 막기 — 자리 잡기 전에 본다 (DESIGN-RPL 7-4, on일 때만)
     const replyStop = await findReplyStop(orgId, workspaceId, email);
     if (replyStop) return { success: false, stopped: replyStop.reason };
+    if (triggerType === "repeat" && await findVisitFollowupStop(orgId, workspaceId, email)) return { success: false, stopped: "site_visit" };
 
     // 발신 주소 + 오늘 자리 (기본 프로필 → 레거시 fallback). 템플릿 규칙에는 발신 주소 칸이 없어 늘 기본 주소다.
     // 보낼 게 확실해진 뒤(템플릿·주소·수신거부 확인 뒤)에 잡아서 헛예약을 만들지 않는다
@@ -173,6 +177,7 @@ async function sendEmailSingle(
 
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
+    let slotReleased = false;
     try {
         // 서명 결정 (기본 서명 → 레거시 fallback)
         const signatureJson = await resolveDefaultSignature(orgId, config);
@@ -211,6 +216,13 @@ async function sendEmailSingle(
 
         const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
+        if (triggerType === "repeat" && await findVisitFollowupStop(orgId, workspaceId, email)) {
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 반복 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
+            await releaseSenderSlot(slot);
+            return { success: false, stopped: "site_visit" };
+        }
+
         sendAttempted = true;
         const nhnResult = await client.sendEachMail({
             senderAddress: senderFromEmail,
@@ -239,7 +251,7 @@ async function sendEmailSingle(
 
         return { success: isSuccess, logId: inserted?.id };
     } catch (err) {
-        if (!sendAttempted) await releaseSenderSlot(slot);
+        if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         throw err;
     }
 }
@@ -254,7 +266,7 @@ type TemplateFirstOutcome =
     | { kind: "failed" }
     | { kind: "deferred"; retryAt: Date; reason: SlotDeferReason }
     /** 회신·hard 반송으로 막혔다 (m5) — 미뤄 둔 첫 메일 줄도 cancelled + stop_reason으로 닫는다 */
-    | { kind: "stopped"; reason: ReplyStopReason }
+    | { kind: "stopped"; reason: AutomationStopReason }
     /** 명단 보류 (대량 첫 메일만, DESIGN-SND 6-2) — 반복 대기열에 held 줄로 남겨 보류가 풀리면 나간다 */
     | { kind: "held"; holdId: number };
 

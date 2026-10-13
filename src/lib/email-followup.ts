@@ -29,9 +29,13 @@ import { substitutePromptVariables } from "@/lib/email-utils";
 import { findReplyStop, type ReplyStopReason } from "@/lib/email-reply-guard";
 import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
 import { isRecipientSideFailure } from "@/lib/email-status-sync-rules";
+import { findVisitFollowupStop } from "./email-visit-ack";
+import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
+import { visitAckConfig } from "./email-visit-ack-rules";
+import { handleVisitAcknowledgement } from "./email-visit-ack-delivery";
 
 /** 후속 줄의 stop_reason — 회신·반송 막기(RPL 7-4)와 원본 메일 실패(F4) */
-type FollowupStopReason = ReplyStopReason | "first_failed";
+type FollowupStopReason = ReplyStopReason | "first_failed" | "site_visit";
 
 // ============================================
 // 타입 정의
@@ -61,8 +65,9 @@ type FollowupConfig = TemplateFollowupStep | AiFollowupStep;
 type FollowupHandlerResult =
     | { kind: "sent" }
     | { kind: "skipped" }
+    | { kind: "uncertain" }
     | { kind: "deferred"; retryAt: Date }
-    | { kind: "stopped"; reason: ReplyStopReason };
+    | { kind: "stopped"; reason: ReplyStopReason | "site_visit" };
 
 const SENT: FollowupHandlerResult = { kind: "sent" };
 const SKIPPED: FollowupHandlerResult = { kind: "skipped" };
@@ -86,6 +91,7 @@ export interface FollowupRunStats {
     held: number;
     /** 멈춘 processing 줄을 pending으로 되돌린 수 */
     reclaimed: number;
+    uncertain: number;
     skippedAsLocked?: boolean;
     deadlineHit?: boolean;
 }
@@ -255,6 +261,10 @@ export async function enqueueFollowup(params: {
     stepIndex?: number;
 }): Promise<void> {
     const stepIndex = params.stepIndex ?? 0;
+    if (visitAckConfig(process.env).mode === "live") {
+        const [parent] = await db.select().from(emailSendLogs).where(and(eq(emailSendLogs.id, params.logId), eq(emailSendLogs.orgId, params.orgId))).limit(1);
+        if (parent && await visitStopForLog(parent, params.orgId)) return;
+    }
     const checkAt = new Date(params.sentAt.getTime() + params.delayDays * 24 * 60 * 60 * 1000);
 
     await db
@@ -282,7 +292,7 @@ export async function enqueueFollowup(params: {
  * 같은 줄이 두 번 나간다 — 잠금과 선점이 있어야 cron 주기를 줄일 수 있다 (시간대가 09시보다 늦은 주소의 후속).
  * 예산(8분)을 쓰면 남은 줄은 pending 그대로 다음 회차가 이어받는다. 선점은 배치 단위라 남는 processing 줄이 없다.
  */
-export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
+export async function processEmailFollowupQueue(options: { visitOnly?: boolean } = {}): Promise<FollowupRunStats> {
     const stats: FollowupRunStats = {
         processed: 0,
         sent: 0,
@@ -292,16 +302,18 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
         deferred: 0,
         held: 0,
         reclaimed: 0,
+        uncertain: 0,
     };
 
     // 락을 잡은 커넥션에서 해제해야 하므로 전용 커넥션을 확보한다 (email-send-queue.ts와 같은 방식).
     // 풀에서 매번 다른 커넥션이 나오면 unlock이 다른 세션에 걸려 락이 영구히 남는다.
     const conn = await queryClient.reserve();
     let acquired = false;
+    const lockKey = options.visitOnly ? 0x5c4edf16 : FOLLOWUP_LOCK_KEY;
 
     try {
         const lockResult = await conn<{ acquired: boolean }[]>`
-            SELECT pg_try_advisory_lock(${FOLLOWUP_LOCK_KEY}) AS acquired
+            SELECT pg_try_advisory_lock(${lockKey}) AS acquired
         `;
         acquired = lockResult[0]?.acquired === true;
         if (!acquired) {
@@ -309,13 +321,13 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
             return { ...stats, skippedAsLocked: true };
         }
 
-        stats.reclaimed = await reclaimStuckFollowups();
+        stats.reclaimed = await reclaimStuckFollowups(options.visitOnly);
         // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6)
         await reviveOrphanHeldRows("followup");
 
         const startedAt = Date.now();
         while (!isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) {
-            const batch = await claimFollowupBatch();
+            const batch = await claimFollowupBatch(options.visitOnly);
             if (batch.length === 0) break;
 
             const results = await Promise.allSettled(batch.map((item) => processFollowupItem(item, stats)));
@@ -341,12 +353,12 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
 
         console.log(
             `[Followup] processed=${stats.processed} sent=${stats.sent} skipped=${stats.skipped} ` +
-            `cancelled=${stats.cancelled} stopped=${stats.stopped} deferred=${stats.deferred} held=${stats.held} reclaimed=${stats.reclaimed}`
+            `cancelled=${stats.cancelled} stopped=${stats.stopped} deferred=${stats.deferred} held=${stats.held} reclaimed=${stats.reclaimed} uncertain=${stats.uncertain}`
         );
         return stats;
     } finally {
         if (acquired) {
-            await conn`SELECT pg_advisory_unlock(${FOLLOWUP_LOCK_KEY})`;
+            await conn`SELECT pg_advisory_unlock(${lockKey})`;
         }
         conn.release();
     }
@@ -356,11 +368,12 @@ export async function processEmailFollowupQueue(): Promise<FollowupRunStats> {
  * processing에서 멈춘 줄을 pending으로 되돌린다. 잠금 아래서 돌지만 시각으로도 거른다 —
  * 락 커넥션만 끊기고 프로세스는 아직 처리 중일 수 있어서다.
  */
-async function reclaimStuckFollowups(): Promise<number> {
+async function reclaimStuckFollowups(visitOnly = false): Promise<number> {
     const result = (await db.execute(sql`
         UPDATE email_followup_queue
         SET status = 'pending', locked_at = NULL
         WHERE status = 'processing'
+          AND (${!visitOnly} OR source_type = 'visit_ack')
           AND (locked_at IS NULL
                OR locked_at < NOW() - (${FOLLOWUP_STUCK_THRESHOLD_MS}::bigint * INTERVAL '1 millisecond'))
         RETURNING id
@@ -372,13 +385,14 @@ async function reclaimStuckFollowups(): Promise<number> {
 }
 
 /** 때가 된 pending을 원자적으로 선점한다. 오래 기다린 줄부터 (check_at, id 순) */
-async function claimFollowupBatch(): Promise<FollowupQueueItem[]> {
+async function claimFollowupBatch(visitOnly = false): Promise<FollowupQueueItem[]> {
     const rows = (await db.execute(sql`
         UPDATE email_followup_queue
         SET status = 'processing', locked_at = NOW()
         WHERE id IN (
             SELECT id FROM email_followup_queue
             WHERE status = 'pending'
+              AND (${!visitOnly} OR source_type = 'visit_ack')
               AND check_at <= NOW()
             ORDER BY check_at ASC, id ASC
             LIMIT ${FOLLOWUP_BATCH_SIZE}
@@ -410,7 +424,7 @@ async function claimFollowupBatch(): Promise<FollowupQueueItem[]> {
 async function processFollowupItem(
     item: FollowupQueueItem,
     stats: FollowupRunStats
-): Promise<"sent" | "skipped" | "deferred" | "cancelled" | "held"> {
+): Promise<"sent" | "skipped" | "deferred" | "cancelled" | "held" | "uncertain"> {
     stats.processed++;
 
     try {
@@ -418,12 +432,18 @@ async function processFollowupItem(
         const [parentLog] = await db
             .select()
             .from(emailSendLogs)
-            .where(eq(emailSendLogs.id, item.parentLogId))
+            .where(and(eq(emailSendLogs.id, item.parentLogId), eq(emailSendLogs.orgId, item.orgId)))
             .limit(1);
 
         if (!parentLog) {
             await updateQueueStatus(item.id, "cancelled", null);
             stats.cancelled++;
+            return "cancelled";
+        }
+
+        if (item.sourceType !== "visit_ack" && await visitStopForLog(parentLog, item.orgId)) {
+            await updateQueueStatus(item.id, "cancelled", null, "site_visit");
+            stats.cancelled++; stats.stopped++;
             return "cancelled";
         }
 
@@ -456,7 +476,9 @@ async function processFollowupItem(
         // 3. sourceType에 따라 분기 (모르는 종류는 예전처럼 skipped)
         let outcome: FollowupHandlerResult = SKIPPED;
 
-        if (item.sourceType === "template") {
+        if (item.sourceType === "visit_ack") {
+            outcome = await handleVisitAcknowledgement(item);
+        } else if (item.sourceType === "template") {
             outcome = await handleTemplateFollowup(item, parentLog, isClicked);
         } else if (item.sourceType === "ai") {
             outcome = await handleAiFollowup(item, parentLog, isClicked);
@@ -466,6 +488,11 @@ async function processFollowupItem(
             await deferQueueItem(item.id, outcome.retryAt);
             stats.deferred++;
             return "deferred";
+        }
+        if (outcome.kind === "uncertain") {
+            await updateQueueStatus(item.id, "uncertain", result);
+            stats.uncertain++;
+            return "uncertain";
         }
         if (outcome.kind === "stopped") {
             // 회신·반송으로 막혔다 — 다음 단계도 잡히지 않는다 (보냈을 때만 잡힌다)
@@ -488,6 +515,17 @@ async function processFollowupItem(
         stats.cancelled++;
         return "cancelled";
     }
+}
+
+async function visitStopForLog(parent: typeof emailSendLogs.$inferSelect, orgId: string) {
+    if (visitAckConfig(process.env).mode !== "live") return false;
+    let workspaceId = parent.partitionId === null ? null : await resolveWorkspaceId(parent.partitionId);
+    if (workspaceId === null && parent.recordId !== null) {
+        const [record] = await db.select({ workspaceId: records.workspaceId }).from(records)
+            .where(and(eq(records.id, parent.recordId), eq(records.orgId, orgId))).limit(1);
+        workspaceId = record?.workspaceId ?? null;
+    }
+    return findVisitFollowupStop(orgId, workspaceId, parent.recipientEmail);
 }
 
 // ============================================
@@ -588,6 +626,7 @@ async function handleTemplateFollowup(
     // 6-1. 보내기 직전 막기 — 이 사업에서 회신했거나 조직에서 hard 반송된 주소면 멈춘다 (DESIGN-RPL 7-4, on일 때만)
     const replyStop = await findReplyStop(item.orgId, workspaceId, parentLog.recipientEmail);
     if (replyStop) return { kind: "stopped", reason: replyStop.reason };
+    if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) return { kind: "stopped", reason: "site_visit" };
 
     // 7. 변수 치환 + 서명
     const mappings = (link.variableMappings as Record<string, string>) || {};
@@ -633,6 +672,7 @@ async function handleTemplateFollowup(
 
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
+    let slotReleased = false;
     try {
         // 9. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
         const [inserted] = await db.insert(emailSendLogs).values({
@@ -655,6 +695,13 @@ async function handleTemplateFollowup(
         }).returning({ id: emailSendLogs.id });
 
         const trackedBody = wrapTrackingUrls(body, inserted.id);
+
+        if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) {
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 일반 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
+            await releaseSenderSlot(slot);
+            return { kind: "stopped", reason: "site_visit" };
+        }
 
         sendAttempted = true;
         const nhnResult = await client.sendEachMail({
@@ -700,7 +747,7 @@ async function handleTemplateFollowup(
 
         return isSuccess ? SENT : SKIPPED;
     } catch (err) {
-        if (!sendAttempted) await releaseSenderSlot(slot);
+        if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         throw err;
     }
 }
@@ -738,6 +785,7 @@ async function handleAiFollowup(
     // 3-1. 보내기 직전 막기 — 회신·hard 반송 주소면 AI 호출 전에 멈춘다 (DESIGN-RPL 7-4, on일 때만)
     const replyStop = await findReplyStop(item.orgId, workspaceId, parentLog.recipientEmail);
     if (replyStop) return { kind: "stopped", reason: replyStop.reason };
+    if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) return { kind: "stopped", reason: "site_visit" };
 
     // 4. AI 클라이언트 확인
     const aiClient = getAiClient(link.model || undefined);
@@ -775,6 +823,7 @@ async function handleAiFollowup(
 
     // sendEachMail을 부르기 전에(서명·AI 생성·로그 insert) 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
+    let slotReleased = false;
     try {
         // DB의 null은 "미지정"이므로 undefined로 정규화 (HTTP body의 null과 의미가 다르다)
         const signatureJson = await resolveSignature(item.orgId, {
@@ -880,6 +929,13 @@ async function handleAiFollowup(
 
         const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
+        if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) {
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 일반 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
+            await releaseSenderSlot(slot);
+            return { kind: "stopped", reason: "site_visit" };
+        }
+
         sendAttempted = true;
         const nhnResult = await emailClient.sendEachMail({
             senderAddress: senderFromEmail,
@@ -924,7 +980,7 @@ async function handleAiFollowup(
 
         return isSuccess ? SENT : SKIPPED;
     } catch (err) {
-        if (!sendAttempted) await releaseSenderSlot(slot);
+        if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         throw err;
     }
 }

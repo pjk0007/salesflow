@@ -62,6 +62,8 @@ function LogSenderCell({ log }: { log: LogSenderSource }) {
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
+    uncertain: { label: "결과 미확인", variant: "secondary" },
+    cancelled: { label: "발송 취소", variant: "secondary" },
     pending: { label: "대기", variant: "secondary" },
     sent: { label: "발송", variant: "default" },
     failed: { label: "실패", variant: "destructive" },
@@ -74,6 +76,7 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     repeat: { label: "반복", variant: "secondary" },
     ai_auto: { label: "AI 자동", variant: "default" },
     ai_followup: { label: "후속발송", variant: "secondary" },
+    visit_ack: { label: "방문 감사", variant: "secondary" },
     // 템플릿 후속(email-followup.ts)·AI 후속 테스트 발송(test-followup API)이 남기는 값 — 없으면 영어 그대로 보였다
     followup: { label: "템플릿 후속", variant: "secondary" },
     test_followup: { label: "후속 테스트", variant: "outline" },
@@ -99,6 +102,7 @@ const TRIGGER_OPTIONS = [
     { value: "repeat", label: "반복" },
     { value: "ai_auto", label: "AI 자동" },
     { value: "ai_followup", label: "후속발송" },
+    { value: "visit_ack", label: "방문 감사" },
     { value: "followup", label: "템플릿 후속" },
 ];
 

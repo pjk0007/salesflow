@@ -42,3 +42,26 @@ test("전송 실패 후에도 다음 회차가 이어지고 개발 서버에서�
     assert.equal(emailSendSchedulerEnabled({ NODE_ENV: "production", EMAIL_SEND_SCHEDULER: "off", NEXT_PUBLIC_BASE_URL: "https://sendb.kr" }), false);
     assert.equal(emailSendSchedulerEnabled({ NODE_ENV: "production", REPLY_TEST_ASSUME_PRODUCTION: "1", DATABASE_URL: "postgresql://test@localhost/test" }), false);
 });
+
+test("방문 감사 작업이 오래 걸려도 예약 전송과 다음 회차는 계속하고 방문 작업은 겹치지 않는다", async () => {
+    const pending: { callback: () => Promise<void>; delay: number }[] = [];
+    let finish!: () => void;
+    let visits = 0;
+    let deliveries = 0;
+    const scheduler = createEmailSendScheduler({
+        prepare: async () => {},
+        deliver: async () => { deliveries++; },
+        acknowledgeVisits: () => { visits++; return new Promise<void>(resolve => { finish = resolve; }); },
+        schedule: (callback, delay) => { pending.push({ callback, delay }); return {}; },
+        cancel: () => {},
+    });
+    await pending.shift()!.callback();
+    await pending.shift()!.callback();
+    assert.equal(visits, 1);
+    assert.equal(deliveries, 2);
+    finish();
+    scheduler.stop();
+    await pending.shift()!.callback();
+    assert.equal(visits, 1);
+    assert.equal(deliveries, 2);
+});

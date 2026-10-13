@@ -1,14 +1,16 @@
 /** 고객 여정 워커와 CRM이 같은 원본·고객 구분을 읽는다. */
 import type { queryClient } from "./db";
 import type { JourneyCardInput } from "./customer-journey-card";
-import type { EventInput } from "./deep-visitor-alert-rules";
+import { EMAIL_TRIM_CHARS, type EventInput } from "./deep-visitor-alert-rules";
 import { loadJourneyAudience } from "./customer-journey-audience";
 import type { JourneyCohortMember } from "./customer-journey-priority";
+import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
 type Connection = Awaited<ReturnType<typeof queryClient.reserve>>;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 50;
 
 export interface CandidateRow {
+    send_log_id: number;
     org_id: string; workspace_id: number; business_name: string;
     record_id: number; integrated_code: string | null; data: Record<string, unknown> | string;
     recipient_email: string; subject: string | null; sent_at: Date; clicked_at: Date;
@@ -19,9 +21,9 @@ export interface CandidateRow {
     events: { sessionId: number; eventType: string; eventName: string | null; pageUrl: string | null; pageTitle: string | null; occurredAt: string; properties: Record<string, unknown> | null }[];
 }
 /** 같은 조직·사업의 메일 클릭에 직접 연결된 방문만 모은다. 이미 보낸 방문은 후보에서 뺀다. */
-export async function loadCandidates(conn: Connection, workspaceId: number, now: Date, since: Date, existing?: { sessionId: number; orgId: string }): Promise<CandidateRow[]> {
+export async function loadCandidates(conn: Connection, workspaceId: number, now: Date, since: Date, existing?: { sessionId: number; orgId: string }, visitAck?: { orgId?: string; email?: string; startAt: Date }): Promise<CandidateRow[]> {
     return conn<CandidateRow[]>`
-        SELECT w.org_id, w.id AS workspace_id, w.name AS business_name,
+        SELECT l.id AS send_log_id, w.org_id, w.id AS workspace_id, w.name AS business_name,
                r.id AS record_id, r.integrated_code, r.data,
                l.recipient_email, l.subject, l.sent_at, c.clicked_at,
                s.id AS session_id, s.site_id, s.visitor_id, s.started_at, s.ended_at, s.duration, s.page_count, s.click_id,
@@ -40,13 +42,19 @@ export async function loadCandidates(conn: Connection, workspaceId: number, now:
         JOIN records r ON r.id = l.record_id AND r.workspace_id = w.id AND r.org_id = w.org_id
         JOIN partitions p ON p.id = r.partition_id AND p.workspace_id = w.id
         WHERE w.id = ${workspaceId}
+          AND (${visitAck?.orgId ?? null}::uuid IS NULL OR w.org_id = ${visitAck?.orgId ?? null}::uuid)
+          AND (${visitAck?.email ?? null}::text IS NULL OR lower(btrim(l.recipient_email,${EMAIL_TRIM_CHARS})) = ${visitAck?.email ?? null})
+          AND (${visitAck === undefined} OR (c.is_bot = false AND l.trigger_type IS DISTINCT FROM 'visit_ack'
+              AND c.clicked_at >= ${visitAck?.startAt.toISOString() ?? since.toISOString()}
+              AND ((s.duration >= ${VISIT_ACK_MIN_SECONDS} AND (s.ended_at IS NULL OR s.ended_at >= s.started_at + ${VISIT_ACK_MIN_SECONDS}::int * interval '1 second'))
+                  OR (s.duration IS NULL AND s.ended_at <= ${now.toISOString()} AND s.ended_at >= s.started_at + ${VISIT_ACK_MIN_SECONDS}::int * interval '1 second'))))
           AND (${existing?.sessionId ?? null}::int IS NULL OR (s.id = ${existing?.sessionId ?? null} AND w.org_id = ${existing?.orgId ?? null}::uuid))
           AND s.started_at >= ${since.toISOString()} AND s.started_at <= ${now.toISOString()}
           AND c.clicked_at <= ${now.toISOString()}
-          AND (${existing !== undefined} OR GREATEST(s.started_at, COALESCE(s.ended_at, s.started_at),
+          AND (${existing !== undefined || visitAck !== undefined} OR GREATEST(s.started_at, COALESCE(s.ended_at, s.started_at),
               COALESCE((SELECT MAX(e.occurred_at) FROM tracker_events e WHERE e.session_id = s.id AND e.site_id = s.site_id AND e.occurred_at <= ${now.toISOString()}), s.started_at))
               <= ${new Date(now.getTime() - 10 * 60 * 1000).toISOString()})
-          AND (${existing !== undefined} OR NOT EXISTS (SELECT 1 FROM customer_journey_alerts a WHERE a.session_id = s.id AND a.org_id = w.org_id))
+          AND (${existing !== undefined || visitAck !== undefined} OR NOT EXISTS (SELECT 1 FROM customer_journey_alerts a WHERE a.session_id = s.id AND a.org_id = w.org_id))
         ORDER BY s.started_at, s.id
         LIMIT ${BATCH_SIZE}
     `;
