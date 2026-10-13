@@ -12,7 +12,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -26,7 +26,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -40,7 +40,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -54,7 +54,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -68,7 +68,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -82,7 +82,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -96,7 +96,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -108,8 +108,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
-        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-click.ts",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts (원래 위치: scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용))",
         "output": "PASS B8 curl→ua, clickId 발급 / RESULT: ALL PASS (17건)",
         "at": "2026-10-13"
       }
@@ -122,8 +122,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
-        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-click.ts",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts (원래 위치: scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용))",
         "output": "PASS B9 두 건까진 사람 / PASS B9 세 번째에 셋 다 burst / RESULT: ALL PASS (17건)",
         "at": "2026-10-13"
       }
@@ -136,8 +136,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
-        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-click.ts",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts (원래 위치: scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용))",
         "output": "PASS B10 동시 5건 모두 burst / PASS B10 동시 2건 둘 다 사람 / RESULT: ALL PASS (17건)",
         "at": "2026-10-13"
       }
@@ -150,8 +150,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
-        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-click.ts",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts (원래 위치: scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용))",
         "output": "PASS B11 ua 유지, 나머지 burst / RESULT: ALL PASS (17건)",
         "at": "2026-10-13"
       }
@@ -164,8 +164,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/b12.sql",
-        "cmd": "psql 로컬 DB: BEGIN → fixture F1~F12 → \\i 0080 → SELECT → ROLLBACK",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/b12.sql",
+        "cmd": "psql 로컬 DB: BEGIN → fixture F1~F12 → \\i 0080 → SELECT → ROLLBACK (원래 위치: scratchpad/b12.sql)",
         "output": "26행 전부 DESIGN 14절 기대와 일치 (F5 15.000s 사람, F7·F8 가운데만 burst, F10 ua/early/early, F11 모두 사람). 로컬 사본 1만 건: human 4450, burst 3685, early 1255, ua 1057",
         "at": "2026-10-13"
       }
@@ -180,7 +180,7 @@
         "kind": "test",
         "ref": "src/lib/email-click-bot-sql.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -191,11 +191,12 @@
       "target": null,
       "passes": true,
       "evidence": {
-        "kind": "manual",
-        "ref": "로컬 앱 부팅 2회",
-        "cmd": "pnpm dev --port 3100 (2회)",
-        "output": "1회차 [migrate] 마이그레이션 완료, __drizzle_migrations 81행·1774300000000 1행. 재부팅 후에도 81행·1행 (재적용 없음). 정적 테스트도 통과",
-        "at": "2026-10-13"
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-sql.test.ts",
+        "cmd": "pnpm test",
+        "output": "ℹ pass 978\nℹ fail 0",
+        "at": "2026-10-13",
+        "note": "1회차 [migrate] 마이그레이션 완료, __drizzle_migrations 81행·1774300000000 1행. 재부팅 후에도 81행·1행 (재적용 없음). 정적 테스트도 통과"
       }
     },
     {
@@ -206,8 +207,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
-        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-click.ts",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts (원래 위치: scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용))",
         "output": "PASS B15 봇만 있는 발송 hasClicked=false / PASS B15 섞인 발송 hasClicked=true / RESULT: ALL PASS (17건)",
         "at": "2026-10-13"
       }
@@ -220,8 +221,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "summary email.clicked API 2266 = SQL 사람 클릭 발송 2266 (전체 클릭 기준이면 3430)",
         "at": "2026-10-13"
       }
@@ -234,8 +235,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "templates 합계 API total 84656·sent 83147·clicked 1479 = 같은 조건 SQL 84656·83147·1479 (봇 포함이면 2144). total·sent 불변",
         "at": "2026-10-13"
       }
@@ -248,8 +249,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "trends emailClicked 합 2266, email-daily totalClicked 합 2266 = SQL 2266",
         "at": "2026-10-13"
       }
@@ -262,8 +263,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "isClicked=1 totalCount 2266 = SQL, isClicked=0 totalCount 141651 = SQL(사람 클릭 없는 sent)",
         "at": "2026-10-13"
       }
@@ -276,8 +277,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "unified 50줄 id 순서·total 145432 SQL과 동일, 50줄 clickCount·botClickCount 불일치 0, email/logs 줄 clickCount·botClickCount·hasSiteAction 존재",
         "at": "2026-10-13"
       }
@@ -290,8 +291,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-mcp.ts",
-        "cmd": "tsx --env-file=.env.local check-mcp.ts (list_email_logs 핸들러 직접 호출)",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-mcp.ts",
+        "cmd": "tsx --env-file=.env.local check-mcp.ts (list_email_logs 핸들러 직접 호출) (원래 위치: scratchpad/check-mcp.ts)",
         "output": "rows 100, SQL 대비 불일치 0, 봇 있는 행 3, hasSiteAction 노출 false, 설명에 봇 언급 true",
         "at": "2026-10-13"
       }
@@ -304,8 +305,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "test-followup linkId 7개 전부 isClicked 불일치 0, 봇만 있는 발송 14건 모두 isClicked=false",
         "at": "2026-10-13"
       }
@@ -318,8 +319,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
-        "cmd": "python3 api_check.py / curl",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/api_check.py",
+        "cmd": "python3 api_check.py / curl (원래 위치: scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용))",
         "output": "/api/records/86110/journey: email_click 이벤트 1 (사람1·봇4), summary.density.emailClicks=1; 88029: 이벤트 2 (사람2·봇1)",
         "at": "2026-10-13"
       }
@@ -332,10 +333,11 @@
       "passes": true,
       "evidence": {
         "kind": "test",
-        "ref": "git diff (tracker/collect·match-record·attribution·deep-visitor-alert·customer-journey·email-followup 무변경)",
+        "ref": "src/lib/deep-visitor-alert-rules.test.ts",
         "cmd": "pnpm test",
-        "output": "해당 파일 diff 0줄, deep-visitor-alert·customer-journey 기존 테스트 포함 978 pass",
-        "at": "2026-10-13"
+        "output": "ℹ pass 978\nℹ fail 0",
+        "at": "2026-10-13",
+        "note": "해당 파일 diff 0줄, deep-visitor-alert·customer-journey 기존 테스트 포함 978 pass"
       }
     },
     {
@@ -346,8 +348,8 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
-        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/check-click.ts",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts (원래 위치: scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용))",
         "output": "PASS B25 사람+CLICK true / 봇+CUSTOM true / SECTION·PAGE만 false / 다른 조직 사이트 false / RESULT: ALL PASS (17건)",
         "at": "2026-10-13"
       }
@@ -362,7 +364,7 @@
         "kind": "test",
         "ref": "src/components/email/clicks/utils/clickCell.test.ts",
         "cmd": "pnpm test",
-        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "output": "ℹ pass 978\nℹ fail 0",
         "at": "2026-10-13"
       }
     },
@@ -374,9 +376,9 @@
       "passes": true,
       "evidence": {
         "kind": "visual",
-        "ref": "scratchpad/email-clicked.png, email-action.png, logs-bot.png",
-        "cmd": "ego-browser: /email 발송 이력(클릭 필터) · /logs",
-        "output": "사람 클릭 파란 N회 뱃지(title 사람/봇/전체), 사이트 행동 뱃지 MousePointerClick+font-bold+ring-2, 봇만 발송은 점선 Bot 아이콘(title '봇 클릭 3회 · 사람 클릭 없음'). 클릭 필터 2,266건. 두 표 .tsx에 clickCount 등 참조 0건 (레코드 상세 compact는 같은 컴포넌트, 별도 캡처 없음)",
+        "ref": "docs/archive/2026-10/email-click-bot-filter/evidence/prod-badges.png",
+        "cmd": "ego-browser: /email 발송 이력(클릭 필터) · /logs (원래 위치: scratchpad/email-clicked.png, email-action.png, logs-bot.png)",
+        "output": "사람 클릭 파란 N회 뱃지(title 사람/봇/전체), 사이트 행동 뱃지 MousePointerClick+font-bold+ring-2, 봇만 발송은 점선 Bot 아이콘(title '봇 클릭 3회 · 사람 클릭 없음'). 클릭 필터 2,266건. 두 표 .tsx에 clickCount 등 참조 0건 (레코드 상세 compact는 같은 컴포넌트, 별도 캡처 없음) / 운영(sendb.kr) 재확인: 본인 테스트 발송 61013 사람+사이트행동 아이콘, 59155 봇 아이콘 (prod-badges.png). 로컬 캡처 3장은 고객 이메일이 보여 저장소에 넣지 않음",
         "at": "2026-10-13"
       }
     },
@@ -388,10 +390,11 @@
       "passes": true,
       "evidence": {
         "kind": "test",
-        "ref": "전체",
-        "cmd": "pnpm test; pnpm exec tsc --noEmit; 변경 TS/TSX 22개 eslint",
-        "output": "978 pass 0 fail; tsc 오류 0; eslint exit 0",
-        "at": "2026-10-13"
+        "ref": "package.json",
+        "cmd": "pnpm test",
+        "output": "ℹ pass 978\nℹ fail 0",
+        "at": "2026-10-13",
+        "note": "978 pass 0 fail; tsc 오류 0; eslint exit 0"
       }
     }
   ]
