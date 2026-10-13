@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { db, customerJourneyAlerts } from "@/lib/db";
+import { customerJourneyAlerts } from "@/lib/db/schema";
 import { eq, desc, and, ilike, sql, type SQL } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+
+function getReadonlyDb() {
+    const url = process.env.READONLY_DATABASE_URL;
+    if (!url) throw new Error("READONLY_DATABASE_URL이 설정되지 않았습니다.");
+    const client = postgres(url, { max: 3 });
+    return drizzle(client);
+}
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -17,6 +26,8 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get("search") || undefined;
     const workspaceId = searchParams.get("workspaceId") ? Number(searchParams.get("workspaceId")) : undefined;
 
+    const readonlyDb = getReadonlyDb();
+
     const conditions: SQL[] = [eq(customerJourneyAlerts.orgId, user.orgId)];
     if (workspaceId) conditions.push(eq(customerJourneyAlerts.workspaceId, workspaceId));
     if (status) conditions.push(eq(customerJourneyAlerts.status, status));
@@ -29,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     const where = and(...conditions);
 
-    const [countResult] = await db
+    const [countResult] = await readonlyDb
         .select({ count: sql<number>`count(*)::int` })
         .from(customerJourneyAlerts)
         .where(where);
@@ -37,7 +48,7 @@ export async function GET(req: NextRequest) {
     const total = countResult.count;
     const totalPages = Math.ceil(total / pageSize);
 
-    const rows = await db
+    const rows = await readonlyDb
         .select()
         .from(customerJourneyAlerts)
         .where(where)

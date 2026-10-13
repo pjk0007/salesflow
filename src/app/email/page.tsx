@@ -14,6 +14,7 @@ import EmailDashboard from "@/components/email/EmailDashboard";
 import EmailTemplateList from "@/components/email/EmailTemplateList";
 import EmailTemplateLinkList from "@/components/email/EmailTemplateLinkList";
 import EmailSendLogTable from "@/components/email/EmailSendLogTable";
+import EmailSendStats from "@/components/email/EmailSendStats";
 import EmailConfigForm from "@/components/email/EmailConfigForm";
 import EmailCategoryManager from "@/components/email/EmailCategoryManager";
 import AutoPersonalizedEmailConfig from "@/components/email/AutoPersonalizedEmailConfig";
@@ -118,6 +119,7 @@ function EmailPageContent() {
                             <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
                             {repliesEnabled && <TabsTrigger value="replies">회신</TabsTrigger>}
                             <TabsTrigger value="logs">발송 이력</TabsTrigger>
+                            <TabsTrigger value="send-stats">발송 통계</TabsTrigger>
                         </TabsList>
                         </div>
 
@@ -159,6 +161,10 @@ function EmailPageContent() {
 
                         <TabsContent value="logs" className="mt-6">
                             <EmailSendLogTable />
+                        </TabsContent>
+
+                        <TabsContent value="send-stats" className="mt-6">
+                            <EmailSendStats />
                         </TabsContent>
                     </Tabs>
                 )}
