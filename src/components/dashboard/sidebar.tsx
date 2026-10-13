@@ -22,6 +22,7 @@ import {
     History,
     ShieldCheck,
     Activity,
+    Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +41,7 @@ const navItems = [
     { href: "/web-forms", label: "웹 폼", icon: FileText },
     { href: "/tracker", label: "트래커", icon: Activity },
     { href: "/logs", label: "발송 이력", icon: History },
+    { href: "/crm", label: "CRM 관리", icon: Users },
 ];
 
 const bottomNavItems = [
