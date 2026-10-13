@@ -805,6 +805,7 @@ export function isFunnelRecordEvent(
     event: { type: string | null; label: string | null },
     stageValues: readonly string[]
 ): boolean {
+    if (event.type === "lead_followup") return false;
     if (event.type === "signup") return true;
     return event.label !== null && stageValues.includes(event.label);
 }

@@ -547,6 +547,20 @@
       "when": 1774000000000,
       "tag": "0077_customer_journey_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1774100000000,
+      "tag": "0078_email_prepared_sends",
+      "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1774200000000,
+      "tag": "0079_journey_lead_followups",
+      "breakpoints": true
     }
   ]
 }

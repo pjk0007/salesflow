@@ -18,5 +18,7 @@ export async function register() {
         void ensureSendLogIndexes();
         const { startCustomerJourneyScheduler } = await import("@/lib/customer-journey-scheduler");
         startCustomerJourneyScheduler();
+        const { startEmailSendScheduler } = await import("@/lib/email-send-scheduler");
+        startEmailSendScheduler();
     }
 }

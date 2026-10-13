@@ -14,6 +14,7 @@ import { JourneyEngagement } from "./JourneyEngagement";
 import { JourneyEventDetail } from "./JourneyEventDetail";
 import { ChannelFilter } from "./ChannelFilter";
 import type { JourneyEvent } from "../types";
+import { LeadFollowupPanel } from "@/components/lead-followup/ui/LeadFollowupPanel";
 
 export function JourneyPage({ recordId, visitorId }: { recordId?: number; visitorId?: number }) {
     const router = useRouter();
@@ -82,6 +83,7 @@ export function JourneyPage({ recordId, visitorId }: { recordId?: number; visito
                         {/* 우: 어트리뷰션 / 액션제안 / 관여도 */}
                         <div className="space-y-4">
                             <AttributionCard attribution={journey.attribution} />
+                            {recordId && <LeadFollowupPanel recordId={recordId} />}
                             <NextActionCard actions={journey.nextActions} />
                             {journey.summary.dailyActivity.length > 0 && (
                                 <div className="rounded-lg border bg-card p-4">

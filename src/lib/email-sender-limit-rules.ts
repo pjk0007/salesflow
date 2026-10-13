@@ -439,7 +439,7 @@ export function spreadGapMs(s: SenderLimitSettings, cap: number | null): number 
 // 한 통 판정·묶음 고르기
 // ============================================
 
-export type SlotDeferReason = "paused" | "outside_window" | "daily_limit" | "spacing";
+export type SlotDeferReason = "paused" | "outside_window" | "daily_limit" | "spacing" | "scheduled";
 
 export type SlotDecision =
     | { ok: true }

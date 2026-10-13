@@ -39,6 +39,7 @@ function businessChannel(type: string): string {
     // 회신 받기 (DESIGN-RPL 7-2·7-3) — 단계 사건이 아니다
     if (type === "reply") return "회신";
     if (type === "email_bounce") return "반송";
+    if (type === "lead_followup") return "후속 대응";
     return type;
 }
 

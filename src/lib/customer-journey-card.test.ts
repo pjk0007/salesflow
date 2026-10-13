@@ -73,6 +73,38 @@ test("발송 직후 1초짜리 방문은 카드 대상에서 제외한다", () =
     assert.equal(summarizeJourney(f, at(1000)).eligible, false);
 });
 
+test("버튼·영역 이벤트와 핵심 ICP가 있어도 총 체류 3초 미만은 카드·순위에서 제외한다", () => {
+    for (const seconds of [0, 1, 2.99, 3]) {
+        const f = fixture();
+        f.session = { ...f.session, duration: seconds, endedAt: at(seconds), pageCount: 1 };
+        f.fields.push({ key: "icp", label: "ICP", fieldType: "text", value: "핵심" });
+        f.events = [f.events[0], { ...f.events[2], occurredAt: at(seconds), properties: { dwell_ms: seconds * 1000 } },
+            { ...f.events[4], occurredAt: at(seconds) }];
+        const s = summarizeJourney(f, at(1000));
+        assert.equal(s.eligible, seconds >= 3, `${seconds}초 방문`);
+        assert.equal(s.priority.rankEligible, seconds >= 3, `${seconds}초 순위`);
+        if (seconds < 3) {
+            assert.equal(s.priority.score, 0);
+            assert.equal(s.priority.tier, "normal");
+            assert.equal(s.priority.excludedReason, "3초 미만 짧은 방문");
+        }
+    }
+});
+
+test("duration이 없으면 종료 시각으로 짧은 방문을 판정하고 측정 없음은 0초로 간주하지 않는다", () => {
+    const f = fixture();
+    f.events = [f.events[0], { ...f.events[4], occurredAt: at(1) }];
+    f.session = { ...f.session, duration: null, endedAt: at(1), pageCount: 1 };
+    const measured = summarizeJourney(f, at(1000));
+    assert.equal(measured.totalSeconds, 1);
+    assert.equal(measured.eligible, false);
+    assert.equal(measured.priority.rankEligible, false);
+    f.session.endedAt = null;
+    const unknown = summarizeJourney(f, at(1000));
+    assert.equal(unknown.totalSeconds, null);
+    assert.equal(unknown.eligible, true);
+});
+
 test("측정되지 않은 마지막 페이지 체류를 현재 시각으로 부풀리지 않는다", () => {
     const f = fixture(); f.session = { ...f.session, duration: null, endedAt: null };
     const s = summarizeJourney(f, at(86400));
@@ -85,6 +117,20 @@ test("다른 세션·미래 이벤트가 이탈 단계와 체류에 섞이지 �
     f.events.push({ ...f.events[4], sessionId: 999, eventName: "signup_complete" },
         { ...f.events[4], eventName: "signup_complete", occurredAt: at(2000) });
     assert.equal(summarizeJourney(f, at(1000)).completed, false);
+});
+
+test("카드는 저장한 판정·현재 처리 상태·관리 링크를 표시하고 대응 메모는 챗에 넣지 않는다", () => {
+    const f = fixture();
+    const assessed = { ...summarizeJourney(f, at(1000)).priority, tier: "urgent" as const, score: 75, evidence: ["저장된 상위 리드 근거"] };
+    const card = buildJourneyCard(f, at(1000), { ownerName: "이효정", state: "handled" }, {
+        status: "planned", dueAt: at(90000).toISOString(), note: "챗에 보내지 않을 대응 메모", revision: 1,
+        updatedAt: at(500).toISOString(), updatedBy: "가상 담당자", lastRemindedAt: null, reminderCount: 0,
+    }, assessed);
+    assert.match(card.text, /🔴 핵심 리드/);
+    assert.match(JSON.stringify(card), /저장된 상위 리드 근거/);
+    assert.match(JSON.stringify(card), /연락 예정/);
+    assert.match(JSON.stringify(card), /journey#lead-followup/);
+    assert.doesNotMatch(JSON.stringify(card), /챗에 보내지 않을 대응 메모/);
 });
 
 test("cardsV2 전송은 기존 스레드·요청 ID·429 재시도를 함께 쓴다", async () => {

@@ -34,7 +34,9 @@ export type SkipReason =
     /** 보내기 직전 막기: 이 사업에서 회신한 주소 (DESIGN-RPL 7-4) */
     | "replied"
     /** 보내기 직전 막기: 이 조직에서 hard 반송된 주소 (DESIGN-RPL 7-4) */
-    | "bounced";
+    | "bounced"
+    /** 요청 결과가 불명확하거나 이미 다른 워커가 선점한 예약은 자동 재전송하지 않는다. */
+    | "delivery_uncertain";
 
 /** 레코드 하나에 대한 전체 결과 */
 export interface RecordOutcome {
