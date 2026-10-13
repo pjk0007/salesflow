@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useEmailSendStats, type SendStatRow } from "./hooks/useEmailSendStats";
+import EmailFollowupStats from "./EmailFollowupStats";
 import {
     Table,
     TableBody,
@@ -206,6 +207,12 @@ export default function EmailSendStats() {
                     </Table>
                 </div>
             )}
+
+            {/* 규칙별 후속발송 성과 */}
+            <div className="mt-8">
+                <h3 className="text-base font-semibold mb-3">규칙별 후속발송 성과</h3>
+                <EmailFollowupStats startDate={startDate} endDate={endDate} />
+            </div>
         </div>
     );
 }
