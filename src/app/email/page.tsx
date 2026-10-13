@@ -23,6 +23,8 @@ import RepliesTab from "@/components/email/replies/ui/RepliesTab";
 import { useRepliesEnabled } from "@/components/email/replies/hooks/useRepliesEnabled";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
+import AiCopyManager from "@/components/ai-copy/ui/AiCopyManager";
+import ExperimentManager from "@/components/email-experiments/ui/ExperimentManager";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -80,7 +82,7 @@ function EmailPageContent() {
                         <EmailConfigForm />
                         <EmailCategoryManager />
                     </div>
-                ) : !isSetupLoading && !isReady ? (
+                ) : !isSetupLoading && !isReady && !["ai-quality", "experiments"].includes(activeTab) ? (
                     <div className="mt-6 flex flex-col items-center justify-center py-20">
                         <Card className="max-w-md w-full text-center">
                             <CardHeader>
@@ -110,6 +112,8 @@ function EmailPageContent() {
                             <TabsTrigger value="templates">템플릿</TabsTrigger>
                             <TabsTrigger value="links">템플릿 자동발송</TabsTrigger>
                             <TabsTrigger value="ai-auto">AI 자동발송</TabsTrigger>
+                            <TabsTrigger value="ai-quality">AI 품질</TabsTrigger>
+                            <TabsTrigger value="experiments">문구 실험</TabsTrigger>
                             <TabsTrigger value="assets">에셋</TabsTrigger>
                             <TabsTrigger value="followup-queue">후속 큐</TabsTrigger>
                             {repliesEnabled && <TabsTrigger value="replies">회신</TabsTrigger>}
@@ -131,6 +135,12 @@ function EmailPageContent() {
 
                         <TabsContent value="ai-auto" className="mt-6">
                             <AutoPersonalizedEmailConfig partitions={partitions} />
+                        </TabsContent>
+                        <TabsContent value="ai-quality" className="mt-6">
+                            <AiCopyManager />
+                        </TabsContent>
+                        <TabsContent value="experiments" className="mt-6">
+                            <ExperimentManager initialRuleId={Number(searchParams.get("ruleId")) || undefined} />
                         </TabsContent>
 
                         <TabsContent value="assets" className="mt-6">

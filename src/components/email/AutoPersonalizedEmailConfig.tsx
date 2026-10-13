@@ -241,6 +241,9 @@ export default function AutoPersonalizedEmailConfig({
                                     </p>
                                 </div>
                                 <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                    <Button variant="outline" size="sm" onClick={() => router.push(`/email?tab=experiments&ruleId=${link.id}`)}>
+                                        문구 실험
+                                    </Button>
                                     <Switch
                                         checked={link.isActive === 1}
                                         onCheckedChange={() => handleToggleActive(link)}

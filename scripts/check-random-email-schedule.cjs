@@ -89,6 +89,13 @@ async function main() {
       updateTokenUsage: async () => {}, logAiUsage: async () => {},
     });
     override('ai/company-research-cache', { findCachedCompanyResearch: async () => null });
+    // 생성 작업 계층 자체는 check-ai-copy-management.cjs에서 실제 SQL로 검사한다.
+    // 이 시나리오는 저장된 본문과 예약 전송 사이의 경계를 가짜 생성기로 분리한다.
+    override('ai-copy/runtime', {
+      prepareManagedEmail: async () => { state.generated++; return { subject: `가상 메일 ${state.generated}`, htmlBody: '<p>격리된 테스트입니다.</p>' }; },
+      attachManagedEmail: async () => true,
+    });
+    override('email-experiments/runtime', { prepareEmailExperiment: async () => ({ kind: 'none' }), recordExperimentDelivery: async () => {} });
     override('nhn-email', {
       getEmailConfig: async () => null,
       getEmailClient: async () => ({ sendEachMail: async (request) => {

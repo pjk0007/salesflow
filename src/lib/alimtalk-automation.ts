@@ -2,6 +2,8 @@ import { db, queryClient, alimtalkTemplateLinks, alimtalkSendLogs, alimtalkAutom
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
 import { getAlimtalkClient, normalizePhoneNumber } from "@/lib/nhn-alimtalk";
 import type { DbRecord, AlimtalkTemplateLink } from "@/lib/db";
+import { evaluateCondition, type TriggerCondition } from "./automation-condition";
+export { evaluateCondition } from "./automation-condition";
 
 // ============================================
 // 후속발송 상수
@@ -89,38 +91,6 @@ async function enqueueFollowupStep(params: {
 // ============================================
 // 조건 평가
 // ============================================
-
-interface TriggerCondition {
-    field?: string;
-    operator?: "eq" | "ne" | "contains";
-    value?: string;
-}
-
-export function evaluateCondition(
-    condition: TriggerCondition | null | undefined,
-    data: Record<string, unknown>
-): boolean {
-    if (!condition || !condition.field) return true;
-
-    const fieldValue = String(data[condition.field] ?? "");
-    const targetValue = condition.value ?? "";
-    const operator = condition.operator ?? "eq";
-
-    switch (operator) {
-        case "eq":
-            return fieldValue === targetValue;
-        case "ne":
-            return fieldValue !== targetValue;
-        case "contains":
-            // 콤마 구분 멀티값: "테스트,구독중" → 필드값이 그 중 하나에 일치하면 true
-            if (targetValue.includes(",")) {
-                return targetValue.split(",").some((v) => v.trim() === fieldValue);
-            }
-            return fieldValue.includes(targetValue);
-        default:
-            return false;
-    }
-}
 
 // ============================================
 // 쿨다운 체크 (중복 발송 방지)

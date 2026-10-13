@@ -19,6 +19,8 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { FormulaConfig } from "@/types";
+export * from "./ai-copy-schema";
+export * from "./email-experiment-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
@@ -1324,6 +1326,8 @@ export interface PreparedEmailPayload {
     subject: string;
     body: string;
     unsubscribeToken: string | null;
+    aiCopyJobId?: number;
+    experimentAssignmentId?: number;
 }
 
 export const emailPreparedSends = pgTable("email_prepared_sends", {

@@ -20,5 +20,7 @@ export async function register() {
         startCustomerJourneyScheduler();
         const { startEmailSendScheduler } = await import("@/lib/email-send-scheduler");
         startEmailSendScheduler();
+        const { startCopyEvaluationScheduler } = await import("@/lib/ai-copy/worker");
+        startCopyEvaluationScheduler();
     }
 }

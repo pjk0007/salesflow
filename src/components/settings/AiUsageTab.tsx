@@ -14,6 +14,10 @@ import { Loader2 } from "lucide-react";
 const PURPOSE_LABELS: Record<string, string> = {
     email_generation: "이메일 생성",
     auto_personalized_email: "자동 이메일",
+    copy_initial_email: "첫 소개 메일 문구",
+    copy_visit_ack: "방문 감사 메일 문구",
+    copy_evaluation: "문구 품질 평가",
+    copy_benchmark: "문구 부하 측정",
     auto_company_research: "자동 회사 조사",
     webform_generation: "웹폼 생성",
     dashboard_generation: "대시보드 생성",

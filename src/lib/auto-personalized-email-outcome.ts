@@ -27,6 +27,8 @@ export type SkipReason =
     | "unsubscribed"
     | "no_ai_client"
     | "quota_exceeded"
+    | "copy_cancelled"
+    | "experiment_excluded"
     | "no_email_client"
     | "no_sender"
     /** 대기열 줄에서 이 규칙이 시도 횟수를 다 써 빠졌다 — 돌리지 않았다 (email-send-queue-rules.ts planQueueRow) */
