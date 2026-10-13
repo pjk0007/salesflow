@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailFollowupQueue } from "@/lib/db";
+import { db, emailFollowupQueue, emailVisitAcknowledgements } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 
@@ -41,13 +41,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                 eq(emailFollowupQueue.orgId, user.orgId),
                 inArray(emailFollowupQueue.status, ["pending", "held"])
             ))
-            .returning({ id: emailFollowupQueue.id });
+            .returning({ id: emailFollowupQueue.id, sourceType: emailFollowupQueue.sourceType, sourceId: emailFollowupQueue.sourceId });
 
         if (cancelled.length === 0) {
             return NextResponse.json(
                 { success: false, error: "이미 발송 처리 중이라 취소할 수 없습니다. 잠시 뒤 목록을 새로 고쳐 확인해주세요." },
                 { status: 409 }
             );
+        }
+
+        if (cancelled[0].sourceType === "visit_ack") {
+            await db.update(emailVisitAcknowledgements)
+                .set({ status: "cancelled", reason: "사용자가 감사 메일 예약 취소", updatedAt: new Date() })
+                .where(and(eq(emailVisitAcknowledgements.id, cancelled[0].sourceId), eq(emailVisitAcknowledgements.orgId, user.orgId), eq(emailVisitAcknowledgements.status, "pending")));
         }
 
         return NextResponse.json({ success: true });

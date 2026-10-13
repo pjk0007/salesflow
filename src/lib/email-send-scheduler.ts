@@ -2,9 +2,10 @@ interface TimerHandle { unref?: () => void }
 interface SchedulerOptions {
     deliver: () => Promise<unknown>;
     prepare: () => Promise<unknown>;
+    acknowledgeVisits?: () => Promise<unknown>;
     schedule?: (callback: () => Promise<void>, delayMs: number) => TimerHandle;
     cancel?: (handle: TimerHandle) => void;
-    onError?: (stage: "prepare" | "deliver") => void;
+    onError?: (stage: "prepare" | "deliver" | "visit_ack") => void;
 }
 
 /** 느린 AI 준비와 예약 전송을 독립 실행한다. DB의 서로 다른 작업 잠금 + 원자적 큐 선점이 겹침을 막는다. */
@@ -13,10 +14,16 @@ export function createEmailSendScheduler(options: SchedulerOptions) {
     const cancel = options.cancel ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
     let stopped = false;
     let preparing = false;
+    let acknowledging = false;
     let timer: TimerHandle;
     const enqueue = (delay: number) => { timer = schedule(tick, delay); timer.unref?.(); };
     async function tick() {
         if (stopped) return;
+        if (options.acknowledgeVisits && !acknowledging) {
+            acknowledging = true;
+            void Promise.resolve().then(options.acknowledgeVisits).catch(() => options.onError?.("visit_ack"))
+                .finally(() => { acknowledging = false; });
+        }
         if (!preparing) {
             preparing = true;
             void Promise.resolve().then(options.prepare).catch(() => options.onError?.("prepare"))
@@ -42,6 +49,7 @@ const server = globalThis as typeof globalThis & { __sendbEmailSendScheduler?: S
 export function startEmailSendScheduler() {
     if (server.__sendbEmailSendScheduler || !emailSendSchedulerEnabled(process.env)) return;
     server.__sendbEmailSendScheduler = createEmailSendScheduler({
+        acknowledgeVisits: async () => (await import("./email-visit-ack")).processVisitAcknowledgements(),
         prepare: async () => (await import("./email-send-queue")).processEmailSendQueue(),
         deliver: async () => (await import("./email-send-queue")).processEmailSendQueue({ deliveryOnly: true }),
         onError: (stage) => console.error(`[email-send-scheduler] ${stage} 처리 실패 — 다음 회차에 재시도`),

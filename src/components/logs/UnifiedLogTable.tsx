@@ -28,6 +28,8 @@ const CHANNEL_MAP: Record<string, { label: string; variant: "default" | "seconda
 };
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
+    uncertain: { label: "결과 미확인", variant: "secondary" },
+    cancelled: { label: "발송 취소", variant: "secondary" },
     pending: { label: "대기", variant: "secondary" },
     sent: { label: "성공", variant: "default" },
     failed: { label: "실패", variant: "destructive" },
@@ -40,6 +42,7 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     repeat: { label: "반복", variant: "secondary" },
     ai_auto: { label: "AI 자동", variant: "default" },
     ai_followup: { label: "후속발송", variant: "secondary" },
+    visit_ack: { label: "방문 감사", variant: "secondary" },
     // 템플릿 후속·AI 후속 테스트 발송이 남기는 값 (발송 이력 표와 같은 이름)
     followup: { label: "템플릿 후속", variant: "secondary" },
     test_followup: { label: "후속 테스트", variant: "outline" },

@@ -568,6 +568,13 @@
       "when": 1774300000000,
       "tag": "0080_email_click_bot",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1774400000000,
+      "tag": "0081_email_visit_acknowledgements",
+      "breakpoints": true
     }
   ]
 }

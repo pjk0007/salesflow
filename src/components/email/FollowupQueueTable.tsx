@@ -28,6 +28,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
     pending: { label: "대기", variant: "outline" },
     // 워커가 집어 가서 보내는 중. 잠금이 30분 넘게 풀리지 않으면 다음 회차가 대기로 되돌린다
     processing: { label: "처리 중", variant: "secondary" },
+    uncertain: { label: "결과 미확인", variant: "outline" },
     sent: { label: "발송", variant: "default" },
     skipped: { label: "건너뜀", variant: "secondary" },
     cancelled: { label: "취소", variant: "destructive" },
@@ -40,17 +41,20 @@ const STOP_REASON_MAP: Record<string, string> = {
     replied: "(회신)",
     bounced: "(반송)",
     first_failed: "(앞 메일 실패)",
+    site_visit: "(사이트 방문)",
 };
 
 const STOP_REASON_TITLE: Record<string, string> = {
     replied: "고객이 회신해서 자동 메일을 멈췄습니다",
     bounced: "반송된 주소라 자동 메일을 멈췄습니다",
     first_failed: "앞 메일이 받는 쪽에서 실패해(NHN 발송 실패 — 주소 없음 등) 후속을 보내지 않았습니다",
+    site_visit: "메일 링크로 사이트를 5초 이상 방문해 일반 후속 메일을 중단했습니다",
 };
 
 const SOURCE_TYPE_MAP: Record<string, string> = {
     template: "템플릿",
     ai: "AI",
+    visit_ack: "방문 감사",
 };
 
 function formatDate(dateStr: string | null) {
@@ -114,6 +118,7 @@ export default function FollowupQueueTable() {
                         <SelectItem value="skipped">건너뜀</SelectItem>
                         <SelectItem value="cancelled">취소</SelectItem>
                         <SelectItem value="held">명단 보류</SelectItem>
+                        <SelectItem value="uncertain">결과 미확인</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -125,6 +130,7 @@ export default function FollowupQueueTable() {
                         <SelectItem value="all">전체 유형</SelectItem>
                         <SelectItem value="template">템플릿</SelectItem>
                         <SelectItem value="ai">AI</SelectItem>
+                        <SelectItem value="visit_ack">방문 감사</SelectItem>
                     </SelectContent>
                 </Select>
 
@@ -176,7 +182,7 @@ export default function FollowupQueueTable() {
                                             <TableCell className="max-w-[200px] truncate">
                                                 {item.parentSubject ?? "—"}
                                             </TableCell>
-                                            <TableCell>{item.stepIndex + 1}단계</TableCell>
+                                            <TableCell>{item.sourceType === "visit_ack" ? "1회" : `${item.stepIndex + 1}단계`}</TableCell>
                                             <TableCell>
                                                 <Badge variant="outline">
                                                     {SOURCE_TYPE_MAP[item.sourceType] ?? item.sourceType}

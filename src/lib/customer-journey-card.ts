@@ -43,7 +43,7 @@ const clean = (value: unknown, max = 160) => chatSafe(value, { max, defangUrls: 
 const html = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 export const durationLabel = (seconds: number | null): string => seconds === null ? "측정 없음" : seconds < 60 ? `${Math.round(seconds)}초` : `${Math.floor(seconds / 60)}분 ${Math.round(seconds % 60)}초`;
 
-export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCardSummary {
+export function evaluateJourney(input: JourneyCardInput, now: Date) {
     const s = input.session;
     const events = input.events.filter((e) => e.sessionId === s.id && e.occurredAt <= now && e.occurredAt >= s.startedAt)
         .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime());
@@ -53,6 +53,12 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         foundSessions: [s], ownSiteId: s.siteId, visitorSessions: [s], visitorEvents: events,
         distinctClickedRecordsForVisitor: 1, alreadyInFunnel: false, unsubscribed: false,
     }, now);
+    return { events, verdict };
+}
+
+export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCardSummary {
+    const s = input.session;
+    const { events, verdict } = evaluateJourney(input, now);
     const lastActivityAt = new Date(Math.max((verdict.lastActivityAt ?? s.startedAt).getTime(), input.audience?.lastActivityAt.getTime() ?? 0));
     const contacts = { company: "", name: "" };
     for (const f of input.fields) {

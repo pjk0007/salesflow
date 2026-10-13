@@ -924,6 +924,29 @@ export const emailFollowupQueue = pgTable(
     })
 );
 
+/** 메일 유입 5초 확인 뒤 후속 중단·감사 메일의 고객별 한 번 발송 기록. */
+export const emailVisitAcknowledgements = pgTable("email_visit_acknowledgements", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),
+    workspaceId: integer("workspace_id").references(() => workspaces.id, { onDelete: "cascade" }).notNull(),
+    customerKey: varchar("customer_key", { length: 64 }).notNull(),
+    sourceLogId: integer("source_log_id").references(() => emailSendLogs.id, { onDelete: "cascade" }).notNull(),
+    recordId: integer("record_id").notNull(),
+    sessionId: integer("session_id").notNull(),
+    status: varchar("status", { length: 20 }).default("pending").notNull(),
+    reason: text("reason"),
+    queueId: integer("queue_id").references(() => emailFollowupQueue.id, { onDelete: "set null" }),
+    sendLogId: integer("send_log_id").references(() => emailSendLogs.id, { onDelete: "set null" }),
+    scheduledAt: timestamptz("scheduled_at").notNull(),
+    observedAt: timestamptz("observed_at").notNull(),
+    nextCheckAt: timestamptz("next_check_at").defaultNow().notNull(),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, table => [
+    uniqueIndex("eva_customer_idx").on(table.orgId, table.workspaceId, table.customerKey),
+    index("eva_status_check_idx").on(table.status, table.nextCheckAt),
+]);
+
 /**
  * AI 개인화 이메일 대량 발송 큐.
  *
