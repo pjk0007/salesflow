@@ -1,6 +1,7 @@
 /** 방문 감사 메일의 조건·문구·예약 시각. DB/외부 요청 없음. */
 import { isProductionServer, contactKindOf } from "./deep-visitor-alert-rules";
 import type { JourneyCardInput } from "./customer-journey-card";
+import { measuredSessionSeconds } from "./tracker-session-duration";
 
 type Env = Record<string, string | undefined>;
 export const VISIT_ACK_SOURCE = "visit_ack";
@@ -44,16 +45,7 @@ export function measuredVisitSeconds(
     input: JourneyCardInput,
     now: Date,
 ): number | null {
-    const s = input.session;
-    if (s.startedAt > now) return null;
-    if (s.endedAt && (s.endedAt > now || s.endedAt < s.startedAt)) return null;
-    const elapsed =
-        ((s.endedAt ?? now).getTime() - s.startedAt.getTime()) / 1000;
-    if (s.duration !== null && Number.isFinite(s.duration) && s.duration >= 0)
-        return Math.min(s.duration, elapsed);
-    if (s.endedAt && s.endedAt <= now && s.endedAt >= s.startedAt)
-        return (s.endedAt.getTime() - s.startedAt.getTime()) / 1000;
-    return null;
+    return measuredSessionSeconds(input.session, now);
 }
 
 /** 주말·업무시간 밖이면 다음 평일 09시 이후로 옮기며 선택한 지연의 무작위 간격을 보존한다. */

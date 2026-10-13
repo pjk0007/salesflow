@@ -98,7 +98,7 @@ export async function processLeadReminders(conn: JourneyConnection, opts: {
         if (!source) continue;
         const input = await enrichedInput(conn, source, config.baseUrl, now, [], (env.JOURNEY_ALERT_INTERNAL_DOMAINS ?? "").split(","));
         const current = summarizeJourney(input, now);
-        if (!current.eligible || current.completed) continue;
+        if (!current.chatEligible || current.completed) continue;
         // 결과 불명확/프로세스 종료도 같은 날 다시 태그하지 않도록 요청 전에 예약을 확정한다.
         const claimed = await conn`UPDATE journey_lead_followups SET last_reminded_at=${now.toISOString()},reminder_count=reminder_count+1,reminder_result='uncertain'
             WHERE id=${f.id} AND org_id=${f.org_id} AND revision=${lead.followup.revision}
@@ -110,7 +110,7 @@ export async function processLeadReminders(conn: JourneyConnection, opts: {
             { sessionId: session.session_id, orgId: f.org_id });
         const freshInput = freshSource && await enrichedInput(conn, freshSource, config.baseUrl, now, [], (env.JOURNEY_ALERT_INTERNAL_DOMAINS ?? "").split(","));
         const fresh = freshInput && summarizeJourney(freshInput, now);
-        if (!stillOpen || !fresh?.eligible || fresh.completed) {
+        if (!stillOpen || !fresh?.chatEligible || fresh.completed) {
             await conn`UPDATE journey_lead_followups SET reminder_result='cancelled' WHERE id=${f.id} AND org_id=${f.org_id}`;
             continue;
         }

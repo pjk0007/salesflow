@@ -5,6 +5,9 @@ import { formatKstShort } from "./kst";
 import { classifyJourneyPriority, MIN_JOURNEY_SECONDS, type JourneyAudience, type JourneyCohortMember, type JourneyPriority } from "./customer-journey-priority";
 import { FOLLOWUP_LABELS, type LeadFollowup } from "../components/lead-followup/types";
 import { journeyPriorityLabel } from "../components/lead-followup/utils/labels";
+import { measuredSessionSeconds } from "./tracker-session-duration";
+
+export const MIN_JOURNEY_CHAT_SECONDS = 60;
 
 export interface JourneyCardInput {
     recordId: number;
@@ -25,6 +28,8 @@ export interface JourneyCardInput {
 
 export interface JourneyCardSummary {
     eligible: boolean;
+    chatEligible: boolean;
+    chatSuppressionReason: string | null;
     lastActivityAt: Date;
     company: string;
     person: string;
@@ -96,13 +101,18 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         : verdict.sawPrice ? "가격을 확인했습니다. 기존 CRM 맥락을 확인한 뒤 요금·적용 사례를 안내해 주세요."
         : verdict.sawCases || verdict.sawDetail ? "사례·서비스 상세를 확인했습니다. 해당 회사와 관련된 사례로 후속 연락을 준비해 주세요."
         : "초기 방문입니다. 추가 방문·클릭이 있는지 고객 여정에서 확인해 주세요.";
-    const totalSeconds = s.duration !== null && Number.isFinite(s.duration) && s.duration >= 0 ? s.duration : s.endedAt && s.endedAt <= now ? Math.max(0, (s.endedAt.getTime() - s.startedAt.getTime()) / 1000) : null;
+    const totalSeconds = measuredSessionSeconds(s, now);
     const eligible = (totalSeconds === null || totalSeconds >= MIN_JOURNEY_SECONDS)
         && !verdict.machine && !!verdict.chosenSession && lastActivityAt.getTime() <= now.getTime() - SETTLE_MS
         && !input.audience?.internal && !input.audience?.sharedVisitor && !input.audience?.existingVisitor && !input.audience?.unsubscribed;
     const priority = classifyJourneyPriority({ ...input, eligible, completed, totalSeconds, events }, now);
+    const chatEligible = eligible && totalSeconds !== null && totalSeconds >= MIN_JOURNEY_CHAT_SECONDS;
+    const chatSuppressionReason = !eligible || chatEligible ? null : totalSeconds === null
+        ? "체류시간 미확인: 구글챗 발송 제외"
+        : `${MIN_JOURNEY_CHAT_SECONDS}초 미만 방문: 구글챗 발송 제외`;
     return {
         eligible,
+        chatEligible, chatSuppressionReason,
         lastActivityAt, company: contacts.company || "회사 정보 없음", person: contacts.name || clean(input.recipientEmail, 120),
         stage, completed,
         totalSeconds,
