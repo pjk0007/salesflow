@@ -185,6 +185,38 @@ async function main() {
     assert.equal(pendingShort.status, 'skipped'); assert.equal(pendingShort.message.journeyPriority.rankEligible, false);
     console.log('PASS 전송 대기 중 1초 방문으로 확인되면 전송 직전 재판정에서 카드·태그 중단');
 
+    await reset();
+    for (const [id, seconds, duration, workspace] of [[73, 59, 59, 8], [74, 60, 60, 8], [75, 60, 60, 9], [76, 59.999, 60, 9], [77, null, null, 8]]) {
+      await seed(id, { workspace });
+      await pg.query('DELETE FROM tracker_events WHERE session_id=$1 AND occurred_at>$2', [id, at(0)]);
+      await pg.query('UPDATE tracker_sessions SET duration=$1,ended_at=$2,page_count=1 WHERE id=$3', [duration, seconds === null ? null : at(seconds), id]);
+      if (seconds === null) await insert('tracker_events', { site_id: 2, visitor_id: id, session_id: id, event_type: 'CLICK', event_name: 'info-open', occurred_at: at(0.5) });
+    }
+    await run();
+    assert.equal(calls.length, 2);
+    assert.ok(calls.some((c) => c.message.text.includes('가상 회사 74')));
+    assert.ok(calls.some((c) => c.message.text.includes('가상 회사 75')));
+    const suppressed = (await pg.query("SELECT record_id,last_error,message FROM customer_journey_alerts WHERE status='suppressed' ORDER BY record_id")).rows;
+    assert.deepEqual(suppressed.map((r) => r.record_id), [73, 76, 77]);
+    assert.ok(suppressed.every((r) => r.last_error && r.message.journeyPriority.rankEligible));
+    const retained = await listAssessedLeads(conn, { orgId: org, now, env, includeNormal: true });
+    assert.deepEqual(retained.map((l) => l.recordId).sort(), [73, 74, 75, 76, 77]);
+    await run(); assert.equal(calls.length, 2);
+    console.log('PASS 두 사업 모두 60초 이상만 Chat 발송, 59초·반올림 59.999초·미측정 억제, CRM 판정 보존·다음 회차 재전송 없음');
+
+    await reset(); await seed(78); await seed(79, { workspace: 9 });
+    beforePending = async () => {
+      await pg.query('UPDATE tracker_sessions SET duration=59,ended_at=$1 WHERE id=78', [at(59)]);
+      await pg.exec('UPDATE tracker_sessions SET duration=NULL,ended_at=NULL WHERE id=79');
+      await pg.query('DELETE FROM tracker_events WHERE session_id IN (78,79) AND occurred_at>$1', [at(0)]);
+      await insert('tracker_events', { site_id: 3, visitor_id: 79, session_id: 79, event_type: 'CLICK', event_name: 'info-open', occurred_at: at(0.5) });
+    };
+    await run(); assert.equal(calls.length, 0);
+    const oldPending = (await pg.query('SELECT status,message FROM customer_journey_alerts ORDER BY record_id')).rows;
+    assert.ok(oldPending.every((r) => r.status === 'suppressed' && r.message.journeyPriority.rankEligible));
+    assert.ok(oldPending.every((r) => !r.message.journeyPriority.ownerMentioned));
+    console.log('PASS 기존 발송 대기 카드도 59초·미측정으로 확인되면 Chat·담당자 태그를 함께 억제');
+
     const tomorrow = new Date(now.getTime() + 86400_000);
     const list = (time = now, tenant = org) => listAssessedLeads(conn, { orgId: tenant, now: time, env });
     const actor = { orgId: org, userId: memberId, name: '가상 담당자' };
@@ -271,6 +303,21 @@ async function main() {
     assert.equal((await pg.query('SELECT reminder_result FROM journey_lead_followups')).rows[0].reminder_result, 'cancelled');
     console.log('PASS 선점 이후 담당자가 처리한 경우에도 전송 직전 재확인으로 취소');
 
+    await reset(); await seed(142); await seed(143); await run();
+    await pg.query('UPDATE tracker_sessions SET duration=59,ended_at=$1 WHERE id=142', [at(59)]);
+    await pg.exec('UPDATE tracker_sessions SET duration=NULL,ended_at=NULL WHERE id=143');
+    await run(tomorrow); assert.equal(calls.length, 2);
+    assert.ok((await pg.query('SELECT reminder_count FROM journey_lead_followups')).rows.every((r) => r.reminder_count === 0));
+    console.log('PASS 과거 긴급 판정이 있어도 현재 체류가 59초·미측정이면 재알림·담당자 태그 억제');
+
+    await reset(); await seed(144); await run();
+    afterReminderClaim = async () => {
+      await pg.query('UPDATE tracker_sessions SET duration=59,ended_at=$1 WHERE id=144', [at(59)]);
+    };
+    await run(tomorrow); assert.equal(calls.length, 1);
+    assert.equal((await pg.query('SELECT reminder_result FROM journey_lead_followups')).rows[0].reminder_result, 'cancelled');
+    console.log('PASS 재알림 선점 이후 체류가 60초 미만으로 정정돼도 전송 직전 취소');
+
     await reset(); await seed(150); await run(now, { JOURNEY_ALERT_MODE: 'dry_run' });
     await pg.exec('TRUNCATE journey_lead_followups');
     const migration = fs.readFileSync(path.join(root, 'drizzle/0079_journey_lead_followups.sql'), 'utf8');
@@ -294,7 +341,7 @@ async function main() {
     assert.equal(dry.mode, 'dry_run'); assert.equal(calls.length, 0);
     assert.equal((await pg.query('SELECT status FROM customer_journey_alerts')).rows[0].status, 'dry_run');
     await run(tomorrow, { JOURNEY_ALERT_MODE: 'dry_run' }); assert.equal(calls.length, 0);
-    console.log(JSON.stringify({ result: 'passed', externalRequests: 0, productionOrDevelopmentDbAccess: false, scenarios: 18 }));
+    console.log(JSON.stringify({ result: 'passed', externalRequests: 0, productionOrDevelopmentDbAccess: false, scenarios: 22 }));
   } finally { global.fetch = realFetch; await pg.close(); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });

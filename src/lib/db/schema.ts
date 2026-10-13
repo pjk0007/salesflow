@@ -1795,6 +1795,7 @@ export type DeepVisitorAlert = typeof deepVisitorAlerts.$inferSelect;
 export type NewDeepVisitorAlert = typeof deepVisitorAlerts.$inferInsert;
 
 // 메일 링크에서 유입된 고객 여정 카드 — 방문당 한 장, 깊이 알림과 별도 스페이스
+// suppressed: CRM 판정은 보존하되 체류 60초 미만·측정 미확인으로 Chat만 발송하지 않음
 export const customerJourneyAlerts = pgTable("customer_journey_alerts", {
     id: serial("id").primaryKey(),
     orgId: uuid("org_id").references(() => organizations.id, { onDelete: "cascade" }).notNull(),

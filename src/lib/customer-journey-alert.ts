@@ -66,9 +66,10 @@ export async function processCustomerJourneyAlerts(opts: { env?: Env; now?: Date
                 if (summary.lastActivityAt.getTime() > now.getTime() - 10 * 60 * 1000) continue;
                 const message: StoredJourneyMessage = { ...buildJourneyCard(input, now), journeyPriority: { ...summary.priority, ownerMentioned: false } };
                 const inserted = await conn`INSERT INTO customer_journey_alerts
-                    (org_id, workspace_id, record_id, session_id, last_activity_at, stage, message, status, created_at, next_attempt_at)
+                    (org_id, workspace_id, record_id, session_id, last_activity_at, stage, message, status, last_error, created_at, next_attempt_at)
                     VALUES (${row.org_id}, ${id}, ${row.record_id}, ${row.session_id}, ${summary.lastActivityAt.toISOString()}, ${summary.stage},
-                        ${JSON.stringify(message)}::jsonb, ${!summary.eligible ? "skipped" : config.mode === "live" ? "pending" : "dry_run"}, ${now.toISOString()}, ${now.toISOString()})
+                        ${JSON.stringify(message)}::jsonb, ${!summary.eligible ? "skipped" : !summary.chatEligible ? "suppressed" : config.mode === "live" ? "pending" : "dry_run"},
+                        ${summary.chatSuppressionReason}, ${now.toISOString()}, ${now.toISOString()})
                     ON CONFLICT (org_id, session_id) DO NOTHING RETURNING id`;
                 stats.created += inserted.length;
                 if (inserted.length && summary.priority.rankEligible) cohort.push({ customerKey: summary.priority.customerKey, score: summary.priority.score });
@@ -103,6 +104,14 @@ export async function processCustomerJourneyAlerts(opts: { env?: Env; now?: Date
                 await conn`UPDATE customer_journey_alerts SET status = 'skipped',
                     message = jsonb_set(message, '{journeyPriority,rankEligible}', 'false'::jsonb),
                     last_error = ${summary.priority.excludedReason} WHERE id = ${alert.id}`;
+                continue;
+            }
+            if (!summary.chatEligible) {
+                // 알림만 억제하고 CRM 판정은 보존한다. 기존 대기 카드도 현재 측정값으로 확인한다.
+                const message: StoredJourneyMessage = { ...buildJourneyCard(input, now), journeyPriority: { ...summary.priority, ownerMentioned: false } };
+                await conn`UPDATE customer_journey_alerts SET status = 'suppressed', message = ${JSON.stringify(message)}::jsonb,
+                    stage = ${summary.stage}, last_activity_at = ${summary.lastActivityAt.toISOString()},
+                    last_error = ${summary.chatSuppressionReason} WHERE id = ${alert.id}`;
                 continue;
             }
             const owner = summary.priority.tier === "urgent" ? journeyOwner(config.routes[alert.workspace_id]) : undefined;

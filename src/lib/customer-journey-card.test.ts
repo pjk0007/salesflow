@@ -56,13 +56,45 @@ test("구매 완료도 완료로 표시한다", () => {
     assert.equal(summarizeJourney(f, at(1000)).completed, true);
 });
 
-test("한 페이지를 30초 본 사람도 깊이 여부와 무관하게 카드 대상이다", () => {
+test("한 페이지 30초 방문은 CRM 판정을 보존하지만 구글챗 발송에서 제외한다", () => {
     const f = fixture();
     f.events = f.events.slice(0, 1);
     f.session = { ...f.session, pageCount: 1, duration: 30, endedAt: at(30) };
     const s = summarizeJourney(f, at(1000));
     assert.equal(s.eligible, true);
+    assert.equal(s.chatEligible, false);
+    assert.equal(s.chatSuppressionReason, "60초 미만 방문: 구글챗 발송 제외");
     assert.equal(s.stage, "둘러봄");
+});
+
+test("구글챗은 실제 측정 체류 60초 이상만 발송하고 핵심 ICP도 같은 기준을 쓴다", () => {
+    for (const seconds of [5, 59, 59.999, 60, 61]) {
+        const f = fixture();
+        f.session = { ...f.session, duration: Math.round(seconds), endedAt: at(seconds), pageCount: 1 };
+        f.fields.push({ key: "icp", label: "ICP", fieldType: "text", value: "핵심" });
+        f.events = [f.events[0], { ...f.events[4], occurredAt: at(1) }];
+        const s = summarizeJourney(f, at(1000));
+        assert.equal(s.eligible, true);
+        assert.equal(s.chatEligible, seconds >= 60, `${seconds}초`);
+        assert.equal(s.totalSeconds, seconds);
+    }
+});
+
+test("구글챗은 종료 시각으로 60초를 확인할 수 있으나 측정 불명·미래·역전 시각은 제외한다", () => {
+    const f = fixture();
+    f.events = [f.events[0]];
+    f.session.duration = null;
+    f.session.endedAt = at(60);
+    assert.equal(summarizeJourney(f, at(1000)).chatEligible, true);
+    f.session.endedAt = null;
+    const unknown = summarizeJourney(f, at(1000));
+    assert.equal(unknown.chatEligible, false);
+    assert.equal(unknown.chatSuppressionReason, "체류시간 미확인: 구글챗 발송 제외");
+    f.session.duration = 120;
+    for (const end of [at(-1), at(2000)]) {
+        f.session.endedAt = end;
+        assert.equal(summarizeJourney(f, at(1000)).chatEligible, false);
+    }
 });
 
 test("발송 직후 1초짜리 방문은 카드 대상에서 제외한다", () => {
