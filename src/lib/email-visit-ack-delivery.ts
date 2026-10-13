@@ -9,10 +9,12 @@ import {
     VISIT_ACK_MAX_AGE_MS,
     VISIT_ACK_SUBJECT,
     VISIT_ACK_MIN_SECONDS,
+    visitAckBody,
 } from "./email-visit-ack-rules";
 import type { VisitAckConnection, VisitAckRow } from "./email-visit-ack";
 import type { JourneyCardInput } from "./customer-journey-card";
 import { ensureVisitAckCopy } from "./email-visit-ack-copy";
+import { CopyDeferredError } from "./ai-copy/generation";
 
 type Env = Record<string, string | undefined>;
 export interface VisitAckParent extends VisitAckRow {
@@ -42,6 +44,7 @@ export interface VisitAckReady {
     senderProfileId: number | null;
     send: (logId: number) => Promise<SendResult>;
     release: () => Promise<void>;
+    attachCopy?: (logId: number) => Promise<boolean>;
 }
 export interface VisitAckDeliveryDeps {
     env: Env;
@@ -155,7 +158,11 @@ export async function deliverVisitAcknowledgement(
     let ready: Awaited<ReturnType<VisitAckDeliveryDeps["prepare"]>>;
     try {
         ready = await deps.prepare(parent, input);
-    } catch {
+    } catch (error) {
+        if (error instanceof CopyDeferredError) {
+            if (error.reason === "작업 취소") return cancel("감사 문구 작업 취소");
+            return defer(error.retryAt);
+        }
         return defer(new Date(deps.now().getTime() + 3600_000));
     }
     if (ready.kind === "deferred") return defer(ready.retryAt);
@@ -215,6 +222,10 @@ export async function deliverVisitAcknowledgement(
             await release();
             return cancel(finalStop ?? "전송 직전 방문 조건 변경", logId);
         }
+        if (ready.attachCopy && !(await ready.attachCopy(logId))) {
+            await release();
+            return cancel("동일 감사 문구 작업의 발송 이력 존재", logId);
+        }
         attempted = true;
         let timer: ReturnType<typeof setTimeout> | undefined;
         const result = await Promise.race([
@@ -235,9 +246,16 @@ export async function deliverVisitAcknowledgement(
             WHERE id=${logId} AND org_id=${item.orgId}`;
         await conn`UPDATE email_visit_acknowledgements SET status=${status},reason=${result.message ?? null},updated_at=${deps.now().toISOString()} WHERE id=${parent.id}`;
         return { kind: result.kind === "accepted" ? "sent" : "skipped" };
-    } catch {
+    } catch (error) {
         if (!attempted) {
             await release();
+            if (error instanceof CopyDeferredError && logId) {
+                if (error.reason === "작업 취소") return cancel("감사 문구 작업 취소", logId);
+                await conn`UPDATE email_send_logs SET status='cancelled',result_message='문구 검토로 전송 전 보류' WHERE id=${logId} AND org_id=${item.orgId}`;
+                await conn`UPDATE email_visit_acknowledgements SET status='pending',send_log_id=NULL,reason=${error.reason} WHERE id=${parent.id} AND org_id=${item.orgId}`;
+                if (error.reason === "새 버전 문구 재준비") await conn`UPDATE email_visit_acknowledgements SET body=NULL WHERE id=${parent.id} AND org_id=${item.orgId} AND status='pending'`;
+                return defer(error.retryAt);
+            }
             if (!logId) return defer(new Date(deps.now().getTime() + 3600_000));
         }
         // CAS 이후의 DB 오류·타임아웃도 결과 미확인이다. 자동으로 재시도하지 않는다.
@@ -422,21 +440,21 @@ export async function handleVisitAcknowledgement(item: {
                         config,
                     });
                     const token = unsub.generateUnsubscribeToken();
+                    const [{ prepareCopy, attachCopyToSend, resolveCopyJob }, { generationDeps }] = await Promise.all([import("./ai-copy/preparation"), import("./ai-copy/runtime")]);
+                    const key = `visit-ack:${p.id}`;
                     let body = await ensureVisitAckCopy(conn, p, input, {
-                        generate: async (prompt) => {
-                            const [{ getAiClient }, { callGeminiJson }, quota] = await Promise.all([
-                                import("./ai/client"), import("./ai/gemini"), import("./ai/quota"),
-                            ]);
-                            const ai = getAiClient();
-                            if (!ai || !(await quota.checkTokenQuota(p.org_id)).allowed)
-                                throw new Error("감사 문구 생성 준비 대기");
-                            const result = await callGeminiJson(ai, prompt.system, prompt.user);
-                            await quota.updateTokenUsage(p.org_id, result.usage.promptTokens + result.usage.completionTokens);
-                            await quota.logAiUsage({ orgId: p.org_id, userId: null, provider: ai.provider, model: ai.model,
-                                promptTokens: result.usage.promptTokens, completionTokens: result.usage.completionTokens, purpose: "visit_ack" });
-                            return JSON.parse(result.content.replace(/^\s*```(?:json)?\s*/, "").replace(/\s*```\s*$/, ""));
-                        },
+                        generateBody: async prompt => (await prepareCopy(conn, {
+                            orgId: p.org_id, workspaceId: p.workspace_id, purpose: "visit_ack", ruleId: 0, key,
+                            legacyContext: { ...prompt, greeting: visitAckBody(input.fields).split("\n")[0], fixedSubject: VISIT_ACK_SUBJECT },
+                            approvedContext: { system: "한국어 방문 감사 이메일 편집자입니다.", user: prompt.user, greeting: visitAckBody(input.fields).split("\n")[0], fixedSubject: VISIT_ACK_SUBJECT },
+                        }, generationDeps())).htmlBody,
                     });
+                    const copyJob = await resolveCopyJob(conn, p.org_id, key);
+                    if (copyJob?.state === "cancelled") throw new CopyDeferredError(new Date(Date.now() + 3600_000), "작업 취소", true);
+                    if (copyJob?.output && copyJob.output.htmlBody !== body) {
+                        await conn`UPDATE email_visit_acknowledgements SET body=NULL WHERE id=${p.id} AND org_id=${p.org_id} AND status='pending'`;
+                        throw new CopyDeferredError(new Date(Date.now() + 10_000), "새 버전 문구 재준비");
+                    }
                     if (signature) body = mail.appendSignature(body, signature);
                     body = unsub.appendUnsubscribeFooter(
                         body,
@@ -449,6 +467,7 @@ export async function handleVisitAcknowledgement(item: {
                         senderEmail: fromEmail,
                         senderProfileId: slot.sender.profileId,
                         release,
+                        attachCopy: copyJob ? logId => attachCopyToSend(conn, { orgId: p.org_id, jobId: copyJob.id, logId }) : undefined,
                         send: async (logId) => {
                             const result = await client.sendEachMail({
                                 senderAddress: fromEmail,

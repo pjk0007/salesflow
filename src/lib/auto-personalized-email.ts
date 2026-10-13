@@ -1,7 +1,11 @@
 import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
-import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { getSearchAiClient, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { buildEmailSystemPrompt } from "@/lib/ai/email";
+import { prepareManagedEmail, attachManagedEmail } from "@/lib/ai-copy/runtime";
+import { CopyDeferredError } from "@/lib/ai-copy/generation";
+import { prepareEmailExperiment, recordExperimentDelivery } from "@/lib/email-experiments/runtime";
 import { findCachedCompanyResearch } from "@/lib/ai/company-research-cache";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveSignature } from "@/lib/email-sender-resolver";
@@ -156,6 +160,7 @@ export async function processAutoPersonalizedEmail(
         let sendAttempted = false;
         let sendCompleted = false;
         let preparedLogId: number | null = null;
+        let createdLogId: number | null = null;
         let planned: Extract<PreparationReservation, { kind: "reserved" }> | null = null;
         try {
             // 2. 조건 평가
@@ -219,21 +224,8 @@ export async function processAutoPersonalizedEmail(
             const cached = purpose === "bulk" && params.queueId ? await loadPreparedSend(params.queueId, link.id) : undefined;
             let content: PreparedEmailPayload | null = cached?.sourceHash === sourceHash ? cached.payload : null;
 
-            // 이미 작성한 메일은 AI API·토큰 쿼터와 무관하게 예약 시각에 전송할 수 있다.
-            const aiClient = content ? null : getAiClient(link.model || undefined);
-            if (!content && !aiClient) {
-                console.log(`[AutoEmail] Rule ${link.id}: no AI client (ANTHROPIC_API_KEY missing)`);
-                outcomes.push({ kind: "skipped", linkId: link.id, reason: "no_ai_client" });
-                continue;
-            }
-
-            // 5-1. 토큰 쿼터 확인
-            const quota = content ? { allowed: true } : await checkTokenQuota(orgId);
-            if (!quota.allowed) {
-                console.log(`[AutoEmail] Rule ${link.id}: quota exceeded`);
-                outcomes.push({ kind: "skipped", linkId: link.id, reason: "quota_exceeded" });
-                continue;
-            }
+            // 이미 생성한 작업은 쿼터와 관계없이 본문을 재사용한다. 새 호출의 한도는 생성 계층에서 확인한다.
+            const generationKey = `initial:${link.id}:${record.id}:${triggerType}:${(triggerType === "on_create" ? record.createdAt : record.updatedAt).toISOString()}`;
 
             // 6. 이메일 클라이언트 확인
             const emailClient = await getEmailClient(orgId);
@@ -303,6 +295,15 @@ export async function processAutoPersonalizedEmail(
                 continue;
             }
             let senderFromEmail = sender.fromEmail;
+            const experimentEnrollment = !content || content.experimentAssignmentId ? await prepareEmailExperiment({
+                orgId, workspaceId, ruleId: link.id, recordId: record.id, email,
+                plannedAt: planned?.row.scheduledAt ?? new Date(), senderId: sender.profileId, senderEmail: senderFromEmail,
+            }) : { kind: "none" as const };
+            if (experimentEnrollment.kind === "excluded") {
+                await releaseSenderSlot(slot); slot = null;
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "experiment_excluded" });
+                continue;
+            }
 
             const newlyPrepared = !content;
             if (!content) {
@@ -331,6 +332,7 @@ export async function processAutoPersonalizedEmail(
                                 .where(eq(records.id, record.id));
                             console.log(`[AutoEmail] Company research cache hit: ${companyName}`);
                         } else {
+                            if (!(await checkTokenQuota(orgId)).allowed) throw new CopyDeferredError(new Date(Date.now() + 3600_000), "회사 조사 사용량 한도", true);
                             const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
                             recordData._companyResearch = {
                                 ...research,
@@ -385,6 +387,9 @@ export async function processAutoPersonalizedEmail(
                 }
 
                 // 8-1. 발신자 페르소나 (서명에서 추출)
+                if (experimentEnrollment.kind === "assigned") {
+                    assetUrls = experimentEnrollment.experiment.config.ruleSnapshot.assetUrls as string[];
+                }
                 let senderPersona: { name: string; title?: string; company?: string } | null = null;
                 if (link.useSignaturePersona === 1 && signatureJson) {
                     try {
@@ -402,8 +407,7 @@ export async function processAutoPersonalizedEmail(
                 // 8-2. AI 이메일 생성 — 프롬프트의 ##필드명## 변수를 레코드 값으로 치환
                 const rawPrompt = link.prompt || "이 회사에 적합한 제품 소개 이메일을 작성해주세요.";
                 const prompt = substitutePromptVariables(rawPrompt, recordData);
-                if (!aiClient) throw new Error("메일 작성 클라이언트를 사용할 수 없습니다.");
-                const emailResult = await generateEmail(aiClient, {
+                const emailInput = {
                     prompt,
                     product,
                     recordData,
@@ -412,21 +416,20 @@ export async function processAutoPersonalizedEmail(
                     assetUrls: assetUrls.length > 0 ? assetUrls : undefined,
                     format: (link.format as "plain" | "designed") || "plain",
                     senderPersona,
+                };
+                const emailResult = await prepareManagedEmail({
+                    orgId, workspaceId, purpose: "initial_email", ruleId: link.id,
+                    key: experimentEnrollment.kind === "assigned" ? `experiment-assignment:${experimentEnrollment.assignment.id}` : generationKey,
+                    model: link.model ?? undefined,
+                    legacyContext: { system: buildEmailSystemPrompt(emailInput), user: prompt },
+                    approvedContext: { system: buildEmailSystemPrompt({ ...emailInput, product: null, format: "plain",
+                        ctaUrl: experimentEnrollment.kind === "assigned" ? String(experimentEnrollment.experiment.config.ruleSnapshot.resolvedCtaUrl ?? "") || undefined : emailInput.ctaUrl }), user: prompt,
+                        fixedSubject: experimentEnrollment.kind === "assigned" ? experimentEnrollment.experiment.config.subject : undefined,
+                        allowedUrls: experimentEnrollment.kind === "assigned" ? [experimentEnrollment.experiment.config.ruleSnapshot.resolvedCtaUrl, ...assetUrls].filter((url): url is string => typeof url === "string" && !!url)
+                            : [link.ctaUrl, product?.url, ...assetUrls].filter((url): url is string => !!url) },
+                    pinned: experimentEnrollment.kind === "assigned" ? { policy: experimentEnrollment.policy, knowledge: experimentEnrollment.knowledge, assignmentId: experimentEnrollment.assignment.id } : undefined,
                 });
                 console.log(`[AutoEmail] Email generated for record ${record.id}: subject="${emailResult.subject}"`);
-
-                const emailTokens = emailResult.usage.promptTokens + emailResult.usage.completionTokens;
-                await updateTokenUsage(orgId, emailTokens);
-
-                await logAiUsage({
-                    orgId,
-                    userId: null,
-                    provider: aiClient.provider,
-                    model: aiClient.model,
-                    promptTokens: emailResult.usage.promptTokens,
-                    completionTokens: emailResult.usage.completionTokens,
-                    purpose: "auto_personalized_email",
-                });
 
                 // 9. NHN Cloud 이메일 발송
                 let finalBody = emailResult.htmlBody;
@@ -439,7 +442,7 @@ export async function processAutoPersonalizedEmail(
                     finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
                 }
 
-                content = { recipientEmail: email, subject: emailResult.subject, body: finalBody, unsubscribeToken };
+                content = { recipientEmail: email, subject: emailResult.subject, body: finalBody, unsubscribeToken, aiCopyJobId: emailResult.jobId, experimentAssignmentId: emailResult.assignmentId };
                 if (planned) await savePreparedContent(planned.row.id, content);
             }
 
@@ -504,6 +507,13 @@ export async function processAutoPersonalizedEmail(
             } else {
                 [inserted] = await db.insert(emailSendLogs).values(logValues).returning({ id: emailSendLogs.id });
             }
+            createdLogId = inserted.id;
+            if (content.aiCopyJobId && !(await attachManagedEmail({ orgId, jobId: content.aiCopyJobId, logId: inserted.id }))) {
+                await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: "동일 생성 작업의 발송 이력 존재" }).where(eq(emailSendLogs.id, inserted.id));
+                await releaseSenderSlot(slot); slot = null;
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "duplicate_recipient" });
+                break;
+            }
 
             const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
@@ -534,6 +544,8 @@ export async function processAutoPersonalizedEmail(
                     resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
                 })
                 .where(eq(emailSendLogs.id, inserted.id));
+            if (content.aiCopyJobId && content.experimentAssignmentId) await recordExperimentDelivery({ orgId, jobId: content.aiCopyJobId, logId: inserted.id, accepted: isSuccess, sentAt: new Date() })
+                .catch(() => console.error("[email-experiments] 전송 결과 연결 지연 — 발송 로그 기준으로 복구 필요"));
             console.log(`[AutoEmail] Rule ${link.id}: ${isSuccess ? "sent" : "failed"} to ${email}`);
             if (isSuccess) {
                 outcomes.push({ kind: "sent", linkId: link.id });
@@ -564,12 +576,19 @@ export async function processAutoPersonalizedEmail(
             // 회사 조사·AI·로그 insert에서 던졌으면 메일이 나가지 않았다 → 자리를 돌려준다.
             // sendEachMail이 던졌거나 발송 뒤 DB 갱신이 던졌으면 나갔을 수 있다 → 돌려주지 않는다 (한도를 넘지 않는 쪽)
             if (!sendAttempted) await releaseSenderSlot(slot);
+            if (createdLogId && !sendAttempted) await db.update(emailSendLogs).set({ status: "failed", resultMessage: "전송 요청 전 준비 실패" }).where(eq(emailSendLogs.id, createdLogId));
             if (planned && preparedLogId && !sendAttempted) {
                 await db.update(emailSendLogs).set({ status: "failed", resultMessage: "전송 요청 전 준비 실패" })
                     .where(eq(emailSendLogs.id, preparedLogId));
                 await finishPreparedDelivery(planned.row.id, "ready");
             }
             if (planned && sendAttempted && !sendCompleted) await finishPreparedDelivery(planned.row.id, "uncertain");
+            if (err instanceof CopyDeferredError && !sendAttempted) {
+                outcomes.push(err.reason === "작업 취소"
+                    ? { kind: "skipped", linkId: link.id, reason: "copy_cancelled" }
+                    : { kind: "deferred", linkId: link.id, retryAt: err.retryAt, reason: "scheduled" });
+                break;
+            }
             console.error(`Auto personalized email error (link ${link.id}, record ${record.id}):`, err);
             // 삼키지 않는다 — 큐 워커가 재시도 여부를 판단하려면 실패가 결과에 남아야 한다
             outcomes.push({

@@ -37,18 +37,19 @@ export function renderVisitAckCopy(fields: JourneyCardInput["fields"], value: un
 
 /** 생성 결과는 한 번 저장해 한도·시간대 재예약 때도 동일한 고객의 문구를 유지한다. */
 export async function ensureVisitAckCopy(conn: VisitAckConnection, target: { id: number; org_id: string }, input: JourneyCardInput, deps: {
-    generate: (prompt: ReturnType<typeof visitAckCopyPrompt>) => Promise<unknown>;
+    generate?: (prompt: ReturnType<typeof visitAckCopyPrompt>) => Promise<unknown>;
+    generateBody?: (prompt: ReturnType<typeof visitAckCopyPrompt>) => Promise<string>;
     random?: () => number; timeoutMs?: number;
 }) {
     const [saved] = await conn<{ body: string | null }[]>`SELECT body FROM email_visit_acknowledgements WHERE id=${target.id} AND org_id=${target.org_id} AND status='pending'`;
     if (!saved) throw new Error("감사 예약 상태 변경");
     if (saved.body) return saved.body;
+    const prompt = visitAckCopyPrompt(input, deps.random);
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const generated = await Promise.race([
-        deps.generate(visitAckCopyPrompt(input, deps.random)),
+    const body = deps.generateBody ? await deps.generateBody(prompt) : renderVisitAckCopy(input.fields, await Promise.race([
+        deps.generate ? deps.generate(prompt) : Promise.reject(new Error("감사 문구 생성기 없음")),
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("감사 문구 생성 시간 초과")), deps.timeoutMs ?? 45_000); }),
-    ]).finally(() => { if (timer) clearTimeout(timer); });
-    const body = renderVisitAckCopy(input.fields, generated);
+    ]).finally(() => { if (timer) clearTimeout(timer); }));
     const [stored] = await conn<{ body: string }[]>`UPDATE email_visit_acknowledgements SET body=COALESCE(body,${body}) WHERE id=${target.id} AND org_id=${target.org_id} AND status='pending' RETURNING body`;
     if (!stored) throw new Error("감사 예약 상태 변경");
     return stored.body;

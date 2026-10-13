@@ -3,9 +3,10 @@ interface SchedulerOptions {
     deliver: () => Promise<unknown>;
     prepare: () => Promise<unknown>;
     acknowledgeVisits?: () => Promise<unknown>;
+    evaluateCopy?: () => Promise<unknown>;
     schedule?: (callback: () => Promise<void>, delayMs: number) => TimerHandle;
     cancel?: (handle: TimerHandle) => void;
-    onError?: (stage: "prepare" | "deliver" | "visit_ack") => void;
+    onError?: (stage: "prepare" | "deliver" | "visit_ack" | "copy_eval") => void;
 }
 
 /** 느린 AI 준비와 예약 전송을 독립 실행한다. DB의 서로 다른 작업 잠금 + 원자적 큐 선점이 겹침을 막는다. */
@@ -15,10 +16,16 @@ export function createEmailSendScheduler(options: SchedulerOptions) {
     let stopped = false;
     let preparing = false;
     let acknowledging = false;
+    let evaluating = false;
     let timer: TimerHandle;
     const enqueue = (delay: number) => { timer = schedule(tick, delay); timer.unref?.(); };
     async function tick() {
         if (stopped) return;
+        if (options.evaluateCopy && !evaluating) {
+            evaluating = true;
+            void Promise.resolve().then(options.evaluateCopy).catch(() => options.onError?.("copy_eval"))
+                .finally(() => { evaluating = false; });
+        }
         if (options.acknowledgeVisits && !acknowledging) {
             acknowledging = true;
             void Promise.resolve().then(options.acknowledgeVisits).catch(() => options.onError?.("visit_ack"))

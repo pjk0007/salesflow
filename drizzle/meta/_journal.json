@@ -582,6 +582,34 @@
       "when": 1774500000000,
       "tag": "0082_email_visit_ack_copy",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1774600000000,
+      "tag": "0083_ai_copy_management",
+      "breakpoints": true
+    },
+    {
+      "idx": 84,
+      "version": "7",
+      "when": 1774700000000,
+      "tag": "0084_ai_copy_benchmarks",
+      "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1774800000000,
+      "tag": "0085_email_copy_experiments",
+      "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1774900000000,
+      "tag": "0086_ai_copy_revisions",
+      "breakpoints": true
     }
   ]
 }
