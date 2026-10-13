@@ -1,6 +1,7 @@
+import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailSendLogs, emailClickLogs, emailSenderProfiles } from "@/lib/db";
-import { eq, and, desc, sql, gte, lte, inArray, or, ilike } from "drizzle-orm";
+import { db, emailSendLogs, emailSenderProfiles } from "@/lib/db";
+import { eq, and, desc, sql, gte, lte, or, ilike } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { repliesForSendLogs } from "@/lib/email-reply-list";
 import { pgErrorOf } from "@/lib/email-reply-rules";
@@ -60,9 +61,9 @@ export async function GET(req: NextRequest) {
         }
         const isClicked = searchParams.get("isClicked");
         if (isClicked === "1") {
-            conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id)`);
+            conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id AND ecl.is_bot = false)`);
         } else if (isClicked === "0") {
-            conditions.push(sql`NOT EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id)`);
+            conditions.push(sql`NOT EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id AND ecl.is_bot = false)`);
             conditions.push(eq(emailSendLogs.status, "sent"));
         }
         // "회신 있음" 거르개 (DESIGN-RPL 11절) — 사람 회신이 이어진 발송
@@ -107,22 +108,8 @@ export async function GET(req: NextRequest) {
                     : null,
         }));
 
-        // 클릭 수 조회
-        const logIds = logs.map(l => l.id);
-        const clickCounts: Record<number, number> = {};
-        if (logIds.length > 0) {
-            const clicks = await db
-                .select({
-                    sendLogId: emailClickLogs.sendLogId,
-                    count: sql<number>`count(*)::int`,
-                })
-                .from(emailClickLogs)
-                .where(inArray(emailClickLogs.sendLogId, logIds))
-                .groupBy(emailClickLogs.sendLogId);
-            for (const c of clicks) {
-                clickCounts[c.sendLogId] = c.count;
-            }
-        }
+        const logIds = logs.map((log) => log.id);
+        const signals = await clickSignalsForSendLogs(user.orgId, logIds);
 
         // 회신 붙이기 (클릭 수와 같은 방식, 사람 회신 먼저) — 표가 없으면(마이그레이션 전) 회신 없이
         let replies = new Map<number, { id: number; kind: string; receivedAt: Date }>();
@@ -134,7 +121,7 @@ export async function GET(req: NextRequest) {
 
         const logsWithClicks = logs.map(log => ({
             ...log,
-            clickCount: clickCounts[log.id] || 0,
+            ...(signals.get(log.id) ?? EMPTY_CLICK_SIGNAL),
             reply: replies.get(log.id) ?? null,
         }));
 

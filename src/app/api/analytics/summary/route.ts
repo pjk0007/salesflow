@@ -11,7 +11,7 @@ function aggregateStats(rows: Array<{ status: string; count: number }>, clicked:
         else if (row.status === "failed" || row.status === "rejected") failed += row.count;
         else if (row.status === "pending") pending = row.count;
     }
-    // 클릭률 = 발송 대비 링크 클릭 (수신확인 제거 후 발송 기준)
+    // 클릭률 = 발송 대비 사람 링크 클릭 (봇 클릭 제외, 0080)
     const clickRate = sent > 0 ? Math.round((clicked / sent) * 1000) / 10 : 0;
     return { total, sent, failed, pending, clicked, clickRate };
 }
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
             })
                 .from(emailClickLogs)
                 .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
-                .where(emailWhere)
+                .where(and(emailWhere, eq(emailClickLogs.isBot, false)))
                 .groupBy(emailSendLogs.triggerType),
 
             // 전체 클릭된 이메일 수 (읽음 대비 클릭률 계산용)
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
             })
                 .from(emailClickLogs)
                 .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
-                .where(emailWhere),
+                .where(and(emailWhere, eq(emailClickLogs.isBot, false))),
         ]);
 
         const clickMap = new Map(clicksByTrigger.map(c => [c.triggerType, c.clicked]));

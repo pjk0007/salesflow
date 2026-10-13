@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
                 COALESCE(f.campaign, '') AS campaign,
                 count(*)::int AS sent,
                 count(*) FILTER (WHERE EXISTS (
-                    SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = f.id
+                    SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = f.id AND ecl.is_bot = false
                 ))::int AS clicked
             FROM final f
             GROUP BY 1, 2, 3, 4

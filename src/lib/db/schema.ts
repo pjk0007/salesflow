@@ -1,3 +1,4 @@
+import type { BotReason } from "@/lib/email-click-bot-rules";
 import {
     pgTable,
     serial,
@@ -760,6 +761,8 @@ export const emailClickLogs = pgTable("email_click_logs", {
     ip: varchar("ip", { length: 50 }),
     userAgent: text("user_agent"),
     clickId: varchar("click_id", { length: 64 }),  // 트래커 매칭용 토큰 (sendb_cid)
+    isBot: boolean("is_bot").default(false).notNull(),
+    botReason: varchar("bot_reason", { length: 16 }).$type<BotReason>(),
 }, (table) => [
     index("email_click_logs_send_log_idx").on(table.sendLogId),
     uniqueIndex("email_click_logs_click_id_idx").on(table.clickId),

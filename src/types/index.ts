@@ -410,7 +410,12 @@ export interface UnifiedLog {
     sentBy: string | null;
     sentAt: string;
     completedAt: string | null;
+    /** 사람 클릭 수 (이메일 줄). 알림톡 줄은 0 */
     clickCount?: number;
+    /** 봇으로 판정된 클릭 수 (이메일 줄만) */
+    botClickCount?: number;
+    /** 같은 조직 사이트에서 CLICK·CUSTOM이 이어진 발송 (이메일 줄만) */
+    hasSiteAction?: boolean;
 }
 
 // ============================================

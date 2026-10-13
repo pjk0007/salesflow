@@ -1,3 +1,4 @@
+import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import {
     db,
     workspaces,
@@ -5,10 +6,9 @@ import {
     records,
     alimtalkSendLogs,
     emailSendLogs,
-    emailClickLogs,
     folders,
 } from "@/lib/db";
-import { eq, and, desc, gte, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { checkTokenAccess } from "@/lib/auth";
 
 import { ok, err, type ToolHandler } from "./types";
@@ -94,7 +94,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
         name: "list_email_logs",
-        description: "이메일 발송 이력을 조회합니다.",
+        description: "이메일 발송 이력을 조회합니다. clickCount는 사람 클릭 수입니다(메일 보안 검사기 같은 봇 클릭은 빼고 셉니다). botClickCount는 봇으로 판정된 클릭 수입니다.",
         inputSchema: {
             type: "object" as const,
             properties: {
@@ -302,18 +302,11 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
             }).from(emailSendLogs).where(whereClause)
                 .orderBy(desc(emailSendLogs.sentAt)).limit(pageSize).offset((page - 1) * pageSize);
 
-            const logIds = logs.map(l => l.id);
-            let clickCounts: Record<number, number> = {};
-            if (logIds.length > 0) {
-                const clicks = await db
-                    .select({ sendLogId: emailClickLogs.sendLogId, count: sql<number>`count(*)::int` })
-                    .from(emailClickLogs)
-                    .where(inArray(emailClickLogs.sendLogId, logIds))
-                    .groupBy(emailClickLogs.sendLogId);
-                for (const c of clicks) clickCounts[c.sendLogId] = c.count;
-            }
-
-            const logsWithClicks = logs.map(l => ({ ...l, clickCount: clickCounts[l.id] || 0 }));
+            const signals = await clickSignalsForSendLogs(tokenInfo.orgId, logs.map((log) => log.id));
+            const logsWithClicks = logs.map((log) => {
+                const { clickCount, botClickCount } = signals.get(log.id) ?? EMPTY_CLICK_SIGNAL;
+                return { ...log, clickCount, botClickCount };
+            });
 
             return ok({ totalCount: countResult?.count ?? 0, page, pageSize, logs: logsWithClicks });
         },

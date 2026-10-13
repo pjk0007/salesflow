@@ -1,3 +1,4 @@
+import { ClickCountCell } from "@/components/email/clicks/ui/ClickCountCell";
 import { useState } from "react";
 import { useUnifiedLogs } from "@/hooks/useUnifiedLogs";
 import {
@@ -200,17 +201,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                                     {statusInfo.label}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell>
-                                                {log.channel === "email" && log.status === "sent" ? (
-                                                    log.clickCount ? (
-                                                        <Badge variant="default" className="bg-blue-600 text-xs">
-                                                            {log.clickCount}회
-                                                        </Badge>
-                                                    ) : (
-                                                        <span className="text-xs text-muted-foreground">-</span>
-                                                    )
-                                                ) : null}
-                                            </TableCell>
+                                            <TableCell><ClickCountCell log={log} /></TableCell>
                                             {!compact && (
                                                 <TableCell>
                                                     <Badge variant={triggerInfo.variant} className="text-xs">

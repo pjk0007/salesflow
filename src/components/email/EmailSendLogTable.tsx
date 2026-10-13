@@ -1,3 +1,5 @@
+import type { ClickSignal } from "@/components/email/clicks/types";
+import { ClickCountCell } from "@/components/email/clicks/ui/ClickCountCell";
 import { useState, useCallback, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { useEmailLogs } from "@/hooks/useEmailLogs";
@@ -45,7 +47,7 @@ import { ReplyKindBadge } from "@/components/email/replies/ui/ReplyKindBadge";
  * 담은 이력 한 줄
  */
 type EmailSendLogRow = EmailSendLog &
-    LogSenderSource & { clickCount?: number; reply?: { id: number; kind: string; receivedAt: string } | null };
+    LogSenderSource & Partial<ClickSignal> & { reply?: { id: number; kind: string; receivedAt: string } | null };
 
 /** 표의 "보낸 주소" 칸. 보낼 때 주소가 없는 옛 이력은 프로필의 지금 주소 아래에 "(현재 프로필)"을 붙인다 */
 function LogSenderCell({ log }: { log: LogSenderSource }) {
@@ -460,17 +462,7 @@ export default function EmailSendLogTable() {
                                                 {log.reply && <ReplyKindBadge kind={log.reply.kind} />}
                                             </div>
                                         </TableCell>
-                                        <TableCell>
-                                            {log.status === "sent" ? (
-                                                log.clickCount ? (
-                                                    <Badge variant="default" className="bg-blue-600 text-xs">
-                                                        {log.clickCount}회
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-xs text-muted-foreground">-</span>
-                                                )
-                                            ) : null}
-                                        </TableCell>
+                                        <TableCell><ClickCountCell log={log} /></TableCell>
                                         <TableCell>
                                             <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
                                         </TableCell>

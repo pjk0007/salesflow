@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         const clicks = await db
             .selectDistinct({ sendLogId: emailClickLogs.sendLogId })
             .from(emailClickLogs)
-            .where(inArray(emailClickLogs.sendLogId, logIds));
+            .where(and(inArray(emailClickLogs.sendLogId, logIds), eq(emailClickLogs.isBot, false)));
         for (const c of clicks) if (c.sendLogId != null) clickedSet.add(c.sendLogId);
     }
 

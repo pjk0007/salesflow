@@ -148,7 +148,7 @@ export async function buildRecordJourney(args: JourneyArgs): Promise<JourneyResu
             : Promise.resolve([]),
         sendLogs.length
             ? db.select().from(emailClickLogs).where(
-                inArray(emailClickLogs.sendLogId, sendLogs.map((s) => s.id))
+                and(inArray(emailClickLogs.sendLogId, sendLogs.map((s) => s.id)), eq(emailClickLogs.isBot, false))
             )
             : Promise.resolve([]),
     ]);

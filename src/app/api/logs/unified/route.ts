@@ -1,3 +1,4 @@
+import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
@@ -29,17 +30,13 @@ export async function GET(req: NextRequest) {
             const table = type === "alimtalk" ? "alimtalk_send_logs" : "email_send_logs";
             const recipientCol = type === "alimtalk" ? "recipient_no" : "recipient_email";
             const titleCol = type === "alimtalk" ? "template_name" : "subject";
-            const clickCol = type === "email"
-                ? `(SELECT count(*)::int FROM email_click_logs WHERE send_log_id = ${table}.id) as "clickCount"`
-                : `0 as "clickCount"`;
 
             let q = sql`
                 SELECT id, ${sql.raw(`'${type}'`)}::text as channel,
                        org_id as "orgId", partition_id as "partitionId", record_id as "recordId",
                        ${sql.raw(recipientCol)} as recipient, ${sql.raw(titleCol)} as title,
                        status, trigger_type as "triggerType", result_message as "resultMessage",
-                       sent_by as "sentBy", sent_at as "sentAt", completed_at as "completedAt",
-                       ${sql.raw(clickCol)}
+                       sent_by as "sentBy", sent_at as "sentAt", completed_at as "completedAt"
                 FROM ${sql.raw(table)}
                 WHERE org_id = ${orgId}
             `;
@@ -78,11 +75,22 @@ export async function GET(req: NextRequest) {
 
         const [countResult] = await db.execute(countQuery) as { count: number }[];
         const total = countResult.count;
-        const logs = await db.execute(dataQuery);
+        type UnifiedRow = Record<string, unknown> & { id: number; channel: "alimtalk" | "email" };
+        const logs = (await db.execute(dataQuery)) as unknown as UnifiedRow[];
+        // 정렬 전 모든 줄을 집계하지 않도록 현재 페이지의 이메일에만 신호를 붙인다.
+        const signals = await clickSignalsForSendLogs(
+            user.orgId,
+            logs.filter((log) => log.channel === "email").map((log) => log.id),
+        );
+        const data = logs.map((log) =>
+            log.channel === "email"
+                ? { ...log, ...(signals.get(log.id) ?? EMPTY_CLICK_SIGNAL) }
+                : { ...log, clickCount: 0 },
+        );
 
         return NextResponse.json({
             success: true,
-            data: logs,
+            data,
             total,
             page,
             pageSize,

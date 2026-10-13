@@ -55,7 +55,8 @@ export async function GET(req: NextRequest) {
                 })
                 .from(emailSendLogs)
                 .innerJoin(emailTemplateLinks, eq(emailSendLogs.templateLinkId, emailTemplateLinks.id))
-                .leftJoin(emailClickLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
+                // WHERE에 두면 클릭 없는 발송이 total·sent에서 빠지므로 ON에서 봇을 제외한다.
+                .leftJoin(emailClickLogs, and(eq(emailClickLogs.sendLogId, emailSendLogs.id), eq(emailClickLogs.isBot, false)))
                 .where(and(
                     eq(emailSendLogs.orgId, orgId),
                     gte(emailSendLogs.sentAt, start),
@@ -78,7 +79,8 @@ export async function GET(req: NextRequest) {
                 })
                 .from(emailSendLogs)
                 .innerJoin(partitions, eq(emailSendLogs.partitionId, partitions.id))
-                .leftJoin(emailClickLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
+                // WHERE에 두면 클릭 없는 발송이 total·sent에서 빠지므로 ON에서 봇을 제외한다.
+                .leftJoin(emailClickLogs, and(eq(emailClickLogs.sendLogId, emailSendLogs.id), eq(emailClickLogs.isBot, false)))
                 .where(and(
                     eq(emailSendLogs.orgId, orgId),
                     eq(emailSendLogs.triggerType, "ai_auto"),

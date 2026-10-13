@@ -1,0 +1,398 @@
+{
+  "version": 1,
+  "cycleId": "2026-10-13-email-click-bot-filter",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "[TDD] UA가 null이거나 빈 문자열이거나 공백뿐이면 봇이고, 사유는 `ua`다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "[TDD] UA가 R6 정규식 토큰(curl, python, node-fetch, ruby, go-http, java/, guard, antispam, linker, scan, bot, spider, preview, headless, wget, okhttp, msie)을 대소문자 구분 없이 포함하면 봇이고, 사유는 `ua`다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "[TDD] 맨 앞이 `mozilla/5.0 chrome/`인 UA는 봇이다. 일반 Chrome, Safari, Edge, Firefox, 삼성 인터넷 UA는 봇이 아니다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "[TDD] 발송 시각과의 차이가 15초 미만(14.999초, 0초, 음수)이면 봇이고, 사유는 `early`다. 15초 이상이면 이 규칙으로는 봇이 아니다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "[TDD] 규칙이 여럿 맞으면 사유는 `ua` → `early` → `burst` 순서로 하나만 남는다.",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "[TDD] 같은 발송에서 한 클릭의 ±10초 안(10초 정각 포함)에 다른 클릭이 2건 이상이면 그 클릭은 봇이고, 사유는 `burst`다. 1건이면 봇이 아니다. 0·9·18초 사슬이면 가운데 1건만 봇이다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "[TDD] 연속 클릭의 이웃 수에는 이미 `ua`나 `early`로 봇인 클릭도 들어간다. 다른 발송의 클릭은 들어가지 않는다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-rules.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "클릭을 기록하면 is_bot·bot_reason이 함께 저장된다. 봇이어도 302 리다이렉트와 sendb_cid 부착은 지금과 같다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "output": "PASS B8 curl→ua, clickId 발급 / RESULT: ALL PASS (17건)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "사람으로 저장된 두 클릭 뒤 10초 안에 세 번째 클릭이 오면, 앞의 두 클릭도 `burst`로 다시 판정된다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "output": "PASS B9 두 건까진 사람 / PASS B9 세 번째에 셋 다 burst / RESULT: ALL PASS (17건)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "같은 발송에 클릭 요청이 동시에 여러 건 와도 연속 클릭 판정이 빠지지 않는다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "output": "PASS B10 동시 5건 모두 burst / PASS B10 동시 2건 둘 다 사람 / RESULT: ALL PASS (17건)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "재판정은 아직 봇이 아닌 클릭만 바꾼다. 이미 봇인 클릭의 사유는 덮어쓰지 않는다.",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "output": "PASS B11 ua 유지, 나머지 burst / RESULT: ALL PASS (17건)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "0080을 적용하면 `is_bot boolean NOT NULL DEFAULT false`와 `bot_reason`이 생기고, 기존 행이 B1~B7 규칙대로 채워진다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/b12.sql",
+        "cmd": "psql 로컬 DB: BEGIN → fixture F1~F12 → \\i 0080 → SELECT → ROLLBACK",
+        "output": "26행 전부 DESIGN 14절 기대와 일치 (F5 15.000s 사람, F7·F8 가운데만 burst, F10 ua/early/early, F11 모두 사람). 로컬 사본 1만 건: human 4450, burst 3685, early 1255, ua 1057",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B13",
+      "desc": "[TDD] 0080 SQL의 UA 정규식과 15초·10초 기준이 TS 상수와 같다. 테스트가 SQL 파일을 읽어서 대조한다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-click-bot-sql.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B14",
+      "desc": "0080이 journal idx 80으로 등록돼 한 번만 적용되고, 재부팅해도 다시 돌지 않는다. `SET LOCAL lock_timeout = '5s'`를 건다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 앱 부팅 2회",
+        "cmd": "pnpm dev --port 3100 (2회)",
+        "output": "1회차 [migrate] 마이그레이션 완료, __drizzle_migrations 81행·1774300000000 1행. 재부팅 후에도 81행·1행 (재적용 없음). 정적 테스트도 통과",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "`hasClicked()`는 봇 클릭만 있는 발송이면 false, 사람 클릭이 1건이라도 있는 발송이면 true를 돌려준다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "output": "PASS B15 봇만 있는 발송 hasClicked=false / PASS B15 섞인 발송 hasClicked=true / RESULT: ALL PASS (17건)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B16",
+      "desc": "summary의 clicked·clickRate와 발송 유형별 clicked는 사람 클릭이 있는 발송만 센다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "summary email.clicked API 2266 = SQL 사람 클릭 발송 2266 (전체 클릭 기준이면 3430)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B17",
+      "desc": "templates의 clicked는 사람 클릭만 센다. 클릭이 없거나 봇 클릭만 있는 발송도 total·sent에는 그대로 들어간다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "templates 합계 API total 84656·sent 83147·clicked 1479 = 같은 조건 SQL 84656·83147·1479 (봇 포함이면 2144). total·sent 불변",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B18",
+      "desc": "trends와 email-daily의 clicked는 사람 클릭이 있는 발송만 센다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "trends emailClicked 합 2266, email-daily totalClicked 합 2266 = SQL 2266",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B19",
+      "desc": "발송 이력 API에서 `isClicked=1`은 사람 클릭이 있는 발송만 돌려준다. `isClicked=0`은 사람 클릭이 없는 발송(봇 클릭만 있는 발송 포함)을 돌려준다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "isClicked=1 totalCount 2266 = SQL, isClicked=0 totalCount 141651 = SQL(사람 클릭 없는 sent)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B20",
+      "desc": "발송 이력 API와 통합 로그 API의 이메일 행에 clickCount(사람)와 botClickCount가 온다. 통합 로그의 정렬, 페이지, 총건수는 바뀌지 않는다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "unified 50줄 id 순서·total 145432 SQL과 동일, 50줄 clickCount·botClickCount 불일치 0, email/logs 줄 clickCount·botClickCount·hasSiteAction 존재",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B21",
+      "desc": "MCP `list_email_logs`의 clickCount는 사람 클릭 수이고, botClickCount가 함께 온다. 도구 설명에 봇 클릭 제외가 적혀 있다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-mcp.ts",
+        "cmd": "tsx --env-file=.env.local check-mcp.ts (list_email_logs 핸들러 직접 호출)",
+        "output": "rows 100, SQL 대비 불일치 0, 봇 있는 행 3, hasSiteAction 노출 false, 설명에 봇 언급 true",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B22",
+      "desc": "test-followup GET의 isClicked는 사람 클릭 기준이다.",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "test-followup linkId 7개 전부 isClicked 불일치 0, 봇만 있는 발송 14건 모두 isClicked=false",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B23",
+      "desc": "리드 여정(`buildRecordJourney`)의 클릭 이벤트와 emailClicks·emailClickRate에서 봇 클릭이 빠진다.",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/api_check.py (로컬 앱 :3100, 매치스플랜 로컬 사본, 0080 적용)",
+        "cmd": "python3 api_check.py / curl",
+        "output": "/api/records/86110/journey: email_click 이벤트 1 (사람1·봇4), summary.density.emailClicks=1; 88029: 이벤트 2 (사람2·봇1)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B24",
+      "desc": "봇으로 판정된 클릭의 click_id로도 트래커 연결(tracker/collect, match-record)과 유입 출처(resolve-attribution)가 지금처럼 잡힌다. 깊이 알림·고객 여정의 기존 테스트도 통과한다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "git diff (tracker/collect·match-record·attribution·deep-visitor-alert·customer-journey·email-followup 무변경)",
+        "cmd": "pnpm test",
+        "output": "해당 파일 diff 0줄, deep-visitor-alert·customer-journey 기존 테스트 포함 978 pass",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B25",
+      "desc": "두 로그 API가 발송마다 hasSiteAction을 준다. 같은 조직 사이트 세션에 CLICK·CUSTOM이 1건 이상이면 true다. SECTION_VIEW·PAGE_VIEW만 있거나 다른 조직 세션뿐이면 false다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "scratchpad/check-click.ts (임시 DB salesflow_botcheck, 0080 적용)",
+        "cmd": "DATABASE_URL=…/salesflow_botcheck pnpm exec tsx check-click.ts",
+        "output": "PASS B25 사람+CLICK true / 봇+CUSTOM true / SECTION·PAGE만 false / 다른 조직 사이트 false / RESULT: ALL PASS (17건)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B26",
+      "desc": "[TDD] 클릭 칸 표시 결정 함수는 다음과 같이 정한다. 어떤 경우에도 한글 라벨을 추가하지 않는다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/components/email/clicks/utils/clickCell.test.ts",
+        "cmd": "pnpm test",
+        "output": "tests 978, pass 978, fail 0 (RED: 구현 전 모듈 부재로 파일 로드 실패 확인 — Codex 보고)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B27",
+      "desc": "발송 이력 표와 통합 로그 표(`/logs`, 레코드 상세 compact)가 같은 클릭 칸 컴포넌트로 B26대로 그려진다. 두 .tsx에는 판정이나 계산 로직이 없다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "scratchpad/email-clicked.png, email-action.png, logs-bot.png",
+        "cmd": "ego-browser: /email 발송 이력(클릭 필터) · /logs",
+        "output": "사람 클릭 파란 N회 뱃지(title 사람/봇/전체), 사이트 행동 뱃지 MousePointerClick+font-bold+ring-2, 봇만 발송은 점선 Bot 아이콘(title '봇 클릭 3회 · 사람 클릭 없음'). 클릭 필터 2,266건. 두 표 .tsx에 clickCount 등 참조 0건 (레코드 상세 compact는 같은 컴포넌트, 별도 캡처 없음)",
+        "at": "2026-10-13"
+      }
+    },
+    {
+      "id": "B28",
+      "desc": "`pnpm test`, `pnpm exec tsc --noEmit`, 변경 파일 eslint가 통과한다.",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "전체",
+        "cmd": "pnpm test; pnpm exec tsc --noEmit; 변경 TS/TSX 22개 eslint",
+        "output": "978 pass 0 fail; tsc 오류 0; eslint exit 0",
+        "at": "2026-10-13"
+      }
+    }
+  ]
+}
