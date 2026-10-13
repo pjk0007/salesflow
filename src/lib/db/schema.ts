@@ -935,6 +935,7 @@ export const emailVisitAcknowledgements = pgTable("email_visit_acknowledgements"
     sessionId: integer("session_id").notNull(),
     status: varchar("status", { length: 20 }).default("pending").notNull(),
     reason: text("reason"),
+    body: text("body"),
     queueId: integer("queue_id").references(() => emailFollowupQueue.id, { onDelete: "set null" }),
     sendLogId: integer("send_log_id").references(() => emailSendLogs.id, { onDelete: "set null" }),
     scheduledAt: timestamptz("scheduled_at").notNull(),

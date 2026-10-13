@@ -4,14 +4,15 @@ import { loadCandidates, enrichedInput } from "./customer-journey-source";
 import {
     measuredVisitSeconds,
     nextVisitAckBusinessTime,
-    visitAckBody,
     visitAckConfig,
     visitAckScheduledAt,
     VISIT_ACK_MAX_AGE_MS,
     VISIT_ACK_SUBJECT,
+    VISIT_ACK_MIN_SECONDS,
 } from "./email-visit-ack-rules";
 import type { VisitAckConnection, VisitAckRow } from "./email-visit-ack";
 import type { JourneyCardInput } from "./customer-journey-card";
+import { ensureVisitAckCopy } from "./email-visit-ack-copy";
 
 type Env = Record<string, string | undefined>;
 export interface VisitAckParent extends VisitAckRow {
@@ -132,7 +133,7 @@ export async function deliverVisitAcknowledgement(
         const seconds = measuredVisitSeconds(input, at);
         if (
             seconds === null ||
-            seconds < 5 ||
+            seconds < VISIT_ACK_MIN_SECONDS ||
             evaluateJourney(input, at).verdict.machine ||
             input.audience?.internal ||
             input.audience?.sharedVisitor ||
@@ -421,7 +422,21 @@ export async function handleVisitAcknowledgement(item: {
                         config,
                     });
                     const token = unsub.generateUnsubscribeToken();
-                    let body = visitAckBody(input.fields);
+                    let body = await ensureVisitAckCopy(conn, p, input, {
+                        generate: async (prompt) => {
+                            const [{ getAiClient }, { callGeminiJson }, quota] = await Promise.all([
+                                import("./ai/client"), import("./ai/gemini"), import("./ai/quota"),
+                            ]);
+                            const ai = getAiClient();
+                            if (!ai || !(await quota.checkTokenQuota(p.org_id)).allowed)
+                                throw new Error("감사 문구 생성 준비 대기");
+                            const result = await callGeminiJson(ai, prompt.system, prompt.user);
+                            await quota.updateTokenUsage(p.org_id, result.usage.promptTokens + result.usage.completionTokens);
+                            await quota.logAiUsage({ orgId: p.org_id, userId: null, provider: ai.provider, model: ai.model,
+                                promptTokens: result.usage.promptTokens, completionTokens: result.usage.completionTokens, purpose: "visit_ack" });
+                            return JSON.parse(result.content.replace(/^\s*```(?:json)?\s*/, "").replace(/\s*```\s*$/, ""));
+                        },
+                    });
                     if (signature) body = mail.appendSignature(body, signature);
                     body = unsub.appendUnsubscribeFooter(
                         body,

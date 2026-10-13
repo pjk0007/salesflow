@@ -6,6 +6,7 @@ import {
     visitAckBody,
     visitAckConfig,
     visitAckScheduledAt,
+    VISIT_ACK_MIN_SECONDS,
 } from "./email-visit-ack-rules";
 import type { JourneyCardInput } from "./customer-journey-card";
 
@@ -42,17 +43,18 @@ test("명시한 사업·시작 시각·운영 서버가 모두 있어야 live가
     );
     assert.equal(visitAckConfig({}).mode, "off");
 });
-test("5초 경계와 측정 없음: 이동 간격이나 영역 합계로 대체하지 않는다", () => {
-    for (const seconds of [0, 1, 4.999, 5, 5.001])
+test("7초 경계와 측정 없음: 이동 간격이나 영역 합계로 대체하지 않는다", () => {
+    assert.equal(VISIT_ACK_MIN_SECONDS, 7);
+    for (const seconds of [0, 1, 5, 6, 6.999, 7, 7.001])
         assert.equal(
-            (measuredVisitSeconds(input(seconds), now) ?? -1) >= 5,
-            seconds >= 5,
+            (measuredVisitSeconds(input(seconds), now) ?? -1) >= VISIT_ACK_MIN_SECONDS,
+            seconds >= 7,
         );
     assert.equal(measuredVisitSeconds(input(null), now), null);
     assert.equal(measuredVisitSeconds(input(NaN), now), null);
     assert.equal(
-        measuredVisitSeconds(input(null, new Date(now.getTime() - 5000)), now),
-        5,
+        measuredVisitSeconds(input(null, new Date(now.getTime() - 3000)), now),
+        7,
     );
     assert.equal(
         measuredVisitSeconds(input(null, new Date(now.getTime() + 1000)), now),
@@ -60,8 +62,8 @@ test("5초 경계와 측정 없음: 이동 간격이나 영역 합계로 대체�
     );
     assert.equal(measuredVisitSeconds(input(999), now), 10);
     assert.ok(
-        (measuredVisitSeconds(input(5, new Date(now.getTime() - 5001)), now) ??
-            0) < 5,
+        (measuredVisitSeconds(input(7, new Date(now.getTime() - 3001)), now) ??
+            0) < VISIT_ACK_MIN_SECONDS,
     );
 });
 test("업무시간 안에는 방문 확인 후 30~60분의 무작위 시각을 정한다", () => {
@@ -130,5 +132,5 @@ test("고정 감사 문구를 이름만 치환하고 이름이 없으면 자연�
         ]),
         /<script>/,
     );
-    assert.doesNotMatch(body, /체류|5초|열람|가격/);
+    assert.doesNotMatch(body, /체류|7초|열람|가격/);
 });

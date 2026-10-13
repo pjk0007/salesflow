@@ -17,7 +17,8 @@ const {
 const {
     deliverVisitAcknowledgement,
 } = require("../src/lib/email-visit-ack-delivery.ts");
-const { visitAckBody } = require("../src/lib/email-visit-ack-rules.ts");
+const { ensureVisitAckCopy } = require("../src/lib/email-visit-ack-copy.ts");
+const copyResult = { paragraphs: ["갑작스러운 메일에도 사이트를 방문해 주셔서 감사합니다.", "살펴보시면서 더 궁금하셨던 점이 있으실까요?", "편하실 때 전화나 답장 주시면 친절히 안내하겠습니다."] };
 const dialect = new PgDialect();
 const org = "00000000-0000-4000-8000-000000000001",
     other = "00000000-0000-4000-8000-000000000002";
@@ -79,7 +80,7 @@ async function main() {
             email = opts.email ?? `person-${id}@example.test`,
             visitor = opts.visitor ?? id;
         const started = new Date(initial.getTime() - 1000_000),
-            seconds = opts.seconds ?? 5;
+            seconds = opts.seconds ?? 7;
         await insert("records", {
             id,
             org_id: tenant,
@@ -211,7 +212,7 @@ async function main() {
                     if (beforePrepare) await beforePrepare();
                     return {
                         kind: "ready",
-                        body: visitAckBody(input.fields),
+                        body: await ensureVisitAckCopy(conn, p, input, { generate: async () => copyResult, timeoutMs: 20 }),
                         unsubscribeToken: "fixture-only",
                         senderEmail: "sender@example.test",
                         senderProfileId: 1,
@@ -286,6 +287,7 @@ async function main() {
                 "utf8",
             ),
         );
+        await pg.exec(fs.readFileSync(path.join(root, "drizzle/0082_email_visit_ack_copy.sql"), "utf8"));
         await insert("organizations", {
             id: org,
             name: "가상 조직",
@@ -335,12 +337,13 @@ async function main() {
                 });
         }
 
-        await seed(100, { seconds: 4 });
+        await seed(100, { seconds: 6 });
         await seed(101);
         await seed(102, { unknown: true });
+        await seed(103, { seconds: 5 });
         await seed(106);
         await pg.query(
-            "UPDATE tracker_sessions SET ended_at=started_at+interval '4.9 seconds',duration=5 WHERE id=106",
+            "UPDATE tracker_sessions SET ended_at=started_at+interval '6.999 seconds',duration=7 WHERE id=106",
         );
         await pg.query(
             "UPDATE tracker_sessions SET ended_at=NULL WHERE id=102",
@@ -370,7 +373,7 @@ async function main() {
             1,
         );
         console.log(
-            "PASS 5초 경계·측정 없음·기존 후속 즉시 중단·중복 감지·예약 1건",
+            "PASS 7초 경계·반올림 6.999초·측정 없음·기존 후속 즉시 중단·중복 감지·예약 1건",
         );
         time = new Date(initial.getTime() + 45 * 60_000);
         await pg.query("UPDATE email_visit_acknowledgements SET queue_id=NULL");
@@ -390,6 +393,20 @@ async function main() {
         console.log(
             "PASS 원본 연결·개인화 감사 문구·발신자·실제 SQL 전송 선점·재실행 1회",
         );
+
+        await reset();
+        await seed(100); await seed(101); await capture();
+        const copyRows = (await pg.query("SELECT id,org_id FROM email_visit_acknowledgements ORDER BY id")).rows;
+        let generations = 0;
+        const copyInput = { businessName: "가상 사업", subject: "가상 소개", fields: [{ key: "contactName", label: "담당자", fieldType: "text", value: "가상 담당자" }] };
+        const firstCopy = await ensureVisitAckCopy(conn, copyRows[0], copyInput, { generate: async () => { generations++; return copyResult; } });
+        const cachedCopy = await ensureVisitAckCopy(conn, copyRows[0], copyInput, { generate: async () => { throw new Error("다시 생성하면 안 됨"); } });
+        assert.equal(firstCopy, cachedCopy); assert.equal(generations, 1);
+        await assert.rejects(ensureVisitAckCopy(conn, copyRows[1], copyInput, { generate: async () => ({ paragraphs: ["잘못된 문구"] }) }));
+        await assert.rejects(ensureVisitAckCopy(conn, copyRows[1], copyInput, { generate: async () => new Promise(() => {}), timeoutMs: 10 }));
+        assert.equal((await pg.query("SELECT body FROM email_visit_acknowledgements WHERE id=$1", [copyRows[1].id])).rows[0].body, null);
+        assert.equal(calls.length, 0);
+        console.log("PASS LLM 문구 1회 생성·DB 보존·재예약 재사용, 형식 오류·시간 초과 시 발송 없음");
 
         await reset();
         await seed(100, { email: "same@example.test" });
@@ -589,7 +606,7 @@ async function main() {
         await capture();
         time = new Date(initial.getTime() + 45 * 60_000);
         beforePrepare = () =>
-            pg.query("UPDATE tracker_sessions SET duration=1 WHERE id=100");
+            pg.query("UPDATE tracker_sessions SET duration=6 WHERE id=100");
         assert.equal((await deliver()).kind, "skipped");
         assert.equal(calls.length, 0);
         assert.equal(released, 1);
@@ -607,6 +624,20 @@ async function main() {
         assert.equal(calls.length, 0);
         assert.equal(released, 1);
         console.log("PASS 선점 뒤 회신 발생: HTTP 전 취소·발신 자리 반환");
+
+        await reset();
+        await seed(100, { unknown: true });
+        await insert("tracker_events", { session_id: 100, visitor_id: 100, site_id: 2, event_type: "CLICK", event_name: "info-open", occurred_at: new Date(initial.getTime()-999_000).toISOString() });
+        assert.equal((await capture()).captured, 1);
+        time = new Date(initial.getTime() + 45 * 60_000);
+        beforeSendCheck = async () => {
+            await pg.query("UPDATE tracker_sessions SET duration=7,ended_at=started_at+interval '6.999 seconds' WHERE id=100");
+        };
+        assert.equal((await deliver()).kind, "skipped");
+        assert.equal(calls.length, 0);
+        assert.equal(released, 1);
+        assert.equal((await pg.query("SELECT status FROM email_send_logs WHERE trigger_type='visit_ack'")).rows[0].status, "cancelled");
+        console.log("PASS 종료 시각만으로 7초 확인·발송 선점 이후 6.999초 정정 시 HTTP 전 취소");
 
         await reset();
         await seed(100);
@@ -741,7 +772,9 @@ async function main() {
                 "utf8",
             ),
         );
-        console.log("PASS 0081 마이그레이션 재실행·실제 DB/외부 발송 0");
+        const copyMigration = fs.readFileSync(path.join(root, "drizzle/0082_email_visit_ack_copy.sql"), "utf8");
+        await pg.exec(copyMigration); await pg.exec(copyMigration);
+        console.log("PASS 0081·0082 마이그레이션 재실행·실제 DB/외부 발송 0");
     } finally {
         global.fetch = realFetch;
         await pg.close();

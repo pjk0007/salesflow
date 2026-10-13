@@ -4,6 +4,7 @@ import type { JourneyCardInput } from "./customer-journey-card";
 import { EMAIL_TRIM_CHARS, type EventInput } from "./deep-visitor-alert-rules";
 import { loadJourneyAudience } from "./customer-journey-audience";
 import type { JourneyCohortMember } from "./customer-journey-priority";
+import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
 type Connection = Awaited<ReturnType<typeof queryClient.reserve>>;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 50;
@@ -45,8 +46,8 @@ export async function loadCandidates(conn: Connection, workspaceId: number, now:
           AND (${visitAck?.email ?? null}::text IS NULL OR lower(btrim(l.recipient_email,${EMAIL_TRIM_CHARS})) = ${visitAck?.email ?? null})
           AND (${visitAck === undefined} OR (c.is_bot = false AND l.trigger_type IS DISTINCT FROM 'visit_ack'
               AND c.clicked_at >= ${visitAck?.startAt.toISOString() ?? since.toISOString()}
-              AND ((s.duration >= 5 AND (s.ended_at IS NULL OR s.ended_at >= s.started_at + interval '5 seconds'))
-                  OR (s.duration IS NULL AND s.ended_at <= ${now.toISOString()} AND s.ended_at >= s.started_at + interval '5 seconds'))))
+              AND ((s.duration >= ${VISIT_ACK_MIN_SECONDS} AND (s.ended_at IS NULL OR s.ended_at >= s.started_at + ${VISIT_ACK_MIN_SECONDS}::int * interval '1 second'))
+                  OR (s.duration IS NULL AND s.ended_at <= ${now.toISOString()} AND s.ended_at >= s.started_at + ${VISIT_ACK_MIN_SECONDS}::int * interval '1 second'))))
           AND (${existing?.sessionId ?? null}::int IS NULL OR (s.id = ${existing?.sessionId ?? null} AND w.org_id = ${existing?.orgId ?? null}::uuid))
           AND s.started_at >= ${since.toISOString()} AND s.started_at <= ${now.toISOString()}
           AND c.clicked_at <= ${now.toISOString()}

@@ -8,6 +8,7 @@ export const VISIT_ACK_SOURCE = "visit_ack";
 export const VISIT_ACK_STOP_REASON = "site_visit";
 export const VISIT_ACK_SUBJECT = "방문해 주셔서 감사합니다";
 export const VISIT_ACK_MAX_AGE_MS = 7 * 86400_000;
+export const VISIT_ACK_MIN_SECONDS = 7;
 
 export function visitAckConfig(env: Env) {
     const requested = (env.EMAIL_VISIT_ACK_MODE ?? "off").trim();

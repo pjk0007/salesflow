@@ -31,6 +31,7 @@ import { findReplyStop, type ReplyStopReason } from "@/lib/email-reply-guard";
 import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
 import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
 import { findVisitFollowupStop } from "./email-visit-ack";
+import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
 type AutomationStopReason = ReplyStopReason | "site_visit";
 
 // ============================================
@@ -176,6 +177,7 @@ async function sendEmailSingle(
 
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
+    let slotReleased = false;
     try {
         // 서명 결정 (기본 서명 → 레거시 fallback)
         const signatureJson = await resolveDefaultSignature(orgId, config);
@@ -215,7 +217,8 @@ async function sendEmailSingle(
         const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
         if (triggerType === "repeat" && await findVisitFollowupStop(orgId, workspaceId, email)) {
-            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: "5초 이상 사이트 방문으로 반복 후속 중단" }).where(eq(emailSendLogs.id, inserted.id));
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 반복 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
             await releaseSenderSlot(slot);
             return { success: false, stopped: "site_visit" };
         }
@@ -248,7 +251,7 @@ async function sendEmailSingle(
 
         return { success: isSuccess, logId: inserted?.id };
     } catch (err) {
-        if (!sendAttempted) await releaseSenderSlot(slot);
+        if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         throw err;
     }
 }

@@ -1,4 +1,4 @@
-/** 5초 이상 실제 메일 유입 방문 → 일반 후속 중단 + 고객별 한 번 감사 메일 예약. */
+/** 7초 이상 실제 메일 유입 방문 → 일반 후속 중단 + 고객별 한 번 감사 메일 예약. */
 import type { queryClient } from "./db";
 import { EMAIL_TRIM_CHARS, normalizeEmail } from "./deep-visitor-alert-rules";
 import { evaluateJourney } from "./customer-journey-card";
@@ -8,6 +8,7 @@ import {
     measuredVisitSeconds,
     visitAckConfig,
     visitAckScheduledAt,
+    VISIT_ACK_MIN_SECONDS,
 } from "./email-visit-ack-rules";
 
 export type VisitAckConnection = Awaited<
@@ -147,8 +148,8 @@ export async function captureVisitAcknowledgements(
               AND c.clicked_at >= ${config.startAt.toISOString()} AND c.clicked_at <= ${now.toISOString()}
               AND (${options.orgId ?? null}::uuid IS NULL OR w.org_id=${options.orgId ?? null}::uuid)
               AND (${options.email ?? null}::text IS NULL OR lower(btrim(l.recipient_email,${EMAIL_TRIM_CHARS}))=${options.email ?? null})
-              AND ((s.duration>=5 AND (s.ended_at IS NULL OR s.ended_at>=s.started_at+interval '5 seconds'))
-                  OR (s.duration IS NULL AND s.ended_at<=${now.toISOString()} AND s.ended_at>=s.started_at+interval '5 seconds'))
+              AND ((s.duration>=${VISIT_ACK_MIN_SECONDS} AND (s.ended_at IS NULL OR s.ended_at>=s.started_at+${VISIT_ACK_MIN_SECONDS}::int*interval '1 second'))
+                  OR (s.duration IS NULL AND s.ended_at<=${now.toISOString()} AND s.ended_at>=s.started_at+${VISIT_ACK_MIN_SECONDS}::int*interval '1 second'))
               AND NOT EXISTS (SELECT 1 FROM email_visit_acknowledgements a WHERE a.org_id=w.org_id AND a.workspace_id=w.id
                   AND a.customer_key=encode(sha256(convert_to(lower(btrim(l.recipient_email,${EMAIL_TRIM_CHARS})),'UTF8')),'hex')
                   AND (a.status<>'ignored' OR (${options.email === undefined} AND a.next_check_at>${now.toISOString()})))
@@ -179,7 +180,7 @@ export async function captureVisitAcknowledgements(
             const seconds = measuredVisitSeconds(input, now);
             const ignored =
                 seconds === null ||
-                seconds < 5 ||
+                seconds < VISIT_ACK_MIN_SECONDS ||
                 verdict.machine ||
                 input.audience?.internal ||
                 input.audience?.sharedVisitor;

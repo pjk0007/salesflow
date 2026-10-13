@@ -30,6 +30,7 @@ import { findReplyStop, type ReplyStopReason } from "@/lib/email-reply-guard";
 import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
 import { isRecipientSideFailure } from "@/lib/email-status-sync-rules";
 import { findVisitFollowupStop } from "./email-visit-ack";
+import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
 import { visitAckConfig } from "./email-visit-ack-rules";
 import { handleVisitAcknowledgement } from "./email-visit-ack-delivery";
 
@@ -671,6 +672,7 @@ async function handleTemplateFollowup(
 
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
+    let slotReleased = false;
     try {
         // 9. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
         const [inserted] = await db.insert(emailSendLogs).values({
@@ -695,7 +697,8 @@ async function handleTemplateFollowup(
         const trackedBody = wrapTrackingUrls(body, inserted.id);
 
         if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) {
-            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: "5초 이상 사이트 방문으로 일반 후속 중단" }).where(eq(emailSendLogs.id, inserted.id));
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 일반 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
             await releaseSenderSlot(slot);
             return { kind: "stopped", reason: "site_visit" };
         }
@@ -744,7 +747,7 @@ async function handleTemplateFollowup(
 
         return isSuccess ? SENT : SKIPPED;
     } catch (err) {
-        if (!sendAttempted) await releaseSenderSlot(slot);
+        if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         throw err;
     }
 }
@@ -820,6 +823,7 @@ async function handleAiFollowup(
 
     // sendEachMail을 부르기 전에(서명·AI 생성·로그 insert) 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
+    let slotReleased = false;
     try {
         // DB의 null은 "미지정"이므로 undefined로 정규화 (HTTP body의 null과 의미가 다르다)
         const signatureJson = await resolveSignature(item.orgId, {
@@ -926,7 +930,8 @@ async function handleAiFollowup(
         const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
 
         if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) {
-            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: "5초 이상 사이트 방문으로 일반 후속 중단" }).where(eq(emailSendLogs.id, inserted.id));
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 일반 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
             await releaseSenderSlot(slot);
             return { kind: "stopped", reason: "site_visit" };
         }
@@ -975,7 +980,7 @@ async function handleAiFollowup(
 
         return isSuccess ? SENT : SKIPPED;
     } catch (err) {
-        if (!sendAttempted) await releaseSenderSlot(slot);
+        if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         throw err;
     }
 }
