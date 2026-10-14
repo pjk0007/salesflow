@@ -13,6 +13,7 @@ import {
     visitorRecordLinks,
 } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
+import { loadInboxJourney } from "@/lib/inbox/journey";
 import type { JourneyEvent, JourneySummary, StageDuration } from "@/components/journey/types";
 import {
     DAY_MS,
@@ -197,6 +198,7 @@ export async function buildRecordJourney(args: JourneyArgs): Promise<JourneyResu
     }
 
     // 기간 필터 + 정렬
+    if (want("inbox")) events.push(...await loadInboxJourney(orgId, recordIds));
     let filtered = events;
     if (fromTs !== null) filtered = filtered.filter((e) => new Date(e.at).getTime() >= fromTs);
     if (toTs !== null) filtered = filtered.filter((e) => new Date(e.at).getTime() <= toTs);

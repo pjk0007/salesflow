@@ -1,0 +1,40 @@
+export type ConversationStatus = "open" | "snoozed" | "closed";
+export interface InboxChannel {
+    id: number;
+    workspaceId: number;
+    publicKey: string;
+    name: string;
+    greeting: string;
+    color: string;
+    allowedOrigins: string[];
+    enabled: boolean;
+}
+export interface Conversation {
+    id: string;
+    channelId: number;
+    name: string;
+    email: string | null;
+    pageUrl: string | null;
+    status: ConversationStatus;
+    assigneeId: string | null;
+    recordId: number | null;
+    tags: string[];
+    priority: boolean;
+    preview: string;
+    lastMessageAt: string;
+    customerSeq: number;
+    unread: boolean;
+}
+export interface ChatMessage {
+    id: number;
+    clientId: string;
+    kind: "customer" | "reply" | "note";
+    body: string;
+    authorName: string;
+    createdAt: string;
+}
+export interface InboxBootstrap {
+    channels: InboxChannel[];
+    members: { id: string; name: string }[];
+    workspaces: { id: number; name: string }[];
+}

@@ -2,6 +2,7 @@ const CHANNELS = [
     { value: "business", label: "비즈니스" },
     { value: "tracker", label: "사이트" },
     { value: "email", label: "메일" },
+    { value: "inbox", label: "고객 상담" },
 ] as const;
 
 /**

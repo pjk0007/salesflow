@@ -82,6 +82,12 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
             {/* CUSTOM 이벤트(단계 등): 입력/속성 표시 — 어느 단계에서 무엇을 채우고 넘어갔는지 */}
             {event.type === "CUSTOM" && <CustomEventProps properties={meta.properties} />}
 
+            {event.source === "inbox" && (
+                <div className="space-y-2 text-sm">
+                    <p className="whitespace-pre-wrap">{String(meta.body ?? "")}</p>
+                    <a className="text-emerald-700 underline" href={`/inbox?channelId=${Number(meta.channelId)}&conversation=${encodeURIComponent(String(meta.conversationId))}`}>상담 수신함 열기</a>
+                </div>
+            )}
             {/* 메일: 제목/CTA/URL */}
             {event.source === "email" && (
                 <div className="space-y-0.5 text-xs text-muted-foreground">

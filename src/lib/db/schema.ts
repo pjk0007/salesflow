@@ -22,6 +22,7 @@ import type { FormulaConfig } from "@/types";
 export * from "./ai-copy-schema";
 export * from "./email-experiment-schema";
 export * from "./copy-automation-schema";
+export * from "./inbox-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });

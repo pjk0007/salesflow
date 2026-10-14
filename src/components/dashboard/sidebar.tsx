@@ -34,6 +34,7 @@ import { OrgSwitcher } from "@/components/OrgSwitcher";
 const navItems = [
     { href: "/", label: "홈", icon: Home },
     { href: "/records", label: "레코드", icon: Table2 },
+    { href: "/inbox", label: "고객 상담", icon: MessageSquare },
     { href: "/alimtalk", label: "알림톡", icon: MessageSquare },
     { href: "/email", label: "이메일", icon: Mail },
     { href: "/products", label: "제품 관리", icon: Package },
