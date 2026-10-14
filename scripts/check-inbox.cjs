@@ -69,6 +69,7 @@ async function fixture() {
     for (const migration of [
         "0088_customer_inbox.sql",
         "0089_customer_platform.sql",
+        "0090_customer_sales.sql",
     ])
         for (const statement of fs
             .readFileSync(

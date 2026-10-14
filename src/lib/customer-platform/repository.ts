@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
 import {
     db,
@@ -117,14 +117,12 @@ export async function upsertContact(
                 .delete(crmContactCompanies)
                 .where(eq(crmContactCompanies.contactId, contact.id));
             if (companyIds.length)
-                await tx
-                    .insert(crmContactCompanies)
-                    .values(
-                        [...new Set(companyIds)].map((companyId) => ({
-                            contactId: contact.id,
-                            companyId,
-                        })),
-                    );
+                await tx.insert(crmContactCompanies).values(
+                    [...new Set(companyIds)].map((companyId) => ({
+                        contactId: contact.id,
+                        companyId,
+                    })),
+                );
         }
         await tx
             .update(inboxConversations)
@@ -173,9 +171,11 @@ export async function listPlatformObjects(
     kind: "contacts" | "companies",
     before?: string,
     exec: DbExec = db,
+    q = "",
 ) {
     await requirePlatformWorkspace(orgId, workspaceId, exec);
     const table = kind === "contacts" ? crmContacts : crmCompanies;
+    const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
     const rows = await exec
         .select()
         .from(table)
@@ -184,6 +184,15 @@ export async function listPlatformObjects(
                 eq(table.orgId, orgId),
                 eq(table.workspaceId, workspaceId),
                 before ? lt(table.id, before) : undefined,
+                q
+                    ? or(
+                          ilike(table.name, pattern),
+                          ilike(table.externalId, pattern),
+                          kind === "contacts"
+                              ? ilike(crmContacts.email, pattern)
+                              : ilike(crmCompanies.domain, pattern),
+                      )
+                    : undefined,
             ),
         )
         .orderBy(desc(table.id))

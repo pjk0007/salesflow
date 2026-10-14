@@ -418,6 +418,14 @@ function CustomerInfo({
                             : "이메일 · 고객 입력"}
                     </p>
                     <p className="mt-1 break-all">{chat.email ?? "미입력"}</p>
+                    {chat.contactId && (
+                        <a
+                            className="mt-2 block text-xs text-[#635BFF]"
+                            href={`/customer-crm?workspaceId=${bootstrap.channels.find((c) => c.id === chat.channelId)?.workspaceId ?? ""}&q=${encodeURIComponent(chat.name)}`}
+                        >
+                            고객 관리에서 딜·할 일 연결 ↗
+                        </a>
+                    )}
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground">문의 페이지</p>

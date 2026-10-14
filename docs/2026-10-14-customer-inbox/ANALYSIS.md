@@ -29,7 +29,7 @@ REA CLI 6.4.0, Node 22.23.3으로 다음 **선택된 컴파일 JS**를 분석했
 | 채널톡 loader의 `boot`, `shutdown`, `track`, 콜백 전달 | 웹 SDK가 원격 런타임의 명령 호출을 감싼다. loader만으로 실제 상담 저장 방식을 알 수 없다. | 명시적 SDK 수명주기·이벤트·연결 완료/오류 콜백. 실제 메시지는 샌드비 DB/API에 저장 |
 | 인터컴 Messenger의 공개 메서드, instance-manager | 초기화와 표시/숨김, 사용자 갱신, 이벤트, 미확인 개수 알림이 분리되어 있다. | `boot/show/hide/shutdown/identify/trackEvent/on` 제공. 로그아웃 시 이전 인증 제거, 짧은 회원 인증 자동 갱신 |
 | 인터컴 REST Client의 경로·HTTP 메서드 | 고객·회사·대화를 별도 리소스로 다루고 검색·답변 API가 있다. 서버 내부 트랜잭션은 미확인이다. | 고객·회사·관계·행동 이벤트 모델, 서비스 API 토큰, 서버 전체 대화 검색·페이지 커서 |
-| 허브스팟 Basic/Pipelines/Subscriptions API의 요청 생성 | CRM 객체, 객체 유형별 파이프라인, 웹훅 구독 계약이 분리되어 있다. | 같은 고객 ID를 딜·태스크·단계 이력과 연결하고, 이벤트 outbox로 웹훅을 전달하는 확장 필요 |
+| 허브스팟 Basic/Pipelines/Subscriptions API의 요청 생성 | CRM 객체, 객체 유형별 파이프라인, 웹훅 구독 계약이 분리되어 있다. | 같은 고객 ID를 딜·태스크·단계 이력과 연결하는 기본 API/UI 구현. 이벤트 outbox·웹훅 전달은 후속 |
 
 회원 식별은 서버가 확인한 사이트 로그인에서 발급한다. 브라우저가 보내는 이름·이메일만으로 기존 회원의 대화를 선택하지 않는다. 이 판단은 인터컴의 [회원 인증 문서](https://developers.intercom.com/installing-intercom/web/identity-verification)와 [로그아웃 수명주기 문서](https://developers.intercom.com/installing-intercom/web/methods)도 참고했다. 샌드비 SDK는 원본 SDK와 동일한 호환 구현을 표방하지 않는다.
 

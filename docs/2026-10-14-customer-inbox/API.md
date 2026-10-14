@@ -86,6 +86,7 @@ async function startMemberChat(channelKey) {
 | `/api/v1/inbox/sessions` | POST `channelId,contactId` → `identityToken,expiresAt,channelKey` |
 | `/api/v1/inbox/conversations` | GET `channelId,q?,status?,filter?,before?,beforeId?` |
 | `/api/v1/inbox/conversations/{id}` | GET 상세·메시지, PATCH 상태/담당/중요/태그, POST 답변/내부 메모 |
+| `/api/v1/crm/pipelines`, `/deals`, `/tasks` | GET 목록·POST 생성, `/{id}` GET 상세·PATCH 수정. 계약·SDK·UX는 [영업 흐름 가이드](SALES.md) 참고 |
 
 고객/회사 upsert는 `workspaceId,externalId,name`이 필수다. 같은 워크스페이스의 외부 ID를 다시 보내면 갱신하고, 다른 워크스페이스의 동일 ID는 별도 고객이다. 생략 필드는 보존한다. `attributes`는 최상위 키를 병합하고 같은 키는 새 값으로 바꾼다. 고객의 `companyIds`는 생략 시 보존, 명시하면 해당 회사 목록으로 교체하며 `[]`는 연결 해제다. 관계/CRM `recordId`는 같은 사업만 허용한다.
 

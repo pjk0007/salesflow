@@ -36,6 +36,59 @@ export interface SendbEventInput {
     properties?: Record<string, unknown>;
     occurredAt?: string;
 }
+export interface SendbPipelineInput {
+    workspaceId: number;
+    externalId: string;
+    name: string;
+    stages: { id: string; name: string; category: "open" | "won" | "lost" }[];
+}
+export interface SendbPipeline extends SendbPipelineInput {
+    id: string;
+    version: number;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface SendbDealInput {
+    workspaceId: number;
+    externalId: string;
+    title: string;
+    pipelineId: string;
+    stageId: string;
+    contactId?: string | null;
+    companyId?: string | null;
+    ownerId?: string | null;
+    amount: string;
+    currency: string;
+    expectedCloseDate?: string | null;
+    notes?: string;
+}
+export interface SendbDeal extends SendbDealInput {
+    id: string;
+    version: number;
+    archivedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+export interface SendbTaskInput {
+    workspaceId: number;
+    externalId: string;
+    title: string;
+    body?: string;
+    contactId?: string | null;
+    companyId?: string | null;
+    ownerId?: string | null;
+    dealId?: string | null;
+    dueAt?: string | null;
+    status?: "open" | "done" | "cancelled";
+}
+export interface SendbTask extends SendbTaskInput {
+    id: string;
+    version: number;
+    status: "open" | "done" | "cancelled";
+    completedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
 export interface SendbConversation {
     id: string;
     channelId: number;
@@ -51,6 +104,15 @@ export interface SendbConversation {
     lastMessageAt: string;
     customerSeq: number;
     unread: boolean;
+}
+function salesQuery(
+    workspaceId: number,
+    options: Record<string, string | undefined>,
+) {
+    const params = new URLSearchParams({ workspaceId: String(workspaceId) });
+    for (const [key, value] of Object.entries(options))
+        if (value !== undefined) params.set(key, value);
+    return params;
 }
 export class SendbApiError extends Error {
     constructor(
@@ -115,6 +177,90 @@ export class SendbClient {
         return this.request<SendbCompany>(
             "/api/v1/crm/companies",
             "POST",
+            input,
+        );
+    }
+    pipelines(workspaceId: number, before?: string) {
+        return this.request<SendbPipeline[]>(
+            `/api/v1/crm/pipelines?workspaceId=${workspaceId}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+    createPipeline(input: SendbPipelineInput) {
+        return this.request<SendbPipeline>(
+            "/api/v1/crm/pipelines",
+            "POST",
+            input,
+        );
+    }
+    updatePipeline(
+        id: string,
+        input: {
+            workspaceId: number;
+            version: number;
+            name?: string;
+            stages?: SendbPipelineInput["stages"];
+        },
+    ) {
+        return this.request<SendbPipeline>(
+            `/api/v1/crm/pipelines/${encodeURIComponent(id)}`,
+            "PATCH",
+            input,
+        );
+    }
+    deals(
+        workspaceId: number,
+        options: {
+            before?: string;
+            pipelineId?: string;
+            q?: string;
+            archived?: "true" | "false";
+        } = {},
+    ) {
+        return this.request<SendbDeal[]>(
+            `/api/v1/crm/deals?${salesQuery(workspaceId, options)}`,
+        );
+    }
+    createDeal(input: SendbDealInput) {
+        return this.request<SendbDeal>("/api/v1/crm/deals", "POST", input);
+    }
+    updateDeal(
+        id: string,
+        input: {
+            workspaceId: number;
+            version: number;
+            archived?: boolean;
+        } & Partial<Omit<SendbDealInput, "workspaceId" | "externalId">>,
+    ) {
+        return this.request<SendbDeal>(
+            `/api/v1/crm/deals/${encodeURIComponent(id)}`,
+            "PATCH",
+            input,
+        );
+    }
+    tasks(
+        workspaceId: number,
+        options: {
+            before?: string;
+            q?: string;
+            status?: "open" | "done" | "cancelled";
+        } = {},
+    ) {
+        return this.request<SendbTask[]>(
+            `/api/v1/crm/tasks?${salesQuery(workspaceId, options)}`,
+        );
+    }
+    createTask(input: SendbTaskInput) {
+        return this.request<SendbTask>("/api/v1/crm/tasks", "POST", input);
+    }
+    updateTask(
+        id: string,
+        input: { workspaceId: number; version: number } & Partial<
+            Omit<SendbTaskInput, "workspaceId" | "externalId">
+        >,
+    ) {
+        return this.request<SendbTask>(
+            `/api/v1/crm/tasks/${encodeURIComponent(id)}`,
+            "PATCH",
             input,
         );
     }

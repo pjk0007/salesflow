@@ -14,31 +14,27 @@ async function runPlatformCheck(extra) {
         expired: randomBytes(32).toString("hex"),
     };
     for (const [index, name] of Object.keys(keys).entries()) {
-        await db
-            .insert(schema.apiTokens)
-            .values({
-                id: index + 1,
-                orgId: actor.orgId,
-                createdBy: actor.userId,
-                name: "가상 API " + name,
-                token: keys[name],
-                ...(name === "expired"
-                    ? { expiresAt: new Date("2020-01-01") }
-                    : {}),
-            });
-        await db
-            .insert(schema.apiTokenScopes)
-            .values({
-                tokenId: index + 1,
-                scopeType: "workspace",
-                scopeId: name === "bo" ? 10 : 8,
-                permissions: {
-                    read: true,
-                    create: name !== "read",
-                    update: name !== "read",
-                    delete: false,
-                },
-            });
+        await db.insert(schema.apiTokens).values({
+            id: index + 1,
+            orgId: actor.orgId,
+            createdBy: actor.userId,
+            name: "가상 API " + name,
+            token: keys[name],
+            ...(name === "expired"
+                ? { expiresAt: new Date("2020-01-01") }
+                : {}),
+        });
+        await db.insert(schema.apiTokenScopes).values({
+            tokenId: index + 1,
+            scopeType: "workspace",
+            scopeId: name === "bo" ? 10 : 8,
+            permissions: {
+                read: true,
+                create: name !== "read",
+                update: name !== "read",
+                delete: false,
+            },
+        });
     }
     const originalLoad = Module._load;
     Module._load = function (name, parent, isMain) {
@@ -72,6 +68,14 @@ async function runPlatformCheck(extra) {
             () => "v1/inbox/conversations/[id]",
         ],
         [/^\/api\/messenger\/([a-f0-9]+)$/, () => "messenger/[key]"],
+        [
+            /^\/api\/v1\/crm\/(pipelines|deals|tasks)$/,
+            () => "v1/crm/[resource]",
+        ],
+        [
+            /^\/api\/v1\/crm\/(pipelines|deals|tasks)\/([a-f0-9-]+)$/,
+            () => "v1/crm/[resource]/[id]",
+        ],
     ];
     const routes = routeDefinitions.map(([pattern, file]) => ({
         pattern,
@@ -86,6 +90,8 @@ async function runPlatformCheck(extra) {
         "v1/inbox/conversations",
         "v1/inbox/conversations/[id]",
         "messenger/[key]",
+        "v1/crm/[resource]",
+        "v1/crm/[resource]/[id]",
     ];
     const modules = Object.fromEntries(
         filenames.map((name) => [
@@ -123,7 +129,13 @@ async function runPlatformCheck(extra) {
             headers: new Headers(init.headers),
         });
         return handler(request, {
-            params: Promise.resolve({ id: match[1], key: match[1] }),
+            params: Promise.resolve({
+                id: definition.file(match).includes("[resource]")
+                    ? match[2]
+                    : match[1],
+                key: match[1],
+                resource: match[1],
+            }),
         });
     }
     const clients = Object.fromEntries(
