@@ -1046,6 +1046,7 @@ async function runWorkflowCheck(extra) {
                             {
                                 ...loaded,
                                 conversation: {
+                                    medium: "web",
                                     enabled: true,
                                     status: "open",
                                     aiState: "auto",
@@ -1060,6 +1061,7 @@ async function runWorkflowCheck(extra) {
                     ...loaded,
                     event: { ...old, occurredAt: new Date().toISOString() },
                     conversation: {
+                        medium: "web",
                         enabled: true,
                         status: "open",
                         aiState: "auto",

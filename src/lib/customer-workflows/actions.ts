@@ -116,6 +116,7 @@ export function stepTargetProblem(
     )
         return "대상 딜의 파이프라인이 다르거나 보관된 상태입니다.";
     if (step.kind === "reply") {
+        if (ctx.conversation?.medium !== "web") return "이메일 상담은 상담원이 검토한 답장만 발송합니다.";
         if (
             !Number.isFinite(Date.parse(String(ctx.event.occurredAt))) ||
             now.getTime() - Date.parse(String(ctx.event.occurredAt)) > 86400000

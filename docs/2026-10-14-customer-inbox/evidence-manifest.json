@@ -747,5 +747,383 @@
       "retention and selective restore",
       "Chrome file chooser path requires manual QA"
     ]
+  },
+  "emailQa": {
+    "date": "2026-10-15",
+    "environment": "isolated PGlite, actual API/SDK/UI, fake Gmail HTTP only; no real email, source account or production DB",
+    "checks": {
+      "email": 14,
+      "mime": 6,
+      "unit": 1064,
+      "inbox": 22,
+      "platform": 11,
+      "sales": 13,
+      "activities": 7,
+      "files": 18,
+      "ai": 16,
+      "workflows": 15,
+      "webhooks": 14,
+      "identity": 12,
+      "imports": 15,
+      "types": true,
+      "lint": true,
+      "build": true
+    },
+    "browser": [
+      "designerhire inbound email, text reply accepted, uncertain no retry, private note and common CRM timeline",
+      "backofficelab inbound email and text reply accepted, distinct mailbox/recipient",
+      "mailbox registered disabled, enabled and stopped through actual UI/API"
+    ],
+    "references": {
+      "capturedAt": "2026-10-14T15:47:13.134Z",
+      "references": [
+        {
+          "file": "email-gmail-sending-reference.html",
+          "url": "https://developers.google.com/workspace/gmail/api/guides/sending",
+          "resolvedUrl": "https://developers.google.com/workspace/gmail/api/guides/sending",
+          "sha256": "e9ffc20723c073a6a9b99a2c626162af81bd5d1d5641319cd0440036a1261aec",
+          "bytes": 287907
+        },
+        {
+          "file": "email-gmail-threads-reference.html",
+          "url": "https://developers.google.com/workspace/gmail/api/guides/threads",
+          "resolvedUrl": "https://developers.google.com/workspace/gmail/api/guides/threads?hl=es-419",
+          "sha256": "7f3d87bd7f145e0ff340cc84d38dc79f87a3a2a0f2bb801e3982db95eb8b576c",
+          "bytes": 185070
+        },
+        {
+          "file": "email-chatwoot-channel-reference.rb",
+          "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/develop/app/models/channel/email.rb",
+          "resolvedUrl": "https://raw.githubusercontent.com/chatwoot/chatwoot/develop/app/models/channel/email.rb",
+          "sha256": "dcff5f53f909473819e57b175bd9c2447890d1d6a82cf34617004f8e2b5481ca",
+          "bytes": 2969
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "file": "email-qa.log",
+        "sha256": "5e70fa53e131f51c011646bd9a77717e1eda93edf4751f33a2036e5f7490afdc",
+        "bytes": 2177
+      },
+      {
+        "file": "email-unit.log",
+        "sha256": "ead052fc443864d06dfcd7b8910d8066dab2a33e56a8a6acf1c26b0b0a89ee6c",
+        "bytes": 708
+      },
+      {
+        "file": "email-all-unit.log",
+        "sha256": "4c11c88d5a6fc45f898720bae1edb4a5414be8dac7db1b91ecb1c50cc250c2a7",
+        "bytes": 101834
+      },
+      {
+        "file": "email-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "email-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "email-build.log",
+        "sha256": "05871e909f5053cd05895f1fc1b64755bd23b836ff30f838819bffc8845b5c60",
+        "bytes": 12414
+      },
+      {
+        "file": "email-regression-inbox.log",
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137",
+        "bytes": 1590
+      },
+      {
+        "file": "email-regression-inbox-identity.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "file": "email-regression-customer-imports.log",
+        "sha256": "984a71372bd78537aeb2676c95f175c7d1471f0fb22bcb2f954fe1c305719d44",
+        "bytes": 2570
+      },
+      {
+        "file": "email-regression-customer-ai.log",
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c",
+        "bytes": 2433
+      },
+      {
+        "file": "email-regression-customer-workflows.log",
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551",
+        "bytes": 2372
+      },
+      {
+        "file": "email-regression-customer-activities.log",
+        "sha256": "08c03a11391c4aacf54bb9df19608196ce1de76e15f7213fa20a9d7bcf288772",
+        "bytes": 2888
+      },
+      {
+        "file": "email-regression-inbox-files.log",
+        "sha256": "4ad67f976d52264eb12b7c42744e5501601e12d2d9ac7bdbe3e1ff3428ed38be",
+        "bytes": 4455
+      },
+      {
+        "file": "email-regression-webhooks.log",
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986",
+        "bytes": 5793
+      },
+      {
+        "file": "email-regression-customer-sales.log",
+        "sha256": "918d4ee5c6bd9e81813d0e9fb7d931aa79bccb73e2eecf89dd8feba1897814df",
+        "bytes": 2131
+      },
+      {
+        "file": "email-designerhire-qa.png",
+        "sha256": "0448ec17a29f26800af7474b4d88c004003e74d9fcbbf90ae803c759c6277973",
+        "bytes": 138434
+      },
+      {
+        "file": "email-backofficelab-qa.png",
+        "sha256": "caa50483410c2639aaccab1fc3308eb4d45845602bbb47266a936157870a4154",
+        "bytes": 105374
+      },
+      {
+        "file": "email-mailbox-settings-qa.png",
+        "sha256": "2cb8b09a4490fda5fea0bcfdf2c9762153316f59d23d14f2453e603adcf85e19",
+        "bytes": 94531
+      },
+      {
+        "file": "email-reference-sources.json",
+        "sha256": "eaafae43ba955b54f1d672e476fdaeea5dea22959a5c3088cee937b9111f40ef",
+        "bytes": 1146
+      }
+    ],
+    "implementation": [
+      {
+        "file": "docs/2026-10-14-customer-inbox/API.md",
+        "sha256": "8c8b345735a81090da1fa982b833221f23a8748b61ab8924294212a355a713c1",
+        "bytes": 10562
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/HANDOFF.md",
+        "sha256": "98db83908a781bee0badc795e9eaa0c3365c2496e057133d8ca9543908e552fe",
+        "bytes": 16054
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/REPLACEMENT.md",
+        "sha256": "ca589fb302d861f9f13470b106d184ff1ca5795537d0252504bead72ca20d3f0",
+        "bytes": 8152
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/RESEARCH-APPLIED.md",
+        "sha256": "780cdf62e8c6e6e573a43419dbf0ada8ca618fb9e8245185182e64c14960ce17",
+        "bytes": 9042
+      },
+      {
+        "file": "drizzle/meta/_journal.json",
+        "sha256": "ee7af03dc0b7d578fa35af88dc2119dfda3d1889525d3f85c640ae4f92b718c0",
+        "bytes": 14628
+      },
+      {
+        "file": "scripts/check-customer-platform.cjs",
+        "sha256": "24e1ebe6031d2aa8bee191e9590263319abce0017894402d96c79f375cb2d23d",
+        "bytes": 25350
+      },
+      {
+        "file": "scripts/check-customer-workflows.cjs",
+        "sha256": "c5929d85ef6bf633a5e66efc01ff6a09943820e3800607bf3be62c630b71410c",
+        "bytes": 46721
+      },
+      {
+        "file": "scripts/check-inbox.cjs",
+        "sha256": "75988e1a5f50512a7b97e619de2129e5ff74e5f14542e2005cf15d540b70ef98",
+        "bytes": 29731
+      },
+      {
+        "file": "sdk/server.ts",
+        "sha256": "c3b6fb81f9f26a1e0958040aa6f2f278e2c1c4d42ec752b0652d4e4878683139",
+        "bytes": 29284
+      },
+      {
+        "file": "src/components/customer-crm/ui/ActivityTimeline.tsx",
+        "sha256": "67d2d25c6265e65333f60894460167dca032c00f671ddcdb9251629d93b0524e",
+        "bytes": 9402
+      },
+      {
+        "file": "src/components/inbox/types/index.ts",
+        "sha256": "7ffc2c13792aa5a97ce54e9e8273507632b4bd163bdbb762a86f6d76af5f5bdb",
+        "bytes": 2129
+      },
+      {
+        "file": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "632cfd6794c08dc4a642268e14e83ffbbc3b29c06035ce0cfcdb88ec2ba400b4",
+        "bytes": 40470
+      },
+      {
+        "file": "src/components/inbox/ui/InboxPage.tsx",
+        "sha256": "592a243fc2378e0e4c16f8c3204b893aa4d4bb52f24be49c8a01c6df63ffbb00",
+        "bytes": 24507
+      },
+      {
+        "file": "src/lib/customer-ai/queue.ts",
+        "sha256": "85847f9a058737c27d2c3b16ad3a004ac616e441c2ef771ec026f3b8d64143b9",
+        "bytes": 11861
+      },
+      {
+        "file": "src/lib/customer-workflows/actions.ts",
+        "sha256": "7e642c8ab3c36c04caccaeef0010e8c913fc3a394864a036f749c2b22a801f7b",
+        "bytes": 10223
+      },
+      {
+        "file": "src/lib/db/inbox-schema.ts",
+        "sha256": "58d42c8d7d980378400ace53677555ebefe7600fcda384dae0c588ac9a7ff709",
+        "bytes": 6238
+      },
+      {
+        "file": "src/lib/db/schema.ts",
+        "sha256": "2c918aadcb159df1af461803af203a0775152c4f324b9903b7ad72e18b25fb67",
+        "bytes": 111744
+      },
+      {
+        "file": "src/lib/inbox/link-identity.ts",
+        "sha256": "baa442dbe60fc69ed44bf632464ff172e680abd8a3055fca6413a19e4da33413",
+        "bytes": 13213
+      },
+      {
+        "file": "src/lib/inbox/repository.ts",
+        "sha256": "90c55f1f92a1f83e5352924bc467ac4864a63e878744264bc8624bcd78c3d3d0",
+        "bytes": 44340
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/EMAIL.md",
+        "sha256": "ad56fbe7a4ac04a67f8dd932c0fb8a2ba312d8ecb1c991da25adf1ac59427a33",
+        "bytes": 8959
+      },
+      {
+        "file": "drizzle/0098_inbox_email.sql",
+        "sha256": "75f84228f838da5d9460bb76e16fe9299995531cce241392de7dba8589f3948a",
+        "bytes": 3129
+      },
+      {
+        "file": "examples/email-relay/run.ts",
+        "sha256": "b433926f0cc7e8e871dfa558713c30cc557b61dc91174673c47201c74af8dce6",
+        "bytes": 2424
+      },
+      {
+        "file": "scripts/check-inbox-email.cjs",
+        "sha256": "f3c11bb275b334db9aa7a4414aae524dd99ec91d898a430c0bb462021cbee52c",
+        "bytes": 31391
+      },
+      {
+        "file": "sdk/email-types.ts",
+        "sha256": "26b755cc720caf67b1a7a77c2e8ac5d22bf04bc067e2d26e2d77732bbce42982",
+        "bytes": 1446
+      },
+      {
+        "file": "src/app/api/email-deliveries/[id]/route.ts",
+        "sha256": "6ef8aecf73971d0e0ac027c1a1a6bf42123b6784d630636f29b24af6a7b77cb6",
+        "bytes": 102
+      },
+      {
+        "file": "src/app/api/email-mailboxes/[id]/route.ts",
+        "sha256": "7685a3e05cf8caaea6faf43b01fcaee3b710895a42ea27847676560729af4011",
+        "bytes": 100
+      },
+      {
+        "file": "src/app/api/email-mailboxes/route.ts",
+        "sha256": "17d3b47e54895f362d268d56b7a9bf3697e16861a63bd4cad5c1ea03ef65259a",
+        "bytes": 117
+      },
+      {
+        "file": "src/app/api/v1/email/deliveries/[id]/route.ts",
+        "sha256": "2e43c0998625333c03bceb37e32443c44660542ebbf2a1c2c952273c1eb10d9f",
+        "bytes": 101
+      },
+      {
+        "file": "src/app/api/v1/email/mailboxes/[id]/claim/route.ts",
+        "sha256": "3f9507df2c263ce55fa8cd1b77d5dc4c3bfcfa87a86de92b87fd636e78889fd5",
+        "bytes": 104
+      },
+      {
+        "file": "src/app/api/v1/email/mailboxes/[id]/receive/route.ts",
+        "sha256": "efd3124292d465db4069d659b8c993cf8fcea46bd736ad6d98c923d670556f6c",
+        "bytes": 106
+      },
+      {
+        "file": "src/app/api/v1/email/mailboxes/[id]/route.ts",
+        "sha256": "ec4daed5c7c3415f9ee925c9aabc3eab52ad5d228559ec7f673570d67a84d4d0",
+        "bytes": 99
+      },
+      {
+        "file": "src/app/api/v1/email/mailboxes/route.ts",
+        "sha256": "600a9acd8a517925446c69093caa3ef71ef435c43752a75244ae846e54197693",
+        "bytes": 116
+      },
+      {
+        "file": "src/components/inbox-email/api/index.ts",
+        "sha256": "b58699d93a3945b562a19aa6cd818834500125f27e2487424b3b10578f8b695d",
+        "bytes": 594
+      },
+      {
+        "file": "src/components/inbox-email/hooks/useEmailMailboxes.ts",
+        "sha256": "0f2dfb754807e5edbfdf3892780193e5e5ef7a885cfbf0dcdc7c94ec88726b36",
+        "bytes": 285
+      },
+      {
+        "file": "src/components/inbox-email/types/index.ts",
+        "sha256": "ffbcbf50ec4ef39d85d2f8aeb89dcc1edf82177449d05ac6856780c5c9e9c862",
+        "bytes": 438
+      },
+      {
+        "file": "src/components/inbox-email/ui/EmailDeliveryStatus.tsx",
+        "sha256": "5f8b2053a228b633deeca65361113fa07e4d00b51682907847961d9c2a48773b",
+        "bytes": 2142
+      },
+      {
+        "file": "src/components/inbox-email/ui/EmailMailboxSettings.tsx",
+        "sha256": "29e453549b7c7597c415694f435cebfd5b45cb0a4c183b4920e66aafb842824b",
+        "bytes": 6111
+      },
+      {
+        "file": "src/lib/db/inbox-email-schema.ts",
+        "sha256": "5539f48250f3457589b352dc3308153d62d62316943bdb6f37fdc5d199d65eb0",
+        "bytes": 4759
+      },
+      {
+        "file": "src/lib/inbox-email/gmail.test.ts",
+        "sha256": "f734ac3630c778ea40a60408da5a034343c901c6fd2d440a8f4a1ebb76a46ed5",
+        "bytes": 5385
+      },
+      {
+        "file": "src/lib/inbox-email/gmail.ts",
+        "sha256": "7c1661a2c597f891534fae39361fc5afab3bdf94766874f3efa8f29448d612b6",
+        "bytes": 12281
+      },
+      {
+        "file": "src/lib/inbox-email/outgoing.ts",
+        "sha256": "396f9c5086110ff84a2e119d26185192006659b869842706c3b54eae2f8e2fec",
+        "bytes": 2444
+      },
+      {
+        "file": "src/lib/inbox-email/repository.ts",
+        "sha256": "dc9d77edb41d006ae52db0629cda98f51168276ef8f66579063e05e43b4a3c78",
+        "bytes": 23538
+      },
+      {
+        "file": "src/lib/inbox-email/routes.ts",
+        "sha256": "7c3064ff220320354a9e7a85e8bf566f405a44c8691bea845c0b344a89dbe031",
+        "bytes": 5758
+      },
+      {
+        "file": "src/lib/inbox-email/rules.ts",
+        "sha256": "7a647631b7c36b1203402d887732645ab8dd16e1a5dfff764c6b26d5f278758c",
+        "bytes": 2785
+      }
+    ],
+    "remaining": [
+      "real OAuth/account installation and delivery verification",
+      "inbound/outbound attachment bytes, reply-all, aliases and full original MIME",
+      "durable Gmail history/push and monitoring/large concurrency",
+      "Kakao, Naver, phone and full cutover"
+    ]
   }
 }

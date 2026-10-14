@@ -14,6 +14,7 @@ import {
     CheckCheck,
 } from "lucide-react";
 import { useInbox } from "../hooks/useInbox";
+import { EmailMailboxSettings } from "@/components/inbox-email/ui/EmailMailboxSettings";
 import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
@@ -21,6 +22,7 @@ import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 export function InboxPage({ userId, role }: { userId: string; role: string }) {
     const params = useSearchParams();
+    const [emailSettings, setEmailSettings] = useState(false);
     const [chosenChannel, setChannel] = useState<number | null>(
             Number(params.get("channelId")) || null,
         ),
@@ -71,6 +73,14 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         </p>
                     </div>
                 </div>
+                {role !== "member" && channel && (
+                    <button
+                        className="ml-auto rounded-xl border px-3 py-2 text-xs"
+                        onClick={() => setEmailSettings(true)}
+                    >
+                        이메일 연결
+                    </button>
+                )}
                 {role !== "member" && (
                     <button
                         className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
@@ -319,6 +329,11 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                             <span className="truncate text-[13px] font-semibold">
                                                 {c.name}
                                             </span>
+                                            {c.medium === "email" && (
+                                                <span className="text-[10px] text-violet-700">
+                                                    이메일
+                                                </span>
+                                            )}
                                             {c.priority && (
                                                 <Star
                                                     size={11}
@@ -431,6 +446,13 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         </div>
                     )}
                 </div>
+            )}
+            {emailSettings && channel && (
+                <EmailMailboxSettings
+                    key={channel.workspaceId}
+                    workspaceId={channel.workspaceId}
+                    onClose={() => setEmailSettings(false)}
+                />
             )}
             {settings && bootstrap && (
                 <ChannelSettings

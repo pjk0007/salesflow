@@ -123,3 +123,5 @@ async function startMemberChat(channelKey) {
 고객 자동화의 저장·모의 실행·게시·예약/복구·중단 API와 SDK는 [WORKFLOWS.md](WORKFLOWS.md)를 참고한다.
 
 기존 서비스 JSON/CSV의 매핑·미리보기·사람 실행·묶음 처리/복구, 과거 상담 구분과 이전 API/SDK는 [IMPORTS.md](IMPORTS.md)를 참고한다.
+
+이메일 수신·발송 대기열/결과·메일함 설정 API와 서버 SDK, Gmail 연결 예제는 [EMAIL.md](EMAIL.md)를 참고한다.

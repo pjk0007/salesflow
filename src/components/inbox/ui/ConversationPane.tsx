@@ -9,6 +9,7 @@ import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { InboxAudit } from "./InboxAudit";
 import { CustomerCrmContext } from "./CustomerCrmContext";
+import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliveryStatus";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 export const statusNames = {
     open: "진행중",
@@ -115,6 +116,14 @@ export function ConversationPane({
     }
     async function send() {
         if ((!text.trim() && !attachments.files.length) || busy) return;
+        if (
+            kind === "reply" &&
+            chat.medium === "email" &&
+            !chat.emailContext?.enabled
+        ) {
+            toast.error("메일함 연결이 중지되어 있습니다.");
+            return;
+        }
         const body = text.trim();
         const source = kind === "reply" ? aiDraftId : null;
         setBusy(true);
@@ -176,7 +185,11 @@ export function ConversationPane({
                                 {chat.name}
                             </h2>
                             <p className="text-xs text-muted-foreground">
-                                {chat.historyOnly ? "이전 상담" : "사이트 상담"}{" "}
+                                {chat.historyOnly
+                                    ? "이전 상담"
+                                    : chat.medium === "email"
+                                      ? "이메일 상담"
+                                      : "사이트 상담"}{" "}
                                 · {statusNames[chat.status]}
                             </p>
                         </div>
@@ -244,6 +257,23 @@ export function ConversationPane({
                         )}
                     </div>
                 </header>
+                {chat.emailContext && (
+                    <div className="border-b bg-violet-50 px-5 py-3 text-sm">
+                        <p className="font-semibold">
+                            {chat.emailContext.subject}
+                        </p>
+                        <p className="mt-1 text-xs">
+                            {chat.emailContext.from} →{" "}
+                            {chat.emailContext.recipient}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                            답장은 위 수신자 한 명에게 발송합니다.{" "}
+                            {chat.emailContext.enabled
+                                ? "메일 서비스 접수 상태를 각 답장에서 확인할 수 있습니다."
+                                : "현재 메일함 연결이 중지되어 있습니다."}
+                        </p>
+                    </div>
+                )}
                 {chat.historyOnly && (
                     <p
                         role="status"
@@ -345,11 +375,38 @@ export function ConversationPane({
                                         {m.importMetadata?.sourceId ?? ""}
                                     </p>
                                 )}
+                                {m.email && (
+                                    <p className="text-[11px] text-muted-foreground">
+                                        {m.email.subject} ·{" "}
+                                        {new Date(
+                                            m.email.receivedAt,
+                                        ).toLocaleString("ko-KR")}
+                                        {m.email.cc.length
+                                            ? ` · 참조 ${m.email.cc.join(", ")}`
+                                            : ""}
+                                    </p>
+                                )}
                                 {m.body && (
                                     <p
                                         className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
                                     >
                                         {m.body}
+                                    </p>
+                                )}
+                                {m.delivery && (
+                                    <EmailDeliveryStatus
+                                        item={m.delivery}
+                                        refresh={refresh}
+                                    />
+                                )}
+                                {!!m.email?.files.length && (
+                                    <p className="text-xs text-amber-800">
+                                        첨부{" "}
+                                        {m.email.files
+                                            .map((f) => f.name)
+                                            .join(", ")}{" "}
+                                        · 파일 내용은 원본 메일함에서
+                                        확인해주세요.
                                     </p>
                                 )}
                                 <AttachmentList
@@ -379,26 +436,29 @@ export function ConversationPane({
                 </div>
                 {!chat.historyOnly && (
                     <>
-                        <SupportDraftPanel
-                            chat={chat}
-                            messages={allMessages}
-                            workspaceId={
-                                bootstrap.channels.find(
-                                    (c) => c.id === chat.channelId,
-                                )?.workspaceId
-                            }
-                            hasDraft={!!drafts[`${chat.id}:reply`]?.trim()}
-                            onUse={(answer, id) => {
-                                const old = drafts[`${chat.id}:reply`]?.trim();
-                                updateDraft(
-                                    old ? `${old}\n\n${answer}` : answer,
-                                    `${chat.id}:reply`,
-                                );
-                                setKind("reply");
-                                setAiDraftId(id);
-                            }}
-                            onMode={(state) => patch({ aiState: state })}
-                        />
+                        {chat.medium !== "email" && (
+                            <SupportDraftPanel
+                                chat={chat}
+                                messages={allMessages}
+                                workspaceId={
+                                    bootstrap.channels.find(
+                                        (c) => c.id === chat.channelId,
+                                    )?.workspaceId
+                                }
+                                hasDraft={!!drafts[`${chat.id}:reply`]?.trim()}
+                                onUse={(answer, id) => {
+                                    const old =
+                                        drafts[`${chat.id}:reply`]?.trim();
+                                    updateDraft(
+                                        old ? `${old}\n\n${answer}` : answer,
+                                        `${chat.id}:reply`,
+                                    );
+                                    setKind("reply");
+                                    setAiDraftId(id);
+                                }}
+                                onMode={(state) => patch({ aiState: state })}
+                            />
+                        )}
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
@@ -471,20 +531,22 @@ export function ConversationPane({
                                     </button>
                                 </p>
                             )}
-                            <AttachmentDrafts
-                                files={attachments.files}
-                                busy={
-                                    busy ||
-                                    (kind === "reply" &&
-                                        chat.status === "closed")
-                                }
-                                progress={attachments.progress}
-                                onSelect={attachments.select}
-                                onRemove={(id) =>
-                                    attachments.remove(id, uploadUrl)
-                                }
-                                onError={(message) => toast.error(message)}
-                            />
+                            {(chat.medium !== "email" || kind === "note") && (
+                                <AttachmentDrafts
+                                    files={attachments.files}
+                                    busy={
+                                        busy ||
+                                        (kind === "reply" &&
+                                            chat.status === "closed")
+                                    }
+                                    progress={attachments.progress}
+                                    onSelect={attachments.select}
+                                    onRemove={(id) =>
+                                        attachments.remove(id, uploadUrl)
+                                    }
+                                    onError={(message) => toast.error(message)}
+                                />
+                            )}
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-muted-foreground">
                                     {kind === "note"
@@ -506,7 +568,9 @@ export function ConversationPane({
                                         ? "전송 중…"
                                         : kind === "note"
                                           ? "메모 저장"
-                                          : "답변 전송"}
+                                          : chat.medium === "email"
+                                            ? "메일 발송 예약"
+                                            : "답변 전송"}
                                 </button>
                             </div>
                         </form>
@@ -643,9 +707,11 @@ function CustomerInfo({
                         </div>
                         <div>
                             <p className="text-xs text-muted-foreground">
-                                {chat.contactId
-                                    ? "이메일 · 연결된 회원"
-                                    : "이메일 · 고객 입력"}
+                                {chat.medium === "email"
+                                    ? "이메일 · 수신 발신자"
+                                    : chat.contactId
+                                      ? "이메일 · 연결된 회원"
+                                      : "이메일 · 고객 입력"}
                             </p>
                             <p className="mt-1 break-all">
                                 {chat.email ?? "미입력"}

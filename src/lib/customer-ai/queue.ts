@@ -140,6 +140,7 @@ export async function queueSupportJob(
             tx,
             true,
         );
+        if (chat.medium !== "web") throw new InboxError("이메일 상담의 AI 초안은 아직 지원하지 않습니다.", 409);
         if (!enabled || chat.status !== "open" || chat.historyOnly)
             throw new InboxError(
                 "진행 중인 상담에서 초안을 생성해주세요.",

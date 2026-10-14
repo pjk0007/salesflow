@@ -1,3 +1,7 @@
+import {
+    queueEmailReply,
+    emailMessageDetails,
+} from "@/lib/inbox-email/outgoing";
 import { onSupportMessage, consumeSupportDraft } from "@/lib/customer-ai/queue";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { createHash, randomBytes } from "node:crypto";
@@ -15,6 +19,8 @@ import {
     partitions,
     crmContacts,
     inboxAttachments,
+    inboxMailboxes,
+    inboxEmailThreads,
     customerAiJobs,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
@@ -45,6 +51,7 @@ type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
 const conversationColumns = {
+    medium: inboxConversations.medium,
     historyOnly: inboxConversations.historyOnly,
     importMetadata: inboxConversations.importMetadata,
     version: inboxConversations.version,
@@ -362,8 +369,24 @@ async function readMessages(
         exec,
         messages.map((m) => m.id),
     );
+    const emailDetails = publicOnly
+        ? { incoming: [], outgoing: [] }
+        : await emailMessageDetails(
+              exec,
+              messages.map((m) => m.id),
+          );
     return {
         messages: messages.reverse().map((m) => ({
+            ...(!publicOnly
+                ? {
+                      email: emailDetails.incoming.find(
+                          (e) => e.messageId === m.id,
+                      )?.envelope,
+                      delivery: emailDetails.outgoing.find(
+                          (e) => e.messageId === m.id,
+                      ),
+                  }
+                : {}),
             ...m,
             attachments: attachments
                 .filter((f) => f.messageId === m.id)
@@ -395,8 +418,27 @@ export async function conversationDetail(
         alias?.mergedIntoId ?? id,
         exec,
     );
+    const [emailContext] =
+        conversation.medium === "email"
+            ? await exec
+                  .select({
+                      subject: inboxEmailThreads.subject,
+                      recipient: inboxEmailThreads.correspondent,
+                      from: inboxMailboxes.address,
+                      enabled: inboxMailboxes.enabled,
+                  })
+                  .from(inboxEmailThreads)
+                  .innerJoin(
+                      inboxMailboxes,
+                      eq(inboxMailboxes.id, inboxEmailThreads.mailboxId),
+                  )
+                  .where(eq(inboxEmailThreads.conversationId, conversation.id))
+            : [];
     return {
-        conversation,
+        conversation: {
+            ...conversation,
+            ...(emailContext ? { emailContext } : {}),
+        },
         ...(await readMessages(
             conversation.id,
             exec,
@@ -558,7 +600,7 @@ export async function markRead(
             },
         });
 }
-async function appendMessage(
+export async function appendMessage(
     exec: DbExec,
     id: string,
     message: {
@@ -569,10 +611,28 @@ async function appendMessage(
         authorName: string;
         attachmentIds: string[];
         aiDraftId?: string;
+        createdAt?: Date;
     },
     scope: FileScope,
 ) {
     return exec.transaction(async (tx) => {
+        // Match email intake/settings lock order: mailbox before conversation.
+        // Hold through enqueue so a concurrent disable cancels the committed queue entry.
+        const [emailHint] = await tx
+            .select({ mailboxId: inboxEmailThreads.mailboxId })
+            .from(inboxEmailThreads)
+            .where(eq(inboxEmailThreads.conversationId, id));
+        if (emailHint)
+            await tx
+                .select({ id: inboxMailboxes.id })
+                .from(inboxMailboxes)
+                .where(
+                    and(
+                        eq(inboxMailboxes.id, emailHint.mailboxId),
+                        eq(inboxMailboxes.orgId, scope.orgId),
+                    ),
+                )
+                .for("share");
         const [locked] = await tx
             .select()
             .from(inboxConversations)
@@ -580,6 +640,8 @@ async function appendMessage(
             .for("update");
         if (
             !locked ||
+            locked.orgId !== scope.orgId ||
+            locked.channelId !== scope.channelId ||
             locked.mergedIntoId ||
             locked.historyOnly ||
             (scope.publicOnly &&
@@ -623,7 +685,7 @@ async function appendMessage(
         }
         if (message.kind === "reply" && locked.status === "closed")
             throw new InboxError("상담을 다시 연 뒤 답변해주세요.");
-        if (message.kind === "customer") {
+        if (message.kind === "customer" && locked.medium === "web") {
             const recent = await tx
                 .select({ id: inboxMessages.id })
                 .from(inboxMessages)
@@ -644,6 +706,15 @@ async function appendMessage(
                     429,
                 );
         }
+        if (
+            locked.medium === "email" &&
+            message.kind === "reply" &&
+            !message.authorId
+        )
+            throw new InboxError(
+                "이메일은 상담원이 검토한 답장만 발송합니다.",
+                409,
+            );
         if (message.aiDraftId)
             await consumeSupportDraft(
                 tx,
@@ -651,6 +722,11 @@ async function appendMessage(
                 id,
                 message.body,
                 message.authorId,
+            );
+        if (locked.medium === "email" && scope.publicOnly)
+            throw new InboxError(
+                "이메일 상담은 사이트 상담창에서 조회할 수 없습니다.",
+                403,
             );
         const { attachmentIds, ...value } = message;
         const [inserted] = await tx
@@ -669,6 +745,8 @@ async function appendMessage(
             attachmentIds,
             inserted.id,
         );
+        if (locked.medium === "email" && message.kind === "reply")
+            await queueEmailReply(tx, id, inserted.id, attachments.length);
         const summary =
             message.body ||
             `파일 ${attachments.length}개 · ${attachments[0]?.fileName ?? ""}`;
@@ -710,7 +788,10 @@ async function appendMessage(
                     entityId: id,
                     eventKey: `message:${inserted.id}`,
                     action: message.kind,
-                    summary,
+                    summary:
+                        locked.medium === "email" && message.kind === "reply"
+                            ? `메일 답장 발송 대기 · ${summary}`
+                            : summary,
                     actorName: message.authorName,
                     metadata: {
                         conversationId: id,
@@ -737,7 +818,7 @@ async function appendMessage(
                 .update(inboxConversations)
                 .set({
                     preview: summary.slice(0, 200),
-                    lastMessageAt: inserted.createdAt,
+                    lastMessageAt: sql`greatest(${inboxConversations.lastMessageAt},${inserted.createdAt})`,
                     ...(message.kind === "customer"
                         ? {
                               status: "open",
@@ -748,7 +829,8 @@ async function appendMessage(
                 })
                 .where(eq(inboxConversations.id, id));
         }
-        await onSupportMessage(tx, id, inserted, attachments.length);
+        if (locked.medium === "web")
+            await onSupportMessage(tx, id, inserted, attachments.length);
         return { ...inserted, attachments };
     });
 }
@@ -902,6 +984,7 @@ async function startVisitorSessionInTx(
                     isNull(inboxConversations.mergedIntoId),
                     isNull(inboxConversations.identifiedAt),
                     eq(inboxConversations.historyOnly, false),
+                    eq(inboxConversations.medium, "web"),
                 ),
             );
         if (!chat)
@@ -990,6 +1073,7 @@ async function visitorConversation(
                     eq(inboxConversations.channelId, channel.id),
                     eq(inboxConversations.contactId, contact.id),
                     eq(inboxConversations.historyOnly, false),
+                    eq(inboxConversations.medium, "web"),
                 ),
             );
         if (!chat && create) {
@@ -1009,7 +1093,7 @@ async function visitorConversation(
                         inboxConversations.channelId,
                         inboxConversations.contactId,
                     ],
-                    where: sql`${inboxConversations.historyOnly}=false`,
+                    where: sql`${inboxConversations.historyOnly}=false AND ${inboxConversations.medium}='web'`,
                 })
                 .returning({ id: inboxConversations.id });
             if (created)
@@ -1038,6 +1122,7 @@ async function visitorConversation(
                         eq(inboxConversations.channelId, channel.id),
                         eq(inboxConversations.contactId, contact.id),
                         eq(inboxConversations.historyOnly, false),
+                        eq(inboxConversations.medium, "web"),
                     ),
                 );
         }
@@ -1075,6 +1160,7 @@ async function visitorConversation(
                 isNull(inboxConversations.mergedIntoId),
                 isNull(inboxConversations.identifiedAt),
                 eq(inboxConversations.historyOnly, false),
+                eq(inboxConversations.medium, "web"),
             ),
         );
     if (!chat) throw new InboxError("상담 세션을 확인해주세요.", 401);

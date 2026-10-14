@@ -77,7 +77,7 @@ export async function linkVisitorIdentity(
             );
         if (!hint)
             throw new InboxError("연결할 비회원 상담을 확인해주세요.", 401);
-        if (hint.historyOnly)
+        if (hint.historyOnly || hint.medium !== "web")
             throw new InboxError(
                 "과거 상담 기록은 회원 로그인으로 연결할 수 없습니다.",
                 409,
@@ -102,7 +102,8 @@ export async function linkVisitorIdentity(
             hint.contactId ||
             hint.mergedIntoId ||
             hint.identifiedAt ||
-            hint.historyOnly
+            hint.historyOnly ||
+            hint.medium !== "web"
         )
             throw new InboxError(
                 "이미 회원에게 연결된 상담은 다른 계정에 연결할 수 없습니다.",
@@ -116,6 +117,7 @@ export async function linkVisitorIdentity(
                     eq(chats.channelId, channel.id),
                     eq(chats.contactId, member.id),
                     eq(chats.historyOnly, false),
+                    eq(chats.medium, "web"),
                 ),
             );
         const ids = [hint.id, ...(existing ? [existing.id] : [])].sort();

@@ -107,6 +107,12 @@ export function ActivityTimeline({
                                                           "고객 연결 해제",
                                                       customer: "고객 문의",
                                                       reply: "상담 답변",
+                                                      "email.sent":
+                                                          "메일 서비스 접수",
+                                                      "email.failed":
+                                                          "메일 발송 실패",
+                                                      "email.uncertain":
+                                                          "메일 발송 확인 필요",
                                                   } as Record<string, string>
                                               )[row.name] ?? row.name)}{" "}
                                         <span className="text-xs text-muted-foreground">

@@ -1,3 +1,4 @@
+import type { EmailDelivery } from "@/components/inbox-email/types";
 export type ConversationStatus = "open" | "snoozed" | "closed";
 export interface InboxChannel {
     id: number;
@@ -10,6 +11,13 @@ export interface InboxChannel {
     enabled: boolean;
 }
 export interface Conversation {
+    medium?: "web" | "email";
+    emailContext?: {
+        subject: string;
+        recipient: string;
+        from: string;
+        enabled: boolean;
+    };
     historyOnly?: boolean;
     importMetadata?: Record<string, unknown> | null;
     aiState: "auto" | "human";
@@ -32,6 +40,15 @@ export interface Conversation {
     unread: boolean;
 }
 export interface ChatMessage {
+    email?: {
+        from: string;
+        to: string[];
+        cc: string[];
+        subject: string;
+        receivedAt: string;
+        files: { name: string }[];
+    };
+    delivery?: EmailDelivery;
     importMetadata?: {
         sourceId?: string;
         files?: Record<string, unknown>[];

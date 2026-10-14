@@ -68,6 +68,7 @@ export const inboxConversations = pgTable(
         ),
         identifiedAt: time("identified_at"),
         historyOnly: boolean("history_only").notNull().default(false),
+        medium: varchar("medium", { length: 16 }).notNull().default("web"),
         importMetadata:
             jsonb("import_metadata").$type<Record<string, unknown>>(),
         name: varchar("name", { length: 100 }).notNull(),
@@ -94,7 +95,8 @@ export const inboxConversations = pgTable(
         uniqueIndex("inbox_session_unique").on(t.channelId, t.tokenHash),
         uniqueIndex("inbox_contact_unique")
             .on(t.channelId, t.contactId)
-            .where(sql`${t.historyOnly}=false`),
+            .where(sql`${t.historyOnly}=false AND ${t.medium}='web'`),
+        check("inbox_medium_valid", sql`${t.medium} in ('web','email')`),
         index("inbox_org_recent").on(t.orgId, t.lastMessageAt),
         index("inbox_record").on(t.recordId),
         check(

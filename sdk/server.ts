@@ -1,3 +1,15 @@
+import type {
+    SendbInboundEmail,
+    SendbEmailMailbox,
+    SendbEmailClaim,
+    SendbEmailDeliveryAction,
+} from "./email-types";
+export type {
+    SendbInboundEmail,
+    SendbEmailMailbox,
+    SendbEmailClaim,
+    SendbEmailDeliveryAction,
+} from "./email-types";
 /** 샌드비 서비스 서버용 클라이언트. API 토큰은 사이트 서버에만 둡니다. */
 export { verifySendbWebhook } from "./webhooks";
 export interface SendbCompanyInput {
@@ -134,6 +146,7 @@ export interface SendbTask extends SendbTaskInput {
     updatedAt: string;
 }
 export interface SendbConversation {
+    medium: "web" | "email";
     aiState: "auto" | "human";
     aiHandoffReason: string | null;
     version: number;
@@ -171,6 +184,55 @@ export class SendbApiError extends Error {
     }
 }
 export class SendbClient {
+    emailMailboxes(workspaceId: number) {
+        return this.request<SendbEmailMailbox[]>(
+            `/api/v1/email/mailboxes?workspaceId=${workspaceId}`,
+        );
+    }
+    createEmailMailbox(input: {
+        workspaceId: number;
+        address: string;
+        name: string;
+    }) {
+        return this.request<SendbEmailMailbox>(
+            "/api/v1/email/mailboxes",
+            "POST",
+            input,
+        );
+    }
+    changeEmailMailbox(id: string, version: number, enabled: boolean) {
+        return this.request<SendbEmailMailbox>(
+            `/api/v1/email/mailboxes/${encodeURIComponent(id)}`,
+            "POST",
+            { version, enabled },
+        );
+    }
+    receiveEmail(id: string, input: SendbInboundEmail) {
+        return this.request<{
+            receiptId: string;
+            messageId: number | null;
+            conversationId?: string;
+            ignoredReason: string | null;
+            duplicate: boolean;
+        }>(
+            `/api/v1/email/mailboxes/${encodeURIComponent(id)}/receive`,
+            "POST",
+            input,
+        );
+    }
+    claimEmail(id: string) {
+        return this.request<SendbEmailClaim | null>(
+            `/api/v1/email/mailboxes/${encodeURIComponent(id)}/claim`,
+            "POST",
+        );
+    }
+    changeEmailDelivery(id: string, input: SendbEmailDeliveryAction) {
+        return this.request(
+            `/api/v1/email/deliveries/${encodeURIComponent(id)}`,
+            "POST",
+            input,
+        );
+    }
     imports(workspaceId: number, before?: string) {
         return this.request<{
             rows: Pick<

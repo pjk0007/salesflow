@@ -71,12 +71,19 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows|customer-imports)\//.test(
+            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/email-mailboxes$/, () => "email-mailboxes"],
+        [/^\/api\/email-mailboxes\/([a-f0-9-]+)$/, () => "email-mailboxes/[id]"],
+        [/^\/api\/email-deliveries\/([a-f0-9-]+)$/, () => "email-deliveries/[id]"],
+        [/^\/api\/v1\/email\/mailboxes$/, () => "v1/email/mailboxes"],
+        [/^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)$/, () => "v1/email/mailboxes/[id]"],
+        [/^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)\/(receive|claim)$/, m => `v1/email/mailboxes/[id]/${m[2]}`],
+        [/^\/api\/v1\/email\/deliveries\/([a-f0-9-]+)$/, () => "v1/email/deliveries/[id]"],
         [/^\/api\/v1\/imports$/, () => "v1/imports"],
         [/^\/api\/v1\/imports\/([a-f0-9-]+)$/, () => "v1/imports/[id]"],
         [/^\/api\/v1\/workflows$/, () => "v1/workflows"],
@@ -164,6 +171,7 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "email-mailboxes", "email-mailboxes/[id]", "email-deliveries/[id]", "v1/email/mailboxes", "v1/email/mailboxes/[id]", "v1/email/mailboxes/[id]/receive", "v1/email/mailboxes/[id]/claim", "v1/email/deliveries/[id]",
         "v1/imports", "v1/imports/[id]", "customer-imports", "customer-imports/[id]",
         "v1/workflows",
         "v1/workflows/events",
