@@ -1,7 +1,8 @@
 "use client";
+import { ConversationServiceStatus } from "@/components/inbox-operations/ui/ConversationServiceStatus";
 import { IncomingEmailFiles } from "@/components/inbox-email/ui/IncomingEmailFiles";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
@@ -314,15 +315,6 @@ export function ConversationPane({
                     role="log"
                     aria-label="상담 메시지"
                 >
-                    <div className="text-center text-xs text-muted-foreground">
-                        {new Date(chat.lastMessageAt).toLocaleDateString(
-                            "ko-KR",
-                            {
-                                month: "long",
-                                day: "numeric",
-                            },
-                        )}
-                    </div>
                     {canLoad && (
                         <button
                             disabled={loading}
@@ -354,90 +346,112 @@ export function ConversationPane({
                             고객이 문의를 작성하고 있습니다.
                         </p>
                     )}
-                    {allMessages.map((m) => (
-                        <div
-                            key={m.id}
-                            className={`flex ${m.kind === "customer" ? "justify-start" : "justify-end"}`}
-                        >
-                            <div className="max-w-[85%] space-y-1.5">
-                                <div
-                                    className={`flex items-center gap-1.5 text-[11px] text-muted-foreground ${m.kind !== "customer" ? "justify-end" : ""}`}
-                                >
-                                    {m.kind === "note" && (
-                                        <LockKeyhole size={11} />
+                    {allMessages.map((m, index) => (
+                        <Fragment key={m.id}>
+                            {(!index ||
+                                new Date(
+                                    allMessages[index - 1].createdAt,
+                                ).toDateString() !==
+                                    new Date(m.createdAt).toDateString()) && (
+                                <div className="pb-2 text-center text-xs text-muted-foreground">
+                                    {new Date(m.createdAt).toLocaleDateString(
+                                        "ko-KR",
+                                        {
+                                            year: "numeric",
+                                            month: "long",
+                                            day: "numeric",
+                                        },
                                     )}
-                                    {m.authorName}
-                                    {m.kind === "note" ? " · 내부 메모" : ""}
-                                    <time>
-                                        {new Date(
-                                            m.createdAt,
-                                        ).toLocaleTimeString("ko-KR", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
-                                    </time>
                                 </div>
-                                {chat.historyOnly && (
-                                    <p className="text-[10px] text-muted-foreground">
-                                        {new Date(m.createdAt).toLocaleString(
-                                            "ko-KR",
-                                        )}{" "}
-                                        · 원본{" "}
-                                        {m.importMetadata?.sourceId ?? ""}
-                                    </p>
-                                )}
-                                {m.email && (
-                                    <p className="text-[11px] text-muted-foreground">
-                                        {m.email.subject} ·{" "}
-                                        {new Date(
-                                            m.email.receivedAt,
-                                        ).toLocaleString("ko-KR")}
-                                        {m.email.cc.length
-                                            ? ` · 참조 ${m.email.cc.join(", ")}`
-                                            : ""}
-                                    </p>
-                                )}
-                                {m.body && (
-                                    <p
-                                        className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
+                            )}
+                            <div
+                                className={`flex ${m.kind === "customer" ? "justify-start" : "justify-end"}`}
+                            >
+                                <div className="max-w-[85%] space-y-1.5">
+                                    <div
+                                        className={`flex items-center gap-1.5 text-[11px] text-muted-foreground ${m.kind !== "customer" ? "justify-end" : ""}`}
                                     >
-                                        {m.body}
-                                    </p>
-                                )}
-                                {m.delivery && (
-                                    <EmailDeliveryStatus
-                                        item={m.delivery}
-                                        refresh={refresh}
+                                        {m.kind === "note" && (
+                                            <LockKeyhole size={11} />
+                                        )}
+                                        {m.authorName}
+                                        {m.kind === "note"
+                                            ? " · 내부 메모"
+                                            : ""}
+                                        <time>
+                                            {new Date(
+                                                m.createdAt,
+                                            ).toLocaleTimeString("ko-KR", {
+                                                hour: "2-digit",
+                                                minute: "2-digit",
+                                            })}
+                                        </time>
+                                    </div>
+                                    {chat.historyOnly && (
+                                        <p className="text-[10px] text-muted-foreground">
+                                            {new Date(
+                                                m.createdAt,
+                                            ).toLocaleString("ko-KR")}{" "}
+                                            · 원본{" "}
+                                            {m.importMetadata?.sourceId ?? ""}
+                                        </p>
+                                    )}
+                                    {m.email && (
+                                        <p className="text-[11px] text-muted-foreground">
+                                            {m.email.subject} ·{" "}
+                                            {new Date(
+                                                m.email.receivedAt,
+                                            ).toLocaleString("ko-KR")}
+                                            {m.email.cc.length
+                                                ? ` · 참조 ${m.email.cc.join(", ")}`
+                                                : ""}
+                                        </p>
+                                    )}
+                                    {m.body && (
+                                        <p
+                                            className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
+                                        >
+                                            {m.body}
+                                        </p>
+                                    )}
+                                    {m.delivery && (
+                                        <EmailDeliveryStatus
+                                            item={m.delivery}
+                                            refresh={refresh}
+                                        />
+                                    )}
+                                    {!!m.email?.files.length && (
+                                        <IncomingEmailFiles
+                                            files={m.email.files}
+                                            refresh={refresh}
+                                        />
+                                    )}
+                                    <AttachmentList
+                                        files={m.attachments}
+                                        url={(id) =>
+                                            `/api/inbox/attachments/${id}`
+                                        }
                                     />
-                                )}
-                                {!!m.email?.files.length && (
-                                    <IncomingEmailFiles
-                                        files={m.email.files}
-                                        refresh={refresh}
-                                    />
-                                )}
-                                <AttachmentList
-                                    files={m.attachments}
-                                    url={(id) => `/api/inbox/attachments/${id}`}
-                                />
-                                {!!m.importMetadata?.files?.length && (
-                                    <p className="mt-2 text-xs text-muted-foreground">
-                                        원본 첨부 ·{" "}
-                                        {m.importMetadata.files
-                                            .map((f) =>
-                                                String(
-                                                    f.name ||
-                                                        f.fileName ||
-                                                        f.id ||
-                                                        "파일",
-                                                ),
-                                            )
-                                            .join(", ")}{" "}
-                                        · 파일 원본은 아직 가져오지 않았습니다.
-                                    </p>
-                                )}
+                                    {!!m.importMetadata?.files?.length && (
+                                        <p className="mt-2 text-xs text-muted-foreground">
+                                            원본 첨부 ·{" "}
+                                            {m.importMetadata.files
+                                                .map((f) =>
+                                                    String(
+                                                        f.name ||
+                                                            f.fileName ||
+                                                            f.id ||
+                                                            "파일",
+                                                    ),
+                                                )
+                                                .join(", ")}{" "}
+                                            · 파일 원본은 아직 가져오지
+                                            않았습니다.
+                                        </p>
+                                    )}
+                                </div>
                             </div>
-                        </div>
+                        </Fragment>
                     ))}
                     <div ref={end} />
                 </div>
@@ -658,6 +672,7 @@ function CustomerInfo({
     }
     return (
         <div className="space-y-6 p-5 text-sm">
+            <ConversationServiceStatus id={chat.id} />
             {chat.historyOnly ? (
                 <>
                     <CustomerCrmContext chat={chat} bootstrap={bootstrap} />

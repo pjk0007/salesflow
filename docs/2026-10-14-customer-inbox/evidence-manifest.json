@@ -1757,5 +1757,394 @@
         "sha256": "6024bfbca21383efee4e72c3d010640bbc2f0bc8de09d90c18f7fb60f0629c2e"
       }
     ]
+  },
+  "operationsQa": {
+    "capturedAt": "2026-10-14T17:51:46.880706+00:00",
+    "scope": "R13 basic support operations in dev; entire replacement goal remains active",
+    "checks": {
+      "operationsSqlApi": 23,
+      "calendarUnit": 8,
+      "totalUnit": 1075,
+      "inboxRegression": 22,
+      "googleRegression": 19,
+      "emailRegression": 14,
+      "emailFilesRegression": 11,
+      "identityRegression": 12,
+      "workflowRegression": 15,
+      "importsRegression": 15,
+      "aiRegression": 16,
+      "webhookRegression": 14,
+      "types": "passed (standalone and final build)",
+      "lint": "passed",
+      "build": "passed; isolated test env, DATABASE_URL 127.0.0.1:1"
+    },
+    "browser": {
+      "designerhire": "save first target 15→20, holiday and away message; existing v1 due remains 10:15; after-hours new inquiry v2 due09:20; original message date14 shown",
+      "backofficelab": "separate save first target15→30, own away message; alert opens correct business; report day14 shows2 cases,10m first response and20m resolution",
+      "notification": "business name, personal unread/read, click-through and customer-seq implicit read observed",
+      "filters": "date keyboard input changes rendered state and report3→2; email filter gives0 samples and dash medians; date fill lacked trusted onChange so keyboard used",
+      "serverFlags": "off; isolated DI worker simulates overdue scan",
+      "globalHeader": "global alert link integrated and compiled; browser evidence covers inbox/dedicated local demo",
+      "mobile": "no viewport override or mobile-device validation this turn"
+    },
+    "safety": {
+      "realCustomerMessages": 0,
+      "realGoogleOrChatMessages": 0,
+      "productionDbAccess": false,
+      "deployedOrEnabled": false,
+      "data": "PGlite and fictitious people, sites, emails and provider transport only"
+    },
+    "remaining": [
+      "actual team and site installation/load/worker monitoring",
+      "team routing/subscriptions/mentions/OS or external notifications",
+      "multiple SLA policies/priority segmentation",
+      "historic metrics reconstruction/advanced reports/full export",
+      "broader permissions/retention/deletion/cutover audit in REPLACEMENT.md"
+    ],
+    "sources": [
+      {
+        "url": "https://github.com/chatwoot/chatwoot/blob/develop/app/models/notification.rb",
+        "kind": "official source/documentation; domain reference, independently implemented in Sendb"
+      },
+      {
+        "url": "https://www.intercom.com/help/en/articles/6546152-set-slas-for-conversations-and-tickets",
+        "kind": "official source/documentation; domain reference, independently implemented in Sendb"
+      },
+      {
+        "url": "https://www.intercom.com/help/en/articles/7022438-reporting-metrics-attributes",
+        "kind": "official source/documentation; domain reference, independently implemented in Sendb"
+      }
+    ],
+    "implementationFiles": [
+      {
+        "path": "F:/Dev/salesflow/drizzle/0101_inbox_operations.sql",
+        "bytes": 3548,
+        "sha256": "d5e9de549110c107ca057260c8bde3dc594f9a11be4007b6d9d513a559bd7f46"
+      },
+      {
+        "path": "F:/Dev/salesflow/drizzle/meta/_journal.json",
+        "bytes": 15793,
+        "sha256": "bfac9795abbfd24b2922f1c8609077c0408bc0ecfd8387ab93c86f4d75228a75"
+      },
+      {
+        "path": "F:/Dev/salesflow/scripts/check-customer-platform.cjs",
+        "bytes": 27975,
+        "sha256": "bfb41ad5d6017bec50fa1cbd14f8f0bed5b34f81d8456dd47b5d78a83879e533"
+      },
+      {
+        "path": "F:/Dev/salesflow/scripts/check-inbox-operations.cjs",
+        "bytes": 65981,
+        "sha256": "1daf33607eff467a77049b1f58887c2c6606037fad7b86f0a60f0ad54c826999"
+      },
+      {
+        "path": "F:/Dev/salesflow/scripts/check-inbox.cjs",
+        "bytes": 29854,
+        "sha256": "3389c55cdfb41611f746582adba776527db4f132e8962d965441361cd6d1b390"
+      },
+      {
+        "path": "F:/Dev/salesflow/sdk/server.ts",
+        "bytes": 32890,
+        "sha256": "f328437917424084d1216ebdada1bb09d1ccc7a650102273ad222b9b8a0336a7"
+      },
+      {
+        "path": "F:/Dev/salesflow/sdk/support-types.ts",
+        "bytes": 3364,
+        "sha256": "6121a6f65552bc824d60c0d1719b1c3a71590611c5680966d2555137a6abbe6d"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/chat/[key]/route.ts",
+        "bytes": 1534,
+        "sha256": "5b6da590070b3611e401695a2a160f0644b1365a3927683582f1767fd7491387"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/inbox-notifications/route.ts",
+        "bytes": 143,
+        "sha256": "7a849f97ba507e5d0329bf157ed96c5d473c802f21e1d663c4c6ef3ddec345fc"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/inbox-operations/channels/[id]/route.ts",
+        "bytes": 135,
+        "sha256": "684e87b8ac81a13b7392ba4f1423d76de28a903c6a9dee0b2d5b86c897de964b"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/inbox-operations/conversations/[id]/route.ts",
+        "bytes": 126,
+        "sha256": "441db384e792f83594958fd8fdf16ebe7ed0ae5b53c5abe1676cbf5513ad3d75"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/inbox-operations/reports/route.ts",
+        "bytes": 114,
+        "sha256": "2916f6ce82c4192de9570965c4620aae2c6dec641a0f3594665063892c2419a2"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/messenger/[key]/route.ts",
+        "bytes": 2761,
+        "sha256": "3e466997b8161aa4d325826fc36c44bc6eeabf479bcad3e98e1e4868d90bdd98"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/v1/support/channels/[id]/settings/route.ts",
+        "bytes": 134,
+        "sha256": "8a8320cbb7e225893f5d491fbabb0e768a906ff3b9eaf445edd3b5293cb5951b"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/v1/support/conversations/[id]/route.ts",
+        "bytes": 125,
+        "sha256": "3f96cd6d3ac8fcab5256c506d169782a30f70a665b1b7c4d6ff838af049adbe3"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/v1/support/notifications/route.ts",
+        "bytes": 142,
+        "sha256": "0cdb99dca796ff29385f5069ecba3aea899f6b447e643a70e13252d54c05e82e"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/v1/support/reports/route.ts",
+        "bytes": 113,
+        "sha256": "90348844aec7c42ecf045c66289fc44b66fa5dbf20339f61ed032c9e6d18c180"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/dashboard/header.tsx",
+        "bytes": 8510,
+        "sha256": "a5eed006554aaf8e8a68e650057544cb730cbe62e637d1a474ec948d79a61df3"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/api/index.ts",
+        "bytes": 534,
+        "sha256": "2d53dbcd01afa3cf08c55ce1aa11fd242b58b78f783d571f2f0f2e8e1ad1c5f0"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/hooks/useOperations.ts",
+        "bytes": 1765,
+        "sha256": "fb7803cce21ae577007ac898d8d53143bffd135cacb621cc4fd8f07962256b04"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/types/index.ts",
+        "bytes": 498,
+        "sha256": "882396fbc61516e56b73bd038a149b333e63d8cbd639e3a1cb65e6aabdb681e0"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/ui/ConversationServiceStatus.tsx",
+        "bytes": 3956,
+        "sha256": "42a817db492ea6ba72d6de73fd755e485bbe92c212b2be8f05be3255f7a2d9ea"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/ui/OperationsPanel.tsx",
+        "bytes": 17858,
+        "sha256": "448c3283253b3a4340a3b341f39ccf2fed36fc4a416fcfa0a876b3ad21c6beed"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/ui/OperationsSettingsEditor.tsx",
+        "bytes": 18325,
+        "sha256": "fab3a751fc4092cdd2f2198750d8e664d617d8892294ccf93e7079eab92df035"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/ui/SupportNotifications.tsx",
+        "bytes": 8449,
+        "sha256": "99d23d1e7cd03c6eea8fd79a0cad92b0b7f5b8f64ef9ae9d647b0773bff1b01c"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-operations/utils/display.ts",
+        "bytes": 1131,
+        "sha256": "5d7a767a934bc79269a7a8e6cde1da6493f3f1c5adb673787e391e71dbb3fec2"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox/ui/ChatWidget.tsx",
+        "bytes": 25817,
+        "sha256": "e6cf59c6d151938f465ec468f9b2f98f2ac82c3c29b7c771aecbf0ebce4b1093"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox/ui/ConversationPane.tsx",
+        "bytes": 42120,
+        "sha256": "8f8a2b06c619e74ab130ebc1fb9bf41417c550e1599472d6fd72220e913a824d"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox/ui/InboxPage.tsx",
+        "bytes": 26073,
+        "sha256": "924c2a8f9426c5d4168e1345fb85629fd9297f6704ff6c06269483bde7e30499"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/instrumentation.ts",
+        "bytes": 2687,
+        "sha256": "8e1451378f9838ca82f4a318998d00721b15dc5f339c6fbb577536514f916197"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/customer-platform/outbox.ts",
+        "bytes": 3211,
+        "sha256": "8182c7825ddea1a969790e9638de39532d363ed0603d4b797ba7075ff68180f7"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/db/inbox-operations-schema.ts",
+        "bytes": 5728,
+        "sha256": "eb6bc33f9e575186d6294c814ed49b1752ea87ceb22f0792164692bda794ece0"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/db/schema.ts",
+        "bytes": 111830,
+        "sha256": "cc2fb4d13858d2da467481ec77a79b473e068fc6ddde08c3c86035cbfd283c7b"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/calendar.test.ts",
+        "bytes": 4709,
+        "sha256": "6cb882c8340138836fb827ade784af80a32fae002a54c37eb8f44108606cd794"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/calendar.ts",
+        "bytes": 8400,
+        "sha256": "3a5c43cc496a7623ab2b65f3d0f64d9aa033e086166ac89694fe57550c6d7e3d"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/enqueue.ts",
+        "bytes": 24590,
+        "sha256": "436d769cc717efec497550ebd3ecb54afb36a641464ede543bf30cfa2957e683"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/reports.ts",
+        "bytes": 9099,
+        "sha256": "1f0aa454aff6177cac4b740c71b51d3907afeafa168e48223f135b940bbedf22"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/repository.ts",
+        "bytes": 13252,
+        "sha256": "26750a089150e5d1b64f30866f4d2bbf93e4ab2bc9f06a338b47246ee683b43b"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/routes.ts",
+        "bytes": 4713,
+        "sha256": "da6526a13e8fd1b7a4eab4b9bdb31b2ebe6ddf2d10e93bcaac9faa8df4a0af6a"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/rules.ts",
+        "bytes": 2460,
+        "sha256": "70a416418e5cbe2422085e7c5dd63a1311fc9f9a47005a991b040966a6b24779"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-operations/worker.ts",
+        "bytes": 5672,
+        "sha256": "fd59ba7d0e7890f5882013184efb4132c6bd56b77888d2ad05915248c09abc1d"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox/repository.ts",
+        "bytes": 46100,
+        "sha256": "82102f959ece472d3ad4cb82bae627f425857a84db5a34f1d1466cfa9f2282ba"
+      }
+    ],
+    "proofs": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-report-designerhire-qa.png",
+        "bytes": 124620,
+        "sha256": "27a4ee09954f8cc9ee38f82cc394c2a522f462696093f1e07623760e5015b6e5"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-settings-designerhire-qa.png",
+        "bytes": 109747,
+        "sha256": "3e170b6d5dc500b9d2275cf9ff7a0fe27675ad64da5a6ee501f4259a39bef7c2"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-notifications-qa.png",
+        "bytes": 123230,
+        "sha256": "c3711bcce84d94dec5afa548aa16e3da9f05f959efba4fd10e14b870d64682e0"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-conversation-sla-qa.png",
+        "bytes": 107045,
+        "sha256": "a7dc5e05421d6d6b942e44b28cada0d991ab680958a413ca1e0a035e2e2fa696"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-new-policy-qa.png",
+        "bytes": 109130,
+        "sha256": "e019556d7b3ad989720b12e394423ffbb2ae005f2345293fa406063047b469e6"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-site-hours-qa.png",
+        "bytes": 96576,
+        "sha256": "07a48d5c13474c3bcbfeb2e1151a09fb4d1f969998d8d8cf2ad94027c45eb96b"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-report-backofficelab-qa.png",
+        "bytes": 94203,
+        "sha256": "8733e87e090618c5dc98ee20fa62a6d6c7acf1fb8f20e6763c2a230b43368e7f"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-settings-backofficelab-qa.png",
+        "bytes": 105875,
+        "sha256": "7bf5717c5ab33ea496db1fb820be3c5c6f185691d3ed80900b1bcc70919d26ce"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-empty-filter-qa.png",
+        "bytes": 75932,
+        "sha256": "a272b16a752fc0d47aa6363bd510831fdf62a4acd7d27082b05885c99dc5879c"
+      }
+    ],
+    "logs": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-qa.log",
+        "bytes": 3273,
+        "sha256": "b3c83dae12d801cf59cf9531b38e14e78f7cd130bdacace08147a2c73fb7cb85"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-calendar.log",
+        "bytes": 850,
+        "sha256": "d28f9db8bae80066a42c2cb19bad04b59592f2c1b53b6ba42328b467e196524e"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-types.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-units.log",
+        "bytes": 102841,
+        "sha256": "021aede27af7cfb625f5efc35e57388bc3c58be76116e6d0ed569c9861005909"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-build.log",
+        "bytes": 13014,
+        "sha256": "c52c80f33f62889d76d5fbb70c1484b2510eb773636b8307b95531890fb4f9cb"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-inbox.log",
+        "bytes": 1590,
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-google.log",
+        "bytes": 2824,
+        "sha256": "192a2412f788b22248f3499561078aafde0d229d38e631719cc6d11295a81754"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-identity.log",
+        "bytes": 2313,
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-workflows.log",
+        "bytes": 2372,
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-email-files.log",
+        "bytes": 3341,
+        "sha256": "1a7a4eb3d470e877afe632275b633c0b0f402897d187715284d1c5f425bcae22"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-imports.log",
+        "bytes": 2570,
+        "sha256": "984a71372bd78537aeb2676c95f175c7d1471f0fb22bcb2f954fe1c305719d44"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-ai.log",
+        "bytes": 2433,
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/operations-regression-webhooks.log",
+        "bytes": 5793,
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986"
+      }
+    ]
   }
 }

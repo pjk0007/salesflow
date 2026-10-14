@@ -1,3 +1,4 @@
+import {publicBusinessHours} from "@/lib/inbox-operations/repository";
 import { NextRequest } from "next/server";
 import {
     publicChannel,
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest, ctx: Context) {
         return {
             name: channel.name,
             greeting: channel.greeting,
+            businessHours:await publicBusinessHours(channel.id),
             color: channel.color,
             allowedOrigins: channel.allowedOrigins,
         };

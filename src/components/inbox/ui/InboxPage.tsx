@@ -1,5 +1,8 @@
 "use client";
 import { useState } from "react";
+import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
+import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
+import type { OpenSupportConversation } from "@/components/inbox-operations/types";
 import {
     Archive,
     ArrowLeft,
@@ -36,6 +39,18 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
             params.get("filter") === "history" ? "history" : "all",
         ),
         [query, setQuery] = useState("");
+    const [operationsOpen, setOperationsOpen] = useState(false);
+    const openSupport: OpenSupportConversation = ({
+        conversationId,
+        channelId,
+        status,
+    }) => {
+        setChannel(channelId);
+        setSelected(conversationId);
+        setFilter("all");
+        setStatus(status);
+        setQuery("");
+    };
     const [settings, setSettings] = useState<"current" | "new" | null>(null);
     const initial = useInbox(null, null),
         bootstrap = initial.bootstrap.data;
@@ -63,7 +78,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     const error = initial.bootstrap.error || list.error || detail.error;
     return (
         <div className="flex h-full min-h-[600px] flex-col bg-background">
-            <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b px-5">
+            <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-2 border-b px-5 py-3">
                 <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#635BFF] text-white">
                         <MessageCircle size={19} />
@@ -75,6 +90,19 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         </p>
                     </div>
                 </div>
+                <SupportNotifications
+                    onSelect={openSupport}
+                    channels={bootstrap?.channels ?? []}
+                    initialOpen={params.get("notifications") === "open"}
+                />
+                {channel && (
+                    <button
+                        className="rounded-xl border px-3 py-2 text-xs"
+                        onClick={() => setOperationsOpen(true)}
+                    >
+                        운영·성과
+                    </button>
+                )}
                 {role !== "member" && channel && (
                     <button
                         className="ml-auto rounded-xl border px-3 py-2 text-xs"
@@ -448,6 +476,16 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         </div>
                     )}
                 </div>
+            )}
+            {operationsOpen && channel && (
+                <OperationsPanel
+                    key={channel.id}
+                    channelId={channel.id}
+                    name={channel.name}
+                    canManage={role !== "member"}
+                    onClose={() => setOperationsOpen(false)}
+                    onSelect={openSupport}
+                />
             )}
             {emailSettings && channel && (
                 <EmailMailboxSettings

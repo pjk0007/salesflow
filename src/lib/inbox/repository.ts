@@ -21,6 +21,7 @@ import {
     inboxAttachments,
     inboxMailboxes,
     inboxEmailThreads,
+    inboxEmailDeliveries,
     customerAiJobs,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
@@ -815,8 +816,27 @@ export async function appendMessage(
                     occurredAt: inserted.createdAt,
                 });
             }
-            const reopen =
-                message.kind === "customer" && locked.status !== "open";
+            let newCustomer = message.kind === "customer";
+            if (newCustomer && locked.medium === "email") {
+                const [delivered] = await tx
+                    .select({ sentAt: inboxEmailDeliveries.sentAt })
+                    .from(inboxEmailDeliveries)
+                    .innerJoin(
+                        inboxMessages,
+                        eq(inboxMessages.id, inboxEmailDeliveries.messageId),
+                    )
+                    .where(
+                        and(
+                            eq(inboxMessages.conversationId, id),
+                            eq(inboxEmailDeliveries.state, "sent"),
+                        ),
+                    )
+                    .orderBy(desc(inboxEmailDeliveries.sentAt))
+                    .limit(1);
+                if (delivered?.sentAt && inserted.createdAt <= delivered.sentAt)
+                    newCustomer = false;
+            }
+            const reopen = newCustomer && locked.status !== "open";
             if (reopen)
                 await appendInboxAudit(tx, {
                     orgId: locked.orgId,
@@ -831,11 +851,14 @@ export async function appendMessage(
             await tx
                 .update(inboxConversations)
                 .set({
-                    preview: summary.slice(0, 200),
+                    preview:
+                        inserted.createdAt >= locked.lastMessageAt
+                            ? summary.slice(0, 200)
+                            : locked.preview,
                     lastMessageAt: sql`greatest(${inboxConversations.lastMessageAt},${inserted.createdAt})`,
                     ...(message.kind === "customer"
                         ? {
-                              status: "open",
+                              status: newCustomer ? "open" : locked.status,
                               customerSeq: sql`${inboxConversations.customerSeq} + 1`,
                           }
                         : {}),

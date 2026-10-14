@@ -69,7 +69,16 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         greeting: string;
         color: string;
         allowedOrigins: string[];
-    }>(`/api/messenger/${channelKey}`, inboxRequest);
+        businessHours?: {
+            open: boolean;
+            nextOpenAt: string | null;
+            timezone: string;
+            awayMessage: string;
+        } | null;
+    }>(`/api/messenger/${channelKey}`, inboxRequest, {
+        refreshInterval: 60000,
+        refreshWhenHidden: false,
+    });
     const data = useSWR<{
         status: string;
         aiState: "auto" | "human";
@@ -311,6 +320,27 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">
                     {config.data?.greeting}
                 </p>
+                {config.data?.businessHours && (
+                    <p className="mt-3 text-xs text-white/90">
+                        {config.data.businessHours.open
+                            ? "지금은 상담 업무시간입니다."
+                            : config.data.businessHours.awayMessage}
+                        {!config.data.businessHours.open &&
+                            config.data.businessHours.nextOpenAt && (
+                                <>
+                                    {" "}
+                                    다음 업무 시작:{" "}
+                                    {new Date(
+                                        config.data.businessHours.nextOpenAt,
+                                    ).toLocaleString("ko-KR", {
+                                        timeZone:
+                                            config.data.businessHours.timezone,
+                                    })}{" "}
+                                    ({config.data.businessHours.timezone})
+                                </>
+                            )}
+                    </p>
+                )}
             </header>
             <div
                 ref={scroll}

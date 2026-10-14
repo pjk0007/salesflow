@@ -127,3 +127,5 @@ async function startMemberChat(channelKey) {
 이메일 수신·발송 대기열/결과·메일함 설정 API와 서버 SDK, Gmail 연결 예제는 [EMAIL.md](EMAIL.md)를 참고한다.
 
 Google OAuth 관리자 UI API·서버 자동 수신/history 체크포인트·기존 이메일 API 재사용은 [GOOGLE-CONNECTION.md](GOOGLE-CONNECTION.md)를 참고한다. 기존 외부 SDK 계약에 선택 deliveredTo 주소 배열을 추가했으며 To/Cc/Delivered-To 중 등록 주소를 확인한다.
+
+상담 개인 알림·업무시간/응대 목표 설정·사례별 상태·성과 보고의 private/native API와 서버 SDK, 공개 businessHours 계약은 [OPERATIONS.md](OPERATIONS.md)를 참고한다.

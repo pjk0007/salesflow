@@ -1,4 +1,12 @@
 import type {
+    SendbOperationsSettings,
+    SendbOperationsPolicy,
+    SendbOperationsReport,
+    SendbNotificationPage,
+    SendbConversationOperations,
+} from "./support-types";
+export type * from "./support-types";
+import type {
     SendbEmailFile,
     SendbInboundEmail,
     SendbEmailMailbox,
@@ -186,6 +194,56 @@ export class SendbApiError extends Error {
     }
 }
 export class SendbClient {
+    supportSettings(channelId: number) {
+        return this.request<SendbOperationsSettings>(
+            `/api/v1/support/channels/${channelId}/settings`,
+        );
+    }
+    saveSupportSettings(
+        channelId: number,
+        version: number,
+        policy: SendbOperationsPolicy,
+    ) {
+        return this.request<SendbOperationsSettings>(
+            `/api/v1/support/channels/${channelId}/settings`,
+            "POST",
+            { version, policy },
+        );
+    }
+    supportReport(
+        channelId: number,
+        options: {
+            from: string;
+            to: string;
+            medium?: "all" | "web" | "email";
+            before?: string;
+        },
+    ) {
+        return this.request<SendbOperationsReport>(
+            `/api/v1/support/reports?${new URLSearchParams({ channelId: String(channelId), ...options })}`,
+        );
+    }
+    supportConversation(id: string) {
+        return this.request<SendbConversationOperations>(
+            `/api/v1/support/conversations/${encodeURIComponent(id)}`,
+        );
+    }
+    supportNotifications(
+        channelId: number,
+        options: { before?: string; unread?: boolean } = {},
+    ) {
+        return this.request<SendbNotificationPage>(
+            `/api/v1/support/notifications?${new URLSearchParams({ channelId: String(channelId), ...(options.before ? { before: options.before } : {}), ...(options.unread ? { unread: "true" } : {}) })}`,
+        );
+    }
+    readSupportNotifications(channelId: number, ids: string[]) {
+        return this.request(
+            `/api/v1/support/notifications?channelId=${channelId}`,
+            "POST",
+            { action: "read", ids },
+        );
+    }
+
     pendingEmailFiles(id: string, before?: string) {
         return this.request<{ rows: SendbEmailFile[]; hasMore: boolean }>(
             `/api/v1/email/mailboxes/${encodeURIComponent(id)}/files${before ? `?before=${encodeURIComponent(before)}` : ""}`,

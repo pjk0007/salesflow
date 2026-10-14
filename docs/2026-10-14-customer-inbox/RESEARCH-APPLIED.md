@@ -47,3 +47,5 @@ Opencom/erxes/Twenty 등은 라이선스 조건이 서로 다르므로 설계와
 이메일 첨부 후속 반영: 파일 이름만 남기던 R08을 실제 수신 파일/비공개 다운로드·재요청·답장 첨부/해시 검증까지 확장했다. 원본 수신 번호와 공통 고객 활동을 재사용하고 내부 메모 파일은 발송하지 않는다. [EMAIL-FILES.md](EMAIL-FILES.md)에 SQL/API 11개와 두 사업 UI QA·남은 실제 계정 검수를 기록했다.
 
 - R08 자동 연결 확장: 상담+CRM 공유 흐름에 Gmail OAuth 계정 연결·수신 범위/영속 원본 대기열·history 체크포인트·첨부/답장 자동 처리와 실패 복구 UX를 추가했다. SQL/API 19개와 두 사업의 가상 Chrome 검수다. 실제 계정/공급자 배달·다른 채널 전환은 미확인이다. [GOOGLE-CONNECTION.md](GOOGLE-CONNECTION.md) 참고.
+
+- R13 기본 구현: Chatwoot 개인 알림/Intercom 응대 목표와 공개 지표 정의를 참고해 기존 이벤트와 상담/CRM에 개인 알림·업무시간·고정 SLA·보류·성과를 연결했다. SQL/API23·달력8과 두 사업 가상 UI QA이며, 계정 업무/부하·외부 알림·다중 정책·과거 지표 복원은 후속이다. [OPERATIONS.md](OPERATIONS.md) 참고.

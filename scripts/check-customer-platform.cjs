@@ -71,12 +71,21 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email)\//.test(
+            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/inbox-notifications$/,()=>"inbox-notifications"],
+        [/^\/api\/inbox-operations\/channels\/(\d+)$/,()=>"inbox-operations/channels/[id]"],
+        [/^\/api\/inbox-operations\/reports$/,()=>"inbox-operations/reports"],
+        [/^\/api\/inbox-operations\/conversations\/([a-f0-9-]+)$/,()=>"inbox-operations/conversations/[id]"],
+        [/^\/api\/v1\/support\/notifications$/,()=>"v1/support/notifications"],
+        [/^\/api\/v1\/support\/channels\/(\d+)\/settings$/,()=>"v1/support/channels/[id]/settings"],
+        [/^\/api\/v1\/support\/reports$/,()=>"v1/support/reports"],
+        [/^\/api\/v1\/support\/conversations\/([a-f0-9-]+)$/,()=>"v1/support/conversations/[id]"],
+
         [/^\/api\/email-mailboxes\/([a-f0-9-]+)\/google$/, () => "email-mailboxes/[id]/google"],
         [/^\/api\/email-google\/callback$/, () => "email-google/callback"],
         [/^\/api\/email-files\/([a-f0-9-]+)$/, () => "email-files/[id]"],
@@ -178,6 +187,15 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "inbox-notifications",
+        "inbox-operations/channels/[id]",
+        "inbox-operations/reports",
+        "inbox-operations/conversations/[id]",
+        "v1/support/notifications",
+        "v1/support/channels/[id]/settings",
+        "v1/support/reports",
+        "v1/support/conversations/[id]",
+
         "email-mailboxes/[id]/google", "email-google/callback",
         "email-files/[id]", "v1/email/receipts/[id]/files", "v1/email/files/[id]", "v1/email/mailboxes/[id]/files", "v1/email/deliveries/[id]/files/[fileId]",
         "email-mailboxes", "email-mailboxes/[id]", "email-deliveries/[id]", "v1/email/mailboxes", "v1/email/mailboxes/[id]", "v1/email/mailboxes/[id]/receive", "v1/email/mailboxes/[id]/claim", "v1/email/deliveries/[id]",

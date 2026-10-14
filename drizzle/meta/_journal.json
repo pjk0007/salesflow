@@ -708,6 +708,13 @@
       "when": 1776300000000,
       "tag": "0100_inbox_google_connection",
       "breakpoints": true
+    },
+    {
+      "idx": 101,
+      "version": "7",
+      "when": 1776400000000,
+      "tag": "0101_inbox_operations",
+      "breakpoints": true
     }
   ]
 }
