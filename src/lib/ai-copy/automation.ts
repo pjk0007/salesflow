@@ -182,16 +182,13 @@ export async function createAutomationCycle(
                 purpose: setting.purpose,
                 provider: model.provider,
                 model: model.id,
-                parameters: latest?.policy_snapshot.parameters ?? {
-                    maxOutputTokens: 2048,
-                    temperature: 0.8,
-                },
+                parameters: { maxOutputTokens: 4096, temperature: 1 },
                 instructions,
                 requiredMeanings:
                     setting.purpose === "visit_ack"
                         ? ["방문 감사", "추가 문의", "전화와 답장 안내"]
                         : ["기존 제품 소개 목적 유지"],
-                forbiddenPhrases: latest?.policy_snapshot.forbiddenPhrases ?? [],
+                forbiddenPhrases: [],
                 maxCharacters:
                     setting.purpose === "visit_ack"
                         ? 600
@@ -595,19 +592,6 @@ export async function prepareAutomaticExperiment(
               );
         if (!experiment || experiment.state !== "draft")
             throw new CopyActionError("실험 초안을 확인해 주세요.");
-        await bindCopyVersions(
-            conn,
-            {
-                orgId: cycle.org_id,
-                userId: cycle.actor_id,
-                workspaceId: cycle.workspace_id,
-                purpose: "initial_email",
-                ruleId: cycle.rule_id,
-                policyVersionId: A.id,
-                knowledgeVersionId: knowledge.id,
-            },
-            true,
-        );
         await conn`UPDATE ai_copy_automation_cycles SET experiment_id=${experiment.id},experiment_owned=${start},reason=${`모집 전 계획: 집단별 ${experiment.config.plannedPerArm}명, 탐지 가능한 차이 ${(experiment.config.minimumDetectableEffect * 100).toFixed(1)}%p`},updated_at=now() WHERE id=${cycle.id}`;
         if (start) {
             await startExperiment(
@@ -778,14 +762,14 @@ export async function applyAutomationCycle(
         const [binding] = await conn<
             { policy_version_id: number; knowledge_version_id: number }[]
         >`SELECT policy_version_id,knowledge_version_id FROM ai_copy_bindings WHERE org_id=${cycle.org_id} AND workspace_id=${cycle.workspace_id} AND purpose=${cycle.purpose} AND rule_id=${cycle.rule_id}`;
-        const expected =
-            cycle.purpose === "initial_email"
-                ? {
-                      policy_version_id: cycle.baseline_policy_id,
-                      knowledge_version_id: cycle.knowledge_version_id,
-                  }
-                : cycle.original_binding;
-        if (fingerprint(binding ?? null) !== fingerprint(expected ?? null))
+        const explicitBaseline =
+            cycle.purpose === "initial_email" &&
+            binding?.policy_version_id === cycle.baseline_policy_id &&
+            binding?.knowledge_version_id === cycle.knowledge_version_id;
+        if (
+            !explicitBaseline &&
+            fingerprint(binding ?? null) !== fingerprint(cycle.original_binding ?? null)
+        )
             throw new CopyActionError(
                 "현재 발송 연결이 준비 당시와 달라졌습니다. 바뀐 연결을 확인해 주세요.",
             );
