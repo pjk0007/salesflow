@@ -67,6 +67,9 @@ export const inboxConversations = pgTable(
             (): AnyPgColumn => inboxConversations.id,
         ),
         identifiedAt: time("identified_at"),
+        historyOnly: boolean("history_only").notNull().default(false),
+        importMetadata:
+            jsonb("import_metadata").$type<Record<string, unknown>>(),
         name: varchar("name", { length: 100 }).notNull(),
         email: varchar("email", { length: 254 }),
         pageUrl: text("page_url"),
@@ -89,7 +92,9 @@ export const inboxConversations = pgTable(
     },
     (t) => [
         uniqueIndex("inbox_session_unique").on(t.channelId, t.tokenHash),
-        uniqueIndex("inbox_contact_unique").on(t.channelId, t.contactId),
+        uniqueIndex("inbox_contact_unique")
+            .on(t.channelId, t.contactId)
+            .where(sql`${t.historyOnly}=false`),
         index("inbox_org_recent").on(t.orgId, t.lastMessageAt),
         index("inbox_record").on(t.recordId),
         check(
@@ -120,6 +125,8 @@ export const inboxMessages = pgTable(
         originConversationId: uuid("origin_conversation_id").references(
             () => inboxConversations.id,
         ),
+        importMetadata:
+            jsonb("import_metadata").$type<Record<string, unknown>>(),
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [

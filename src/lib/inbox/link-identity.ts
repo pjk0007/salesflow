@@ -77,6 +77,11 @@ export async function linkVisitorIdentity(
             );
         if (!hint)
             throw new InboxError("연결할 비회원 상담을 확인해주세요.", 401);
+        if (hint.historyOnly)
+            throw new InboxError(
+                "과거 상담 기록은 회원 로그인으로 연결할 수 없습니다.",
+                409,
+            );
         // Same member retries are idempotent, including an unknown HTTP outcome.
         if (hint.contactId === member.id && !hint.mergedIntoId)
             return { id: hint.id, linked: true, merged: false };
@@ -93,7 +98,12 @@ export async function linkVisitorIdentity(
                 );
             if (target) return { id: target.id, linked: true, merged: true };
         }
-        if (hint.contactId || hint.mergedIntoId || hint.identifiedAt)
+        if (
+            hint.contactId ||
+            hint.mergedIntoId ||
+            hint.identifiedAt ||
+            hint.historyOnly
+        )
             throw new InboxError(
                 "이미 회원에게 연결된 상담은 다른 계정에 연결할 수 없습니다.",
                 409,
@@ -105,6 +115,7 @@ export async function linkVisitorIdentity(
                 and(
                     eq(chats.channelId, channel.id),
                     eq(chats.contactId, member.id),
+                    eq(chats.historyOnly, false),
                 ),
             );
         const ids = [hint.id, ...(existing ? [existing.id] : [])].sort();

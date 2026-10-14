@@ -121,3 +121,5 @@ async function startMemberChat(channelKey) {
 상담 AI 설정·승인 지식·초안/전송 연결·사람 이관 API와 서버 SDK는 [AI-SUPPORT.md](AI-SUPPORT.md)를 참고한다.
 
 고객 자동화의 저장·모의 실행·게시·예약/복구·중단 API와 SDK는 [WORKFLOWS.md](WORKFLOWS.md)를 참고한다.
+
+기존 서비스 JSON/CSV의 매핑·미리보기·사람 실행·묶음 처리/복구, 과거 상담 구분과 이전 API/SDK는 [IMPORTS.md](IMPORTS.md)를 참고한다.

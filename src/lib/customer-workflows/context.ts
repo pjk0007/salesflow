@@ -171,7 +171,8 @@ export async function workflowContext(
             : null,
         deal: deal ?? null,
         task: task ?? null,
-        internal: !!contact?.isInternal || !!staff,
+        internal:
+            !!contact?.isInternal || !!staff || !!conversation?.historyOnly,
     };
 }
 export type LoadedWorkflowContext = Awaited<ReturnType<typeof workflowContext>>;

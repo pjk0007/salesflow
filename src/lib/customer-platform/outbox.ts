@@ -9,6 +9,7 @@ import type { DbExec } from "@/lib/db/tx";
 import type { webhookEventTypes } from "./webhook-rules";
 import { workflowOrigin } from "../customer-workflows/origin";
 import { enqueueWorkflowRuns } from "../customer-workflows/enqueue";
+import { importOrigin } from "../customer-imports/origin";
 export type PlatformEventType = (typeof webhookEventTypes)[number];
 /** Must use the source mutation's transaction. Never perform HTTP here. */
 export async function enqueuePlatformEvent(
@@ -23,6 +24,7 @@ export async function enqueuePlatformEvent(
         endpointId?: string;
     },
 ) {
+    if (importOrigin()) return null;
     const id = randomUUID(),
         payload = {
             id,

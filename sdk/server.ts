@@ -31,6 +31,38 @@ export interface SendbIdentity {
     expiresAt: string;
     channelKey: string;
 }
+export interface SendbImportJob {
+    id: string;
+    workspaceId: number;
+    source: string;
+    namespace: string;
+    state:
+        | "ready"
+        | "running"
+        | "paused"
+        | "failed"
+        | "completed"
+        | "cancelled";
+    version: number;
+    cursor: number;
+    total: number;
+    fingerprint: string;
+    errors: string[];
+    warnings: string[];
+    reason: string | null;
+    counts: Record<string, number>;
+    hasMore: boolean;
+    rows: {
+        index: number;
+        kind: string;
+        sourceId: string;
+        operation: string;
+        data: Record<string, unknown>;
+        errors: string[];
+        warnings: string[];
+    }[];
+    results: { position: number; operation: string; targetId: string }[];
+}
 export interface SendbEventInput {
     eventId: string;
     name: string;
@@ -139,6 +171,47 @@ export class SendbApiError extends Error {
     }
 }
 export class SendbClient {
+    imports(workspaceId: number, before?: string) {
+        return this.request<{
+            rows: Pick<
+                SendbImportJob,
+                "id" | "state" | "source" | "namespace" | "cursor" | "version"
+            >[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/imports?workspaceId=${workspaceId}${before ? "&before=" + encodeURIComponent(before) : ""}`,
+        );
+    }
+    previewImport(input: unknown) {
+        return this.request<SendbImportJob>("/api/v1/imports", "POST", input);
+    }
+    import(id: string, offset = 0) {
+        return this.request<SendbImportJob>(
+            `/api/v1/imports/${encodeURIComponent(id)}?offset=${offset}`,
+        );
+    }
+    changeImport(
+        id: string,
+        input: {
+            action: "start" | "pause" | "resume" | "cancel";
+            version: number;
+            fingerprint?: string;
+            acknowledge?: boolean;
+        },
+    ) {
+        return this.request<SendbImportJob>(
+            `/api/v1/imports/${encodeURIComponent(id)}`,
+            "POST",
+            input,
+        );
+    }
+    stepImport(id: string, cursor: number) {
+        return this.request<SendbImportJob>(
+            `/api/v1/imports/${encodeURIComponent(id)}`,
+            "POST",
+            { action: "step", cursor },
+        );
+    }
     #apiToken: string;
     #base: string;
     #fetch: typeof fetch;
@@ -553,7 +626,13 @@ export class SendbClient {
         options: {
             q?: string;
             status?: "open" | "snoozed" | "closed";
-            filter?: "all" | "mine" | "unassigned" | "unread" | "priority";
+            filter?:
+                | "all"
+                | "mine"
+                | "unassigned"
+                | "unread"
+                | "priority"
+                | "history";
             before?: string;
             beforeId?: string;
         } = {},

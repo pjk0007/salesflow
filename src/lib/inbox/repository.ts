@@ -45,6 +45,8 @@ type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
 const conversationColumns = {
+    historyOnly: inboxConversations.historyOnly,
+    importMetadata: inboxConversations.importMetadata,
     version: inboxConversations.version,
     aiState: inboxConversations.aiState,
     aiHandoffReason: inboxConversations.aiHandoffReason,
@@ -166,7 +168,7 @@ export async function listConversations(
     return exec
         .select({
             ...conversationColumns,
-            unread: sql<boolean>`${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0)`,
+            unread: sql<boolean>`NOT ${inboxConversations.historyOnly} AND ${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0)`,
         })
         .from(inboxConversations)
         .leftJoin(
@@ -181,8 +183,9 @@ export async function listConversations(
                 eq(inboxConversations.orgId, actor.orgId),
                 eq(inboxConversations.channelId, channelId),
                 isNull(inboxConversations.mergedIntoId),
+                eq(inboxConversations.historyOnly, input.filter === "history"),
                 conversationSearch(input.q),
-                input.status
+                input.status && input.filter !== "history"
                     ? eq(inboxConversations.status, input.status)
                     : undefined,
                 input.filter === "mine"
@@ -243,19 +246,25 @@ export async function conversationListPage(
         listConversations(actor, channelId, exec, before, beforeId, input),
         exec
             .select({
-                all: sql<number>`count(*)`.mapWith(Number),
-                mine: sql<number>`count(*) FILTER (WHERE ${inboxConversations.assigneeId} = ${actor.userId})`.mapWith(
+                all: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly})`.mapWith(
+                    Number,
+                ),
+                history:
+                    sql<number>`count(*) FILTER (WHERE ${inboxConversations.historyOnly})`.mapWith(
+                        Number,
+                    ),
+                mine: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.assigneeId} = ${actor.userId})`.mapWith(
                     Number,
                 ),
                 unassigned:
-                    sql<number>`count(*) FILTER (WHERE ${inboxConversations.assigneeId} IS NULL)`.mapWith(
+                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.assigneeId} IS NULL)`.mapWith(
                         Number,
                     ),
-                unread: sql<number>`count(*) FILTER (WHERE ${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0))`.mapWith(
+                unread: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0))`.mapWith(
                     Number,
                 ),
                 priority:
-                    sql<number>`count(*) FILTER (WHERE ${inboxConversations.priority})`.mapWith(
+                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.priority})`.mapWith(
                         Number,
                     ),
             })
@@ -273,8 +282,11 @@ export async function conversationListPage(
                     eq(inboxConversations.channelId, channelId),
                     isNull(inboxConversations.mergedIntoId),
                     conversationSearch(input.q),
-                    input.status
-                        ? eq(inboxConversations.status, input.status)
+                    input.status && input.filter !== "history"
+                        ? or(
+                              eq(inboxConversations.historyOnly, true),
+                              eq(inboxConversations.status, input.status),
+                          )
                         : undefined,
                 ),
             ),
@@ -304,7 +316,22 @@ async function readMessages(
     exec: DbExec,
     publicOnly: boolean,
     before?: number,
+    historical = false,
 ) {
+    const [cursor] =
+        historical && before
+            ? await exec
+                  .select()
+                  .from(inboxMessages)
+                  .where(
+                      and(
+                          eq(inboxMessages.conversationId, id),
+                          eq(inboxMessages.id, before),
+                      ),
+                  )
+            : [];
+    if (historical && before && !cursor)
+        throw new InboxError("과거 대화 위치를 확인해주세요.", 404);
     const messages = await exec
         .select()
         .from(inboxMessages)
@@ -312,10 +339,24 @@ async function readMessages(
             and(
                 eq(inboxMessages.conversationId, id),
                 publicOnly ? sql`${inboxMessages.kind} <> 'note'` : undefined,
-                before ? lt(inboxMessages.id, before) : undefined,
+                before
+                    ? historical && cursor
+                        ? or(
+                              lt(inboxMessages.createdAt, cursor.createdAt),
+                              and(
+                                  eq(inboxMessages.createdAt, cursor.createdAt),
+                                  lt(inboxMessages.id, before),
+                              ),
+                          )
+                        : lt(inboxMessages.id, before)
+                    : undefined,
             ),
         )
-        .orderBy(desc(inboxMessages.id))
+        .orderBy(
+            ...(historical
+                ? [desc(inboxMessages.createdAt), desc(inboxMessages.id)]
+                : [desc(inboxMessages.id)]),
+        )
         .limit(100);
     const attachments = await messageAttachments(
         exec,
@@ -356,7 +397,13 @@ export async function conversationDetail(
     );
     return {
         conversation,
-        ...(await readMessages(conversation.id, exec, false, before)),
+        ...(await readMessages(
+            conversation.id,
+            exec,
+            false,
+            before,
+            conversation.historyOnly,
+        )),
     };
 }
 export async function patchConversation(
@@ -381,6 +428,11 @@ export async function patchConversation(
             )
             .for("update");
         if (!chat) throw new InboxError("상담을 찾을 수 없습니다.", 404);
+        if (chat.historyOnly)
+            throw new InboxError(
+                "이전 서비스의 과거 기록입니다. 현재 상담에서 응대해주세요.",
+                409,
+            );
         if (version !== undefined && version !== chat.version)
             throw new InboxError(
                 "다른 사람이 상담 정보를 변경했습니다. 최신 정보를 확인한 뒤 다시 저장해주세요.",
@@ -529,6 +581,7 @@ async function appendMessage(
         if (
             !locked ||
             locked.mergedIntoId ||
+            locked.historyOnly ||
             (scope.publicOnly &&
                 (locked.contactId
                     ? scope.ownerKey !==
@@ -848,6 +901,7 @@ async function startVisitorSessionInTx(
                     isNull(inboxConversations.contactId),
                     isNull(inboxConversations.mergedIntoId),
                     isNull(inboxConversations.identifiedAt),
+                    eq(inboxConversations.historyOnly, false),
                 ),
             );
         if (!chat)
@@ -935,6 +989,7 @@ async function visitorConversation(
                 and(
                     eq(inboxConversations.channelId, channel.id),
                     eq(inboxConversations.contactId, contact.id),
+                    eq(inboxConversations.historyOnly, false),
                 ),
             );
         if (!chat && create) {
@@ -954,6 +1009,7 @@ async function visitorConversation(
                         inboxConversations.channelId,
                         inboxConversations.contactId,
                     ],
+                    where: sql`${inboxConversations.historyOnly}=false`,
                 })
                 .returning({ id: inboxConversations.id });
             if (created)
@@ -981,6 +1037,7 @@ async function visitorConversation(
                     and(
                         eq(inboxConversations.channelId, channel.id),
                         eq(inboxConversations.contactId, contact.id),
+                        eq(inboxConversations.historyOnly, false),
                     ),
                 );
         }
@@ -1017,6 +1074,7 @@ async function visitorConversation(
                 isNull(inboxConversations.contactId),
                 isNull(inboxConversations.mergedIntoId),
                 isNull(inboxConversations.identifiedAt),
+                eq(inboxConversations.historyOnly, false),
             ),
         );
     if (!chat) throw new InboxError("상담 세션을 확인해주세요.", 401);

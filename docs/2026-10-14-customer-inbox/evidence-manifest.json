@@ -590,5 +590,162 @@
         "bytes": 21918
       }
     ]
+  },
+  "importQa": {
+    "date": "2026-10-15",
+    "environment": "isolated PGlite, real API/SDK/UI, fake data only; no production DB or source-service/customer delivery",
+    "checks": {
+      "imports": 15,
+      "adapters": 7,
+      "unit": 1058,
+      "inbox": 22,
+      "platform": 11,
+      "sales": 13,
+      "activities": 7,
+      "files": 18,
+      "ai": 16,
+      "workflows": 15,
+      "webhooks": 14,
+      "identity": 12,
+      "types": true,
+      "lint": true,
+      "build": true
+    },
+    "browser": [
+      "designerhire JSON review and explicit approval to completed import, archived conversations and CRM",
+      "backofficelab CSV column mapping and completed import",
+      "editing source invalidates previous UI review"
+    ],
+    "artifacts": [
+      {
+        "file": "import-sql.log",
+        "sha256": "984a71372bd78537aeb2676c95f175c7d1471f0fb22bcb2f954fe1c305719d44",
+        "bytes": 2570
+      },
+      {
+        "file": "import-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "import-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "import-build.log",
+        "sha256": "26ee5dc01acfb5f69f180d9bfdbddfde90dbc83fc889265ae755c96af4a3133a",
+        "bytes": 12120
+      },
+      {
+        "file": "import-unit.log",
+        "sha256": "9bc60dcef409163cbfb177e9c2be075be439ecd95b0e42c0d1a1dc4c01380c1d",
+        "bytes": 101237
+      },
+      {
+        "file": "import-inbox.log",
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137",
+        "bytes": 1590
+      },
+      {
+        "file": "import-files.log",
+        "sha256": "4ad67f976d52264eb12b7c42744e5501601e12d2d9ac7bdbe3e1ff3428ed38be",
+        "bytes": 4455
+      },
+      {
+        "file": "import-ai.log",
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c",
+        "bytes": 2433
+      },
+      {
+        "file": "import-workflows.log",
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551",
+        "bytes": 2372
+      },
+      {
+        "file": "import-webhooks.log",
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986",
+        "bytes": 5793
+      },
+      {
+        "file": "import-identity.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "file": "import-history-crm-qa.png",
+        "sha256": "69258897917b11ecf7c20f0f8ffcd5991d3c30adab80c13806645abfecf6029b",
+        "bytes": 89834
+      },
+      {
+        "file": "import-designerhire-completed-qa.png",
+        "sha256": "739db8c4b56993448d101bb064591e2ab62759a337fbfa0e66bdcb749b97095a",
+        "bytes": 122795
+      },
+      {
+        "file": "import-backofficelab-csv-qa.png",
+        "sha256": "f7d99648625166a5686e6f2f923fe88f4969622888ceb30db4c00d91df34a7c6",
+        "bytes": 98138
+      }
+    ],
+    "implementation": [
+      {
+        "file": "drizzle/0097_customer_imports.sql",
+        "sha256": "bb0212355795d7e58dbd9d4c3b7e1ee29e049a9948606d3acada71c87a32ccd9",
+        "bytes": 2713
+      },
+      {
+        "file": "src/lib/customer-imports/adapters.ts",
+        "sha256": "15fb45401556f132118df1fbf9d486b3bd1820b9dbb019438df6e6e1502c7833",
+        "bytes": 17089
+      },
+      {
+        "file": "src/lib/customer-imports/repository.ts",
+        "sha256": "2b5e5b0de5b06afa8321260b5f8b50b37e2eb602ffa4b74bd3bfc1d9f1dc3a98",
+        "bytes": 19090
+      },
+      {
+        "file": "src/lib/customer-imports/writer.ts",
+        "sha256": "196ac6a18977182c8380d3be0af97e6bb8f8439d03610c06d0690b2147c8a4e6",
+        "bytes": 20586
+      },
+      {
+        "file": "scripts/check-customer-imports.cjs",
+        "sha256": "4aa8db1665c7a40c3a1482b105f023db304bb8aaeca3e36f08c24d6053937427",
+        "bytes": 41268
+      }
+    ],
+    "documentationSources": [
+      {
+        "file": "channel-message-reference.html",
+        "url": "https://developers.channel.io/en/articles/5ed6e3c0",
+        "resolvedUrl": "https://developers.channel.io/en/articles/5ed6e3c0",
+        "sha256": "d17b0c8439c1eed01973d263272efdd3946ddbdb885af93cfdcc05a7d131a6ca",
+        "bytes": 163512
+      },
+      {
+        "file": "intercom-conversation-reference.html",
+        "url": "https://developers.intercom.com/docs/references/rest-api/api.intercom.io/conversations/retrieveconversation",
+        "resolvedUrl": "https://developers.intercom.com/docs/references/rest-api/api.intercom.io/conversations/retrieveconversation",
+        "sha256": "b1e67295b5b9122f68311c11c0c8416fba87b451647f570d11125d497ff48e58",
+        "bytes": 827533
+      },
+      {
+        "file": "hubspot-export-reference.html",
+        "url": "https://developers.hubspot.com/docs/api-reference/legacy/crm/exports/guide",
+        "resolvedUrl": "https://developers.hubspot.com/docs/api-reference/legacy/crm/exports/guide",
+        "sha256": "bfe78d039030b126dc68d21cfaedcc42123dc19ade14be7dabd4cac5811297f6",
+        "bytes": 1680053
+      }
+    ],
+    "limitations": [
+      "real account full extraction and count reconciliation",
+      "attachment bytes and recovery",
+      "multiple participant and association model",
+      "active channel cutover",
+      "large PostgreSQL concurrent load",
+      "retention and selective restore",
+      "Chrome file chooser path requires manual QA"
+    ]
   }
 }

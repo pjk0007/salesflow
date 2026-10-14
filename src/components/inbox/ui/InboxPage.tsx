@@ -28,7 +28,9 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
             params.get("conversation"),
         );
     const [status, setStatus] = useState<ConversationStatus>("open"),
-        [filter, setFilter] = useState<ConversationFilter>("all"),
+        [filter, setFilter] = useState<ConversationFilter>(
+            params.get("filter") === "history" ? "history" : "all",
+        ),
         [query, setQuery] = useState("");
     const [settings, setSettings] = useState<"current" | "new" | null>(null);
     const initial = useInbox(null, null),
@@ -51,6 +53,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         { id: "mine", label: "내 상담", icon: UserRound },
         { id: "unassigned", label: "담당자 없음", icon: Archive },
         { id: "priority", label: "중요 상담", icon: Star },
+        { id: "history", label: "이전 상담 기록", icon: Archive },
     ];
     const count = (id: ConversationFilter) => list.counts?.[id] ?? 0;
     const error = initial.bootstrap.error || list.error || detail.error;
@@ -240,7 +243,11 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                 />
                             </label>
                             <div
-                                className="flex gap-1"
+                                className={
+                                    filter === "history"
+                                        ? "hidden"
+                                        : "flex gap-1"
+                                }
                                 role="tablist"
                                 aria-label="상담 상태"
                             >

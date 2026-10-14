@@ -128,6 +128,14 @@ export function CustomerCrmPage({ role }: { role: string }) {
                     >
                         고객 자동화 ↗
                     </a>
+                    {role !== "member" && (
+                        <a
+                            className="rounded-lg border px-3 py-2 text-xs"
+                            href={`/customer-imports?workspaceId=${workspaceId ?? ""}`}
+                        >
+                            기존 자료 이전
+                        </a>
+                    )}
                 </div>
                 <label className="text-xs">
                     사업

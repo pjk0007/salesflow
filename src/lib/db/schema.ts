@@ -30,6 +30,7 @@ export * from "./inbox-files-schema";
 export * from "./platform-webhook-schema";
 export * from "./customer-ai-schema";
 export * from "./customer-workflow-schema";
+export * from "./customer-import-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });

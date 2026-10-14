@@ -140,7 +140,7 @@ export async function queueSupportJob(
             tx,
             true,
         );
-        if (!enabled || chat.status !== "open")
+        if (!enabled || chat.status !== "open" || chat.historyOnly)
             throw new InboxError(
                 "진행 중인 상담에서 초안을 생성해주세요.",
                 409,

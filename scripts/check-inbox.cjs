@@ -84,6 +84,7 @@ async function fixture() {
         "0094_customer_ai_support.sql",
         "0095_customer_workflows.sql",
         "0096_inbox_identity_link.sql",
+        "0097_customer_imports.sql",
     ])
         for (const statement of fs
             .readFileSync(
@@ -719,6 +720,7 @@ async function runCheck(extra) {
                 );
                 assert.deepEqual(result.counts, {
                     all: 1,
+                    history: 0,
                     mine: 1,
                     unassigned: 0,
                     unread: 1,

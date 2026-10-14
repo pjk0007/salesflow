@@ -10,6 +10,8 @@ export interface InboxChannel {
     enabled: boolean;
 }
 export interface Conversation {
+    historyOnly?: boolean;
+    importMetadata?: Record<string, unknown> | null;
     aiState: "auto" | "human";
     aiHandoffReason: string | null;
     version: number;
@@ -30,6 +32,10 @@ export interface Conversation {
     unread: boolean;
 }
 export interface ChatMessage {
+    importMetadata?: {
+        sourceId?: string;
+        files?: Record<string, unknown>[];
+    } | null;
     attachments: ChatAttachment[];
     id: number;
     clientId: string;
@@ -54,7 +60,8 @@ export type ConversationFilter =
     | "mine"
     | "unassigned"
     | "unread"
-    | "priority";
+    | "priority"
+    | "history";
 export interface InboxListPage {
     rows: Conversation[];
     counts: Record<ConversationFilter, number>;

@@ -3,15 +3,29 @@ import { db, crmActivities } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "@/lib/inbox/errors";
 import { platformContact } from "./repository";
+import { importOrigin } from "../customer-imports/origin";
 export async function appendActivity(
     exec: DbExec,
     input: typeof crmActivities.$inferInsert,
 ) {
+    const imported = importOrigin();
     await exec
         .insert(crmActivities)
         .values({
             ...input,
-            summary: input.summary.slice(0, 200),
+            ...(imported
+                ? {
+                      metadata: {
+                          ...input.metadata,
+                          importJobId: imported.jobId,
+                      },
+                      occurredAt: imported.occurredAt ?? input.occurredAt,
+                  }
+                : {}),
+            summary: `${imported ? "이전 자료 · " : ""}${input.summary}`.slice(
+                0,
+                200,
+            ),
             actorName: input.actorName?.slice(0, 100),
         })
         .onConflictDoNothing({

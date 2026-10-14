@@ -71,12 +71,14 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows)\//.test(
+            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows|customer-imports)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/v1\/imports$/, () => "v1/imports"],
+        [/^\/api\/v1\/imports\/([a-f0-9-]+)$/, () => "v1/imports/[id]"],
         [/^\/api\/v1\/workflows$/, () => "v1/workflows"],
         [/^\/api\/v1\/workflows\/events$/, () => "v1/workflows/events"],
         [/^\/api\/v1\/workflows\/([a-f0-9-]+)$/, () => "v1/workflows/[id]"],
@@ -162,6 +164,7 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "v1/imports", "v1/imports/[id]", "customer-imports", "customer-imports/[id]",
         "v1/workflows",
         "v1/workflows/events",
         "v1/workflows/[id]",

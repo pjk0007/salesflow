@@ -54,7 +54,7 @@ export const conversationFiltersInput = z.object({
     q: z.string().trim().max(200).default(""),
     status: z.enum(["open", "snoozed", "closed"]).optional(),
     filter: z
-        .enum(["all", "mine", "unassigned", "unread", "priority"])
+        .enum(["all", "mine", "unassigned", "unread", "priority", "history"])
         .default("all"),
 });
 export type ConversationFilters = z.infer<typeof conversationFiltersInput>;

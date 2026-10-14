@@ -93,6 +93,17 @@ export async function uploadAttachment(
                 ),
             )
             .for("update");
+        if (scope.conversationId) {
+            const [conversation] = await tx
+                .select({ historyOnly: inboxConversations.historyOnly })
+                .from(inboxConversations)
+                .where(eq(inboxConversations.id, scope.conversationId));
+            if (conversation?.historyOnly)
+                throw new InboxError(
+                    "과거 상담 기록에는 새 파일을 올릴 수 없습니다.",
+                    409,
+                );
+        }
         if (scope.publicOnly && scope.conversationId) {
             const [chat] = await tx
                 .select()
