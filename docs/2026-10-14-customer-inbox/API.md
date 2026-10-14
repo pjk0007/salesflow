@@ -82,6 +82,7 @@ async function startMemberChat(channelKey) {
 | `/api/v1/crm/contacts` | GET `workspaceId,before?`, POST 고객 upsert |
 | `/api/v1/crm/companies` | GET `workspaceId,before?`, POST 회사 upsert |
 | `/api/v1/crm/contacts/{id}/events` | GET `workspaceId,before?`, POST `workspaceId,eventId,name,properties?,occurredAt?` |
+| `/api/v1/crm/contacts/{id}/activity` | GET `workspaceId,before?` → 상담 공개 메시지·딜·업무·고객 이벤트 공통 타임라인. 시각/ID 커서의 마지막 활동 id를 before로 사용 |
 | `/api/v1/inbox/channels` | GET `workspaceId`, POST 상담창 설정 |
 | `/api/v1/inbox/sessions` | POST `channelId,contactId` → `identityToken,expiresAt,channelKey` |
 | `/api/v1/inbox/conversations` | GET `channelId,q?,status?,filter?,before?,beforeId?` |

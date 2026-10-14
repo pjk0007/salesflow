@@ -211,5 +211,126 @@
       "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/packages/twenty-server/src/modules/workflow/workflow-runner/services/core-workflow-runner.service.ts",
       "sha256": "70abbe482e4432d1876c524ffbe54dee7f17295c8da3cfdaaca27995e4c614e7"
     }
+  ],
+  "additionalGithubSourceFiles": [
+    {
+      "repo": "opencom-org/opencom",
+      "sha": "bf928a43bf75baee793886efe9cfa68d4f39b659",
+      "path": "docs/open-source/architecture-and-repo-map.md",
+      "url": "https://raw.githubusercontent.com/opencom-org/opencom/bf928a43bf75baee793886efe9cfa68d4f39b659/docs/open-source/architecture-and-repo-map.md",
+      "sha256": "d9e70a5790b221ad0202efcf4672f4d93d31e2ed5d9b68add276775d067fafff"
+    },
+    {
+      "repo": "opencom-org/opencom",
+      "sha": "bf928a43bf75baee793886efe9cfa68d4f39b659",
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/opencom-org/opencom/bf928a43bf75baee793886efe9cfa68d4f39b659/LICENSE",
+      "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+    },
+    {
+      "repo": "opencom-org/opencom",
+      "sha": "bf928a43bf75baee793886efe9cfa68d4f39b659",
+      "path": "docs/data-model.md",
+      "url": "https://raw.githubusercontent.com/opencom-org/opencom/bf928a43bf75baee793886efe9cfa68d4f39b659/docs/data-model.md",
+      "sha256": "02f02532b9798baabc709c4c56b2d04c51a52d77c4fc00bd0941cdf69c7c44fa"
+    },
+    {
+      "repo": "opencom-org/opencom",
+      "sha": "bf928a43bf75baee793886efe9cfa68d4f39b659",
+      "path": "docs/competitive-feature-analysis-2026-03-01.md",
+      "url": "https://raw.githubusercontent.com/opencom-org/opencom/bf928a43bf75baee793886efe9cfa68d4f39b659/docs/competitive-feature-analysis-2026-03-01.md",
+      "sha256": "880cdaba75d4163297833be3794bd8af2a7028eb2938759242a847384de61d34"
+    },
+    {
+      "repo": "marmelab/atomic-crm",
+      "sha": "ec21c1ccaf97f1434d8f5faa6bec119e3df09644",
+      "path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/marmelab/atomic-crm/ec21c1ccaf97f1434d8f5faa6bec119e3df09644/LICENSE.md",
+      "sha256": "1774c14a7b97aa0ce5e866f895ddb421db6dfb4769dee9ab40416681d0390316"
+    },
+    {
+      "repo": "marmelab/atomic-crm",
+      "sha": "ec21c1ccaf97f1434d8f5faa6bec119e3df09644",
+      "path": "supabase/schemas/01_tables.sql",
+      "url": "https://raw.githubusercontent.com/marmelab/atomic-crm/ec21c1ccaf97f1434d8f5faa6bec119e3df09644/supabase/schemas/01_tables.sql",
+      "sha256": "e4818016143f0fdc4c33bde1fedb635f99837af69a6dc6717a4e8d5c097c9915"
+    },
+    {
+      "repo": "marmelab/atomic-crm",
+      "sha": "ec21c1ccaf97f1434d8f5faa6bec119e3df09644",
+      "path": "supabase/schemas/05_policies.sql",
+      "url": "https://raw.githubusercontent.com/marmelab/atomic-crm/ec21c1ccaf97f1434d8f5faa6bec119e3df09644/supabase/schemas/05_policies.sql",
+      "sha256": "b31edfa60e5886379d80cb7d5cb86f852dfb3840e2ebe122b1cc989aa16c3b67"
+    },
+    {
+      "repo": "marmelab/atomic-crm",
+      "sha": "ec21c1ccaf97f1434d8f5faa6bec119e3df09644",
+      "path": "README.md",
+      "url": "https://raw.githubusercontent.com/marmelab/atomic-crm/ec21c1ccaf97f1434d8f5faa6bec119e3df09644/README.md",
+      "sha256": "5efdd5ed64f6c66caced35458f34a14fa8df234cf2fe7d1c5b72da9912d3783d"
+    },
+    {
+      "repo": "erxes/erxes",
+      "sha": "dedf68f9b169eae5fccbd674b5a03dd644741255",
+      "path": "LICENSE.md",
+      "url": "https://raw.githubusercontent.com/erxes/erxes/dedf68f9b169eae5fccbd674b5a03dd644741255/LICENSE.md",
+      "sha256": "300a401c17f5390196d8ee8ede98404e665707ca137abd68758116259126f4d4"
+    },
+    {
+      "repo": "erxes/erxes",
+      "sha": "dedf68f9b169eae5fccbd674b5a03dd644741255",
+      "path": "backend/core-api/package.json",
+      "url": "https://raw.githubusercontent.com/erxes/erxes/dedf68f9b169eae5fccbd674b5a03dd644741255/backend/core-api/package.json",
+      "sha256": "87378c3a6788e30b102365f910145805d82b9f18713ad43420895e822221bfc0"
+    },
+    {
+      "repo": "erxes/erxes",
+      "sha": "dedf68f9b169eae5fccbd674b5a03dd644741255",
+      "path": "backend/plugins/sales_api/package.json",
+      "url": "https://raw.githubusercontent.com/erxes/erxes/dedf68f9b169eae5fccbd674b5a03dd644741255/backend/plugins/sales_api/package.json",
+      "sha256": "3453bad8e3542dc8c6be96a34e52d2caab89640375427b5ec2d0da299e4d97ac"
+    },
+    {
+      "repo": "erxes/erxes",
+      "sha": "dedf68f9b169eae5fccbd674b5a03dd644741255",
+      "path": "backend/plugins/frontline_api/package.json",
+      "url": "https://raw.githubusercontent.com/erxes/erxes/dedf68f9b169eae5fccbd674b5a03dd644741255/backend/plugins/frontline_api/package.json",
+      "sha256": "548bb6046b4567adfe2723caf4fc9f9ccc360fc126479f324e91368e2402a883"
+    },
+    {
+      "repo": "erxes/erxes",
+      "sha": "dedf68f9b169eae5fccbd674b5a03dd644741255",
+      "path": "README.md",
+      "url": "https://raw.githubusercontent.com/erxes/erxes/dedf68f9b169eae5fccbd674b5a03dd644741255/README.md",
+      "sha256": "68e88416298b4fa79ccdd105c37b1688122bd16d3f1180b9287f5841abca56f4"
+    },
+    {
+      "repo": "dittofeed/dittofeed",
+      "sha": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "path": "README.md",
+      "url": "https://raw.githubusercontent.com/dittofeed/dittofeed/91277939a9afcee797ab2562025f6b02d823b00c/README.md",
+      "sha256": "800c0193e6a24bb1aa3eb69a3f4ab970156e0956526bcdd664d024f5021dddc0"
+    },
+    {
+      "repo": "dittofeed/dittofeed",
+      "sha": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/dittofeed/dittofeed/91277939a9afcee797ab2562025f6b02d823b00c/LICENSE",
+      "sha256": "d3550e807bb883f38d58d431efab7651a456ad0c7a5156aa9b638f642941dba0"
+    },
+    {
+      "repo": "dittofeed/dittofeed",
+      "sha": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "path": "packages/backend-lib/src/journeys/userWorkflow.ts",
+      "url": "https://raw.githubusercontent.com/dittofeed/dittofeed/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/journeys/userWorkflow.ts",
+      "sha256": "86d8dc31760fc797114ecfa146750b8241f6dc72497a3ec7e695507c1fe682c9"
+    },
+    {
+      "repo": "dittofeed/dittofeed",
+      "sha": "91277939a9afcee797ab2562025f6b02d823b00c",
+      "path": "packages/backend-lib/src/segments.ts",
+      "url": "https://raw.githubusercontent.com/dittofeed/dittofeed/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments.ts",
+      "sha256": "3b998257feb4e13eae6540e5683e20bed5b6018424bb674c2c19ae733048b07e"
+    }
   ]
 }

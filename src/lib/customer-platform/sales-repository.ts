@@ -15,6 +15,7 @@ import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
 import { InboxError } from "@/lib/inbox/errors";
 import { requirePlatformWorkspace } from "./repository";
+import { appendActivity } from "./activities";
 import {
     pipelineInput,
     pipelinePatch,
@@ -271,14 +272,26 @@ export async function createSales(
                 })
                 .returning();
             if (!created) return previousCreate(actor, resource, value, tx);
-            await tx
-                .insert(crmDealHistory)
-                .values({
-                    dealId: created.id,
-                    actorId: actor.userId,
-                    actorName: actor.name,
-                    change: { action: "created", stage, after: created },
-                });
+            await tx.insert(crmDealHistory).values({
+                dealId: created.id,
+                actorId: actor.userId,
+                actorName: actor.name,
+                change: { action: "created", stage, after: created },
+            });
+            await appendActivity(tx, {
+                orgId: actor.orgId,
+                workspaceId: value.workspaceId,
+                contactId: created.contactId,
+                companyId: created.companyId,
+                source: "deal",
+                entityId: created.id,
+                eventKey: `deal:${created.id}:v${created.version}`,
+                action: "created",
+                summary: created.title,
+                actorName: actor.name,
+                metadata: { stage, version: created.version },
+                occurredAt: created.createdAt,
+            });
             return created;
         }
         const value = taskInput.parse(input);
@@ -295,6 +308,25 @@ export async function createSales(
                 target: [crmTasks.workspaceId, crmTasks.externalId],
             })
             .returning();
+        if (created)
+            await appendActivity(tx, {
+                orgId: actor.orgId,
+                workspaceId: value.workspaceId,
+                contactId: created.contactId,
+                companyId: created.companyId,
+                source: "task",
+                entityId: created.id,
+                eventKey: `task:${created.id}:v${created.version}`,
+                action: "created",
+                summary: created.title,
+                actorName: actor.name,
+                metadata: {
+                    status: created.status,
+                    dealId: created.dealId,
+                    version: created.version,
+                },
+                occurredAt: created.createdAt,
+            });
         return created ?? previousCreate(actor, resource, value, tx);
     });
 }
@@ -393,23 +425,55 @@ export async function patchSales(
                 })
                 .where(eq(crmDeals.id, id))
                 .returning();
-            await tx
-                .insert(crmDealHistory)
-                .values({
-                    dealId: id,
-                    actorId: actor.userId,
+            await tx.insert(crmDealHistory).values({
+                dealId: id,
+                actorId: actor.userId,
+                actorName: actor.name,
+                change: {
+                    action:
+                        archived === true
+                            ? "archived"
+                            : archived === false
+                              ? "restored"
+                              : "updated",
+                    before: old,
+                    after: saved,
+                    stage,
+                },
+            });
+            await appendActivity(tx, {
+                orgId: actor.orgId,
+                workspaceId,
+                contactId: saved.contactId,
+                companyId: saved.companyId,
+                source: "deal",
+                entityId: id,
+                eventKey: `deal:${id}:v${saved.version}`,
+                action:
+                    archived === true
+                        ? "archived"
+                        : archived === false
+                          ? "restored"
+                          : "updated",
+                summary: saved.title,
+                actorName: actor.name,
+                metadata: { stage, version: saved.version },
+                occurredAt: now,
+            });
+            if (old.contactId && old.contactId !== saved.contactId)
+                await appendActivity(tx, {
+                    orgId: actor.orgId,
+                    workspaceId,
+                    contactId: old.contactId,
+                    companyId: old.companyId,
+                    source: "deal",
+                    entityId: id,
+                    eventKey: `deal:${id}:v${saved.version}:old`,
+                    action: "unlinked",
+                    summary: old.title,
                     actorName: actor.name,
-                    change: {
-                        action:
-                            archived === true
-                                ? "archived"
-                                : archived === false
-                                  ? "restored"
-                                  : "updated",
-                        before: old,
-                        after: saved,
-                        stage,
-                    },
+                    metadata: { version: saved.version },
+                    occurredAt: now,
                 });
             return saved;
         }
@@ -437,6 +501,39 @@ export async function patchSales(
             })
             .where(eq(crmTasks.id, id))
             .returning();
+        await appendActivity(tx, {
+            orgId: actor.orgId,
+            workspaceId,
+            contactId: saved.contactId,
+            companyId: saved.companyId,
+            source: "task",
+            entityId: id,
+            eventKey: `task:${id}:v${saved.version}`,
+            action: old.status !== saved.status ? saved.status : "updated",
+            summary: saved.title,
+            actorName: actor.name,
+            metadata: {
+                status: saved.status,
+                dealId: saved.dealId,
+                version: saved.version,
+            },
+            occurredAt: now,
+        });
+        if (old.contactId && old.contactId !== saved.contactId)
+            await appendActivity(tx, {
+                orgId: actor.orgId,
+                workspaceId,
+                contactId: old.contactId,
+                companyId: old.companyId,
+                source: "task",
+                entityId: id,
+                eventKey: `task:${id}:v${saved.version}:old`,
+                action: "unlinked",
+                summary: old.title,
+                actorName: actor.name,
+                metadata: { version: saved.version },
+                occurredAt: now,
+            });
         return saved;
     });
 }

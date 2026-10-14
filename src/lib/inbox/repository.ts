@@ -29,6 +29,7 @@ import {
 import { InboxError } from "./errors";
 export { InboxError } from "./errors";
 import { verifyCustomerIdentity } from "@/lib/customer-platform/identity";
+import { appendActivity } from "@/lib/customer-platform/activities";
 type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
@@ -226,7 +227,11 @@ export async function conversationListPage(
     ]);
     return { rows, counts: counts[0], hasMore: rows.length === 100 };
 }
-async function ownedConversation(actor: Actor, id: string, exec: DbExec) {
+export async function ownedConversation(
+    actor: Actor,
+    id: string,
+    exec: DbExec = db,
+) {
     const [chat] = await exec
         .select(conversationColumns)
         .from(inboxConversations)
@@ -366,6 +371,9 @@ async function appendMessage(
             .select({
                 id: inboxConversations.id,
                 status: inboxConversations.status,
+                contactId: inboxConversations.contactId,
+                channelId: inboxConversations.channelId,
+                orgId: inboxConversations.orgId,
             })
             .from(inboxConversations)
             .where(eq(inboxConversations.id, id))
@@ -435,6 +443,25 @@ async function appendMessage(
             return existing;
         }
         if (message.kind !== "note") {
+            if (locked.contactId) {
+                const [channel] = await tx
+                    .select({ workspaceId: inboxChannels.workspaceId })
+                    .from(inboxChannels)
+                    .where(eq(inboxChannels.id, locked.channelId));
+                await appendActivity(tx, {
+                    orgId: locked.orgId,
+                    workspaceId: channel.workspaceId,
+                    contactId: locked.contactId,
+                    source: "conversation",
+                    entityId: id,
+                    eventKey: `message:${inserted.id}`,
+                    action: message.kind,
+                    summary: message.body,
+                    actorName: message.authorName,
+                    metadata: { conversationId: id, messageId: inserted.id },
+                    occurredAt: inserted.createdAt,
+                });
+            }
             await tx
                 .update(inboxConversations)
                 .set({

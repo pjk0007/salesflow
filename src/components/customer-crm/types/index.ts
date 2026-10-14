@@ -28,7 +28,7 @@ export type Resource =
 export type Editor = {
     resource: Resource;
     item?: Pipeline | Deal | Task | Contact | Company;
-    defaults?: Partial<Task>;
+    defaults?: Partial<Task & Deal>;
 };
 export interface DealHistory {
     id: string;

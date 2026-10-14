@@ -36,6 +36,17 @@ export interface SendbEventInput {
     properties?: Record<string, unknown>;
     occurredAt?: string;
 }
+export interface SendbCustomerActivity {
+    id: string;
+    contactId: string | null;
+    source: string;
+    entityId: string;
+    action: string;
+    summary: string;
+    actorName: string | null;
+    properties: Record<string, unknown>;
+    occurredAt: string;
+}
 export interface SendbPipelineInput {
     workspaceId: number;
     externalId: string;
@@ -292,6 +303,15 @@ export class SendbClient {
             `/api/v1/crm/contacts/${encodeURIComponent(contactId)}/events`,
             "POST",
             { workspaceId, ...event },
+        );
+    }
+    customerActivities(
+        workspaceId: number,
+        contactId: string,
+        before?: string,
+    ) {
+        return this.request<SendbCustomerActivity[]>(
+            `/api/v1/crm/contacts/${encodeURIComponent(contactId)}/activity?workspaceId=${workspaceId}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
         );
     }
     conversations(

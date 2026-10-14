@@ -13,6 +13,7 @@ import {
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "@/lib/inbox/errors";
 import { companyInput, contactInput, eventInput } from "./rules";
+import { appendActivity } from "./activities";
 
 export async function requirePlatformWorkspace(
     orgId: string,
@@ -225,6 +226,18 @@ export async function recordCustomerEvent(
     source: "server" | "web",
     exec: DbExec = db,
 ) {
+    return exec.transaction((tx) =>
+        recordCustomerEventInTx(orgId, workspaceId, contactId, raw, source, tx),
+    );
+}
+async function recordCustomerEventInTx(
+    orgId: string,
+    workspaceId: number,
+    contactId: string,
+    raw: unknown,
+    source: "server" | "web",
+    exec: DbExec,
+) {
     const input = eventInput.parse(raw);
     await platformContact(orgId, workspaceId, contactId, exec);
     const [created] = await exec
@@ -243,7 +256,21 @@ export async function recordCustomerEvent(
             target: [crmCustomerEvents.workspaceId, crmCustomerEvents.eventId],
         })
         .returning();
-    if (created) return created;
+    if (created) {
+        await appendActivity(exec, {
+            orgId,
+            workspaceId,
+            contactId,
+            source: "event",
+            entityId: created.id,
+            eventKey: `event:${created.id}`,
+            action: created.name,
+            summary: created.name,
+            metadata: { properties: created.properties, eventSource: source },
+            occurredAt: created.occurredAt,
+        });
+        return created;
+    }
     const [previous] = await exec
         .select()
         .from(crmCustomerEvents)

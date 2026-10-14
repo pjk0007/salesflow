@@ -76,6 +76,10 @@ async function runPlatformCheck(extra) {
             /^\/api\/v1\/crm\/(pipelines|deals|tasks)\/([a-f0-9-]+)$/,
             () => "v1/crm/[resource]/[id]",
         ],
+        [
+            /^\/api\/v1\/crm\/contacts\/([a-f0-9-]+)\/activity$/,
+            () => "v1/crm/contacts/[id]/activity",
+        ],
     ];
     const routes = routeDefinitions.map(([pattern, file]) => ({
         pattern,
@@ -92,6 +96,9 @@ async function runPlatformCheck(extra) {
         "messenger/[key]",
         "v1/crm/[resource]",
         "v1/crm/[resource]/[id]",
+        "v1/crm/contacts/[id]/activity",
+        "inbox/conversations/[id]/customer",
+        "customer-crm/contacts/[id]/activity",
     ];
     const modules = Object.fromEntries(
         filenames.map((name) => [

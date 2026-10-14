@@ -44,7 +44,9 @@ export function EntityEditor({
     children?: ReactNode;
 }) {
     const { resource, item } = editor,
-        deal = item as Deal | undefined,
+        deal = (
+            resource === "deals" ? (item ?? editor.defaults) : undefined
+        ) as Deal | undefined,
         task = (
             resource === "tasks" ? (item ?? editor.defaults) : undefined
         ) as Task | undefined,

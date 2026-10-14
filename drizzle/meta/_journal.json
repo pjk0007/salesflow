@@ -638,6 +638,13 @@
       "when": 1775300000000,
       "tag": "0090_customer_sales",
       "breakpoints": true
+    },
+    {
+      "idx": 91,
+      "version": "7",
+      "when": 1775400000000,
+      "tag": "0091_customer_activities",
+      "breakpoints": true
     }
   ]
 }

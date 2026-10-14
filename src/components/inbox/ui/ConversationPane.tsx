@@ -4,6 +4,7 @@ import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
 import { inboxRequest, inboxWrite } from "../api";
+import { CustomerCrmContext } from "./CustomerCrmContext";
 export const statusNames = {
     open: "진행중",
     snoozed: "보류중",
@@ -405,6 +406,7 @@ function CustomerInfo({
                     </select>
                 </label>
             </section>
+            <CustomerCrmContext chat={chat} bootstrap={bootstrap} />
             <section className="space-y-3 border-t pt-5">
                 <h3 className="font-semibold">고객 정보</h3>
                 <div>

@@ -484,10 +484,11 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                       }>(
                                           `/api/customer-crm/${editor.resource}/${editor.item!.id}?workspaceId=${workspaceId}`,
                                       );
-                                      setEditor({
-                                          ...editor,
-                                          item: value.item,
-                                      });
+                                      setEditor((current) =>
+                                          current?.item?.id === editor.item!.id
+                                              ? { ...current, item: value.item }
+                                              : current,
+                                      );
                                   } catch (e) {
                                       toast.error((e as Error).message);
                                   }
