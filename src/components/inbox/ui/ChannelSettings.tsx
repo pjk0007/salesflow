@@ -68,6 +68,16 @@ export function ChannelSettings({
                         <X size={20} />
                     </button>
                 </header>
+                {workspaceId > 0 && (
+                    <a
+                        className="mb-5 block text-sm text-[#635BFF]"
+                        href={`/customer-ai?workspaceId=${workspaceId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        상담 AI·승인 지식 설정 ↗
+                    </a>
+                )}
                 <form
                     className="space-y-5"
                     onSubmit={async (e) => {

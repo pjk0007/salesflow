@@ -26,5 +26,7 @@ export async function register() {
         startCopyAutomationScheduler();
         const { startWebhookScheduler } = await import("@/lib/customer-platform/webhook-worker");
         startWebhookScheduler();
+        const { startSupportAiScheduler } = await import("@/lib/customer-ai/worker");
+        startSupportAiScheduler();
     }
 }

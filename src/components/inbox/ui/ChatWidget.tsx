@@ -23,6 +23,35 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         [opened, setOpened] = useState(true),
         [readId, setReadId] = useState(0);
     const generation = useRef(0);
+    const handoffPending = useRef<string | null>(null);
+    async function requestHuman() {
+        if (!token || busy) return;
+        const currentGeneration = generation.current;
+        setBusy(true);
+        setError("");
+        handoffPending.current ??= crypto.randomUUID();
+        try {
+            await inboxRequest(`/api/messenger/${channelKey}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    clientId: handoffPending.current,
+                    body: "상담원 연결을 부탁드립니다.",
+                }),
+            });
+            if (currentGeneration !== generation.current) return;
+            handoffPending.current = null;
+            await data.mutate();
+        } catch (e) {
+            if (currentGeneration === generation.current)
+                setError((e as Error).message);
+        } finally {
+            setBusy(false);
+        }
+    }
     const attachments = useAttachmentDrafts(channelKey);
     const resetAttachments = attachments.reset;
     const uploadUrl = `/api/messenger/${channelKey}/attachments`;
@@ -42,6 +71,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     }>(`/api/messenger/${channelKey}`, inboxRequest);
     const data = useSWR<{
         status: string;
+        aiState: "auto" | "human";
         messages: ChatMessage[];
         hasOlder: boolean;
         profile: { name: string; email: string | null; identified: boolean };
@@ -100,6 +130,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     setCanLoad(true);
                     setError("");
                     pending.current = null;
+                    handoffPending.current = null;
                     configured.current = session;
                 }
             }
@@ -434,6 +465,20 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 <p role="alert" className="px-5 pb-2 text-xs text-red-600">
                     {error}
                 </p>
+            )}
+            {token && (
+                <button
+                    type="button"
+                    disabled={
+                        busy || data.data?.aiState === "human" || !!data.error
+                    }
+                    onClick={() => void requestHuman()}
+                    className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
+                >
+                    {data.data?.aiState === "human"
+                        ? "상담원이 이어서 안내드립니다"
+                        : "상담원 연결 요청"}
+                </button>
             )}
             <form
                 className="shrink-0 border-t border-gray-100 p-4"

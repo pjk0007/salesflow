@@ -9,6 +9,7 @@ import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { InboxAudit } from "./InboxAudit";
 import { CustomerCrmContext } from "./CustomerCrmContext";
+import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 export const statusNames = {
     open: "진행중",
     snoozed: "보류중",
@@ -48,6 +49,20 @@ export function ConversationPane({
     const [older, setOlder] = useState<ChatMessage[]>([]),
         [canLoad, setCanLoad] = useState(hasOlder),
         [loading, setLoading] = useState(false);
+    const aiStorageKey = `sendb-inbox-ai-draft:${userId}:${chat.id}`;
+    const [aiDraftId, setAiDraftId] = useState<string | null>(() => {
+        try {
+            return localStorage.getItem(aiStorageKey);
+        } catch {
+            return null;
+        }
+    });
+    useEffect(() => {
+        try {
+            if (aiDraftId) localStorage.setItem(aiStorageKey, aiDraftId);
+            else localStorage.removeItem(aiStorageKey);
+        } catch {}
+    }, [aiDraftId, aiStorageKey]);
     const end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
         follow = useRef(true),
@@ -56,6 +71,7 @@ export function ConversationPane({
             kind: string;
             id: string;
             files: string;
+            aiDraftId: string | null;
         } | null>(null);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
@@ -82,9 +98,9 @@ export function ConversationPane({
             return false;
         }
     }
-    function updateDraft(value: string) {
+    function updateDraft(value: string, key = draftKey) {
         setDrafts((current) => {
-            const next = { ...current, [draftKey]: value };
+            const next = { ...current, [key]: value };
             try {
                 localStorage.setItem(draftStorageKey, JSON.stringify(next));
             } catch {}
@@ -94,17 +110,20 @@ export function ConversationPane({
     async function send() {
         if ((!text.trim() && !attachments.files.length) || busy) return;
         const body = text.trim();
+        const source = kind === "reply" ? aiDraftId : null;
         setBusy(true);
         if (
             pending.current?.body !== body ||
             pending.current?.kind !== kind ||
-            pending.current?.files !== attachments.signature
+            pending.current?.files !== attachments.signature ||
+            pending.current?.aiDraftId !== source
         )
             pending.current = {
                 body,
                 kind,
                 id: crypto.randomUUID(),
                 files: attachments.signature,
+                aiDraftId: source,
             };
         try {
             const attachmentIds = await attachments.prepare(uploadUrl, kind);
@@ -113,8 +132,10 @@ export function ConversationPane({
                 clientId: pending.current.id,
                 body,
                 kind,
+                ...(source ? { aiDraftId: source } : {}),
             });
             updateDraft("");
+            if (kind === "reply") setAiDraftId(null);
             attachments.clear();
             pending.current = null;
             follow.current = true;
@@ -300,6 +321,25 @@ export function ConversationPane({
                     ))}
                     <div ref={end} />
                 </div>
+                <SupportDraftPanel
+                    chat={chat}
+                    messages={allMessages}
+                    workspaceId={
+                        bootstrap.channels.find((c) => c.id === chat.channelId)
+                            ?.workspaceId
+                    }
+                    hasDraft={!!drafts[`${chat.id}:reply`]?.trim()}
+                    onUse={(answer, id) => {
+                        const old = drafts[`${chat.id}:reply`]?.trim();
+                        updateDraft(
+                            old ? `${old}\n\n${answer}` : answer,
+                            `${chat.id}:reply`,
+                        );
+                        setKind("reply");
+                        setAiDraftId(id);
+                    }}
+                    onMode={(state) => patch({ aiState: state })}
+                />
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();
@@ -359,6 +399,18 @@ export function ConversationPane({
                         }
                         className="w-full resize-none bg-transparent text-sm outline-none"
                     />
+                    {kind === "reply" && aiDraftId && (
+                        <p className="mb-2 text-xs text-muted-foreground">
+                            AI 초안의 근거를 전송할 때 다시 확인합니다.{" "}
+                            <button
+                                type="button"
+                                className="underline"
+                                onClick={() => setAiDraftId(null)}
+                            >
+                                초안 연결 해제·일반 답변으로 전환
+                            </button>
+                        </p>
+                    )}
                     <AttachmentDrafts
                         files={attachments.files}
                         busy={

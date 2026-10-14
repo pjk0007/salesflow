@@ -64,8 +64,16 @@ async function fixture() {
         schema.records,
         schema.apiTokens,
         schema.apiTokenScopes,
+        schema.aiCopyKnowledgeVersions,
+        schema.aiUsageLogs,
+        schema.aiUsageQuotas,
+        schema.aiCopyGenerationJobs,
+        schema.emailSendLogs,
+        schema.emailCopyExperiments,
+        schema.emailCopyAssignments,
     ])
         await pg.exec(ddl(table));
+    await pg.exec('CREATE UNIQUE INDEX qa_ai_usage_month ON ai_usage_quotas(org_id,month)');
     for (const migration of [
         "0088_customer_inbox.sql",
         "0089_customer_platform.sql",
@@ -73,6 +81,7 @@ async function fixture() {
         "0091_customer_activities.sql",
         "0092_inbox_files_audit.sql",
         "0093_platform_webhooks.sql",
+        "0094_customer_ai_support.sql",
     ])
         for (const statement of fs
             .readFileSync(
@@ -136,7 +145,9 @@ async function fixture() {
             data: {},
         },
     ]);
-    return { pg, db, actor, otherActor };
+    const conn=async(strings,...params)=>(await pg.query(strings.reduce((s,p,i)=>s+p+(i<params.length?`$${i+1}`:""),""),params)).rows;
+    conn.release=()=>{};
+    return { pg, db, actor, otherActor,queryClient:{reserve:async()=>conn},conn };
 }
 async function runCheck(extra) {
     const ctx = await fixture(),

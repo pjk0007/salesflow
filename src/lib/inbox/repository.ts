@@ -1,3 +1,4 @@
+import { onSupportMessage, consumeSupportDraft } from "@/lib/customer-ai/queue";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
@@ -14,6 +15,7 @@ import {
     partitions,
     crmContacts,
     inboxAttachments,
+    customerAiJobs,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -44,6 +46,8 @@ const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
 const conversationColumns = {
     version: inboxConversations.version,
+    aiState: inboxConversations.aiState,
+    aiHandoffReason: inboxConversations.aiHandoffReason,
     id: inboxConversations.id,
     channelId: inboxConversations.channelId,
     name: inboxConversations.name,
@@ -406,6 +410,14 @@ export async function patchConversation(
 
         const normalized = {
             ...input,
+            ...(input.aiState
+                ? {
+                      aiHandoffReason:
+                          input.aiState === "auto"
+                              ? null
+                              : "상담원이 직접 응대를 선택했습니다.",
+                  }
+                : {}),
             ...(input.tags ? { tags: [...new Set(input.tags)] } : {}),
         };
         const changes: AuditChanges = {};
@@ -484,6 +496,7 @@ async function appendMessage(
         authorId?: string;
         authorName: string;
         attachmentIds: string[];
+        aiDraftId?: string;
     },
     scope: FileScope,
 ) {
@@ -505,6 +518,7 @@ async function appendMessage(
         if (duplicate) {
             const attached = await messageAttachments(tx, [duplicate.id]);
             if (
+                duplicate.aiDraftId !== (message.aiDraftId ?? null) ||
                 duplicate.kind !== message.kind ||
                 duplicate.body !== message.body ||
                 JSON.stringify(attached.map((f) => f.id).sort()) !==
@@ -542,11 +556,24 @@ async function appendMessage(
                     429,
                 );
         }
+        if (message.aiDraftId)
+            await consumeSupportDraft(
+                tx,
+                message.aiDraftId,
+                id,
+                message.body,
+                message.authorId,
+            );
         const { attachmentIds, ...value } = message;
         const [inserted] = await tx
             .insert(inboxMessages)
             .values({ ...value, conversationId: id })
             .returning();
+        if (message.aiDraftId)
+            await tx
+                .update(customerAiJobs)
+                .set({ sentMessageId: inserted.id })
+                .where(eq(customerAiJobs.id, message.aiDraftId));
         const attachments = await bindAttachments(
             tx,
             scope,
@@ -633,10 +660,45 @@ async function appendMessage(
                 })
                 .where(eq(inboxConversations.id, id));
         }
+        await onSupportMessage(tx, id, inserted, attachments.length);
         return { ...inserted, attachments };
     });
 }
 
+export async function sendSystemReply(
+    exec: DbExec,
+    id: string,
+    body: string,
+    clientId: string,
+    aiDraftId?: string,
+) {
+    const [chat] = await exec
+        .select({
+            orgId: inboxConversations.orgId,
+            channelId: inboxConversations.channelId,
+        })
+        .from(inboxConversations)
+        .where(eq(inboxConversations.id, id));
+    return appendMessage(
+        exec,
+        id,
+        {
+            clientId,
+            kind: "reply",
+            body,
+            authorName: "AI 상담 도우미",
+            attachmentIds: [],
+            aiDraftId,
+        },
+        {
+            orgId: chat.orgId,
+            channelId: chat.channelId,
+            conversationId: id,
+            ownerKey: fileOwner(`system:${id}`),
+            publicOnly: false,
+        },
+    );
+}
 export async function sendAgentMessage(
     actor: Actor,
     id: string,
@@ -821,6 +883,7 @@ async function visitorConversation(
             .select({
                 id: inboxConversations.id,
                 status: inboxConversations.status,
+                aiState: inboxConversations.aiState,
             })
             .from(inboxConversations)
             .where(
@@ -866,6 +929,7 @@ async function visitorConversation(
                 .select({
                     id: inboxConversations.id,
                     status: inboxConversations.status,
+                    aiState: inboxConversations.aiState,
                 })
                 .from(inboxConversations)
                 .where(
@@ -881,6 +945,7 @@ async function visitorConversation(
             orgId: channel.orgId,
             ownerKey: fileOwner(`member:${channel.id}:${contact.id}`),
             status: chat?.status ?? "open",
+            aiState: chat?.aiState ?? "auto",
             name: contact.name,
             profile: {
                 name: contact.name,
@@ -897,6 +962,7 @@ async function visitorConversation(
             id: inboxConversations.id,
             name: inboxConversations.name,
             status: inboxConversations.status,
+            aiState: inboxConversations.aiState,
         })
         .from(inboxConversations)
         .where(
@@ -942,6 +1008,7 @@ export async function visitorDetail(
     // 방문자에게는 직원 식별자·내부 메모·CRM 연결 정보를 내보내지 않는다.
     return {
         status: chat.status,
+        aiState: chat.aiState,
         profile: chat.profile,
         hasOlder: result.hasOlder,
         messages: result.messages.map((m) => ({

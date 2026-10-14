@@ -102,6 +102,8 @@ export interface SendbTask extends SendbTaskInput {
     updatedAt: string;
 }
 export interface SendbConversation {
+    aiState: "auto" | "human";
+    aiHandoffReason: string | null;
     version: number;
     id: string;
     channelId: number;
@@ -245,6 +247,79 @@ export class SendbClient {
             `/api/v1/webhook-deliveries/${encodeURIComponent(id)}`,
             "POST",
             { action: "retry" },
+        );
+    }
+    supportAiSettings(workspaceId: number) {
+        return this.request<
+            import("../src/components/customer-ai/types").SupportCatalog
+        >(`/api/v1/support-ai/settings?workspaceId=${workspaceId}`);
+    }
+    updateSupportAiSettings(
+        workspaceId: number,
+        settings: import("../src/components/customer-ai/types").SupportSettings,
+    ) {
+        return this.request<
+            import("../src/components/customer-ai/types").SupportSettings
+        >("/api/v1/support-ai/settings", "POST", { workspaceId, ...settings });
+    }
+    supportKnowledge(workspaceId: number, before?: number) {
+        return this.request<{
+            rows: import("../src/components/customer-ai/types").SupportKnowledge[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/support-ai/knowledge?workspaceId=${workspaceId}${before ? `&before=${before}` : ""}`,
+        );
+    }
+    createSupportKnowledge(
+        workspaceId: number,
+        name: string,
+        snapshot: import("../src/lib/ai-copy/types").KnowledgeSnapshot,
+    ) {
+        return this.request<{ id: number }>(
+            "/api/v1/support-ai/knowledge",
+            "POST",
+            { workspaceId, name, snapshot },
+        );
+    }
+    reviewSupportKnowledge(
+        workspaceId: number,
+        id: number,
+        action: "approve" | "block",
+        reason?: string,
+    ) {
+        return this.request(`/api/v1/support-ai/knowledge/${id}`, "POST", {
+            workspaceId,
+            action,
+            ...(reason ? { reason } : {}),
+        });
+    }
+    supportDrafts(conversationId: string, before?: string) {
+        return this.request<{
+            rows: import("../src/components/customer-ai/types").SupportJobSummary[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/ai${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+    generateSupportDraft(conversationId: string, clientId: string) {
+        return this.request<{ jobId: string }>(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/ai`,
+            "POST",
+            { clientId },
+        );
+    }
+    supportDraft(conversationId: string, runId: string) {
+        return this.request<
+            import("../src/components/customer-ai/types").SupportJobDetail
+        >(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/ai/${encodeURIComponent(runId)}`,
+        );
+    }
+    cancelSupportDraft(conversationId: string, runId: string) {
+        return this.request(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/ai/${encodeURIComponent(runId)}`,
+            "POST",
+            { action: "cancel" },
         );
     }
     upsertCompany(input: SendbCompanyInput) {
@@ -400,11 +475,18 @@ export class SendbClient {
         clientId: string,
         kind: "reply" | "note" = "reply",
         attachmentIds: string[] = [],
+        aiDraftId?: string,
     ) {
         return this.request(
             `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
             "POST",
-            { body, clientId, kind, attachmentIds },
+            {
+                body,
+                clientId,
+                kind,
+                attachmentIds,
+                ...(aiDraftId ? { aiDraftId } : {}),
+            },
         );
     }
     updateConversation(
@@ -415,6 +497,7 @@ export class SendbClient {
             assigneeId?: string | null;
             priority?: boolean;
             tags?: string[];
+            aiState?: "auto" | "human";
         },
     ) {
         return this.request(

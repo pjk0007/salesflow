@@ -332,5 +332,87 @@
       "url": "https://raw.githubusercontent.com/dittofeed/dittofeed/91277939a9afcee797ab2562025f6b02d823b00c/packages/backend-lib/src/segments.ts",
       "sha256": "3b998257feb4e13eae6540e5683e20bed5b6018424bb674c2c19ae733048b07e"
     }
-  ]
+  ],
+  "aiSupportQa": {
+    "date": "2026-10-14",
+    "branch": "dev",
+    "unitTests": 1047,
+    "sqlApiScenarios": 16,
+    "model": "deterministic test responses; no actual provider call",
+    "actualCustomerSends": 0,
+    "productionDatabaseAccess": false,
+    "screens": [
+      "knowledge copy/approve/apply",
+      "designerhire manual draft/citation/append/reload/send",
+      "backofficelab automatic reply/customer human request/assignment"
+    ],
+    "localArtifactDirectory": "artifacts/sendb-replacement-20261014",
+    "files": [
+      {
+        "file": "ai-automation.log",
+        "sha256": "8c0653918b01b8e6ae5076dc87e715ad46846172c304789d24f639dd534899d2",
+        "bytes": 469
+      },
+      {
+        "file": "ai-backofficelab-auto-reply-qa.png",
+        "sha256": "86da81723bbe05226dbfc70664f6412a4fd529c98f2fe6be88a135cdc7d942f7",
+        "bytes": 94310
+      },
+      {
+        "file": "ai-build.log",
+        "sha256": "193112d7cc7fd4b4c6cc3363a3a357a6e95f3e5d788909f82f8997f15014f43a",
+        "bytes": 11575
+      },
+      {
+        "file": "ai-copy-compat.log",
+        "sha256": "76949c0d562cac1f4367b434d4c06c25bc77bf0fb799195282e5f6963a483a30",
+        "bytes": 109
+      },
+      {
+        "file": "ai-customer-human-request-qa.png",
+        "sha256": "34b5f3886bfba050948bf9d9ae7051e6105501a57bebddccdebe23b36fd24bed",
+        "bytes": 99770
+      },
+      {
+        "file": "ai-draft-grounding-qa.png",
+        "sha256": "22edb9ac34ddd9f3f10db972856cfef002f0b58a1ae83f8cf8007f1e5f113174",
+        "bytes": 126062
+      },
+      {
+        "file": "ai-inbox-handoff-qa.png",
+        "sha256": "680ec26bf216627b7626d2836456edb5025355459cb01bae0954c67f800d01ba",
+        "bytes": 125715
+      },
+      {
+        "file": "ai-inbox.log",
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137",
+        "bytes": 1590
+      },
+      {
+        "file": "ai-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "ai-regression.log",
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986",
+        "bytes": 5793
+      },
+      {
+        "file": "ai-sql.log",
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c",
+        "bytes": 2433
+      },
+      {
+        "file": "ai-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "ai-unit.log",
+        "sha256": "917f81bf20b612019b008e9787ba0ba8cc45446d7f5afb52f09d2dcb0cab5b97",
+        "bytes": 100107
+      }
+    ]
+  }
 }

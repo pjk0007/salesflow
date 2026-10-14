@@ -30,7 +30,7 @@ export const knowledgeSchema = z.object({
                         "http 또는 https 근거 주소가 필요합니다.",
                     ),
                 checkedAt: z.iso.datetime(),
-                purposes: z.array(purposeSchema).min(1),
+                purposes: z.array(z.enum(["initial_email", "visit_ack", "customer_chat"])).min(1),
             }),
         )
         .max(100),

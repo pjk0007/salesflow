@@ -117,3 +117,5 @@ async function startMemberChat(channelKey) {
 상담 파일 업로드·다운로드, 메시지 attachmentIds, 변경 이력과 상담 version 계약은 [FILES-AUDIT.md](FILES-AUDIT.md)를 참고한다.
 
 웹훅 구독·서명 검증·outbox·재시도·전달 이력 API와 서버 SDK는 [WEBHOOKS.md](WEBHOOKS.md)를 참고한다.
+
+상담 AI 설정·승인 지식·초안/전송 연결·사람 이관 API와 서버 SDK는 [AI-SUPPORT.md](AI-SUPPORT.md)를 참고한다.

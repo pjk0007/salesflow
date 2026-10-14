@@ -11,10 +11,12 @@ import {
     index,
     uniqueIndex,
     check,
+    type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations, workspaces, users, records } from "./schema";
 import { crmContacts } from "./customer-platform-schema";
+import { customerAiJobs } from "./customer-ai-schema";
 
 const time = (name: string) =>
     timestamp(name, { withTimezone: true, precision: 3 });
@@ -77,6 +79,8 @@ export const inboxConversations = pgTable(
         lastMessageAt: time("last_message_at").notNull().defaultNow(),
         customerSeq: integer("customer_seq").notNull().default(0),
         version: integer("version").notNull().default(1),
+        aiState: varchar("ai_state", { length: 16 }).notNull().default("auto"),
+        aiHandoffReason: varchar("ai_handoff_reason", { length: 300 }),
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [
@@ -105,6 +109,10 @@ export const inboxMessages = pgTable(
             onDelete: "set null",
         }),
         authorName: varchar("author_name", { length: 100 }).notNull(),
+        aiDraftId: uuid("ai_draft_id").references(
+            (): AnyPgColumn => customerAiJobs.id,
+            { onDelete: "set null" },
+        ),
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [
@@ -113,6 +121,9 @@ export const inboxMessages = pgTable(
             t.clientId,
         ),
         index("inbox_messages_order").on(t.conversationId, t.id),
+        uniqueIndex("inbox_ai_draft_once")
+            .on(t.aiDraftId)
+            .where(sql`${t.aiDraftId} IS NOT NULL`),
         check(
             "inbox_message_kind",
             sql`${t.kind} in ('customer','reply','note')`,

@@ -36,6 +36,7 @@ async function runPlatformCheck(extra) {
             },
         });
     }
+    ctx.aiTest = { configured: false, deps: null };
     const originalLoad = Module._load;
     Module._load = function (name, parent, isMain) {
         const resolved = Module._resolveFilename(
@@ -43,17 +44,55 @@ async function runPlatformCheck(extra) {
             parent,
             isMain,
         ).replaceAll("\\", "/");
-        if (resolved.endsWith("/src/lib/db/index.ts")) return { ...schema, db };
+        if (resolved.endsWith("/src/lib/db/index.ts"))
+            return { ...schema, db, queryClient: ctx.queryClient };
+        if (resolved.endsWith("/src/lib/customer-ai/runtime.ts"))
+            return {
+                supportDeps: () =>
+                    ctx.aiTest.deps ?? {
+                        now: () => new Date(),
+                        quota: async () => true,
+                        call: async () => {
+                            throw new Error("QA model not configured");
+                        },
+                    },
+            };
+        if (resolved.endsWith("/src/lib/ai/client.ts")) {
+            const actual = originalLoad.apply(this, arguments);
+            return {
+                ...actual,
+                getAiClient: (id) =>
+                    ctx.aiTest.configured
+                        ? { provider: "claude", model: id }
+                        : actual.getAiClient(id),
+            };
+        }
         return originalLoad.apply(this, arguments);
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-platform)\//.test(
+            /\/src\/lib\/(inbox|customer-platform|customer-ai)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [
+            /^\/api\/v1\/support-ai\/(settings|knowledge)$/,
+            (m) => `v1/support-ai/${m[1]}`,
+        ],
+        [
+            /^\/api\/v1\/support-ai\/knowledge\/(\d+)$/,
+            () => "v1/support-ai/knowledge/[id]",
+        ],
+        [
+            /^\/api\/v1\/inbox\/conversations\/([a-f0-9-]+)\/ai$/,
+            () => "v1/inbox/conversations/[id]/ai",
+        ],
+        [
+            /^\/api\/v1\/inbox\/conversations\/([a-f0-9-]+)\/ai\/([a-f0-9-]+)$/,
+            () => "v1/inbox/conversations/[id]/ai/[runId]",
+        ],
         [/^\/api\/v1\/webhooks$/, () => "v1/webhooks"],
         [/^\/api\/v1\/webhooks\/([a-f0-9-]+)$/, () => "v1/webhooks/[id]"],
         [
@@ -112,6 +151,16 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "v1/support-ai/settings",
+        "v1/support-ai/knowledge",
+        "v1/support-ai/knowledge/[id]",
+        "customer-ai/settings",
+        "customer-ai/knowledge",
+        "customer-ai/knowledge/[id]",
+        "v1/inbox/conversations/[id]/ai",
+        "v1/inbox/conversations/[id]/ai/[runId]",
+        "inbox/conversations/[id]/ai",
+        "inbox/conversations/[id]/ai/[runId]",
         "v1/webhooks",
         "v1/webhooks/[id]",
         "v1/webhooks/[id]/deliveries",
@@ -188,6 +237,7 @@ async function runPlatformCheck(extra) {
                             .includes("messenger/[key]/attachments/[id]")
                       ? match[2]
                       : match[1],
+                runId: match[2],
                 key: match[1],
                 resource: match[1],
             }),

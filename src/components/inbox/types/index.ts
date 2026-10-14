@@ -10,6 +10,8 @@ export interface InboxChannel {
     enabled: boolean;
 }
 export interface Conversation {
+    aiState: "auto" | "human";
+    aiHandoffReason: string | null;
     version: number;
     contactId: string | null;
     id: string;

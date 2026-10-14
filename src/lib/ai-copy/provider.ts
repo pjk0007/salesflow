@@ -21,7 +21,7 @@ const tokenCount = (value: unknown): number | null =>
 
 /** 한 호출은 한 과금 시도다. SDK·공급자 내부 재시도를 끄고 작업 계층에서 재시도한다. */
 export async function callCopyProvider(
-    policy: PolicySnapshot,
+    policy: Pick<PolicySnapshot, "provider" | "model" | "parameters">,
     prompt: { system: string; user: string },
     signal: AbortSignal,
 ): Promise<CopyProviderResponse> {

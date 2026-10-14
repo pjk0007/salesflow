@@ -18,6 +18,8 @@ type Row = {
     createdAt: string;
 };
 const fields: Record<string, string> = {
+    aiState: "응대 방식",
+    aiHandoffReason: "사람 이관 사유",
     status: "상태",
     assigneeId: "담당자",
     recordId: "CRM 연결",
@@ -35,10 +37,13 @@ function label(value: unknown) {
     if (Array.isArray(value)) return value.join(", ") || "없음";
     return (
         (
-            { open: "진행중", snoozed: "보류중", closed: "종료됨" } as Record<
-                string,
-                string
-            >
+            {
+                open: "진행중",
+                snoozed: "보류중",
+                closed: "종료됨",
+                auto: "AI 응대 허용",
+                human: "사람 응대",
+            } as Record<string, string>
         )[String(value)] ?? String(value)
     );
 }

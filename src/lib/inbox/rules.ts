@@ -20,9 +20,15 @@ export const messageInput = z
         (v) => new Set(v.attachmentIds).size === v.attachmentIds.length,
         "첨부 파일이 중복되었습니다.",
     );
-export const replyInput = messageInput.safeExtend({
-    kind: z.enum(["reply", "note"]),
-});
+export const replyInput = messageInput
+    .safeExtend({
+        kind: z.enum(["reply", "note"]),
+        aiDraftId: z.string().uuid().optional(),
+    })
+    .refine(
+        (v) => !v.aiDraftId || v.kind === "reply",
+        "AI 초안은 고객 답변에만 연결할 수 있습니다.",
+    );
 export const sessionInput = z.object({
     name: z.string().trim().min(1).max(100).optional(),
     email: z.union([z.email(), z.literal("")]).optional(),
@@ -41,6 +47,7 @@ export const patchInput = z
         tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
         priority: z.boolean().optional(),
         version: z.number().int().positive().optional(),
+        aiState: z.enum(["auto", "human"]).optional(),
     })
     .strict();
 export const conversationFiltersInput = z.object({

@@ -29,7 +29,7 @@ export async function webhookActor(
                 );
             if (!member || !["admin", "owner"].includes(member.role))
                 throw new InboxError(
-                    "관리자 발급 토큰만 외부 연동을 변경할 수 있습니다.",
+                    "관리자 발급 토큰만 이 설정을 변경할 수 있습니다.",
                     403,
                 );
         }

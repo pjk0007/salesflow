@@ -16,6 +16,8 @@ export const webhookEventTypes = [
     "pipeline.created",
     "pipeline.updated",
     "platform.test",
+    "ai.draft.ready",
+    "ai.handoff",
 ] as const;
 export function webhookUrl(value: string) {
     const url = new URL(value);
