@@ -182,7 +182,18 @@ export async function startExperiment(
         const [binding] =
             await conn`SELECT 1 FROM ai_copy_bindings WHERE org_id=${input.orgId} AND workspace_id=${experiment.workspace_id} AND purpose='initial_email' AND rule_id=${experiment.rule_id}
             AND policy_version_id=${A.id} AND knowledge_version_id=${knowledge.id}`;
-        if (!binding)
+        // 자동 준비가 기존 설정을 등록해도 전체 발송 연결은 바꾸지 않는다.
+        // 연결 없는 규칙의 자동 준비 실험은 실험 배정 안에서만 A/B 버전을 고정한다.
+        const [unboundAutomation] = binding
+            ? []
+            : await conn`SELECT c.id FROM ai_copy_automation_cycles c
+            WHERE c.experiment_id=${experiment.id} AND c.org_id=${input.orgId} AND c.workspace_id=${experiment.workspace_id}
+            AND c.purpose='initial_email' AND c.rule_id=${experiment.rule_id} AND c.baseline_policy_id=${A.id}
+            AND c.candidate_policy_id=${experiment.config.policyBId} AND c.knowledge_version_id=${knowledge.id}
+            AND (c.original_binding IS NULL OR c.original_binding='null'::jsonb)
+            AND c.stage NOT IN('applied','declined','blocked')
+            AND NOT EXISTS(SELECT 1 FROM ai_copy_bindings b WHERE b.org_id=c.org_id AND b.workspace_id=c.workspace_id AND b.purpose=c.purpose AND b.rule_id=c.rule_id) LIMIT 1`;
+        if (!binding && !unboundAutomation)
             throw new CopyActionError(
                 "현재 발송 연결을 A 작성 지침과 실험 지식 버전으로 맞춘 뒤 시작해 주세요.",
             );

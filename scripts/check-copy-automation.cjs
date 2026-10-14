@@ -10,7 +10,7 @@ const {
     prepareAutomaticExperiment,
     applyAutomationCycle,
 } = require("../src/lib/ai-copy/automation.ts");
-const { bindCopyVersions } = require("../src/lib/ai-copy/versions.ts");
+const { bindCopyVersions, createPolicyVersion } = require("../src/lib/ai-copy/versions.ts");
 const {
     startExperiment,
     enrollForPreparation,
@@ -382,12 +382,21 @@ runCheck(async ({ pg, conn, org, user, A, knowledge, insert, schema }) => {
         0,
     );
     const interrupted = Object.assign(async (sql, ...values) => {
-        if (sql.join('').includes("SET stage='applied'")) throw new Error('합성 장애: 상태 저장 실패');
+        if (sql.join("").includes("SET stage='applied'"))
+            throw new Error("합성 장애: 상태 저장 실패");
         return conn(sql, ...values);
     }, conn);
     await assert.rejects(() => applyAutomationCycle(interrupted, ack, actor(), false), /합성 장애/);
-    assert.equal((await pg.query("SELECT count(*)::int AS n FROM ai_copy_bindings WHERE purpose='visit_ack' AND workspace_id=8")).rows[0].n, 0);
-    assert.equal((await fresh(ack.id)).stage, 'awaiting_application');scenarios++;
+    assert.equal(
+        (
+            await pg.query(
+                "SELECT count(*)::int AS n FROM ai_copy_bindings WHERE purpose='visit_ack' AND workspace_id=8",
+            )
+        ).rows[0].n,
+        0,
+    );
+    assert.equal((await fresh(ack.id)).stage, "awaiting_application");
+    scenarios++;
     await applyAutomationCycle(conn, ack, actor(), false);
     assert.equal(
         (
@@ -467,6 +476,67 @@ runCheck(async ({ pg, conn, org, user, A, knowledge, insert, schema }) => {
             .policy_version_id,
         A.id,
     );
+    scenarios++;
+    await pg.query(
+        "INSERT INTO email_auto_personalized_links(id,org_id,partition_id,name,recipient_field,company_field,prompt,sender_profile_ids,is_active,is_draft) VALUES(6,$1,1,'전체 연결 없는 규칙 검증','email','company','제품을 자연스럽게 소개해 주세요.','[1]'::jsonb,1,0)",
+        [org],
+    );
+    await configureCopyAutomation(
+        conn,
+        { workspaceId: 8, enabled: true, experimentMode: "auto" },
+        actor(),
+    );
+    const unboundSetting = (
+        await pg.query(
+            "SELECT * FROM ai_copy_automation_settings WHERE rule_id=6 AND purpose='initial_email'",
+        )
+    ).rows[0];
+    let unbound = await createAutomationCycle(conn, unboundSetting, clock);
+    const baseline = (
+        await pg.query("SELECT snapshot FROM ai_copy_policy_versions WHERE id=$1", [
+            unbound.baseline_policy_id,
+        ])
+    ).rows[0];
+    const unboundB = await createPolicyVersion(conn, {
+        orgId: org,
+        userId: user,
+        workspaceId: 8,
+        name: "격리 검증 후보",
+        snapshot: {
+            ...baseline.snapshot,
+            instructions: "기존 의미를 보존하면서 질문 하나를 부담 없는 말투로 변주하세요.",
+        },
+    });
+    await pg.query(
+        "UPDATE ai_copy_policy_versions SET state='approved',approval_method='automatic_evaluation' WHERE id=$1",
+        [unboundB.id],
+    );
+    await pg.query(
+        "UPDATE ai_copy_automation_cycles SET candidate_policy_id=$2,stage='ready_for_experiment' WHERE id=$1",
+        [unbound.id, unboundB.id],
+    );
+    await advanceAutomation(conn, unboundSetting, await fresh(unbound.id), deps, true);
+    unbound = await fresh(unbound.id);
+    assert.equal(unbound.stage, "experimenting");
+    assert.equal(
+        (await pg.query("SELECT count(*)::int AS n FROM ai_copy_bindings WHERE rule_id=6")).rows[0]
+            .n,
+        0,
+    );
+    const pinned = await enrollForPreparation(conn, {
+        orgId: org,
+        workspaceId: 8,
+        ruleId: 6,
+        recordId: 50999,
+        email: "auto-999@outside.test",
+        plannedAt: clock,
+        senderId: 1,
+        senderEmail: "demo@internal.test",
+        now: clock,
+        internal: false,
+    });
+    assert.equal(pinned.kind, "assigned");
+    assert.ok([unbound.baseline_policy_id, unboundB.id].includes(pinned.policy.id));
     scenarios++;
     assert.equal(
         (await applyAutomationCycle(conn, await fresh(ack.id), actor(), false)).unchanged,
