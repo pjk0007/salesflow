@@ -27,7 +27,6 @@ import {
     AUTO_SAMPLES,
     AUTO_REVIEWS,
     automaticSamplePlan,
-    canonicalCompany,
     checkedReply,
     type AutoSample,
 } from "./automation-rules";
@@ -38,12 +37,8 @@ import {
     createExperiment,
     startExperiment,
 } from "../email-experiments/repository";
-import {
-    previewExperiment,
-    loadInternalAudience,
-    internalAudienceContains,
-} from "../email-experiments/preview";
-import { saveExperimentContacts, adoptExperiment } from "../email-experiments/actions";
+import { previewExperiment } from "../email-experiments/preview";
+import { adoptExperiment } from "../email-experiments/actions";
 import { loadExperimentResults, appendOutcomeRevision } from "../email-experiments/results";
 import type { Experiment } from "../email-experiments/types";
 
@@ -426,59 +421,6 @@ async function reviewSamples(conn: CopyConnection, cycle: AutomationCycle, deps:
     });
 }
 
-async function importCompanies(conn: CopyConnection, cycle: AutomationCycle, now: Date) {
-    const rule = await loadExperimentRule(conn, cycle.org_id, cycle.workspace_id, cycle.rule_id);
-    const audience = await loadInternalAudience(
-        conn,
-        cycle.org_id,
-        (process.env.JOURNEY_ALERT_INTERNAL_DOMAINS ?? "").split(","),
-    );
-    const names = await conn<
-        { name: string }[]
-    >`SELECT name FROM organizations WHERE id=${cycle.org_id} UNION SELECT name FROM workspaces WHERE org_id=${cycle.org_id}`;
-    const internalNames = new Set(
-        names.flatMap((n) => (canonicalCompany(n.name) ? [canonicalCompany(n.name)!] : [])),
-    );
-    const [cursor] = await conn<
-        { company_cursor: number }[]
-    >`SELECT company_cursor FROM ai_copy_automation_cycles WHERE id=${cycle.id}`;
-    const rows = await conn<
-        { id: number; data: Record<string, unknown> }[]
-    >`SELECT r.id,r.data FROM records r JOIN email_send_queue q ON q.record_id=r.id AND q.org_id=r.org_id JOIN partitions p ON p.id=r.partition_id
-        WHERE r.org_id=${cycle.org_id} AND p.workspace_id=${cycle.workspace_id} AND q.status='pending'
-        AND r.id>${cursor.company_cursor} AND NOT EXISTS(SELECT 1 FROM email_copy_experiment_contacts c WHERE c.org_id=r.org_id AND c.workspace_id=p.workspace_id AND c.normalized_email=lower(trim(r.data->>${String(rule.recipient_field)}))) ORDER BY r.id LIMIT 1000`;
-    await conn`UPDATE ai_copy_automation_cycles SET company_cursor=${rows.length === 1000 ? rows[rows.length - 1].id : 0} WHERE id=${cycle.id}`;
-    const contacts = rows.flatMap((r) => {
-        const email = String(r.data[String(rule.recipient_field)] ?? "")
-                .trim()
-                .toLowerCase(),
-            company = canonicalCompany(r.data[String(rule.company_field)]);
-        if (
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
-            !company ||
-            internalNames.has(company) ||
-            internalAudienceContains(audience, email)
-        )
-            return [];
-        return [
-            {
-                workspaceId: cycle.workspace_id,
-                email,
-                companyKey: company,
-                companyVerified: true,
-                verificationNote: `CRM 명단의 ${String(rule.company_field)} 필드에 등록된 회사명 확인. 이메일 도메인 추정 아님.`,
-                tier: String(r.data.tier ?? r.data["고객 등급"] ?? "unclassified"),
-            },
-        ];
-    });
-    if (contacts.length)
-        await saveExperimentContacts(conn, contacts, {
-            orgId: cycle.org_id,
-            userId: cycle.actor_id,
-            now,
-        });
-}
-
 export async function prepareAutomaticExperiment(
     conn: CopyConnection,
     cycle: AutomationCycle,
@@ -512,7 +454,6 @@ export async function prepareAutomaticExperiment(
             new Date(now.getTime() + 3600_000),
             "회신 수집 연결 확인 대기. 기존 지침으로 계속 발송합니다.",
         );
-    await importCompanies(conn, cycle, now);
     const common = {
         workspaceId: cycle.workspace_id,
         ruleId: cycle.rule_id,
@@ -543,7 +484,7 @@ export async function prepareAutomaticExperiment(
         experiment: {
             workspace_id: cycle.workspace_id,
             rule_id: cycle.rule_id,
-            config: { ...common, plannedPerArm: 2213, ruleSnapshot: ruleSnapshotOf(rule) },
+            config: { ...common, analysisUnit: "recipient", plannedPerArm: 2213, ruleSnapshot: ruleSnapshotOf(rule) },
         } as unknown as Experiment,
         now,
         internalDomains: (process.env.JOURNEY_ALERT_INTERNAL_DOMAINS ?? "").split(","),
@@ -559,7 +500,7 @@ export async function prepareAutomaticExperiment(
     if (!plan)
         throw new CopyDeferredError(
             new Date(now.getTime() + 3600_000),
-            "회사 확인 대상과 발신 한도가 부족합니다. 기존 발송을 유지하며 표본을 기다립니다.",
+            "비교 대상 고객과 발신 한도가 부족합니다. 기존 발송을 유지하며 표본을 기다립니다.",
         );
     return copyTransaction(conn, async () => {
         const [currentSetting] = await conn<
@@ -578,12 +519,18 @@ export async function prepareAutomaticExperiment(
             )
         )
             throw new CopyActionError("현재 발송 연결이 변경되어 자동 실험을 시작하지 않았습니다.");
-        const experiment = cycle.experiment_id
+        const linkedDraft = cycle.experiment_id
             ? (
                   await conn<
                       Experiment[]
                   >`SELECT * FROM email_copy_experiments WHERE id=${cycle.experiment_id} AND org_id=${cycle.org_id}`
               )[0]
+            : undefined;
+        if (linkedDraft && linkedDraft.state !== "draft")
+            throw new CopyActionError("실험 초안을 확인해 주세요.");
+        // 이전 초안의 불변 조건을 수정하지 않고 새 이메일 기준 초안을 만든다.
+        const experiment = linkedDraft?.config.analysisUnit === "recipient"
+            ? linkedDraft
             : await createExperiment(
                   conn,
                   { ...common, ...plan },

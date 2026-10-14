@@ -17,7 +17,6 @@ import { copyRequest } from "@/components/ai-copy/api/copy";
 import type { Experiment } from "../types";
 import ExperimentForm from "./ExperimentForm";
 import ExperimentDetail, { experimentStateLabel } from "./ExperimentDetail";
-import ContactRegistry from "./ContactRegistry";
 import AutomaticObservations from "@/components/ai-copy/ui/AutomaticObservations";
 export default function ExperimentManager({ initialRuleId }: { initialRuleId?: number }) {
     const { user, isLoading } = useSession();
@@ -66,7 +65,6 @@ export default function ExperimentManager({ initialRuleId }: { initialRuleId?: n
                 <TabsList>
                     <TabsTrigger value="observations">자동 관찰</TabsTrigger>
                     <TabsTrigger value="experiments">실험과 결과</TabsTrigger>
-                    <TabsTrigger value="companies">회사 확인과 등급</TabsTrigger>
                 </TabsList>
                 <TabsContent value="observations" className="pt-3">
                     <AutomaticObservations
@@ -142,9 +140,6 @@ export default function ExperimentManager({ initialRuleId }: { initialRuleId?: n
                             pending={pending}
                         />
                     )}
-                </TabsContent>
-                <TabsContent value="companies" className="pt-3">
-                    <ContactRegistry workspaces={catalog.workspaces} act={act} pending={pending} />
                 </TabsContent>
             </Tabs>
             <Dialog open={creating} onOpenChange={setCreating}>

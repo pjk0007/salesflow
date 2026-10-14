@@ -114,6 +114,7 @@ export async function createExperiment(
         snapshot = ruleSnapshotOf(rule);
     const config: ExperimentConfig = {
         ...value,
+        analysisUnit: "recipient",
         primaryMetric: "positive_reply_14d_itt",
         allocation: 0.5,
         alpha: 0.05,
@@ -392,13 +393,23 @@ export async function enrollForPreparation(
             await conn`SELECT a.id FROM email_copy_assignments a JOIN email_copy_experiments e ON e.id=a.experiment_id WHERE a.org_id=${input.orgId} AND a.normalized_email=${email}
             AND e.id<>${experiment.id} AND e.state IN('running','paused','enrollment_closed','observing','decision_ready','data_check','insufficient_sample') LIMIT 1`;
         if (overlap) return { kind: "excluded", reason: "concurrent_experiment" };
-        const [contact] = await conn<
-            { company_key: string | null; company_verified: boolean; tier: string }[]
-        >`SELECT * FROM email_copy_experiment_contacts WHERE org_id=${input.orgId} AND workspace_id=${input.workspaceId} AND normalized_email=${email}`;
-        const cohort = contact?.company_verified && contact.company_key ? "primary" : "exploratory";
-        if (cohort === "primary") {
+        const recipientAnalysis = experiment.config.analysisUnit === "recipient";
+        const [contact] = recipientAnalysis
+            ? []
+            : await conn<
+                  { company_key: string | null; company_verified: boolean; tier: string }[]
+              >`SELECT * FROM email_copy_experiment_contacts WHERE org_id=${input.orgId} AND workspace_id=${input.workspaceId} AND normalized_email=${email}`;
+        const customerKey = fingerprint([input.orgId, input.workspaceId, email]);
+        // 기존 비교 표본 제약을 유지하며 새 실험은 이메일별 표본 키를 저장한다.
+        const companyKey = recipientAnalysis
+            ? `recipient:${customerKey}`
+            : contact?.company_verified
+              ? contact.company_key
+              : null;
+        const cohort = recipientAnalysis || companyKey ? "primary" : "exploratory";
+        if (!recipientAnalysis && companyKey) {
             const [company] =
-                await conn`SELECT id FROM email_copy_assignments WHERE experiment_id=${experiment.id} AND company_key=${contact.company_key} AND cohort='primary' LIMIT 1`;
+                await conn`SELECT id FROM email_copy_assignments WHERE experiment_id=${experiment.id} AND company_key=${companyKey} AND cohort='primary' LIMIT 1`;
             if (company) return { kind: "excluded", reason: "company_representative_exists" };
         }
         if (experiment.state !== "running") return { kind: "none" };
@@ -430,8 +441,7 @@ export async function enrollForPreparation(
             await conn`SELECT l.id FROM email_send_logs l JOIN partitions p ON p.id=l.partition_id WHERE l.org_id=${input.orgId} AND p.workspace_id=${input.workspaceId}
             AND lower(trim(l.recipient_email))=${email} AND (l.status IN('pending','sent','delivered','uncertain') OR l.status='failed' AND l.request_id IS NOT NULL AND (l.nhn_status_code IS NOT NULL OR l.delivery_fail_source IS NOT NULL)) LIMIT 1`;
         if (priorSend) return { kind: "excluded", reason: "already_contacted" };
-        const tier = contact?.tier ?? "unclassified",
-            customerKey = fingerprint([input.orgId, input.workspaceId, email]);
+        const tier = contact?.tier ?? "unclassified";
         const stratum = fingerprint([
             input.workspaceId,
             input.senderId,
@@ -451,7 +461,7 @@ export async function enrollForPreparation(
         const [assignment] = await conn<
             Assignment[]
         >`INSERT INTO email_copy_assignments(experiment_id,org_id,workspace_id,normalized_email,customer_key,arm,cohort,company_key,record_id,initial_scheduled_at,planned_sender_id,planned_sender_email,stratum,tier,assigned_at)
-            VALUES(${experiment.id},${input.orgId},${input.workspaceId},${email},${customerKey},${arm},${cohort},${cohort === "primary" ? contact.company_key : null},${input.recordId},${input.plannedAt.toISOString()},${input.senderId},${input.senderEmail ? normalizeEmail(input.senderEmail) : null},${stratum},${tier},${input.now.toISOString()}) RETURNING *`;
+            VALUES(${experiment.id},${input.orgId},${input.workspaceId},${email},${customerKey},${arm},${cohort},${companyKey},${input.recordId},${input.plannedAt.toISOString()},${input.senderId},${input.senderEmail ? normalizeEmail(input.senderEmail) : null},${stratum},${tier},${input.now.toISOString()}) RETURNING *`;
         return { kind: "assigned", assignment, experiment, policy: arm === "A" ? A : B, knowledge };
     });
 }

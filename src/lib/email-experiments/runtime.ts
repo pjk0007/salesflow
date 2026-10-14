@@ -41,6 +41,7 @@ export async function prepareEmailExperiment(input: {
     ruleId: number;
     recordId: number;
     email: string;
+    company?: unknown;
     plannedAt: Date;
     senderId: number | null;
     senderEmail?: string | null;
@@ -62,7 +63,7 @@ export async function prepareEmailExperiment(input: {
         const result = await enrollForPreparation(conn, {
             ...input,
             now: input.now ?? new Date(),
-            internal: internalAudienceContains(audience, input.email),
+            internal: internalAudienceContains(audience, input.email, input.company),
         });
         if (result.kind === "excluded" && result.reason === "invalidated")
             throw new CopyDeferredError(

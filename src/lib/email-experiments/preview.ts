@@ -5,6 +5,7 @@ import { capSchedule, DEFAULT_LIMIT_SETTINGS, toLimitSettings } from "../email-s
 import { kstParts } from "../kst";
 import { loadExperimentRule } from "./repository";
 import type { Experiment } from "./types";
+import { canonicalCompany } from "../ai-copy/automation-rules";
 
 export const PUBLIC_EMAIL_DOMAINS = new Set([
     "gmail.com",
@@ -28,6 +29,9 @@ export async function loadInternalAudience(
     const senders = await conn<
         { from_email: string }[]
     >`SELECT from_email FROM email_sender_profiles WHERE org_id=${orgId}`;
+    const names = await conn<{ name: string }[]>`SELECT name FROM organizations WHERE id=${orgId}
+        UNION SELECT name FROM workspaces WHERE org_id=${orgId}`;
+    const companies = new Set(names.flatMap((n) => canonicalCompany(n.name) ?? []));
     const emails = new Set([
         ...users.map((u) => normalizeEmail(u.email)),
         ...senders.map((s) => normalizeEmail(s.from_email)),
@@ -37,14 +41,19 @@ export async function loadInternalAudience(
         const domain = address.split("@")[1];
         if (domain && !PUBLIC_EMAIL_DOMAINS.has(domain)) domains.add(domain);
     }
-    return { emails, domains };
+    return { emails, domains, companies };
 }
 export const internalAudienceContains = (
     audience: Awaited<ReturnType<typeof loadInternalAudience>>,
     email: string,
+    company?: unknown,
 ) => {
     const normalized = normalizeEmail(email);
-    return audience.emails.has(normalized) || audience.domains.has(normalized.split("@")[1]);
+    return (
+        audience.emails.has(normalized) ||
+        audience.domains.has(normalized.split("@")[1]) ||
+        audience.companies.has(canonicalCompany(company) ?? "")
+    );
 };
 export async function previewExperiment(
     conn: CopyConnection,
@@ -58,14 +67,17 @@ export async function previewExperiment(
             experiment.rule_id,
         );
     const audience = await loadInternalAudience(conn, input.orgId, input.internalDomains);
-    const contacts = await conn<
-        {
-            normalized_email: string;
-            company_key: string | null;
-            company_verified: boolean;
-            tier: string;
-        }[]
-    >`SELECT * FROM email_copy_experiment_contacts WHERE org_id=${input.orgId} AND workspace_id=${experiment.workspace_id}`;
+    const recipientAnalysis = experiment.config.analysisUnit === "recipient";
+    const contacts = recipientAnalysis
+        ? []
+        : await conn<
+              {
+                  normalized_email: string;
+                  company_key: string | null;
+                  company_verified: boolean;
+                  tier: string;
+              }[]
+          >`SELECT * FROM email_copy_experiment_contacts WHERE org_id=${input.orgId} AND workspace_id=${experiment.workspace_id}`;
     const byEmail = new Map(contacts.map((c) => [c.normalized_email, c]));
     const sent = await conn<
         { recipient_email: string }[]
@@ -127,7 +139,7 @@ export async function previewExperiment(
                 continue;
             }
             seenEmails.add(email);
-            if (internalAudienceContains(audience, email)) {
+            if (internalAudienceContains(audience, email, data[String(rule.company_field)])) {
                 counts.internal++;
                 continue;
             }
@@ -145,6 +157,10 @@ export async function previewExperiment(
             }
             if (record.already_prepared) {
                 counts.alreadyPrepared++;
+                continue;
+            }
+            if (recipientAnalysis) {
+                counts.primary++;
                 continue;
             }
             const contact = byEmail.get(email);
@@ -198,12 +214,17 @@ export async function previewExperiment(
     }
     const warnings: string[] = [];
     if (counts.primary < requiredTotal)
-        warnings.push("현재 대기열의 회사 확인 고객만으로는 계획 표본을 채울 수 없습니다.");
+        warnings.push(
+            recipientAnalysis
+                ? "현재 대기열의 비교 대상 고객만으로는 계획 표본을 채울 수 없습니다."
+                : "현재 대기열의 기존 회사 단위 비교 대상으로는 계획 표본을 채울 수 없습니다.",
+        );
     if (requiredDays === null)
         warnings.push("설정된 발신 한도로는 최대 42일 안에 계획 표본을 모집하기 어렵습니다.");
     if (days.some((d) => d.capacity === null))
         warnings.push("발신량 한도가 없는 주소가 있어 실제 수집 기간은 예측할 수 없습니다.");
     return {
+        analysisUnit: experiment.config.analysisUnit ?? ("legacy_company" as const),
         counts,
         requiredPerArm: experiment.config.plannedPerArm,
         requiredTotal,

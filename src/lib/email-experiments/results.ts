@@ -50,7 +50,7 @@ export async function loadExperimentResults(
     >`SELECT DISTINCT a.id AS assignment_id FROM email_copy_assignments a JOIN partitions p ON p.workspace_id=a.workspace_id
         JOIN email_send_logs l ON l.partition_id=p.id AND l.org_id=a.org_id AND l.parent_log_id IS NULL AND l.id IS DISTINCT FROM a.send_log_id
         WHERE a.experiment_id=${experiment.id} AND a.org_id=${input.orgId} AND (lower(trim(l.recipient_email))=a.normalized_email
-            OR a.company_key IS NOT NULL AND EXISTS(SELECT 1 FROM email_copy_experiment_contacts c WHERE c.org_id=a.org_id AND c.workspace_id=a.workspace_id AND c.company_verified AND c.company_key=a.company_key AND c.normalized_email=lower(trim(l.recipient_email))))
+            OR ${experiment.config.analysisUnit !== "recipient"} AND a.company_key IS NOT NULL AND EXISTS(SELECT 1 FROM email_copy_experiment_contacts c WHERE c.org_id=a.org_id AND c.workspace_id=a.workspace_id AND c.company_verified AND c.company_key=a.company_key AND c.normalized_email=lower(trim(l.recipient_email))))
         AND (l.status='sent' OR l.status='failed' AND l.request_id IS NOT NULL AND (l.nhn_status_code IS NOT NULL OR l.delivery_fail_source IS NOT NULL))
         AND l.sent_at>=a.initial_scheduled_at AND l.sent_at<a.initial_scheduled_at+interval '14 days' AND l.sent_at<=${input.asOf.toISOString()}`;
     const outcomesByAssignment = new Map<number, OutcomeRow[]>(),
@@ -154,8 +154,8 @@ export async function loadExperimentResults(
         LEFT JOIN ai_copy_generation_jobs j ON j.id=a.generation_job_id LEFT JOIN ai_copy_generation_attempts t ON t.job_id=j.id AND t.started_at<=${input.asOf.toISOString()}
         WHERE a.experiment_id=${experiment.id} AND a.org_id=${input.orgId} GROUP BY a.arm`;
     const senderGroups =
-        await conn`SELECT arm,planned_sender_id,actual_sender_id,planned_sender_email,actual_sender_email,tier,count(*)::int AS assigned,
-        count(send_log_id)::int AS delivery_started FROM email_copy_assignments WHERE experiment_id=${experiment.id} AND org_id=${input.orgId} GROUP BY arm,planned_sender_id,actual_sender_id,planned_sender_email,actual_sender_email,tier ORDER BY planned_sender_id,arm`;
+        await conn`SELECT arm,planned_sender_id,actual_sender_id,planned_sender_email,actual_sender_email,count(*)::int AS assigned,
+        count(send_log_id)::int AS delivery_started FROM email_copy_assignments WHERE experiment_id=${experiment.id} AND org_id=${input.orgId} GROUP BY arm,planned_sender_id,actual_sender_id,planned_sender_email,actual_sender_email ORDER BY planned_sender_id,arm`;
     return {
         experiment,
         report,

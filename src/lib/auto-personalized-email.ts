@@ -297,6 +297,7 @@ export async function processAutoPersonalizedEmail(
             let senderFromEmail = sender.fromEmail;
             const experimentEnrollment = !content || content.experimentAssignmentId ? await prepareEmailExperiment({
                 orgId, workspaceId, ruleId: link.id, recordId: record.id, email,
+                company: link.companyField ? data[link.companyField] : undefined,
                 plannedAt: planned?.row.scheduledAt ?? new Date(), senderId: sender.profileId, senderEmail: senderFromEmail,
             }) : { kind: "none" as const };
             if (experimentEnrollment.kind === "excluded") {

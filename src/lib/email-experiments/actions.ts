@@ -1,13 +1,10 @@
-import { z } from "zod";
 import type { CopyConnection } from "../ai-copy/types";
 import { copyTransaction } from "../ai-copy/generation";
 import { CopyActionError } from "../ai-copy/errors";
 import { bindCopyVersions } from "../ai-copy/versions";
-import { normalizeEmail } from "../deep-visitor-alert-rules";
 import { loadExperimentResults } from "./results";
 import { experimentEvent } from "./repository";
 import type { Experiment } from "./types";
-import { PUBLIC_EMAIL_DOMAINS } from "./preview";
 export async function adoptExperiment(
     conn: CopyConnection,
     input: {
@@ -59,80 +56,6 @@ export async function adoptExperiment(
         return { adopted: true, appliesTo: "new_jobs_only" };
     };
     return insideTransaction ? apply() : copyTransaction(conn, apply);
-}
-export const contactInputSchema = z
-    .object({
-        workspaceId: z.number().int().positive(),
-        email: z.email(),
-        companyKey: z.string().trim().min(1).max(200).nullable(),
-        companyVerified: z.boolean(),
-        verificationNote: z.string().trim().max(1000),
-        tier: z.string().trim().min(1).max(80),
-    })
-    .refine(
-        (c) => !c.companyVerified || (c.companyKey !== null && c.verificationNote.length >= 10),
-        "회사 확인 근거를 10자 이상 적어 주세요. 개인 메일 도메인만으로 회사를 확인하면 안 됩니다.",
-    );
-export async function saveExperimentContact(
-    conn: CopyConnection,
-    raw: unknown,
-    actor: { orgId: string; userId: string; now: Date },
-) {
-    const value = contactInputSchema.parse(raw);
-    value.companyKey =
-        value.companyKey?.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase() ?? null;
-    if (value.companyVerified && value.companyKey && PUBLIC_EMAIL_DOMAINS.has(value.companyKey))
-        throw new CopyActionError(
-            "개인 메일 서비스의 도메인을 회사 식별명으로 확인할 수 없습니다.",
-        );
-    const [workspace] =
-        await conn`SELECT id FROM workspaces WHERE id=${value.workspaceId} AND org_id=${actor.orgId}`;
-    if (!workspace) throw new CopyActionError("사업을 찾을 수 없습니다.");
-    const [contact] =
-        await conn`INSERT INTO email_copy_experiment_contacts(org_id,workspace_id,normalized_email,company_key,company_verified,verification_note,tier,verified_by,verified_at)
-        VALUES(${actor.orgId},${value.workspaceId},${normalizeEmail(value.email)},${value.companyKey},${value.companyVerified},${value.verificationNote},${value.tier},${value.companyVerified ? actor.userId : null},${value.companyVerified ? actor.now.toISOString() : null})
-        ON CONFLICT(org_id,workspace_id,normalized_email) DO UPDATE SET company_key=EXCLUDED.company_key,company_verified=EXCLUDED.company_verified,verification_note=EXCLUDED.verification_note,
-            tier=EXCLUDED.tier,verified_by=EXCLUDED.verified_by,verified_at=EXCLUDED.verified_at RETURNING *`;
-    return contact;
-}
-export async function saveExperimentContacts(
-    conn: CopyConnection,
-    raw: unknown,
-    actor: { orgId: string; userId: string; now: Date },
-) {
-    const values = z.array(contactInputSchema).min(1).max(1000).parse(raw);
-    const unique = new Map<string, (typeof values)[number]>();
-    for (const value of values) {
-        value.companyKey =
-            value.companyKey?.normalize("NFKC").trim().replace(/\s+/g, " ").toLowerCase() ?? null;
-        if (value.companyVerified && value.companyKey && PUBLIC_EMAIL_DOMAINS.has(value.companyKey))
-            throw new CopyActionError("개인 메일 도메인으로 회사가 확인됐다고 표시할 수 없습니다.");
-        unique.set(`${value.workspaceId}:${normalizeEmail(value.email)}`, value);
-    }
-    const workspaceIds = [...new Set(values.map((v) => v.workspaceId))];
-    const workspaces = await conn<
-        { id: number }[]
-    >`SELECT id FROM workspaces WHERE org_id=${actor.orgId} AND id IN(SELECT value::int FROM jsonb_array_elements_text(${JSON.stringify(workspaceIds)}::jsonb))`;
-    if (workspaces.length !== workspaceIds.length)
-        throw new CopyActionError("회사 확인 정보의 사업 권한을 확인해 주세요.");
-    const payload = [...unique.values()].map((v) => ({
-        org_id: actor.orgId,
-        workspace_id: v.workspaceId,
-        normalized_email: normalizeEmail(v.email),
-        company_key: v.companyKey,
-        company_verified: v.companyVerified,
-        verification_note: v.verificationNote,
-        tier: v.tier,
-        verified_by: v.companyVerified ? actor.userId : null,
-        verified_at: v.companyVerified ? actor.now.toISOString() : null,
-    }));
-    const saved =
-        await conn`INSERT INTO email_copy_experiment_contacts(org_id,workspace_id,normalized_email,company_key,company_verified,verification_note,tier,verified_by,verified_at)
-        SELECT org_id,workspace_id,normalized_email,company_key,company_verified,verification_note,tier,verified_by,verified_at FROM jsonb_to_recordset(${JSON.stringify(payload)}::jsonb)
-        AS x(org_id uuid,workspace_id int,normalized_email text,company_key text,company_verified boolean,verification_note text,tier text,verified_by uuid,verified_at timestamptz)
-        ON CONFLICT(org_id,workspace_id,normalized_email) DO UPDATE SET company_key=EXCLUDED.company_key,company_verified=EXCLUDED.company_verified,verification_note=EXCLUDED.verification_note,
-            tier=EXCLUDED.tier,verified_by=EXCLUDED.verified_by,verified_at=EXCLUDED.verified_at RETURNING id`;
-    return { saved: saved.length };
 }
 /** 새 발송이 없더라도 모집 종료와 14일 성숙 상태를 진행시킨다. 성과를 보고 조기 종료하지 않는다. */
 export async function advanceExperimentLifecycles(conn: CopyConnection, now: Date, orgId?: string) {

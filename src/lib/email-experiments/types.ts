@@ -13,6 +13,8 @@ export type ExperimentState =
 export type ExperimentArm = "A" | "B";
 export type ReplyIntent = "interested" | "neutral" | "rejected" | "unknown";
 export interface ExperimentConfig {
+    /** 없는 기존 실험은 배정 당시의 회사 단위 집계를 유지한다. */
+    analysisUnit?: "recipient";
     subject: string;
     axis: "opening" | "question" | "tone" | "length";
     hypothesis: string;

@@ -77,6 +77,11 @@ export default function ExperimentDetail({
                 ‘{experiment.config.subject}’
             </p>
             <p className="text-sm text-muted-foreground">{experiment.config.hypothesis}</p>
+            <p className="text-sm text-muted-foreground">
+                {experiment.config.analysisUnit === "recipient"
+                    ? "고객 이메일 기준으로 A/B를 비교합니다. 회사 확인이나 등급 등록은 필요 없습니다."
+                    : "이전에 만든 실험은 당시 회사 단위 집계 기준을 유지합니다. 새 실험은 고객 이메일 기준으로 비교합니다."}
+            </p>
             {["draft", "evaluated"].includes(experiment.state) && (
                 <ExperimentStart id={id} act={act} pending={pending} />
             )}
@@ -170,7 +175,7 @@ export default function ExperimentDetail({
             )}
             <details className="rounded-md border p-4">
                 <summary className="cursor-pointer text-sm font-medium">
-                    별도 분모와 탐색 집계 보기
+                    보조 집계 보기
                 </summary>
                 <div className="mt-3 space-y-2 text-sm">
                     <p>
@@ -179,10 +184,12 @@ export default function ExperimentDetail({
                         {percent(report.B.actualSendPositiveRate, collection.available)} · 관찰 완료
                         발송 A {report.A.actualSendMatured}명 / B {report.B.actualSendMatured}명
                     </p>
-                    <p>
-                        회사 미확인 탐색 고객: A {report.exploratory.A.assigned}명 / B{" "}
-                        {report.exploratory.B.assigned}명. 확정 비교 표본에 포함하지 않습니다.
-                    </p>
+                    {experiment.config.analysisUnit !== "recipient" && (
+                        <p>
+                            이전 기준의 참고 집계: A {report.exploratory.A.assigned}명 / B{" "}
+                            {report.exploratory.B.assigned}명. 기존 비교 표본과 구분합니다.
+                        </p>
+                    )}
                     <p>
                         30일 상담 일정 수동 기록: A{" "}
                         {report.A.meetings30d ? `${report.A.meetings30d}건` : "기록 확인 필요"} / B{" "}
@@ -206,7 +213,6 @@ export default function ExperimentDetail({
                                         "집단",
                                         "예정 발신 프로필",
                                         "실제 프로필",
-                                        "등급",
                                         "배정",
                                     ].map((s) => (
                                         <th key={s} className="p-2">
@@ -222,7 +228,6 @@ export default function ExperimentDetail({
                                             g.arm,
                                             g.planned_sender_email ?? g.planned_sender_id,
                                             g.actual_sender_email ?? g.actual_sender_id,
-                                            g.tier,
                                             g.assigned,
                                         ].map((v, j) => (
                                             <td key={j} className="border-t p-2">
@@ -389,9 +394,14 @@ function ExperimentStart({
             <h3 className="font-medium">시작 전 미리보기</h3>
             <div className="grid gap-2 text-sm sm:grid-cols-3">
                 <p>적재 대기열 {data.counts.queuedRecords}건</p>
-                <p>회사 확인 비교 대상 {data.counts.primary}명</p>
-                <p>탐색 대상 {data.counts.exploratory}명</p>
-                <p>회사 중복 제외 {data.counts.companyDuplicate}명</p>
+                <p>비교 대상 고객 {data.counts.primary}명</p>
+                <p>이메일 중복 제외 {data.counts.duplicateEmail}명</p>
+                {data.analysisUnit === "legacy_company" && (
+                    <>
+                        <p>이전 기준 참고 대상 {data.counts.exploratory}명</p>
+                        <p>기존 회사 중복 제외 {data.counts.companyDuplicate}명</p>
+                    </>
+                )}
                 <p>내부 계정 제외 {data.counts.internal}명</p>
                 <p>기존 접촉 제외 {data.counts.alreadyContacted}명</p>
                 <p>기존 준비 본문 제외 {data.counts.alreadyPrepared}건</p>
@@ -504,7 +514,7 @@ function Assignments({
                                     {[
                                         "고객",
                                         "집단",
-                                        "회사 확인",
+                                        "집계",
                                         "첫 예정 시각",
                                         "생성",
                                         "회신",
@@ -522,7 +532,7 @@ function Assignments({
                                         <td className="border-b p-2">{a.normalized_email}</td>
                                         <td className="border-b p-2">{a.arm}</td>
                                         <td className="border-b p-2">
-                                            {a.cohort === "primary" ? a.company_key : "미확인 탐색"}
+                                            {a.cohort === "primary" ? "비교 대상" : "이전 참고 집계"}
                                         </td>
                                         <td className="border-b p-2">
                                             {new Date(a.initial_scheduled_at).toLocaleString(
