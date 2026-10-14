@@ -2146,5 +2146,477 @@
         "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986"
       }
     ]
+  },
+  "accessQa": {
+    "capturedAt": "2026-10-14T18:27:54.635404+00:00",
+    "scope": "고객 플랫폼 사업별 직원 역할·현재 멤버십/세션·토큰 교집합·배정/회수 감사",
+    "isolation": "PGlite·가상 직원/고객·실제 외부 전송/운영 DB 접근 0건",
+    "tests": {
+      "workspaceAccessSqlApi": 18,
+      "unit": 1075,
+      "types": "passed",
+      "featureLint": "passed",
+      "build": "passed",
+      "regressionSuites": 13
+    },
+    "browserQa": [
+      "디하 열람 직원 상담·내부 메모 조회·답장/수정 제한·읽음",
+      "열람 직원 거래 상세·감사 조회와 저장 없음",
+      "관리자 역할 변경·변경 이력",
+      "응대 직원 가상 답장·담당 배정",
+      "백오피스 전용 상담·담당 후보·다른 사업 미노출",
+      "사업 운영 관리자 설정 표시·직원 배정 버튼 없음",
+      "회수 후 사업 목록/상담 접근 중단",
+      "권한이 없는 기존 담당 ID 보존·배정 불가 표시"
+    ],
+    "sourceEvidence": "Opencom pinned data-model workspaceMembers; RESEARCH-APPLIED.md",
+    "implementationFiles": [
+      {
+        "path": "drizzle/0102_customer_workspace_access.sql",
+        "sha256": "5363a5ee65d6f2971174af93b2fb43643dba1e3632c284242831499c826fe9cc",
+        "bytes": 1376
+      },
+      {
+        "path": "scripts/check-customer-access.cjs",
+        "sha256": "5f6c32272886e5b66378f51bb7c0f767a70ea6dcf738bec4a140766f1c2b7983",
+        "bytes": 47382
+      },
+      {
+        "path": "scripts/check-customer-imports.cjs",
+        "sha256": "9a428ee89ae4e48fcea2295d695438779230c72076d007703017a0ba4ef75151",
+        "bytes": 42475
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "sha256": "9e2d06fefbf37125c60c6d3c969e3312c5d326ee8353485f1e21c7fa24e83a87",
+        "bytes": 28876
+      },
+      {
+        "path": "scripts/check-customer-sales.cjs",
+        "sha256": "f6708633bc5a1e975cc52579d1c6c65502794e433620c0a15e590c3a6e31151e",
+        "bytes": 30894
+      },
+      {
+        "path": "scripts/check-inbox-operations.cjs",
+        "sha256": "800cb2ed154ed2fe31d371d9fba94b042b00e058569e59842edfaf9b4331aab5",
+        "bytes": 67719
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "sha256": "fc3b9aaa6154217cd365c6cdf08fa12794ed0753a313d53143ff87dbb0b6e579",
+        "bytes": 29947
+      },
+      {
+        "path": "src/app/api/customer-crm/contacts/[id]/events/route.ts",
+        "sha256": "37ad4c9f7b804a0f172f6a73eac47b0adaa7d39480dca82bbc964f3c481a21d5",
+        "bytes": 1049
+      },
+      {
+        "path": "src/app/api/customer-platform/access/route.ts",
+        "sha256": "512a48a4de454111b28f7b213849d061493f6822522d2fc4a490da938769b6c2",
+        "bytes": 792
+      },
+      {
+        "path": "src/app/api/customer-platform/webhooks-config/route.ts",
+        "sha256": "5e801f1740070cf50bb76c7949ea2459f016a40f29732d340ac58978f6124eb1",
+        "bytes": 277
+      },
+      {
+        "path": "src/components/customer-access/api/index.ts",
+        "sha256": "2b85b15c9c8e8176a64545da89eacce331f6c665cd79815c5f2c12d3d0d19b61",
+        "bytes": 108
+      },
+      {
+        "path": "src/components/customer-access/hooks/useStaffAccess.ts",
+        "sha256": "ae6ab2c20449f43de85bce6991f43896e9d5799e31d9ccf27131af09d1afe2c3",
+        "bytes": 645
+      },
+      {
+        "path": "src/components/customer-access/types/index.ts",
+        "sha256": "c6efd82cf15cfd0a2cd05e131ac219c09ab71fceb332120582fe8c72addb19e2",
+        "bytes": 528
+      },
+      {
+        "path": "src/components/customer-access/ui/StaffAccessPanel.tsx",
+        "sha256": "900dc8b56af03139aa8233dd9a5b9aed22b194920f586d1a033d9ede08462b24",
+        "bytes": 14156
+      },
+      {
+        "path": "src/components/customer-access/utils/abilities.ts",
+        "sha256": "ea230edcde03bb17bbd5d2e1ca00c7ee6ae1277b1badf9f380356dc76b4c5c4c",
+        "bytes": 503
+      },
+      {
+        "path": "src/components/customer-ai/ui/CustomerAiPage.tsx",
+        "sha256": "b3541bde90c3cdffe31fbe09c605879c099a293a3f23af69d1f625f81e864447",
+        "bytes": 6980
+      },
+      {
+        "path": "src/components/customer-crm/ui/CustomerCrmPage.tsx",
+        "sha256": "dfef024e7dcb4137f1a44879504afff50202249188342f6cac9a334c3e2de77b",
+        "bytes": 30132
+      },
+      {
+        "path": "src/components/customer-crm/ui/EntityEditor.tsx",
+        "sha256": "46763fd92c355f49c1e0099586c32d542798eac66fdd2fc552197d2fc7872952",
+        "bytes": 34496
+      },
+      {
+        "path": "src/components/customer-imports/ui/ImportsPage.tsx",
+        "sha256": "c992f1d06fa49110836ab2085aa59ce301b7d4cf4825fd0c2c965f9e78c47182",
+        "bytes": 33681
+      },
+      {
+        "path": "src/components/customer-webhooks/ui/WebhooksPage.tsx",
+        "sha256": "5e4897d263aacf47ac7a8e4795366e208536f074c3cc6ff8539eb8e8face45eb",
+        "bytes": 13320
+      },
+      {
+        "path": "src/components/customer-workflows/ui/WorkflowsPage.tsx",
+        "sha256": "2f77faac70554440afe83255c19a4f04befd4854f5a9521c3c5a694f808e4269",
+        "bytes": 13501
+      },
+      {
+        "path": "src/components/inbox-email/ui/EmailDeliveryStatus.tsx",
+        "sha256": "7fffc030a5c069874158d6dd53556f9ace3aba840268a1874a529e73ef5af317",
+        "bytes": 3168
+      },
+      {
+        "path": "src/components/inbox-email/ui/IncomingEmailFiles.tsx",
+        "sha256": "2773c513dc0ed49ab6203eec31de40d67ff16db96b5d7e6ad1d61bb9ffe2a9c5",
+        "bytes": 2524
+      },
+      {
+        "path": "src/components/inbox/hooks/useInbox.ts",
+        "sha256": "f367b3a756b39e4e05a3a02a09886c6dd846ce8a151032bacab317898d8634d8",
+        "bytes": 2604
+      },
+      {
+        "path": "src/components/inbox/types/index.ts",
+        "sha256": "d29231e08b02c9b33ec10c2bb570db3c1197c7bd0cf51fd2c7539808555a6c3e",
+        "bytes": 2445
+      },
+      {
+        "path": "src/components/inbox/ui/ChannelSettings.tsx",
+        "sha256": "d8d5002ab29f1d217aa6c7041bb6eee1dbae1cd79837f39512914cc05d7e7701",
+        "bytes": 11960
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "1ef3568fb666a3efb558831b7ed46a4534e8b0050bed5ec72789bcf2436020f7",
+        "bytes": 44707
+      },
+      {
+        "path": "src/components/inbox/ui/CustomerCrmContext.tsx",
+        "sha256": "8fd2a2eb2618528e6cad5078d29b91176111723a2c9ccc3bff00f074301c2e11",
+        "bytes": 16161
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "sha256": "3614194f464e023503a3f867863269c66dd8108c1b230024646f3080ae24b23a",
+        "bytes": 27902
+      },
+      {
+        "path": "src/lib/customer-access/access.ts",
+        "sha256": "f251ef4bfb70b3bf8fb2655f728c3ae9fc5c27b97a69ac442f111d9dcd5e6cf8",
+        "bytes": 5987
+      },
+      {
+        "path": "src/lib/customer-access/repository.ts",
+        "sha256": "ee45436403364e4e940e708953291b4b80819ade0d3c4c51e43c81ab6d60e483",
+        "bytes": 6599
+      },
+      {
+        "path": "src/lib/customer-access/rules.ts",
+        "sha256": "b84aec5e5a55ea30678f55889fa7abbd03d4828b493c266c6e2da9b9f6a92b82",
+        "bytes": 726
+      },
+      {
+        "path": "src/lib/customer-ai/catalog.ts",
+        "sha256": "4fdf9c36bfa8522c0e35d88c60d817e274ce2a41ca627fe4516bc26f900bde5b",
+        "bytes": 11679
+      },
+      {
+        "path": "src/lib/customer-ai/http.ts",
+        "sha256": "7a4f79a22dd5192088cf707f0325261d8b4e39957588fd02969c430a558e7e40",
+        "bytes": 2190
+      },
+      {
+        "path": "src/lib/customer-ai/queue.ts",
+        "sha256": "b654b9fd04ac434b16dfb24542166eadc2da8b5a41e332b32a00d21d57f119b6",
+        "bytes": 12735
+      },
+      {
+        "path": "src/lib/customer-imports/repository.ts",
+        "sha256": "61da0a71bfa426701ed00dc19bc3b91178a58efe2649c9f9ddab62b971fe4d37",
+        "bytes": 18896
+      },
+      {
+        "path": "src/lib/customer-imports/routes.ts",
+        "sha256": "5730687b493e789c8c373135fbb0ba0ba823eecff4a19d313391ac4f3493c4ad",
+        "bytes": 3885
+      },
+      {
+        "path": "src/lib/customer-platform/activity-http.ts",
+        "sha256": "8053b115c1f2cd8dd7300bbf6a70d5788e405650394e2124b40be0a1c148abd0",
+        "bytes": 1384
+      },
+      {
+        "path": "src/lib/customer-platform/external-auth.ts",
+        "sha256": "33b03714092f616837badc4ceaf21512fb5f2c4bbcd7ae7cbe492b5b9439d590",
+        "bytes": 3900
+      },
+      {
+        "path": "src/lib/customer-platform/sales-http.ts",
+        "sha256": "521e7f261c95149bfe8ff90d9e38c945c1e21b1444eb38aa3a9ddde88c483fa3",
+        "bytes": 5103
+      },
+      {
+        "path": "src/lib/customer-platform/sales-repository.ts",
+        "sha256": "fab92fe4c208d4d5529b8ca27fdca2d499070dc198ee951d083c68cc289cff89",
+        "bytes": 22607
+      },
+      {
+        "path": "src/lib/customer-platform/webhook-http.ts",
+        "sha256": "b3fa8c52add2804e71b9703155f375871e3bcd2a44e31a1cb034659bd15256e5",
+        "bytes": 1313
+      },
+      {
+        "path": "src/lib/customer-platform/webhook-repository.ts",
+        "sha256": "958771657438ac8fe358f703736322221fe89c8b56c2ea4f0ab32d7c1dd33fa2",
+        "bytes": 13653
+      },
+      {
+        "path": "src/lib/customer-workflows/actions.ts",
+        "sha256": "4c2dd430067290852f7c7fa0f0298802f616a7b8bd3c0e6df6d7fa6349d0b714",
+        "bytes": 10549
+      },
+      {
+        "path": "src/lib/customer-workflows/repository.ts",
+        "sha256": "85506f7431d1a9e03559525bcdf7d5507a9b6d6c2e629db7a83f43c0e73398a7",
+        "bytes": 25237
+      },
+      {
+        "path": "src/lib/customer-workflows/worker.ts",
+        "sha256": "cb0d55cff234c744d46681f031f237b9e465e6bf4f135544a6a26db8e63b0e14",
+        "bytes": 12837
+      },
+      {
+        "path": "src/lib/db/customer-access-schema.ts",
+        "sha256": "1712fae855780aa13a3875b422643d298e828b8f21fc7f8195aade20f792ce46",
+        "bytes": 2472
+      },
+      {
+        "path": "src/lib/db/schema.ts",
+        "sha256": "70eca3001abf6fd835602cce25c1d410b50bd78d4a0450a5fd384615bd7bbf20",
+        "bytes": 111873
+      },
+      {
+        "path": "src/lib/inbox-email/files.ts",
+        "sha256": "27f75e509cce0e6bb4d4096d4be5723c2561f054b42c4db560ecc9047ebf52fd",
+        "bytes": 14337
+      },
+      {
+        "path": "src/lib/inbox-email/google-connection.ts",
+        "sha256": "360a4d6cfbed89531b46cd2ba2dd885ab1c74d42a2f444196a3fd5b0aa51ba8a",
+        "bytes": 15792
+      },
+      {
+        "path": "src/lib/inbox-email/google-routes.ts",
+        "sha256": "e63daa94822c85ad25ed0759d21411ec8f12f50cc7b11a98f7df01a35cc1d942",
+        "bytes": 4771
+      },
+      {
+        "path": "src/lib/inbox-email/google-worker.ts",
+        "sha256": "738e61f6c84ed55eb3c30724049571b2bba9ad220fa8334d9dee58ebb64f2f98",
+        "bytes": 21112
+      },
+      {
+        "path": "src/lib/inbox-email/repository.ts",
+        "sha256": "225393fa5a4af9a841820b9017e9c04d6d9c7d359d4735821dcf484f29b53238",
+        "bytes": 28381
+      },
+      {
+        "path": "src/lib/inbox-email/routes.ts",
+        "sha256": "d574d26d6294fb834e6f841cf7fe7ca73d5d54d209a40cf3a2b96a68f8493e4f",
+        "bytes": 5209
+      },
+      {
+        "path": "src/lib/inbox-operations/enqueue.ts",
+        "sha256": "0e23b10c1353cc76244986640636c195bdd5849d45b22207964aba653eee652a",
+        "bytes": 24910
+      },
+      {
+        "path": "src/lib/inbox-operations/repository.ts",
+        "sha256": "421a7efbef2b07198bbe623f375433123887aa892047b6fc385bdc8d8c19f177",
+        "bytes": 13806
+      },
+      {
+        "path": "src/lib/inbox-operations/routes.ts",
+        "sha256": "e13274db361c1c50153564d4218842fe85752b62e50ad1f1d9d7f6bfb5720d8f",
+        "bytes": 4426
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "sha256": "9967605817b76394f4b31a79e7b76f75ab0d20a8a6ef8c2a3dae5f6d65ae5b4f",
+        "bytes": 49594
+      }
+    ],
+    "screenshots": [
+      {
+        "path": "access-agent-reply-qa.png",
+        "sha256": "76797df633086eff3dced9b7244eb287cfd90922837613e3f83bf1678d9a01a8",
+        "bytes": 104772
+      },
+      {
+        "path": "access-backofficelab-qa.png",
+        "sha256": "e0045ed90f7f0f89d94b637c670cae95cd8b2f626c20ead97936074ee8b07136",
+        "bytes": 52403
+      },
+      {
+        "path": "access-historical-assignee-qa.png",
+        "sha256": "97d3775ab1a7ef960f8cecb61d5f95a42f62cc6c59248fd4c5449b43bc12b343",
+        "bytes": 52142
+      },
+      {
+        "path": "access-management-backofficelab-qa.png",
+        "sha256": "b0e0739f1a218b7009fac4765d1766ec7b8867bdcf5b82d887081ee8c6b5bc16",
+        "bytes": 99526
+      },
+      {
+        "path": "access-management-designerhire-qa.png",
+        "sha256": "363adebd918179b40dc87369a8594257c1648c2707f510cc8111ada416b750d2",
+        "bytes": 99155
+      },
+      {
+        "path": "access-revoked-qa.png",
+        "sha256": "0cfe96af53894f41ab6289a2b1a1e0818151082f7f717237e00239d916c3fce2",
+        "bytes": 21961
+      },
+      {
+        "path": "access-role-change-audit-qa.png",
+        "sha256": "b0e0739f1a218b7009fac4765d1766ec7b8867bdcf5b82d887081ee8c6b5bc16",
+        "bytes": 99526
+      },
+      {
+        "path": "access-viewer-conversation-qa.png",
+        "sha256": "42f79c6f8f3ed22d6774a9b6a92b73977329d09743369d891e7574a5b9bed798",
+        "bytes": 95624
+      },
+      {
+        "path": "access-viewer-deal-qa.png",
+        "sha256": "ae214413f13789c0e1cee651e03b5980d1fd713fb24091e37b9ab6962fa7a13d",
+        "bytes": 76971
+      },
+      {
+        "path": "access-workspace-manager-qa.png",
+        "sha256": "b22c3dc00276f603c47b8de2aa4c227c847f82ef5851c09c208f3efcbf825275",
+        "bytes": 48668
+      }
+    ],
+    "logs": [
+      {
+        "path": "access-qa.log",
+        "sha256": "156d4c4a99ce20ad04f9830952af858bbeb87abde820dd13c2ac59962e0da688",
+        "bytes": 2679
+      },
+      {
+        "path": "access-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "access-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "access-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "access-units.log",
+        "sha256": "850b22d58d95c7d1586aac6d6c9e5b59fae57af312e26075198d07b341345937",
+        "bytes": 102857
+      },
+      {
+        "path": "access-build.log",
+        "sha256": "8ec5afebd7128d3f14efda3a89c156b27282f2eaa8aa5212c15ef3b269dc8f3c",
+        "bytes": 13052
+      },
+      {
+        "path": "access-regression-check-inbox.log",
+        "sha256": "ed0ce56382c190983490062f27c44117d190253f95ff305431a13926d1d489aa",
+        "bytes": 1567
+      },
+      {
+        "path": "access-regression-check-inbox-operations.log",
+        "sha256": "63711838b373ca6e113246ac92db265d0e2d2ab3951ce8d449bfbbc3e14c5cc9",
+        "bytes": 3237
+      },
+      {
+        "path": "access-regression-check-customer-sales.log",
+        "sha256": "903fe4f402462e127af9b228c766bd5dab8808b5489d4e9a923e682d3a535a4d",
+        "bytes": 2105
+      },
+      {
+        "path": "access-regression-check-customer-activities.log",
+        "sha256": "1ecc4dfad41a66294c937f9174e5ead2a9a54ae00ee6d1f45ed24a0a6eb191e7",
+        "bytes": 2854
+      },
+      {
+        "path": "access-regression-check-inbox-files.log",
+        "sha256": "4b1cfb38b65efd00d462b11f1c76558fdcc36f2a0329861a8db00389aa7efe45",
+        "bytes": 4402
+      },
+      {
+        "path": "access-regression-check-platform-webhooks.log",
+        "sha256": "f4e406cc3fe9e40465378e668663a126efe0e26c80a921fcd0c1b2141d3d1b43",
+        "bytes": 5725
+      },
+      {
+        "path": "access-regression-check-customer-ai.log",
+        "sha256": "7a000512aae672216ac3ef4eac4d50e085b15868ffe9c51e0c0c51ea1b941d82",
+        "bytes": 2404
+      },
+      {
+        "path": "access-regression-check-customer-workflows.log",
+        "sha256": "77425aaf87c509afd85d9afee12d1f5ea8764c1245534e83dd7b1a81169812dc",
+        "bytes": 2344
+      },
+      {
+        "path": "access-regression-check-inbox-identity.log",
+        "sha256": "be608e92e077f14d48f73035c478582173e2ba47ed2993ea5e49dc6fd19ce4b9",
+        "bytes": 2287
+      },
+      {
+        "path": "access-regression-check-customer-imports.log",
+        "sha256": "81bcc5a1f1967df36d934ad86ab96cdeed3b9b97d3876e3f6d1acb9fecb42781",
+        "bytes": 2542
+      },
+      {
+        "path": "access-regression-check-inbox-email.log",
+        "sha256": "dd3511d598d1b7b68bc58b5d88ad3ea335f000a153de92898c3656a38da09320",
+        "bytes": 2150
+      },
+      {
+        "path": "access-regression-check-inbox-email-files.log",
+        "sha256": "155fedf35ada98149d1273c33117744d20a3da339a793a354c5f9e1b8f2bcbb2",
+        "bytes": 3302
+      },
+      {
+        "path": "access-regression-check-inbox-google.log",
+        "sha256": "ce4facb0d97217362c4979374b3b1ffcd6c1f71d23eb2bf004721e0edd2b9585",
+        "bytes": 2792
+      }
+    ],
+    "limits": [
+      "실제 dev/운영 DB 마이그레이션·직원 배정·Google 연결 미수행",
+      "진행 중 요청/공급자 발송 소급 취소 미보장",
+      "기존 레코드 member_scopes·마케팅 F06/F08 전체 권한 교체 아님",
+      "보존·삭제·복구 및 실제 팀/부하/전환 검수 후속"
+    ],
+    "hashNote": "검증 후보 작업 트리의 원본 바이트 SHA256. Git CRLF 정규화 후 체크아웃 바이트와 다를 수 있음."
   }
 }

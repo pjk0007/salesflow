@@ -15,9 +15,11 @@ const labels = {
 export function EmailDeliveryStatus({
     item,
     refresh,
+    canRespond = false,
 }: {
     item: EmailDelivery;
     refresh: () => Promise<unknown>;
+    canRespond?: boolean;
 }) {
     const [busy, setBusy] = useState(false);
     const act = async (action: "retry" | "cancel") => {
@@ -51,13 +53,16 @@ export function EmailDeliveryStatus({
                             : "첨부 파일을 모두 확인하지 못해 발송을 시작하지 않았습니다. 파일과 연결 상태를 확인한 뒤 재시도해주세요."}
                     </p>
                 )}
+            {item.errorCode === "access_revoked" && (
+                <p>작성자의 사업 응대 권한이 회수되어 발송을 중단했습니다.</p>
+            )}
             {item.state === "uncertain" && (
                 <p>
                     중복 발송을 막기 위해 자동 재전송하지 않습니다. 메일
                     서비스의 보낸 편지함에서 확인해주세요.
                 </p>
             )}
-            {item.state === "failed" && (
+            {canRespond && item.state === "failed" && (
                 <button
                     disabled={busy}
                     className="mr-3 underline"
@@ -66,15 +71,16 @@ export function EmailDeliveryStatus({
                     발송 재시도
                 </button>
             )}
-            {["queued", "leased", "failed"].includes(item.state) && (
-                <button
-                    disabled={busy}
-                    className="underline"
-                    onClick={() => void act("cancel")}
-                >
-                    발송 취소
-                </button>
-            )}
+            {canRespond &&
+                ["queued", "leased", "failed"].includes(item.state) && (
+                    <button
+                        disabled={busy}
+                        className="underline"
+                        onClick={() => void act("cancel")}
+                    >
+                        발송 취소
+                    </button>
+                )}
         </div>
     );
 }

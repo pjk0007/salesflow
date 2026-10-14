@@ -1,4 +1,5 @@
 "use client";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -8,6 +9,7 @@ import type { InboxBootstrap } from "@/components/inbox/types";
 import { KnowledgeManager } from "./KnowledgeManager";
 import { SupportSettingsForm } from "./SupportSettingsForm";
 export function CustomerAiPage({ role }: { role: string }) {
+    void role;
     const params = useSearchParams(),
         router = useRouter(),
         pathname = usePathname(),
@@ -22,7 +24,7 @@ export function CustomerAiPage({ role }: { role: string }) {
                 : null,
             supportRequest,
         );
-    const canManage = role !== "member";
+    const canManage = workspaceAbilities(bootstrap.data, workspaceId).manage;
     return (
         <main className="space-y-6 p-6">
             <header className="flex flex-wrap justify-between gap-4">

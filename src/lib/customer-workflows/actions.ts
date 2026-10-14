@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { customerAccessPredicate } from "@/lib/customer-access/access";
+import { and, eq, sql } from "drizzle-orm";
 import { db, users, organizationMembers, crmPipelines } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "@/lib/inbox/errors";
@@ -63,6 +64,12 @@ export async function validateWorkflowReferences(
                         eq(users.id, person),
                         eq(users.isActive, 1),
                         eq(organizationMembers.organizationId, orgId),
+                        customerAccessPredicate(
+                            orgId,
+                            users.id,
+                            sql`${workspaceId}`,
+                            "respond",
+                        ),
                     ),
                 );
             if (!user)
@@ -116,7 +123,8 @@ export function stepTargetProblem(
     )
         return "대상 딜의 파이프라인이 다르거나 보관된 상태입니다.";
     if (step.kind === "reply") {
-        if (ctx.conversation?.medium !== "web") return "이메일 상담은 상담원이 검토한 답장만 발송합니다.";
+        if (ctx.conversation?.medium !== "web")
+            return "이메일 상담은 상담원이 검토한 답장만 발송합니다.";
         if (
             !Number.isFinite(Date.parse(String(ctx.event.occurredAt))) ||
             now.getTime() - Date.parse(String(ctx.event.occurredAt)) > 86400000

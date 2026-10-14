@@ -1,3 +1,7 @@
+import {
+    customerStaffActor,
+    requireCustomerAccess,
+} from "@/lib/customer-access/access";
 import { randomUUID } from "node:crypto";
 import { and, asc, eq, inArray, lte, or } from "drizzle-orm";
 import { ZodError } from "zod";
@@ -7,8 +11,6 @@ import {
     customerWorkflowRuns as runs,
     customerWorkflowSteps as steps,
     customerWorkflowAudit as audit,
-    users,
-    organizationMembers,
     inboxConversations,
     crmDeals,
     crmTasks,
@@ -110,35 +112,19 @@ async function actorFor(
     orgId: string,
     userId: string | null,
     name: string,
+    workspaceId: number,
     exec: DbExec,
 ): Promise<SalesActor> {
-    const [user] = userId
-        ? await exec
-              .select({ id: users.id, role: organizationMembers.role })
-              .from(users)
-              .innerJoin(
-                  organizationMembers,
-                  eq(organizationMembers.userId, users.id),
-              )
-              .where(
-                  and(
-                      eq(users.id, userId),
-                      eq(users.isActive, 1),
-                      eq(organizationMembers.organizationId, orgId),
-                  ),
-              )
-        : [];
-    if (!user || !["admin", "owner"].includes(user.role))
-        throw new InboxError(
-            "게시한 관리자의 권한이 없어 실행을 중단했습니다.",
-            403,
-        );
-    return {
+    if (!userId)
+        throw new InboxError("게시한 직원의 권한을 확인해주세요.", 403);
+    const actor = await customerStaffActor(
         orgId,
-        userId: user.id,
-        role: user.role as "admin" | "owner",
-        name: `자동화 · ${name}`.slice(0, 100),
-    };
+        userId,
+        `자동화 · ${name}`.slice(0, 100),
+        exec,
+    );
+    await requireCustomerAccess(actor, workspaceId, "manage", exec);
+    return actor;
 }
 async function processClaim(
     job: Run,
@@ -172,6 +158,7 @@ async function processClaim(
                 run.orgId,
                 revision.publishedBy,
                 revision.name,
+                run.workspaceId,
                 tx,
             ),
             def = revision.definition;

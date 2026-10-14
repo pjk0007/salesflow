@@ -1,3 +1,4 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { and, desc, eq, lt, or, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -9,7 +10,6 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
-import { requirePlatformWorkspace } from "@/lib/customer-platform/repository";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
 import { InboxError } from "@/lib/inbox/errors";
 import {
@@ -30,10 +30,6 @@ import {
 } from "./storage";
 import { applyImportRow } from "./writer";
 type Job = typeof jobs.$inferSelect;
-function admin(actor: SalesActor) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 데이터 이전을 사용할 수 있습니다.", 403);
-}
 const scopeOf = (
     actor: SalesActor,
     input: { source: string; namespace: string; workspaceId: number },
@@ -44,13 +40,13 @@ export async function importOwned(
     exec: DbExec = db,
     lock = false,
 ) {
-    admin(actor);
     const query = exec
         .select()
         .from(jobs)
         .where(and(eq(jobs.id, id), eq(jobs.orgId, actor.orgId)));
     const [job] = lock ? await query.for("update") : await query;
     if (!job) throw new InboxError("이전 작업을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, job.workspaceId, "manage", exec);
     return job;
 }
 export async function importPage(
@@ -59,8 +55,7 @@ export async function importPage(
     before?: string,
     exec: DbExec = db,
 ) {
-    admin(actor);
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "manage", exec);
     const base = and(
         eq(jobs.orgId, actor.orgId),
         eq(jobs.workspaceId, workspaceId),
@@ -158,9 +153,8 @@ export async function previewImport(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    admin(actor);
     const input = createImportInput.parse(raw);
-    await requirePlatformWorkspace(actor.orgId, input.workspaceId, exec);
+    await requireCustomerAccess(actor, input.workspaceId, "manage", exec);
     const normalized = normalizeImport(input),
         scope = scopeOf(actor, input),
         plan: ImportPlanRow[] = [];
@@ -365,7 +359,6 @@ export async function changeImport(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    admin(actor);
     const input = z
         .object({
             action: z.enum(["start", "pause", "resume", "cancel"]),
@@ -467,7 +460,6 @@ export async function stepImport(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    admin(actor);
     const input = z
             .object({ cursor: z.number().int().min(0) })
             .strict()

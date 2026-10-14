@@ -1,3 +1,4 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handleInbox, inboxActor } from "@/lib/inbox/http";
@@ -19,6 +20,7 @@ export function activityHandler(external: boolean) {
                 token = external ? await authenticatePlatform(req) : null,
                 actor = token?.actor ?? inboxActor(req);
             if (token) await authorizeWorkspace(token, workspaceId, "read");
+            else await requireCustomerAccess(actor, workspaceId);
             return customerActivities(
                 actor.orgId,
                 workspaceId,

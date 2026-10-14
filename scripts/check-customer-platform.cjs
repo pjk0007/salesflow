@@ -71,12 +71,22 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/inbox$/, () => "inbox"],
+        [/^\/api\/inbox\/channels$/, () => "inbox/channels"],
+        [/^\/api\/inbox\/conversations\/([a-f0-9-]+)$/, () => "inbox/conversations/[id]"],
+        [/^\/api\/customer-crm\/(contacts|companies|pipelines|deals|tasks)(?:\/([a-f0-9-]+))?$/, m => `customer-crm/[resource]${m[2] ? "/[id]" : ""}`],
+        [/^\/api\/customer-ai\/settings$/, () => "customer-ai/settings"],
+        [/^\/api\/customer-workflows$/, () => "customer-workflows"],
+        [/^\/api\/customer-imports$/, () => "customer-imports"],
+        [/^\/api\/customer-platform\/webhooks$/, () => "customer-platform/webhooks"],
+
+        [/^\/api\/customer-platform\/access$/, () => "customer-platform/access"],
         [/^\/api\/inbox-notifications$/,()=>"inbox-notifications"],
         [/^\/api\/inbox-operations\/channels\/(\d+)$/,()=>"inbox-operations/channels/[id]"],
         [/^\/api\/inbox-operations\/reports$/,()=>"inbox-operations/reports"],
@@ -186,7 +196,7 @@ async function runPlatformCheck(extra) {
         pattern,
         file,
     }));
-    const filenames = [
+    const filenames = ["inbox", "inbox/channels", "inbox/conversations/[id]", "customer-crm/[resource]", "customer-crm/[resource]/[id]",
         "inbox-notifications",
         "inbox-operations/channels/[id]",
         "inbox-operations/reports",
@@ -224,6 +234,7 @@ async function runPlatformCheck(extra) {
         "v1/webhooks/[id]",
         "v1/webhooks/[id]/deliveries",
         "v1/webhook-deliveries/[id]",
+        "customer-platform/access",
         "customer-platform/webhooks",
         "customer-platform/webhooks/[id]",
         "customer-platform/webhooks/[id]/deliveries",

@@ -1,3 +1,5 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
+import type { OrgRole } from "@/types";
 import { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import {
@@ -18,7 +20,12 @@ export async function authenticatePlatform(req: NextRequest) {
     if (!token)
         throw new InboxError("유효한 서비스 API 토큰이 필요합니다.", 401);
     const [issuer] = await db
-        .select({ userId: users.id, name: apiTokens.name })
+        .select({
+            userId: users.id,
+            name: apiTokens.name,
+            role: organizationMembers.role,
+            tokenVersion: organizationMembers.tokenVersion,
+        })
         .from(apiTokens)
         .innerJoin(users, eq(users.id, apiTokens.createdBy))
         .innerJoin(
@@ -43,7 +50,8 @@ export async function authenticatePlatform(req: NextRequest) {
             orgId: token.orgId,
             userId: issuer.userId,
             name: `API · ${issuer.name}`.slice(0, 100),
-            role: "admin" as const,
+            role: issuer.role as OrgRole,
+            tokenVersion: issuer.tokenVersion,
         },
     };
 }
@@ -54,6 +62,11 @@ export async function authorizeWorkspace(
     permission: PlatformPermission,
 ) {
     await requirePlatformWorkspace(ctx.token.orgId, workspaceId);
+    await requireCustomerAccess(
+        ctx.actor,
+        workspaceId,
+        permission === "read" ? "read" : "respond",
+    );
     if (!canAccessWorkspace(ctx.token.scopes, workspaceId, permission))
         throw new InboxError("이 사업의 API 권한이 없습니다.", 403);
 }

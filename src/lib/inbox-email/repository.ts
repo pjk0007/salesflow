@@ -1,3 +1,7 @@
+import {
+    requireCustomerAccess,
+    customerAccessPredicate,
+} from "@/lib/customer-access/access";
 import { checkGoogleGuard } from "./google-guard";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { and, eq, inArray, lte, or, sql, asc } from "drizzle-orm";
@@ -46,6 +50,7 @@ export async function ownedMailbox(
         .where(and(eq(boxes.id, id), eq(boxes.orgId, actor.orgId)));
     const [box] = await (lock ? q.for("update") : q);
     if (!box) throw new InboxError("메일함을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, box.workspaceId, "read", exec);
     return box;
 }
 export async function listMailboxes(
@@ -63,6 +68,7 @@ export async function listMailboxes(
             ),
         );
     if (!space) throw new InboxError("사업을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, workspaceId, "read", exec);
     return exec
         .select()
         .from(boxes)
@@ -79,9 +85,8 @@ export async function createMailbox(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 메일함을 설정할 수 있습니다.", 403);
     const input = mailboxInput.parse(raw);
+    await requireCustomerAccess(actor, input.workspaceId, "manage", exec);
     return exec.transaction(async (tx) => {
         const [channel] = await tx
             .select()
@@ -135,11 +140,10 @@ export async function changeMailbox(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 메일함을 설정할 수 있습니다.", 403);
     const input = mailboxPatch.parse(raw);
     return exec.transaction(async (tx) => {
         const box = await ownedMailbox(actor, id, tx, true);
+        await requireCustomerAccess(actor, box.workspaceId, "manage", tx);
         if (box.version !== input.version)
             throw new InboxError(
                 "메일함 설정이 변경됐습니다. 새로 불러와주세요.",
@@ -430,6 +434,21 @@ export async function claimEmail(
                     sql`${deliveries.mailboxVersion} <> ${box.version}`,
                 ),
             );
+        await tx
+            .update(deliveries)
+            .set({
+                state: "cancelled",
+                errorCode: "access_revoked",
+                leaseToken: null,
+                leaseUntil: null,
+            })
+            .where(
+                and(
+                    eq(deliveries.mailboxId, mailboxId),
+                    inArray(deliveries.state, ["queued", "leased"]),
+                    sql`NOT EXISTS (SELECT 1 FROM inbox_messages rm WHERE rm.id=${deliveries.messageId} AND ${customerAccessPredicate(box.orgId, sql`rm.author_id`, sql`${box.workspaceId}`, "respond")})`,
+                ),
+            );
         const [candidate] = await tx
             .select()
             .from(deliveries)
@@ -561,6 +580,8 @@ export async function changeEmailDelivery(
 ) {
     const input = deliveryActionInput.parse(raw),
         hint = await emailDeliveryMailbox(actor, id, exec);
+    if (["retry", "cancel", "begin"].includes(input.action))
+        await requireCustomerAccess(actor, hint.workspaceId, "respond", exec);
     return exec.transaction(async (tx) => {
         const box = await ownedMailbox(actor, hint.id, tx, true);
         if (input.action === "begin")
@@ -617,6 +638,25 @@ export async function changeEmailDelivery(
         if (item.leaseToken !== input.leaseToken)
             throw new InboxError("다른 작업자가 처리 중입니다.", 409);
         if (input.action === "begin") {
+            const [authorized] = await tx
+                .select({ id: inboxMessages.id })
+                .from(inboxMessages)
+                .where(
+                    and(
+                        eq(inboxMessages.id, item.messageId),
+                        customerAccessPredicate(
+                            box.orgId,
+                            inboxMessages.authorId,
+                            sql`${box.workspaceId}`,
+                            "respond",
+                        ),
+                    ),
+                );
+            if (!authorized)
+                throw new InboxError(
+                    "작성자의 응대 권한이 회수되어 발송을 중단했습니다.",
+                    403,
+                );
             if (
                 item.state !== "leased" ||
                 !item.leaseUntil ||

@@ -1,7 +1,7 @@
+import { requireCustomerConversation } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { inboxActor } from "@/lib/inbox/http";
-import { requireAdmin } from "@/lib/auth-admin";
 import { InboxError } from "@/lib/inbox/errors";
 import {
     authenticatePlatform,
@@ -34,10 +34,15 @@ export async function supportActor(
         );
         return ctx.actor;
     }
-    inboxActor(req);
-    const result = await requireAdmin(req, "member");
-    if (!result.ok) throw new InboxError(result.error, result.status);
-    return result.user;
+    const actor = inboxActor(req);
+    await requireCustomerConversation(
+        actor,
+        id,
+        (permission ?? (create ? "create" : "read")) === "read"
+            ? "read"
+            : "respond",
+    );
+    return actor;
 }
 export async function supportKnowledgeBody(req: NextRequest) {
     const reader = req.body?.getReader();

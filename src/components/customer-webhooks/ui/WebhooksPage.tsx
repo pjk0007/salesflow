@@ -1,4 +1,5 @@
 "use client";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -9,6 +10,7 @@ import type { InboxBootstrap } from "@/components/inbox/types";
 import { WebhookEditor } from "./WebhookEditor";
 import { WebhookDeliveries } from "./WebhookDeliveries";
 export function WebhooksPage({ role }: { role: string }) {
+    void role;
     const params = useSearchParams(),
         router = useRouter(),
         pathname = usePathname();
@@ -35,7 +37,7 @@ export function WebhooksPage({ role }: { role: string }) {
             { refreshInterval: 5000 },
         ),
         endpoint = list.data?.endpoints.find((e) => e.id === selected),
-        canManage = role !== "member";
+        canManage = workspaceAbilities(bootstrap.data, workspaceId).manage;
     async function save(value: unknown) {
         setBusy(true);
         try {

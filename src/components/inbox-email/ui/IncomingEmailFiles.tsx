@@ -11,9 +11,11 @@ export type IncomingEmailFile = {
 export function IncomingEmailFiles({
     files,
     refresh,
+    canRetry = false,
 }: {
     files: IncomingEmailFile[];
     refresh: () => Promise<unknown>;
+    canRetry?: boolean;
 }) {
     const [busy, setBusy] = useState<string | null>(null);
     async function retry(id: string) {
@@ -50,7 +52,7 @@ export function IncomingEmailFiles({
                                     ? "원본 크기가 달라 가져오지 않았습니다."
                                     : "파일을 가져오지 못했습니다."
                               : "파일 가져오기 대기"}
-                        {file.state === "failed" && file.id && (
+                        {canRetry && file.state === "failed" && file.id && (
                             <button
                                 disabled={!!busy}
                                 className="ml-2 underline disabled:opacity-50"

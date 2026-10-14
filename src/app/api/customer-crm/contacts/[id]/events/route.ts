@@ -1,3 +1,4 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handleInbox, inboxActor } from "@/lib/inbox/http";
@@ -18,6 +19,7 @@ export async function GET(
                 .positive()
                 .parse(req.nextUrl.searchParams.get("workspaceId")),
             before = req.nextUrl.searchParams.get("before");
+        await requireCustomerAccess(actor, workspaceId);
         return listCustomerEvents(
             actor.orgId,
             workspaceId,

@@ -715,6 +715,13 @@
       "when": 1776400000000,
       "tag": "0101_inbox_operations",
       "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1792022400000,
+      "tag": "0102_customer_workspace_access",
+      "breakpoints": true
     }
   ]
 }

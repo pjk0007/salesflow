@@ -20,12 +20,15 @@ const box = "rounded-xl border bg-background p-4",
     button = "rounded-lg border px-3 py-2 text-sm disabled:opacity-40",
     inputClass = "w-full rounded-lg border bg-background px-3 py-2 text-sm";
 export function ImportsPage({ role }: { role: string }) {
+    void role;
     const params = useSearchParams(),
         bootstrap = useSWR<InboxBootstrap>("/api/inbox", importRequest);
+    const availableWorkspaces =
+        bootstrap.data?.workspaces.filter((w) => w.abilities.manage) ?? [];
     const [chosen, setWorkspace] = useState(
             Number(params.get("workspaceId")) || 0,
         ),
-        workspaceId = chosen || bootstrap.data?.workspaces[0]?.id || 0;
+        workspaceId = chosen || availableWorkspaces[0]?.id || 0;
     const [form, setForm] = useState<ImportForm>({
             workspaceId: 0,
             source: "portable",
@@ -168,11 +171,12 @@ export function ImportsPage({ role }: { role: string }) {
         if (format === "csv")
             setColumns(Papa.parse(content, { header: true }).meta.fields || []);
     }
-    if (role === "member")
+    if (
+        bootstrap.data &&
+        !availableWorkspaces.some((w) => w.id === workspaceId)
+    )
         return (
-            <div className="p-8">
-                관리자만 데이터 이전을 사용할 수 있습니다.
-            </div>
+            <div className="p-8">이 사업의 운영 관리 권한이 필요합니다.</div>
         );
     return (
         <main className="mx-auto max-w-[1400px] space-y-6 p-6">
@@ -204,7 +208,7 @@ export function ImportsPage({ role }: { role: string }) {
                         setJob(null);
                     }}
                 >
-                    {bootstrap.data?.workspaces.map((w) => (
+                    {availableWorkspaces.map((w) => (
                         <option key={w.id} value={w.id}>
                             {w.name}
                         </option>

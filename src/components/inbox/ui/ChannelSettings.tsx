@@ -19,7 +19,9 @@ export function ChannelSettings({
     const availableWorkspaces = channel
         ? bootstrap.workspaces
         : bootstrap.workspaces.filter(
-              (w) => !bootstrap.channels.some((c) => c.workspaceId === w.id),
+              (w) =>
+                  w.abilities.manage &&
+                  !bootstrap.channels.some((c) => c.workspaceId === w.id),
           );
     const [workspaceId, setWorkspace] = useState(
         channel?.workspaceId ?? availableWorkspaces[0]?.id ?? 0,

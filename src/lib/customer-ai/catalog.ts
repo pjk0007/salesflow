@@ -1,4 +1,8 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import {
+    requireCustomerAccess,
+    customerAccessPredicate,
+} from "@/lib/customer-access/access";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 import {
     db,
     customerAiSettings as settings,
@@ -11,7 +15,6 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
-import { requirePlatformWorkspace } from "@/lib/customer-platform/repository";
 import { InboxError } from "@/lib/inbox/errors";
 import { AI_MODELS } from "@/lib/ai/models";
 import { getAiClient } from "@/lib/ai/client";
@@ -105,7 +108,7 @@ export async function supportCatalog(
     workspaceId: number,
     exec: DbExec = db,
 ) {
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "read", exec);
     const config = await getSupportSettings(actor.orgId, workspaceId, exec),
         versions = await exec
             .select()
@@ -175,10 +178,8 @@ export async function saveSupportSettings(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 AI 응대를 설정할 수 있습니다.", 403);
     const input = aiSettingsInput.parse(raw);
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "manage", exec);
     return exec.transaction(async (tx) => {
         await tx
             .select({ id: workspaces.id })
@@ -223,6 +224,12 @@ export async function saveSupportSettings(
                         eq(users.id, input.handoffAssigneeId),
                         eq(users.isActive, 1),
                         eq(organizationMembers.organizationId, actor.orgId),
+                        customerAccessPredicate(
+                            actor.orgId,
+                            users.id,
+                            sql`${workspaceId}`,
+                            "respond",
+                        ),
                     ),
                 );
             if (!member)
@@ -261,7 +268,7 @@ export async function listSupportKnowledge(
     before?: number,
     exec: DbExec = db,
 ) {
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "read", exec);
     const rows = await exec
         .select()
         .from(knowledge)
@@ -300,9 +307,7 @@ export async function manageSupportKnowledge(
     exec: DbExec = db,
     provided?: CopyConnection,
 ) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 지식을 승인할 수 있습니다.", 403);
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "manage", exec);
     if (input.action !== "create") {
         const [owned] = await exec
             .select({ id: knowledge.id })

@@ -1,3 +1,8 @@
+import {
+    activeCustomerActor,
+    requireCustomerAccess,
+    customerAccessPredicate,
+} from "@/lib/customer-access/access";
 import { and, eq, isNull, sql, desc, lt, or, inArray } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -10,8 +15,6 @@ import {
     inboxOperationsSettings as settings,
     inboxServiceCases as cases,
     inboxResponseObligations as obligations,
-    organizationMembers,
-    users,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -33,18 +36,8 @@ export async function activeOperationsActor(
     exec: DbExec,
     minRole: "member" | "admin" = "member",
 ) {
-    const [row] = await exec
-        .select({ role: organizationMembers.role })
-        .from(organizationMembers)
-        .innerJoin(users, eq(users.id, organizationMembers.userId))
-        .where(
-            and(
-                eq(organizationMembers.organizationId, actor.orgId),
-                eq(organizationMembers.userId, actor.userId),
-                eq(users.isActive, 1),
-            ),
-        );
-    if (!row || !hasMinRole(row.role, minRole))
+    const current = await activeCustomerActor(actor, exec);
+    if (!hasMinRole(current.role, minRole))
         throw new InboxError("현재 조직 권한을 확인해주세요.", 403);
 }
 export async function operationsChannel(
@@ -57,6 +50,7 @@ export async function operationsChannel(
         .from(channels)
         .where(and(eq(channels.id, id), eq(channels.orgId, actor.orgId)));
     if (!channel) throw new InboxError("상담 채널을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, channel.workspaceId, "read", exec);
     return channel;
 }
 export async function operationsSettings(
@@ -97,8 +91,9 @@ export async function saveOperationsSettings(
         .strict()
         .parse(raw);
     return exec.transaction(async (tx) => {
-        await activeOperationsActor(actor, tx, "admin");
+        await activeCustomerActor(actor, tx);
         const channel = await operationsChannel(actor, id, tx);
+        await requireCustomerAccess(actor, channel.workspaceId, "manage", tx);
         await tx
             .select({ id: channels.id })
             .from(channels)
@@ -166,6 +161,11 @@ function noticeScope(actor: OperationsActor, channelId?: number) {
     return and(
         eq(notices.orgId, actor.orgId),
         eq(notices.userId, actor.userId),
+        customerAccessPredicate(
+            actor.orgId,
+            actor.userId,
+            sql`(SELECT workspace_id FROM inbox_channels WHERE id=${notices.channelId})`,
+        ),
         eq(chats.orgId, actor.orgId),
         eq(chats.channelId, notices.channelId),
         eq(chats.historyOnly, false),
@@ -219,6 +219,11 @@ export async function notificationsPage(
                     eq(notices.id, options.before),
                     eq(notices.orgId, actor.orgId),
                     eq(notices.userId, actor.userId),
+                    customerAccessPredicate(
+                        actor.orgId,
+                        actor.userId,
+                        sql`(SELECT workspace_id FROM inbox_channels WHERE id=${notices.channelId})`,
+                    ),
                     options.channelId
                         ? eq(notices.channelId, options.channelId)
                         : undefined,
@@ -285,6 +290,11 @@ export async function readNotifications(
                     inArray(notices.id, ids),
                     eq(notices.orgId, actor.orgId),
                     eq(notices.userId, actor.userId),
+                    customerAccessPredicate(
+                        actor.orgId,
+                        actor.userId,
+                        sql`(SELECT workspace_id FROM inbox_channels WHERE id=${notices.channelId})`,
+                    ),
                     channelId ? eq(notices.channelId, channelId) : undefined,
                 ),
             )

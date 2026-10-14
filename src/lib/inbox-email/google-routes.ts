@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireAdmin } from "@/lib/auth-admin";
+import { activeCustomerActor } from "@/lib/customer-access/access";
 import { inboxActor, handleInbox, jsonBody } from "@/lib/inbox/http";
 import { sameRequestOrigin } from "@/lib/inbox/rules";
 import { InboxError } from "@/lib/inbox/errors";
@@ -26,10 +26,7 @@ async function awaitId(c: Context) {
         .parse((await c.params).id);
 }
 async function admin(req: NextRequest) {
-    inboxActor(req);
-    const result = await requireAdmin(req);
-    if (!result.ok) throw new InboxError(result.error, result.status);
-    return result.user;
+    return activeCustomerActor(inboxActor(req));
 }
 export async function googleControlPost(req: NextRequest, c: Context) {
     let cookie: { name: string; value: string; secure: boolean } | undefined;

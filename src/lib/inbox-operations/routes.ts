@@ -1,5 +1,4 @@
-import { requireAdmin } from "@/lib/auth-admin";
-import { InboxError } from "@/lib/inbox/errors";
+import { activeCustomerActor } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handleInbox, jsonBody, inboxActor } from "@/lib/inbox/http";
@@ -100,13 +99,7 @@ export function operationsNotificationHandlers(external: boolean) {
             ? await channelActor(req, external, id)
             : external
               ? await channelActor(req, true, channelId.parse(raw))
-              : await (async () => {
-                    inboxActor(req);
-                    const result = await requireAdmin(req, "member");
-                    if (!result.ok)
-                        throw new InboxError(result.error, result.status);
-                    return result.user;
-                })();
+              : await activeCustomerActor(inboxActor(req));
         return { actor, id };
     }
     return {

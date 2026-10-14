@@ -1,4 +1,5 @@
 "use client";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useState } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import useSWR from "swr";
@@ -9,6 +10,7 @@ import type { WorkflowList, WorkflowDetail } from "../types";
 import { WorkflowEditor } from "./WorkflowEditor";
 import { WorkflowRuns } from "./WorkflowRuns";
 export function WorkflowsPage({ role }: { role: string }) {
+    void role;
     const params = useSearchParams(),
         router = useRouter(),
         pathname = usePathname(),
@@ -43,7 +45,7 @@ export function WorkflowsPage({ role }: { role: string }) {
                 : null,
             workflowRequest,
         ),
-        canManage = role !== "member";
+        canManage = workspaceAbilities(bootstrap.data, workspaceId).manage;
     async function refreshed(id: string) {
         setCreating(false);
         setSelected(id);

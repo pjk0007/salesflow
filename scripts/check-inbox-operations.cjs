@@ -90,6 +90,7 @@ async function runOperationsCheck(extra) {
                     role: "member",
                 },
             ]);
+            await db.insert(s.customerWorkspaceAccess).values([8,10].map(workspaceId => ({ orgId: actor.orgId, workspaceId, userId: b.userId, role: "agent" })));
             const dt = (v) => new Date(v),
                 at = (day, time) => dt(`2026-10-${day}T${time}:00+09:00`),
                 policy = {
@@ -1273,7 +1274,7 @@ async function runOperationsCheck(extra) {
                             .where(eq(s.users.id, b.userId));
                         await assert.rejects(
                             ops.notificationsPage(b, {}, db),
-                            (e) => e.status === 403,
+                            (e) => e.status === 401,
                         );
                         await db
                             .update(s.users)
@@ -1301,6 +1302,7 @@ async function runOperationsCheck(extra) {
                             userId: d.userId,
                             role: "member",
                         });
+                        await db.insert(s.customerWorkspaceAccess).values({ orgId: actor.orgId, workspaceId: 10, userId: d.userId, role: "viewer" });
                         const time = at(23, "09:00");
                         await db.insert(s.inboxNotifications).values(
                             Array.from({ length: 101 }, (_, i) => ({

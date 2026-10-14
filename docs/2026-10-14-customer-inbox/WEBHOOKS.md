@@ -48,7 +48,7 @@
 | GET `/webhooks/{id}/deliveries` | 최대 100건·state 필터·before UUID 커서 |
 | GET/POST `/webhook-deliveries/{id}` | 원본/시도 상세 / `action:retry` |
 
-일반 성공/오류는 기존 JSON envelope다. 생성/회전만 `{endpoint,secret}`를 한 번 반환하며 조회는 cipher/원문을 제외한다. 관리 작업은 현재 DB 역할의 관리자만 가능하다. 서비스 API도 발급자의 현재 관리자 역할과 사업 create/update 권한을 함께 검사한다. 읽기는 사업 read 권한이다. 토큰을 폐기해도 별도로 등록한 웹훅 설정은 남으므로 전송을 중단하려면 해당 웹훅을 끈다.
+일반 성공/오류는 기존 JSON envelope다. 생성/회전만 `{endpoint,secret}`를 한 번 반환하며 조회는 cipher/원문을 제외한다. 관리 작업은 해당 사업의 운영 관리자 또는 조직 관리자만 가능하다. 서비스 API도 발급자의 현재 사업 운영 관리 역할과 토큰의 사업 create/update 범위를 함께 검사한다. 읽기는 발급자의 현재 사업 열람 역할과 토큰 read 범위의 교집합이다. [직원 권한 기준](ACCESS.md)을 따른다. 토큰을 폐기해도 별도로 등록한 웹훅 설정은 남으므로 전송을 중단하려면 해당 웹훅을 끈다.
 
 `SendbClient`에 `webhooks`, `createWebhook`, `updateWebhook`, `webhookDeliveries`, `retryWebhookDelivery`를 추가했다. 서비스 토큰은 각 사이트 서버에만 두고 수신 서버에서 검증할 서명 키와 구분한다.
 

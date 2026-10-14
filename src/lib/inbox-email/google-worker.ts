@@ -1,3 +1,7 @@
+import {
+    customerStaffActor,
+    requireCustomerAccess,
+} from "@/lib/customer-access/access";
 import { randomUUID } from "node:crypto";
 import { and, eq, or, lte, isNull, asc, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -7,11 +11,8 @@ import {
     inboxGoogleSyncJobs as jobs,
     inboxMailboxes as boxes,
     inboxEmailDeliveries as deliveries,
-    organizationMembers,
-    users,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
-import type { JWTPayload } from "@/types";
 import { GmailApiError, type GmailCredentials } from "@/lib/gmail-client";
 import { InboxError } from "@/lib/inbox/errors";
 import {
@@ -147,38 +148,24 @@ async function claim(
         return { box, connection: saved };
     });
 }
-async function actorFor(
-    job: Claim,
-    exec: DbExec,
-): Promise<Pick<JWTPayload, "orgId" | "userId" | "name" | "role">> {
-    const [member] = job.connection.connectedBy
-        ? await exec
-              .select({ userId: users.id, role: organizationMembers.role })
-              .from(organizationMembers)
-              .innerJoin(users, eq(users.id, organizationMembers.userId))
-              .where(
-                  and(
-                      eq(organizationMembers.organizationId, job.box.orgId),
-                      eq(
-                          organizationMembers.userId,
-                          job.connection.connectedBy,
-                      ),
-                      eq(users.isActive, 1),
-                  ),
-              )
-        : [];
-    if (!member || !["owner", "admin"].includes(member.role))
+async function actorFor(job: Claim, exec: DbExec) {
+    try {
+        if (!job.connection.connectedBy) throw new Error("missing actor");
+        const actor = await customerStaffActor(
+            job.box.orgId,
+            job.connection.connectedBy,
+            "메일 자동 연결",
+            exec,
+        );
+        await requireCustomerAccess(actor, job.box.workspaceId, "manage", exec);
+        return actor;
+    } catch {
         throw new GmailApiError(
             "auth",
             null,
-            "연결한 관리자의 권한을 확인해주세요.",
+            "연결한 직원의 사업 운영 권한을 확인해주세요.",
         );
-    return {
-        orgId: job.box.orgId,
-        userId: member.userId,
-        name: "메일 자동 연결",
-        role: member.role as "admin" | "owner",
-    };
+    }
 }
 async function enqueuePage(
     job: Claim,

@@ -89,6 +89,7 @@ async function fixture() {
         "0099_inbox_email_files.sql",
         "0100_inbox_google_connection.sql",
         "0101_inbox_operations.sql",
+        "0102_customer_workspace_access.sql",
     ])
         for (const statement of fs
             .readFileSync(
@@ -385,10 +386,7 @@ async function runCheck(extra) {
                 repo.visitorDetail(channel.publicKey, "0".repeat(64), db),
                 (e) => e.status === 401,
             );
-            assert.deepEqual(
-                await repo.listConversations(otherActor, channel.id, db),
-                [],
-            );
+            await assert.rejects(repo.listConversations(otherActor, channel.id, db), e => e.status === 404);
         });
         await check("담당자는 같은 조직의 활성 팀원", async () => {
             await assert.rejects(
@@ -522,10 +520,12 @@ async function runCheck(extra) {
         await check(
             "관리자만 상담창 설정 · 타 조직 워크스페이스 차단",
             async () => {
+                await db.update(schema.organizationMembers).set({ role: "member" }).where(require("drizzle-orm").eq(schema.organizationMembers.userId, actor.userId));
                 await assert.rejects(
-                    repo.saveChannel({ ...actor, role: "member" }, config, db),
+                    repo.saveChannel({ ...actor, role: "owner" }, config, db),
                     (e) => e.status === 403,
                 );
+                await db.update(schema.organizationMembers).set({ role: "admin" }).where(require("drizzle-orm").eq(schema.organizationMembers.userId, actor.userId));
                 await assert.rejects(
                     repo.saveChannel(actor, { ...config, workspaceId: 9 }, db),
                     (e) => e.status === 404,
@@ -647,19 +647,7 @@ async function runCheck(extra) {
                 [old.id],
             );
             assert.equal(result.counts.all, 1);
-            assert.equal(
-                (
-                    await repo.conversationListPage(
-                        otherActor,
-                        channel.id,
-                        { q: "오래된 검색 전용 문장" },
-                        undefined,
-                        undefined,
-                        db,
-                    )
-                ).counts.all,
-                0,
-            );
+            await assert.rejects(repo.conversationListPage(otherActor, channel.id, { q: "오래된 검색 전용 문장" }, undefined, undefined, db), e => e.status === 404);
         });
         await check(
             "검색의 %·_는 전체 일치 문법이 아닌 문자로 처리",

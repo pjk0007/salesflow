@@ -1,3 +1,4 @@
+import { customerAccessPredicate } from "@/lib/customer-access/access";
 import { enqueuePlatformEvent } from "./outbox";
 import { and, desc, eq, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
@@ -149,10 +150,18 @@ async function relations(
                     eq(users.id, input.ownerId),
                     eq(users.isActive, 1),
                     eq(organizationMembers.organizationId, actor.orgId),
+                    customerAccessPredicate(
+                        actor.orgId,
+                        users.id,
+                        sql`${workspaceId}`,
+                        "respond",
+                    ),
                 ),
             );
         if (!member)
-            throw new InboxError("이 조직의 활성 담당자를 선택해주세요.");
+            throw new InboxError(
+                "같은 사업에서 응대·편집할 수 있는 활성 담당자를 선택해주세요.",
+            );
     }
 }
 async function dealPipeline(

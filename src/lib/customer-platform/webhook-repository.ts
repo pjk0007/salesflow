@@ -1,3 +1,4 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -13,7 +14,6 @@ import {
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "./sales-repository";
 import { InboxError } from "@/lib/inbox/errors";
-import { requirePlatformWorkspace } from "./repository";
 import {
     webhookCreate,
     webhookPatch,
@@ -25,10 +25,6 @@ import {
     secretHint,
 } from "./webhook-crypto";
 import { enqueuePlatformEvent } from "./outbox";
-export function webhookAdmin(actor: SalesActor) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 외부 연동을 변경할 수 있습니다.", 403);
-}
 export function endpointDto(row: typeof endpoints.$inferSelect) {
     const { secretCipher: _, ...dto } = row;
     void _;
@@ -47,6 +43,7 @@ export async function ownedWebhook(
         .where(and(eq(endpoints.id, id), eq(endpoints.orgId, actor.orgId)));
     const [row] = lock ? await query.for("update") : await query;
     if (!row) throw new InboxError("웹훅을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, row.workspaceId, "read", exec);
     return row;
 }
 export function webhookWorkerEnabled() {
@@ -60,7 +57,7 @@ export async function listWebhooks(
     workspaceId: number,
     exec: DbExec = db,
 ) {
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "read", exec);
     const rows = await exec
         .select()
         .from(endpoints)
@@ -82,9 +79,8 @@ export async function createWebhook(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    webhookAdmin(actor);
     const input = webhookCreate.parse(raw);
-    await requirePlatformWorkspace(actor.orgId, input.workspaceId, exec);
+    await requireCustomerAccess(actor, input.workspaceId, "manage", exec);
     return exec.transaction(async (tx) => {
         await tx
             .select({ id: workspaces.id })
@@ -135,10 +131,10 @@ export async function updateWebhook(
     rotate = false,
     exec: DbExec = db,
 ) {
-    webhookAdmin(actor);
     const { version, ...input } = webhookPatch.parse(raw);
     return exec.transaction(async (tx) => {
         const current = await ownedWebhook(actor, id, tx, true);
+        await requireCustomerAccess(actor, current.workspaceId, "manage", tx);
         if (current.version !== version)
             throw new InboxError(
                 "웹훅 설정이 변경되었습니다. 최신 설정을 불러온 뒤 다시 저장해주세요.",
@@ -243,10 +239,11 @@ export async function testWebhook(
     clientId: string,
     exec: DbExec = db,
 ) {
-    webhookAdmin(actor);
     z.string().uuid().parse(clientId);
     return exec.transaction(async (tx) => {
         const endpoint = await ownedWebhook(actor, id, tx, true);
+        await requireCustomerAccess(actor, endpoint.workspaceId, "manage", tx);
+        await requireCustomerAccess(actor, endpoint.workspaceId, "manage", tx);
         if (!endpoint.enabled)
             throw new InboxError(
                 "수신 서버에 서명 키를 설정한 뒤 웹훅을 켜주세요.",
@@ -338,6 +335,7 @@ export async function ownedDelivery(
         .where(and(eq(deliveries.id, id), eq(deliveries.orgId, actor.orgId)));
     const [row] = lock ? await query.for("update") : await query;
     if (!row) throw new InboxError("전달 이력을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, row.workspaceId, "read", exec);
     return row;
 }
 export async function webhookDeliveryDetail(
@@ -363,12 +361,12 @@ export async function retryWebhook(
     id: string,
     exec: DbExec = db,
 ) {
-    webhookAdmin(actor);
     return exec.transaction(async (tx) => {
         // Endpoint first: same lock order as settings mutation, then re-read delivery under lock.
         const row = await ownedDelivery(actor, id, tx),
             endpoint = await ownedWebhook(actor, row.endpointId, tx, true),
             current = await ownedDelivery(actor, id, tx, true);
+        await requireCustomerAccess(actor, endpoint.workspaceId, "manage", tx);
         if (!endpoint.enabled)
             throw new InboxError("웹훅을 켠 뒤 재시도해주세요.", 409);
         if (!["retry", "dead", "cancelled"].includes(current.state))

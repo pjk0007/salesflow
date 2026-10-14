@@ -1,3 +1,4 @@
+import { customerAccessPredicate } from "@/lib/customer-access/access";
 import { and, eq, isNull, inArray, desc, sql, lte } from "drizzle-orm";
 import {
     inboxConversations as chats,
@@ -31,6 +32,12 @@ export async function operationsRecipients(
             and(
                 eq(organizationMembers.organizationId, chat.orgId),
                 eq(users.isActive, 1),
+                customerAccessPredicate(
+                    chat.orgId,
+                    users.id,
+                    sql`(SELECT workspace_id FROM inbox_channels WHERE id=${chat.channelId})`,
+                    "respond",
+                ),
             ),
         );
     const recipient = target ?? chat.assigneeId;

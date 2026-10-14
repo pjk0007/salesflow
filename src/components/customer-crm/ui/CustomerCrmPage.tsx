@@ -1,4 +1,5 @@
 "use client";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useState } from "react";
 import useSWR from "swr";
 import { useSearchParams } from "next/navigation";
@@ -34,6 +35,7 @@ const names: Record<Resource, string> = {
     pipelines: "파이프라인",
 };
 export function CustomerCrmPage({ role }: { role: string }) {
+    void role;
     const params = useSearchParams(),
         bootstrap = useSWR<InboxBootstrap>("/api/inbox", crmRequest);
     const [chosen, setWorkspace] = useState<number | null>(
@@ -52,6 +54,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
         [archived, setArchived] = useState(false),
         [editor, setEditor] = useState<Editor | null>(null);
     const workspaceId = chosen ?? bootstrap.data?.workspaces[0]?.id ?? null;
+    const { respond: canRespond, manage: canManage } = workspaceAbilities(
+        bootstrap.data,
+        workspaceId,
+    );
     const [pending, setPending] = useState<string[]>([]);
     const pipelines = useCrmList<Pipeline>(workspaceId, "pipelines"),
         contacts = useCrmList<Contact>(workspaceId, "contacts"),
@@ -128,7 +134,7 @@ export function CustomerCrmPage({ role }: { role: string }) {
                     >
                         고객 자동화 ↗
                     </a>
-                    {role !== "member" && (
+                    {canManage && (
                         <a
                             className="rounded-lg border px-3 py-2 text-xs"
                             href={`/customer-imports?workspaceId=${workspaceId ?? ""}`}
@@ -224,9 +230,12 @@ export function CustomerCrmPage({ role }: { role: string }) {
                         <button
                             className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm text-white disabled:opacity-50"
                             disabled={
-                                resource === "pipelines" && role === "member"
+                                !canRespond ||
+                                (resource === "pipelines" && !canManage)
                             }
-                            onClick={() => setEditor({ resource })}
+                            onClick={() =>
+                                canRespond && setEditor({ resource })
+                            }
                         >
                             <Plus size={16} />
                             {names[resource]} 추가
@@ -246,10 +255,11 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                 </p>
                                 {resource === "deals" &&
                                     !pipelines.rows.length &&
-                                    role !== "member" && (
+                                    canManage && (
                                         <button
                                             className="mt-4 rounded-lg border px-4 py-2 text-sm"
                                             onClick={() =>
+                                                canRespond &&
                                                 setEditor({
                                                     resource: "pipelines",
                                                 })
@@ -334,7 +344,11 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                                         <div className="flex flex-wrap gap-2">
                                                             <button
                                                                 className="text-xs text-violet-600"
+                                                                disabled={
+                                                                    !canRespond
+                                                                }
                                                                 onClick={() =>
+                                                                    canRespond &&
                                                                     setEditor({
                                                                         resource:
                                                                             "tasks",
@@ -355,9 +369,12 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                                             </button>
                                                             <button
                                                                 aria-label={`${d.title} ${archived ? "복원" : "보관"}`}
-                                                                disabled={pending.includes(
-                                                                    d.id,
-                                                                )}
+                                                                disabled={
+                                                                    !canRespond ||
+                                                                    pending.includes(
+                                                                        d.id,
+                                                                    )
+                                                                }
                                                                 className="ml-auto text-muted-foreground"
                                                                 onClick={() =>
                                                                     void quick(
@@ -392,9 +409,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                         {resource === "tasks" && (
                                             <input
                                                 type="checkbox"
-                                                disabled={pending.includes(
-                                                    row.id,
-                                                )}
+                                                disabled={
+                                                    !canRespond ||
+                                                    pending.includes(row.id)
+                                                }
                                                 aria-label={`${(row as Task).title} 완료`}
                                                 checked={
                                                     (row as Task).status ===
@@ -416,11 +434,7 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                         )}
                                         <button
                                             className="min-w-0 flex-1 text-left"
-                                            disabled={
-                                                (resource === "pipelines" &&
-                                                    role === "member") ||
-                                                pending.includes(row.id)
-                                            }
+                                            disabled={pending.includes(row.id)}
                                             onClick={() =>
                                                 setEditor({
                                                     resource,
@@ -482,6 +496,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
             )}
             {editor && workspaceId && (
                 <EntityEditor
+                    readOnly={
+                        !canRespond ||
+                        (editor.resource === "pipelines" && !canManage)
+                    }
                     key={
                         editor.resource +
                         workspaceId +
@@ -495,7 +513,11 @@ export function CustomerCrmPage({ role }: { role: string }) {
                     pipelines={pipelines.rows}
                     contacts={contacts.rows}
                     companies={companies.rows}
-                    members={bootstrap.data?.members ?? []}
+                    members={
+                        bootstrap.data?.members.filter((m) =>
+                            m.workspaceIds.includes(workspaceId ?? 0),
+                        ) ?? []
+                    }
                     onClose={() => setEditor(null)}
                     onSave={save}
                     onReload={

@@ -194,14 +194,16 @@ async function runImportCheck(extra) {
                         (await request(clients.read, "/" + job.id)).id,
                         job.id,
                     );
+                    await db.update(s.organizationMembers).set({ role: "member" }).where(eq(s.organizationMembers.userId, actor.userId));
                     await assert.rejects(
                         imports.importDetail(
-                            { ...actor, role: "member" },
+                            { ...actor, role: "owner" },
                             job.id,
                             db,
                         ),
                         (e) => e.status === 403,
                     );
+                    await db.update(s.organizationMembers).set({ role: "admin" }).where(eq(s.organizationMembers.userId, actor.userId));
                     await assert.rejects(
                         imports.importDetail(otherActor, job.id, db),
                         (e) => e.status === 404,

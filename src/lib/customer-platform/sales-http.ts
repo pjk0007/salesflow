@@ -1,10 +1,10 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handleInbox, inboxActor, jsonBody } from "@/lib/inbox/http";
 import { InboxError } from "@/lib/inbox/errors";
 import { authenticatePlatform, authorizeWorkspace } from "./external-auth";
 import {
-    requirePlatformWorkspace,
     listPlatformObjects,
     upsertContact,
     upsertCompany,
@@ -48,7 +48,12 @@ export function salesHandler(external: boolean) {
                           ? "create"
                           : "update";
             if (ctx) await authorizeWorkspace(ctx, workspaceId, permission);
-            else await requirePlatformWorkspace(actor.orgId, workspaceId);
+            else
+                await requireCustomerAccess(
+                    actor,
+                    workspaceId,
+                    permission === "read" ? "read" : "respond",
+                );
             if (resource === "contacts" || resource === "companies") {
                 if (external)
                     throw new InboxError(
@@ -76,16 +81,8 @@ export function salesHandler(external: boolean) {
                         : upsertCompany(actor.orgId, body, true);
                 throw new InboxError("지원하지 않는 고객 요청입니다.", 405);
             }
-            if (
-                !external &&
-                resource === "pipelines" &&
-                req.method !== "GET" &&
-                actor.role === "member"
-            )
-                throw new InboxError(
-                    "관리자만 파이프라인을 설정할 수 있습니다.",
-                    403,
-                );
+            if (resource === "pipelines" && req.method !== "GET")
+                await requireCustomerAccess(actor, workspaceId, "manage");
             if (req.method === "GET") {
                 const before = req.nextUrl.searchParams.get("before");
                 if (id)

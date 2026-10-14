@@ -1,3 +1,4 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import {
     db,
@@ -15,7 +16,6 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
-import { requirePlatformWorkspace } from "@/lib/customer-platform/repository";
 import { InboxError } from "@/lib/inbox/errors";
 import {
     workflowInput,
@@ -33,10 +33,6 @@ import {
     renderWorkflowText,
 } from "./actions";
 export const activeRunStates = ["queued", "running", "waiting", "retry"];
-function admin(actor: SalesActor) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 자동화를 변경할 수 있습니다.", 403);
-}
 export async function workflowOwned(
     actor: SalesActor,
     id: string,
@@ -49,6 +45,7 @@ export async function workflowOwned(
         .where(and(eq(workflows.id, id), eq(workflows.orgId, actor.orgId)));
     const [row] = lock ? await query.for("update") : await query;
     if (!row) throw new InboxError("자동화를 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, row.workspaceId, "read", exec);
     return row;
 }
 export async function workflowRevision(
@@ -81,7 +78,7 @@ export async function workflowList(
     before?: string,
     exec: DbExec = db,
 ) {
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "read", exec);
     const rows = await exec
         .select()
         .from(workflows)
@@ -135,9 +132,8 @@ export async function saveWorkflow(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    admin(actor);
     const input = workflowInput.parse(raw);
-    await requirePlatformWorkspace(actor.orgId, input.workspaceId, exec);
+    await requireCustomerAccess(actor, input.workspaceId, "manage", exec);
     await validateWorkflowReferences(
         actor.orgId,
         input.workspaceId,
@@ -211,7 +207,7 @@ export async function workflowEventPage(
     before?: string,
     exec: DbExec = db,
 ) {
-    await requirePlatformWorkspace(actor.orgId, workspaceId, exec);
+    await requireCustomerAccess(actor, workspaceId, "read", exec);
     const base = and(
         eq(platformEvents.orgId, actor.orgId),
         eq(platformEvents.workspaceId, workspaceId),
@@ -317,7 +313,6 @@ export async function simulateWorkflow(
     eventId: string,
     exec: DbExec = db,
 ) {
-    admin(actor);
     const workflow = await workflowOwned(actor, id, exec),
         revision = await workflowRevision(id, revisionId, exec),
         [event] = await exec
@@ -330,6 +325,7 @@ export async function simulateWorkflow(
                     eq(platformEvents.workspaceId, workflow.workspaceId),
                 ),
             );
+    await requireCustomerAccess(actor, workflow.workspaceId, "manage", exec);
     if (!event) throw new InboxError("같은 사업의 이벤트를 선택해주세요.", 404);
     await validateWorkflowReferences(
         actor.orgId,
@@ -444,8 +440,8 @@ export async function publishWorkflow(
     },
     exec: DbExec = db,
 ) {
-    admin(actor);
     const hint = await workflowOwned(actor, id, exec);
+    await requireCustomerAccess(actor, hint.workspaceId, "manage", exec);
     return exec.transaction(async (tx) => {
         await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
         const workflow = await workflowOwned(actor, id, tx, true);
@@ -550,8 +546,8 @@ export async function disableWorkflow(
     version: number,
     exec: DbExec = db,
 ) {
-    admin(actor);
     const hint = await workflowOwned(actor, id, exec);
+    await requireCustomerAccess(actor, hint.workspaceId, "manage", exec);
     return exec.transaction(async (tx) => {
         await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
         const workflow = await workflowOwned(actor, id, tx, true);
@@ -681,8 +677,8 @@ export async function changeWorkflowRun(
     action: "cancel" | "retry",
     exec: DbExec = db,
 ) {
-    admin(actor);
     const hint = await workflowOwned(actor, id, exec);
+    await requireCustomerAccess(actor, hint.workspaceId, "manage", exec);
     return exec.transaction(async (tx) => {
         await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
         const workflow = await workflowOwned(actor, id, tx),

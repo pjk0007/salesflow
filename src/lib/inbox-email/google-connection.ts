@@ -1,3 +1,7 @@
+import {
+    activeCustomerActor,
+    requireCustomerAccess,
+} from "@/lib/customer-access/access";
 import { randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -8,8 +12,6 @@ import {
     inboxGoogleOauthStates as states,
     inboxGoogleSyncJobs as jobs,
     inboxEmailDeliveries as deliveries,
-    organizationMembers,
-    users,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -30,22 +32,7 @@ type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 export const googleCookieName = (stateHash: string) =>
     `sendb_email_oauth_${stateHash.slice(0, 16)}`;
 async function currentAdmin(actor: Actor, exec: DbExec) {
-    const [member] = await exec
-        .select({ role: organizationMembers.role })
-        .from(organizationMembers)
-        .innerJoin(users, eq(users.id, organizationMembers.userId))
-        .where(
-            and(
-                eq(organizationMembers.organizationId, actor.orgId),
-                eq(organizationMembers.userId, actor.userId),
-                eq(users.isActive, 1),
-            ),
-        );
-    if (!member || !["admin", "owner"].includes(member.role))
-        throw new InboxError(
-            "현재 관리자만 Google 연결을 변경할 수 있습니다.",
-            403,
-        );
+    await activeCustomerActor(actor, exec);
 }
 export async function googleConnectionStatus(
     actor: Actor,
@@ -117,6 +104,7 @@ export async function beginGoogleConnection(
     return exec.transaction(async (tx) => {
         await currentAdmin(actor, tx);
         const box = await ownedMailbox(actor, id, tx, true);
+        await requireCustomerAccess(actor, box.workspaceId, "manage", tx);
         if (box.version !== input.version)
             throw new InboxError(
                 "메일함 설정이 변경됐습니다. 새로 불러와주세요.",
@@ -224,6 +212,7 @@ export async function finishGoogleConnection(
         return row;
     });
     const box = await ownedMailbox(actor, state.mailboxId, exec);
+    await requireCustomerAccess(actor, box.workspaceId, "manage", exec);
     if (input.error)
         return {
             channelId: box.channelId,
@@ -289,6 +278,7 @@ export async function finishGoogleConnection(
     return exec.transaction(async (tx) => {
         await currentAdmin(actor, tx);
         const locked = await ownedMailbox(actor, box.id, tx, true);
+        await requireCustomerAccess(actor, locked.workspaceId, "manage", tx);
         if (locked.version !== state.mailboxVersion)
             throw new InboxError(
                 "승인하는 동안 메일함 설정이 변경됐습니다. 다시 연결해주세요.",
@@ -390,6 +380,7 @@ export async function disconnectGoogle(
                 .from(connections)
                 .where(eq(connections.mailboxId, id))
                 .for("update");
+        await requireCustomerAccess(actor, box.workspaceId, "manage", tx);
         if (!connection || connection.version !== version)
             throw new InboxError("Google 연결 정보가 변경됐습니다.", 409);
         await invalidateMailbox(tx, box);
@@ -427,7 +418,8 @@ export async function retryGoogleJobs(
 ) {
     return exec.transaction(async (tx) => {
         await currentAdmin(actor, tx);
-        await ownedMailbox(actor, id, tx, true);
+        const box = await ownedMailbox(actor, id, tx, true);
+        await requireCustomerAccess(actor, box.workspaceId, "manage", tx);
         const [c] = await tx
             .select()
             .from(connections)

@@ -553,15 +553,17 @@ async function runSalesCheck(extra) {
                             ).status,
                             404,
                         );
+                        await db.update(schema.organizationMembers).set({ role: "member" }).where(require("drizzle-orm").eq(schema.organizationMembers.userId, actor.userId));
                         assert.equal(
                             (
                                 await native("pipelines", "POST", pipeInput, {
                                     ...actor,
-                                    role: "member",
+                                    role: "owner",
                                 })
                             ).status,
                             403,
                         );
+                        await db.update(schema.organizationMembers).set({ role: "admin" }).where(require("drizzle-orm").eq(schema.organizationMembers.userId, actor.userId));
                         const result = await (
                             await native(
                                 "contacts",

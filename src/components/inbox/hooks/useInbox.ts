@@ -19,7 +19,9 @@ export function useInbox(
         filter: ConversationFilter;
     } = { q: "", status: "open", filter: "all" },
 ) {
-    const bootstrap = useSWR<InboxBootstrap>("/api/inbox", inboxRequest);
+    const bootstrap = useSWR<InboxBootstrap>("/api/inbox", inboxRequest, {
+        refreshInterval: 15000,
+    });
     const pages = useSWRInfinite<InboxListPage>(
         (index, previous: InboxListPage | null) => {
             if (!channelId || (index > 0 && !previous?.hasMore)) return null;

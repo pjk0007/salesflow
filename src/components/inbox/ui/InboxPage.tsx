@@ -1,4 +1,6 @@
 "use client";
+import { StaffAccessPanel } from "@/components/customer-access/ui/StaffAccessPanel";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
 import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
@@ -39,6 +41,8 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
             params.get("filter") === "history" ? "history" : "all",
         ),
         [query, setQuery] = useState("");
+    void role;
+    const [accessOpen, setAccessOpen] = useState(false);
     const [operationsOpen, setOperationsOpen] = useState(false);
     const openSupport: OpenSupportConversation = ({
         conversationId,
@@ -61,6 +65,10 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         filter,
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
+    const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
+    const canSetChannel = channel
+        ? abilities.manage
+        : !!bootstrap?.workspaces.some((w) => w.abilities.manage);
     const filtered = list.data ?? [];
     const menus: {
         id: ConversationFilter;
@@ -103,7 +111,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         운영·성과
                     </button>
                 )}
-                {role !== "member" && channel && (
+                {abilities.manage && channel && (
                     <button
                         className="ml-auto rounded-xl border px-3 py-2 text-xs"
                         onClick={() => setEmailSettings(true)}
@@ -111,13 +119,21 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         이메일 연결
                     </button>
                 )}
-                {role !== "member" && (
+                {canSetChannel && (
                     <button
                         className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
                         onClick={() => setSettings(channel ? "current" : "new")}
                     >
                         <Settings2 size={14} />
                         사이트 상담창
+                    </button>
+                )}
+                {bootstrap?.canManageAccess && (
+                    <button
+                        className="rounded-xl border px-3 py-2 text-xs"
+                        onClick={() => setAccessOpen(true)}
+                    >
+                        직원 권한
                     </button>
                 )}
             </header>
@@ -149,24 +165,27 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         size={48}
                     />
                     <h2 className="text-xl font-semibold">
-                        첫 고객 상담을 시작해보세요
+                        {!bootstrap.workspaces.length
+                            ? "접근할 수 있는 사업이 없습니다"
+                            : "첫 고객 상담을 시작해보세요"}
                     </h2>
                     <p className="text-sm leading-relaxed text-muted-foreground">
-                        사이트에 상담 버튼을 설치하면 고객의 문의를 받고 답변할
-                        수 있습니다.
+                        {!bootstrap.workspaces.length
+                            ? "조직 관리자에게 담당 사업의 고객 업무 권한 배정을 요청해주세요."
+                            : "사이트에 상담 버튼을 설치하면 고객의 문의를 받고 답변할 수 있습니다."}
                     </p>
-                    {role !== "member" ? (
+                    {canSetChannel ? (
                         <button
                             className="rounded-xl bg-[#635BFF] px-5 py-3 text-sm text-white"
                             onClick={() => setSettings("new")}
                         >
                             상담창 만들기
                         </button>
-                    ) : (
+                    ) : bootstrap.workspaces.length > 0 ? (
                         <p className="text-sm">
                             관리자에게 상담창 설정을 요청해주세요.
                         </p>
-                    )}
+                    ) : null}
                 </div>
             ) : (
                 <div className="flex min-h-0 flex-1">
@@ -214,24 +233,30 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                             <p className="px-3 text-xs text-muted-foreground">
                                 팀원
                             </p>
-                            {bootstrap.members.map((m) => (
-                                <div
-                                    className="mt-3 flex items-center gap-2 px-3 text-xs"
-                                    key={m.id}
-                                >
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                                        {m.name.slice(0, 1)}
-                                    </span>
-                                    {m.name}
-                                    {m.id === userId && (
-                                        <span className="text-[10px] text-muted-foreground">
-                                            나
+                            {bootstrap.members
+                                .filter((m) =>
+                                    m.workspaceIds.includes(
+                                        channel.workspaceId,
+                                    ),
+                                )
+                                .map((m) => (
+                                    <div
+                                        className="mt-3 flex items-center gap-2 px-3 text-xs"
+                                        key={m.id}
+                                    >
+                                        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                                            {m.name.slice(0, 1)}
                                         </span>
-                                    )}
-                                </div>
-                            ))}
+                                        {m.name}
+                                        {m.id === userId && (
+                                            <span className="text-[10px] text-muted-foreground">
+                                                나
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
                         </div>
-                        {role !== "member" && (
+                        {canSetChannel && (
                             <button
                                 className="mt-7 flex items-center gap-2 px-3 text-xs text-muted-foreground"
                                 onClick={() => setSettings("new")}
@@ -427,7 +452,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                             · 모든 상담과 대화에서 검색
                         </p>
                     </section>
-                    {selected && detail.data ? (
+                    {selected && detail.data && !detail.error ? (
                         <ConversationPane
                             userId={userId}
                             key={detail.data.conversation.id}
@@ -477,24 +502,32 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     )}
                 </div>
             )}
+            {accessOpen && bootstrap?.canManageAccess && (
+                <StaffAccessPanel
+                    bootstrap={bootstrap}
+                    initialWorkspaceId={channel?.workspaceId}
+                    onClose={() => setAccessOpen(false)}
+                    onSaved={() => initial.bootstrap.mutate()}
+                />
+            )}
             {operationsOpen && channel && (
                 <OperationsPanel
                     key={channel.id}
                     channelId={channel.id}
                     name={channel.name}
-                    canManage={role !== "member"}
+                    canManage={abilities.manage}
                     onClose={() => setOperationsOpen(false)}
                     onSelect={openSupport}
                 />
             )}
-            {emailSettings && channel && (
+            {emailSettings && channel && abilities.manage && (
                 <EmailMailboxSettings
                     key={channel.workspaceId}
                     workspaceId={channel.workspaceId}
                     onClose={() => setEmailSettings(false)}
                 />
             )}
-            {settings && bootstrap && (
+            {settings && bootstrap && canSetChannel && (
                 <ChannelSettings
                     key={settings}
                     bootstrap={bootstrap}

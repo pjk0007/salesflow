@@ -1,10 +1,7 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import { db, organizationMembers } from "@/lib/db";
-import { requireAdmin } from "@/lib/auth-admin";
 import { handleInbox, inboxActor, jsonBody } from "@/lib/inbox/http";
-import { InboxError } from "@/lib/inbox/errors";
 import {
     authenticatePlatform,
     authorizeWorkspace,
@@ -28,29 +25,11 @@ async function actorFor(
     workspaceId: number,
     permission: PlatformPermission,
 ) {
-    if (!external) {
-        inboxActor(req);
-        const result = await requireAdmin(req, "admin");
-        if (!result.ok) throw new InboxError(result.error, result.status);
-        return result.user;
-    }
-    const ctx = await authenticatePlatform(req);
-    const [member] = await db
-        .select({ role: organizationMembers.role })
-        .from(organizationMembers)
-        .where(
-            and(
-                eq(organizationMembers.organizationId, ctx.actor.orgId),
-                eq(organizationMembers.userId, ctx.actor.userId),
-            ),
-        );
-    if (!member || !["admin", "owner"].includes(member.role))
-        throw new InboxError(
-            "관리자 발급 토큰만 데이터 이전을 사용할 수 있습니다.",
-            403,
-        );
-    await authorizeWorkspace(ctx, workspaceId, permission);
-    return ctx.actor;
+    const ctx = external ? await authenticatePlatform(req) : null;
+    const actor = ctx?.actor ?? inboxActor(req);
+    if (ctx) await authorizeWorkspace(ctx, workspaceId, permission);
+    await requireCustomerAccess(actor, workspaceId, "manage");
+    return actor;
 }
 async function ownedActor(
     req: NextRequest,

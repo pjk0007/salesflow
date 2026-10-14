@@ -2,6 +2,7 @@
 import { ConversationServiceStatus } from "@/components/inbox-operations/ui/ConversationServiceStatus";
 import { IncomingEmailFiles } from "@/components/inbox-email/ui/IncomingEmailFiles";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -38,6 +39,10 @@ export function ConversationPane({
     refresh: () => Promise<unknown>;
     onBack: () => void;
 }) {
+    const workspaceId = bootstrap.channels.find(
+        (c) => c.id === chat.channelId,
+    )?.workspaceId;
+    const canRespond = workspaceAbilities(bootstrap, workspaceId).respond;
     const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
     const [kind, setKind] = useState<"reply" | "note">("reply"),
         [drafts, setDrafts] = useState<Record<string, string>>(() => {
@@ -94,6 +99,12 @@ export function ConversationPane({
             .catch(() => {});
     }, [chat.id, chat.customerSeq]); // eslint-disable-line react-hooks/exhaustive-deps
     async function change(value: unknown) {
+        if (!canRespond) {
+            toast.info(
+                "열람 권한으로 보고 있습니다. 응대·편집은 담당 직원에게 요청해주세요.",
+            );
+            return false;
+        }
         if (chat.historyOnly) {
             toast.info(
                 "과거 상담 기록입니다. 현재 고객 정보에서 후속 업무를 만들어주세요.",
@@ -118,6 +129,7 @@ export function ConversationPane({
         });
     }
     async function send() {
+        if (!canRespond) return;
         if ((!text.trim() && !attachments.files.length) || busy) return;
         if (
             chat.medium === "email" &&
@@ -206,7 +218,7 @@ export function ConversationPane({
                             </p>
                         </div>
                         <button
-                            disabled={chat.historyOnly}
+                            disabled={chat.historyOnly || !canRespond}
                             aria-label={
                                 chat.priority
                                     ? "중요 상담 해제"
@@ -225,7 +237,7 @@ export function ConversationPane({
                         </button>
                     </div>
                     <div className="flex gap-2">
-                        {!chat.historyOnly && (
+                        {!chat.historyOnly && canRespond && (
                             <>
                                 {chat.status !== "closed" ? (
                                     <>
@@ -269,6 +281,15 @@ export function ConversationPane({
                         )}
                     </div>
                 </header>
+                {!canRespond && (
+                    <p
+                        role="status"
+                        className="border-b bg-muted px-5 py-3 text-sm"
+                    >
+                        열람 권한으로 보고 있습니다. 답변과 고객 정보 편집은
+                        응대 담당자가 할 수 있습니다.
+                    </p>
+                )}
                 {chat.emailContext && (
                     <div className="border-b bg-violet-50 px-5 py-3 text-sm">
                         <p className="font-semibold">
@@ -416,12 +437,14 @@ export function ConversationPane({
                                     )}
                                     {m.delivery && (
                                         <EmailDeliveryStatus
+                                            canRespond={canRespond}
                                             item={m.delivery}
                                             refresh={refresh}
                                         />
                                     )}
                                     {!!m.email?.files.length && (
                                         <IncomingEmailFiles
+                                            canRetry={canRespond}
                                             files={m.email.files}
                                             refresh={refresh}
                                         />
@@ -455,7 +478,7 @@ export function ConversationPane({
                     ))}
                     <div ref={end} />
                 </div>
-                {!chat.historyOnly && (
+                {!chat.historyOnly && canRespond && (
                     <>
                         {chat.medium !== "email" && (
                             <SupportDraftPanel
@@ -634,6 +657,10 @@ function CustomerInfo({
     bootstrap: InboxBootstrap;
     change: (value: unknown) => Promise<boolean>;
 }) {
+    const workspaceId = bootstrap.channels.find(
+        (c) => c.id === chat.channelId,
+    )?.workspaceId;
+    const canRespond = workspaceAbilities(bootstrap, workspaceId).respond;
     const [recordDraft, setRecord] = useState<{
             value: string;
             version: number;
@@ -703,7 +730,7 @@ function CustomerInfo({
                         <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                             담당자
                             <select
-                                disabled={chat.historyOnly}
+                                disabled={chat.historyOnly || !canRespond}
                                 aria-label="담당자"
                                 className="max-w-[160px] rounded-lg border bg-background px-2 py-1.5 text-foreground"
                                 value={chat.assigneeId ?? ""}
@@ -714,11 +741,32 @@ function CustomerInfo({
                                 }
                             >
                                 <option value="">담당자 없음</option>
-                                {bootstrap.members.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                        {m.name}
-                                    </option>
-                                ))}
+                                {chat.assigneeId &&
+                                    !bootstrap.members.some(
+                                        (m) =>
+                                            m.id === chat.assigneeId &&
+                                            m.workspaceIds.includes(
+                                                workspaceId ?? 0,
+                                            ),
+                                    ) && (
+                                        <option
+                                            value={chat.assigneeId}
+                                            disabled
+                                        >
+                                            기존 담당자 · 현재 응대 권한 없음
+                                        </option>
+                                    )}
+                                {bootstrap.members
+                                    .filter((m) =>
+                                        m.workspaceIds.includes(
+                                            workspaceId ?? 0,
+                                        ),
+                                    )
+                                    .map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.name}
+                                        </option>
+                                    ))}
                             </select>
                         </label>
                     </section>
@@ -784,6 +832,7 @@ function CustomerInfo({
                         <input
                             aria-label="상담 태그"
                             className="w-full rounded-lg border bg-background p-2 text-xs"
+                            disabled={!canRespond}
                             value={tags}
                             onChange={(e) =>
                                 setTags((old) => ({
@@ -795,7 +844,7 @@ function CustomerInfo({
                         />
                         <button
                             className="text-xs text-[#635BFF]"
-                            disabled={saving}
+                            disabled={saving || !canRespond}
                             onClick={() => void save("tags")}
                         >
                             태그 저장
@@ -822,6 +871,7 @@ function CustomerInfo({
                             min={1}
                             aria-label="CRM 레코드 번호"
                             className="w-full rounded-lg border bg-background p-2 text-xs"
+                            disabled={!canRespond}
                             value={recordId}
                             onChange={(e) =>
                                 setRecord((old) => ({
@@ -833,7 +883,7 @@ function CustomerInfo({
                         />
                         <button
                             className="text-xs text-[#635BFF]"
-                            disabled={saving}
+                            disabled={saving || !canRespond}
                             onClick={() => void save("record")}
                         >
                             고객 연결 저장

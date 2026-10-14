@@ -1,4 +1,5 @@
 "use client";
+import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
@@ -47,6 +48,7 @@ export function CustomerCrmContext({
         [expanded, setExpanded] = useState(false),
         [pending, setPending] = useState<string | null>(null);
     const data = context.data;
+    const canRespond = workspaceAbilities(bootstrap, data?.workspaceId).respond;
     if (!chat.contactId) return null;
     async function refresh() {
         await Promise.all([
@@ -139,7 +141,7 @@ export function CustomerCrmContext({
                             <h4 className="text-xs font-semibold">진행 거래</h4>
                             <button
                                 className="text-xs text-[#635BFF]"
-                                disabled={!data.pipelines.length}
+                                disabled={!canRespond || !data.pipelines.length}
                                 onClick={() =>
                                     setEditor({
                                         resource: "deals",
@@ -209,6 +211,7 @@ export function CustomerCrmContext({
                             <h4 className="text-xs font-semibold">후속 업무</h4>
                             <button
                                 className="text-xs text-[#635BFF]"
+                                disabled={!canRespond}
                                 onClick={() =>
                                     setEditor({
                                         resource: "tasks",
@@ -237,8 +240,10 @@ export function CustomerCrmContext({
                                     <input
                                         type="checkbox"
                                         checked={false}
-                                        disabled={!!pending}
                                         aria-label={`${task.title} 완료`}
+                                        disabled={
+                                            !canRespond || pending !== null
+                                        }
                                         onChange={() => void complete(task)}
                                     />
                                     <button
@@ -302,6 +307,7 @@ export function CustomerCrmContext({
             )}
             {editor && data && (
                 <EntityEditor
+                    readOnly={!canRespond}
                     key={
                         editor.resource +
                         (editor.item?.id ?? "new") +
@@ -314,7 +320,9 @@ export function CustomerCrmContext({
                     pipelines={data.pipelines}
                     contacts={data.contacts}
                     companies={data.editorCompanies}
-                    members={bootstrap.members}
+                    members={bootstrap.members.filter((m) =>
+                        m.workspaceIds.includes(data?.workspaceId ?? 0),
+                    )}
                     onClose={() => setEditor(null)}
                     onSave={save}
                     onReload={

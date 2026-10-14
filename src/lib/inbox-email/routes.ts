@@ -1,7 +1,6 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
-import { db, organizationMembers } from "@/lib/db";
 import { handleInbox, inboxActor, jsonBody } from "@/lib/inbox/http";
 import { InboxError } from "@/lib/inbox/errors";
 import {
@@ -27,32 +26,21 @@ async function actorFor(
     permissions: PlatformPermission[],
     admin = false,
 ) {
-    if (!external) {
-        const actor = inboxActor(req);
-        if (admin && actor.role === "member")
-            throw new InboxError("관리자만 메일함을 설정할 수 있습니다.", 403);
-        return actor;
-    }
-    const ctx = await authenticatePlatform(req);
-    for (const permission of permissions)
-        await authorizeWorkspace(ctx, workspaceId, permission);
-    if (admin) {
-        const [member] = await db
-            .select({ role: organizationMembers.role })
-            .from(organizationMembers)
-            .where(
-                and(
-                    eq(organizationMembers.organizationId, ctx.actor.orgId),
-                    eq(organizationMembers.userId, ctx.actor.userId),
-                ),
-            );
-        if (!member || !["admin", "owner"].includes(member.role))
-            throw new InboxError(
-                "관리자 발급 토큰만 메일함을 설정할 수 있습니다.",
-                403,
-            );
-    }
-    return ctx.actor;
+    const ctx = external ? await authenticatePlatform(req) : null;
+    const actor = ctx?.actor ?? inboxActor(req);
+    if (ctx)
+        for (const permission of permissions)
+            await authorizeWorkspace(ctx, workspaceId, permission);
+    await requireCustomerAccess(
+        actor,
+        workspaceId,
+        admin
+            ? "manage"
+            : permissions.some((p) => p !== "read")
+              ? "respond"
+              : "read",
+    );
+    return actor;
 }
 const preliminaryActor = async (req: NextRequest, external: boolean) =>
     external ? (await authenticatePlatform(req)).actor : inboxActor(req);

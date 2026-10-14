@@ -1,4 +1,15 @@
 import {
+    activeCustomerActor,
+    customerStaffActor,
+    requireCustomerAccess,
+    requireCustomerChannel,
+    customerAccessPredicate,
+} from "@/lib/customer-access/access";
+import {
+    customerAbilities,
+    type WorkspaceRole,
+} from "@/lib/customer-access/rules";
+import {
     queueEmailReply,
     emailMessageDetails,
 } from "@/lib/inbox-email/outgoing";
@@ -23,6 +34,7 @@ import {
     inboxEmailThreads,
     inboxEmailDeliveries,
     customerAiJobs,
+    customerWorkspaceAccess,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -74,14 +86,28 @@ const conversationColumns = {
     contactId: inboxConversations.contactId,
 };
 export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
+    actor = await activeCustomerActor(actor, exec);
     const [channels, members, spaces] = await Promise.all([
         exec
             .select()
             .from(inboxChannels)
-            .where(eq(inboxChannels.orgId, actor.orgId))
+            .where(
+                and(
+                    eq(inboxChannels.orgId, actor.orgId),
+                    customerAccessPredicate(
+                        actor.orgId,
+                        actor.userId,
+                        inboxChannels.workspaceId,
+                    ),
+                ),
+            )
             .orderBy(inboxChannels.id),
         exec
-            .select({ id: users.id, name: users.name })
+            .select({
+                id: users.id,
+                name: users.name,
+                role: organizationMembers.role,
+            })
             .from(organizationMembers)
             .innerJoin(users, eq(users.id, organizationMembers.userId))
             .where(
@@ -91,20 +117,76 @@ export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
                 ),
             ),
         exec
-            .select({ id: workspaces.id, name: workspaces.name })
+            .select({
+                id: workspaces.id,
+                name: workspaces.name,
+                assignedRole: customerWorkspaceAccess.role,
+            })
             .from(workspaces)
-            .where(eq(workspaces.orgId, actor.orgId)),
+            .leftJoin(
+                customerWorkspaceAccess,
+                and(
+                    eq(customerWorkspaceAccess.workspaceId, workspaces.id),
+                    eq(customerWorkspaceAccess.orgId, actor.orgId),
+                    eq(customerWorkspaceAccess.userId, actor.userId),
+                ),
+            )
+            .where(
+                and(
+                    eq(workspaces.orgId, actor.orgId),
+                    customerAccessPredicate(
+                        actor.orgId,
+                        actor.userId,
+                        workspaces.id,
+                    ),
+                ),
+            ),
     ]);
-    return { channels, members, workspaces: spaces };
+    const assignments = await exec
+        .select({
+            workspaceId: customerWorkspaceAccess.workspaceId,
+            userId: customerWorkspaceAccess.userId,
+        })
+        .from(customerWorkspaceAccess)
+        .where(
+            and(
+                eq(customerWorkspaceAccess.orgId, actor.orgId),
+                sql`${customerWorkspaceAccess.role} IN ('agent','manager')`,
+            ),
+        );
+    const visibleSpaces = spaces.map(({ assignedRole, ...w }) => {
+        const role: WorkspaceRole =
+            actor.role === "member" ? (assignedRole ?? "none") : "manager";
+        return { ...w, role, abilities: customerAbilities(role) };
+    });
+    return {
+        channels,
+        members: members
+            .map(({ role, ...m }) => ({
+                ...m,
+                workspaceIds: visibleSpaces
+                    .filter(
+                        (w) =>
+                            role !== "member" ||
+                            assignments.some(
+                                (a) =>
+                                    a.userId === m.id && a.workspaceId === w.id,
+                            ),
+                    )
+                    .map((w) => w.id),
+            }))
+            .filter((m) => m.workspaceIds.length),
+        workspaces: visibleSpaces,
+        canManageAccess: actor.role !== "member",
+    };
 }
 export async function saveChannel(
     actor: Actor,
     raw: unknown,
     exec: DbExec = db,
 ) {
-    if (actor.role === "member")
-        throw new InboxError("관리자만 상담창을 설정할 수 있습니다.", 403);
     const input = channelInput.parse(raw);
+    await requireCustomerAccess(actor, input.workspaceId, "manage", exec);
     const [space] = await exec
         .select({ id: workspaces.id })
         .from(workspaces)
@@ -172,6 +254,7 @@ export async function listConversations(
     beforeId?: string,
     filters: Partial<ConversationFilters> = {},
 ) {
+    await requireCustomerChannel(actor, channelId, "read", exec);
     const input = conversationFiltersInput.parse(filters);
     return exec
         .select({
@@ -249,6 +332,7 @@ export async function conversationListPage(
     beforeId?: string,
     exec: DbExec = db,
 ) {
+    await requireCustomerChannel(actor, channelId, "read", exec);
     const input = conversationFiltersInput.parse(filters);
     const [rows, counts] = await Promise.all([
         listConversations(actor, channelId, exec, before, beforeId, input),
@@ -317,6 +401,7 @@ export async function ownedConversation(
             ),
         );
     if (!chat) throw new InboxError("상담을 찾을 수 없습니다.", 404);
+    await requireCustomerChannel(actor, chat.channelId, "read", exec);
     return chat;
 }
 async function readMessages(
@@ -471,6 +556,12 @@ export async function patchConversation(
             )
             .for("update");
         if (!chat) throw new InboxError("상담을 찾을 수 없습니다.", 404);
+        const channel = await requireCustomerChannel(
+            actor,
+            chat.channelId,
+            "respond",
+            tx,
+        );
         if (chat.historyOnly)
             throw new InboxError(
                 "이전 서비스의 과거 기록입니다. 현재 상담에서 응대해주세요.",
@@ -482,6 +573,17 @@ export async function patchConversation(
                 409,
             );
         if (input.assigneeId) {
+            await requireCustomerAccess(
+                await customerStaffActor(
+                    actor.orgId,
+                    input.assigneeId,
+                    "담당자",
+                    tx,
+                ),
+                channel.workspaceId,
+                "respond",
+                tx,
+            );
             const [member] = await tx
                 .select({ id: users.id })
                 .from(organizationMembers)
@@ -932,6 +1034,7 @@ export async function staffFileScope(
     exec: DbExec = db,
 ): Promise<FileScope> {
     const chat = await ownedConversation(actor, id, exec);
+    await requireCustomerChannel(actor, chat.channelId, "respond", exec);
     return {
         orgId: actor.orgId,
         channelId: chat.channelId,
@@ -963,6 +1066,7 @@ export async function staffDownloadScope(
             ),
         );
     if (!row) throw new InboxError("첨부 파일을 찾을 수 없습니다.", 404);
+    await requireCustomerChannel(actor, row.channelId, "read", exec);
     return {
         orgId: actor.orgId,
         channelId: row.channelId,

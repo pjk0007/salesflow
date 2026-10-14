@@ -1,3 +1,9 @@
+import {
+    requireCustomerConversation,
+    customerStaffActor,
+    requireCustomerAccess,
+    customerAccessPredicate,
+} from "@/lib/customer-access/access";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
@@ -12,7 +18,7 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
-import { ownedConversation, sendSystemReply } from "@/lib/inbox/repository";
+import { sendSystemReply } from "@/lib/inbox/repository";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { InboxError } from "@/lib/inbox/errors";
@@ -82,6 +88,12 @@ export async function handoffSupport(
                     eq(users.id, config.handoffAssigneeId),
                     eq(users.isActive, 1),
                     eq(organizationMembers.organizationId, chat.orgId),
+                    customerAccessPredicate(
+                        chat.orgId,
+                        users.id,
+                        sql`${workspaceId}`,
+                        "respond",
+                    ),
                 ),
             );
         assigneeId = person?.id ?? null;
@@ -133,14 +145,18 @@ export async function queueSupportJob(
     exec: DbExec = db,
 ) {
     z.string().uuid().parse(clientId);
-    if (actor) await ownedConversation(actor, id, exec);
+    if (actor) await requireCustomerConversation(actor, id, "respond", exec);
     return exec.transaction(async (tx) => {
         const { chat, workspaceId, enabled } = await supportConversation(
             id,
             tx,
             true,
         );
-        if (chat.medium !== "web") throw new InboxError("이메일 상담의 AI 초안은 아직 지원하지 않습니다.", 409);
+        if (chat.medium !== "web")
+            throw new InboxError(
+                "이메일 상담의 AI 초안은 아직 지원하지 않습니다.",
+                409,
+            );
         if (!enabled || chat.status !== "open" || chat.historyOnly)
             throw new InboxError(
                 "진행 중인 상담에서 초안을 생성해주세요.",
@@ -311,6 +327,23 @@ export async function freshSupportJob(
         (job.mode === "reply" && chat.aiState === "human")
     )
         return false;
+    if (job.requestedBy) {
+        try {
+            await requireCustomerAccess(
+                await customerStaffActor(
+                    job.orgId,
+                    job.requestedBy,
+                    "초안 요청 직원",
+                    exec,
+                ),
+                workspaceId,
+                "respond",
+                exec,
+            );
+        } catch {
+            return false;
+        }
+    }
     if (!requireKnowledge) return true;
     const facts = await chatKnowledge(
         job.orgId,

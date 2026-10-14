@@ -1,3 +1,4 @@
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { checkGoogleGuard } from "./google-guard";
 import { and, eq, asc, desc, sql, inArray } from "drizzle-orm";
 import {
@@ -62,6 +63,7 @@ export async function ownedEmailReceipt(
         .innerJoin(boxes, eq(boxes.id, receipts.mailboxId))
         .where(and(eq(receipts.id, id), eq(boxes.orgId, actor.orgId)));
     if (!row) throw new InboxError("수신 메일을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, row.box.workspaceId, "read", exec);
     return row;
 }
 export async function listEmailReceiptFiles(
@@ -93,6 +95,7 @@ export async function pendingEmailFiles(
         .from(boxes)
         .where(and(eq(boxes.id, mailboxId), eq(boxes.orgId, actor.orgId)));
     if (!box) throw new InboxError("메일함을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, box.workspaceId, "read", exec);
     const rows = await exec
         .select({ file: emailFiles, receipt: receipts })
         .from(emailFiles)
@@ -121,6 +124,7 @@ export async function retryEmailFile(
     exec: DbExec = db,
 ) {
     const hint = await ownedEmailFile(actor, id, exec);
+    await requireCustomerAccess(actor, hint.box.workspaceId, "respond", exec);
     return exec.transaction(async (tx) => {
         const [box] = await tx
             .select()
@@ -175,6 +179,7 @@ export async function ownedEmailFile(
         row.chatChannel !== row.box.channelId
     )
         throw new InboxError("메일 첨부를 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, row.box.workspaceId, "read", exec);
     const metadata = inboundInput.parse(row.receipt.envelope).files[
         row.file.fileIndex
     ];

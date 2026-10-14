@@ -74,8 +74,14 @@ export interface ChatAttachment {
 }
 export interface InboxBootstrap {
     channels: InboxChannel[];
-    members: { id: string; name: string }[];
-    workspaces: { id: number; name: string }[];
+    members: { id: string; name: string; workspaceIds: number[] }[];
+    workspaces: {
+        id: number;
+        name: string;
+        role: "none" | "viewer" | "agent" | "manager";
+        abilities: { read: boolean; respond: boolean; manage: boolean };
+    }[];
+    canManageAccess: boolean;
 }
 export type ConversationFilter =
     | "all"
