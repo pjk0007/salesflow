@@ -1,3 +1,4 @@
+import { checkGoogleGuard } from "./google-guard";
 import { and, eq, asc, desc, sql, inArray } from "drizzle-orm";
 import {
     db,
@@ -185,6 +186,7 @@ export async function storeEmailFile(
     id: string,
     bytes: Buffer,
     exec: DbExec = db,
+    expectedConnectionVersion?: number,
 ) {
     const hint = await ownedEmailFile(actor, id, exec);
     if (!hint.box.enabled)
@@ -225,6 +227,7 @@ export async function storeEmailFile(
             .for("update");
         if (!box?.enabled)
             throw new InboxError("메일함 연결이 중지되어 있습니다.", 409);
+        await checkGoogleGuard(tx, box.id, expectedConnectionVersion);
         await tx
             .select({ id: chats.id })
             .from(chats)
@@ -308,6 +311,7 @@ export async function failEmailFile(
     id: string,
     errorCode: "download_failed" | "source_missing" | "size_mismatch",
     exec: DbExec = db,
+    expectedConnectionVersion?: number,
 ) {
     const hint = await ownedEmailFile(actor, id, exec);
     return exec.transaction(async (tx) => {
@@ -318,6 +322,7 @@ export async function failEmailFile(
             .for("update");
         if (!box.enabled)
             throw new InboxError("메일함 연결이 중지되어 있습니다.", 409);
+        await checkGoogleGuard(tx, box.id, expectedConnectionVersion);
         const [current] = await tx
             .select()
             .from(emailFiles)
@@ -354,6 +359,7 @@ export async function emailDeliveryFileScope(
     leaseToken: string,
     exec: DbExec = db,
     now = new Date(),
+    expectedConnectionVersion?: number,
 ): Promise<FileScope> {
     const [row] = await exec
         .select({
@@ -393,6 +399,7 @@ export async function emailDeliveryFileScope(
         row.item.leaseUntil <= now
     )
         throw new InboxError("첨부를 내려받을 발송 권한이 만료됐습니다.", 409);
+    await checkGoogleGuard(exec, row.box.id, expectedConnectionVersion);
     return {
         orgId: actor.orgId,
         channelId: row.box.channelId,

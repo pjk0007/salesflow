@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { GoogleConnectionPanel } from "./GoogleConnectionPanel";
 import { toast } from "sonner";
 import { useEmailMailboxes } from "../hooks/useEmailMailboxes";
 import { createEmailMailbox, toggleEmailMailbox } from "../api";
@@ -10,6 +12,7 @@ export function EmailMailboxSettings({
     workspaceId: number;
     onClose: () => void;
 }) {
+    const connectionResult = useSearchParams().get("emailConnection");
     const { data, error, mutate } = useEmailMailboxes(workspaceId);
     const [address, setAddress] = useState(""),
         [name, setName] = useState(""),
@@ -43,10 +46,20 @@ export function EmailMailboxSettings({
                         닫기
                     </button>
                 </header>
+                {connectionResult && (
+                    <p role="status" className="rounded border p-3 text-sm">
+                        {connectionResult === "connected"
+                            ? "Google 계정이 연결됐습니다. 메일함의 수신·발송 켜기를 눌러주세요."
+                            : connectionResult === "cancelled"
+                              ? "Google 연결 승인을 취소했습니다."
+                              : "Google 연결을 완료하지 못했습니다. 등록 주소와 같은 계정으로 다시 시도해주세요."}
+                    </p>
+                )}
                 <p className="text-sm text-muted-foreground">
                     등록한 메일함의 문의를 같은 상담함에서 받고 답장합니다.
-                    개발자가 메일 연결 서버를 설치한 뒤 수신·발송을 켜주세요.
-                    주소 등록만으로 Gmail에 연결되지는 않습니다.
+                    Google 계정을 연결하거나 개발자가 API 연결 서버를 설치한 뒤
+                    수신·발송을 켜주세요. 주소 등록만으로 Gmail에 연결되지는
+                    않습니다.
                 </p>
                 {error && (
                     <p role="alert">
@@ -85,6 +98,7 @@ export function EmailMailboxSettings({
                         >
                             {box.enabled ? "수신·발송 중지" : "수신·발송 켜기"}
                         </button>
+                        <GoogleConnectionPanel box={box} onChange={mutate} />
                     </article>
                 ))}
                 <form

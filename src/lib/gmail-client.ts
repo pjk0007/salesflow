@@ -176,6 +176,16 @@ export function classify403(reasons: readonly string[]): GmailErrorCode {
     return "auth";
 }
 
+/** Read failure classification shared by the support connector and reply reader. */
+export async function gmailResponseError(response: Response, message: string): Promise<GmailApiError> {
+    const code: GmailErrorCode = response.status === 403
+        ? classify403(googleReasons(await readJson(response)))
+        : response.status === 401 ? "auth"
+        : response.status === 429 ? "rate_limited"
+        : response.status === 404 ? "not_found" : "transient";
+    return new GmailApiError(code, response.status, message);
+}
+
 /** 갱신 토큰으로 접근 토큰을 받는다 (보관된 것이 있으면 그것). invalid_grant·401 → auth */
 export async function getAccessToken(
     cfg: GmailCredentials,

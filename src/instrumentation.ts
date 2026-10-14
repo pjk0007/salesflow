@@ -30,5 +30,7 @@ export async function register() {
         startSupportAiScheduler();
         const { startWorkflowScheduler } = await import("@/lib/customer-workflows/worker");
         startWorkflowScheduler();
+        const { startGoogleMailScheduler } = await import("@/lib/inbox-email/google-worker");
+        startGoogleMailScheduler();
     }
 }

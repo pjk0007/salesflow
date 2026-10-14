@@ -22,7 +22,9 @@ import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 export function InboxPage({ userId, role }: { userId: string; role: string }) {
     const params = useSearchParams();
-    const [emailSettings, setEmailSettings] = useState(false);
+    const [emailSettings, setEmailSettings] = useState(() =>
+        params.has("emailConnection"),
+    );
     const [chosenChannel, setChannel] = useState<number | null>(
             Number(params.get("channelId")) || null,
         ),

@@ -77,6 +77,8 @@ async function runPlatformCheck(extra) {
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/email-mailboxes\/([a-f0-9-]+)\/google$/, () => "email-mailboxes/[id]/google"],
+        [/^\/api\/email-google\/callback$/, () => "email-google/callback"],
         [/^\/api\/email-files\/([a-f0-9-]+)$/, () => "email-files/[id]"],
         [/^\/api\/v1\/email\/receipts\/([a-f0-9-]+)\/files$/, () => "v1/email/receipts/[id]/files"],
         [/^\/api\/v1\/email\/files\/([a-f0-9-]+)$/, () => "v1/email/files/[id]"],
@@ -176,6 +178,7 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "email-mailboxes/[id]/google", "email-google/callback",
         "email-files/[id]", "v1/email/receipts/[id]/files", "v1/email/files/[id]", "v1/email/mailboxes/[id]/files", "v1/email/deliveries/[id]/files/[fileId]",
         "email-mailboxes", "email-mailboxes/[id]", "email-deliveries/[id]", "v1/email/mailboxes", "v1/email/mailboxes/[id]", "v1/email/mailboxes/[id]/receive", "v1/email/mailboxes/[id]/claim", "v1/email/deliveries/[id]",
         "v1/imports", "v1/imports/[id]", "customer-imports", "customer-imports/[id]",

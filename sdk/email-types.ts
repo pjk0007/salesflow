@@ -26,6 +26,7 @@ export interface SendbInboundEmail {
     from: string;
     fromName?: string;
     to: string[];
+    deliveredTo?: string[];
     cc?: string[];
     subject: string;
     body: string;

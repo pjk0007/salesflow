@@ -45,7 +45,7 @@ node --import tsx examples/email-relay/run.ts files
 node --import tsx examples/email-relay/run.ts send
 ```
 
-files 모드는 대기/실패를 50개씩 한 번 순회한다. 실제 스케줄러·OAuth 연결은 설치하지 않았다. 운영 연결 서버에서 receive/files/send 함수를 실행해야 한다. 파일 소스 다운로드·DB 저장은 멱등이므로 둘 이상의 작업자가 재조회해도 파일/활동을 중복 생성하지 않는다. Gmail history/push와 내구성 수신 체크포인트·실제 부하 검증은 후속이다.
+files 모드는 대기/실패를 50개씩 한 번 순회한다. 실제 계정/서버 설정은 설치하지 않았다. 외부 relay를 쓰면 receive/files/send를 명시 실행하며, 샌드비 내 Google 연결·자동 워커 설치는 [GOOGLE-CONNECTION.md](GOOGLE-CONNECTION.md)를 따른다. 파일 소스 다운로드·DB 저장은 멱등이므로 둘 이상의 작업자가 재조회해도 파일/활동을 중복 생성하지 않는다. Gmail history와 영속 수신 체크포인트는 위 가이드로 확장했다. push·실제 부하 검증은 후속이다.
 
 ## 검증과 남은 일
 

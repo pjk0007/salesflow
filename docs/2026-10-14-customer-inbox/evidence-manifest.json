@@ -1482,5 +1482,280 @@
       "R11 historical file bytes and complete channel cutover"
     ],
     "eventContract": "email sourceAttachmentCount and CRM original file count at message creation; separate saved file event; web contract unchanged"
+  },
+  "googleConnectionQa": {
+    "capturedAt": "2026-10-14T17:05:20.296757+00:00",
+    "scope": "dev Gmail OAuth/영속 원본 큐/history/수신·첨부·답장 워커, 전체 대체 목표 진행 중",
+    "checks": {
+      "googleSqlApi": 19,
+      "inheritedPlatform": 11,
+      "emailRegression": 14,
+      "emailFileRegression": 11,
+      "webhookRegression": 14,
+      "unit": 1067,
+      "types": "passed",
+      "featureLint": "passed",
+      "uiLint": "passed",
+      "build": "passed; test env, database 127.0.0.1:1"
+    },
+    "safety": {
+      "realGoogleApproval": false,
+      "providerEmailDelivery": false,
+      "realCustomerMessages": 0,
+      "productionDbAccess": false,
+      "deployedOrEnabled": false,
+      "workerFlag": "off; DI 함수 실행만"
+    },
+    "browser": {
+      "designerhire": "원본 실패 재시도→대기1→완료1→상담 본문, 7일 범위 선택",
+      "backofficelab": "30일 범위 선택·원본 재시도 접수·계정 해제·수신 발송 중지, 디하 상태 유지",
+      "oauthApprovalUi": "실제 승인하지 않음; 가상 HTTP 승인 결과로 fixture 준비",
+      "sharedEnvironment": "3120 UI,3121 PGlite API,3122/3123 가상 사이트"
+    },
+    "remaining": [
+      "실제 Google 앱/계정 승인·배달·서버 설정",
+      "부하·지연·push·모니터링",
+      "다중 참여자/전체 회신/별칭·반송",
+      "다른 채널·전체 자료 이전·SLA/보고·실제 전환 검수"
+    ],
+    "sources": [
+      {
+        "url": "https://developers.google.com/identity/protocols/oauth2/web-server",
+        "kind": "official API/implementation; publicly browsed"
+      },
+      {
+        "url": "https://developers.google.com/workspace/gmail/api/guides/sync",
+        "kind": "official API/implementation; publicly browsed"
+      },
+      {
+        "url": "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list",
+        "kind": "official API/implementation; publicly browsed"
+      },
+      {
+        "url": "https://github.com/googleapis/google-auth-library-nodejs/blob/main/src/auth/oauth2client.ts",
+        "kind": "official API/implementation; publicly browsed"
+      }
+    ],
+    "implementationFiles": [
+      {
+        "path": "F:/Dev/salesflow/drizzle/0100_inbox_google_connection.sql",
+        "bytes": 2341,
+        "sha256": "a4634d7c35fd3c053867d4b21d23053daa404888ac2981f51af021bd8e7d3dda"
+      },
+      {
+        "path": "F:/Dev/salesflow/drizzle/meta/_journal.json",
+        "bytes": 14927,
+        "sha256": "0ea6b69a8032af88ac5d12c079dd6d665ab219fb1066fd06b6b54da6ee5bb9df"
+      },
+      {
+        "path": "F:/Dev/salesflow/scripts/check-customer-platform.cjs",
+        "bytes": 26932,
+        "sha256": "adf13444a82e758d1d1edbfa81c39bab127e817e3a5324704649fe3fbaa748ad"
+      },
+      {
+        "path": "F:/Dev/salesflow/scripts/check-inbox-google.cjs",
+        "bytes": 56781,
+        "sha256": "03239e29b9fe6880b5b3723645202a8249419672d43089779493485706f49cc6"
+      },
+      {
+        "path": "F:/Dev/salesflow/scripts/check-inbox.cjs",
+        "bytes": 29813,
+        "sha256": "c0eb3a54d9bb623b83f21fb2235998b7eb20c90e4d6b9590fc46146b4a345b92"
+      },
+      {
+        "path": "F:/Dev/salesflow/sdk/email-types.ts",
+        "bytes": 2205,
+        "sha256": "ab08cc4407608ce858ef94e898e9ed63b21c54a1e3579ca5355b192a340eeead"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/email-google/callback/route.ts",
+        "bytes": 74,
+        "sha256": "490e9116e54fbca487959147fa020fa0e1d52d5531658daf247c4f6fd2be7e82"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/app/api/email-mailboxes/[id]/google/route.ts",
+        "bytes": 98,
+        "sha256": "ec8b4d007bfbf6c1c5fa060ecfe59e7a2d621aba0c0a3d963f7efee7174cb585"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-email/api/index.ts",
+        "bytes": 991,
+        "sha256": "0627fb3930d36192998646b530f8fb2a679e7149f56f17943ee592335c78616d"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-email/hooks/useGoogleConnection.ts",
+        "bytes": 332,
+        "sha256": "3f4eca8d758be74de0c71f34d1b7d47aa568be4e15175d61241acc6a5fd3397e"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-email/types/index.ts",
+        "bytes": 963,
+        "sha256": "b470778ff8017d311749b4d45927a79d70523c2d4c082729c936296ee000eb09"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-email/ui/EmailMailboxSettings.tsx",
+        "bytes": 7055,
+        "sha256": "c5c3b24ab5cfbc0e63d1f847f2106e31925de6d7b442fea87bd9cba83e2fdc9f"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox-email/ui/GoogleConnectionPanel.tsx",
+        "bytes": 6791,
+        "sha256": "8321fbaef8ef56c9285fbd66662009106674f251864d157d331434d79b4bac34"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/components/inbox/ui/InboxPage.tsx",
+        "bytes": 24551,
+        "sha256": "763e7f789bcfaaa7bf80b4868ee928759ad208cb8d42bf39ca1ee09e0c273429"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/instrumentation.ts",
+        "bytes": 2561,
+        "sha256": "e0629b9694ac70eb363a84b76f1980ea99be4ddacdb215bd7672df258dfb377c"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/customer-platform/webhook-crypto.ts",
+        "bytes": 936,
+        "sha256": "d5879ae5733e6fdade7cf8c843536dffe3e3865c95d92257ccf0f3088e3e8f6a"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/db/inbox-google-schema.ts",
+        "bytes": 4224,
+        "sha256": "fe397952d9a2fbe40285dfb2f346390a13c0ea28e547f8f29df11761cae5da78"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/db/schema.ts",
+        "bytes": 111783,
+        "sha256": "0890bdd4b9761084815b4446f8c6a83d8f2003e08f427ddfa2989d30e666b67b"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/gmail-client.ts",
+        "bytes": 16995,
+        "sha256": "4230dcebff0db49fc95b8d4447df4be2a7300d77082b7cd6144adc67523dde92"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/files.ts",
+        "bytes": 13967,
+        "sha256": "9e3d528b53e8908408be20600b734360480e4c813ea241b757105f3e7b9701f0"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/gmail.ts",
+        "bytes": 26934,
+        "sha256": "714ec3db5b1182519210367f1c15cf21f24afaec8471ade15c7ff3d73e3db066"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/google-config.ts",
+        "bytes": 2283,
+        "sha256": "d21337eb9ab9aa04fc6e15a064190af22c6346c4d2a77685181230248ecacbc3"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/google-connection.ts",
+        "bytes": 15912,
+        "sha256": "8e760772434750a644a56926510d3c53ff06bfbdedc0193f497fec01a2c1dc21"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/google-guard.ts",
+        "bytes": 826,
+        "sha256": "936dec9e2f00d836cdb3536dfc4af8963409ec8b4dda26b59c42bcfd701fa50f"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/google-routes.ts",
+        "bytes": 4863,
+        "sha256": "56fb4bc315e50cb6e24d2f3d11f1f16993eab225b9085ac76844bd4d8143f0d3"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/google-transport.ts",
+        "bytes": 2669,
+        "sha256": "fbcc3e2ff2dbac22df46cac2ff82513969e9ed28964c7e95553c59ff23f8c3cd"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/google-worker.ts",
+        "bytes": 21635,
+        "sha256": "0a9415dfb7f3c25e9dd8d0bb38bf3f4775e95d56579cf13e21d7af986483caf7"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/repository.ts",
+        "bytes": 26714,
+        "sha256": "0936c9a498f05ce70dee64868f4d62c2bf575b28905706c68b78859ab4f5db7f"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/inbox-email/rules.ts",
+        "bytes": 2852,
+        "sha256": "641ddb43d85767e5929e42e8d5ee6cf233716d20bec2e27f4dc9b705c3f6f5b8"
+      },
+      {
+        "path": "F:/Dev/salesflow/src/lib/secret-box.ts",
+        "bytes": 896,
+        "sha256": "44f44040990fc3e225f6be0e8f5d2313d76988712da0c3edd28348c06527fcae"
+      }
+    ],
+    "proofs": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-connection-before-retry-qa.png",
+        "bytes": 114870,
+        "sha256": "6f0a23ee7af05f82d683aed7ccdff630726bc5ac265bc2a92ebf17e1591808a6"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-connection-designerhire-qa.png",
+        "bytes": 71012,
+        "sha256": "e9f006b5db479833cc2c2b761ddc77b2b66d2680cd46d86a92adf24b72c9525e"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-received-conversation-qa.png",
+        "bytes": 117034,
+        "sha256": "bbb0021e884a445b6cbb42054d99d591255d666c152858d7417cb678440bfd4e"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-connection-backofficelab-qa.png",
+        "bytes": 91931,
+        "sha256": "b71a00b9b4e58eb7f1a16a50203fce4aa40c90e936153d0e98850afb7dfd2e08"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-disconnected-backofficelab-qa.png",
+        "bytes": 82226,
+        "sha256": "3134741ff9aab2943bdf28e5cca180decc0cb26e0bd2e3b4f346c0fc93349c16"
+      }
+    ],
+    "logs": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-qa.log",
+        "bytes": 2824,
+        "sha256": "192a2412f788b22248f3499561078aafde0d229d38e631719cc6d11295a81754"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-types.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-ui-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-units.log",
+        "bytes": 102112,
+        "sha256": "810de6b1c12072c4fa7e3c2c2517ece71f466d0de598bb545a9c6534546584b2"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-regression-files.log",
+        "bytes": 3341,
+        "sha256": "1a7a4eb3d470e877afe632275b633c0b0f402897d187715284d1c5f425bcae22"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-regression-webhooks.log",
+        "bytes": 5793,
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/google-build.log",
+        "bytes": 12690,
+        "sha256": "6024bfbca21383efee4e72c3d010640bbc2f0bc8de09d90c18f7fb60f0629c2e"
+      }
+    ]
   }
 }

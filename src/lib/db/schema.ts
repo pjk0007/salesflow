@@ -24,6 +24,7 @@ export * from "./email-experiment-schema";
 export * from "./copy-automation-schema";
 export * from "./inbox-schema";
 export * from "./inbox-email-schema";
+export * from "./inbox-google-schema";
 export * from "./customer-platform-schema";
 export * from "./customer-sales-schema";
 export * from "./customer-activity-schema";

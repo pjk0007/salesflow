@@ -7,6 +7,7 @@ import {
     type GmailCredentials,
     GMAIL_API_ORIGIN,
     invalidateGmailAccessToken,
+    gmailResponseError,
 } from "@/lib/gmail-client";
 import {
     htmlToText,
@@ -17,6 +18,18 @@ import {
 import { inboundInput, emailAddress, rfcId } from "./rules";
 import { createHash } from "node:crypto";
 import { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "@/lib/inbox/file-rules";
+export type EmailTransportClient = Pick<
+    SendbClient,
+    | "emailMailboxes"
+    | "receiveEmail"
+    | "claimEmail"
+    | "changeEmailDelivery"
+    | "emailReceiptFiles"
+    | "uploadEmailFile"
+    | "failEmailFile"
+    | "pendingEmailFiles"
+    | "downloadEmailDeliveryFile"
+>;
 const wrap = (body: string) =>
     Buffer.from(body, "utf8")
         .toString("base64")
@@ -247,6 +260,9 @@ export function gmailInbound(message: GmailInboxMessage) {
         from: senders[0],
         fromName: fromName.slice(0, 100),
         to: addresses(header("to")),
+        ...(header("delivered-to")
+            ? { deliveredTo: addresses(header("delivered-to")) }
+            : {}),
         cc: addresses(header("cc")),
         subject: header("subject") || "(제목 없음)",
         body:
@@ -263,10 +279,11 @@ export function gmailInbound(message: GmailInboxMessage) {
     });
 }
 export async function deliverGmailReply(
-    client: SendbClient,
+    client: EmailTransportClient,
     mailboxId: string,
     credentials: GmailCredentials,
     fetchImpl: typeof fetch = fetch,
+    beforeBegin?: () => void,
 ) {
     const accessToken = await getAccessToken(credentials, fetchImpl);
     const headers = {
@@ -279,9 +296,8 @@ export async function deliverGmailReply(
     );
     if (profile.status === 401) invalidateGmailAccessToken(credentials);
     if (!profile.ok)
-        throw new GmailApiError(
-            "auth",
-            profile.status,
+        throw await gmailResponseError(
+            profile,
             "상담 메일함 계정을 확인하지 못했습니다.",
         );
     const identity = (await profile.json()) as { emailAddress?: string };
@@ -329,6 +345,7 @@ export async function deliverGmailReply(
         });
         return { deliveryId: item.id, state: "failed" };
     }
+    beforeBegin?.();
     await client.changeEmailDelivery(item.id, {
         action: "begin",
         leaseToken: item.leaseToken,
@@ -398,7 +415,7 @@ export async function deliverGmailReply(
     }
     return { deliveryId: item.id, state: outcome.action };
 }
-async function gmailReader(
+export async function gmailReader(
     credentials: GmailCredentials,
     fetchImpl: typeof fetch,
 ) {
@@ -426,15 +443,8 @@ async function gmailReader(
                 invalidateGmailAccessToken(credentials);
         }
         if (!response.ok)
-            throw new GmailApiError(
-                response.status === 401
-                    ? "auth"
-                    : response.status === 403
-                      ? "scope"
-                      : response.status === 404
-                        ? "not_found"
-                        : "transient",
-                response.status,
+            throw await gmailResponseError(
+                response,
                 "상담 메일 원본을 확인하지 못했습니다.",
             );
         if (Number(response.headers.get("content-length")) > maxBytes) {
@@ -515,7 +525,7 @@ async function hydrateText(get: GmailReader, message: GmailInboxMessage) {
     await walk(message.payload);
 }
 async function syncSourceFiles(
-    client: SendbClient,
+    client: EmailTransportClient,
     get: GmailReader,
     message: GmailInboxMessage,
     files: SendbEmailFile[],
@@ -569,7 +579,7 @@ async function syncSourceFiles(
 }
 /** Re-fetches known message IDs, including mail archived after initial intake. One cursor page per call. */
 export async function retryGmailFiles(
-    client: SendbClient,
+    client: EmailTransportClient,
     options: { workspaceId: number; mailboxId: string; before?: string },
     credentials: GmailCredentials,
     fetchImpl: typeof fetch = fetch,
@@ -617,7 +627,7 @@ export async function retryGmailFiles(
 }
 /** One explicit page; retain nextPageToken until the fixed since window has been exhausted. No mark-read/delete/label mutations. */
 export async function receiveGmailPage(
-    client: SendbClient,
+    client: EmailTransportClient,
     options: {
         workspaceId: number;
         mailboxId: string;
@@ -670,4 +680,45 @@ export async function receiveGmailPage(
             );
     }
     return { results, fileFailures, nextPageToken: page.nextPageToken ?? null };
+}
+
+/** Durable worker fetches one enumerated ID. Attachments are handled by their own persisted queue. */
+export async function receiveGmailMessage(
+    client: EmailTransportClient,
+    options: {
+        mailboxId: string;
+        address: string;
+        messageId: string;
+        since: Date;
+    },
+    credentials: GmailCredentials,
+    fetchImpl: typeof fetch = fetch,
+) {
+    if (!/^[A-Za-z0-9_-]{1,200}$/.test(options.messageId))
+        throw new Error("invalid_message_id");
+    const get = await gmailReader(credentials, fetchImpl),
+        message = await get<GmailInboxMessage>(
+            `messages/${encodeURIComponent(options.messageId)}?format=full`,
+        );
+    if (message.id !== options.messageId) throw new Error("source_mismatch");
+    if (
+        message.labelIds?.some((label) =>
+            ["SENT", "DRAFT", "SPAM", "TRASH"].includes(label),
+        )
+    )
+        return { skippedReason: "excluded_label" };
+    const date = Number(message.internalDate);
+    if (!Number.isFinite(date)) throw new Error("invalid_date");
+    if (date < options.since.getTime())
+        return { skippedReason: "before_window" };
+    await hydrateText(get, message);
+    const input = gmailInbound(message);
+    if (
+        ![...input.to, ...input.cc, ...(input.deliveredTo ?? [])].includes(
+            options.address,
+        )
+    )
+        return { skippedReason: "other_recipient" };
+    const receipt = await client.receiveEmail(options.mailboxId, input);
+    return { receipt };
 }

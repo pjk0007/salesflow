@@ -1,3 +1,4 @@
+import { checkGoogleGuard } from "./google-guard";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { and, eq, inArray, lte, or, sql, asc } from "drizzle-orm";
 import { z } from "zod";
@@ -181,6 +182,7 @@ export async function receiveEmail(
     mailboxId: string,
     raw: unknown,
     exec: DbExec = db,
+    expectedConnectionVersion?: number,
 ) {
     const input = inboundInput.parse(raw);
     const at = new Date(input.receivedAt);
@@ -188,9 +190,14 @@ export async function receiveEmail(
         throw new InboxError("수신 시간이 미래입니다.");
     return exec.transaction(async (tx) => {
         const box = await ownedMailbox(actor, mailboxId, tx, true);
+        await checkGoogleGuard(tx, box.id, expectedConnectionVersion);
         if (!box.enabled)
             throw new InboxError("메일함 연결이 중지되어 있습니다.", 409);
-        if (!input.to.includes(box.address))
+        if (
+            ![...input.to, ...input.cc, ...(input.deliveredTo ?? [])].includes(
+                box.address,
+            )
+        )
             throw new InboxError(
                 "이 메일함으로 수신한 메일만 연결할 수 있습니다.",
                 409,
@@ -206,7 +213,12 @@ export async function receiveEmail(
                 ),
             );
         if (previous) {
-            if (previous.fingerprint !== fingerprint)
+            const { deliveredTo: _deliveredTo, ...legacyInput } = input;
+            void _deliveredTo;
+            const legacyMatch =
+                !("deliveredTo" in previous.envelope) &&
+                previous.fingerprint === emailFingerprint(legacyInput);
+            if (previous.fingerprint !== fingerprint && !legacyMatch)
                 throw new InboxError(
                     "같은 원본 메일 번호에 다른 내용이 있습니다.",
                     409,
@@ -387,9 +399,11 @@ export async function claimEmail(
     mailboxId: string,
     exec: DbExec = db,
     now = new Date(),
+    expectedConnectionVersion?: number,
 ) {
     return exec.transaction(async (tx) => {
         const box = await ownedMailbox(actor, mailboxId, tx, true);
+        await checkGoogleGuard(tx, box.id, expectedConnectionVersion);
         await tx
             .update(deliveries)
             .set({ state: "uncertain", errorCode: "send_confirmation_missing" })
@@ -422,6 +436,13 @@ export async function claimEmail(
             .where(
                 and(
                     eq(deliveries.mailboxId, mailboxId),
+                    sql`NOT EXISTS (SELECT 1 FROM inbox_email_deliveries active
+                      JOIN inbox_messages active_message ON active_message.id=active.message_id
+                      JOIN inbox_messages candidate_message ON candidate_message.id=${deliveries.messageId}
+                      WHERE active.mailbox_id=${mailboxId} AND active.id<>${deliveries.id}
+                        AND active_message.conversation_id=candidate_message.conversation_id
+                        AND active.state IN ('leased','sending')
+                        AND active.message_id<${deliveries.messageId})`,
                     or(
                         eq(deliveries.state, "queued"),
                         and(
@@ -431,7 +452,7 @@ export async function claimEmail(
                     ),
                 ),
             )
-            .orderBy(asc(deliveries.createdAt), asc(deliveries.id))
+            .orderBy(asc(deliveries.messageId), asc(deliveries.id))
             .limit(1)
             .for("update");
         if (!candidate) return null;
@@ -536,11 +557,14 @@ export async function changeEmailDelivery(
     raw: unknown,
     exec: DbExec = db,
     now = new Date(),
+    expectedConnectionVersion?: number,
 ) {
     const input = deliveryActionInput.parse(raw),
         hint = await emailDeliveryMailbox(actor, id, exec);
     return exec.transaction(async (tx) => {
         const box = await ownedMailbox(actor, hint.id, tx, true);
+        if (input.action === "begin")
+            await checkGoogleGuard(tx, box.id, expectedConnectionVersion);
         const [item] = await tx
             .select()
             .from(deliveries)

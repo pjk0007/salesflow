@@ -31,7 +31,7 @@ Chatwoot의 채널/대화/메시지 분리와 제공 리서치의 공통 고객�
 
 같은 함수의 직원 세션용 메일함/전달 API도 제공한다. 브라우저는 수신 원본·발송 성공을 임의 등록할 수 없다. `sdk/server.ts`에 `emailMailboxes`, `createEmailMailbox`, `changeEmailMailbox`, `receiveEmail`, `claimEmail`, `changeEmailDelivery`를 제공한다. 타입은 `sdk/email-types.ts`다.
 
-수신 필드: `providerMessageId`, `providerThreadId`, RFC `rfcMessageId`, 단일 `from`, 선택 `fromName`, `to[]`, 선택 `cc[]`, `subject`, 텍스트 `body`, ISO `receivedAt`, 선택 `autoSubmitted`, `precedence`, `files[]` 메타데이터. `to`에 등록 주소가 있어야 한다. 동일 제공자 메시지 ID+동일 내용은 재사용하고 내용이 다르면 409로 차단한다. 같은 스레드에서 외부 발신자가 바뀌면 자동 합치지 않고 별도 확인을 요구한다.
+수신 필드: `providerMessageId`, `providerThreadId`, RFC `rfcMessageId`, 단일 `from`, 선택 `fromName`, `to[]`, 선택 `cc[]`, `deliveredTo[]`, `subject`, 텍스트 `body`, ISO `receivedAt`, 선택 `autoSubmitted`, `precedence`, `files[]` 메타데이터. `to`·`cc`·신뢰한 원본의 `deliveredTo` 중 등록 주소가 있어야 한다. 동일 제공자 메시지 ID+동일 내용은 재사용하고 내용이 다르면 409로 차단한다. 같은 스레드에서 외부 발신자가 바뀌면 자동 합치지 않고 별도 확인을 요구한다.
 
 메일함+발신자 전용 CRM 고객 ID를 만들며 기존 사이트 회원을 이메일 일치만으로 합치지 않는다. 같은 발신자의 서로 다른 이메일 스레드는 별도 상담을 유지한다. 웹 회원의 상담 조회·비회원→회원 병합 대상은 `medium=web`이며 이메일을 공개하지 않는다. 자동 회신·단체 메일·자기 발신은 수신 번호만 기록하고 상담/자동 답장을 만들지 않는다.
 
@@ -62,7 +62,7 @@ node --import tsx examples/email-relay/run.ts receive
 node --import tsx examples/email-relay/run.ts send
 ```
 
-receive는 시작일 이후 INBOX를 50개씩 끝까지 읽어 수신 번호로 중복을 막는다. Gmail 읽음/라벨/삭제를 변경하지 않는다. 낮은 발송량의 초기 연결용이며 전체 기간 재조회 비용이 있으므로 대규모 메일함은 Gmail history 커서와 내구성 체크포인트가 후속이다. send는 대기 답장 한 건을 처리한다. 운영 서비스에 자동 워커를 켜거나 스케줄러를 설치하지 않았다. 외부 서버에서 함수/SDK를 호출할 수도 있다.
+receive는 시작일 이후 INBOX를 50개씩 끝까지 읽어 수신 번호로 중복을 막는다. Gmail 읽음/라벨/삭제를 변경하지 않는다. 외부 서버에서 명시 실행하는 예제다. 샌드비 서버의 자동 처리에는 아래 Google 연결·영속 history 대기열을 사용한다. send는 대기 답장 한 건을 처리한다. 운영 서비스에 자동 워커를 켜거나 계정을 연결하지 않았다. 외부 서버에서 함수/SDK를 호출할 수도 있다.
 
 ## 검증과 남은 일
 
@@ -70,4 +70,4 @@ receive는 시작일 이후 INBOX를 50개씩 끝까지 읽어 수신 번호로 
 - MIME/한글/HTML/charset/첨부 메일 격리/헤더/자동 회신 단위 검증 6개. 전체 단위 검증 1,064개 통과.
 - 브라우저 QA는 두 사업의 가상 메일함과 가상 Gmail transport만 사용한다. 실제 고객 메일·Google Chat·운영 DB 접근은 없다.
 
-첨부 수신/비공개 다운로드·실패 재요청·답장 MIME와 발송 전 해시 검증을 추가했다. [EMAIL-FILES.md](EMAIL-FILES.md)에 한도·API·복구와 추가 SQL/API 11개·전체 단위 1,067개 검증을 정리했다. 지원 한도를 넘는 파일/본문은 원본 메일함에서 확인하도록 표시한다. 여러 참여자·참조 전체 회신, 메일 별칭, 반송 후 배달 상태, 공급자 성공 결과 자동 재조정, 실시간 history/push·운영 모니터링·부하·OAuth 설치 UX·실제 계정 검수는 후속이다. 파일 재시도는 예제의 files 모드와 추가 SDK로 지원한다. 이메일 AI 자동 발송/초안은 현재 차단하고 상담원이 직접 답장한다. 카카오·네이버·전화 어댑터도 R08 미완료 항목으로 유지한다.
+첨부 수신/비공개 다운로드·실패 재요청·답장 MIME와 발송 전 해시 검증을 추가했다. [EMAIL-FILES.md](EMAIL-FILES.md)에 한도·API·복구와 추가 SQL/API 11개·전체 단위 1,067개 검증을 정리했다. 지원 한도를 넘는 파일/본문은 원본 메일함에서 확인하도록 표시한다. 여러 참여자·참조 전체 회신, 메일 별칭, 반송 후 배달 상태, 공급자 성공 결과 자동 재조정, push·운영 모니터링·부하·실제 계정 검수는 후속이다. Google OAuth 설치 UX와 영속 history/자동 수신·파일·발송 워커는 [GOOGLE-CONNECTION.md](GOOGLE-CONNECTION.md)에 추가했다. 파일 재시도는 예제의 files 모드와 추가 SDK로 지원한다. 이메일 AI 자동 발송/초안은 현재 차단하고 상담원이 직접 답장한다. 카카오·네이버·전화 어댑터도 R08 미완료 항목으로 유지한다.
