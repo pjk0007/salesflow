@@ -1,4 +1,6 @@
 "use client";
+import { IncomingEmailFiles } from "@/components/inbox-email/ui/IncomingEmailFiles";
+import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
@@ -116,6 +118,15 @@ export function ConversationPane({
     }
     async function send() {
         if ((!text.trim() && !attachments.files.length) || busy) return;
+        if (
+            chat.medium === "email" &&
+            kind === "reply" &&
+            attachments.files.reduce((sum, f) => sum + f.file.size, 0) >
+                MAX_FILE_BYTES
+        ) {
+            toast.error("이메일 답장 첨부는 합계 20MB까지 보낼 수 있습니다.");
+            return;
+        }
         if (
             kind === "reply" &&
             chat.medium === "email" &&
@@ -400,14 +411,10 @@ export function ConversationPane({
                                     />
                                 )}
                                 {!!m.email?.files.length && (
-                                    <p className="text-xs text-amber-800">
-                                        첨부{" "}
-                                        {m.email.files
-                                            .map((f) => f.name)
-                                            .join(", ")}{" "}
-                                        · 파일 내용은 원본 메일함에서
-                                        확인해주세요.
-                                    </p>
+                                    <IncomingEmailFiles
+                                        files={m.email.files}
+                                        refresh={refresh}
+                                    />
                                 )}
                                 <AttachmentList
                                     files={m.attachments}
@@ -531,22 +538,26 @@ export function ConversationPane({
                                     </button>
                                 </p>
                             )}
-                            {(chat.medium !== "email" || kind === "note") && (
-                                <AttachmentDrafts
-                                    files={attachments.files}
-                                    busy={
-                                        busy ||
-                                        (kind === "reply" &&
-                                            chat.status === "closed")
-                                    }
-                                    progress={attachments.progress}
-                                    onSelect={attachments.select}
-                                    onRemove={(id) =>
-                                        attachments.remove(id, uploadUrl)
-                                    }
-                                    onError={(message) => toast.error(message)}
-                                />
+                            {chat.medium === "email" && kind === "reply" && (
+                                <p className="mb-2 text-xs text-muted-foreground">
+                                    이메일 첨부는 최대 5개, 합계 20MB까지 보낼
+                                    수 있습니다.
+                                </p>
                             )}
+                            <AttachmentDrafts
+                                files={attachments.files}
+                                busy={
+                                    busy ||
+                                    (kind === "reply" &&
+                                        chat.status === "closed")
+                                }
+                                progress={attachments.progress}
+                                onSelect={attachments.select}
+                                onRemove={(id) =>
+                                    attachments.remove(id, uploadUrl)
+                                }
+                                onError={(message) => toast.error(message)}
+                            />
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-muted-foreground">
                                     {kind === "note"

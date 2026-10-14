@@ -38,6 +38,19 @@ export function EmailDeliveryStatus({
             <p>
                 {labels[item.state]} · {item.recipient}
             </p>
+            {item.state === "failed" &&
+                [
+                    "attachment_download",
+                    "attachment_changed",
+                    "mime_invalid",
+                    "mailbox_mismatch",
+                ].includes(item.errorCode ?? "") && (
+                    <p>
+                        {item.errorCode === "mailbox_mismatch"
+                            ? "연결된 메일 계정과 발신 주소가 다릅니다. 관리자에게 연결 설정을 확인해주세요."
+                            : "첨부 파일을 모두 확인하지 못해 발송을 시작하지 않았습니다. 파일과 연결 상태를 확인한 뒤 재시도해주세요."}
+                    </p>
+                )}
             {item.state === "uncertain" && (
                 <p>
                     중복 발송을 막기 위해 자동 재전송하지 않습니다. 메일

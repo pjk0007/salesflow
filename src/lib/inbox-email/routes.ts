@@ -135,7 +135,7 @@ export function mailboxRelay(action: "receive" | "claim") {
                     action === "receive" ? ["create"] : ["read", "update"],
                 );
                 return action === "receive"
-                    ? receiveEmail(actor, id, await jsonBody(req, 200000))
+                    ? receiveEmail(actor, id, await jsonBody(req, 500000))
                     : claimEmail(actor, id);
             }),
     };

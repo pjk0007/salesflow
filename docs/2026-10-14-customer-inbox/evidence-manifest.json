@@ -1125,5 +1125,362 @@
       "durable Gmail history/push and monitoring/large concurrency",
       "Kakao, Naver, phone and full cutover"
     ]
+  },
+  "emailFilesQa": {
+    "date": "2026-10-15",
+    "environment": "isolated PGlite 0.5.8, actual API/SDK and Chrome UI, fake Gmail HTTP only; no production DB, real email/account access",
+    "checks": {
+      "emailFiles": 11,
+      "email": 14,
+      "platform": 11,
+      "unit": 1067,
+      "gmailUnit": 9,
+      "inbox": 22,
+      "files": 18,
+      "identity": 12,
+      "imports": 15,
+      "workflows": 15,
+      "ai": 16,
+      "webhooks": 14,
+      "activities": 7,
+      "types": true,
+      "lint": true,
+      "build": true
+    },
+    "browser": [
+      "designerhire and backofficelab received/failed/blocked file states",
+      "failed source file request→pending→available and protected image preview in both businesses",
+      "download event observation timed out; saved download file independently verified by size, timestamp and SHA256",
+      "Chrome file chooser upload blocked by extension file URL permission; multipart SDK/API through final Gmail MIME verified"
+    ],
+    "browserDownload": {
+      "bytes": 68,
+      "sha256": "0538ce0ff6bbfa1875c5a40604eb54f36a3bfdfde4121b1b41c5d44acd93a6ea",
+      "match": true,
+      "modifiedAt": "2026-10-14T16:09:05.167Z",
+      "verifiedAt": "2026-10-14T16:11:21.250Z"
+    },
+    "browserImages": {
+      "designerhire": {
+        "width": 1,
+        "height": 1,
+        "loaded": true
+      },
+      "backofficelab": {
+        "width": 1,
+        "height": 1,
+        "loaded": true
+      }
+    },
+    "references": {
+      "capturedAt": "2026-10-14T16:15:39.463Z",
+      "references": [
+        {
+          "file": "email-files-gmail-get-reference.html",
+          "url": "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments/get",
+          "resolvedUrl": "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments/get",
+          "bytes": 326176,
+          "sha256": "5bd412c79cd611058e188f4029d8ca700912e3797e49942ded97e823b7667b70"
+        },
+        {
+          "file": "email-files-gmail-body-reference.html",
+          "url": "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments",
+          "resolvedUrl": "https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages.attachments?hl=hi",
+          "bytes": 354082,
+          "sha256": "298b528efdb6c24182f207a88decad26b25dd6c63157838d212ff25e6f2f500f"
+        }
+      ]
+    },
+    "artifacts": [
+      {
+        "file": "email-files-qa.log",
+        "bytes": 3341,
+        "sha256": "1a7a4eb3d470e877afe632275b633c0b0f402897d187715284d1c5f425bcae22"
+      },
+      {
+        "file": "email-files-types.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": "email-files-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "file": "email-files-unit.log",
+        "bytes": 102105,
+        "sha256": "34f8abd04e359855a26a50d148736c59fbb301a04485d8ec227aa11f7e1ee2b9"
+      },
+      {
+        "file": "email-files-build.log",
+        "bytes": 12614,
+        "sha256": "97c7db0a6b79ebcc99433d4d83814eb160fe7e4a0461f83339bb01e88c4af5a9"
+      },
+      {
+        "file": "email-files-regression-inbox-files.log",
+        "bytes": 4455,
+        "sha256": "4ad67f976d52264eb12b7c42744e5501601e12d2d9ac7bdbe3e1ff3428ed38be"
+      },
+      {
+        "file": "email-files-regression-inbox.log",
+        "bytes": 1590,
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137"
+      },
+      {
+        "file": "email-files-regression-inbox-identity.log",
+        "bytes": 2313,
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530"
+      },
+      {
+        "file": "email-files-regression-customer-imports.log",
+        "bytes": 2570,
+        "sha256": "984a71372bd78537aeb2676c95f175c7d1471f0fb22bcb2f954fe1c305719d44"
+      },
+      {
+        "file": "email-files-regression-customer-workflows.log",
+        "bytes": 2372,
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551"
+      },
+      {
+        "file": "email-files-regression-customer-ai.log",
+        "bytes": 2433,
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c"
+      },
+      {
+        "file": "email-files-regression-platform-webhooks.log",
+        "bytes": 5793,
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986"
+      },
+      {
+        "file": "email-files-regression-customer-activities.log",
+        "bytes": 2888,
+        "sha256": "08c03a11391c4aacf54bb9df19608196ce1de76e15f7213fa20a9d7bcf288772"
+      },
+      {
+        "file": "email-files-before-retry-qa.png",
+        "bytes": 103882,
+        "sha256": "eb33267481071e08327dc665bb977de108ee61d2ccfd3ffc9a28dcd1dafb51a6"
+      },
+      {
+        "file": "email-files-designerhire-qa.png",
+        "bytes": 103400,
+        "sha256": "3cc0e71da91070eb304c5f1d80a5a6306075ac1c1c2fea2f9b1286e534f3e3cb"
+      },
+      {
+        "file": "email-files-backofficelab-qa.png",
+        "bytes": 106228,
+        "sha256": "3458cb3b6d9ce14fcbd9ef27ff4d79f59ed74f854d2c4d5385e04fea90a820f3"
+      },
+      {
+        "file": "email-files-browser-download.json",
+        "bytes": 347,
+        "sha256": "2de86d668e388b60921fadaf921e16e3a0a95b886b8326a034d04aa6e10305d8"
+      },
+      {
+        "file": "email-files-reference-sources.json",
+        "bytes": 889,
+        "sha256": "82b8f85a0b5d23cb34b8fba71f3ca638949f4c484af31fa6d909bcb94f740012"
+      }
+    ],
+    "implementation": [
+      {
+        "file": "docs/2026-10-14-customer-inbox/EMAIL.md",
+        "bytes": 9124,
+        "sha256": "fd73eb6509500eded5d1c0a1c27c9b8ca93d348db0a34a38588fee38c0276763"
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/HANDOFF.md",
+        "bytes": 16700,
+        "sha256": "3327ea484dd89efcd25313cccfbd2fd558568652f423e5673442af729a451afb"
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/REPLACEMENT.md",
+        "bytes": 8271,
+        "sha256": "eaaee5b4d399c4460a2009ca47cafa0d7aa7d012e82cfc782b0c827acc41fd6f"
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/RESEARCH-APPLIED.md",
+        "bytes": 9441,
+        "sha256": "2e86e4c28856c7c60b97d1d1002568c8493f464a4442e2afeb0aed92f35f8c11"
+      },
+      {
+        "file": "drizzle/meta/_journal.json",
+        "bytes": 14774,
+        "sha256": "eb961e305cfc9fece75110c164c8af8f6753118028de1f7cae54f01361219563"
+      },
+      {
+        "file": "examples/email-relay/run.ts",
+        "bytes": 3046,
+        "sha256": "d252c2db16d986d8e625e73e46071a04144318038a7a068af463ba9731306d89"
+      },
+      {
+        "file": "scripts/check-customer-platform.cjs",
+        "bytes": 26031,
+        "sha256": "90c96e26c469550b2da80f71243e434a0191f59420310f592d3777c3f7c32826"
+      },
+      {
+        "file": "scripts/check-inbox.cjs",
+        "bytes": 29769,
+        "sha256": "e136800c08e926b28f8637b8f92f58de4cd76952d50dbb9eb03947735c8189d6"
+      },
+      {
+        "file": "sdk/email-types.ts",
+        "bytes": 2177,
+        "sha256": "3bd941360f2f6edf50b1191df00d0f8776960d19907f8375739dea21207a773d"
+      },
+      {
+        "file": "sdk/server.ts",
+        "bytes": 30983,
+        "sha256": "968d8b84f391c79ff98f8a0d4365ebc83508121cbe589b9aac5f8987bf79e33a"
+      },
+      {
+        "file": "src/components/customer-crm/ui/ActivityTimeline.tsx",
+        "bytes": 9500,
+        "sha256": "517f1591019770985ee9d99fd39dad155a1b4babafc81e1cf010b4a133a71755"
+      },
+      {
+        "file": "src/components/inbox-email/api/index.ts",
+        "bytes": 706,
+        "sha256": "371740fd66094cfec3c357246d33d3ff529682c3324baf31a2c8d72665b899dc"
+      },
+      {
+        "file": "src/components/inbox-email/ui/EmailDeliveryStatus.tsx",
+        "bytes": 2870,
+        "sha256": "1600f38739c5aab9a068cfa39d5fb4b3fa69b7a668d0e2dd9fa3b3679ed938f9"
+      },
+      {
+        "file": "src/components/inbox/types/index.ts",
+        "bytes": 2242,
+        "sha256": "cc75c9df88b7d46d9b621a7c0d73c63462134fdb9e8603cd1e9200178bdc5d9c"
+      },
+      {
+        "file": "src/components/inbox/ui/ConversationPane.tsx",
+        "bytes": 40874,
+        "sha256": "371a13d5bb41bdbe04113e8c6d1d474898a91066e9bc58e6de6360c88f3e0dba"
+      },
+      {
+        "file": "src/lib/db/inbox-email-schema.ts",
+        "bytes": 5745,
+        "sha256": "c0e21a353f6dc6919d517f883d633e0866a61d03828ab08b72fecf8f931df110"
+      },
+      {
+        "file": "src/lib/gmail-client.ts",
+        "bytes": 16454,
+        "sha256": "d3273a0f96b8ccafc4126726129b248ab005953f29c28d14b28c79b9573e771e"
+      },
+      {
+        "file": "src/lib/inbox-email/gmail.test.ts",
+        "bytes": 9949,
+        "sha256": "c77abf46ead13981c5e5f845f81d9d24cc054eb1179155b44e3e5e86e48a7c87"
+      },
+      {
+        "file": "src/lib/inbox-email/gmail.ts",
+        "bytes": 25201,
+        "sha256": "6ddc916169562b128a5819f7ce5c47b988fb789482da8136f4f001ea7787fda4"
+      },
+      {
+        "file": "src/lib/inbox-email/outgoing.ts",
+        "bytes": 3372,
+        "sha256": "7a3d2766ed1fab14f8de8b3a1dfbb82aa62c5c32e6567831483a635fb8947d6b"
+      },
+      {
+        "file": "src/lib/inbox-email/repository.ts",
+        "bytes": 25300,
+        "sha256": "66d5b520d568fa8a23508fd9593797700acf24444c35a3e84cca119c7d583a7e"
+      },
+      {
+        "file": "src/lib/inbox-email/routes.ts",
+        "bytes": 5758,
+        "sha256": "56a7307549fd1b027be0569742c64207153e114d5446011d7e9b0f44f4ad6f30"
+      },
+      {
+        "file": "src/lib/inbox-email/rules.ts",
+        "bytes": 2796,
+        "sha256": "a83d4636fa296c921f664af71a4d1a4ca63a0c30b09c7d6ba54168167db48a0f"
+      },
+      {
+        "file": "src/lib/inbox/file-http.ts",
+        "bytes": 3320,
+        "sha256": "dfec6c9908d98e66f8b4e2d10b894dcfe8573dbed842973122e1b2e0fcebfd4b"
+      },
+      {
+        "file": "src/lib/inbox/files.ts",
+        "bytes": 13436,
+        "sha256": "07054b726a5d66f97b4830f5d686e9c13af563f6affc65dc1f25f35ba041deca"
+      },
+      {
+        "file": "src/lib/inbox/repository.ts",
+        "bytes": 45011,
+        "sha256": "c33d63a3386a8f46e4dd672d494906d3988f416fd8cd5450c5d01f6123c57a38"
+      },
+      {
+        "file": "docs/2026-10-14-customer-inbox/EMAIL-FILES.md",
+        "bytes": 8766,
+        "sha256": "1f1c946bd834e687ff489dc3a7071605bb3ea8c7edabd74693898137e154ee82"
+      },
+      {
+        "file": "drizzle/0099_inbox_email_files.sql",
+        "bytes": 1095,
+        "sha256": "b5200f2d4460875bd7cde9f952fd401d6d995724afe47b2ff0843dd9abb29531"
+      },
+      {
+        "file": "scripts/check-inbox-email-files.cjs",
+        "bytes": 39288,
+        "sha256": "7921767cb157de19e1ea2a29604075a191e9ad0ced40068f5625a0397b4b61f1"
+      },
+      {
+        "file": "src/app/api/email-files/[id]/route.ts",
+        "bytes": 71,
+        "sha256": "5888a53e92d23aec014a259113236c31ea76b6528acb8d7b9d69fb17f1f76f1c"
+      },
+      {
+        "file": "src/app/api/v1/email/deliveries/[id]/files/[fileId]/route.ts",
+        "bytes": 72,
+        "sha256": "afd1bee1467999d2b198671d5bcf7294b6a9e760b6e60bd07f73a15d0a5d3f16"
+      },
+      {
+        "file": "src/app/api/v1/email/files/[id]/route.ts",
+        "bytes": 71,
+        "sha256": "4a55f2cb4f2bc0b9cfe106d90aeb763660fc703465a1a88b70ec8c98de2e0658"
+      },
+      {
+        "file": "src/app/api/v1/email/mailboxes/[id]/files/route.ts",
+        "bytes": 72,
+        "sha256": "2e33fe3a60ded851f9a6c5fd2ebbf115ecd22d5f1549291c1a3308878ed31b86"
+      },
+      {
+        "file": "src/app/api/v1/email/receipts/[id]/files/route.ts",
+        "bytes": 72,
+        "sha256": "67cd63e69cee2e6ef2a22b45a8a3bd97078efaed40e7fbe652a0fa5cac9ec504"
+      },
+      {
+        "file": "src/components/inbox-email/ui/IncomingEmailFiles.tsx",
+        "bytes": 2466,
+        "sha256": "f3ca9df61427d3ebf1c65f28e64917c39c3bdb310b492f58893388ad41ec5a91"
+      },
+      {
+        "file": "src/lib/inbox-email/file-routes.ts",
+        "bytes": 4552,
+        "sha256": "c2e8686b16f93df5f5b432992d81da69e7908af10e53feb57092c01a172a7be3"
+      },
+      {
+        "file": "src/lib/inbox-email/files.ts",
+        "bytes": 13581,
+        "sha256": "3c988c835c601fc3c8bb5dfb2b6513bcc513a9905eef7f90ef594cb1b49aab62"
+      },
+      {
+        "file": "src/lib/inbox/file-rules.ts",
+        "bytes": 84,
+        "sha256": "585835cd57aa9ce79910b5b2f3fe39365f323a002afff9c9105df821cd34ffac"
+      }
+    ],
+    "remaining": [
+      "Chrome chooser selection-to-send manual QA",
+      "real Gmail OAuth/account/provider delivery and load/monitoring",
+      "history/push and durable intake cursor",
+      "R11 historical file bytes and complete channel cutover"
+    ],
+    "eventContract": "email sourceAttachmentCount and CRM original file count at message creation; separate saved file event; web contract unchanged"
   }
 }

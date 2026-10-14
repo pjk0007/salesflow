@@ -612,6 +612,7 @@ export async function appendMessage(
         attachmentIds: string[];
         aiDraftId?: string;
         createdAt?: Date;
+        sourceAttachmentCount?: number;
     },
     scope: FileScope,
 ) {
@@ -728,7 +729,16 @@ export async function appendMessage(
                 "이메일 상담은 사이트 상담창에서 조회할 수 없습니다.",
                 403,
             );
-        const { attachmentIds, ...value } = message;
+        const { attachmentIds, sourceAttachmentCount, ...value } = message;
+        if (
+            sourceAttachmentCount !== undefined &&
+            (locked.medium !== "email" ||
+                message.kind !== "customer" ||
+                !Number.isInteger(sourceAttachmentCount) ||
+                sourceAttachmentCount < 0 ||
+                sourceAttachmentCount > 50)
+        )
+            throw new InboxError("메일 원본 첨부 정보를 확인해주세요.");
         const [inserted] = await tx
             .insert(inboxMessages)
             .values({ ...value, conversationId: id })
@@ -771,6 +781,9 @@ export async function appendMessage(
                         authorName: inserted.authorName,
                         createdAt: inserted.createdAt,
                         attachments,
+                        ...(sourceAttachmentCount !== undefined
+                            ? { sourceAttachmentCount }
+                            : {}),
                     },
                 },
                 occurredAt: inserted.createdAt,
@@ -796,7 +809,8 @@ export async function appendMessage(
                     metadata: {
                         conversationId: id,
                         messageId: inserted.id,
-                        attachmentCount: attachments.length,
+                        attachmentCount:
+                            sourceAttachmentCount ?? attachments.length,
                     },
                     occurredAt: inserted.createdAt,
                 });

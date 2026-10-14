@@ -1,10 +1,12 @@
 import type {
+    SendbEmailFile,
     SendbInboundEmail,
     SendbEmailMailbox,
     SendbEmailClaim,
     SendbEmailDeliveryAction,
 } from "./email-types";
 export type {
+    SendbEmailFile,
     SendbInboundEmail,
     SendbEmailMailbox,
     SendbEmailClaim,
@@ -184,6 +186,44 @@ export class SendbApiError extends Error {
     }
 }
 export class SendbClient {
+    pendingEmailFiles(id: string, before?: string) {
+        return this.request<{ rows: SendbEmailFile[]; hasMore: boolean }>(
+            `/api/v1/email/mailboxes/${encodeURIComponent(id)}/files${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+
+    emailReceiptFiles(id: string) {
+        return this.request<SendbEmailFile[]>(
+            `/api/v1/email/receipts/${encodeURIComponent(id)}/files`,
+        );
+    }
+    failEmailFile(
+        id: string,
+        errorCode: "download_failed" | "source_missing" | "size_mismatch",
+    ) {
+        return this.request(
+            `/api/v1/email/files/${encodeURIComponent(id)}`,
+            "POST",
+            { action: "failed", errorCode },
+        );
+    }
+    uploadEmailFile(id: string, file: Blob, fileName: string) {
+        const form = new FormData();
+        form.set("file", file, fileName);
+        form.set("clientId", id);
+        form.set("kind", "customer");
+        return this.#upload<SendbEmailFile>(
+            `/api/v1/email/files/${encodeURIComponent(id)}`,
+            form,
+        );
+    }
+    downloadEmailDeliveryFile(id: string, fileId: string, leaseToken: string) {
+        return this.#downloadFile(
+            `/api/v1/email/deliveries/${encodeURIComponent(id)}/files/${encodeURIComponent(fileId)}`,
+            { "X-Sendb-Email-Lease": leaseToken },
+        );
+    }
+
     emailMailboxes(workspaceId: number) {
         return this.request<SendbEmailMailbox[]>(
             `/api/v1/email/mailboxes?workspaceId=${workspaceId}`,
@@ -754,27 +794,30 @@ export class SendbClient {
         form.set("file", file, fileName);
         form.set("clientId", clientId);
         form.set("kind", kind);
-        const response = await this.#fetch(
-            `${this.#base}/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/attachments`,
-            {
-                method: "POST",
-                headers: { Authorization: `Bearer ${this.#apiToken}` },
-                body: form,
-                cache: "no-store",
-            },
+        return this.#upload<{
+            id: string;
+            fileName: string;
+            contentType: string;
+            size: number;
+        }>(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/attachments`,
+            form,
         );
+    }
+    async #upload<T>(path: string, form: FormData): Promise<T> {
+        const response = await this.#fetch(this.#base + path, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${this.#apiToken}` },
+            body: form,
+            cache: "no-store",
+        });
         const result = await response.json();
         if (!response.ok || !result.success)
             throw new SendbApiError(
                 result.error ?? "파일을 올리지 못했습니다.",
                 response.status,
             );
-        return result.data as {
-            id: string;
-            fileName: string;
-            contentType: string;
-            size: number;
-        };
+        return result.data as T;
     }
     cancelAttachment(conversationId: string, id: string) {
         return this.request(
@@ -783,14 +826,22 @@ export class SendbClient {
             { action: "cancel", id },
         );
     }
-    async downloadAttachment(id: string) {
-        const response = await this.#fetch(
-            `${this.#base}/api/v1/inbox/attachments/${encodeURIComponent(id)}`,
-            {
-                headers: { Authorization: `Bearer ${this.#apiToken}` },
-                cache: "no-store",
-            },
+    downloadAttachment(id: string) {
+        return this.#downloadFile(
+            `/api/v1/inbox/attachments/${encodeURIComponent(id)}`,
         );
+    }
+    async #downloadFile(
+        path: string,
+        extraHeaders: Record<string, string> = {},
+    ) {
+        const response = await this.#fetch(this.#base + path, {
+            headers: {
+                Authorization: `Bearer ${this.#apiToken}`,
+                ...extraHeaders,
+            },
+            cache: "no-store",
+        });
         if (!response.ok) {
             const result = await response.json();
             throw new SendbApiError(

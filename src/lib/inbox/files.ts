@@ -12,8 +12,8 @@ import {
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "./errors";
 
-export const MAX_FILE_BYTES = 20 * 1024 * 1024;
-export const MAX_MESSAGE_FILES = 5;
+import { MAX_FILE_BYTES } from "./file-rules";
+export { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "./file-rules";
 export type FileScope = {
     orgId: string;
     channelId: number;

@@ -3,6 +3,7 @@ import { SendbClient } from "../../sdk/server";
 import {
     deliverGmailReply,
     receiveGmailPage,
+    retryGmailFiles,
 } from "../../src/lib/inbox-email/gmail";
 const required = (key: string) => {
     const value = process.env[key];
@@ -11,8 +12,8 @@ const required = (key: string) => {
 };
 async function main() {
     const mode = process.argv[2];
-    if (!["receive", "send"].includes(mode))
-        throw new Error("receive 또는 send 모드를 지정해주세요.");
+    if (!["receive", "send", "files"].includes(mode))
+        throw new Error("receive, send 또는 files 모드를 지정해주세요.");
     if (required("SENDB_EMAIL_RELAY_ENABLED") !== "on")
         throw new Error("메일 연결 실행이 꺼져 있습니다.");
     const client = new SendbClient({
@@ -34,10 +35,27 @@ async function main() {
         );
         return;
     }
-    const workspaceId = Number(required("SENDB_EMAIL_WORKSPACE_ID")),
-        since = new Date(required("SENDB_EMAIL_RECEIVE_SINCE"));
+    const workspaceId = Number(required("SENDB_EMAIL_WORKSPACE_ID"));
     if (!Number.isInteger(workspaceId) || workspaceId <= 0)
         throw new Error("사업 번호를 확인해주세요.");
+    if (mode === "files") {
+        let before: string | undefined,
+            processed = 0,
+            failed = 0;
+        do {
+            const result = await retryGmailFiles(
+                client,
+                { workspaceId, mailboxId, before },
+                credentials,
+            );
+            processed += result.processed;
+            failed += result.failures.length;
+            before = result.nextCursor ?? undefined;
+        } while (before);
+        console.log(`메일 첨부 처리 ${processed}건 · 확인 필요 ${failed}건`);
+        return;
+    }
+    const since = new Date(required("SENDB_EMAIL_RECEIVE_SINCE"));
     let pageToken: string | undefined,
         count = 0;
     do {

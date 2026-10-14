@@ -12,6 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations, workspaces } from "./schema";
+import { inboxAttachments } from "./inbox-files-schema";
 import {
     inboxChannels,
     inboxConversations,
@@ -19,6 +20,30 @@ import {
 } from "./inbox-schema";
 const time = (name: string) =>
     timestamp(name, { withTimezone: true, precision: 3 });
+export const inboxEmailFiles = pgTable(
+    "inbox_email_files",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        receiptId: uuid("receipt_id")
+            .notNull()
+            .references(() => inboxEmailReceipts.id, { onDelete: "cascade" }),
+        fileIndex: integer("file_index").notNull(),
+        attachmentId: uuid("attachment_id").references(
+            () => inboxAttachments.id,
+        ),
+        state: varchar("state", { length: 16 }).notNull().default("pending"),
+        errorCode: varchar("error_code", { length: 40 }),
+        createdAt: time("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        uniqueIndex("inbox_email_file_once").on(t.receiptId, t.fileIndex),
+        check(
+            "inbox_email_file_state",
+            sql`${t.state} in ('pending','available','failed','blocked')`,
+        ),
+        check("inbox_email_file_index", sql`${t.fileIndex}>=0`),
+    ],
+);
 export const inboxMailboxes = pgTable(
     "inbox_mailboxes",
     {

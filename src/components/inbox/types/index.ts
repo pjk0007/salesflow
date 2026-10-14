@@ -46,7 +46,12 @@ export interface ChatMessage {
         cc: string[];
         subject: string;
         receivedAt: string;
-        files: { name: string }[];
+        files: {
+            id?: string;
+            name: string;
+            state?: string;
+            errorCode?: string | null;
+        }[];
     };
     delivery?: EmailDelivery;
     importMetadata?: {

@@ -48,7 +48,7 @@ export const inboundInput = z
                         name: header(255).min(1),
                         size: z.number().int().nonnegative(),
                         contentType: header(150),
-                        providerId: sourceId,
+                        providerId: header(4096).min(1),
                     })
                     .strict(),
             )

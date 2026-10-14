@@ -17,6 +17,8 @@ import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
 import { InboxError } from "@/lib/inbox/errors";
 import { appendMessage } from "@/lib/inbox/repository";
+import { seedEmailFiles } from "./files";
+import { inboxAttachments } from "@/lib/db";
 import { fileOwner } from "@/lib/inbox/files";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
@@ -209,6 +211,8 @@ export async function receiveEmail(
                     "같은 원본 메일 번호에 다른 내용이 있습니다.",
                     409,
                 );
+            if (previous.messageId)
+                await seedEmailFiles(tx, previous.id, input.files);
             return {
                 receiptId: previous.id,
                 messageId: previous.messageId,
@@ -339,6 +343,7 @@ export async function receiveEmail(
                 body: input.body,
                 authorName: input.fromName || input.from,
                 attachmentIds: [],
+                sourceAttachmentCount: input.files.length,
                 createdAt: at,
             },
             {
@@ -367,6 +372,7 @@ export async function receiveEmail(
                 envelope: input,
             })
             .returning();
+        await seedEmailFiles(tx, receipt.id, input.files);
         return {
             receiptId: receipt.id,
             conversationId: thread.conversationId,
@@ -445,15 +451,45 @@ export async function claimEmail(
             })
             .from(inboxMessages)
             .where(eq(inboxMessages.id, delivery.messageId));
+        const files = await tx
+            .select({
+                id: inboxAttachments.id,
+                fileName: inboxAttachments.fileName,
+                contentType: inboxAttachments.contentType,
+                size: inboxAttachments.size,
+                sha256: inboxAttachments.sha256,
+            })
+            .from(inboxAttachments)
+            .where(
+                and(
+                    eq(inboxAttachments.messageId, delivery.messageId),
+                    eq(inboxAttachments.kind, "reply"),
+                    sql`${inboxAttachments.cancelledAt} IS NULL`,
+                ),
+            )
+            .orderBy(inboxAttachments.id);
         return {
             ...delivery,
             ...message,
+            attachments: files,
             from: box.address,
             fromName: box.name,
         };
     });
 }
 export const deliveryActionInput = z.discriminatedUnion("action", [
+    z
+        .object({
+            action: z.literal("prepare_failed"),
+            leaseToken: z.string().uuid(),
+            errorCode: z.enum([
+                "attachment_download",
+                "attachment_changed",
+                "mime_invalid",
+                "mailbox_mismatch",
+            ]),
+        })
+        .strict(),
     z
         .object({ action: z.literal("begin"), leaseToken: z.string().uuid() })
         .strict(),
@@ -585,18 +621,30 @@ export async function changeEmailDelivery(
             item.providerMessageId === input.providerMessageId
         )
             return item;
+        const outcome =
+            input.action === "prepare_failed" ? "failed" : input.action;
         if (
-            (input.action === "failed" || input.action === "uncertain") &&
-            item.state === input.action &&
+            (input.action === "failed" ||
+                input.action === "uncertain" ||
+                input.action === "prepare_failed") &&
+            item.state === outcome &&
             item.errorCode === input.errorCode
         )
             return item;
-        if (!["sending", "uncertain"].includes(item.state))
+        if (
+            input.action === "prepare_failed"
+                ? item.state !== "leased" ||
+                  !item.leaseUntil ||
+                  item.leaseUntil <= now ||
+                  !box.enabled ||
+                  item.mailboxVersion !== box.version
+                : !["sending", "uncertain"].includes(item.state)
+        )
             throw new InboxError("발송 결과를 기록할 수 없는 상태입니다.", 409);
         const [next] = await tx
             .update(deliveries)
             .set({
-                state: input.action,
+                state: outcome,
                 ...(input.action === "sent"
                     ? {
                           providerMessageId: input.providerMessageId,
@@ -623,7 +671,7 @@ export async function changeEmailDelivery(
         const summary =
             input.action === "sent"
                 ? "메일 서비스가 답장을 접수했습니다."
-                : input.action === "failed"
+                : outcome === "failed"
                   ? "메일 발송이 실패했습니다."
                   : "메일 발송 결과 확인이 필요합니다.";
         if (chat?.contactId)
@@ -634,14 +682,14 @@ export async function changeEmailDelivery(
                 source: "conversation",
                 entityId: chat.id,
                 eventKey: key,
-                action: `email.${input.action}`,
+                action: `email.${outcome}`,
                 summary,
                 actorName: actor.name,
                 metadata: {
                     conversationId: chat.id,
                     messageId: item.messageId,
                     deliveryId: id,
-                    state: input.action,
+                    state: outcome,
                 },
                 occurredAt: now,
             });
@@ -654,10 +702,10 @@ export async function changeEmailDelivery(
                 data: {
                     conversationId: chat.id,
                     contactId: chat.contactId,
-                    action: `email.${input.action}`,
+                    action: `email.${outcome}`,
                     deliveryId: id,
                     messageId: item.messageId,
-                    state: input.action,
+                    state: outcome,
                 },
                 occurredAt: now,
             });

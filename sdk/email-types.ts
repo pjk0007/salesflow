@@ -6,6 +6,19 @@ export interface SendbEmailMailbox {
     enabled: boolean;
     version: number;
 }
+export interface SendbEmailFile {
+    id: string;
+    receiptId: string;
+    fileIndex: number;
+    attachmentId: string | null;
+    state: "pending" | "available" | "failed" | "blocked";
+    errorCode: string | null;
+    name: string;
+    size: number;
+    contentType: string;
+    providerId: string;
+    providerMessageId: string;
+}
 export interface SendbInboundEmail {
     providerMessageId: string;
     providerThreadId: string;
@@ -27,6 +40,13 @@ export interface SendbInboundEmail {
     }[];
 }
 export interface SendbEmailClaim {
+    attachments?: {
+        id: string;
+        fileName: string;
+        contentType: string;
+        size: number;
+        sha256: string;
+    }[];
     id: string;
     mailboxId: string;
     messageId: number;
@@ -43,6 +63,15 @@ export interface SendbEmailClaim {
     authorName: string;
 }
 export type SendbEmailDeliveryAction =
+    | {
+          action: "prepare_failed";
+          leaseToken: string;
+          errorCode:
+              | "attachment_download"
+              | "attachment_changed"
+              | "mime_invalid"
+              | "mailbox_mismatch";
+      }
     | { action: "begin"; leaseToken: string }
     | { action: "sent"; leaseToken: string; providerMessageId: string }
     | {

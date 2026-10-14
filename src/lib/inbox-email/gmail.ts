@@ -1,10 +1,12 @@
 import type { SendbClient } from "../../../sdk/server";
 import type { SendbEmailClaim } from "../../../sdk/email-types";
+import type { SendbEmailFile } from "../../../sdk/email-types";
 import {
     GmailApiError,
     getAccessToken,
     type GmailCredentials,
     GMAIL_API_ORIGIN,
+    invalidateGmailAccessToken,
 } from "@/lib/gmail-client";
 import {
     htmlToText,
@@ -13,6 +15,8 @@ import {
     parseContentType,
 } from "@/lib/email-reply-rules";
 import { inboundInput, emailAddress, rfcId } from "./rules";
+import { createHash } from "node:crypto";
+import { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "@/lib/inbox/file-rules";
 const wrap = (body: string) =>
     Buffer.from(body, "utf8")
         .toString("base64")
@@ -36,29 +40,100 @@ const encoded = (header: string) => {
         .map((s) => `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`)
         .join("\r\n ");
 };
-export function gmailReplyRaw(item: SendbEmailClaim, now = new Date()) {
+export type GmailReplyFile = {
+    fileName: string;
+    contentType: string;
+    bytes: Buffer;
+};
+function filenameParams(name: string) {
+    if (/[\x00-\x1f\x7f]/.test(name))
+        throw new Error("첨부 파일 이름을 확인해주세요.");
+    const chunks: string[] = [];
+    let chunk = "";
+    for (const char of name) {
+        const encoded = encodeURIComponent(char).replace(
+            /[!'()*]/g,
+            (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+        );
+        if (chunk.length + encoded.length > 60) {
+            chunks.push(chunk);
+            chunk = "";
+        }
+        chunk += encoded;
+    }
+    if (chunk) chunks.push(chunk);
+    return chunks
+        .map((s, i) => `filename*${i}*=${i === 0 ? "UTF-8''" : ""}${s}`)
+        .join(";\r\n ");
+}
+export function gmailReplyRaw(
+    item: SendbEmailClaim,
+    now = new Date(),
+    files: GmailReplyFile[] = [],
+) {
     emailAddress.parse(item.from);
     emailAddress.parse(item.recipient);
     rfcId.parse(item.rfcMessageId);
     rfcId.parse(item.inReplyTo);
-    return Buffer.from(
-        [
-            `From: ${encoded(item.fromName)} <${item.from}>`,
-            `To: ${item.recipient}`,
-            `Subject: ${encoded(item.subject)}`,
-            `Date: ${now.toUTCString()}`,
-            `Message-ID: ${item.rfcMessageId}`,
-            `In-Reply-To: ${item.inReplyTo}`,
-            `References: ${item.inReplyTo}`,
-            "MIME-Version: 1.0",
-            "Content-Type: text/plain; charset=UTF-8",
+    if (
+        files.length > MAX_MESSAGE_FILES ||
+        files.reduce((sum, f) => sum + f.bytes.length, 0) > MAX_FILE_BYTES
+    )
+        throw new Error(
+            "이메일 첨부는 최대 5개, 합계 20MB까지 보낼 수 있습니다.",
+        );
+    if (item.attachments && item.attachments.length !== files.length)
+        throw new Error("발송 첨부를 모두 확인해주세요.");
+    const headers = [
+        `From: ${encoded(item.fromName)} <${item.from}>`,
+        `To: ${item.recipient}`,
+        `Subject: ${encoded(item.subject)}`,
+        `Date: ${now.toUTCString()}`,
+        `Message-ID: ${item.rfcMessageId}`,
+        `In-Reply-To: ${item.inReplyTo}`,
+        `References: ${item.inReplyTo}`,
+        "MIME-Version: 1.0",
+    ];
+    const text = [
+        "Content-Type: text/plain; charset=UTF-8",
+        "Content-Transfer-Encoding: base64",
+        "",
+        wrap(item.body),
+        "",
+    ];
+    if (!files.length)
+        return Buffer.from([...headers, ...text].join("\r\n"), "utf8").toString(
+            "base64url",
+        );
+    const boundary = `sendb_${createHash("sha256").update(item.id).digest("hex").slice(0, 32)}`;
+    const parts = [
+        ...headers,
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        "",
+        `--${boundary}`,
+        ...text,
+    ];
+    for (const file of files) {
+        if (
+            !file.bytes.length ||
+            !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(file.contentType)
+        )
+            throw new Error("첨부 파일 형식을 확인해주세요.");
+        parts.push(
+            `--${boundary}`,
+            `Content-Type: ${file.contentType}`,
+            `Content-Disposition: attachment; filename="attachment";\r\n ${filenameParams(file.fileName)}`,
             "Content-Transfer-Encoding: base64",
             "",
-            wrap(item.body),
+            file.bytes
+                .toString("base64")
+                .match(/.{1,76}/g)
+                ?.join("\r\n") ?? "",
             "",
-        ].join("\r\n"),
-        "utf8",
-    ).toString("base64url");
+        );
+    }
+    parts.push(`--${boundary}--`, "");
+    return Buffer.from(parts.join("\r\n"), "utf8").toString("base64url");
 }
 type Part = {
     mimeType?: string;
@@ -68,6 +143,33 @@ type Part = {
     body?: { data?: string; size?: number; attachmentId?: string };
     parts?: Part[];
 };
+const isFilePart = (part: Part) =>
+    !!part.filename ||
+    part.mimeType === "message/rfc822" ||
+    !!part.headers?.some(
+        (h) =>
+            h.name.toLowerCase() === "content-disposition" &&
+            /^attachment\b/i.test(h.value),
+    ) ||
+    !!(
+        (part.body?.attachmentId || part.body?.data) &&
+        part.mimeType &&
+        !part.mimeType.startsWith("multipart/") &&
+        !["text/plain", "text/html"].includes(part.mimeType)
+    );
+export function gmailFileParts(root: Part) {
+    const files: Part[] = [];
+    const walk = (part: Part, depth = 0) => {
+        if (depth > 25) throw new Error("메일 MIME 중첩이 너무 깊습니다.");
+        if (isFilePart(part)) {
+            files.push(part);
+            return;
+        }
+        for (const child of part.parts ?? []) walk(child, depth + 1);
+    };
+    walk(root);
+    return files;
+}
 export interface GmailInboxMessage {
     id: string;
     threadId: string;
@@ -111,19 +213,14 @@ export function gmailInbound(message: GmailInboxMessage) {
             ["text/plain", "text/html"].includes(part.mimeType ?? "") &&
             part.body?.attachmentId &&
             !part.body.data &&
-            !part.filename
+            !isFilePart(part)
         )
             throw new Error(
                 "별도 다운로드가 필요한 큰 메일 본문은 아직 지원하지 않습니다. 원본 메일함에서 확인해주세요.",
             );
-        if (
-            part.filename ||
-            part.mimeType === "message/rfc822" ||
-            (part.body?.attachmentId &&
-                !["text/plain", "text/html"].includes(part.mimeType ?? ""))
-        ) {
+        if (isFilePart(part)) {
             files.push({
-                name: part.filename || "첨부 파일",
+                name: decodeMimeWords(part.filename).trim() || "첨부 파일",
                 size: part.body?.size ?? 0,
                 contentType: part.mimeType ?? "application/octet-stream",
                 providerId: part.body?.attachmentId || part.partId || "inline",
@@ -180,6 +277,7 @@ export async function deliverGmailReply(
         `${GMAIL_API_ORIGIN}/gmail/v1/users/me/profile`,
         { headers, signal: AbortSignal.timeout(15000) },
     );
+    if (profile.status === 401) invalidateGmailAccessToken(credentials);
     if (!profile.ok)
         throw new GmailApiError(
             "auth",
@@ -189,11 +287,48 @@ export async function deliverGmailReply(
     const identity = (await profile.json()) as { emailAddress?: string };
     const item = await client.claimEmail(mailboxId);
     if (!item) return null;
-    if (identity.emailAddress?.toLowerCase() !== item.from)
-        throw new Error(
-            "연결 ID와 Gmail 계정 주소가 다릅니다. 발송을 시작하지 않았습니다.",
-        );
-    const raw = gmailReplyRaw(item);
+    if (identity.emailAddress?.toLowerCase() !== item.from) {
+        await client.changeEmailDelivery(item.id, {
+            action: "prepare_failed",
+            leaseToken: item.leaseToken,
+            errorCode: "mailbox_mismatch",
+        });
+        return { deliveryId: item.id, state: "failed" };
+    }
+    const files: GmailReplyFile[] = [];
+    let raw: string;
+    try {
+        for (const expected of item.attachments ?? []) {
+            const file = await client.downloadEmailDeliveryFile(
+                    item.id,
+                    expected.id,
+                    item.leaseToken,
+                ),
+                bytes = Buffer.from(file.bytes);
+            if (
+                bytes.length !== expected.size ||
+                createHash("sha256").update(bytes).digest("hex") !==
+                    expected.sha256
+            )
+                throw new Error("attachment_changed");
+            files.push({
+                fileName: expected.fileName,
+                contentType: expected.contentType,
+                bytes,
+            });
+        }
+        raw = gmailReplyRaw(item, new Date(), files);
+    } catch (error) {
+        await client.changeEmailDelivery(item.id, {
+            action: "prepare_failed",
+            leaseToken: item.leaseToken,
+            errorCode:
+                error instanceof Error && error.message === "attachment_changed"
+                    ? "attachment_changed"
+                    : "attachment_download",
+        });
+        return { deliveryId: item.id, state: "failed" };
+    }
     await client.changeEmailDelivery(item.id, {
         action: "begin",
         leaseToken: item.leaseToken,
@@ -224,7 +359,9 @@ export async function deliverGmailReply(
                           leaseToken: item.leaseToken,
                           errorCode: "provider_unknown",
                       };
-        } else if ([400, 401, 403, 404, 429].includes(response.status))
+        } else if ([400, 401, 403, 404, 429].includes(response.status)) {
+            if (response.status === 401)
+                invalidateGmailAccessToken(credentials);
             outcome = {
                 action: "failed",
                 leaseToken: item.leaseToken,
@@ -237,7 +374,7 @@ export async function deliverGmailReply(
                             ? "rate_limited"
                             : "provider_rejected",
             };
-        else
+        } else
             outcome = {
                 action: "uncertain",
                 leaseToken: item.leaseToken,
@@ -261,6 +398,223 @@ export async function deliverGmailReply(
     }
     return { deliveryId: item.id, state: outcome.action };
 }
+async function gmailReader(
+    credentials: GmailCredentials,
+    fetchImpl: typeof fetch,
+) {
+    let token = await getAccessToken(credentials, fetchImpl);
+    return async <T>(path: string, maxBytes = 40 * 1024 * 1024): Promise<T> => {
+        let response = await fetchImpl(
+            `${GMAIL_API_ORIGIN}/gmail/v1/users/me/${path}`,
+            {
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(15000),
+            },
+        );
+        if (response.status === 401) {
+            await response.body?.cancel();
+            invalidateGmailAccessToken(credentials);
+            token = await getAccessToken(credentials, fetchImpl);
+            response = await fetchImpl(
+                `${GMAIL_API_ORIGIN}/gmail/v1/users/me/${path}`,
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                    signal: AbortSignal.timeout(15000),
+                },
+            );
+            if (response.status === 401)
+                invalidateGmailAccessToken(credentials);
+        }
+        if (!response.ok)
+            throw new GmailApiError(
+                response.status === 401
+                    ? "auth"
+                    : response.status === 403
+                      ? "scope"
+                      : response.status === 404
+                        ? "not_found"
+                        : "transient",
+                response.status,
+                "상담 메일 원본을 확인하지 못했습니다.",
+            );
+        if (Number(response.headers.get("content-length")) > maxBytes) {
+            await response.body?.cancel();
+            throw new Error("메일 원본 응답이 너무 큽니다.");
+        }
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("메일 원본 응답이 없습니다.");
+        const chunks: Uint8Array[] = [];
+        let length = 0;
+        try {
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                length += value.length;
+                if (length > maxBytes) {
+                    await reader.cancel();
+                    throw new Error("메일 원본 응답이 너무 큽니다.");
+                }
+                chunks.push(value);
+            }
+        } finally {
+            reader.releaseLock();
+        }
+        return JSON.parse(Buffer.concat(chunks).toString("utf8")) as T;
+    };
+}
+type GmailReader = Awaited<ReturnType<typeof gmailReader>>;
+function partBytes(data: string | undefined, max: number) {
+    if (
+        typeof data !== "string" ||
+        data.length > Math.ceil((max * 4) / 3) + 4 ||
+        !/^[A-Za-z0-9_-]*={0,2}$/.test(data)
+    )
+        throw new Error("메일 파일 데이터를 확인해주세요.");
+    const bytes = Buffer.from(data, "base64url");
+    if (bytes.length > max) throw new Error("메일 파일이 너무 큽니다.");
+    return bytes;
+}
+async function sourceBytes(
+    get: GmailReader,
+    messageId: string,
+    part: Part,
+    max: number,
+) {
+    if (
+        !Number.isInteger(part.body?.size) ||
+        part.body!.size! < 0 ||
+        part.body!.size! > max
+    )
+        throw new Error("메일 파일의 크기를 확인해주세요.");
+    const body = part.body?.attachmentId
+        ? await get<{ data?: string; size?: number }>(
+              `messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(part.body.attachmentId)}`,
+              Math.ceil((max * 4) / 3) + 65536,
+          )
+        : part.body;
+    const bytes = partBytes(body?.data, max);
+    if (bytes.length !== part.body?.size || body?.size !== bytes.length)
+        throw new Error("size_mismatch");
+    return bytes;
+}
+async function hydrateText(get: GmailReader, message: GmailInboxMessage) {
+    const walk = async (part: Part, depth = 0): Promise<void> => {
+        if (depth > 25) throw new Error("메일 MIME 중첩이 너무 깊습니다.");
+        if (isFilePart(part)) return;
+        if (
+            part.body?.attachmentId &&
+            ![undefined, ""].includes(part.mimeType) &&
+            ["text/plain", "text/html"].includes(part.mimeType!)
+        ) {
+            part.body.data = (
+                await sourceBytes(get, message.id, part, 400000)
+            ).toString("base64url");
+        }
+        for (const child of part.parts ?? []) await walk(child, depth + 1);
+    };
+    await walk(message.payload);
+}
+async function syncSourceFiles(
+    client: SendbClient,
+    get: GmailReader,
+    message: GmailInboxMessage,
+    files: SendbEmailFile[],
+) {
+    const source = gmailFileParts(message.payload),
+        failures: { id: string; code: string }[] = [];
+    for (const file of files) {
+        if (["available", "blocked"].includes(file.state)) continue;
+        let code: "download_failed" | "source_missing" | "size_mismatch" =
+            "download_failed";
+        try {
+            const part = source[file.fileIndex];
+            if (!part) {
+                code = "source_missing";
+                throw new Error("source_missing");
+            }
+            if (
+                (part.body?.attachmentId || part.partId || "inline") !==
+                    file.providerId ||
+                (decodeMimeWords(part.filename).trim() || "첨부 파일") !==
+                    file.name
+            ) {
+                code = "source_missing";
+                throw new Error("source_missing");
+            }
+            const bytes = await sourceBytes(
+                get,
+                message.id,
+                part,
+                MAX_FILE_BYTES,
+            );
+            if (bytes.length !== file.size) {
+                code = "size_mismatch";
+                throw new Error("size_mismatch");
+            }
+            await client.uploadEmailFile(
+                file.id,
+                new Blob([new Uint8Array(bytes)]),
+                file.name,
+            );
+        } catch (error) {
+            if (error instanceof Error && error.message === "size_mismatch")
+                code = "size_mismatch";
+            if (error instanceof GmailApiError && error.code === "not_found")
+                code = "source_missing";
+            await client.failEmailFile(file.id, code);
+            failures.push({ id: file.id, code });
+        }
+    }
+    return failures;
+}
+/** Re-fetches known message IDs, including mail archived after initial intake. One cursor page per call. */
+export async function retryGmailFiles(
+    client: SendbClient,
+    options: { workspaceId: number; mailboxId: string; before?: string },
+    credentials: GmailCredentials,
+    fetchImpl: typeof fetch = fetch,
+) {
+    const mailbox = (await client.emailMailboxes(options.workspaceId)).find(
+        (b) => b.id === options.mailboxId,
+    );
+    if (!mailbox?.enabled) throw new Error("활성 메일함을 선택해주세요.");
+    const get = await gmailReader(credentials, fetchImpl),
+        profile = await get<{ emailAddress?: string }>("profile");
+    if (profile.emailAddress?.toLowerCase() !== mailbox.address)
+        throw new Error("메일함과 Gmail 계정 주소가 다릅니다.");
+    const page = await client.pendingEmailFiles(mailbox.id, options.before),
+        failures: { id: string; code: string }[] = [],
+        grouped = new Map<string, SendbEmailFile[]>();
+    for (const file of page.rows)
+        grouped.set(file.providerMessageId, [
+            ...(grouped.get(file.providerMessageId) ?? []),
+            file,
+        ]);
+    for (const [id, files] of grouped) {
+        let message: GmailInboxMessage;
+        try {
+            message = await get<GmailInboxMessage>(
+                `messages/${encodeURIComponent(id)}?format=full`,
+            );
+        } catch (error) {
+            const code =
+                error instanceof GmailApiError && error.code === "not_found"
+                    ? "source_missing"
+                    : "download_failed";
+            for (const file of files) {
+                await client.failEmailFile(file.id, code);
+                failures.push({ id: file.id, code });
+            }
+            continue;
+        }
+        failures.push(...(await syncSourceFiles(client, get, message, files)));
+    }
+    return {
+        processed: page.rows.length,
+        failures,
+        nextCursor: page.hasMore ? page.rows.at(-1)?.id : null,
+    };
+}
 /** One explicit page; retain nextPageToken until the fixed since window has been exhausted. No mark-read/delete/label mutations. */
 export async function receiveGmailPage(
     client: SendbClient,
@@ -279,27 +633,7 @@ export async function receiveGmailPage(
         (box) => box.id === options.mailboxId,
     );
     if (!mailbox?.enabled) throw new Error("활성 메일함을 선택해주세요.");
-    const token = await getAccessToken(credentials, fetchImpl);
-    const get = async (path: string) => {
-        const response = await fetchImpl(
-            `${GMAIL_API_ORIGIN}/gmail/v1/users/me/${path}`,
-            {
-                headers: { Authorization: `Bearer ${token}` },
-                signal: AbortSignal.timeout(15000),
-            },
-        );
-        if (!response.ok)
-            throw new GmailApiError(
-                response.status === 401
-                    ? "auth"
-                    : response.status === 403
-                      ? "scope"
-                      : "transient",
-                response.status,
-                "상담 메일 수신을 확인하지 못했습니다.",
-            );
-        return response.json();
-    };
+    const get = await gmailReader(credentials, fetchImpl);
     const profile = (await get("profile")) as { emailAddress?: string };
     if (profile.emailAddress?.toLowerCase() !== mailbox.address)
         throw new Error("메일함과 Gmail 계정 주소가 다릅니다.");
@@ -313,16 +647,27 @@ export async function receiveGmailPage(
         messages?: { id: string }[];
         nextPageToken?: string;
     };
-    const results = [];
+    const results = [],
+        fileFailures: { id: string; code: string }[] = [];
     for (const item of page.messages ?? []) {
         if (!/^[A-Za-z0-9_-]{1,200}$/.test(item.id))
             throw new Error("메일 원본 번호를 확인해주세요.");
         const message = (await get(
             `messages/${encodeURIComponent(item.id)}?format=full`,
         )) as GmailInboxMessage;
-        results.push(
-            await client.receiveEmail(mailbox.id, gmailInbound(message)),
-        );
+        await hydrateText(get, message);
+        const input = gmailInbound(message),
+            receipt = await client.receiveEmail(mailbox.id, input);
+        results.push(receipt);
+        if (input.files.length && !receipt.ignoredReason)
+            fileFailures.push(
+                ...(await syncSourceFiles(
+                    client,
+                    get,
+                    message,
+                    await client.emailReceiptFiles(receipt.receiptId),
+                )),
+            );
     }
-    return { results, nextPageToken: page.nextPageToken ?? null };
+    return { results, fileFailures, nextPageToken: page.nextPageToken ?? null };
 }

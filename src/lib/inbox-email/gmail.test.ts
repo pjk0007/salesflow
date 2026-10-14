@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { gmailInbound, gmailReplyRaw, type GmailInboxMessage } from "./gmail";
+import { receiveGmailPage } from "./gmail";
+import { clearGmailTokenCache } from "@/lib/gmail-client";
+import type { SendbClient } from "../../../sdk/server";
 import { inboundInput, ignoredEmail } from "./rules";
 const message = (): GmailInboxMessage => ({
     id: "g1",
@@ -150,4 +153,133 @@ test("Gmail 답장은 고정 Message-ID·참조·한글 MIME·원본 본문을 �
             recipient: "lead@example.test\r\nBcc:x@example.test",
         }),
     );
+});
+test("multipart 답장의 파일 바이트·긴 한글 이름·경계·누락/개수 제한", () => {
+    const bytes = Buffer.from([0, 255, 1, 2, 3, 4, 0]),
+        item = {
+            id: "file-delivery",
+            mailboxId: "box",
+            messageId: 1,
+            leaseToken: "lease",
+            leaseUntil: "",
+            recipient: "lead@example.test",
+            subject: "자료 전달",
+            providerThreadId: "t",
+            rfcMessageId: "<file-delivery@example.test>",
+            inReplyTo: "<source@example.test>",
+            from: "help@example.test",
+            fromName: "상담원",
+            body: "안내 자료입니다.",
+            authorName: "상담원",
+            attachments: [
+                {
+                    id: "file",
+                    fileName: "한글 문서 ".repeat(20) + ".bin",
+                    contentType: "application/octet-stream",
+                    size: bytes.length,
+                    sha256: "test",
+                },
+            ],
+        };
+    const file = {
+            fileName: item.attachments[0].fileName,
+            contentType: "application/octet-stream",
+            bytes,
+        },
+        raw = Buffer.from(
+            gmailReplyRaw(item, new Date(0), [file]),
+            "base64url",
+        ).toString();
+    assert.ok(raw.includes("multipart/mixed"));
+    assert.ok(raw.includes("filename*0*=UTF-8''"));
+    assert.ok(raw.replaceAll("\r\n", "").includes(bytes.toString("base64")));
+    for (const line of raw.split("\r\n")) assert.ok(line.length < 998);
+    assert.throws(() => gmailReplyRaw(item), /모두 확인/);
+    assert.throws(
+        () =>
+            gmailReplyRaw(
+                { ...item, attachments: undefined },
+                new Date(),
+                Array.from({ length: 6 }, () => file),
+            ),
+        /최대 5개/,
+    );
+    assert.throws(() =>
+        gmailReplyRaw(item, new Date(), [
+            { ...file, fileName: "ok\r\nBcc:x@example.test" },
+        ]),
+    );
+});
+test("이름 없는 바이너리·attachment disposition은 본문에 섞이지 않는다", () => {
+    const m = message();
+    m.payload.mimeType = "multipart/mixed";
+    m.payload.body = {};
+    m.payload.parts = [
+        {
+            mimeType: "text/plain",
+            headers: [{ name: "Content-Disposition", value: "attachment" }],
+            partId: "a",
+            body: {
+                size: 6,
+                data: Buffer.from("secret").toString("base64url"),
+            },
+        },
+        {
+            mimeType: "image/png",
+            partId: "b",
+            body: {
+                size: 3,
+                data: Buffer.from([0, 1, 2]).toString("base64url"),
+            },
+        },
+    ];
+    const result = gmailInbound(m);
+    assert.equal(result.files.length, 2);
+    assert.equal(result.body, "(첨부 파일만 있는 메일)");
+    assert.equal(result.files[0].providerId, "a");
+});
+test("읽기 요청의 401은 해당 토큰을 갱신해 한 번만 재시도한다", async () => {
+    clearGmailTokenCache();
+    let tokenCalls = 0,
+        profiles = 0;
+    const client = {
+        emailMailboxes: async () => [
+            {
+                id: "box",
+                workspaceId: 8,
+                address: "help@example.test",
+                enabled: true,
+                name: "가상",
+                version: 1,
+            },
+        ],
+    } as unknown as SendbClient;
+    const fetchImpl: typeof fetch = async (url) => {
+        const path = String(url);
+        if (path.includes("oauth2"))
+            return Response.json({
+                access_token: `fake-${++tokenCalls}`,
+                expires_in: 3600,
+            });
+        if (path.endsWith("profile")) {
+            profiles++;
+            return profiles === 1
+                ? new Response("unauthorized", { status: 401 })
+                : Response.json({ emailAddress: "help@example.test" });
+        }
+        return Response.json({ messages: [] });
+    };
+    const result = await receiveGmailPage(
+        client,
+        { workspaceId: 8, mailboxId: "box", since: new Date(0) },
+        {
+            clientId: "unit-read",
+            clientSecret: "unit-secret",
+            refreshToken: "unit-refresh",
+        },
+        fetchImpl,
+    );
+    assert.equal(profiles, 2);
+    assert.equal(tokenCalls, 2);
+    assert.equal(result.results.length, 0);
 });

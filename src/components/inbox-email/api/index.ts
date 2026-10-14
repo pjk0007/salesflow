@@ -1,4 +1,6 @@
 import { inboxWrite } from "@/components/inbox/api";
+export const retryIncomingFile = (id: string) =>
+    inboxWrite(`/api/email-files/${id}`, { action: "retry" });
 export { inboxRequest as emailRequest } from "@/components/inbox/api";
 export const createEmailMailbox = (
     workspaceId: number,

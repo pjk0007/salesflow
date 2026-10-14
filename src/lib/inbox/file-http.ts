@@ -10,7 +10,7 @@ import {
     type FileScope,
 } from "./files";
 
-async function readUpload(req: NextRequest) {
+export async function readUpload(req: NextRequest) {
     const max = MAX_FILE_BYTES + 65536;
     if (Number(req.headers.get("content-length")) > max)
         throw new InboxError("첨부 파일은 20MB까지 보낼 수 있습니다.", 413);

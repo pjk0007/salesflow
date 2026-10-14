@@ -120,6 +120,10 @@ const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 export function clearGmailTokenCache(): void {
     tokenCache.clear();
 }
+/** Invalidate only this mailbox's cached access token after an API 401. */
+export function invalidateGmailAccessToken(cfg: GmailCredentials): void {
+    tokenCache.delete(cacheKey(cfg));
+}
 
 function cacheKey(cfg: GmailCredentials): string {
     return `${cfg.clientId}\u0000${cfg.refreshToken}`;
