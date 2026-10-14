@@ -1,13 +1,66 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserFromNextRequest } from "@/lib/auth";
-import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
-function getReadonlyDb() {
-    const url = process.env.READONLY_DATABASE_URL;
-    if (!url) throw new Error("READONLY_DATABASE_URL이 설정되지 않았습니다.");
-    const client = postgres(url, { max: 3 });
-    return drizzle(client);
+interface ConditionInput {
+    type: "duration" | "pages" | "visits" | "path" | "click" | "stage";
+    value: string;
+    value2?: string;
+    operator?: "AND" | "OR";
+}
+
+function buildConditionSql(c: ConditionInput, fromDate: string, toDate: string, orgId: string): { where?: string; having?: string } {
+    switch (c.type) {
+        case "duration":
+            return { having: `max(ts.duration) >= ${Number(c.value)}` };
+        case "pages":
+            return { having: `sum(ts.page_count) >= ${Number(c.value)}` };
+        case "visits":
+            return { having: `count(distinct ts.id) >= ${Number(c.value)}` };
+        case "path": {
+            const safePath = c.value.replace(/'/g, "''");
+            if (c.value2) {
+                const dur = Number(c.value2);
+                return {
+                    where: `tv.id IN (
+                        SELECT DISTINCT ev.visitor_id FROM tracker_events ev
+                        JOIN tracker_sessions s2 ON s2.id = ev.session_id AND s2.duration >= ${dur}
+                        WHERE ev.page_url ILIKE '%${safePath}%'
+                        AND ev.occurred_at >= '${fromDate}' AND ev.occurred_at <= '${toDate}'
+                    )`,
+                };
+            }
+            return {
+                where: `tv.id IN (
+                    SELECT DISTINCT ev.visitor_id FROM tracker_events ev
+                    WHERE ev.page_url ILIKE '%${safePath}%'
+                    AND ev.occurred_at >= '${fromDate}' AND ev.occurred_at <= '${toDate}'
+                )`,
+            };
+        }
+        case "click": {
+            const safePattern = c.value.replace(/'/g, "''");
+            return {
+                where: `tv.id IN (
+                    SELECT DISTINCT ev.visitor_id FROM tracker_events ev
+                    WHERE ev.event_type = 'CLICK' AND ev.event_name ~* '${safePattern}'
+                    AND ev.occurred_at >= '${fromDate}' AND ev.occurred_at <= '${toDate}'
+                )`,
+            };
+        }
+        case "stage": {
+            const safeStage = c.value.replace(/'/g, "''");
+            return {
+                where: `tv.id IN (
+                    SELECT vrl.visitor_id FROM visitor_record_links vrl
+                    JOIN customer_journey_alerts cja ON cja.record_id = vrl.record_id
+                    WHERE cja.stage = '${safeStage}' AND cja.org_id = '${orgId}'
+                )`,
+            };
+        }
+        default:
+            return {};
+    }
 }
 
 export async function POST(req: NextRequest) {
@@ -17,92 +70,92 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { workspaceId, startDate, endDate, filters } = body as {
+    const { workspaceId, startDate, endDate, conditions: inputConditions, hasClicked } = body as {
         workspaceId?: number;
         startDate: string;
         endDate: string;
-        filters: {
-            minDuration?: number;
-            minPages?: number;
-            minVisits?: number;
-            pagePathContains?: string;
-            eventType?: string;
-            eventNamePattern?: string;
-            hasClicked?: boolean;
-            stage?: string;
-        };
+        conditions: ConditionInput[];
+        hasClicked?: boolean;
     };
 
+    // 하위호환: 기존 filters 형태도 지원
+    const filters = (body as { filters?: Record<string, unknown> }).filters;
+    if (filters && (!inputConditions || inputConditions.length === 0)) {
+        const converted: ConditionInput[] = [];
+        if (filters.minDuration) converted.push({ type: "duration", value: String(filters.minDuration) });
+        if (filters.minPages) converted.push({ type: "pages", value: String(filters.minPages) });
+        if (filters.minVisits) converted.push({ type: "visits", value: String(filters.minVisits) });
+        if (filters.pagePathContains) converted.push({ type: "path", value: String(filters.pagePathContains), value2: filters.pageMinDuration ? String(filters.pageMinDuration) : undefined });
+        if (filters.eventNamePattern) converted.push({ type: "click", value: String(filters.eventNamePattern) });
+        if (filters.stage) converted.push({ type: "stage", value: String(filters.stage) });
+        return handleQuery(user.orgId, workspaceId, startDate, endDate, converted, filters.hasClicked === true);
+    }
+
+    return handleQuery(user.orgId, workspaceId, startDate, endDate, inputConditions ?? [], hasClicked === true);
+}
+
+async function handleQuery(
+    orgId: string,
+    workspaceId: number | undefined,
+    startDate: string,
+    endDate: string,
+    conditions: ConditionInput[],
+    hasClicked: boolean,
+) {
     if (!startDate || !endDate) {
         return NextResponse.json({ success: false, error: "startDate, endDate가 필요합니다." }, { status: 400 });
     }
 
-    const readonlyDb = getReadonlyDb();
     const fromDate = `${startDate}T00:00:00+09:00`;
     const toDate = `${endDate}T23:59:59+09:00`;
 
-    // 동적 WHERE 조건 생성
-    const conditions: string[] = [
-        `ts.site_id IN (SELECT id FROM tracker_sites WHERE workspace_id IN (SELECT id FROM workspaces WHERE org_id = '${user.orgId}'))`
+    // 기본 조건 (항상 AND)
+    const baseConditions: string[] = [
+        `ts.site_id IN (SELECT id FROM tracker_sites WHERE workspace_id IN (SELECT id FROM workspaces WHERE org_id = '${orgId}'))`,
+        `ts.started_at >= '${fromDate}'`,
+        `ts.started_at <= '${toDate}'`,
     ];
-    const havingConditions: string[] = [];
-
     if (workspaceId) {
-        conditions.push(`ts.site_id IN (SELECT id FROM tracker_sites WHERE workspace_id = ${Number(workspaceId)})`);
+        baseConditions.push(`ts.site_id IN (SELECT id FROM tracker_sites WHERE workspace_id = ${Number(workspaceId)})`);
+    }
+    if (hasClicked) {
+        baseConditions.push(`ts.click_id IS NOT NULL`);
     }
 
-    conditions.push(`ts.started_at >= '${fromDate}'`);
-    conditions.push(`ts.started_at <= '${toDate}'`);
+    // 사용자 조건을 WHERE / HAVING으로 분류하고 AND/OR 그룹핑
+    const whereGroups: string[][] = [[]]; // AND 그룹 배열
+    const havingGroups: string[][] = [[]];
 
-    if (filters.minDuration) {
-        havingConditions.push(`max(ts.duration) >= ${Number(filters.minDuration)}`);
-    }
-    if (filters.minPages) {
-        havingConditions.push(`sum(ts.page_count) >= ${Number(filters.minPages)}`);
-    }
-    if (filters.minVisits) {
-        havingConditions.push(`count(distinct ts.id) >= ${Number(filters.minVisits)}`);
-    }
+    for (let i = 0; i < conditions.length; i++) {
+        const c = conditions[i];
+        if (!c.value) continue;
+        const sql = buildConditionSql(c, fromDate, toDate, orgId);
 
-    // 이벤트 기반 필터를 위한 서브쿼리
-    let eventJoin = "";
-    if (filters.pagePathContains || filters.eventType || filters.eventNamePattern) {
-        const eventConditions: string[] = [];
-        if (filters.pagePathContains) {
-            const safePath = filters.pagePathContains.replace(/'/g, "''");
-            eventConditions.push(`ev.page_url ILIKE '%${safePath}%'`);
+        // 첫 조건이거나 AND면 현재 그룹에 추가, OR면 새 그룹 시작
+        if (i > 0 && c.operator === "OR") {
+            whereGroups.push([]);
+            havingGroups.push([]);
         }
-        if (filters.eventType) {
-            const safeType = filters.eventType.replace(/'/g, "''");
-            eventConditions.push(`ev.event_type = '${safeType}'`);
-        }
-        if (filters.eventNamePattern) {
-            const safePattern = filters.eventNamePattern.replace(/'/g, "''");
-            eventConditions.push(`ev.event_name ~* '${safePattern}'`);
-        }
-        eventJoin = `AND tv.id IN (
-            SELECT DISTINCT ev.visitor_id FROM tracker_events ev
-            WHERE ev.occurred_at >= '${fromDate}' AND ev.occurred_at <= '${toDate}'
-            ${eventConditions.length ? "AND " + eventConditions.join(" AND ") : ""}
-        )`;
+
+        const groupIdx = whereGroups.length - 1;
+        if (sql.where) whereGroups[groupIdx].push(sql.where);
+        if (sql.having) havingGroups[groupIdx].push(sql.having);
     }
 
-    // 클릭(이메일에서 온 사람) 필터
-    let clickJoin = "";
-    if (filters.hasClicked === true) {
-        clickJoin = `AND ts.click_id IS NOT NULL`;
-    }
+    // AND 그룹 내부는 AND, 그룹 간은 OR
+    const whereGroupSqls = whereGroups
+        .map((g) => g.length > 0 ? (g.length === 1 ? g[0] : `(${g.join(" AND ")})`) : null)
+        .filter(Boolean);
+    const havingGroupSqls = havingGroups
+        .map((g) => g.length > 0 ? (g.length === 1 ? g[0] : `(${g.join(" AND ")})`) : null)
+        .filter(Boolean);
 
-    // 여정 단계 필터
-    let stageJoin = "";
-    if (filters.stage) {
-        const safeStage = filters.stage.replace(/'/g, "''");
-        stageJoin = `AND tv.id IN (
-            SELECT vrl.visitor_id FROM visitor_record_links vrl
-            JOIN customer_journey_alerts cja ON cja.record_id = vrl.record_id
-            WHERE cja.stage = '${safeStage}' AND cja.org_id = '${user.orgId}'
-        )`;
-    }
+    const userWhere = whereGroupSqls.length > 0
+        ? `AND (${whereGroupSqls.join(" OR ")})`
+        : "";
+    const userHaving = havingGroupSqls.length > 0
+        ? `HAVING ${havingGroupSqls.join(" OR ")}`
+        : "";
 
     const query = `
         SELECT
@@ -124,21 +177,19 @@ export async function POST(req: NextRequest) {
         JOIN tracker_sites site ON site.id = ts.site_id
         JOIN workspaces w ON w.id = site.workspace_id
         LEFT JOIN records r ON r.id = tv.record_id
-        WHERE ${conditions.join(" AND ")}
-        ${eventJoin}
-        ${clickJoin}
-        ${stageJoin}
+        WHERE ${baseConditions.join(" AND ")}
+        ${userWhere}
         GROUP BY tv.id, tv.email, tv.name, tv.total_visits, tv.total_pageviews,
                  tv.last_seen_at, tv.record_id, r.integrated_code, r.data, w.name
-        ${havingConditions.length ? "HAVING " + havingConditions.join(" AND ") : ""}
+        ${userHaving}
         ORDER BY max(ts.duration) DESC
         LIMIT 200
     `;
 
     try {
-        const readonlyClient = postgres(process.env.READONLY_DATABASE_URL!, { max: 3 });
-        const results = await readonlyClient.unsafe(query);
-        await readonlyClient.end();
+        const client = postgres(process.env.READONLY_DATABASE_URL!, { max: 3 });
+        const results = await client.unsafe(query);
+        await client.end();
 
         const data = results.map((row: Record<string, unknown>) => ({
             visitorId: row.visitor_id,

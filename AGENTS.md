@@ -22,3 +22,13 @@
 - 폴더 구조·재사용·API 응답 규칙은 `CLAUDE.md`를 따른다. 커밋 메시지는 한국어로 쓴다. 기존 대화에서 받은 커밋 승인을 반복해서 묻지 않는다.
 - 2026-10-12 사용자가 정재훈 님의 개발 전용 작업 지시를 확인하고 이 방식을 다시 적용하도록 요청했다. 앞서 잘못 병합된 PR #2·#3은 PR #4로 취소했고, 기능 코드는 `dev`에 보존했다.
 - 현재 고객 여정 검토와 배포 상태는 `docs/2026-10-11-customer-journey/HANDOFF.md`를 확인한다. 과거 운영 배포 문서는 개발자 검토 후에만 참고한다.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

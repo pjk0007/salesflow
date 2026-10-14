@@ -2,26 +2,18 @@
 
 import { useState } from "react";
 import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
+    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { Search, ExternalLink, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, ExternalLink, Users, ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { format } from "date-fns";
 
 function durationLabel(sec: number | null) {
@@ -29,6 +21,8 @@ function durationLabel(sec: number | null) {
     if (sec < 60) return `${Math.round(sec)}초`;
     return `${Math.floor(sec / 60)}분 ${Math.round(sec % 60)}초`;
 }
+
+const noSpinner = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 interface SegmentResult {
     visitorId: number;
@@ -51,13 +45,41 @@ interface Filters {
     minPages?: number;
     minVisits?: number;
     pagePathContains?: string;
+    pageMinDuration?: number;
     eventType?: string;
     eventNamePattern?: string;
     hasClicked?: boolean;
     stage?: string;
 }
 
-const CLICK_PATTERNS: { label: string; pattern: string }[] = [
+type ConditionType = "duration" | "pages" | "visits" | "path" | "click" | "stage";
+
+interface Condition {
+    id: number;
+    type: ConditionType;
+    value: string;
+    value2: string;
+    operator: "AND" | "OR";
+}
+
+const CONDITION_TYPES: { value: ConditionType; label: string }[] = [
+    { value: "duration", label: "체류 시간" },
+    { value: "pages", label: "페이지 수" },
+    { value: "visits", label: "방문 횟수" },
+    { value: "path", label: "페이지 경로" },
+    { value: "click", label: "버튼 클릭" },
+    { value: "stage", label: "여정 단계" },
+];
+
+const DURATION_OPTIONS = [
+    { value: "30", label: "30초 이상" },
+    { value: "60", label: "60초 이상" },
+    { value: "120", label: "2분 이상" },
+    { value: "180", label: "3분 이상" },
+    { value: "300", label: "5분 이상" },
+];
+
+const CLICK_PATTERNS = [
     { label: "상담/데모", pattern: "demo|consult|contact|trial|meeting" },
     { label: "가입/신청", pattern: "signup|subscribe|manual_entry" },
     { label: "무료체험", pattern: "free-trial|trial" },
@@ -65,77 +87,106 @@ const CLICK_PATTERNS: { label: string; pattern: string }[] = [
     { label: "브로슈어/자료", pattern: "brochure|download|resource" },
 ];
 
-function UnderlineInput({ value, onChange, placeholder, type = "text", className = "" }: {
-    value: string; onChange: (v: string) => void; placeholder?: string; type?: string; className?: string;
-}) {
-    return (
-        <input
-            type={type}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className={`bg-transparent border-0 border-b border-border focus:border-foreground outline-none text-sm py-1 transition-colors ${className}`}
-        />
-    );
-}
+const STAGE_OPTIONS = [
+    { value: "사이트 도착", label: "사이트 도착" },
+    { value: "둘러봄", label: "둘러봄" },
+    { value: "서비스 깊이 확인", label: "서비스 깊이 확인" },
+    { value: "상담·데모·체험 행동", label: "상담·데모·체험" },
+    { value: "신청 시작", label: "신청 시작" },
+    { value: "신청·구독·구매 완료", label: "완료" },
+];
+
+let nextId = 1;
 
 export default function SegmentBuilder() {
     const today = new Date();
     const [dateFrom, setDateFrom] = useState<Date | undefined>(today);
     const [dateTo, setDateTo] = useState<Date | undefined>(today);
     const [workspaceId, setWorkspaceId] = useState<number | undefined>();
+    const [hasClicked, setHasClicked] = useState("all");
+    const [conditions, setConditions] = useState<Condition[]>([]);
     const [results, setResults] = useState<SegmentResult[]>([]);
     const [total, setTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [expandedWs, setExpandedWs] = useState<Set<string>>(new Set());
-    const [activeFilters, setActiveFilters] = useState<Filters>({});
-
-    const [minDuration, setMinDuration] = useState("");
-    const [minPages, setMinPages] = useState("");
-    const [minVisits, setMinVisits] = useState("");
-    const [pagePathContains, setPagePathContains] = useState("");
-    const [clickPattern, setClickPattern] = useState("");
-    const [hasClicked, setHasClicked] = useState("all");
-    const [stage, setStage] = useState("");
+    const [activeLabels, setActiveLabels] = useState<string[]>([]);
 
     const { workspaces } = useWorkspaces();
 
-    const buildFilters = (): Filters => ({
-        ...(minDuration ? { minDuration: Number(minDuration) } : {}),
-        ...(minPages ? { minPages: Number(minPages) } : {}),
-        ...(minVisits ? { minVisits: Number(minVisits) } : {}),
-        ...(pagePathContains ? { pagePathContains } : {}),
-        ...(clickPattern ? { eventNamePattern: clickPattern, eventType: "CLICK" } : {}),
-        ...(hasClicked === "yes" ? { hasClicked: true } : {}),
-        ...(stage ? { stage } : {}),
-    });
+    const addCondition = () => {
+        // 아직 안 쓴 타입 중 첫 번째, 없으면 duration
+        const usedTypes = new Set(conditions.map((c) => c.type));
+        const available = CONDITION_TYPES.find((t) => !usedTypes.has(t.value));
+        setConditions([...conditions, { id: nextId++, type: available?.value ?? "duration", value: "", value2: "", operator: "AND" }]);
+    };
 
-    const activeFilterLabels = (): string[] => {
+    const removeCondition = (id: number) => {
+        setConditions(conditions.filter((c) => c.id !== id));
+    };
+
+    const updateCondition = (id: number, patch: Partial<Condition>) => {
+        setConditions(conditions.map((c) => c.id === id ? { ...c, ...patch } : c));
+    };
+
+    const buildFilters = (): Filters => {
+        const f: Filters = {};
+        if (hasClicked === "yes") f.hasClicked = true;
+        for (const c of conditions) {
+            if (!c.value) continue;
+            switch (c.type) {
+                case "duration": f.minDuration = Number(c.value); break;
+                case "pages": f.minPages = Number(c.value); break;
+                case "visits": f.minVisits = Number(c.value); break;
+                case "path":
+                    f.pagePathContains = c.value;
+                    if (c.value2) f.pageMinDuration = Number(c.value2);
+                    break;
+                case "click": f.eventNamePattern = c.value; f.eventType = "CLICK"; break;
+                case "stage": f.stage = c.value; break;
+            }
+        }
+        return f;
+    };
+
+    const buildLabels = (): string[] => {
         const labels: string[] = [];
-        if (activeFilters.minDuration) labels.push(`${activeFilters.minDuration}초 이상 체류`);
-        if (activeFilters.minPages) labels.push(`${activeFilters.minPages}페이지 이상`);
-        if (activeFilters.minVisits) labels.push(`${activeFilters.minVisits}회 이상 방문`);
-        if (activeFilters.pagePathContains) labels.push(`경로: ${activeFilters.pagePathContains}`);
-        if (activeFilters.eventNamePattern) labels.push(`클릭: ${CLICK_PATTERNS.find((p) => p.pattern === activeFilters.eventNamePattern)?.label ?? activeFilters.eventNamePattern}`);
-        if (activeFilters.hasClicked) labels.push("이메일 유입만");
-        if (activeFilters.stage) labels.push(`단계: ${activeFilters.stage}`);
+        if (hasClicked === "yes") labels.push("이메일 유입만");
+        for (let i = 0; i < conditions.length; i++) {
+            const c = conditions[i];
+            if (!c.value) continue;
+            const prefix = i > 0 ? (c.operator === "OR" ? "또는 " : "") : "";
+            switch (c.type) {
+                case "duration": labels.push(`${prefix}${c.value}초 이상 체류`); break;
+                case "pages": labels.push(`${prefix}${c.value}페이지 이상`); break;
+                case "visits": labels.push(`${prefix}${c.value}회 이상 방문`); break;
+                case "path":
+                    labels.push(c.value2 ? `${prefix}경로: ${c.value} (${c.value2}초+)` : `${prefix}경로: ${c.value}`);
+                    break;
+                case "click":
+                    labels.push(`${prefix}클릭: ${CLICK_PATTERNS.find((p) => p.pattern === c.value)?.label ?? c.value}`);
+                    break;
+                case "stage": labels.push(`${prefix}단계: ${c.value}`); break;
+            }
+        }
         return labels;
     };
 
     const search = async () => {
         if (!dateFrom || !dateTo) return;
-        const f = buildFilters();
-        setActiveFilters(f);
+        setActiveLabels(buildLabels());
         setIsLoading(true);
         setHasSearched(true);
         const startDate = format(dateFrom, "yyyy-MM-dd");
         const endDate = format(dateTo, "yyyy-MM-dd");
+        const apiConditions = conditions
+            .filter((c) => c.value)
+            .map((c) => ({ type: c.type, value: c.value, value2: c.value2 || undefined, operator: c.operator }));
         try {
             const res = await fetch("/api/crm/segments", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ workspaceId, startDate, endDate, filters: f }),
+                body: JSON.stringify({ workspaceId, startDate, endDate, conditions: apiConditions, hasClicked: hasClicked === "yes" }),
             });
             const data = await res.json();
             if (data.success) {
@@ -144,6 +195,74 @@ export default function SegmentBuilder() {
             }
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const renderConditionValue = (c: Condition) => {
+        switch (c.type) {
+            case "duration":
+                return (
+                    <Select value={c.value || "none"} onValueChange={(v) => updateCondition(c.id, { value: v === "none" ? "" : v })}>
+                        <SelectTrigger className="w-[120px] h-9 text-sm">
+                            <SelectValue placeholder="선택" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
+                            <SelectItem value="none">선택</SelectItem>
+                            {DURATION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                );
+            case "pages":
+                return (
+                    <div className="flex items-center gap-1">
+                        <Input type="number" value={c.value} onChange={(e) => updateCondition(c.id, { value: e.target.value })}
+                            placeholder="N" className={`w-[60px] h-9 text-sm text-center ${noSpinner}`} />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">페이지 이상</span>
+                    </div>
+                );
+            case "visits":
+                return (
+                    <div className="flex items-center gap-1">
+                        <Input type="number" value={c.value} onChange={(e) => updateCondition(c.id, { value: e.target.value })}
+                            placeholder="N" className={`w-[60px] h-9 text-sm text-center ${noSpinner}`} />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">회 이상</span>
+                    </div>
+                );
+            case "path":
+                return (
+                    <div className="flex items-center gap-1">
+                        <Input value={c.value} onChange={(e) => updateCondition(c.id, { value: e.target.value })}
+                            placeholder="/pricing" className="w-[120px] h-9 text-sm" />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">에서</span>
+                        <Input type="number" value={c.value2} onChange={(e) => updateCondition(c.id, { value2: e.target.value })}
+                            placeholder="초" className={`w-[60px] h-9 text-sm text-center ${noSpinner}`} />
+                        <span className="text-sm text-muted-foreground whitespace-nowrap">초 이상</span>
+                    </div>
+                );
+            case "click":
+                return (
+                    <Select value={c.value || "none"} onValueChange={(v) => updateCondition(c.id, { value: v === "none" ? "" : v })}>
+                        <SelectTrigger className="w-[120px] h-9 text-sm">
+                            <SelectValue placeholder="선택" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
+                            <SelectItem value="none">선택</SelectItem>
+                            {CLICK_PATTERNS.map((p) => <SelectItem key={p.pattern} value={p.pattern}>{p.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                );
+            case "stage":
+                return (
+                    <Select value={c.value || "none"} onValueChange={(v) => updateCondition(c.id, { value: v === "none" ? "" : v })}>
+                        <SelectTrigger className="w-[140px] h-9 text-sm">
+                            <SelectValue placeholder="선택" />
+                        </SelectTrigger>
+                        <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
+                            <SelectItem value="none">선택</SelectItem>
+                            {STAGE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                        </SelectContent>
+                    </Select>
+                );
         }
     };
 
@@ -156,7 +275,7 @@ export default function SegmentBuilder() {
                     to={dateTo}
                     onChange={({ from, to }) => { setDateFrom(from); setDateTo(to); }}
                     maxDate={today}
-                    triggerClassName="border-0 border-b border-border rounded-none shadow-none px-0 bg-transparent hover:bg-transparent w-[250px] tabular-nums"
+                    triggerClassName="w-[250px] tabular-nums"
                 />
                 <div className="flex items-center gap-1">
                     <Button variant="ghost" size="sm" className="h-7 text-xs cursor-pointer" onClick={() => { setDateFrom(today); setDateTo(today); }}>오늘</Button>
@@ -164,10 +283,10 @@ export default function SegmentBuilder() {
                     <Button variant="ghost" size="sm" className="h-7 text-xs cursor-pointer" onClick={() => { const d = new Date(); d.setDate(d.getDate() - 30); setDateFrom(d); setDateTo(today); }}>30일</Button>
                 </div>
                 <Select value={workspaceId?.toString() ?? "all"} onValueChange={(v) => setWorkspaceId(v === "all" ? undefined : Number(v))}>
-                    <SelectTrigger className="w-[140px] h-8 text-sm border-0 border-b border-border rounded-none shadow-none px-0">
+                    <SelectTrigger className="w-[140px] h-9 text-sm">
                         <SelectValue placeholder="서비스" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
                         <SelectItem value="all">전체 서비스</SelectItem>
                         {workspaces.map((ws) => (
                             <SelectItem key={ws.id} value={ws.id.toString()}>{ws.name}</SelectItem>
@@ -175,73 +294,55 @@ export default function SegmentBuilder() {
                     </SelectContent>
                 </Select>
                 <Select value={hasClicked} onValueChange={setHasClicked}>
-                    <SelectTrigger className="w-[150px] h-8 text-sm border-0 border-b border-border rounded-none shadow-none px-0">
+                    <SelectTrigger className="w-[150px] h-9 text-sm">
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
                         <SelectItem value="all">전체 방문자</SelectItem>
                         <SelectItem value="yes">이메일 유입만</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
 
-            {/* 조건 필터 */}
-            <div className="rounded-lg border p-4 space-y-4">
-
-                {/* 2행: 조건 필터 */}
-                <div className="flex items-end gap-5 flex-wrap">
-                    <div className="flex items-center gap-1">
-                        <UnderlineInput type="number" value={minDuration} onChange={setMinDuration} placeholder="N" className="w-[50px] text-center" />
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">초 이상 체류</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <UnderlineInput type="number" value={minPages} onChange={setMinPages} placeholder="N" className="w-[40px] text-center" />
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">페이지 이상</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <UnderlineInput type="number" value={minVisits} onChange={setMinVisits} placeholder="N" className="w-[40px] text-center" />
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">회 이상 방문</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">경로</span>
-                        <UnderlineInput value={pagePathContains} onChange={setPagePathContains} placeholder="/pricing" className="w-[100px]" />
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Select value={clickPattern || "none"} onValueChange={(v) => setClickPattern(v === "none" ? "" : v)}>
-                            <SelectTrigger className="w-[110px] h-8 text-sm border-0 border-b border-border rounded-none shadow-none px-0">
-                                <SelectValue placeholder="버튼 클릭" />
+            {/* 조합형 필터 */}
+            <div className="rounded-lg border p-4 space-y-3">
+                {conditions.length === 0 && (
+                    <p className="text-sm text-muted-foreground">조건을 추가하여 세그먼트를 만드세요.</p>
+                )}
+                {conditions.map((c, i) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                        {i > 0 && (
+                            <button
+                                type="button"
+                                className="text-xs font-medium w-[34px] py-0.5 rounded cursor-pointer hover:bg-muted transition-colors text-center"
+                                style={{ color: c.operator === "OR" ? "var(--color-primary)" : undefined }}
+                                onClick={() => updateCondition(c.id, { operator: c.operator === "AND" ? "OR" : "AND" })}
+                            >
+                                {c.operator}
+                            </button>
+                        )}
+                        {i === 0 && <span className="w-[34px]" />}
+                        <Select value={c.type} onValueChange={(v) => updateCondition(c.id, { type: v as ConditionType, value: "", value2: "" })}>
+                            <SelectTrigger className="w-[130px] h-9 text-sm">
+                                <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">버튼 없음</SelectItem>
-                                {CLICK_PATTERNS.map((p) => (
-                                    <SelectItem key={p.pattern} value={p.pattern}>{p.label}</SelectItem>
+                            <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
+                                {CONDITION_TYPES.map((t) => (
+                                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">클릭</span>
+                        {renderConditionValue(c)}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 cursor-pointer" onClick={() => removeCondition(c.id)}>
+                            <X className="h-3.5 w-3.5" />
+                        </Button>
                     </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-sm text-muted-foreground whitespace-nowrap">단계</span>
-                        <Select value={stage || "none"} onValueChange={(v) => setStage(v === "none" ? "" : v)}>
-                            <SelectTrigger className="w-[120px] h-8 text-sm border-0 border-b border-border rounded-none shadow-none px-0">
-                                <SelectValue placeholder="전체" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">전체</SelectItem>
-                                <SelectItem value="사이트 도착">사이트 도착</SelectItem>
-                                <SelectItem value="둘러봄">둘러봄</SelectItem>
-                                <SelectItem value="서비스 깊이 확인">서비스 깊이 확인</SelectItem>
-                                <SelectItem value="상담·데모·체험 행동">상담·데모·체험</SelectItem>
-                                <SelectItem value="신청 시작">신청 시작</SelectItem>
-                                <SelectItem value="신청·구독·구매 완료">완료</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                </div>
-
-                {/* 조회 버튼 */}
-                <div>
-                    <Button onClick={search} size="sm">
+                ))}
+                <div className="flex items-center gap-2 pt-1">
+                    <Button variant="outline" size="sm" className="cursor-pointer" onClick={addCondition}>
+                        <Plus className="h-3.5 w-3.5 mr-1" /> 조건 추가
+                    </Button>
+                    <Button size="sm" className="cursor-pointer" onClick={search}>
                         <Search className="h-3.5 w-3.5 mr-1.5" /> 조회
                     </Button>
                 </div>
@@ -257,10 +358,10 @@ export default function SegmentBuilder() {
                     <div className="flex items-center gap-2 flex-wrap">
                         <Users className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm font-medium">{total}명 매칭</span>
-                        {activeFilterLabels().length > 0 && (
+                        {activeLabels.length > 0 && (
                             <>
                                 <span className="text-muted-foreground">·</span>
-                                {activeFilterLabels().map((label) => (
+                                {activeLabels.map((label) => (
                                     <Badge key={label} variant="secondary">{label}</Badge>
                                 ))}
                             </>
