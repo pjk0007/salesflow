@@ -11,6 +11,7 @@ const {
     applyAutomationCycle,
 } = require("../src/lib/ai-copy/automation.ts");
 const { bindCopyVersions, createPolicyVersion } = require("../src/lib/ai-copy/versions.ts");
+const { fingerprint } = require("../src/lib/ai-copy/rules.ts");
 const {
     startExperiment,
     enrollForPreparation,
@@ -190,14 +191,16 @@ runCheck(async ({ pg, conn, org, user, A, knowledge, insert, schema }) => {
     );
     scenarios++;
     await pg.query(
-        "INSERT INTO records(id,org_id,workspace_id,partition_id,data) SELECT 50000+i,$1,8,1,jsonb_build_object('email','auto-'||i||'@outside.test','company','자동 가상회사 '||i,'name','가상 담당자') FROM generate_series(0,999) i",
+        "INSERT INTO records(id,org_id,workspace_id,partition_id,data) SELECT 50000+i,$1,8,1,jsonb_build_object('email','auto-'||i||'@outside.test','name','가상 담당자') FROM generate_series(0,999) i",
         [org],
     );
     await pg.query(
         "INSERT INTO email_send_queue(record_id,partition_id,org_id,trigger_type,status) SELECT 50000+i,1,$1,'on_create','pending' FROM generate_series(0,999)i",
         [org],
     );
-    const manualDraft = await prepareAutomaticExperiment(conn, cycle, clock, false, false);
+    let manualDraft = await prepareAutomaticExperiment(conn, cycle, clock, false, false);
+    assert.equal((await pg.query("SELECT config->>'analysisUnit' AS unit FROM email_copy_experiments WHERE id=$1", [manualDraft.experimentId])).rows[0].unit, "recipient");
+    assert.equal((await pg.query("SELECT count(*)::int AS n FROM email_copy_experiment_contacts WHERE normalized_email LIKE 'auto-%@outside.test'")).rows[0].n, 0);
     assert.equal(
         (
             await pg.query("SELECT state FROM email_copy_experiments WHERE id=$1", [
@@ -213,6 +216,18 @@ runCheck(async ({ pg, conn, org, user, A, knowledge, insert, schema }) => {
             ])
         ).rows[0].config.plannedPerArm <= 210,
     );
+    scenarios++;
+    const previousConfig = { ...(await pg.query("SELECT config FROM email_copy_experiments WHERE id=$1", [manualDraft.experimentId])).rows[0].config };
+    delete previousConfig.analysisUnit;
+    const previousDraft = await insert("email_copy_experiments", {
+        org_id: org, workspace_id: 8, rule_id: 4, name: "이전 회사 기준 자동 초안",
+        config: JSON.stringify(previousConfig), config_fingerprint: fingerprint(previousConfig), created_by: user,
+    });
+    await pg.query("UPDATE ai_copy_automation_cycles SET experiment_id=$1 WHERE id=$2", [previousDraft.id, cycle.id]);
+    manualDraft = await prepareAutomaticExperiment(conn, await fresh(cycle.id), clock, false, false);
+    assert.notEqual(manualDraft.experimentId, previousDraft.id);
+    assert.equal((await pg.query("SELECT config->>'analysisUnit' AS unit FROM email_copy_experiments WHERE id=$1", [manualDraft.experimentId])).rows[0].unit, "recipient");
+    assert.deepEqual((await pg.query("SELECT config FROM email_copy_experiments WHERE id=$1", [previousDraft.id])).rows[0].config, previousConfig);
     scenarios++;
     await startExperiment(conn, {
         ...actor(),

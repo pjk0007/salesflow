@@ -33,7 +33,7 @@ const {
     cancelCopyJob,
 } = require("../src/lib/ai-copy/revisions.ts");
 const { attachCopyToSend, resolveCopyJob } = require("../src/lib/ai-copy/preparation.ts");
-const { targetsFor } = require("../src/lib/ai-copy/rules.ts");
+const { targetsFor, fingerprint } = require("../src/lib/ai-copy/rules.ts");
 const {
     createExperiment,
     startExperiment,
@@ -41,7 +41,6 @@ const {
     changeExperimentState,
 } = require("../src/lib/email-experiments/repository.ts");
 const {
-    saveExperimentContacts,
     advanceExperimentLifecycles,
     adoptExperiment,
 } = require("../src/lib/email-experiments/actions.ts");
@@ -49,7 +48,7 @@ const {
     appendOutcomeRevision,
     loadExperimentResults,
 } = require("../src/lib/email-experiments/results.ts");
-const { previewExperiment } = require("../src/lib/email-experiments/preview.ts");
+const { previewExperiment, loadInternalAudience, internalAudienceContains } = require("../src/lib/email-experiments/preview.ts");
 const org = "00000000-0000-4000-8000-000000000001",
     other = "00000000-0000-4000-8000-000000000002",
     user = "00000000-0000-4000-8000-000000000003";
@@ -99,6 +98,11 @@ async function main(extraScenarios) {
             )
         ).rows[0];
     const actor = { orgId: org, userId: user, now: start };
+    const legacyContact = (email, company) => insert("email_copy_experiment_contacts", {
+        org_id: org, workspace_id: 8, normalized_email: email, company_key: company,
+        company_verified: true, verification_note: "이전 버전에서 등록한 가상 회사 정보",
+        tier: "상위", verified_by: user, verified_at: start.toISOString(),
+    });
     let scenarios = 0;
     try {
         for (const table of [
@@ -288,6 +292,7 @@ async function main(extraScenarios) {
                 actor,
             );
         const experiment = await create(1);
+        assert.equal(experiment.config.analysisUnit, "recipient");
         await startExperiment(conn, {
             ...actor,
             id: experiment.id,
@@ -305,18 +310,6 @@ async function main(extraScenarios) {
             /진행 중/,
         );
         scenarios++;
-        await saveExperimentContacts(
-            conn,
-            Array.from({ length: 1000 }, (_, i) => ({
-                workspaceId: 8,
-                email: `lead-${i}@customer.test`,
-                companyKey: `회사-${i}`,
-                companyVerified: true,
-                verificationNote: "가상 명단의 회사 식별자 확인",
-                tier: i % 2 ? "상위" : "일반",
-            })),
-            actor,
-        );
         const enroll = (recordId, overrides = {}) =>
             enrollForPreparation(conn, {
                 orgId: org,
@@ -334,6 +327,8 @@ async function main(extraScenarios) {
         for (let i = 0; i < 1000; i++) {
             const result = await enroll(i);
             assert.equal(result.kind, "assigned");
+            assert.equal(result.assignment.cohort, "primary");
+            assert.ok(result.assignment.company_key.startsWith("recipient:"));
             assigned.push(result.assignment);
             if ((i + 1) % 250 === 0) console.log(`가상 고객 배정 ${i + 1}/1000`);
         }
@@ -355,23 +350,11 @@ async function main(extraScenarios) {
         assert.equal(new Date(repeated.assignment.initial_scheduled_at).getTime(), start.getTime());
         assert.equal(repeated.assignment.planned_sender_id, 1);
         scenarios++;
-        await saveExperimentContacts(
-            conn,
-            [
-                {
-                    workspaceId: 8,
-                    email: "colleague@customer.test",
-                    companyKey: "회사-0",
-                    companyVerified: true,
-                    verificationNote: "가상 회사의 다른 담당자 확인",
-                    tier: "상위",
-                },
-            ],
-            actor,
-        );
+        await legacyContact("lead-0@customer.test", "회사-0");
+        await legacyContact("colleague@customer.test", "회사-0");
         assert.equal(
-            (await enroll(1001, { email: "colleague@customer.test" })).reason,
-            "company_representative_exists",
+            (await enroll(1001, { email: "colleague@customer.test" })).kind,
+            "assigned",
         );
         scenarios++;
         assert.equal(
@@ -379,8 +362,8 @@ async function main(extraScenarios) {
             "internal",
         );
         scenarios++;
-        const exploratory = await enroll(1003, { email: "unknown@gmail.com" });
-        assert.equal(exploratory.assignment.cohort, "exploratory");
+        const unregistered = await enroll(1003, { email: "unknown@gmail.com" });
+        assert.equal(unregistered.assignment.cohort, "primary");
         scenarios++;
         await changeExperimentState(conn, {
             ...actor,
@@ -415,11 +398,11 @@ async function main(extraScenarios) {
             asOf: new Date(start.getTime() + 20 * day),
             connectedReplyAvailable: false,
         });
-        assert.equal(result.report.A.matured + result.report.B.matured, 1000);
+        assert.equal(result.report.A.matured + result.report.B.matured, 1002);
         assert.equal(result.report.canAdopt, false);
         assert.equal(
             result.report.exploratory.A.assigned + result.report.exploratory.B.assigned,
-            1,
+            0,
         );
         scenarios++;
         await advanceExperimentLifecycles(conn, new Date(start.getTime() + 43 * day), org);
@@ -449,18 +432,6 @@ async function main(extraScenarios) {
             now: start,
             connectedReplyAvailable: false,
         });
-        await saveExperimentContacts(
-            conn,
-            Array.from({ length: 200 }, (_, i) => ({
-                workspaceId: 8,
-                email: `win-${i}@customer.test`,
-                companyKey: `win-company-${i}`,
-                companyVerified: true,
-                verificationNote: "가상 채택 시나리오 회사 확인",
-                tier: "상위",
-            })),
-            actor,
-        );
         const winRows = [];
         for (let i = 0; i < 200; i++) {
             const a = (
@@ -581,6 +552,35 @@ async function main(extraScenarios) {
             ).rows[0].pending_mode,
             "continue",
         );
+        scenarios++;
+        // 기존 실험의 회사 단위 분모와 배정은 새 이메일 기준으로 바꾸지 않는다.
+        const legacyDraft = await create(3), legacyConfig = { ...legacyDraft.config };
+        delete legacyConfig.analysisUnit;
+        const legacy = await insert("email_copy_experiments", {
+            org_id: org, workspace_id: 8, rule_id: 3, name: "이전 회사 단위 실험",
+            config: JSON.stringify(legacyConfig), config_fingerprint: fingerprint(legacyConfig), created_by: user,
+        });
+        await startExperiment(conn, { ...actor, id: legacy.id, now: start, connectedReplyAvailable: false });
+        await legacyContact("legacy-a@customer.test", "legacy-company");
+        await legacyContact("legacy-b@customer.test", "legacy-company");
+        const legacyEnroll = email => enrollForPreparation(conn, {
+            orgId: org, workspaceId: 8, ruleId: 3, recordId: 6000, email,
+            plannedAt: start, senderId: 1, now: start, internal: false,
+        });
+        assert.equal((await legacyEnroll("legacy-a@customer.test")).assignment.cohort, "primary");
+        assert.equal((await legacyEnroll("legacy-b@customer.test")).reason, "company_representative_exists");
+        assert.equal((await legacyEnroll("legacy-unknown@customer.test")).assignment.cohort, "exploratory");
+        const legacyResult = await loadExperimentResults(conn, {
+            orgId: org, id: legacy.id, asOf: new Date(start.getTime() + 20 * day), connectedReplyAvailable: false,
+        });
+        assert.equal(legacyResult.report.A.matured + legacyResult.report.B.matured, 1);
+        assert.equal(legacyResult.report.exploratory.A.assigned + legacyResult.report.exploratory.B.assigned, 1);
+        await changeExperimentState(conn, { ...actor, id: legacy.id, now: start, action: "invalidate", pendingMode: "hold", reason: "기존 회사 집계 보존 확인을 마칩니다." });
+        scenarios += 2;
+        const audience = await loadInternalAudience(conn, org);
+        const workspaceName = (await pg.query("SELECT name FROM workspaces WHERE id=8")).rows[0].name;
+        assert.equal(internalAudienceContains(audience, "member@gmail.com", `  ${workspaceName}  `), true);
+        assert.equal(internalAudienceContains(audience, "outside@gmail.com", "외부 고객사"), false);
         scenarios++;
         const drift = await create(3);
         await startExperiment(conn, {
@@ -880,7 +880,6 @@ async function main(extraScenarios) {
                 "ai/copy-evaluations",
                 "ai/copy-automation",
                 "email/experiments",
-                "email/experiments/contacts",
             ]) {
                 const route = require(`../src/app/api/${endpoint}/route.ts`);
                 for (const [role, expected] of [
@@ -1058,7 +1057,7 @@ async function main(extraScenarios) {
             JSON.stringify({
                 passed: true,
                 scenarios,
-                virtualAssignments: 1201,
+                virtualAssignments: (await pg.query("SELECT count(*)::int AS n FROM email_copy_assignments")).rows[0].n,
                 actualCustomerSends: 0,
                 externalNetwork: false,
                 humanQualityEvaluation: "not performed; approval rows are isolated fixtures",
