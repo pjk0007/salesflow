@@ -1,3 +1,4 @@
+import { enqueuePlatformEvent } from "./outbox";
 import { and, desc, eq, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -248,6 +249,14 @@ export async function createSales(
                         ],
                     })
                     .returning();
+            if (created)
+                await enqueuePlatformEvent(tx, {
+                    orgId: actor.orgId,
+                    workspaceId: value.workspaceId,
+                    key: `pipeline:${created.id}:v${created.version}`,
+                    type: "pipeline.created",
+                    data: { pipeline: created },
+                });
             return created ?? previousCreate(actor, resource, value, tx);
         }
         if (resource === "deals") {
@@ -272,6 +281,13 @@ export async function createSales(
                 })
                 .returning();
             if (!created) return previousCreate(actor, resource, value, tx);
+            await enqueuePlatformEvent(tx, {
+                orgId: actor.orgId,
+                workspaceId: value.workspaceId,
+                key: `deal:${created.id}:v${created.version}`,
+                type: "deal.created",
+                data: { deal: created },
+            });
             await tx.insert(crmDealHistory).values({
                 dealId: created.id,
                 actorId: actor.userId,
@@ -308,6 +324,14 @@ export async function createSales(
                 target: [crmTasks.workspaceId, crmTasks.externalId],
             })
             .returning();
+        if (created)
+            await enqueuePlatformEvent(tx, {
+                orgId: actor.orgId,
+                workspaceId: value.workspaceId,
+                key: `task:${created.id}:v${created.version}`,
+                type: "task.created",
+                data: { task: created },
+            });
         if (created)
             await appendActivity(tx, {
                 orgId: actor.orgId,
@@ -389,6 +413,13 @@ export async function patchSales(
                 .set({ ...change, version: version + 1, updatedAt: now })
                 .where(eq(crmPipelines.id, id))
                 .returning();
+            await enqueuePlatformEvent(tx, {
+                orgId: actor.orgId,
+                workspaceId,
+                key: `pipeline:${saved.id}:v${saved.version}`,
+                type: "pipeline.updated",
+                data: { pipeline: saved },
+            });
             return saved;
         }
         if (resource === "deals") {
@@ -425,6 +456,13 @@ export async function patchSales(
                 })
                 .where(eq(crmDeals.id, id))
                 .returning();
+            await enqueuePlatformEvent(tx, {
+                orgId: actor.orgId,
+                workspaceId,
+                key: `deal:${saved.id}:v${saved.version}`,
+                type: "deal.updated",
+                data: { deal: saved, before: old },
+            });
             await tx.insert(crmDealHistory).values({
                 dealId: id,
                 actorId: actor.userId,
@@ -501,6 +539,13 @@ export async function patchSales(
             })
             .where(eq(crmTasks.id, id))
             .returning();
+        await enqueuePlatformEvent(tx, {
+            orgId: actor.orgId,
+            workspaceId,
+            key: `task:${saved.id}:v${saved.version}`,
+            type: "task.updated",
+            data: { task: saved, before: old },
+        });
         await appendActivity(tx, {
             orgId: actor.orgId,
             workspaceId,

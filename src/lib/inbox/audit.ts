@@ -1,6 +1,12 @@
+import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { and, desc, eq, lt, or, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { db, inboxAuditEvents as events } from "@/lib/db";
+import {
+    db,
+    inboxChannels,
+    inboxConversations,
+    inboxAuditEvents as events,
+} from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "./errors";
 export type AuditChanges = typeof events.$inferInsert.changes;
@@ -8,8 +14,33 @@ export async function appendInboxAudit(
     exec: DbExec,
     input: typeof events.$inferInsert,
 ) {
-    if (Object.keys(input.changes).length)
-        await exec.insert(events).values(input);
+    if (!Object.keys(input.changes).length) return;
+    const [created] = await exec.insert(events).values(input).returning();
+    if (input.conversationId) {
+        const [channel] = await exec
+            .select({ workspaceId: inboxChannels.workspaceId })
+            .from(inboxChannels)
+            .where(eq(inboxChannels.id, input.channelId));
+        const [chat] = await exec
+            .select({ version: inboxConversations.version })
+            .from(inboxConversations)
+            .where(eq(inboxConversations.id, input.conversationId));
+        await enqueuePlatformEvent(exec, {
+            orgId: input.orgId,
+            workspaceId: channel.workspaceId,
+            key: `conversation-audit:${created.id}`,
+            type: "conversation.updated",
+            data: {
+                conversationId: input.conversationId,
+                version:
+                    chat.version +
+                    (input.action === "customer.reopened" ? 1 : 0),
+                action: input.action,
+                changes: input.changes,
+            },
+            occurredAt: created.createdAt,
+        });
+    }
 }
 export async function inboxAuditPage(
     orgId: string,

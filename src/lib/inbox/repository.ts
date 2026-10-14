@@ -1,3 +1,4 @@
+import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import {
@@ -557,6 +558,30 @@ async function appendMessage(
             message.body ||
             `파일 ${attachments.length}개 · ${attachments[0]?.fileName ?? ""}`;
         if (message.kind !== "note") {
+            const [eventChannel] = await tx
+                .select({ workspaceId: inboxChannels.workspaceId })
+                .from(inboxChannels)
+                .where(eq(inboxChannels.id, locked.channelId));
+            await enqueuePlatformEvent(tx, {
+                orgId: locked.orgId,
+                workspaceId: eventChannel.workspaceId,
+                key: `message:${inserted.id}`,
+                type: "message.created",
+                data: {
+                    conversationId: id,
+                    contactId: locked.contactId,
+                    message: {
+                        id: inserted.id,
+                        clientId: inserted.clientId,
+                        kind: inserted.kind,
+                        body: inserted.body,
+                        authorName: inserted.authorName,
+                        createdAt: inserted.createdAt,
+                        attachments,
+                    },
+                },
+                occurredAt: inserted.createdAt,
+            });
             if (locked.contactId) {
                 const [channel] = await tx
                     .select({ workspaceId: inboxChannels.workspaceId })
@@ -695,6 +720,13 @@ export async function startVisitorSession(
     raw: unknown,
     exec: DbExec = db,
 ) {
+    return exec.transaction((tx) => startVisitorSessionInTx(key, raw, tx));
+}
+async function startVisitorSessionInTx(
+    key: string,
+    raw: unknown,
+    exec: DbExec = db,
+) {
     const input = sessionInput.parse(raw),
         channel = await publicChannel(key, exec);
     if (input.identityToken) {
@@ -737,6 +769,19 @@ export async function startVisitorSession(
             pageUrl: safePageUrl(input.pageUrl, channel.allowedOrigins),
         })
         .returning({ id: inboxConversations.id });
+    await enqueuePlatformEvent(exec, {
+        orgId: channel.orgId,
+        workspaceId: channel.workspaceId,
+        key: `conversation:${chat.id}:created`,
+        type: "conversation.created",
+        data: {
+            conversationId: chat.id,
+            channelId: channel.id,
+            contactId: null,
+            name: input.name,
+            email: input.email || null,
+        },
+    });
     return { token, id: chat.id };
 }
 export async function authenticatedCustomer(
@@ -785,7 +830,7 @@ async function visitorConversation(
                 ),
             );
         if (!chat && create) {
-            await exec
+            const [created] = await exec
                 .insert(inboxConversations)
                 .values({
                     channelId: channel.id,
@@ -801,6 +846,21 @@ async function visitorConversation(
                         inboxConversations.channelId,
                         inboxConversations.contactId,
                     ],
+                })
+                .returning({ id: inboxConversations.id });
+            if (created)
+                await enqueuePlatformEvent(exec, {
+                    orgId: channel.orgId,
+                    workspaceId: channel.workspaceId,
+                    key: `conversation:${created.id}:created`,
+                    type: "conversation.created",
+                    data: {
+                        conversationId: created.id,
+                        channelId: channel.id,
+                        contactId: contact.id,
+                        name: contact.name,
+                        email: contact.email,
+                    },
                 });
             [chat] = await exec
                 .select({
@@ -896,6 +956,16 @@ export async function visitorDetail(
     };
 }
 export async function sendVisitorMessage(
+    key: string,
+    token: string,
+    raw: unknown,
+    exec: DbExec = db,
+) {
+    return exec.transaction((tx) =>
+        sendVisitorMessageInTx(key, token, raw, tx),
+    );
+}
+async function sendVisitorMessageInTx(
     key: string,
     token: string,
     raw: unknown,

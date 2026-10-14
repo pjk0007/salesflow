@@ -1,4 +1,5 @@
 /** 샌드비 서비스 서버용 클라이언트. API 토큰은 사이트 서버에만 둡니다. */
+export { verifySendbWebhook } from "./webhooks";
 export interface SendbCompanyInput {
     workspaceId: number;
     externalId: string;
@@ -184,6 +185,67 @@ export class SendbClient {
                 response.status,
             );
         return data.data;
+    }
+    webhooks(workspaceId: number) {
+        return this.request<{
+            endpoints: {
+                id: string;
+                name: string;
+                url: string;
+                eventTypes: string[];
+                enabled: boolean;
+                version: number;
+                secretHint: string;
+            }[];
+            eventTypes: string[];
+            workerEnabled: boolean;
+        }>(`/api/v1/webhooks?workspaceId=${workspaceId}`);
+    }
+    createWebhook(input: {
+        workspaceId: number;
+        name: string;
+        url: string;
+        eventTypes: string[];
+    }) {
+        return this.request<{
+            endpoint: { id: string; version: number; enabled: boolean };
+            secret: string;
+        }>("/api/v1/webhooks", "POST", input);
+    }
+    updateWebhook(
+        id: string,
+        input: {
+            version: number;
+            name?: string;
+            url?: string;
+            eventTypes?: string[];
+            enabled?: boolean;
+        },
+    ) {
+        return this.request<{
+            endpoint: { id: string; version: number; enabled: boolean };
+        }>(`/api/v1/webhooks/${encodeURIComponent(id)}`, "PATCH", input);
+    }
+    webhookDeliveries(id: string, before?: string) {
+        return this.request<{
+            rows: {
+                id: string;
+                eventId: string;
+                type: string;
+                state: string;
+                attempts: number;
+            }[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/webhooks/${encodeURIComponent(id)}/deliveries${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+    retryWebhookDelivery(id: string) {
+        return this.request(
+            `/api/v1/webhook-deliveries/${encodeURIComponent(id)}`,
+            "POST",
+            { action: "retry" },
+        );
     }
     upsertCompany(input: SendbCompanyInput) {
         return this.request<SendbCompany>(

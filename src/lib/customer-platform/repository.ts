@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { enqueuePlatformEvent } from "./outbox";
 import { and, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
 import {
@@ -38,24 +40,53 @@ export async function upsertCompany(
 ) {
     const input = companyInput.parse(raw);
     await requirePlatformWorkspace(orgId, input.workspaceId, exec);
-    const insert = exec.insert(crmCompanies).values({ ...input, orgId });
-    const rows = mayUpdate
-        ? await insert
-              .onConflictDoUpdate({
-                  target: [crmCompanies.workspaceId, crmCompanies.externalId],
-                  set: {
-                      ...input,
-                      attributes: input.attributes
-                          ? sql`${crmCompanies.attributes} || ${JSON.stringify(input.attributes)}::jsonb`
-                          : undefined,
-                      updatedAt: new Date(),
-                  },
-              })
-              .returning()
-        : await insert.onConflictDoNothing().returning();
-    if (!rows[0])
-        throw new InboxError("기존 회사의 수정 권한이 필요합니다.", 403);
-    return rows[0];
+    return exec.transaction(async (tx) => {
+        await tx
+            .select({ id: workspaces.id })
+            .from(workspaces)
+            .where(eq(workspaces.id, input.workspaceId))
+            .for("update");
+        const [before] = await tx
+            .select()
+            .from(crmCompanies)
+            .where(
+                and(
+                    eq(crmCompanies.workspaceId, input.workspaceId),
+                    eq(crmCompanies.externalId, input.externalId),
+                ),
+            );
+        if (before && !mayUpdate)
+            throw new InboxError("기존 회사의 수정 권한이 필요합니다.", 403);
+        const next = before
+            ? {
+                  ...before,
+                  ...input,
+                  attributes: { ...before.attributes, ...input.attributes },
+              }
+            : null;
+        if (before && isDeepStrictEqual(before, next)) return before;
+        const insert = tx.insert(crmCompanies).values({ ...input, orgId });
+        const [saved] = await insert
+            .onConflictDoUpdate({
+                target: [crmCompanies.workspaceId, crmCompanies.externalId],
+                set: {
+                    ...input,
+                    attributes: next?.attributes ?? input.attributes,
+                    updatedAt: new Date(),
+                },
+            })
+            .returning();
+        await enqueuePlatformEvent(tx, {
+            orgId,
+            workspaceId: input.workspaceId,
+            key: before
+                ? `company:${saved.id}:${randomUUID()}`
+                : `company:${saved.id}:created`,
+            type: before ? "company.updated" : "company.created",
+            data: { company: saved },
+        });
+        return saved;
+    });
 }
 export async function upsertContact(
     orgId: string,
@@ -66,6 +97,46 @@ export async function upsertContact(
     const { companyIds, ...input } = contactInput.parse(raw);
     await requirePlatformWorkspace(orgId, input.workspaceId, exec);
     return exec.transaction(async (tx) => {
+        await tx
+            .select({ id: workspaces.id })
+            .from(workspaces)
+            .where(eq(workspaces.id, input.workspaceId))
+            .for("update");
+        const [before] = await tx
+            .select()
+            .from(crmContacts)
+            .where(
+                and(
+                    eq(crmContacts.workspaceId, input.workspaceId),
+                    eq(crmContacts.externalId, input.externalId),
+                ),
+            );
+        const previousLinks = before
+            ? await tx
+                  .select({ companyId: crmContactCompanies.companyId })
+                  .from(crmContactCompanies)
+                  .where(eq(crmContactCompanies.contactId, before.id))
+            : [];
+        if (before && !mayUpdate)
+            throw new InboxError("기존 고객의 수정 권한이 필요합니다.", 403);
+        const next = before
+            ? {
+                  ...before,
+                  ...input,
+                  attributes: { ...before.attributes, ...input.attributes },
+              }
+            : null;
+        const linksChanged =
+            companyIds !== undefined &&
+            !isDeepStrictEqual(
+                [...new Set(companyIds)].sort(),
+                previousLinks.map((l) => l.companyId).sort(),
+            );
+        if (before && isDeepStrictEqual(before, next) && !linksChanged)
+            return {
+                ...before,
+                companyIds: previousLinks.map((l) => l.companyId),
+            };
         if (input.recordId) {
             const [record] = await tx
                 .select({ id: records.id })
@@ -125,11 +196,12 @@ export async function upsertContact(
                     })),
                 );
         }
-        await tx
+        const changedConversations = await tx
             .update(inboxConversations)
             .set({
                 name: contact.name,
                 email: contact.email,
+                version: sql`${inboxConversations.version}+1`,
                 ...(input.recordId !== undefined
                     ? { recordId: input.recordId }
                     : {}),
@@ -138,13 +210,53 @@ export async function upsertContact(
                 and(
                     eq(inboxConversations.orgId, orgId),
                     eq(inboxConversations.contactId, contact.id),
+                    or(
+                        sql`${inboxConversations.name} IS DISTINCT FROM ${contact.name}`,
+                        sql`${inboxConversations.email} IS DISTINCT FROM ${contact.email}`,
+                        input.recordId !== undefined
+                            ? sql`${inboxConversations.recordId} IS DISTINCT FROM ${input.recordId}`
+                            : undefined,
+                    ),
                 ),
-            );
+            )
+            .returning({
+                id: inboxConversations.id,
+                version: inboxConversations.version,
+            });
+        for (const chat of changedConversations)
+            await enqueuePlatformEvent(tx, {
+                orgId,
+                workspaceId: input.workspaceId,
+                key: `conversation-profile:${chat.id}:v${chat.version}`,
+                type: "conversation.updated",
+                data: {
+                    conversationId: chat.id,
+                    version: chat.version,
+                    action: "customer.profile.updated",
+                    profile: {
+                        name: contact.name,
+                        email: contact.email,
+                        ...(input.recordId !== undefined
+                            ? { recordId: input.recordId }
+                            : {}),
+                    },
+                },
+            });
         const links = await tx
             .select({ companyId: crmContactCompanies.companyId })
             .from(crmContactCompanies)
             .where(eq(crmContactCompanies.contactId, contact.id));
-        return { ...contact, companyIds: links.map((l) => l.companyId) };
+        const saved = { ...contact, companyIds: links.map((l) => l.companyId) };
+        await enqueuePlatformEvent(tx, {
+            orgId,
+            workspaceId: input.workspaceId,
+            key: before
+                ? `contact:${contact.id}:${randomUUID()}`
+                : `contact:${contact.id}:created`,
+            type: before ? "contact.updated" : "contact.created",
+            data: { contact: saved },
+        });
+        return saved;
     });
 }
 export async function platformContact(
@@ -257,6 +369,14 @@ async function recordCustomerEventInTx(
         })
         .returning();
     if (created) {
+        await enqueuePlatformEvent(exec, {
+            orgId,
+            workspaceId,
+            key: `event:${created.id}`,
+            type: "customer.event",
+            data: { event: created },
+            occurredAt: created.occurredAt,
+        });
         await appendActivity(exec, {
             orgId,
             workspaceId,

@@ -110,6 +110,12 @@ export function CustomerCrmPage({ role }: { role: string }) {
                     <p className="mt-1 text-sm text-muted-foreground">
                         상담에서 다음 행동과 계약까지 이어가세요.
                     </p>
+                    <a
+                        href={`/customer-webhooks?workspaceId=${workspaceId ?? ""}`}
+                        className="mt-2 inline-block text-xs text-[#635BFF]"
+                    >
+                        고객 플랫폼 외부 연동 ↗
+                    </a>
                 </div>
                 <label className="text-xs">
                     사업

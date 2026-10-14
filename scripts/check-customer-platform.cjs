@@ -54,6 +54,16 @@ async function runPlatformCheck(extra) {
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/v1\/webhooks$/, () => "v1/webhooks"],
+        [/^\/api\/v1\/webhooks\/([a-f0-9-]+)$/, () => "v1/webhooks/[id]"],
+        [
+            /^\/api\/v1\/webhooks\/([a-f0-9-]+)\/deliveries$/,
+            () => "v1/webhooks/[id]/deliveries",
+        ],
+        [
+            /^\/api\/v1\/webhook-deliveries\/([a-f0-9-]+)$/,
+            () => "v1/webhook-deliveries/[id]",
+        ],
         [
             /^\/api\/v1\/inbox\/conversations\/([a-f0-9-]+)\/(attachments|audit)$/,
             (m) => `v1/inbox/conversations/[id]/${m[2]}`,
@@ -102,6 +112,15 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "v1/webhooks",
+        "v1/webhooks/[id]",
+        "v1/webhooks/[id]/deliveries",
+        "v1/webhook-deliveries/[id]",
+        "customer-platform/webhooks",
+        "customer-platform/webhooks/[id]",
+        "customer-platform/webhooks/[id]/deliveries",
+        "customer-platform/webhook-deliveries/[id]",
+        "customer-platform/webhooks-config",
         "v1/inbox/conversations/[id]/attachments",
         "v1/inbox/conversations/[id]/audit",
         "v1/inbox/attachments/[id]",
