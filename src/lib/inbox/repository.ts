@@ -671,6 +671,7 @@ export async function sendSystemReply(
     body: string,
     clientId: string,
     aiDraftId?: string,
+    authorName = "AI 상담 도우미",
 ) {
     const [chat] = await exec
         .select({
@@ -686,7 +687,7 @@ export async function sendSystemReply(
             clientId,
             kind: "reply",
             body,
-            authorName: "AI 상담 도우미",
+            authorName,
             attachmentIds: [],
             aiDraftId,
         },

@@ -71,12 +71,23 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-platform|customer-ai)\//.test(
+            /\/src\/lib\/(inbox|customer-platform|customer-ai|customer-workflows)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/v1\/workflows$/, () => "v1/workflows"],
+        [/^\/api\/v1\/workflows\/events$/, () => "v1/workflows/events"],
+        [/^\/api\/v1\/workflows\/([a-f0-9-]+)$/, () => "v1/workflows/[id]"],
+        [
+            /^\/api\/v1\/workflows\/([a-f0-9-]+)\/runs$/,
+            () => "v1/workflows/[id]/runs",
+        ],
+        [
+            /^\/api\/v1\/workflows\/([a-f0-9-]+)\/runs\/([a-f0-9-]+)$/,
+            () => "v1/workflows/[id]/runs/[runId]",
+        ],
         [
             /^\/api\/v1\/support-ai\/(settings|knowledge)$/,
             (m) => `v1/support-ai/${m[1]}`,
@@ -151,6 +162,16 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "v1/workflows",
+        "v1/workflows/events",
+        "v1/workflows/[id]",
+        "v1/workflows/[id]/runs",
+        "v1/workflows/[id]/runs/[runId]",
+        "customer-workflows",
+        "customer-workflows/events",
+        "customer-workflows/[id]",
+        "customer-workflows/[id]/runs",
+        "customer-workflows/[id]/runs/[runId]",
         "v1/support-ai/settings",
         "v1/support-ai/knowledge",
         "v1/support-ai/knowledge/[id]",

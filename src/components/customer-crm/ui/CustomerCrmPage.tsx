@@ -40,7 +40,13 @@ export function CustomerCrmPage({ role }: { role: string }) {
             Number(params.get("workspaceId")) || null,
         ),
         [resource, setResource] = useState<Resource>(
-            params.get("q") ? "contacts" : "deals",
+            ["deals", "tasks", "contacts", "companies", "pipelines"].includes(
+                params.get("resource") ?? "",
+            )
+                ? (params.get("resource") as Resource)
+                : params.get("q")
+                  ? "contacts"
+                  : "deals",
         ),
         [query, setQuery] = useState(params.get("q") ?? ""),
         [archived, setArchived] = useState(false),
@@ -115,6 +121,12 @@ export function CustomerCrmPage({ role }: { role: string }) {
                         className="mt-2 inline-block text-xs text-[#635BFF]"
                     >
                         고객 플랫폼 외부 연동 ↗
+                    </a>
+                    <a
+                        href={`/customer-workflows?workspaceId=${workspaceId ?? ""}`}
+                        className="ml-4 text-xs text-[#635BFF]"
+                    >
+                        고객 자동화 ↗
                     </a>
                 </div>
                 <label className="text-xs">

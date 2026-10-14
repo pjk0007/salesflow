@@ -666,6 +666,13 @@
       "when": 1775700000000,
       "tag": "0094_customer_ai_support",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1775800000000,
+      "tag": "0095_customer_workflows",
+      "breakpoints": true
     }
   ]
 }

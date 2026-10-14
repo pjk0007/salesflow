@@ -254,6 +254,102 @@ export class SendbClient {
             import("../src/components/customer-ai/types").SupportCatalog
         >(`/api/v1/support-ai/settings?workspaceId=${workspaceId}`);
     }
+    workflows(workspaceId: number, before?: string) {
+        return this.request<
+            import("../src/components/customer-workflows/types").WorkflowList
+        >(
+            `/api/v1/workflows?workspaceId=${workspaceId}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+    workflow(id: string) {
+        return this.request<
+            import("../src/components/customer-workflows/types").WorkflowDetail
+        >(`/api/v1/workflows/${encodeURIComponent(id)}`);
+    }
+    saveWorkflow(
+        input: {
+            workspaceId: number;
+            version: number;
+            name: string;
+            description: string;
+            definition: import("../src/components/customer-workflows/types").WorkflowDefinition;
+        },
+        id?: string,
+    ) {
+        return this.request<{
+            workflow: import("../src/components/customer-workflows/types").Workflow;
+            revision: import("../src/components/customer-workflows/types").Revision;
+        }>(
+            `/api/v1/workflows${id ? `/${encodeURIComponent(id)}` : ""}`,
+            id ? "PATCH" : "POST",
+            input,
+        );
+    }
+    workflowEvents(workspaceId: number, before?: string) {
+        return this.request<{
+            rows: import("../src/components/customer-workflows/types").WorkflowEvent[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/workflows/events?workspaceId=${workspaceId}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+    previewWorkflow(id: string, revisionId: string, eventId: string) {
+        return this.request<
+            import("../src/components/customer-workflows/types").Preview
+        >(`/api/v1/workflows/${encodeURIComponent(id)}`, "POST", {
+            action: "preview",
+            revisionId,
+            eventId,
+        });
+    }
+    publishWorkflow(
+        id: string,
+        version: number,
+        revisionId: string,
+        previewId: string,
+        allowCustomerReplies = false,
+    ) {
+        return this.request(
+            `/api/v1/workflows/${encodeURIComponent(id)}`,
+            "POST",
+            {
+                action: "publish",
+                version,
+                revisionId,
+                previewId,
+                allowCustomerReplies,
+            },
+        );
+    }
+    disableWorkflow(id: string, version: number) {
+        return this.request(
+            `/api/v1/workflows/${encodeURIComponent(id)}`,
+            "POST",
+            { action: "disable", version },
+        );
+    }
+    workflowRuns(id: string, before?: string) {
+        return this.request<{
+            rows: import("../src/components/customer-workflows/types").WorkflowRun[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/workflows/${encodeURIComponent(id)}/runs${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
+    workflowRun(id: string, runId: string) {
+        return this.request<
+            import("../src/components/customer-workflows/types").WorkflowRunDetail
+        >(
+            `/api/v1/workflows/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}`,
+        );
+    }
+    changeWorkflowRun(id: string, runId: string, action: "cancel" | "retry") {
+        return this.request(
+            `/api/v1/workflows/${encodeURIComponent(id)}/runs/${encodeURIComponent(runId)}`,
+            "POST",
+            { action },
+        );
+    }
     updateSupportAiSettings(
         workspaceId: number,
         settings: import("../src/components/customer-ai/types").SupportSettings,

@@ -78,6 +78,16 @@ export function ChannelSettings({
                         상담 AI·승인 지식 설정 ↗
                     </a>
                 )}
+                {workspaceId > 0 && (
+                    <a
+                        className="mb-5 block text-sm text-[#635BFF]"
+                        href={`/customer-workflows?workspaceId=${workspaceId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                    >
+                        고객 자동화 설정 ↗
+                    </a>
+                )}
                 <form
                     className="space-y-5"
                     onSubmit={async (e) => {

@@ -28,5 +28,7 @@ export async function register() {
         startWebhookScheduler();
         const { startSupportAiScheduler } = await import("@/lib/customer-ai/worker");
         startSupportAiScheduler();
+        const { startWorkflowScheduler } = await import("@/lib/customer-workflows/worker");
+        startWorkflowScheduler();
     }
 }

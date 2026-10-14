@@ -55,9 +55,9 @@ export async function handleInbox(action: () => Promise<unknown>) {
         );
     }
 }
-export async function jsonBody(req: NextRequest) {
+export async function jsonBody(req: NextRequest, maxCharacters = 16000) {
     const text = await req.text();
-    if (text.length > 16000) throw new InboxError("요청이 너무 큽니다.", 413);
+    if (text.length > maxCharacters) throw new InboxError("요청이 너무 큽니다.", 413);
     return JSON.parse(text);
 }
 export function publicGuard(req: NextRequest, key: string) {

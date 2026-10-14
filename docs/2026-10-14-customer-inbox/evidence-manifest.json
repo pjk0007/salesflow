@@ -414,5 +414,77 @@
         "bytes": 100107
       }
     ]
+  },
+  "workflowQa": {
+    "date": "2026-10-14",
+    "branch": "dev",
+    "unitTests": 1051,
+    "sqlApiScenarios": 15,
+    "actualCustomerSends": 0,
+    "productionDatabaseAccess": false,
+    "screens": [
+      "designerhire create/preview/publish/new message/tag/task/real one-minute wait/contact stage",
+      "backofficelab customer event/independent workflow/task",
+      "generated task contact/company/assignee/conversation link",
+      "cancel waiting run while preserving committed steps"
+    ],
+    "localArtifactDirectory": "artifacts/sendb-replacement-20261014",
+    "files": [
+      {
+        "file": "workflow-ai-regression.log",
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c",
+        "bytes": 2433
+      },
+      {
+        "file": "workflow-backofficelab-completed-qa.png",
+        "sha256": "035816b5c0ba7ec6b9735035a7650e9940b2feaafbc9ad355d9c206d4e9e6527",
+        "bytes": 103036
+      },
+      {
+        "file": "workflow-build.log",
+        "sha256": "a925ed9ad3b368a6341c984a83743c3008674aba04170a6b70b09ca243ad89fd",
+        "bytes": 11975
+      },
+      {
+        "file": "workflow-cancelled-reservation-qa.png",
+        "sha256": "accd334ca5fb12e47cdd027f38967dbb75fa9d1792de7cea91491c308ff5adbb",
+        "bytes": 101894
+      },
+      {
+        "file": "workflow-designerhire-completed-qa.png",
+        "sha256": "27ac4eba5b5c955d13878c06a8089050fea9f914b077deea1603966e9ca1e393",
+        "bytes": 88116
+      },
+      {
+        "file": "workflow-generated-task-qa.png",
+        "sha256": "0874e822d7ba4616c9356a96dd3b3826fdae6b66afdcea33662aca983e199dba",
+        "bytes": 49135
+      },
+      {
+        "file": "workflow-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "workflow-regression.log",
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986",
+        "bytes": 5793
+      },
+      {
+        "file": "workflow-sql.log",
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551",
+        "bytes": 2372
+      },
+      {
+        "file": "workflow-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "workflow-unit.log",
+        "sha256": "54c38834ef6c5bd58899ec267fb65f8dec2e71cd1ec1a461b286a73a2cd86b44",
+        "bytes": 100526
+      }
+    ]
   }
 }

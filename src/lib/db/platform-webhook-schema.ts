@@ -36,6 +36,7 @@ export const platformEvents = pgTable(
     "platform_events",
     {
         id: uuid("id").primaryKey().defaultRandom(),
+        workflowRunId: uuid("workflow_run_id"),
         sequence: bigserial("sequence", { mode: "bigint" }).notNull().unique(),
         ...scope(),
         eventKey: varchar("event_key", { length: 200 }).notNull(),

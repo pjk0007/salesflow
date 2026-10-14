@@ -119,3 +119,5 @@ async function startMemberChat(channelKey) {
 웹훅 구독·서명 검증·outbox·재시도·전달 이력 API와 서버 SDK는 [WEBHOOKS.md](WEBHOOKS.md)를 참고한다.
 
 상담 AI 설정·승인 지식·초안/전송 연결·사람 이관 API와 서버 SDK는 [AI-SUPPORT.md](AI-SUPPORT.md)를 참고한다.
+
+고객 자동화의 저장·모의 실행·게시·예약/복구·중단 API와 SDK는 [WORKFLOWS.md](WORKFLOWS.md)를 참고한다.

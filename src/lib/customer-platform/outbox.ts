@@ -7,6 +7,8 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { webhookEventTypes } from "./webhook-rules";
+import { workflowOrigin } from "../customer-workflows/origin";
+import { enqueueWorkflowRuns } from "../customer-workflows/enqueue";
 export type PlatformEventType = (typeof webhookEventTypes)[number];
 /** Must use the source mutation's transaction. Never perform HTTP here. */
 export async function enqueuePlatformEvent(
@@ -39,6 +41,7 @@ export async function enqueuePlatformEvent(
             eventKey: input.key,
             type: input.type,
             payload,
+            workflowRunId: workflowOrigin() ?? null,
         })
         .onConflictDoNothing({
             target: [platformEvents.workspaceId, platformEvents.eventKey],
@@ -77,5 +80,6 @@ export async function enqueuePlatformEvent(
                 })),
             )
             .onConflictDoNothing();
+    await enqueueWorkflowRuns(exec, event);
     return event;
 }
