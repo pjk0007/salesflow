@@ -956,6 +956,40 @@ async function main() {
         assert.equal(bindingEvents.at(-1).previous_policy_id, A.id);
         assert.equal(bindingEvents.at(-1).policy_version_id, B.id);
         scenarios += 2;
+        // 평소 발송 자동 관찰은 실제 발송·외부 호출 없이 로컬 장부만 읽는다.
+        const { loadCopyObservations } = require("../src/lib/ai-copy/observations.ts");
+        const observationAt = new Date("2026-10-15T01:00:00Z");
+        const normalLog = await insert("email_send_logs", {
+            org_id: org, partition_id: 1, recipient_email: "baseline@outside.test",
+            status: "sent", sent_at: new Date("2026-10-01T01:00:00Z"), auto_personalized_link_id: 2,
+        });
+        const normalJob = await ensureGenerationJob(conn, {
+            orgId: org, workspaceId: 8, purpose: "initial_email", key: "initial:2:999:normal-observation",
+            policy: A.snapshot, knowledge: knowledge.snapshot, context: { system: "가상 지침", user: "가상 고객" },
+        });
+        await pg.query("UPDATE ai_copy_generation_jobs SET send_log_id=$2,created_at='2026-10-01T01:00:00Z',eligible_at='2026-10-01T01:00:00Z',ready_at='2026-10-01T01:00:10Z',state='ready',output=$3::jsonb WHERE id=$1", [normalJob.id,normalLog.id,JSON.stringify({subject:"가상 첫 메일",htmlBody:"가상 본문",fingerprint:"ordinary",question:"어떤가요?"})]);
+        await insert("email_replies", {
+            org_id: org, workspace_id: 8, root_log_id: normalLog.id, send_log_id: normalLog.id,
+            mailbox: "demo@internal.test", gmail_message_id: "ordinary-human-reply", from_email: "baseline@outside.test",
+            to_email: "demo@internal.test", contact_email: "baseline@outside.test", kind: "human", ours_reason: "address",
+            match_status: "matched", received_at: new Date("2026-10-02T01:00:00Z"), detected_at: new Date("2026-10-02T01:00:00Z"), detected_mode: "on",
+        });
+        const priorReplyMode = process.env.REPLY_SYNC_MODE;
+        process.env.REPLY_SYNC_MODE = "off";
+        let observations;
+        try {
+            observations = await loadCopyObservations(conn, { orgId: org, workspaceId: 8, days: 30, now: observationAt, internalDomains: ["internal.test"] });
+            const ordinary = observations.groups.find(g=>g.ruleId===2 && g.policyId===null);
+            assert.equal(ordinary.sent,1);
+            assert.equal(ordinary.matured,1);
+            assert.equal(ordinary.humanReplies,1);
+            assert.equal(ordinary.replyConnected,false);
+            assert.ok(observations.purposes[0].jobs>0);
+            assert.equal((await loadCopyObservations(conn, {orgId:org,workspaceId:999,days:30,now:observationAt})).observedJobs,0);
+        } finally {
+            if(priorReplyMode===undefined) delete process.env.REPLY_SYNC_MODE; else process.env.REPLY_SYNC_MODE=priorReplyMode;
+        }
+        scenarios += 2;
         const catalog = {
             // 아래 UI fixture 역시 실제 운영·품질 실측 근거로 사용하지 않는다.
             versions: (await pg.query("SELECT * FROM ai_copy_policy_versions ORDER BY id")).rows,

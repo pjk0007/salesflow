@@ -18,6 +18,7 @@ import type { Experiment } from "../types";
 import ExperimentForm from "./ExperimentForm";
 import ExperimentDetail, { experimentStateLabel } from "./ExperimentDetail";
 import ContactRegistry from "./ContactRegistry";
+import AutomaticObservations from "@/components/ai-copy/ui/AutomaticObservations";
 export default function ExperimentManager({ initialRuleId }: { initialRuleId?: number }) {
     const { user, isLoading } = useSession();
     const enabled = !!user && user.role !== "member",
@@ -44,8 +45,8 @@ export default function ExperimentManager({ initialRuleId }: { initialRuleId?: n
                 <div>
                     <h2 className="text-xl font-semibold">첫 메일 문구 실험</h2>
                     <p className="mt-2 text-sm text-muted-foreground">
-                        작성 지침 한 가지를 비교하고 실제 긍정 회신으로 판단합니다. 표본·관찰·데이터
-                        품질 기준을 충족해야 새 작업에 채택할 수 있습니다.
+                        평소 첫 메일의 발송과 사람 회신을 자동으로 모읍니다. 지침의 효과를 비교할
+                        때는 실험과 결과에서 표본·관찰·데이터 품질 기준을 확인합니다.
                     </p>
                 </div>
                 <Button onClick={() => setCreating(true)}>새 실험</Button>
@@ -60,11 +61,15 @@ export default function ExperimentManager({ initialRuleId }: { initialRuleId?: n
                     {manager.actionError}
                 </p>
             )}
-            <Tabs defaultValue="experiments">
+            <Tabs defaultValue="observations">
                 <TabsList>
+                    <TabsTrigger value="observations">자동 관찰</TabsTrigger>
                     <TabsTrigger value="experiments">실험과 결과</TabsTrigger>
                     <TabsTrigger value="companies">회사 확인과 등급</TabsTrigger>
                 </TabsList>
+                <TabsContent value="observations" className="pt-3">
+                    <AutomaticObservations workspaces={catalog.workspaces} mode="outcomes" />
+                </TabsContent>
                 <TabsContent value="experiments" className="space-y-5 pt-3">
                     {!list.data.experiments.length ? (
                         <div className="rounded-md border p-5">
