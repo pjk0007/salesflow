@@ -107,7 +107,16 @@ export function ActivityTimeline({
                                                           "고객 연결 해제",
                                                       customer: "고객 문의",
                                                       reply: "상담 답변",
-                                                      "email.attachment": "메일 첨부 수신",
+                                                      "contacts.created":
+                                                          "고객 등록",
+                                                      "contacts.updated":
+                                                          "고객 정보 변경",
+                                                      "contacts.archived":
+                                                          "고객 보관",
+                                                      "contacts.restored":
+                                                          "고객 복구",
+                                                      "email.attachment":
+                                                          "메일 첨부 수신",
                                                       "email.sent":
                                                           "메일 서비스 접수",
                                                       "email.failed":
@@ -120,6 +129,7 @@ export function ActivityTimeline({
                                             {(
                                                 {
                                                     event: "고객 이벤트",
+                                                    profile: "고객 정보",
                                                     deal: "딜",
                                                     task: "업무",
                                                     conversation: "상담",

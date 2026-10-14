@@ -171,6 +171,7 @@ export async function workflowContext(
             : null,
         deal: deal ?? null,
         task: task ?? null,
+        archived: !!contact?.archivedAt || !!company?.archivedAt,
         internal:
             !!contact?.isInternal || !!staff || !!conversation?.historyOnly,
     };

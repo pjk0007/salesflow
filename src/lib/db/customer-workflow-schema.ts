@@ -10,6 +10,7 @@ import {
     index,
     type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { crmContacts, crmCompanies } from "./customer-platform-schema";
 import { organizations, workspaces, users } from "./schema";
 import { platformEvents } from "./platform-webhook-schema";
 import type { WorkflowDefinition } from "../customer-workflows/rules";
@@ -117,6 +118,14 @@ export const customerWorkflowRuns = pgTable(
         eventId: uuid("event_id")
             .notNull()
             .references(() => platformEvents.id),
+        subjectContactId: uuid("subject_contact_id").references(
+            () => crmContacts.id,
+            { onDelete: "set null" },
+        ),
+        subjectCompanyId: uuid("subject_company_id").references(
+            () => crmCompanies.id,
+            { onDelete: "set null" },
+        ),
         eventSnapshot: jsonb("event_snapshot")
             .$type<Record<string, unknown>>()
             .notNull(),
@@ -131,6 +140,16 @@ export const customerWorkflowRuns = pgTable(
         updatedAt: time("updated_at").notNull().defaultNow(),
     },
     (t) => [
+        index("customer_workflow_contact").on(
+            t.workspaceId,
+            t.subjectContactId,
+            t.state,
+        ),
+        index("customer_workflow_company").on(
+            t.workspaceId,
+            t.subjectCompanyId,
+            t.state,
+        ),
         uniqueIndex("customer_workflow_trigger").on(t.workflowId, t.eventId),
         index("customer_workflow_due").on(t.state, t.eligibleAt, t.leaseUntil),
         index("customer_workflow_runs_page").on(

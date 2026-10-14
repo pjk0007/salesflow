@@ -1,3 +1,4 @@
+import { objectListInput } from "@/lib/customer-records/rules";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { handleInbox, jsonBody } from "@/lib/inbox/http";
@@ -28,6 +29,15 @@ export async function GET(req: NextRequest) {
             workspaceId,
             "contacts",
             before ? z.string().uuid().parse(before) : undefined,
+            undefined,
+            z
+                .string()
+                .trim()
+                .max(200)
+                .parse(req.nextUrl.searchParams.get("q") ?? ""),
+            objectListInput.parse({
+                archived: req.nextUrl.searchParams.get("archived") ?? undefined,
+            }).archived,
         );
     });
 }
@@ -42,6 +52,9 @@ export async function POST(req: NextRequest) {
             "update",
         );
         await authorizeWorkspace(ctx, input.workspaceId, "create");
-        return upsertContact(ctx.token.orgId, input, mayUpdate);
+        return upsertContact(ctx.token.orgId, input, mayUpdate, undefined, {
+            actor: ctx.actor,
+            source: "api",
+        });
     });
 }

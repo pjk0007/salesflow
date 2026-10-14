@@ -1,3 +1,9 @@
+import {
+    customerObjectDetail,
+    patchCustomerObject,
+    archiveCustomerObject,
+} from "@/lib/customer-records/repository";
+import { objectListInput } from "@/lib/customer-records/rules";
 import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { NextRequest } from "next/server";
 import { z } from "zod";
@@ -44,9 +50,16 @@ export function salesHandler(external: boolean) {
                 permission =
                     req.method === "GET"
                         ? "read"
-                        : req.method === "POST"
-                          ? "create"
-                          : "update";
+                        : id &&
+                            (resource === "contacts" ||
+                                resource === "companies") &&
+                            req.method === "POST"
+                          ? body?.action === "archive"
+                              ? "delete"
+                              : "update"
+                          : req.method === "POST"
+                            ? "create"
+                            : "update";
             if (ctx) await authorizeWorkspace(ctx, workspaceId, permission);
             else
                 await requireCustomerAccess(
@@ -55,6 +68,38 @@ export function salesHandler(external: boolean) {
                     permission === "read" ? "read" : "respond",
                 );
             if (resource === "contacts" || resource === "companies") {
+                if (id) {
+                    if (req.method === "GET")
+                        return customerObjectDetail(
+                            actor,
+                            workspaceId,
+                            resource,
+                            id,
+                            req.nextUrl.searchParams.get("before") ?? undefined,
+                        );
+                    const { workspaceId: _, ...change } = body;
+                    void _;
+                    if (req.method === "PATCH")
+                        return patchCustomerObject(
+                            actor,
+                            workspaceId,
+                            resource,
+                            id,
+                            change,
+                            undefined,
+                            external ? "api" : "staff",
+                        );
+                    if (req.method === "POST")
+                        return archiveCustomerObject(
+                            actor,
+                            workspaceId,
+                            resource,
+                            id,
+                            change,
+                            undefined,
+                            external ? "api" : "staff",
+                        );
+                }
                 if (external)
                     throw new InboxError(
                         "이 고객 API 경로를 확인해주세요.",
@@ -73,12 +118,23 @@ export function salesHandler(external: boolean) {
                             .trim()
                             .max(200)
                             .parse(req.nextUrl.searchParams.get("q") ?? ""),
+                        objectListInput.parse({
+                            archived:
+                                req.nextUrl.searchParams.get("archived") ??
+                                undefined,
+                        }).archived,
                     );
                 }
                 if (req.method === "POST" && !id)
                     return resource === "contacts"
-                        ? upsertContact(actor.orgId, body, true)
-                        : upsertCompany(actor.orgId, body, true);
+                        ? upsertContact(actor.orgId, body, true, undefined, {
+                              actor,
+                              source: "staff",
+                          })
+                        : upsertCompany(actor.orgId, body, true, undefined, {
+                              actor,
+                              source: "staff",
+                          });
                 throw new InboxError("지원하지 않는 고객 요청입니다.", 405);
             }
             if (resource === "pipelines" && req.method !== "GET")

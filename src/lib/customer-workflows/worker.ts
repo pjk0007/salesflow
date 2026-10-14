@@ -196,6 +196,7 @@ async function processClaim(
         const base = { leaseId: null, leaseUntil: null, updatedAt: now };
         if (
             ctx.internal ||
+            ctx.archived ||
             (run.cursor === 0 && !matchesGroup(def.trigger.when, ctx))
         ) {
             await tx
@@ -203,9 +204,11 @@ async function processClaim(
                 .set({
                     ...base,
                     state: "skipped",
-                    reason: ctx.internal
-                        ? "내부 고객·팀원은 자동화에서 제외했습니다."
-                        : "진입 조건에 맞지 않습니다.",
+                    reason: ctx.archived
+                        ? "보관된 고객·회사는 자동화에서 제외했습니다."
+                        : ctx.internal
+                          ? "내부 고객·팀원은 자동화에서 제외했습니다."
+                          : "진입 조건에 맞지 않습니다.",
                 })
                 .where(eq(runs.id, run.id));
             return;

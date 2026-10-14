@@ -1,4 +1,5 @@
 "use client";
+import { AttributesEditor } from "@/components/customer-records/ui/AttributesEditor";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { X, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
@@ -54,6 +55,12 @@ export function EntityEditor({
         ) as Task | undefined,
         contact = item as Contact | undefined,
         company = item as Company | undefined;
+    const [attributes, setAttributes] = useState<Record<string, unknown>>(() =>
+            resource === "contacts"
+                ? (contact?.attributes ?? {})
+                : (company?.attributes ?? {}),
+        ),
+        [attributesError, setAttributesError] = useState("");
     const [busy, setBusy] = useState(false),
         [error, setError] = useState("");
     const [newExternalId] = useState(() => `manual:${crypto.randomUUID()}`);
@@ -72,6 +79,10 @@ export function EntityEditor({
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (readOnly) return;
+        if (attributesError) {
+            setError(attributesError);
+            return;
+        }
         setBusy(true);
         setError("");
         const data = new FormData(event.currentTarget),
@@ -118,10 +129,15 @@ export function EntityEditor({
         else if (resource === "contacts")
             body = {
                 workspaceId,
-                externalId:
-                    contact?.externalId ??
-                    (text(data, "externalId").trim() || newExternalId),
+                ...(!contact
+                    ? {
+                          externalId:
+                              text(data, "externalId").trim() || newExternalId,
+                      }
+                    : {}),
                 name: text(data, "name"),
+                ...(contact ? { version: contact.version } : {}),
+                attributes,
                 email: text(data, "email") || null,
                 phone: text(data, "phone") || null,
                 lifecycleStage: text(data, "lifecycleStage"),
@@ -131,10 +147,15 @@ export function EntityEditor({
         else
             body = {
                 workspaceId,
-                externalId:
-                    company?.externalId ??
-                    (text(data, "externalId").trim() || newExternalId),
+                ...(!company
+                    ? {
+                          externalId:
+                              text(data, "externalId").trim() || newExternalId,
+                      }
+                    : {}),
                 name: text(data, "name"),
+                ...(company ? { version: company.version } : {}),
+                attributes,
                 domain: text(data, "domain") || null,
             };
         try {
@@ -155,11 +176,33 @@ export function EntityEditor({
                         defaultValue={deal?.contactId ?? task?.contactId ?? ""}
                     >
                         <option value="">연결 없음</option>
-                        {contacts.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
+                        {(deal?.contactId ?? task?.contactId) &&
+                            !contacts.some(
+                                (c) =>
+                                    c.id ===
+                                    (deal?.contactId ?? task?.contactId),
+                            ) && (
+                                <option
+                                    value={
+                                        deal?.contactId ?? task?.contactId ?? ""
+                                    }
+                                >
+                                    기존 연결 고객
+                                </option>
+                            )}
+                        {contacts
+                            .filter(
+                                (c) =>
+                                    !c.archivedAt ||
+                                    c.id ===
+                                        (deal?.contactId ?? task?.contactId),
+                            )
+                            .map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}
+                                    {c.archivedAt ? " · 보관됨" : ""}
+                                </option>
+                            ))}
                     </select>
                 </Field>
                 <Field label="회사">
@@ -169,11 +212,33 @@ export function EntityEditor({
                         defaultValue={deal?.companyId ?? task?.companyId ?? ""}
                     >
                         <option value="">연결 없음</option>
-                        {companies.map((c) => (
-                            <option key={c.id} value={c.id}>
-                                {c.name}
-                            </option>
-                        ))}
+                        {(deal?.companyId ?? task?.companyId) &&
+                            !companies.some(
+                                (c) =>
+                                    c.id ===
+                                    (deal?.companyId ?? task?.companyId),
+                            ) && (
+                                <option
+                                    value={
+                                        deal?.companyId ?? task?.companyId ?? ""
+                                    }
+                                >
+                                    기존 연결 회사
+                                </option>
+                            )}
+                        {companies
+                            .filter(
+                                (c) =>
+                                    !c.archivedAt ||
+                                    c.id ===
+                                        (deal?.companyId ?? task?.companyId),
+                            )
+                            .map((c) => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name}
+                                    {c.archivedAt ? " · 보관됨" : ""}
+                                </option>
+                            ))}
                     </select>
                 </Field>
                 <Field label="담당자">
@@ -190,7 +255,6 @@ export function EntityEditor({
                             ) && (
                                 <option
                                     value={deal?.ownerId ?? task?.ownerId ?? ""}
-                                    disabled
                                 >
                                     기존 담당자 · 현재 배정 불가
                                 </option>
@@ -249,10 +313,23 @@ export function EntityEditor({
                 <form onSubmit={submit} className="space-y-5">
                     {readOnly && (
                         <p className="text-sm text-muted-foreground">
-                            조회 권한으로 보고 있습니다.
+                            {item &&
+                            (resource === "contacts" ||
+                                resource === "companies") &&
+                            (item as Contact | Company).archivedAt
+                                ? "보관된 정보입니다. 복구 후 수정할 수 있습니다."
+                                : "조회 권한으로 보고 있습니다."}
                         </p>
                     )}
                     <fieldset disabled={readOnly} className="space-y-5">
+                        {item &&
+                            (resource === "contacts" ||
+                                resource === "companies") && (
+                                <p className="break-all text-xs text-muted-foreground">
+                                    외부 번호:{" "}
+                                    {(item as Contact | Company).externalId}
+                                </p>
+                            )}
                         {!item && (
                             <details className="rounded-lg border p-3">
                                 <summary className="cursor-pointer text-xs text-muted-foreground">
@@ -580,22 +657,33 @@ export function EntityEditor({
                                         연결 회사
                                     </legend>
                                     <div className="max-h-40 space-y-2 overflow-y-auto">
-                                        {companies.map((c) => (
-                                            <label
-                                                key={c.id}
-                                                className="flex gap-2 text-sm"
-                                            >
-                                                <input
-                                                    type="checkbox"
-                                                    name="companyIds"
-                                                    value={c.id}
-                                                    defaultChecked={contact?.companyIds.includes(
+                                        {companies
+                                            .filter(
+                                                (c) =>
+                                                    !c.archivedAt ||
+                                                    contact?.companyIds.includes(
                                                         c.id,
-                                                    )}
-                                                />
-                                                {c.name}
-                                            </label>
-                                        ))}
+                                                    ),
+                                            )
+                                            .map((c) => (
+                                                <label
+                                                    key={c.id}
+                                                    className="flex gap-2 text-sm"
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        name="companyIds"
+                                                        value={c.id}
+                                                        defaultChecked={contact?.companyIds.includes(
+                                                            c.id,
+                                                        )}
+                                                    />
+                                                    {c.name}
+                                                    {c.archivedAt
+                                                        ? " · 보관됨"
+                                                        : ""}
+                                                </label>
+                                            ))}
                                         {contact?.companyIds
                                             .filter(
                                                 (id) =>
@@ -653,6 +741,16 @@ export function EntityEditor({
                                 />
                             </Field>
                         )}
+                        {(resource === "contacts" ||
+                            resource === "companies") && (
+                            <AttributesEditor
+                                initial={attributes}
+                                onChange={(value, error) => {
+                                    setAttributes(value);
+                                    setAttributesError(error);
+                                }}
+                            />
+                        )}
                     </fieldset>
                     {error && (
                         <p
@@ -666,7 +764,7 @@ export function EntityEditor({
                         {!readOnly && (
                             <button
                                 className="rounded-lg bg-violet-600 px-5 py-2 text-sm text-white"
-                                disabled={busy}
+                                disabled={busy || !!attributesError}
                             >
                                 {busy ? "저장 중…" : "저장"}
                             </button>

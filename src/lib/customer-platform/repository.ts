@@ -1,4 +1,8 @@
-import { randomUUID } from "node:crypto";
+import {
+    appendCustomerAudit,
+    type CustomerWrite,
+} from "@/lib/customer-records/audit";
+import { objectListInput } from "@/lib/customer-records/rules";
 import { enqueuePlatformEvent } from "./outbox";
 import { and, desc, eq, ilike, inArray, lt, or, sql } from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
@@ -14,9 +18,19 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "@/lib/inbox/errors";
-import { companyInput, contactInput, eventInput } from "./rules";
+import {
+    attributesInput,
+    companyInput,
+    contactInput,
+    eventInput,
+} from "./rules";
 import { appendActivity } from "./activities";
 
+function definedValues<T extends object>(value: T): T {
+    return Object.fromEntries(
+        Object.entries(value).filter(([, v]) => v !== undefined),
+    ) as T;
+}
 export async function requirePlatformWorkspace(
     orgId: string,
     workspaceId: number,
@@ -37,8 +51,10 @@ export async function upsertCompany(
     raw: unknown,
     mayUpdate: boolean,
     exec: DbExec = db,
+    write: CustomerWrite = {},
 ) {
-    const input = companyInput.parse(raw);
+    const { version, ...parsed } = companyInput.parse(raw);
+    const input = definedValues(parsed);
     await requirePlatformWorkspace(orgId, input.workspaceId, exec);
     return exec.transaction(async (tx) => {
         await tx
@@ -57,30 +73,44 @@ export async function upsertCompany(
             );
         if (before && !mayUpdate)
             throw new InboxError("기존 회사의 수정 권한이 필요합니다.", 403);
+        if (version !== undefined && version !== (before?.version ?? 0))
+            throw new InboxError(
+                "다른 사람이 고객 정보를 변경했습니다. 최신 내용을 불러온 뒤 다시 저장해주세요.",
+                409,
+            );
+        const attributes = attributesInput.parse(
+            write.replaceAttributes
+                ? (input.attributes ?? before?.attributes ?? {})
+                : { ...before?.attributes, ...input.attributes },
+        );
         const next = before
             ? {
                   ...before,
                   ...input,
-                  attributes: { ...before.attributes, ...input.attributes },
+                  attributes,
               }
             : null;
         if (before && isDeepStrictEqual(before, next)) return before;
-        const insert = tx.insert(crmCompanies).values({ ...input, orgId });
+        const insert = tx
+            .insert(crmCompanies)
+            .values({ ...input, orgId, attributes });
         const [saved] = await insert
             .onConflictDoUpdate({
                 target: [crmCompanies.workspaceId, crmCompanies.externalId],
                 set: {
                     ...input,
-                    attributes: next?.attributes ?? input.attributes,
+                    attributes,
+                    version: before ? before.version + 1 : 1,
                     updatedAt: new Date(),
                 },
             })
             .returning();
+        await appendCustomerAudit(tx, "companies", before, saved, write);
         await enqueuePlatformEvent(tx, {
             orgId,
             workspaceId: input.workspaceId,
             key: before
-                ? `company:${saved.id}:${randomUUID()}`
+                ? `company:${saved.id}:v${saved.version}`
                 : `company:${saved.id}:created`,
             type: before ? "company.updated" : "company.created",
             data: { company: saved },
@@ -93,8 +123,10 @@ export async function upsertContact(
     raw: unknown,
     mayUpdate: boolean,
     exec: DbExec = db,
+    write: CustomerWrite = {},
 ) {
-    const { companyIds, ...input } = contactInput.parse(raw);
+    const { version, companyIds, ...parsed } = contactInput.parse(raw);
+    const input = definedValues(parsed);
     await requirePlatformWorkspace(orgId, input.workspaceId, exec);
     return exec.transaction(async (tx) => {
         await tx
@@ -119,11 +151,21 @@ export async function upsertContact(
             : [];
         if (before && !mayUpdate)
             throw new InboxError("기존 고객의 수정 권한이 필요합니다.", 403);
+        if (version !== undefined && version !== (before?.version ?? 0))
+            throw new InboxError(
+                "다른 사람이 고객 정보를 변경했습니다. 최신 내용을 불러온 뒤 다시 저장해주세요.",
+                409,
+            );
+        const attributes = attributesInput.parse(
+            write.replaceAttributes
+                ? (input.attributes ?? before?.attributes ?? {})
+                : { ...before?.attributes, ...input.attributes },
+        );
         const next = before
             ? {
                   ...before,
                   ...input,
-                  attributes: { ...before.attributes, ...input.attributes },
+                  attributes,
               }
             : null;
         const linksChanged =
@@ -155,7 +197,10 @@ export async function upsertContact(
         }
         if (companyIds?.length) {
             const companies = await tx
-                .select({ id: crmCompanies.id })
+                .select({
+                    id: crmCompanies.id,
+                    archivedAt: crmCompanies.archivedAt,
+                })
                 .from(crmCompanies)
                 .where(
                     and(
@@ -164,19 +209,31 @@ export async function upsertContact(
                         eq(crmCompanies.workspaceId, input.workspaceId),
                     ),
                 );
+            if (
+                companies.some(
+                    (c) =>
+                        c.archivedAt &&
+                        !previousLinks.some((l) => l.companyId === c.id),
+                )
+            )
+                throw new InboxError(
+                    "보관된 회사는 새로 연결할 수 없습니다. 회사 보관함에서 먼저 복구해주세요.",
+                    409,
+                );
             if (companies.length !== new Set(companyIds).size)
                 throw new InboxError("같은 사업의 회사만 연결할 수 있습니다.");
         }
-        const insert = tx.insert(crmContacts).values({ ...input, orgId });
+        const insert = tx
+            .insert(crmContacts)
+            .values({ ...input, orgId, attributes });
         const [contact] = mayUpdate
             ? await insert
                   .onConflictDoUpdate({
                       target: [crmContacts.workspaceId, crmContacts.externalId],
                       set: {
                           ...input,
-                          attributes: input.attributes
-                              ? sql`${crmContacts.attributes} || ${JSON.stringify(input.attributes)}::jsonb`
-                              : undefined,
+                          attributes,
+                          version: before ? before.version + 1 : 1,
                           updatedAt: new Date(),
                       },
                   })
@@ -247,11 +304,23 @@ export async function upsertContact(
             .from(crmContactCompanies)
             .where(eq(crmContactCompanies.contactId, contact.id));
         const saved = { ...contact, companyIds: links.map((l) => l.companyId) };
+        await appendCustomerAudit(
+            tx,
+            "contacts",
+            before
+                ? {
+                      ...before,
+                      companyIds: previousLinks.map((l) => l.companyId),
+                  }
+                : null,
+            saved,
+            write,
+        );
         await enqueuePlatformEvent(tx, {
             orgId,
             workspaceId: input.workspaceId,
             key: before
-                ? `contact:${contact.id}:${randomUUID()}`
+                ? `contact:${contact.id}:v${contact.version}`
                 : `contact:${contact.id}:created`,
             type: before ? "contact.updated" : "contact.created",
             data: { contact: saved },
@@ -285,9 +354,11 @@ export async function listPlatformObjects(
     before?: string,
     exec: DbExec = db,
     q = "",
+    archived: "false" | "true" | "all" = "false",
 ) {
     await requirePlatformWorkspace(orgId, workspaceId, exec);
     const table = kind === "contacts" ? crmContacts : crmCompanies;
+    archived = objectListInput.parse({ archived }).archived;
     const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
     const rows = await exec
         .select()
@@ -296,6 +367,11 @@ export async function listPlatformObjects(
             and(
                 eq(table.orgId, orgId),
                 eq(table.workspaceId, workspaceId),
+                archived === "all"
+                    ? undefined
+                    : archived === "true"
+                      ? sql`${table.archivedAt} IS NOT NULL`
+                      : sql`${table.archivedAt} IS NULL`,
                 before ? lt(table.id, before) : undefined,
                 q
                     ? or(

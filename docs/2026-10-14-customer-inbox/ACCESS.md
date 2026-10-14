@@ -60,3 +60,5 @@ Chrome에서는 실제 제품 컴포넌트를 격리 PGlite에 연결해 디하 
 근거: 제공 리서치의 [Opencom 데이터 모델 `workspaceMembers`](https://github.com/opencom-org/opencom/blob/bf928a43bf75baee793886efe9cfa68d4f39b659/docs/data-model.md)는 사업 멤버와 owner/admin/agent/viewer 역할을 명시한다. 샌드비에서는 기존 조직 소유자/관리자를 유지하고 사업 역할에 viewer/agent/manager를 독립 구현했다. 외부 코드를 복사하거나 타 서비스의 비공개 권한 엔진을 관찰한 것으로 주장하지 않는다. 원본 확인/고정 소스 근거는 [RESEARCH-APPLIED.md](RESEARCH-APPLIED.md), 파일/스크린샷/검사 로그 해시는 `evidence-manifest.json`의 `accessQa`에 있다.
 
 남은 R14 범위: CRM 필드/객체 전체 감사와 보존·삭제·복구 정책, 실제 조직/계정 전환 검수, 기존 업무 영역과의 세부 정책 정합성 검토. 세 서비스 전체 대체와 실제 설치/자료 이전/부하/전환 검수는 계속 [REPLACEMENT.md](REPLACEMENT.md)에서 추적한다.
+
+고객·회사 보관/복구 추가(0103): 읽기는 viewer 이상, 편집은 agent 이상, 보관·복구는 manager/조직 관리자다. 서비스 키는 보관에 delete 범위, 복구에 update 범위가 추가로 필요하다. 상담/회원 ID를 폐기하지 않으며 실제 직원 권한 배정 없이 가상 계정으로 확인했다. [CUSTOMER-RECORDS.md](CUSTOMER-RECORDS.md) 참고.

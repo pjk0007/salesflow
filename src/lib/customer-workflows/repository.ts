@@ -342,6 +342,7 @@ export async function simulateWorkflow(
         def = revision.definition,
         matched =
             !context.internal &&
+            !context.archived &&
             matchesTriggerEvent(def.trigger, event.payload) &&
             matchesGroup(def.trigger.when, context);
     const report: {

@@ -112,6 +112,18 @@ export function CustomerCrmContext({
                 </p>
             ) : data.contact ? (
                 <>
+                    {data.contact.archivedAt && (
+                        <p className="rounded border p-2 text-xs">
+                            보관된 고객입니다. 기존 상담·거래 이력으로 응대할 수
+                            있습니다.{" "}
+                            <a
+                                className="underline"
+                                href={`/customer-crm?workspaceId=${data.workspaceId}&resource=contacts&archived=all&q=${encodeURIComponent(data.contact.name)}`}
+                            >
+                                고객 보관 정보 보기
+                            </a>
+                        </p>
+                    )}
                     <div className="space-y-2 text-xs">
                         {data.companies.length ? (
                             data.companies.map((company) => (
@@ -120,6 +132,7 @@ export function CustomerCrmContext({
                                     className="rounded-lg bg-muted/50 px-3 py-2"
                                 >
                                     {company.name}
+                                    {company.archivedAt ? " · 보관됨" : ""}
                                     {company.domain && (
                                         <span className="mt-1 block text-muted-foreground">
                                             {company.domain}

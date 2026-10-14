@@ -117,6 +117,7 @@ export async function applyImportRow(
                 },
                 true,
                 tx,
+                { actor, source: "import" },
             );
             targetId = saved.id;
         }
@@ -142,22 +143,43 @@ export async function applyImportRow(
                     },
                     true,
                     tx,
+                    { actor, source: "import" },
                 );
                 targetId = saved.id;
             } else if (
                 targetId &&
                 row.operation === "link" &&
                 companyIds.length
-            )
-                await tx
-                    .insert(crmContactCompanies)
-                    .values(
-                        companyIds.map((companyId) => ({
-                            contactId: targetId!,
-                            companyId: companyId!,
-                        })),
-                    )
-                    .onConflictDoNothing();
+            ) {
+                const [contact] = await tx
+                    .select()
+                    .from(crmContacts)
+                    .where(eq(crmContacts.id, targetId));
+                const links = await tx
+                    .select({ id: crmContactCompanies.companyId })
+                    .from(crmContactCompanies)
+                    .where(eq(crmContactCompanies.contactId, targetId));
+                await upsertContact(
+                    actor.orgId,
+                    {
+                        workspaceId: scope.workspaceId,
+                        externalId: contact.externalId,
+                        name: contact.name,
+                        version: contact.version,
+                        companyIds: [
+                            ...new Set([
+                                ...links.map((l) => l.id),
+                                ...companyIds.filter(
+                                    (id): id is string => !!id,
+                                ),
+                            ]),
+                        ],
+                    },
+                    true,
+                    tx,
+                    { actor, source: "import" },
+                );
+            }
         }
         if (row.kind === "pipelines" && modifying) {
             const stages = (

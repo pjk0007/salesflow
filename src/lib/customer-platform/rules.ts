@@ -8,6 +8,7 @@ export const attributesInput = z
 export const companyInput = z
     .object({
         workspaceId: z.number().int().positive(),
+        version: z.number().int().positive().optional(),
         externalId: z.string().trim().min(1).max(200),
         name: z.string().trim().min(1).max(200),
         domain: z
@@ -24,6 +25,7 @@ export const companyInput = z
 export const contactInput = z
     .object({
         workspaceId: z.number().int().positive(),
+        version: z.number().int().positive().optional(),
         externalId: z.string().trim().min(1).max(200),
         name: z.string().trim().min(1).max(100),
         email: z

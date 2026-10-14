@@ -722,6 +722,13 @@
       "when": 1792022400000,
       "tag": "0102_customer_workspace_access",
       "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1792026000000,
+      "tag": "0103_crm_object_lifecycle",
+      "breakpoints": true
     }
   ]
 }

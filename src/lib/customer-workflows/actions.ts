@@ -223,9 +223,11 @@ export async function executeWorkflowAction(
                 externalId: c.externalId,
                 name: c.name,
                 lifecycleStage: step.stage,
+                version: c.version,
             },
             true,
             exec,
+            { actor, source: "workflow" },
         );
         return { contactId: saved.id, stage: step.stage };
     }

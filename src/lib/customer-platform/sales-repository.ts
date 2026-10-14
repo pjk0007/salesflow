@@ -117,6 +117,12 @@ async function relations(
         dealId?: string | null;
     },
     exec: DbExec,
+    previous?: {
+        contactId?: string | null;
+        companyId?: string | null;
+        ownerId?: string | null;
+        dealId?: string | null;
+    },
 ) {
     for (const [id, table, label] of [
         [input.contactId, crmContacts, "고객"],
@@ -124,8 +130,14 @@ async function relations(
         [input.dealId, crmDeals, "딜"],
     ] as const) {
         if (!id) continue;
+        const previousId =
+            table === crmContacts
+                ? previous?.contactId
+                : table === crmCompanies
+                  ? previous?.companyId
+                  : previous?.dealId;
         const [row] = await exec
-            .select({ id: table.id })
+            .select({ id: table.id, archivedAt: table.archivedAt })
             .from(table)
             .where(
                 and(
@@ -134,10 +146,15 @@ async function relations(
                     eq(table.workspaceId, workspaceId),
                 ),
             );
+        if (row?.archivedAt && id !== previousId)
+            throw new InboxError(
+                "보관된 고객·회사·거래는 새로 연결할 수 없습니다. 먼저 복구해주세요.",
+                409,
+            );
         if (!row)
             throw new InboxError(`같은 사업의 ${label}만 연결할 수 있습니다.`);
     }
-    if (input.ownerId) {
+    if (input.ownerId && input.ownerId !== previous?.ownerId) {
         const [member] = await exec
             .select({ id: users.id })
             .from(users)
@@ -438,7 +455,7 @@ export async function patchSales(
                     .from(crmDeals)
                     .where(eq(crmDeals.id, id));
             const next = { ...old, ...change };
-            await relations(actor, workspaceId, next, tx);
+            await relations(actor, workspaceId, next, tx, old);
             const { stage } = await dealPipeline(
                 actor,
                 workspaceId,
@@ -526,7 +543,7 @@ export async function patchSales(
         }
         const { version, ...change } = taskPatch.parse(input),
             [old] = await tx.select().from(crmTasks).where(eq(crmTasks.id, id));
-        await relations(actor, workspaceId, { ...old, ...change }, tx);
+        await relations(actor, workspaceId, { ...old, ...change }, tx, old);
         const [saved] = await tx
             .update(crmTasks)
             .set({

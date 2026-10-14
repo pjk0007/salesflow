@@ -23,6 +23,7 @@ export type {
 /** 샌드비 서비스 서버용 클라이언트. API 토큰은 사이트 서버에만 둡니다. */
 export { verifySendbWebhook } from "./webhooks";
 export interface SendbCompanyInput {
+    version?: number;
     workspaceId: number;
     externalId: string;
     name: string;
@@ -30,6 +31,7 @@ export interface SendbCompanyInput {
     attributes?: Record<string, unknown>;
 }
 export interface SendbContactInput {
+    version?: number;
     workspaceId: number;
     externalId: string;
     name: string;
@@ -42,11 +44,65 @@ export interface SendbContactInput {
     attributes?: Record<string, unknown>;
 }
 export interface SendbContact extends SendbContactInput {
+    version: number;
+    archivedAt: string | null;
     id: string;
     companyIds: string[];
 }
 export interface SendbCompany extends SendbCompanyInput {
+    version: number;
+    archivedAt: string | null;
     id: string;
+}
+export interface SendbCustomerList {
+    before?: string;
+    q?: string;
+    archived?: "false" | "true" | "all";
+}
+export interface SendbCustomerHistory {
+    id: string;
+    version: number;
+    action: string;
+    actorName: string;
+    source: string;
+    createdAt: string;
+    reason: string;
+    changes: Record<
+        string,
+        {
+            before: unknown;
+            after: unknown;
+            beforePresent: boolean;
+            afterPresent: boolean;
+            beforeLabel?: string;
+            afterLabel?: string;
+        }
+    >;
+}
+export interface SendbCustomerDetail<T> {
+    item: T;
+    history: SendbCustomerHistory[];
+    hasMore: boolean;
+    creationTracked: boolean;
+    impact: {
+        deals: number;
+        tasks: number;
+        conversations: number;
+        pendingWorkflows: number;
+    };
+}
+function customerQuery(
+    workspaceId: number,
+    options?: string | SendbCustomerList,
+) {
+    const value =
+        typeof options === "string" ? { before: options } : (options ?? {});
+    return new URLSearchParams({
+        workspaceId: String(workspaceId),
+        ...Object.fromEntries(
+            Object.entries(value).filter(([, v]) => v !== undefined),
+        ),
+    }).toString();
 }
 export interface SendbIdentity {
     identityToken: string;
@@ -749,14 +805,96 @@ export class SendbClient {
             input,
         );
     }
-    listContacts(workspaceId: number, before?: string) {
+    listContacts(workspaceId: number, options?: string | SendbCustomerList) {
         return this.request<SendbContact[]>(
-            `/api/v1/crm/contacts?workspaceId=${workspaceId}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+            `/api/v1/crm/contacts?${customerQuery(workspaceId, options)}`,
         );
     }
-    listCompanies(workspaceId: number, before?: string) {
+    listCompanies(workspaceId: number, options?: string | SendbCustomerList) {
         return this.request<SendbCompany[]>(
-            `/api/v1/crm/companies?workspaceId=${workspaceId}${before ? `&before=${encodeURIComponent(before)}` : ""}`,
+            `/api/v1/crm/companies?${customerQuery(workspaceId, options)}`,
+        );
+    }
+    contact(workspaceId: number, id: string, before?: string) {
+        return this.request<SendbCustomerDetail<SendbContact>>(
+            `/api/v1/crm/contacts/${encodeURIComponent(id)}?${customerQuery(workspaceId, before)}`,
+        );
+    }
+    company(workspaceId: number, id: string, before?: string) {
+        return this.request<SendbCustomerDetail<SendbCompany>>(
+            `/api/v1/crm/companies/${encodeURIComponent(id)}?${customerQuery(workspaceId, before)}`,
+        );
+    }
+    updateContact(
+        id: string,
+        input: { workspaceId: number; version: number } & Partial<
+            Omit<SendbContactInput, "workspaceId" | "externalId" | "version">
+        >,
+    ) {
+        return this.request<SendbContact>(
+            `/api/v1/crm/contacts/${encodeURIComponent(id)}`,
+            "PATCH",
+            input,
+        );
+    }
+    updateCompany(
+        id: string,
+        input: { workspaceId: number; version: number } & Partial<
+            Omit<SendbCompanyInput, "workspaceId" | "externalId" | "version">
+        >,
+    ) {
+        return this.request<SendbCompany>(
+            `/api/v1/crm/companies/${encodeURIComponent(id)}`,
+            "PATCH",
+            input,
+        );
+    }
+    archiveContact(
+        workspaceId: number,
+        id: string,
+        version: number,
+        reason = "",
+    ) {
+        return this.request<{ item: SendbContact; cancelledWorkflows: number }>(
+            `/api/v1/crm/contacts/${encodeURIComponent(id)}`,
+            "POST",
+            { workspaceId, version, action: "archive", reason },
+        );
+    }
+    restoreContact(
+        workspaceId: number,
+        id: string,
+        version: number,
+        reason = "",
+    ) {
+        return this.request<{ item: SendbContact; cancelledWorkflows: number }>(
+            `/api/v1/crm/contacts/${encodeURIComponent(id)}`,
+            "POST",
+            { workspaceId, version, action: "restore", reason },
+        );
+    }
+    archiveCompany(
+        workspaceId: number,
+        id: string,
+        version: number,
+        reason = "",
+    ) {
+        return this.request<{ item: SendbCompany; cancelledWorkflows: number }>(
+            `/api/v1/crm/companies/${encodeURIComponent(id)}`,
+            "POST",
+            { workspaceId, version, action: "archive", reason },
+        );
+    }
+    restoreCompany(
+        workspaceId: number,
+        id: string,
+        version: number,
+        reason = "",
+    ) {
+        return this.request<{ item: SendbCompany; cancelledWorkflows: number }>(
+            `/api/v1/crm/companies/${encodeURIComponent(id)}`,
+            "POST",
+            { workspaceId, version, action: "restore", reason },
         );
     }
     customerIdentity(channelId: number, contactId: string) {

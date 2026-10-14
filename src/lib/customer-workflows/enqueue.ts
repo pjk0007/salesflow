@@ -1,3 +1,4 @@
+import { workflowContext } from "./context";
 import { and, eq, sql } from "drizzle-orm";
 import {
     customerWorkflows as workflows,
@@ -19,7 +20,8 @@ export async function enqueueWorkflowRuns(
         workflowRunId: string | null;
     },
 ) {
-    if (event.workflowRunId) return;
+    if (event.workflowRunId || event.payload.data.administrative === true)
+        return;
     const candidates = await exec
         .select({ workflow: workflows, revision: revisions })
         .from(workflows)
@@ -33,6 +35,14 @@ export async function enqueueWorkflowRuns(
             ),
         )
         .for("share", { of: workflows });
+    if (!candidates.length) return;
+    const context = await workflowContext(
+        event.orgId,
+        event.workspaceId,
+        event.payload as unknown as Record<string, unknown>,
+        exec,
+    );
+    if (context.archived) return;
     for (const { workflow, revision } of candidates) {
         if (!matchesTriggerEvent(revision.definition.trigger, event.payload))
             continue;
@@ -45,6 +55,8 @@ export async function enqueueWorkflowRuns(
                 revisionId: revision.id,
                 generation: workflow.generation,
                 eventId: event.id,
+                subjectContactId: context.contact?.id ?? null,
+                subjectCompanyId: context.company?.id ?? null,
                 eventSnapshot: event.payload as unknown as Record<
                     string,
                     unknown

@@ -73,7 +73,9 @@ async function fixture() {
         schema.emailCopyAssignments,
     ])
         await pg.exec(ddl(table));
-    await pg.exec('CREATE UNIQUE INDEX qa_ai_usage_month ON ai_usage_quotas(org_id,month)');
+    await pg.exec(
+        "CREATE UNIQUE INDEX qa_ai_usage_month ON ai_usage_quotas(org_id,month)",
+    );
     for (const migration of [
         "0088_customer_inbox.sql",
         "0089_customer_platform.sql",
@@ -90,6 +92,7 @@ async function fixture() {
         "0100_inbox_google_connection.sql",
         "0101_inbox_operations.sql",
         "0102_customer_workspace_access.sql",
+        "0103_crm_object_lifecycle.sql",
     ])
         for (const statement of fs
             .readFileSync(
@@ -153,9 +156,25 @@ async function fixture() {
             data: {},
         },
     ]);
-    const conn=async(strings,...params)=>(await pg.query(strings.reduce((s,p,i)=>s+p+(i<params.length?`$${i+1}`:""),""),params)).rows;
-    conn.release=()=>{};
-    return { pg, db, actor, otherActor,queryClient:{reserve:async()=>conn},conn };
+    const conn = async (strings, ...params) =>
+        (
+            await pg.query(
+                strings.reduce(
+                    (s, p, i) => s + p + (i < params.length ? `$${i + 1}` : ""),
+                    "",
+                ),
+                params,
+            )
+        ).rows;
+    conn.release = () => {};
+    return {
+        pg,
+        db,
+        actor,
+        otherActor,
+        queryClient: { reserve: async () => conn },
+        conn,
+    };
 }
 async function runCheck(extra) {
     const ctx = await fixture(),
@@ -386,7 +405,10 @@ async function runCheck(extra) {
                 repo.visitorDetail(channel.publicKey, "0".repeat(64), db),
                 (e) => e.status === 401,
             );
-            await assert.rejects(repo.listConversations(otherActor, channel.id, db), e => e.status === 404);
+            await assert.rejects(
+                repo.listConversations(otherActor, channel.id, db),
+                (e) => e.status === 404,
+            );
         });
         await check("담당자는 같은 조직의 활성 팀원", async () => {
             await assert.rejects(
@@ -520,12 +542,28 @@ async function runCheck(extra) {
         await check(
             "관리자만 상담창 설정 · 타 조직 워크스페이스 차단",
             async () => {
-                await db.update(schema.organizationMembers).set({ role: "member" }).where(require("drizzle-orm").eq(schema.organizationMembers.userId, actor.userId));
+                await db
+                    .update(schema.organizationMembers)
+                    .set({ role: "member" })
+                    .where(
+                        require("drizzle-orm").eq(
+                            schema.organizationMembers.userId,
+                            actor.userId,
+                        ),
+                    );
                 await assert.rejects(
                     repo.saveChannel({ ...actor, role: "owner" }, config, db),
                     (e) => e.status === 403,
                 );
-                await db.update(schema.organizationMembers).set({ role: "admin" }).where(require("drizzle-orm").eq(schema.organizationMembers.userId, actor.userId));
+                await db
+                    .update(schema.organizationMembers)
+                    .set({ role: "admin" })
+                    .where(
+                        require("drizzle-orm").eq(
+                            schema.organizationMembers.userId,
+                            actor.userId,
+                        ),
+                    );
                 await assert.rejects(
                     repo.saveChannel(actor, { ...config, workspaceId: 9 }, db),
                     (e) => e.status === 404,
@@ -620,15 +658,13 @@ async function runCheck(extra) {
                     lastMessageAt: new Date("2020-01-01"),
                 })
                 .returning();
-            await db
-                .insert(schema.inboxMessages)
-                .values({
-                    conversationId: old.id,
-                    clientId: randomUUID(),
-                    kind: "customer",
-                    body: "오래된 검색 전용 문장",
-                    authorName: "가상 고객",
-                });
+            await db.insert(schema.inboxMessages).values({
+                conversationId: old.id,
+                clientId: randomUUID(),
+                kind: "customer",
+                body: "오래된 검색 전용 문장",
+                authorName: "가상 고객",
+            });
             assert.ok(
                 !(await repo.listConversations(actor, channel.id, db)).some(
                     (c) => c.id === old.id,
@@ -647,21 +683,29 @@ async function runCheck(extra) {
                 [old.id],
             );
             assert.equal(result.counts.all, 1);
-            await assert.rejects(repo.conversationListPage(otherActor, channel.id, { q: "오래된 검색 전용 문장" }, undefined, undefined, db), e => e.status === 404);
+            await assert.rejects(
+                repo.conversationListPage(
+                    otherActor,
+                    channel.id,
+                    { q: "오래된 검색 전용 문장" },
+                    undefined,
+                    undefined,
+                    db,
+                ),
+                (e) => e.status === 404,
+            );
         });
         await check(
             "검색의 %·_는 전체 일치 문법이 아닌 문자로 처리",
             async () => {
-                await db
-                    .insert(schema.inboxConversations)
-                    .values(
-                        ["문자%_시험", "문자XX시험"].map((name, i) => ({
-                            orgId: org,
-                            channelId: channel.id,
-                            tokenHash: ("e" + i).repeat(32),
-                            name,
-                        })),
-                    );
+                await db.insert(schema.inboxConversations).values(
+                    ["문자%_시험", "문자XX시험"].map((name, i) => ({
+                        orgId: org,
+                        channelId: channel.id,
+                        tokenHash: ("e" + i).repeat(32),
+                        name,
+                    })),
+                );
                 const result = await repo.listConversations(
                     actor,
                     channel.id,

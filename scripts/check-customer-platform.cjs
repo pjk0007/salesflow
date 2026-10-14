@@ -71,45 +71,109 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [
+            /^\/api\/v1\/crm\/(contacts|companies)\/([a-f0-9-]+)$/,
+            (m) => `v1/crm/${m[1]}/[id]`,
+        ],
         [/^\/api\/inbox$/, () => "inbox"],
         [/^\/api\/inbox\/channels$/, () => "inbox/channels"],
-        [/^\/api\/inbox\/conversations\/([a-f0-9-]+)$/, () => "inbox/conversations/[id]"],
-        [/^\/api\/customer-crm\/(contacts|companies|pipelines|deals|tasks)(?:\/([a-f0-9-]+))?$/, m => `customer-crm/[resource]${m[2] ? "/[id]" : ""}`],
+        [
+            /^\/api\/inbox\/conversations\/([a-f0-9-]+)$/,
+            () => "inbox/conversations/[id]",
+        ],
+        [
+            /^\/api\/customer-crm\/(contacts|companies|pipelines|deals|tasks)(?:\/([a-f0-9-]+))?$/,
+            (m) => `customer-crm/[resource]${m[2] ? "/[id]" : ""}`,
+        ],
         [/^\/api\/customer-ai\/settings$/, () => "customer-ai/settings"],
         [/^\/api\/customer-workflows$/, () => "customer-workflows"],
         [/^\/api\/customer-imports$/, () => "customer-imports"],
-        [/^\/api\/customer-platform\/webhooks$/, () => "customer-platform/webhooks"],
+        [
+            /^\/api\/customer-platform\/webhooks$/,
+            () => "customer-platform/webhooks",
+        ],
 
-        [/^\/api\/customer-platform\/access$/, () => "customer-platform/access"],
-        [/^\/api\/inbox-notifications$/,()=>"inbox-notifications"],
-        [/^\/api\/inbox-operations\/channels\/(\d+)$/,()=>"inbox-operations/channels/[id]"],
-        [/^\/api\/inbox-operations\/reports$/,()=>"inbox-operations/reports"],
-        [/^\/api\/inbox-operations\/conversations\/([a-f0-9-]+)$/,()=>"inbox-operations/conversations/[id]"],
-        [/^\/api\/v1\/support\/notifications$/,()=>"v1/support/notifications"],
-        [/^\/api\/v1\/support\/channels\/(\d+)\/settings$/,()=>"v1/support/channels/[id]/settings"],
-        [/^\/api\/v1\/support\/reports$/,()=>"v1/support/reports"],
-        [/^\/api\/v1\/support\/conversations\/([a-f0-9-]+)$/,()=>"v1/support/conversations/[id]"],
+        [
+            /^\/api\/customer-platform\/access$/,
+            () => "customer-platform/access",
+        ],
+        [/^\/api\/inbox-notifications$/, () => "inbox-notifications"],
+        [
+            /^\/api\/inbox-operations\/channels\/(\d+)$/,
+            () => "inbox-operations/channels/[id]",
+        ],
+        [
+            /^\/api\/inbox-operations\/reports$/,
+            () => "inbox-operations/reports",
+        ],
+        [
+            /^\/api\/inbox-operations\/conversations\/([a-f0-9-]+)$/,
+            () => "inbox-operations/conversations/[id]",
+        ],
+        [
+            /^\/api\/v1\/support\/notifications$/,
+            () => "v1/support/notifications",
+        ],
+        [
+            /^\/api\/v1\/support\/channels\/(\d+)\/settings$/,
+            () => "v1/support/channels/[id]/settings",
+        ],
+        [/^\/api\/v1\/support\/reports$/, () => "v1/support/reports"],
+        [
+            /^\/api\/v1\/support\/conversations\/([a-f0-9-]+)$/,
+            () => "v1/support/conversations/[id]",
+        ],
 
-        [/^\/api\/email-mailboxes\/([a-f0-9-]+)\/google$/, () => "email-mailboxes/[id]/google"],
+        [
+            /^\/api\/email-mailboxes\/([a-f0-9-]+)\/google$/,
+            () => "email-mailboxes/[id]/google",
+        ],
         [/^\/api\/email-google\/callback$/, () => "email-google/callback"],
         [/^\/api\/email-files\/([a-f0-9-]+)$/, () => "email-files/[id]"],
-        [/^\/api\/v1\/email\/receipts\/([a-f0-9-]+)\/files$/, () => "v1/email/receipts/[id]/files"],
-        [/^\/api\/v1\/email\/files\/([a-f0-9-]+)$/, () => "v1/email/files/[id]"],
-        [/^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)\/files$/, () => "v1/email/mailboxes/[id]/files"],
-        [/^\/api\/v1\/email\/deliveries\/([a-f0-9-]+)\/files\/([a-f0-9-]+)$/, () => "v1/email/deliveries/[id]/files/[fileId]"],
+        [
+            /^\/api\/v1\/email\/receipts\/([a-f0-9-]+)\/files$/,
+            () => "v1/email/receipts/[id]/files",
+        ],
+        [
+            /^\/api\/v1\/email\/files\/([a-f0-9-]+)$/,
+            () => "v1/email/files/[id]",
+        ],
+        [
+            /^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)\/files$/,
+            () => "v1/email/mailboxes/[id]/files",
+        ],
+        [
+            /^\/api\/v1\/email\/deliveries\/([a-f0-9-]+)\/files\/([a-f0-9-]+)$/,
+            () => "v1/email/deliveries/[id]/files/[fileId]",
+        ],
         [/^\/api\/email-mailboxes$/, () => "email-mailboxes"],
-        [/^\/api\/email-mailboxes\/([a-f0-9-]+)$/, () => "email-mailboxes/[id]"],
-        [/^\/api\/email-deliveries\/([a-f0-9-]+)$/, () => "email-deliveries/[id]"],
+        [
+            /^\/api\/email-mailboxes\/([a-f0-9-]+)$/,
+            () => "email-mailboxes/[id]",
+        ],
+        [
+            /^\/api\/email-deliveries\/([a-f0-9-]+)$/,
+            () => "email-deliveries/[id]",
+        ],
         [/^\/api\/v1\/email\/mailboxes$/, () => "v1/email/mailboxes"],
-        [/^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)$/, () => "v1/email/mailboxes/[id]"],
-        [/^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)\/(receive|claim)$/, m => `v1/email/mailboxes/[id]/${m[2]}`],
-        [/^\/api\/v1\/email\/deliveries\/([a-f0-9-]+)$/, () => "v1/email/deliveries/[id]"],
+        [
+            /^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)$/,
+            () => "v1/email/mailboxes/[id]",
+        ],
+        [
+            /^\/api\/v1\/email\/mailboxes\/([a-f0-9-]+)\/(receive|claim)$/,
+            (m) => `v1/email/mailboxes/[id]/${m[2]}`,
+        ],
+        [
+            /^\/api\/v1\/email\/deliveries\/([a-f0-9-]+)$/,
+            () => "v1/email/deliveries/[id]",
+        ],
         [/^\/api\/v1\/imports$/, () => "v1/imports"],
         [/^\/api\/v1\/imports\/([a-f0-9-]+)$/, () => "v1/imports/[id]"],
         [/^\/api\/v1\/workflows$/, () => "v1/workflows"],
@@ -196,7 +260,14 @@ async function runPlatformCheck(extra) {
         pattern,
         file,
     }));
-    const filenames = ["inbox", "inbox/channels", "inbox/conversations/[id]", "customer-crm/[resource]", "customer-crm/[resource]/[id]",
+    const filenames = [
+        "v1/crm/contacts/[id]",
+        "v1/crm/companies/[id]",
+        "inbox",
+        "inbox/channels",
+        "inbox/conversations/[id]",
+        "customer-crm/[resource]",
+        "customer-crm/[resource]/[id]",
         "inbox-notifications",
         "inbox-operations/channels/[id]",
         "inbox-operations/reports",
@@ -206,10 +277,25 @@ async function runPlatformCheck(extra) {
         "v1/support/reports",
         "v1/support/conversations/[id]",
 
-        "email-mailboxes/[id]/google", "email-google/callback",
-        "email-files/[id]", "v1/email/receipts/[id]/files", "v1/email/files/[id]", "v1/email/mailboxes/[id]/files", "v1/email/deliveries/[id]/files/[fileId]",
-        "email-mailboxes", "email-mailboxes/[id]", "email-deliveries/[id]", "v1/email/mailboxes", "v1/email/mailboxes/[id]", "v1/email/mailboxes/[id]/receive", "v1/email/mailboxes/[id]/claim", "v1/email/deliveries/[id]",
-        "v1/imports", "v1/imports/[id]", "customer-imports", "customer-imports/[id]",
+        "email-mailboxes/[id]/google",
+        "email-google/callback",
+        "email-files/[id]",
+        "v1/email/receipts/[id]/files",
+        "v1/email/files/[id]",
+        "v1/email/mailboxes/[id]/files",
+        "v1/email/deliveries/[id]/files/[fileId]",
+        "email-mailboxes",
+        "email-mailboxes/[id]",
+        "email-deliveries/[id]",
+        "v1/email/mailboxes",
+        "v1/email/mailboxes/[id]",
+        "v1/email/mailboxes/[id]/receive",
+        "v1/email/mailboxes/[id]/claim",
+        "v1/email/deliveries/[id]",
+        "v1/imports",
+        "v1/imports/[id]",
+        "customer-imports",
+        "customer-imports/[id]",
         "v1/workflows",
         "v1/workflows/events",
         "v1/workflows/[id]",
@@ -300,13 +386,17 @@ async function runPlatformCheck(extra) {
         });
         return handler(request, {
             params: Promise.resolve({
-                id: definition.file(match).includes("[resource]")
-                    ? match[2]
-                    : definition
-                            .file(match)
-                            .includes("messenger/[key]/attachments/[id]")
-                      ? match[2]
-                      : match[1],
+                id:
+                    definition.file(match).includes("[resource]") ||
+                    /^v1\/crm\/(contacts|companies)\/\[id\]$/.test(
+                        definition.file(match),
+                    )
+                        ? match[2]
+                        : definition
+                                .file(match)
+                                .includes("messenger/[key]/attachments/[id]")
+                          ? match[2]
+                          : match[1],
                 fileId: match[2],
                 runId: match[2],
                 key: match[1],

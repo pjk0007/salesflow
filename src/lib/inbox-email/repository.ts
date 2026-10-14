@@ -1,3 +1,4 @@
+import { appendCustomerAudit } from "@/lib/customer-records/audit";
 import {
     requireCustomerAccess,
     customerAccessPredicate,
@@ -296,6 +297,14 @@ export async function receiveEmail(
                     set: { externalId },
                 })
                 .returning();
+            if (!existingContact)
+                await appendCustomerAudit(
+                    tx,
+                    "contacts",
+                    null,
+                    { ...contact, companyIds: [] },
+                    { actor, source: "email" },
+                );
             if (!existingContact)
                 await enqueuePlatformEvent(tx, {
                     orgId: actor.orgId,

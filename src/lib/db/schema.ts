@@ -34,6 +34,7 @@ export * from "./customer-ai-schema";
 export * from "./customer-workflow-schema";
 export * from "./customer-import-schema";
 export * from "./customer-access-schema";
+export * from "./customer-records-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });

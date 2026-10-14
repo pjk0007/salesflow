@@ -1,5 +1,6 @@
 "use client";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
+import { CustomerRecordPanel } from "@/components/customer-records/ui/CustomerRecordPanel";
 import { useState } from "react";
 import useSWR from "swr";
 import { useSearchParams } from "next/navigation";
@@ -52,6 +53,13 @@ export function CustomerCrmPage({ role }: { role: string }) {
         ),
         [query, setQuery] = useState(params.get("q") ?? ""),
         [archived, setArchived] = useState(false),
+        [objectView, setObjectView] = useState(
+            params.get("archived") === "all"
+                ? "all"
+                : params.get("archived") === "true"
+                  ? "archived"
+                  : "active",
+        ),
         [editor, setEditor] = useState<Editor | null>(null);
     const workspaceId = chosen ?? bootstrap.data?.workspaces[0]?.id ?? null;
     const { respond: canRespond, manage: canManage } = workspaceAbilities(
@@ -60,14 +68,29 @@ export function CustomerCrmPage({ role }: { role: string }) {
     );
     const [pending, setPending] = useState<string[]>([]);
     const pipelines = useCrmList<Pipeline>(workspaceId, "pipelines"),
-        contacts = useCrmList<Contact>(workspaceId, "contacts"),
-        companies = useCrmList<Company>(workspaceId, "companies");
+        contacts = useCrmList<Contact>(workspaceId, "contacts", {
+            archived: "all",
+        }),
+        companies = useCrmList<Company>(workspaceId, "companies", {
+            archived: "all",
+        });
     const current = useCrmList<Pipeline | Deal | Task | Contact | Company>(
         workspaceId,
         resource,
         {
             q: query,
-            ...(resource === "deals" ? { archived: String(archived) } : {}),
+            ...(resource === "deals"
+                ? { archived: String(archived) }
+                : resource === "contacts" || resource === "companies"
+                  ? {
+                        archived:
+                            objectView === "all"
+                                ? "all"
+                                : objectView === "archived"
+                                  ? "true"
+                                  : "false",
+                    }
+                  : {}),
         },
     );
     const allLists = [pipelines, contacts, companies, current],
@@ -79,9 +102,20 @@ export function CustomerCrmPage({ role }: { role: string }) {
         if (!editor || !workspaceId) return;
         const mutable =
                 editor.item &&
-                ["pipelines", "deals", "tasks"].includes(editor.resource),
+                [
+                    "pipelines",
+                    "deals",
+                    "tasks",
+                    "contacts",
+                    "companies",
+                ].includes(editor.resource),
             path = `/api/customer-crm/${editor.resource}${mutable ? "/" + editor.item!.id : ""}`;
         await crmWrite(path, body, mutable ? "PATCH" : "POST");
+        if (
+            !editor.item &&
+            (editor.resource === "contacts" || editor.resource === "companies")
+        )
+            setObjectView("active");
         setEditor(null);
         await refresh();
         toast.success("저장했습니다.");
@@ -227,6 +261,19 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                 </label>
                             )}
                         </div>
+                        {(resource === "contacts" ||
+                            resource === "companies") && (
+                            <select
+                                aria-label="고객·회사 보관 필터"
+                                className="rounded-lg border bg-background p-2 text-sm"
+                                value={objectView}
+                                onChange={(e) => setObjectView(e.target.value)}
+                            >
+                                <option value="active">사용 중</option>
+                                <option value="archived">보관함</option>
+                                <option value="all">전체</option>
+                            </select>
+                        )}
                         <button
                             className="flex items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-sm text-white disabled:opacity-50"
                             disabled={
@@ -446,6 +493,12 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                                 {"title" in row
                                                     ? row.title
                                                     : row.name}
+                                                {"archivedAt" in row &&
+                                                    row.archivedAt && (
+                                                        <span className="ml-2 text-xs text-muted-foreground">
+                                                            보관됨
+                                                        </span>
+                                                    )}
                                             </p>
                                             <p className="mt-1 text-xs text-muted-foreground">
                                                 {resource === "tasks"
@@ -498,7 +551,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
                 <EntityEditor
                     readOnly={
                         !canRespond ||
-                        (editor.resource === "pipelines" && !canManage)
+                        (editor.resource === "pipelines" && !canManage) ||
+                        ((editor.resource === "contacts" ||
+                            editor.resource === "companies") &&
+                            !!(editor.item as Contact | Company)?.archivedAt)
                     }
                     key={
                         editor.resource +
@@ -522,13 +578,22 @@ export function CustomerCrmPage({ role }: { role: string }) {
                     onSave={save}
                     onReload={
                         editor.item &&
-                        ["deals", "tasks", "pipelines"].includes(
-                            editor.resource,
-                        )
+                        [
+                            "deals",
+                            "tasks",
+                            "pipelines",
+                            "contacts",
+                            "companies",
+                        ].includes(editor.resource)
                             ? async () => {
                                   try {
                                       const value = await crmRequest<{
-                                          item: Deal | Task | Pipeline;
+                                          item:
+                                              | Deal
+                                              | Task
+                                              | Pipeline
+                                              | Contact
+                                              | Company;
                                       }>(
                                           `/api/customer-crm/${editor.resource}/${editor.item!.id}?workspaceId=${workspaceId}`,
                                       );
@@ -544,6 +609,24 @@ export function CustomerCrmPage({ role }: { role: string }) {
                             : undefined
                     }
                 >
+                    {editor.item &&
+                        (editor.resource === "contacts" ||
+                            editor.resource === "companies") && (
+                            <CustomerRecordPanel
+                                workspaceId={workspaceId}
+                                resource={editor.resource}
+                                item={editor.item as Contact | Company}
+                                canManage={canManage}
+                                onChanged={async (item) => {
+                                    await refresh();
+                                    setEditor((current) =>
+                                        current?.item?.id === item.id
+                                            ? { ...current, item }
+                                            : current,
+                                    );
+                                }}
+                            />
+                        )}
                     {editor.item &&
                         (editor.resource === "deals" ||
                             editor.resource === "contacts") && (

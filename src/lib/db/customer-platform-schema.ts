@@ -27,6 +27,8 @@ export const crmCompanies = pgTable(
     {
         id: uuid("id").primaryKey().defaultRandom(),
         ...scope(),
+        version: integer("version").notNull().default(1),
+        archivedAt: time("archived_at"),
         externalId: varchar("external_id", { length: 200 }).notNull(),
         name: varchar("name", { length: 200 }).notNull(),
         domain: varchar("domain", { length: 253 }),
@@ -47,6 +49,8 @@ export const crmContacts = pgTable(
     {
         id: uuid("id").primaryKey().defaultRandom(),
         ...scope(),
+        version: integer("version").notNull().default(1),
+        archivedAt: time("archived_at"),
         externalId: varchar("external_id", { length: 200 }).notNull(),
         name: varchar("name", { length: 100 }).notNull(),
         email: varchar("email", { length: 254 }),
