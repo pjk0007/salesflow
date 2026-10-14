@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { copyRequest } from "../api/copy";
 import type { CopyObservations } from "@/lib/ai-copy/observations";
 import { Field, controlClass, purposeLabel } from "./Fields";
+import CopyAutomationPanel from "./CopyAutomationPanel";
 
 const percent = (value: number | null) =>
     value === null ? "관찰 중" : `${(value * 100).toFixed(1)}%`;
@@ -14,9 +15,11 @@ const seconds = (value: number | null) =>
 export default function AutomaticObservations({
     workspaces,
     mode,
+    onOpenExperiment,
 }: {
     workspaces: { id: number; name: string }[];
     mode: "quality" | "outcomes";
+    onOpenExperiment?: (id: number) => void;
 }) {
     const [workspace, setWorkspace] = useState(0);
     const { data, error, isLoading } = useSWR<CopyObservations>(
@@ -26,6 +29,11 @@ export default function AutomaticObservations({
     );
     return (
         <div className="space-y-5">
+            <CopyAutomationPanel
+                workspaces={workspaces}
+                firstOnly={mode === "outcomes"}
+                onOpenExperiment={onOpenExperiment}
+            />
             <div className="rounded-md border bg-muted/30 p-5 space-y-2">
                 <div className="flex gap-2 items-center">
                     <h3 className="font-semibold">

@@ -196,7 +196,13 @@ export const outcomeInputSchema = z
 export async function appendOutcomeRevision(
     conn: CopyConnection,
     raw: unknown,
-    actor: { orgId: string; userId: string; now: Date },
+    actor: {
+        orgId: string;
+        userId: string;
+        now: Date;
+        sourceMethod?: "automatic_classifier";
+        confidence?: number;
+    },
 ) {
     const input = outcomeInputSchema.parse(raw);
     if (new Date(input.eventAt) > actor.now)
@@ -225,6 +231,8 @@ export async function appendOutcomeRevision(
         const [latest] = await conn<
             OutcomeRow[]
         >`SELECT * FROM email_copy_outcome_revisions WHERE assignment_id=${assignment.id} AND source_key=${sourceKey} ORDER BY revision DESC LIMIT 1`;
+        if (actor.sourceMethod === "automatic_classifier" && latest)
+            return { revision: latest.revision, unchanged: true };
         const payload = {
             eventType: input.eventType,
             intent: input.intent,
@@ -247,8 +255,8 @@ export async function appendOutcomeRevision(
         )
             return { revision: latest.revision, unchanged: true };
         const [saved] =
-            await conn`INSERT INTO email_copy_outcome_revisions(org_id,assignment_id,source_key,revision,event_type,intent,event_at,email_reply_id,evidence,active,recorded_by,recorded_at)
-            VALUES(${actor.orgId},${assignment.id},${sourceKey},${(latest?.revision ?? 0) + 1},${input.eventType},${input.intent},${input.eventAt},${input.emailReplyId},${input.evidence},${input.active},${actor.userId},${actor.now.toISOString()}) RETURNING id,revision`;
+            await conn`INSERT INTO email_copy_outcome_revisions(org_id,assignment_id,source_key,revision,event_type,intent,event_at,email_reply_id,evidence,active,recorded_by,recorded_at,source_method,confidence)
+            VALUES(${actor.orgId},${assignment.id},${sourceKey},${(latest?.revision ?? 0) + 1},${input.eventType},${input.intent},${input.eventAt},${input.emailReplyId},${input.evidence},${input.active},${actor.userId},${actor.now.toISOString()},${actor.sourceMethod ?? "manual"},${actor.confidence ?? null}) RETURNING id,revision`;
         return saved;
     });
 }

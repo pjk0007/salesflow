@@ -22,5 +22,7 @@ export async function register() {
         startEmailSendScheduler();
         const { startCopyEvaluationScheduler } = await import("@/lib/ai-copy/worker");
         startCopyEvaluationScheduler();
+        const { startCopyAutomationScheduler } = await import("@/lib/ai-copy/automation-worker");
+        startCopyAutomationScheduler();
     }
 }

@@ -17,8 +17,9 @@ export async function adoptExperiment(
         now: Date;
         connectedReplyAvailable: boolean;
     },
+    insideTransaction = false,
 ) {
-    return copyTransaction(conn, async () => {
+    const apply = async () => {
         const [experiment] = await conn<
             (Experiment & { adopted_policy_id: number | null })[]
         >`SELECT * FROM email_copy_experiments WHERE id=${input.id} AND org_id=${input.orgId} FOR UPDATE`;
@@ -56,7 +57,8 @@ export async function adoptExperiment(
             detail: { appliesTo: "new_jobs_only", report: results.report, costs: results.costs },
         });
         return { adopted: true, appliesTo: "new_jobs_only" };
-    });
+    };
+    return insideTransaction ? apply() : copyTransaction(conn, apply);
 }
 export const contactInputSchema = z
     .object({

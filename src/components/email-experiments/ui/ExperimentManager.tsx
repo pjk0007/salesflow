@@ -24,6 +24,7 @@ export default function ExperimentManager({ initialRuleId }: { initialRuleId?: n
     const enabled = !!user && user.role !== "member",
         manager = useCopyManager(enabled);
     const [cursor, setCursor] = useState(0),
+        [activeTab, setActiveTab] = useState("observations"),
         [selected, setSelected] = useState<number | null>(null),
         [creating, setCreating] = useState(false);
     const list = useSWR<{
@@ -61,14 +62,21 @@ export default function ExperimentManager({ initialRuleId }: { initialRuleId?: n
                     {manager.actionError}
                 </p>
             )}
-            <Tabs defaultValue="observations">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
                 <TabsList>
                     <TabsTrigger value="observations">자동 관찰</TabsTrigger>
                     <TabsTrigger value="experiments">실험과 결과</TabsTrigger>
                     <TabsTrigger value="companies">회사 확인과 등급</TabsTrigger>
                 </TabsList>
                 <TabsContent value="observations" className="pt-3">
-                    <AutomaticObservations workspaces={catalog.workspaces} mode="outcomes" />
+                    <AutomaticObservations
+                        workspaces={catalog.workspaces}
+                        mode="outcomes"
+                        onOpenExperiment={(id) => {
+                            setSelected(id);
+                            setActiveTab("experiments");
+                        }}
+                    />
                 </TabsContent>
                 <TabsContent value="experiments" className="space-y-5 pt-3">
                     {!list.data.experiments.length ? (

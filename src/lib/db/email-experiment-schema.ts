@@ -8,6 +8,7 @@ import {
     jsonb,
     timestamp,
     boolean,
+    numeric,
     unique,
     index,
     uniqueIndex,
@@ -131,6 +132,8 @@ export const emailCopyOutcomeRevisions = pgTable(
         revision: integer("revision").notNull(),
         eventType: text("event_type").notNull(),
         intent: text("intent"),
+        sourceMethod: text("source_method").default("manual").notNull(),
+        confidence: numeric("confidence"),
         eventAt: at("event_at").notNull(),
         emailReplyId: integer("email_reply_id").references(() => emailReplies.id, {
             onDelete: "set null",

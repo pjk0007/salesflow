@@ -74,7 +74,7 @@ function ddl(table) {
         )
         .join(",")});`;
 }
-async function main() {
+async function main(extraScenarios) {
     const pg = new PGlite();
     await pg.waitReady;
     const originalFetch = global.fetch;
@@ -128,6 +128,7 @@ async function main() {
             "0084_ai_copy_benchmarks.sql",
             "0085_email_copy_experiments.sql",
             "0086_ai_copy_revisions.sql",
+            "0087_copy_automation.sql",
         ])
             for (const statement of fs
                 .readFileSync(path.resolve(__dirname, "../drizzle", name), "utf8")
@@ -877,6 +878,7 @@ async function main() {
                 "ai/copy-prices",
                 "ai/generations",
                 "ai/copy-evaluations",
+                "ai/copy-automation",
                 "email/experiments",
                 "email/experiments/contacts",
             ]) {
@@ -990,6 +992,7 @@ async function main() {
             if(priorReplyMode===undefined) delete process.env.REPLY_SYNC_MODE; else process.env.REPLY_SYNC_MODE=priorReplyMode;
         }
         scenarios += 2;
+        if(extraScenarios)await extraScenarios({pg,conn,org,user,A,B,knowledge,winning,insert,schema});
         const catalog = {
             // 아래 UI fixture 역시 실제 운영·품질 실측 근거로 사용하지 않는다.
             versions: (await pg.query("SELECT * FROM ai_copy_policy_versions ORDER BY id")).rows,
@@ -1066,7 +1069,8 @@ async function main() {
         await pg.close();
     }
 }
-main().catch((e) => {
+module.exports.runCheck=main;
+if(require.main===module)main().catch((e) => {
     console.error(e);
     process.exitCode = 1;
 });

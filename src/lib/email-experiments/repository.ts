@@ -107,6 +107,7 @@ export async function createExperiment(
     conn: CopyConnection,
     input: unknown,
     actor: { orgId: string; userId: string },
+    insideTransaction = false,
 ) {
     const value = experimentInputSchema.parse(input);
     const rule = await loadExperimentRule(conn, actor.orgId, value.workspaceId, value.ruleId),
@@ -125,7 +126,7 @@ export async function createExperiment(
         ruleSnapshot: snapshot,
         ruleFingerprint: fingerprint(snapshot),
     };
-    return copyTransaction(conn, async () => {
+    const apply = async () => {
         const [experiment] = await conn<
             Experiment[]
         >`INSERT INTO email_copy_experiments(org_id,workspace_id,rule_id,name,config,config_fingerprint,created_by)
@@ -138,7 +139,8 @@ export async function createExperiment(
             detail: { plannedPerArm: config.plannedPerArm },
         });
         return experiment;
-    });
+    };
+    return insideTransaction ? apply() : copyTransaction(conn, apply);
 }
 async function requireManualOwner(conn: CopyConnection, experiment: Experiment) {
     if (experiment.config.replySource !== "manual") return;
@@ -156,8 +158,9 @@ export async function startExperiment(
         now: Date;
         connectedReplyAvailable: boolean;
     },
+    insideTransaction = false,
 ) {
-    return copyTransaction(conn, async () => {
+    const apply = async () => {
         const [experiment] = await conn<
             Experiment[]
         >`SELECT * FROM email_copy_experiments WHERE id=${input.id} AND org_id=${input.orgId} FOR UPDATE`;
@@ -212,7 +215,8 @@ export async function startExperiment(
                 knowledge: knowledge.id,
             },
         };
-    });
+    };
+    return insideTransaction ? apply() : copyTransaction(conn, apply);
 }
 export async function changeExperimentState(
     conn: CopyConnection,

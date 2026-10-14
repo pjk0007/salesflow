@@ -610,6 +610,13 @@
       "when": 1774900000000,
       "tag": "0086_ai_copy_revisions",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1775000000000,
+      "tag": "0087_copy_automation",
+      "breakpoints": true
     }
   ]
 }
