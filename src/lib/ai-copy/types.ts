@@ -68,6 +68,7 @@ export interface CopyVersion<T> {
     last_changed_at: Date;
     state_reason: string | null;
     last_changed_by_name?: string | null;
+    approval_method?: "manual" | "existing_configuration" | "automatic_evaluation";
 }
 export interface CopyJob {
     id: number;

@@ -46,6 +46,7 @@ const versionColumns = () => ({
     createdBy: userColumn("created_by").notNull(),
     approvedBy: userColumn("approved_by"),
     approvedAt: at("approved_at"),
+    approvalMethod: text("approval_method").default("manual").notNull(),
     createdAt: at("created_at").defaultNow().notNull(),
     evaluationRunId: integer("evaluation_run_id"),
     lastChangedBy: uuid("last_changed_by").references(() => users.id, { onDelete: "set null" }),

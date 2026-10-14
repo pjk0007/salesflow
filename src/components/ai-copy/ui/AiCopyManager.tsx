@@ -19,6 +19,7 @@ import { EvaluationManager } from "./EvaluationManager";
 import { GenerationList } from "./GenerationList";
 import { PriceSettings } from "./PriceSettings";
 import BindingHistory from "./BindingHistory";
+import AutomaticObservations from "./AutomaticObservations";
 import { controlClass, Field, purposeLabel, stateLabel } from "./Fields";
 export default function AiCopyManager() {
     const { user, isLoading } = useSession();
@@ -46,8 +47,9 @@ export default function AiCopyManager() {
             <div>
                 <h2 className="text-xl font-semibold">AI 문구와 지식 품질 관리</h2>
                 <p className="mt-2 text-sm text-muted-foreground">
-                    작성 지침마다 고객별 자연스러운 변주를 유지하고, 평가를 통과한 버전을 새 작업에
-                    연결합니다. 이미 준비한 본문과 진행 중인 실험의 버전은 보존합니다.
+                    평소 발송의 생성 품질과 비용을 자동으로 모읍니다. 새 작성 지침은 평가를 통과한
+                    버전을 새 작업에 연결하며, 이미 준비한 본문과 진행 중인 실험의 버전은
+                    보존합니다.
                 </p>
             </div>
             {manager.actionError && (
@@ -55,8 +57,9 @@ export default function AiCopyManager() {
                     {manager.actionError}
                 </p>
             )}
-            <Tabs defaultValue="policies">
+            <Tabs defaultValue="observations">
                 <TabsList className="flex h-auto w-fit flex-wrap">
+                    <TabsTrigger value="observations">자동 관찰</TabsTrigger>
                     <TabsTrigger value="policies">작성 지침</TabsTrigger>
                     <TabsTrigger value="knowledge">지식 근거</TabsTrigger>
                     <TabsTrigger value="evaluation">품질 평가</TabsTrigger>
@@ -64,6 +67,9 @@ export default function AiCopyManager() {
                     <TabsTrigger value="generations">생성 기록</TabsTrigger>
                     <TabsTrigger value="prices">비용 설정</TabsTrigger>
                 </TabsList>
+                <TabsContent value="observations" className="pt-3">
+                    <AutomaticObservations workspaces={catalog.workspaces} mode="quality" />
+                </TabsContent>
                 <TabsContent value="policies" className="space-y-4 pt-3">
                     <Button onClick={() => setEditPolicy("new")}>새 작성 지침</Button>
                     {!catalog.versions.length && (
@@ -79,6 +85,12 @@ export default function AiCopyManager() {
                                     {p.name} · #{p.id}
                                 </h3>
                                 <Badge variant="secondary">{stateLabel(p.state)}</Badge>
+                                {p.approval_method === "automatic_evaluation" && (
+                                    <Badge variant="outline">자동 평가 · 사람 검수와 별개</Badge>
+                                )}
+                                {p.approval_method === "existing_configuration" && (
+                                    <Badge variant="outline">기존 설정 자동 등록</Badge>
+                                )}
                                 <span className="text-sm text-muted-foreground">
                                     {workspaceName(p.workspace_id)} · {purposeLabel(p.purpose)}
                                 </span>
@@ -130,19 +142,20 @@ export default function AiCopyManager() {
                                         새 연결에서 사용 종료
                                     </Button>
                                 )}
-                                {p.state === "evaluated" && (
-                                    <Button
-                                        size="sm"
-                                        disabled={pending}
-                                        onClick={() =>
-                                            void act(`/api/ai/copy-policies/${p.id}`, {
-                                                action: "approve",
-                                            })
-                                        }
-                                    >
-                                        평가 확인 후 승인
-                                    </Button>
-                                )}
+                                {p.state === "evaluated" &&
+                                    p.approval_method !== "automatic_evaluation" && (
+                                        <Button
+                                            size="sm"
+                                            disabled={pending}
+                                            onClick={() =>
+                                                void act(`/api/ai/copy-policies/${p.id}`, {
+                                                    action: "approve",
+                                                })
+                                            }
+                                        >
+                                            평가 확인 후 승인
+                                        </Button>
+                                    )}
                                 {p.state !== "blocked" && (
                                     <Button
                                         variant="ghost"
