@@ -12,13 +12,14 @@ export const replyInput = messageInput.extend({
     kind: z.enum(["reply", "note"]),
 });
 export const sessionInput = z.object({
-    name: z.string().trim().min(1).max(100),
+    name: z.string().trim().min(1).max(100).optional(),
     email: z.union([z.email(), z.literal("")]).optional(),
     pageUrl: z.string().max(2000).optional(),
     token: z
         .string()
         .regex(/^[a-f0-9]{64}$/)
         .optional(),
+    identityToken: z.string().min(20).max(4096).optional(),
 });
 export const patchInput = z
     .object({
@@ -29,6 +30,23 @@ export const patchInput = z
         priority: z.boolean().optional(),
     })
     .strict();
+export const conversationFiltersInput = z.object({
+    q: z.string().trim().max(200).default(""),
+    status: z.enum(["open", "snoozed", "closed"]).optional(),
+    filter: z
+        .enum(["all", "mine", "unassigned", "unread", "priority"])
+        .default("all"),
+});
+export type ConversationFilters = z.infer<typeof conversationFiltersInput>;
+export function readConversationFilters(params: URLSearchParams) {
+    return conversationFiltersInput.parse(
+        Object.fromEntries(
+            ["q", "status", "filter"].flatMap((key) =>
+                params.has(key) ? [[key, params.get(key)]] : [],
+            ),
+        ),
+    );
+}
 export function normalizeOrigins(raw: string[]): string[] {
     return [
         ...new Set(

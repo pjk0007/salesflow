@@ -413,7 +413,9 @@ function CustomerInfo({
                 </div>
                 <div>
                     <p className="text-xs text-muted-foreground">
-                        이메일 · 고객 입력
+                        {chat.contactId
+                            ? "이메일 · 연결된 회원"
+                            : "이메일 · 고객 입력"}
                     </p>
                     <p className="mt-1 break-all">{chat.email ?? "미입력"}</p>
                 </div>

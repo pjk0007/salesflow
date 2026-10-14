@@ -62,15 +62,21 @@ async function fixture() {
         schema.workspaces,
         schema.partitions,
         schema.records,
+        schema.apiTokens,
+        schema.apiTokenScopes,
     ])
         await pg.exec(ddl(table));
-    for (const statement of fs
-        .readFileSync(
-            path.resolve(__dirname, "../drizzle/0088_customer_inbox.sql"),
-            "utf8",
-        )
-        .split("--> statement-breakpoint"))
-        if (statement.trim()) await pg.exec(statement);
+    for (const migration of [
+        "0088_customer_inbox.sql",
+        "0089_customer_platform.sql",
+    ])
+        for (const statement of fs
+            .readFileSync(
+                path.resolve(__dirname, "../drizzle", migration),
+                "utf8",
+            )
+            .split("--> statement-breakpoint"))
+            if (statement.trim()) await pg.exec(statement);
     const db = drizzle(pg, { schema });
     await db.insert(schema.organizations).values([
         { id: org, name: "가상 디자이너하이어", slug: "fake-dh" },
@@ -580,6 +586,160 @@ async function runCheck(extra) {
                 );
             },
         );
+        await check("첫 100건 밖의 과거 대화 본문도 전체 검색", async () => {
+            const [old] = await db
+                .insert(schema.inboxConversations)
+                .values({
+                    orgId: org,
+                    channelId: channel.id,
+                    tokenHash: "f".repeat(64),
+                    name: "과거 검색 고객",
+                    preview: "최근 내용",
+                    lastMessageAt: new Date("2020-01-01"),
+                })
+                .returning();
+            await db
+                .insert(schema.inboxMessages)
+                .values({
+                    conversationId: old.id,
+                    clientId: randomUUID(),
+                    kind: "customer",
+                    body: "오래된 검색 전용 문장",
+                    authorName: "가상 고객",
+                });
+            assert.ok(
+                !(await repo.listConversations(actor, channel.id, db)).some(
+                    (c) => c.id === old.id,
+                ),
+            );
+            const result = await repo.conversationListPage(
+                actor,
+                channel.id,
+                { q: "오래된 검색 전용 문장", status: "open" },
+                undefined,
+                undefined,
+                db,
+            );
+            assert.deepEqual(
+                result.rows.map((c) => c.id),
+                [old.id],
+            );
+            assert.equal(result.counts.all, 1);
+            assert.equal(
+                (
+                    await repo.conversationListPage(
+                        otherActor,
+                        channel.id,
+                        { q: "오래된 검색 전용 문장" },
+                        undefined,
+                        undefined,
+                        db,
+                    )
+                ).counts.all,
+                0,
+            );
+        });
+        await check(
+            "검색의 %·_는 전체 일치 문법이 아닌 문자로 처리",
+            async () => {
+                await db
+                    .insert(schema.inboxConversations)
+                    .values(
+                        ["문자%_시험", "문자XX시험"].map((name, i) => ({
+                            orgId: org,
+                            channelId: channel.id,
+                            tokenHash: ("e" + i).repeat(32),
+                            name,
+                        })),
+                    );
+                const result = await repo.listConversations(
+                    actor,
+                    channel.id,
+                    db,
+                    undefined,
+                    undefined,
+                    { q: "문자%_시험" },
+                );
+                assert.equal(result.length, 1);
+                assert.equal(result[0].name, "문자%_시험");
+            },
+        );
+        await check(
+            "전체 검색 결과의 상태·내 담당·중요·안 읽음 집계",
+            async () => {
+                const [open, closed] = await db
+                    .insert(schema.inboxConversations)
+                    .values([
+                        {
+                            orgId: org,
+                            channelId: channel.id,
+                            tokenHash: "d".repeat(64),
+                            name: "집계 전용 열림",
+                            assigneeId: actor.userId,
+                            priority: true,
+                            customerSeq: 2,
+                        },
+                        {
+                            orgId: org,
+                            channelId: channel.id,
+                            tokenHash: "c".repeat(64),
+                            name: "집계 전용 종료",
+                            status: "closed",
+                        },
+                    ])
+                    .returning();
+                const result = await repo.conversationListPage(
+                    actor,
+                    channel.id,
+                    { q: "집계 전용", status: "open", filter: "mine" },
+                    undefined,
+                    undefined,
+                    db,
+                );
+                assert.deepEqual(
+                    result.rows.map((c) => c.id),
+                    [open.id],
+                );
+                assert.deepEqual(result.counts, {
+                    all: 1,
+                    mine: 1,
+                    unassigned: 0,
+                    unread: 1,
+                    priority: 1,
+                });
+                await repo.markRead(actor, open.id, 2, db);
+                assert.equal(
+                    (
+                        await repo.conversationListPage(
+                            actor,
+                            channel.id,
+                            {
+                                q: "집계 전용",
+                                status: "open",
+                                filter: "unread",
+                            },
+                            undefined,
+                            undefined,
+                            db,
+                        )
+                    ).rows.length,
+                    0,
+                );
+                assert.deepEqual(
+                    (
+                        await repo.listConversations(
+                            actor,
+                            channel.id,
+                            db,
+                            undefined,
+                            undefined,
+                            { q: "집계 전용", status: "closed" },
+                        )
+                    ).map((c) => c.id),
+                    [closed.id],
+                );
+            },
+        );
         console.log(
             `고객 상담 SQL QA: ${checks}개 통과. 실제 고객/외부 전송 0건.`,
         );
@@ -599,4 +759,4 @@ if (require.main === module)
         console.error(e);
         process.exitCode = 1;
     });
-module.exports = { runCheck };
+module.exports = { runCheck, fixture };

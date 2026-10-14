@@ -1,0 +1,215 @@
+{
+  "capturedAt": "2026-10-14",
+  "sdkFiles": [
+    {
+      "package": "channel-loader-2.0.2",
+      "path": "package.json",
+      "sha256": "8983c101634316cef28edd1051e5fe79e111c77cd0993961e7c562808b7f456e",
+      "bytes": 2146
+    },
+    {
+      "package": "channel-loader-2.0.2",
+      "path": "dist/index.cjs.js",
+      "sha256": "6b4b4a3b8600466aa6be1abf2c2c131b51f84702f3fe1610cc359b19808c0580",
+      "bytes": 12037
+    },
+    {
+      "package": "intercom-messenger-0.0.20",
+      "path": "package.json",
+      "sha256": "5cc3d1a8df9ed8696f3f6e1c0312cdb0d6b54b6744edbb6e4f2194d518616cf9",
+      "bytes": 506
+    },
+    {
+      "package": "intercom-messenger-0.0.20",
+      "path": "dist/index.js",
+      "sha256": "b4e78045b4bcddd6f92b0ce808beb1756bc77efb139f5d3c1a8f33d847522760",
+      "bytes": 4790
+    },
+    {
+      "package": "intercom-messenger-0.0.20",
+      "path": "dist/instance-manager.js",
+      "sha256": "c85d06c2de840f58bcef22e95f53f0eab2124fed5057fec1ff63f8577d750360",
+      "bytes": 2851
+    },
+    {
+      "package": "intercom-messenger-0.0.20",
+      "path": "dist/constants.js",
+      "sha256": "4d62fb6dc8042fc044f3625ec5df085142bacc731c5dcd46193461e0b99343e4",
+      "bytes": 275
+    },
+    {
+      "package": "intercom-client-7.0.3",
+      "path": "package.json",
+      "sha256": "8afdc460c77dcdfd84d8db393c9eb0c05e2e174d6aab81608e401f2acab3aace",
+      "bytes": 2618
+    },
+    {
+      "package": "intercom-client-7.0.3",
+      "path": "dist/cjs/api/resources/conversations/client/Client.js",
+      "sha256": "f5da82045448244bf3722c900d5e28c7b77bc3e565c4953155d05e3432704ca4",
+      "bytes": 84762
+    },
+    {
+      "package": "intercom-client-7.0.3",
+      "path": "dist/cjs/api/resources/contacts/client/Client.js",
+      "sha256": "6f23a5d497ffb85da56edf7d36cf7c309baa0573f148756403d8af131e5aabf6",
+      "bytes": 82308
+    },
+    {
+      "package": "intercom-client-7.0.3",
+      "path": "dist/cjs/api/resources/companies/client/Client.js",
+      "sha256": "e9a348b858ea146b3354ac5a2cb101626f35eae26d28a8947ef38202598d51ed",
+      "bytes": 53331
+    },
+    {
+      "package": "hubspot-client-14.0.1",
+      "path": "package.json",
+      "sha256": "5e89d1fe4ae9002736c4941db04a42680f05a4a3ad1e6a0642f6e2a281334607",
+      "bytes": 2000
+    },
+    {
+      "package": "hubspot-client-14.0.1",
+      "path": "lib/codegen/crm/pipelines/apis/PipelinesApi.js",
+      "sha256": "dd909b5ff5cdc6e78c181ff8a8f487cd622c32665c6acc251ec6f6c340880d1a",
+      "bytes": 24484
+    },
+    {
+      "package": "hubspot-client-14.0.1",
+      "path": "lib/codegen/crm/deals/apis/BasicApi.js",
+      "sha256": "0ba474a055b65bf179d35ecfa49e6118755e5eec2414018505a36f2333a9e2f7",
+      "bytes": 24346
+    },
+    {
+      "package": "hubspot-client-14.0.1",
+      "path": "lib/codegen/crm/contacts/apis/BasicApi.js",
+      "sha256": "02ec1ca69a4593f22294f972bd1c08b61e13029403cfb35a88fb23780277fd35",
+      "bytes": 27724
+    },
+    {
+      "package": "hubspot-client-14.0.1",
+      "path": "lib/codegen/crm/companies/apis/BasicApi.js",
+      "sha256": "b943a7dac9ebf0441226da431eeaed2d6c531ddb29154ceab060784aec32a4ef",
+      "bytes": 24433
+    },
+    {
+      "package": "hubspot-client-14.0.1",
+      "path": "lib/codegen/webhooks/apis/SubscriptionsApi.js",
+      "sha256": "1ad5fbc9060815f532e98c975496cd10b9ba43cba965184b49d56558ef90d30c",
+      "bytes": 23369
+    }
+  ],
+  "githubSourceFiles": [
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/LICENSE",
+      "sha256": "602d38a808315f221a5e72e2e90e40cb9300f09aa4b317a6a8f1a0c7a3d2175d"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/models/contact.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/models/contact.rb",
+      "sha256": "75ec0685efaa21b65f47a6845640bc5216bc44ba4441ccad494f156a8e312711"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/models/contact_inbox.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/models/contact_inbox.rb",
+      "sha256": "6a241d49fc6ad7c2577124a5c796d83ba955c02420a8a2a5fb6acd96a120d01f"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/models/conversation.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/models/conversation.rb",
+      "sha256": "b09e0e2a58a334c91e7c8678fcd04d3608cc8bb83cae773001d97853a2d16820"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/models/message.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/models/message.rb",
+      "sha256": "591a3ffa3fa61f95ac6f4a42d6f07200c6737018401595d33bc3d385557f981d"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/models/automation_rule.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/models/automation_rule.rb",
+      "sha256": "8441d66000b4d5649457b1a3d094efcfbfa2ffa0e860be136ae2f10131b4618c"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/listeners/automation_rule_listener.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/listeners/automation_rule_listener.rb",
+      "sha256": "110ff0b3d17ec3de3c50255d62e214589dbe257d921bf254b3bff3fc9783743b"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/services/automation_rules/action_service.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/services/automation_rules/action_service.rb",
+      "sha256": "1cc18d879e0d2c21ca69ff1946a4614a9c49e7f16c7e146e63adb8ca6dcea005"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/services/automation_rules/condition_validation_service.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/services/automation_rules/condition_validation_service.rb",
+      "sha256": "4324ae485f117a4f3cd5c2b5bcbb38fe3cba2d83134c7ae8988622c99196ed2f"
+    },
+    {
+      "repo": "chatwoot/chatwoot",
+      "sha": "ab0c81af87ae1176abd452538a551b854bcadba1",
+      "path": "app/services/automation_rules/conditions_filter_service.rb",
+      "url": "https://raw.githubusercontent.com/chatwoot/chatwoot/ab0c81af87ae1176abd452538a551b854bcadba1/app/services/automation_rules/conditions_filter_service.rb",
+      "sha256": "c40de8814c7bd422bd8dfc8c9a47e4257d25522b9f67321edf306833ac3b4c06"
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "41507af138a38448e8e95388d5be0b25486a154b",
+      "path": "LICENSE",
+      "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/LICENSE",
+      "sha256": "caece25ff05e7058a8fd98c34313757ed48d5e9304e0aeb7875d4b11de77bc01"
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "41507af138a38448e8e95388d5be0b25486a154b",
+      "path": "packages/twenty-server/src/modules/company/standard-objects/company.workspace-entity.ts",
+      "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/packages/twenty-server/src/modules/company/standard-objects/company.workspace-entity.ts",
+      "sha256": "12a725c179ccac8da54d9ed450e248ec66cd4ba5bf562e2ee256be9e3de3adf9"
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "41507af138a38448e8e95388d5be0b25486a154b",
+      "path": "packages/twenty-server/src/modules/opportunity/standard-objects/opportunity.workspace-entity.ts",
+      "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/packages/twenty-server/src/modules/opportunity/standard-objects/opportunity.workspace-entity.ts",
+      "sha256": "ecd3da2e93e227deaa9ea19ecc5d8501068536088c00a7eb4e638be952e604b6"
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "41507af138a38448e8e95388d5be0b25486a154b",
+      "path": "packages/twenty-server/src/modules/person/standard-objects/person.workspace-entity.ts",
+      "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/packages/twenty-server/src/modules/person/standard-objects/person.workspace-entity.ts",
+      "sha256": "5755cf29c51941e6a596a315455742ad8524f49629e6c41738cb27fa74ef39df"
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "41507af138a38448e8e95388d5be0b25486a154b",
+      "path": "packages/twenty-server/src/modules/task/standard-objects/task.workspace-entity.ts",
+      "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/packages/twenty-server/src/modules/task/standard-objects/task.workspace-entity.ts",
+      "sha256": "6183a5d19e5c470a381db8214b2705bc0f6bae6818a12a5c9ef5f15748dbf030"
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "41507af138a38448e8e95388d5be0b25486a154b",
+      "path": "packages/twenty-server/src/modules/workflow/workflow-runner/services/core-workflow-runner.service.ts",
+      "url": "https://raw.githubusercontent.com/twentyhq/twenty/41507af138a38448e8e95388d5be0b25486a154b/packages/twenty-server/src/modules/workflow/workflow-runner/services/core-workflow-runner.service.ts",
+      "sha256": "70abbe482e4432d1876c524ffbe54dee7f17295c8da3cfdaaca27995e4c614e7"
+    }
+  ]
+}

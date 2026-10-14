@@ -16,8 +16,7 @@ import {
 import { useInbox } from "../hooks/useInbox";
 import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
-import type { ConversationStatus } from "../types";
-import { inboxRequest } from "../api";
+import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 export function InboxPage({ userId, role }: { userId: string; role: string }) {
@@ -29,48 +28,31 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
             params.get("conversation"),
         );
     const [status, setStatus] = useState<ConversationStatus>("open"),
-        [filter, setFilter] = useState("all"),
+        [filter, setFilter] = useState<ConversationFilter>("all"),
         [query, setQuery] = useState("");
-    const [settings, setSettings] = useState<"current" | "new" | null>(null),
-        [extra, setExtra] = useState<import("../types").Conversation[]>([]),
-        [more, setMore] = useState(true),
-        [loading, setLoading] = useState(false);
+    const [settings, setSettings] = useState<"current" | "new" | null>(null);
     const initial = useInbox(null, null),
         bootstrap = initial.bootstrap.data;
     const channelId = chosenChannel ?? bootstrap?.channels[0]?.id ?? null;
-    const { list, detail, patch } = useInbox(channelId, selected);
+    const { list, detail, patch } = useInbox(channelId, selected, {
+        q: query,
+        status,
+        filter,
+    });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
-    const chats = [
-        ...(list.data ?? []),
-        ...extra.filter((e) => !list.data?.some((c) => c.id === e.id)),
-    ];
-    const filtered = chats.filter(
-        (c) =>
-            c.status === status &&
-            (filter !== "mine" || c.assigneeId === userId) &&
-            (filter !== "unassigned" || !c.assigneeId) &&
-            (filter !== "unread" || c.unread) &&
-            (filter !== "priority" || c.priority) &&
-            `${c.name} ${c.email ?? ""} ${c.preview} ${c.tags.join(" ")}`
-                .toLowerCase()
-                .includes(query.toLowerCase()),
-    );
-    const menus = [
+    const filtered = list.data ?? [];
+    const menus: {
+        id: ConversationFilter;
+        label: string;
+        icon: typeof Inbox;
+    }[] = [
         { id: "all", label: "전체 상담", icon: Inbox },
         { id: "unread", label: "안 읽은 메시지", icon: MessageCircle },
         { id: "mine", label: "내 상담", icon: UserRound },
         { id: "unassigned", label: "담당자 없음", icon: Archive },
         { id: "priority", label: "중요 상담", icon: Star },
     ];
-    const count = (id: string) =>
-        chats.filter(
-            (c) =>
-                c.status === status &&
-                (id !== "mine" || c.assigneeId === userId) &&
-                (id !== "unassigned" || !c.assigneeId) &&
-                (id !== "unread" || c.unread) &&
-                (id !== "priority" || c.priority),
-        ).length;
+    const count = (id: ConversationFilter) => list.counts?.[id] ?? 0;
     const error = initial.bootstrap.error || list.error || detail.error;
     return (
         <div className="flex h-full min-h-[600px] flex-col bg-background">
@@ -156,8 +138,6 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                             onChange={(e) => {
                                 setChannel(Number(e.target.value));
                                 setSelected(null);
-                                setExtra([]);
-                                setMore(true);
                             }}
                         >
                             {bootstrap.channels.map((c) => (
@@ -227,7 +207,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                     {menus.find((m) => m.id === filter)?.label}
                                 </h2>
                                 <span className="text-xs text-muted-foreground">
-                                    {filtered.length}
+                                    {count(filter)}
                                 </span>
                             </div>
                             <select
@@ -237,8 +217,6 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                 onChange={(e) => {
                                     setChannel(Number(e.target.value));
                                     setSelected(null);
-                                    setExtra([]);
-                                    setMore(true);
                                 }}
                             >
                                 {bootstrap.channels.map((c) => (
@@ -255,7 +233,8 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                 <input
                                     aria-label="상담 검색"
                                     className="min-w-0 w-full bg-transparent text-xs outline-none"
-                                    placeholder="이름, 이메일, 태그 검색"
+                                    placeholder="고객, 태그, 대화 전체 검색"
+                                    maxLength={200}
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
                                 />
@@ -286,7 +265,11 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                 aria-label="모바일 상담 필터"
                                 className="w-full rounded-lg border p-2 text-xs md:hidden"
                                 value={filter}
-                                onChange={(e) => setFilter(e.target.value)}
+                                onChange={(e) =>
+                                    setFilter(
+                                        e.target.value as ConversationFilter,
+                                    )
+                                }
                             >
                                 {menus.map((m) => (
                                     <option key={m.id} value={m.id}>
@@ -367,45 +350,29 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                     </div>
                                 </button>
                             ))}
-                            {more &&
-                                (list.data?.length === 100 ||
-                                    extra.length > 0) && (
-                                    <button
-                                        disabled={loading}
-                                        className="w-full py-3 text-xs text-[#635BFF]"
-                                        onClick={async () => {
-                                            setLoading(true);
-                                            try {
-                                                const rows = await inboxRequest<
-                                                    import("../types").Conversation[]
-                                                >(
-                                                    `/api/inbox?channelId=${channelId}&before=${encodeURIComponent(chats.at(-1)!.lastMessageAt)}&beforeId=${chats.at(-1)!.id}`,
-                                                );
-                                                setExtra((e) => [
-                                                    ...e,
-                                                    ...rows,
-                                                ]);
-                                                setMore(rows.length === 100);
-                                            } catch (e) {
-                                                toast.error(
-                                                    (e as Error).message,
-                                                );
-                                            } finally {
-                                                setLoading(false);
-                                            }
-                                        }}
-                                    >
-                                        {loading
-                                            ? "불러오는 중…"
-                                            : "이전 상담 더 보기"}
-                                    </button>
-                                )}
+                            {list.hasMore && (
+                                <button
+                                    disabled={list.loadingMore}
+                                    className="w-full py-3 text-xs text-[#635BFF]"
+                                    onClick={async () => {
+                                        try {
+                                            await list.loadMore();
+                                        } catch (e) {
+                                            toast.error((e as Error).message);
+                                        }
+                                    }}
+                                >
+                                    {list.loadingMore
+                                        ? "불러오는 중…"
+                                        : "이전 상담 더 보기"}
+                                </button>
+                            )}
                         </div>
                         <p className="border-t px-4 py-2 text-[10px] text-muted-foreground">
                             {channel.enabled
                                 ? "사이트 상담창 켜짐"
                                 : "사이트 상담창 꺼짐"}{" "}
-                            · 최근 {chats.length}건에서 검색
+                            · 모든 상담과 대화에서 검색
                         </p>
                     </section>
                     {selected && detail.data ? (
@@ -416,9 +383,8 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                             messages={detail.data.messages}
                             hasOlder={detail.data.hasOlder}
                             bootstrap={bootstrap}
-                            patch={async value => {
-                                const updated = await patch(value);
-                                setExtra(current => current.map(c => c.id === updated.id ? {...c,...updated} : c));
+                            patch={async (value) => {
+                                await patch(value);
                             }}
                             refresh={async () => {
                                 await Promise.all([
@@ -468,9 +434,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     onSaved={async (c) => {
                         await initial.bootstrap.mutate();
                         setChannel(c.id);
-                        setExtra([]);
                         setSelected(null);
-                        setMore(true);
                         setSettings("current");
                     }}
                 />

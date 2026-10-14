@@ -2,8 +2,9 @@
 import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { ArrowUp, MessageCircle, RotateCcw } from "lucide-react";
-import { inboxRequest } from "../api";
+import { inboxRequest, InboxRequestError } from "../api";
 import type { ChatMessage } from "../types";
+import { draftSessionKey } from "../utils/session";
 export function ChatWidget({ channelKey }: { channelKey: string }) {
     const [token, setToken] = useState(""),
         [ready, setReady] = useState(false),
@@ -15,6 +16,11 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     const [older, setOlder] = useState<ChatMessage[]>([]),
         [canLoad, setCanLoad] = useState(true);
     const [blocked, setBlocked] = useState(false);
+    const [managed, setManaged] = useState(false),
+        [opened, setOpened] = useState(true),
+        [readId, setReadId] = useState(0);
+    const generation = useRef(0);
+    const configured = useRef<string | null>(null);
     const pending = useRef<{ body: string; id: string } | null>(null),
         end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
@@ -25,19 +31,20 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         greeting: string;
         color: string;
         allowedOrigins: string[];
-    }>(`/api/chat/${channelKey}`, inboxRequest);
+    }>(`/api/messenger/${channelKey}`, inboxRequest);
     const data = useSWR<{
         status: string;
         messages: ChatMessage[];
         hasOlder: boolean;
+        profile: { name: string; email: string | null; identified: boolean };
     }>(
-        token && ready ? [`/api/chat/${channelKey}`, token] : null,
+        token && ready ? [`/api/messenger/${channelKey}`, token] : null,
         ([url, value]: [string, string]) =>
             inboxRequest(url, {
                 headers: { Authorization: `Bearer ${value}` },
             }),
         {
-            refreshInterval: 3000,
+            refreshInterval: opened ? 3000 : 15000,
             refreshWhenHidden: false,
             shouldRetryOnError: false,
         },
@@ -57,7 +64,86 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         );
         if (!parent || !config.data.allowedOrigins.includes(parent))
             setBlocked(true);
-    }, [config.data]);
+        if (!parent || !config.data.allowedOrigins.includes(parent)) return;
+        const listener = (event: MessageEvent) => {
+            if (
+                event.source !== window.parent ||
+                event.origin !== parent ||
+                event.data?.key !== channelKey
+            )
+                return;
+            if (event.data.type === "sendb:configure") {
+                const next =
+                    typeof event.data.identityToken === "string"
+                        ? event.data.identityToken
+                        : typeof event.data.visitorToken === "string"
+                          ? event.data.visitorToken
+                          : "";
+                setManaged(true);
+                setToken(next);
+                setOpened(!!event.data.opened);
+                setReadId(Number(event.data.readId) || 0);
+                const session = draftSessionKey(next);
+                if (configured.current !== session) {
+                    generation.current++;
+                    setText("");
+                    setOlder([]);
+                    setCanLoad(true);
+                    setError("");
+                    pending.current = null;
+                    configured.current = session;
+                }
+            }
+            if (event.data.type === "sendb:visibility")
+                setOpened(!!event.data.opened);
+        };
+        window.addEventListener("message", listener);
+        window.parent.postMessage(
+            { type: "sendb:loaded", key: channelKey },
+            parent,
+        );
+        return () => window.removeEventListener("message", listener);
+    }, [config.data, channelKey]);
+    function parentMessage(
+        type: string,
+        payload: Record<string, unknown> = {},
+    ) {
+        if (!managed || window.parent === window) return;
+        const parent = new URLSearchParams(window.location.search).get(
+            "origin",
+        );
+        if (parent && config.data?.allowedOrigins.includes(parent))
+            window.parent.postMessage(
+                { type, key: channelKey, ...payload },
+                parent,
+            );
+    }
+    useEffect(() => {
+        if (!managed) return;
+        if (!token || data.data) parentMessage("sendb:ready");
+        if (data.error)
+            parentMessage("sendb:error", {
+                message: data.error.message,
+                status:
+                    data.error instanceof InboxRequestError
+                        ? data.error.status
+                        : 500,
+            });
+    }, [managed, token, data.data, data.error]); // eslint-disable-line react-hooks/exhaustive-deps
+    const latestId = data.data?.messages.at(-1)?.id ?? 0;
+    useEffect(() => {
+        if (!managed || !data.data) return;
+        const unread = opened
+            ? 0
+            : data.data.messages.filter(
+                  (m) => m.kind === "reply" && m.id > readId,
+              ).length;
+        if (opened && latestId > readId) {
+            setReadId(latestId);
+            parentMessage("sendb:read", { readId: latestId });
+        }
+        parentMessage("sendb:unread", { count: unread });
+    }, [managed, opened, latestId, readId, data.data]); // eslint-disable-line react-hooks/exhaustive-deps
     const lastMessageId = data.data?.messages.at(-1)?.id;
     useEffect(() => {
         if (follow.current) end.current?.scrollIntoView({ block: "end" });
@@ -77,13 +163,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         const body = text.trim();
         setBusy(true);
         setError("");
+        const currentGeneration = generation.current;
         if (pending.current?.body !== body)
             pending.current = { body, id: crypto.randomUUID() };
         try {
             let session = token;
             if (!session) {
                 const result = await inboxRequest<{ token: string }>(
-                    `/api/chat/${channelKey}`,
+                    `/api/messenger/${channelKey}`,
                     {
                         method: "POST",
                         body: JSON.stringify({
@@ -98,15 +185,18 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         headers: { "Content-Type": "application/json" },
                     },
                 );
+                if (currentGeneration !== generation.current) return;
                 session = result.token;
                 setToken(session);
-                try {
-                    localStorage.setItem(storageKey, session);
-                } catch {
-                    /* 현재 창 세션 유지 */
-                }
+                if (managed) parentMessage("sendb:session", { token: session });
+                else
+                    try {
+                        localStorage.setItem(storageKey, session);
+                    } catch {
+                        /* 현재 창 세션 유지 */
+                    }
             }
-            await inboxRequest(`/api/chat/${channelKey}`, {
+            await inboxRequest(`/api/messenger/${channelKey}`, {
                 method: "POST",
                 body: JSON.stringify({ clientId: pending.current.id, body }),
                 headers: {
@@ -114,12 +204,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     Authorization: `Bearer ${session}`,
                 },
             });
+            if (currentGeneration !== generation.current) return;
             setText("");
             pending.current = null;
             follow.current = true;
             await data.mutate();
         } catch (e) {
-            setError((e as Error).message);
+            if (currentGeneration === generation.current)
+                setError((e as Error).message);
         } finally {
             setBusy(false);
         }
@@ -180,6 +272,10 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         <button
                             className="ml-4"
                             onClick={() => {
+                                if (managed && token.includes(".")) {
+                                    parentMessage("sendb:refresh");
+                                    return;
+                                }
                                 setToken("");
                                 setOlder([]);
                                 setCanLoad(true);
@@ -188,7 +284,9 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                 } catch {}
                             }}
                         >
-                            새 문의 시작
+                            {managed && token.includes(".")
+                                ? "회원 다시 연결"
+                                : "새 문의 시작"}
                         </button>
                     </div>
                 )}
@@ -201,7 +299,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                     messages: ChatMessage[];
                                     hasOlder: boolean;
                                 }>(
-                                    `/api/chat/${channelKey}?before=${messages[0]?.id}`,
+                                    `/api/messenger/${channelKey}?before=${messages[0]?.id}`,
                                     {
                                         headers: {
                                             Authorization: `Bearer ${token}`,

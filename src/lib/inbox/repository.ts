@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, gt, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import {
     db,
     inboxChannels,
@@ -11,6 +11,7 @@ import {
     workspaces,
     records,
     partitions,
+    crmContacts,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -21,16 +22,13 @@ import {
     replyInput,
     safePageUrl,
     sessionInput,
+    conversationFiltersInput,
+    type ConversationFilters,
 } from "./rules";
 
-export class InboxError extends Error {
-    constructor(
-        message: string,
-        public status = 400,
-    ) {
-        super(message);
-    }
-}
+import { InboxError } from "./errors";
+export { InboxError } from "./errors";
+import { verifyCustomerIdentity } from "@/lib/customer-platform/identity";
 type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
@@ -48,6 +46,7 @@ const conversationColumns = {
     preview: inboxConversations.preview,
     lastMessageAt: inboxConversations.lastMessageAt,
     customerSeq: inboxConversations.customerSeq,
+    contactId: inboxConversations.contactId,
 };
 export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
     const [channels, members, spaces] = await Promise.all([
@@ -108,7 +107,9 @@ export async function listConversations(
     exec: DbExec = db,
     before?: Date,
     beforeId?: string,
+    filters: Partial<ConversationFilters> = {},
 ) {
+    const input = conversationFiltersInput.parse(filters);
     return exec
         .select({
             ...conversationColumns,
@@ -126,6 +127,22 @@ export async function listConversations(
             and(
                 eq(inboxConversations.orgId, actor.orgId),
                 eq(inboxConversations.channelId, channelId),
+                conversationSearch(input.q),
+                input.status
+                    ? eq(inboxConversations.status, input.status)
+                    : undefined,
+                input.filter === "mine"
+                    ? eq(inboxConversations.assigneeId, actor.userId)
+                    : undefined,
+                input.filter === "unassigned"
+                    ? isNull(inboxConversations.assigneeId)
+                    : undefined,
+                input.filter === "priority"
+                    ? eq(inboxConversations.priority, true)
+                    : undefined,
+                input.filter === "unread"
+                    ? sql`${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0)`
+                    : undefined,
                 before
                     ? or(
                           lt(inboxConversations.lastMessageAt, before),
@@ -147,6 +164,67 @@ export async function listConversations(
             desc(inboxConversations.id),
         )
         .limit(100);
+}
+function conversationSearch(q: string) {
+    if (!q) return undefined;
+    const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+    return or(
+        ilike(inboxConversations.name, pattern),
+        ilike(inboxConversations.email, pattern),
+        ilike(inboxConversations.preview, pattern),
+        sql`${inboxConversations.tags}::text ILIKE ${pattern}`,
+        sql`EXISTS (SELECT 1 FROM ${inboxMessages} WHERE ${inboxMessages.conversationId} = ${inboxConversations.id} AND ${inboxMessages.body} ILIKE ${pattern})`,
+    );
+}
+export async function conversationListPage(
+    actor: Actor,
+    channelId: number,
+    filters: Partial<ConversationFilters>,
+    before?: Date,
+    beforeId?: string,
+    exec: DbExec = db,
+) {
+    const input = conversationFiltersInput.parse(filters);
+    const [rows, counts] = await Promise.all([
+        listConversations(actor, channelId, exec, before, beforeId, input),
+        exec
+            .select({
+                all: sql<number>`count(*)`.mapWith(Number),
+                mine: sql<number>`count(*) FILTER (WHERE ${inboxConversations.assigneeId} = ${actor.userId})`.mapWith(
+                    Number,
+                ),
+                unassigned:
+                    sql<number>`count(*) FILTER (WHERE ${inboxConversations.assigneeId} IS NULL)`.mapWith(
+                        Number,
+                    ),
+                unread: sql<number>`count(*) FILTER (WHERE ${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0))`.mapWith(
+                    Number,
+                ),
+                priority:
+                    sql<number>`count(*) FILTER (WHERE ${inboxConversations.priority})`.mapWith(
+                        Number,
+                    ),
+            })
+            .from(inboxConversations)
+            .leftJoin(
+                inboxReads,
+                and(
+                    eq(inboxReads.conversationId, inboxConversations.id),
+                    eq(inboxReads.userId, actor.userId),
+                ),
+            )
+            .where(
+                and(
+                    eq(inboxConversations.orgId, actor.orgId),
+                    eq(inboxConversations.channelId, channelId),
+                    conversationSearch(input.q),
+                    input.status
+                        ? eq(inboxConversations.status, input.status)
+                        : undefined,
+                ),
+            ),
+    ]);
+    return { rows, counts: counts[0], hasMore: rows.length === 100 };
 }
 async function ownedConversation(actor: Actor, id: string, exec: DbExec) {
     const [chat] = await exec
@@ -409,6 +487,15 @@ export async function startVisitorSession(
 ) {
     const input = sessionInput.parse(raw),
         channel = await publicChannel(key, exec);
+    if (input.identityToken) {
+        const chat = await visitorConversation(
+            key,
+            input.identityToken,
+            exec,
+            true,
+        );
+        return { token: input.identityToken, id: chat.id };
+    }
     const token = input.token ?? randomBytes(32).toString("hex");
     if (input.token) {
         const [chat] = await exec
@@ -418,6 +505,7 @@ export async function startVisitorSession(
                 and(
                     eq(inboxConversations.channelId, channel.id),
                     eq(inboxConversations.tokenHash, hash(token)),
+                    isNull(inboxConversations.contactId),
                 ),
             );
         if (!chat)
@@ -427,6 +515,7 @@ export async function startVisitorSession(
             );
         return { token, id: chat.id };
     }
+    if (!input.name) throw new InboxError("이름 또는 닉네임을 입력해주세요.");
     const [chat] = await exec
         .insert(inboxConversations)
         .values({
@@ -440,7 +529,93 @@ export async function startVisitorSession(
         .returning({ id: inboxConversations.id });
     return { token, id: chat.id };
 }
-async function visitorConversation(key: string, token: string, exec: DbExec) {
+export async function authenticatedCustomer(
+    key: string,
+    token: string,
+    exec: DbExec = db,
+) {
+    const channel = await publicChannel(key, exec),
+        contactId = verifyCustomerIdentity(token, key);
+    const [contact] = await exec
+        .select()
+        .from(crmContacts)
+        .where(
+            and(
+                eq(crmContacts.id, contactId),
+                eq(crmContacts.orgId, channel.orgId),
+                eq(crmContacts.workspaceId, channel.workspaceId),
+            ),
+        );
+    if (!contact)
+        throw new InboxError("회원 상담 고객을 찾을 수 없습니다.", 401);
+    return { channel, contact };
+}
+async function visitorConversation(
+    key: string,
+    token: string,
+    exec: DbExec,
+    create = false,
+) {
+    if (token.includes(".")) {
+        const { channel, contact } = await authenticatedCustomer(
+            key,
+            token,
+            exec,
+        );
+        let [chat] = await exec
+            .select({
+                id: inboxConversations.id,
+                status: inboxConversations.status,
+            })
+            .from(inboxConversations)
+            .where(
+                and(
+                    eq(inboxConversations.channelId, channel.id),
+                    eq(inboxConversations.contactId, contact.id),
+                ),
+            );
+        if (!chat && create) {
+            await exec
+                .insert(inboxConversations)
+                .values({
+                    channelId: channel.id,
+                    orgId: channel.orgId,
+                    contactId: contact.id,
+                    tokenHash: hash(randomBytes(32).toString("hex")),
+                    name: contact.name,
+                    email: contact.email,
+                    recordId: contact.recordId,
+                })
+                .onConflictDoNothing({
+                    target: [
+                        inboxConversations.channelId,
+                        inboxConversations.contactId,
+                    ],
+                });
+            [chat] = await exec
+                .select({
+                    id: inboxConversations.id,
+                    status: inboxConversations.status,
+                })
+                .from(inboxConversations)
+                .where(
+                    and(
+                        eq(inboxConversations.channelId, channel.id),
+                        eq(inboxConversations.contactId, contact.id),
+                    ),
+                );
+        }
+        return {
+            id: chat?.id ?? null,
+            status: chat?.status ?? "open",
+            name: contact.name,
+            profile: {
+                name: contact.name,
+                email: contact.email,
+                identified: true,
+            },
+        };
+    }
     if (!/^[a-f0-9]{64}$/.test(token))
         throw new InboxError("상담 세션을 확인해주세요.", 401);
     const channel = await publicChannel(key, exec);
@@ -455,10 +630,14 @@ async function visitorConversation(key: string, token: string, exec: DbExec) {
             and(
                 eq(inboxConversations.channelId, channel.id),
                 eq(inboxConversations.tokenHash, hash(token)),
+                isNull(inboxConversations.contactId),
             ),
         );
     if (!chat) throw new InboxError("상담 세션을 확인해주세요.", 401);
-    return chat;
+    return {
+        ...chat,
+        profile: { name: chat.name, identified: false, email: null },
+    };
 }
 export async function visitorDetail(
     key: string,
@@ -467,10 +646,13 @@ export async function visitorDetail(
     before?: number,
 ) {
     const chat = await visitorConversation(key, token, exec);
-    const result = await readMessages(chat.id, exec, true, before);
+    const result = chat.id
+        ? await readMessages(chat.id, exec, true, before)
+        : { messages: [], hasOlder: false };
     // 방문자에게는 직원 식별자·내부 메모·CRM 연결 정보를 내보내지 않는다.
     return {
         status: chat.status,
+        profile: chat.profile,
         hasOlder: result.hasOlder,
         messages: result.messages.map((m) => ({
             id: m.id,
@@ -489,7 +671,8 @@ export async function sendVisitorMessage(
     exec: DbExec = db,
 ) {
     const input = messageInput.parse(raw),
-        chat = await visitorConversation(key, token, exec);
+        chat = await visitorConversation(key, token, exec, true);
+    if (!chat.id) throw new InboxError("상담을 시작하지 못했습니다.", 503);
     const result = await appendMessage(exec, chat.id, {
         ...input,
         kind: "customer",

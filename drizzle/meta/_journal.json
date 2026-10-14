@@ -624,6 +624,13 @@
       "when": 1775100000000,
       "tag": "0088_customer_inbox",
       "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1775200000000,
+      "tag": "0089_customer_platform",
+      "breakpoints": true
     }
   ]
 }

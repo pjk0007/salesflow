@@ -23,6 +23,7 @@ export * from "./ai-copy-schema";
 export * from "./email-experiment-schema";
 export * from "./copy-automation-schema";
 export * from "./inbox-schema";
+export * from "./customer-platform-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });

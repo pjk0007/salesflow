@@ -14,6 +14,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import { organizations, workspaces, users, records } from "./schema";
+import { crmContacts } from "./customer-platform-schema";
 
 const time = (name: string) => timestamp(name, { withTimezone: true, precision: 3 });
 export const inboxChannels = pgTable(
@@ -56,6 +57,7 @@ export const inboxConversations = pgTable(
             .notNull()
             .references(() => organizations.id, { onDelete: "cascade" }),
         tokenHash: varchar("token_hash", { length: 64 }).notNull(),
+        contactId: uuid("contact_id").references(() => crmContacts.id, { onDelete: "set null" }),
         name: varchar("name", { length: 100 }).notNull(),
         email: varchar("email", { length: 254 }),
         pageUrl: text("page_url"),
@@ -75,6 +77,7 @@ export const inboxConversations = pgTable(
     },
     (t) => [
         uniqueIndex("inbox_session_unique").on(t.channelId, t.tokenHash),
+        uniqueIndex("inbox_contact_unique").on(t.channelId, t.contactId),
         index("inbox_org_recent").on(t.orgId, t.lastMessageAt),
         index("inbox_record").on(t.recordId),
         check(

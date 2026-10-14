@@ -10,6 +10,7 @@ export interface InboxChannel {
     enabled: boolean;
 }
 export interface Conversation {
+    contactId: string | null;
     id: string;
     channelId: number;
     name: string;
@@ -37,4 +38,15 @@ export interface InboxBootstrap {
     channels: InboxChannel[];
     members: { id: string; name: string }[];
     workspaces: { id: number; name: string }[];
+}
+export type ConversationFilter =
+    | "all"
+    | "mine"
+    | "unassigned"
+    | "unread"
+    | "priority";
+export interface InboxListPage {
+    rows: Conversation[];
+    counts: Record<ConversationFilter, number>;
+    hasMore: boolean;
 }
