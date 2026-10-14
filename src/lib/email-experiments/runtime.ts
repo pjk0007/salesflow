@@ -53,7 +53,7 @@ export async function prepareEmailExperiment(input: {
             { present: boolean }[]
         >`SELECT EXISTS(SELECT 1 FROM email_copy_experiments WHERE org_id=${input.orgId} AND workspace_id=${input.workspaceId} AND rule_id=${input.ruleId}
             AND state IN('running','paused','enrollment_closed','observing','decision_ready','data_check','insufficient_sample'))
-            OR EXISTS(SELECT 1 FROM email_copy_assignments a JOIN email_copy_experiments e ON e.id=a.experiment_id WHERE a.org_id=${input.orgId} AND a.workspace_id=${input.workspaceId} AND e.rule_id=${input.ruleId} AND a.normalized_email=${normalizeEmail(input.email)})) AS present`;
+            OR EXISTS(SELECT 1 FROM email_copy_assignments a JOIN email_copy_experiments e ON e.id=a.experiment_id WHERE a.org_id=${input.orgId} AND a.workspace_id=${input.workspaceId} AND e.rule_id=${input.ruleId} AND a.normalized_email=${normalizeEmail(input.email)}) AS present`;
         if (!exists.present) return { kind: "none" } as const;
         const audience = await loadInternalAudience(
             conn,
