@@ -12,6 +12,7 @@ import {
     records,
     partitions,
     crmContacts,
+    inboxAttachments,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -30,10 +31,18 @@ import { InboxError } from "./errors";
 export { InboxError } from "./errors";
 import { verifyCustomerIdentity } from "@/lib/customer-platform/identity";
 import { appendActivity } from "@/lib/customer-platform/activities";
+import {
+    bindAttachments,
+    fileOwner,
+    messageAttachments,
+    type FileScope,
+} from "./files";
+import { appendInboxAudit, type AuditChanges } from "./audit";
 type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
 const conversationColumns = {
+    version: inboxConversations.version,
     id: inboxConversations.id,
     channelId: inboxConversations.channelId,
     name: inboxConversations.name,
@@ -91,16 +100,54 @@ export async function saveChannel(
             ),
         );
     if (!space) throw new InboxError("워크스페이스를 찾을 수 없습니다.", 404);
-    const [channel] = await exec
-        .insert(inboxChannels)
-        .values({
-            ...input,
+    return exec.transaction(async (tx) => {
+        await tx
+            .select({ id: workspaces.id })
+            .from(workspaces)
+            .where(eq(workspaces.id, input.workspaceId))
+            .for("update");
+        const [before] = await tx
+            .select()
+            .from(inboxChannels)
+            .where(eq(inboxChannels.workspaceId, input.workspaceId));
+        const [channel] = await tx
+            .insert(inboxChannels)
+            .values({
+                ...input,
+                orgId: actor.orgId,
+                publicKey: randomBytes(24).toString("hex"),
+            })
+            .onConflictDoUpdate({
+                target: inboxChannels.workspaceId,
+                set: input,
+            })
+            .returning();
+        const changes: AuditChanges = {};
+        for (const key of [
+            "name",
+            "greeting",
+            "color",
+            "allowedOrigins",
+            "enabled",
+        ] as const)
+            if (
+                JSON.stringify(before?.[key] ?? null) !==
+                JSON.stringify(input[key])
+            )
+                changes[key] = {
+                    before: before?.[key] ?? null,
+                    after: input[key],
+                };
+        await appendInboxAudit(tx, {
             orgId: actor.orgId,
-            publicKey: randomBytes(24).toString("hex"),
-        })
-        .onConflictDoUpdate({ target: inboxChannels.workspaceId, set: input })
-        .returning();
-    return channel;
+            channelId: channel.id,
+            actorId: actor.userId,
+            actorName: actor.name,
+            action: before ? "channel.updated" : "channel.created",
+            changes,
+        });
+        return channel;
+    });
 }
 export async function listConversations(
     actor: Actor,
@@ -262,7 +309,22 @@ async function readMessages(
         )
         .orderBy(desc(inboxMessages.id))
         .limit(100);
-    return { messages: messages.reverse(), hasOlder: messages.length === 100 };
+    const attachments = await messageAttachments(
+        exec,
+        messages.map((m) => m.id),
+    );
+    return {
+        messages: messages.reverse().map((m) => ({
+            ...m,
+            attachments: attachments
+                .filter((f) => f.messageId === m.id)
+                .map(({ messageId: _, ...f }) => {
+                    void _;
+                    return f;
+                }),
+        })),
+        hasOlder: messages.length === 100,
+    };
 }
 export async function conversationDetail(
     actor: Actor,
@@ -279,63 +341,120 @@ export async function patchConversation(
     raw: unknown,
     exec: DbExec = db,
 ) {
-    const input = patchInput.parse(raw);
-    await ownedConversation(actor, id, exec);
-    if (input.assigneeId) {
-        const [member] = await exec
-            .select({ id: users.id })
-            .from(organizationMembers)
-            .innerJoin(users, eq(users.id, organizationMembers.userId))
-            .where(
-                and(
-                    eq(organizationMembers.organizationId, actor.orgId),
-                    eq(users.id, input.assigneeId),
-                    eq(users.isActive, 1),
-                ),
-            );
-        if (!member)
-            throw new InboxError("이 조직의 활성 팀원을 선택해주세요.");
-    }
-    if (input.recordId) {
-        const [record] = await exec
-            .select({ id: records.id })
-            .from(records)
-            .innerJoin(partitions, eq(partitions.id, records.partitionId))
-            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-            .innerJoin(inboxConversations, eq(inboxConversations.id, id))
-            .innerJoin(
-                inboxChannels,
-                eq(inboxChannels.id, inboxConversations.channelId),
-            )
-            .where(
-                and(
-                    eq(records.id, input.recordId),
-                    eq(records.orgId, actor.orgId),
-                    eq(workspaces.id, inboxChannels.workspaceId),
-                ),
-            );
-        if (!record)
-            throw new InboxError(
-                "이 상담 채널과 같은 워크스페이스의 CRM 고객을 선택해주세요.",
-            );
-    }
+    const { version, ...input } = patchInput.parse(raw);
     if (!Object.keys(input).length)
         throw new InboxError("변경할 내용을 선택해주세요.");
-    const [updated] = await exec
-        .update(inboxConversations)
-        .set({
+    return exec.transaction(async (tx) => {
+        const [chat] = await tx
+            .select(conversationColumns)
+            .from(inboxConversations)
+            .where(
+                and(
+                    eq(inboxConversations.id, id),
+                    eq(inboxConversations.orgId, actor.orgId),
+                ),
+            )
+            .for("update");
+        if (!chat) throw new InboxError("상담을 찾을 수 없습니다.", 404);
+        if (version !== undefined && version !== chat.version)
+            throw new InboxError(
+                "다른 사람이 상담 정보를 변경했습니다. 최신 정보를 확인한 뒤 다시 저장해주세요.",
+                409,
+            );
+        if (input.assigneeId) {
+            const [member] = await tx
+                .select({ id: users.id })
+                .from(organizationMembers)
+                .innerJoin(users, eq(users.id, organizationMembers.userId))
+                .where(
+                    and(
+                        eq(organizationMembers.organizationId, actor.orgId),
+                        eq(users.id, input.assigneeId),
+                        eq(users.isActive, 1),
+                    ),
+                );
+            if (!member)
+                throw new InboxError("이 조직의 활성 팀원을 선택해주세요.");
+        }
+        if (input.recordId) {
+            const [record] = await tx
+                .select({ id: records.id })
+                .from(records)
+                .innerJoin(partitions, eq(partitions.id, records.partitionId))
+                .innerJoin(
+                    workspaces,
+                    eq(workspaces.id, partitions.workspaceId),
+                )
+                .innerJoin(inboxConversations, eq(inboxConversations.id, id))
+                .innerJoin(
+                    inboxChannels,
+                    eq(inboxChannels.id, inboxConversations.channelId),
+                )
+                .where(
+                    and(
+                        eq(records.id, input.recordId),
+                        eq(records.orgId, actor.orgId),
+                        eq(workspaces.id, inboxChannels.workspaceId),
+                    ),
+                );
+            if (!record)
+                throw new InboxError(
+                    "이 상담 채널과 같은 워크스페이스의 CRM 고객을 선택해주세요.",
+                );
+        }
+
+        const normalized = {
             ...input,
             ...(input.tags ? { tags: [...new Set(input.tags)] } : {}),
-        })
-        .where(
-            and(
-                eq(inboxConversations.id, id),
-                eq(inboxConversations.orgId, actor.orgId),
-            ),
-        )
-        .returning(conversationColumns);
-    return updated;
+        };
+        const changes: AuditChanges = {};
+        for (const key of Object.keys(
+            normalized,
+        ) as (keyof typeof normalized)[]) {
+            if (JSON.stringify(chat[key]) !== JSON.stringify(normalized[key]))
+                changes[key] = { before: chat[key], after: normalized[key] };
+        }
+        if (!Object.keys(changes).length) return chat;
+        if (changes.assigneeId) {
+            const ids = [chat.assigneeId, input.assigneeId].filter(
+                (v): v is string => !!v,
+            );
+            const people = ids.length
+                ? await tx
+                      .select({ id: users.id, name: users.name })
+                      .from(users)
+                      .where(
+                          sql`${users.id} in (${sql.join(
+                              ids.map((v) => sql`${v}`),
+                              sql`,`,
+                          )})`,
+                      )
+                : [];
+            changes.assigneeId.beforeLabel =
+                people.find((p) => p.id === chat.assigneeId)?.name ??
+                "담당자 없음";
+            changes.assigneeId.afterLabel =
+                people.find((p) => p.id === input.assigneeId)?.name ??
+                "담당자 없음";
+        }
+        const [updated] = await tx
+            .update(inboxConversations)
+            .set({ ...normalized, version: chat.version + 1 })
+            .where(eq(inboxConversations.id, id))
+            .returning(conversationColumns);
+        await appendInboxAudit(tx, {
+            orgId: actor.orgId,
+            channelId: chat.channelId,
+            conversationId: id,
+            actorId: actor.userId,
+            actorName: actor.name,
+            action: "conversation.updated",
+            changes,
+        });
+        return updated;
+    });
 }
+
 export async function markRead(
     actor: Actor,
     id: string,
@@ -363,18 +482,13 @@ async function appendMessage(
         body: string;
         authorId?: string;
         authorName: string;
+        attachmentIds: string[];
     },
+    scope: FileScope,
 ) {
     return exec.transaction(async (tx) => {
-        // 상담마다 직렬화: 중복 제출과 종료 후 재문의가 겹쳐도 순서/미확인 수를 보존한다.
         const [locked] = await tx
-            .select({
-                id: inboxConversations.id,
-                status: inboxConversations.status,
-                contactId: inboxConversations.contactId,
-                channelId: inboxConversations.channelId,
-                orgId: inboxConversations.orgId,
-            })
+            .select()
             .from(inboxConversations)
             .where(eq(inboxConversations.id, id))
             .for("update");
@@ -388,12 +502,21 @@ async function appendMessage(
                 ),
             );
         if (duplicate) {
+            const attached = await messageAttachments(tx, [duplicate.id]);
             if (
                 duplicate.kind !== message.kind ||
-                duplicate.body !== message.body
+                duplicate.body !== message.body ||
+                JSON.stringify(attached.map((f) => f.id).sort()) !==
+                    JSON.stringify([...message.attachmentIds].sort())
             )
                 throw new InboxError("이미 처리된 메시지 번호입니다.", 409);
-            return duplicate;
+            return {
+                ...duplicate,
+                attachments: attached.map(({ messageId: _, ...f }) => {
+                    void _;
+                    return f;
+                }),
+            };
         }
         if (message.kind === "reply" && locked.status === "closed")
             throw new InboxError("상담을 다시 연 뒤 답변해주세요.");
@@ -418,30 +541,21 @@ async function appendMessage(
                     429,
                 );
         }
+        const { attachmentIds, ...value } = message;
         const [inserted] = await tx
             .insert(inboxMessages)
-            .values({ ...message, conversationId: id })
-            .onConflictDoNothing({
-                target: [inboxMessages.conversationId, inboxMessages.clientId],
-            })
+            .values({ ...value, conversationId: id })
             .returning();
-        if (!inserted) {
-            const [existing] = await tx
-                .select()
-                .from(inboxMessages)
-                .where(
-                    and(
-                        eq(inboxMessages.conversationId, id),
-                        eq(inboxMessages.clientId, message.clientId),
-                    ),
-                );
-            if (
-                existing.kind !== message.kind ||
-                existing.body !== message.body
-            )
-                throw new InboxError("이미 처리된 메시지 번호입니다.", 409);
-            return existing;
-        }
+        const attachments = await bindAttachments(
+            tx,
+            scope,
+            message.kind,
+            attachmentIds,
+            inserted.id,
+        );
+        const summary =
+            message.body ||
+            `파일 ${attachments.length}개 · ${attachments[0]?.fileName ?? ""}`;
         if (message.kind !== "note") {
             if (locked.contactId) {
                 const [channel] = await tx
@@ -456,16 +570,33 @@ async function appendMessage(
                     entityId: id,
                     eventKey: `message:${inserted.id}`,
                     action: message.kind,
-                    summary: message.body,
+                    summary,
                     actorName: message.authorName,
-                    metadata: { conversationId: id, messageId: inserted.id },
+                    metadata: {
+                        conversationId: id,
+                        messageId: inserted.id,
+                        attachmentCount: attachments.length,
+                    },
                     occurredAt: inserted.createdAt,
                 });
             }
+            const reopen =
+                message.kind === "customer" && locked.status !== "open";
+            if (reopen)
+                await appendInboxAudit(tx, {
+                    orgId: locked.orgId,
+                    channelId: locked.channelId,
+                    conversationId: id,
+                    actorName: message.authorName,
+                    action: "customer.reopened",
+                    changes: {
+                        status: { before: locked.status, after: "open" },
+                    },
+                });
             await tx
                 .update(inboxConversations)
                 .set({
-                    preview: message.body.slice(0, 200),
+                    preview: summary.slice(0, 200),
                     lastMessageAt: inserted.createdAt,
                     ...(message.kind === "customer"
                         ? {
@@ -473,12 +604,14 @@ async function appendMessage(
                               customerSeq: sql`${inboxConversations.customerSeq} + 1`,
                           }
                         : {}),
+                    ...(reopen ? { version: locked.version + 1 } : {}),
                 })
                 .where(eq(inboxConversations.id, id));
         }
-        return inserted;
+        return { ...inserted, attachments };
     });
 }
+
 export async function sendAgentMessage(
     actor: Actor,
     id: string,
@@ -486,12 +619,62 @@ export async function sendAgentMessage(
     exec: DbExec = db,
 ) {
     const input = replyInput.parse(raw);
-    await ownedConversation(actor, id, exec);
-    return appendMessage(exec, id, {
-        ...input,
-        authorId: actor.userId,
-        authorName: actor.name,
-    });
+    const scope = await staffFileScope(actor, id, exec);
+    return appendMessage(
+        exec,
+        id,
+        {
+            ...input,
+            authorId: actor.userId,
+            authorName: actor.name,
+        },
+        scope,
+    );
+}
+export async function staffFileScope(
+    actor: Actor,
+    id: string,
+    exec: DbExec = db,
+): Promise<FileScope> {
+    const chat = await ownedConversation(actor, id, exec);
+    return {
+        orgId: actor.orgId,
+        channelId: chat.channelId,
+        conversationId: id,
+        ownerKey: fileOwner(`staff:${actor.userId}:${chat.channelId}`),
+        publicOnly: false,
+    };
+}
+export async function staffDownloadScope(
+    actor: Actor,
+    id: string,
+    exec: DbExec = db,
+): Promise<FileScope> {
+    const [row] = await exec
+        .select({
+            channelId: inboxAttachments.channelId,
+            conversationId: inboxMessages.conversationId,
+            draftId: inboxAttachments.draftConversationId,
+        })
+        .from(inboxAttachments)
+        .leftJoin(
+            inboxMessages,
+            eq(inboxMessages.id, inboxAttachments.messageId),
+        )
+        .where(
+            and(
+                eq(inboxAttachments.id, id),
+                eq(inboxAttachments.orgId, actor.orgId),
+            ),
+        );
+    if (!row) throw new InboxError("첨부 파일을 찾을 수 없습니다.", 404);
+    return {
+        orgId: actor.orgId,
+        channelId: row.channelId,
+        conversationId: row.conversationId ?? row.draftId,
+        ownerKey: fileOwner(`staff:${actor.userId}:${row.channelId}`),
+        publicOnly: false,
+    };
 }
 export async function publicChannel(key: string, exec: DbExec = db) {
     const [channel] = await exec
@@ -634,6 +817,9 @@ async function visitorConversation(
         }
         return {
             id: chat?.id ?? null,
+            channelId: channel.id,
+            orgId: channel.orgId,
+            ownerKey: fileOwner(`member:${channel.id}:${contact.id}`),
             status: chat?.status ?? "open",
             name: contact.name,
             profile: {
@@ -663,7 +849,24 @@ async function visitorConversation(
     if (!chat) throw new InboxError("상담 세션을 확인해주세요.", 401);
     return {
         ...chat,
+        channelId: channel.id,
+        orgId: channel.orgId,
+        ownerKey: fileOwner(`visitor:${channel.id}:${token}`),
         profile: { name: chat.name, identified: false, email: null },
+    };
+}
+export async function visitorFileScope(
+    key: string,
+    token: string,
+    exec: DbExec = db,
+): Promise<FileScope> {
+    const chat = await visitorConversation(key, token, exec);
+    return {
+        orgId: chat.orgId,
+        channelId: chat.channelId,
+        conversationId: chat.id,
+        ownerKey: chat.ownerKey,
+        publicOnly: true,
     };
 }
 export async function visitorDetail(
@@ -688,6 +891,7 @@ export async function visitorDetail(
             body: m.body,
             authorName: m.authorName,
             createdAt: m.createdAt,
+            attachments: m.attachments,
         })),
     };
 }
@@ -700,10 +904,21 @@ export async function sendVisitorMessage(
     const input = messageInput.parse(raw),
         chat = await visitorConversation(key, token, exec, true);
     if (!chat.id) throw new InboxError("상담을 시작하지 못했습니다.", 503);
-    const result = await appendMessage(exec, chat.id, {
-        ...input,
-        kind: "customer",
-        authorName: chat.name,
-    });
+    const result = await appendMessage(
+        exec,
+        chat.id,
+        {
+            ...input,
+            kind: "customer",
+            authorName: chat.name,
+        },
+        {
+            orgId: chat.orgId,
+            channelId: chat.channelId,
+            conversationId: chat.id,
+            ownerKey: chat.ownerKey,
+            publicOnly: true,
+        },
+    );
     return { id: result.id, clientId: result.clientId };
 }

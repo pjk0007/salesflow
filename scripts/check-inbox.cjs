@@ -71,6 +71,7 @@ async function fixture() {
         "0089_customer_platform.sql",
         "0090_customer_sales.sql",
         "0091_customer_activities.sql",
+        "0092_inbox_files_audit.sql",
     ])
         for (const statement of fs
             .readFileSync(

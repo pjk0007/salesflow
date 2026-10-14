@@ -1,4 +1,5 @@
 "use client";
+import { InboxAudit } from "./InboxAudit";
 import { useState } from "react";
 import { Copy, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
@@ -15,7 +16,11 @@ export function ChannelSettings({
     onClose: () => void;
     onSaved: (channel: InboxChannel) => void;
 }) {
-    const availableWorkspaces = channel ? bootstrap.workspaces : bootstrap.workspaces.filter(w => !bootstrap.channels.some(c => c.workspaceId === w.id));
+    const availableWorkspaces = channel
+        ? bootstrap.workspaces
+        : bootstrap.workspaces.filter(
+              (w) => !bootstrap.channels.some((c) => c.workspaceId === w.id),
+          );
     const [workspaceId, setWorkspace] = useState(
         channel?.workspaceId ?? availableWorkspaces[0]?.id ?? 0,
     );
@@ -105,7 +110,11 @@ export function ChannelSettings({
                                 setWorkspace(Number(e.target.value))
                             }
                         >
-                            {!availableWorkspaces.length && <option value={0}>모든 사업의 상담창을 만들었습니다</option>}
+                            {!availableWorkspaces.length && (
+                                <option value={0}>
+                                    모든 사업의 상담창을 만들었습니다
+                                </option>
+                            )}
                             {availableWorkspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
                                     {w.name}
@@ -175,6 +184,9 @@ export function ChannelSettings({
                 </form>
                 {channel && (
                     <div className="mt-7 space-y-3 border-t pt-5">
+                        <InboxAudit
+                            url={`/api/inbox/channels/${channel.id}/audit`}
+                        />
                         <h3 className="font-medium">사이트에 설치</h3>
                         <p className="text-sm text-muted-foreground">
                             설치할 사이트의 HTML에 아래 코드를 추가하세요.

@@ -64,7 +64,7 @@ export function useInbox(
     async function patch(data: unknown) {
         const updated = await inboxWrite<Conversation>(
             `/api/inbox/conversations/${conversationId}`,
-            data,
+            { version: detail.data?.conversation.version, ...(data as object) },
             "PATCH",
         );
         await Promise.all([list.mutate(), detail.mutate()]);

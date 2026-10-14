@@ -4,6 +4,10 @@ import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
 import { inboxRequest, inboxWrite } from "../api";
+import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
+import { AttachmentDrafts } from "./AttachmentDrafts";
+import { AttachmentList } from "./AttachmentList";
+import { InboxAudit } from "./InboxAudit";
 import { CustomerCrmContext } from "./CustomerCrmContext";
 export const statusNames = {
     open: "진행중",
@@ -47,11 +51,16 @@ export function ConversationPane({
     const end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
         follow = useRef(true),
-        pending = useRef<{ body: string; kind: string; id: string } | null>(
-            null,
-        );
+        pending = useRef<{
+            body: string;
+            kind: string;
+            id: string;
+            files: string;
+        } | null>(null);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
+    const attachments = useAttachmentDrafts(draftKey);
+    const uploadUrl = `/api/inbox/conversations/${chat.id}/attachments`;
     const lastMessageId = messages.at(-1)?.id;
     useEffect(() => {
         if (follow.current) end.current?.scrollIntoView({ block: "end" });
@@ -67,8 +76,10 @@ export function ConversationPane({
     async function change(value: unknown) {
         try {
             await patch(value);
+            return true;
         } catch (e) {
             toast.error((e as Error).message);
+            return false;
         }
     }
     function updateDraft(value: string) {
@@ -81,18 +92,30 @@ export function ConversationPane({
         });
     }
     async function send() {
-        if (!text.trim() || busy) return;
+        if ((!text.trim() && !attachments.files.length) || busy) return;
         const body = text.trim();
         setBusy(true);
-        if (pending.current?.body !== body || pending.current?.kind !== kind)
-            pending.current = { body, kind, id: crypto.randomUUID() };
+        if (
+            pending.current?.body !== body ||
+            pending.current?.kind !== kind ||
+            pending.current?.files !== attachments.signature
+        )
+            pending.current = {
+                body,
+                kind,
+                id: crypto.randomUUID(),
+                files: attachments.signature,
+            };
         try {
+            const attachmentIds = await attachments.prepare(uploadUrl, kind);
             await inboxWrite(`/api/inbox/conversations/${chat.id}`, {
+                attachmentIds,
                 clientId: pending.current.id,
                 body,
                 kind,
             });
             updateDraft("");
+            attachments.clear();
             pending.current = null;
             follow.current = true;
             await refresh();
@@ -261,11 +284,17 @@ export function ConversationPane({
                                         })}
                                     </time>
                                 </div>
-                                <p
-                                    className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
-                                >
-                                    {m.body}
-                                </p>
+                                {m.body && (
+                                    <p
+                                        className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
+                                    >
+                                        {m.body}
+                                    </p>
+                                )}
+                                <AttachmentList
+                                    files={m.attachments}
+                                    url={(id) => `/api/inbox/attachments/${id}`}
+                                />
                             </div>
                         </div>
                     ))}
@@ -281,6 +310,7 @@ export function ConversationPane({
                     <div className="mb-2 flex gap-1 text-xs">
                         <button
                             type="button"
+                            disabled={busy}
                             onClick={() => setKind("reply")}
                             className={`rounded-lg px-3 py-1.5 ${kind === "reply" ? "bg-muted font-semibold" : "text-muted-foreground"}`}
                         >
@@ -288,6 +318,7 @@ export function ConversationPane({
                         </button>
                         <button
                             type="button"
+                            disabled={busy}
                             onClick={() => setKind("note")}
                             className={`flex items-center gap-1 rounded-lg px-3 py-1.5 ${kind === "note" ? "bg-amber-100 font-semibold text-amber-800" : "text-muted-foreground"}`}
                         >
@@ -313,7 +344,10 @@ export function ConversationPane({
                                 void send();
                             }
                         }}
-                        disabled={kind === "reply" && chat.status === "closed"}
+                        disabled={
+                            busy ||
+                            (kind === "reply" && chat.status === "closed")
+                        }
                         maxLength={5000}
                         rows={3}
                         placeholder={
@@ -325,6 +359,17 @@ export function ConversationPane({
                         }
                         className="w-full resize-none bg-transparent text-sm outline-none"
                     />
+                    <AttachmentDrafts
+                        files={attachments.files}
+                        busy={
+                            busy ||
+                            (kind === "reply" && chat.status === "closed")
+                        }
+                        progress={attachments.progress}
+                        onSelect={attachments.select}
+                        onRemove={(id) => attachments.remove(id, uploadUrl)}
+                        onError={(message) => toast.error(message)}
+                    />
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] text-muted-foreground">
                             {kind === "note"
@@ -334,7 +379,7 @@ export function ConversationPane({
                         <button
                             disabled={
                                 busy ||
-                                !text.trim() ||
+                                (!text.trim() && !attachments.files.length) ||
                                 (kind === "reply" && chat.status === "closed")
                             }
                             className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 ${kind === "note" ? "bg-amber-700" : "bg-[#635BFF]"}`}
@@ -379,10 +424,44 @@ function CustomerInfo({
 }: {
     chat: Conversation;
     bootstrap: InboxBootstrap;
-    change: (value: unknown) => Promise<void>;
+    change: (value: unknown) => Promise<boolean>;
 }) {
-    const [recordId, setRecord] = useState(String(chat.recordId ?? "")),
-        [tags, setTags] = useState(chat.tags.join(", "));
+    const [recordDraft, setRecord] = useState<{
+            value: string;
+            version: number;
+        } | null>(null),
+        [tagDraft, setTags] = useState<{
+            value: string;
+            version: number;
+        } | null>(null);
+    const recordId = recordDraft?.value ?? String(chat.recordId ?? ""),
+        tags = tagDraft?.value ?? chat.tags.join(", ");
+    const [saving, setSaving] = useState(false);
+    async function save(which: "record" | "tags") {
+        setSaving(true);
+        try {
+            const result = await change(
+                which === "tags"
+                    ? {
+                          tags: tags
+                              .split(",")
+                              .map((t) => t.trim())
+                              .filter(Boolean),
+                          version: tagDraft?.version ?? chat.version,
+                      }
+                    : {
+                          recordId: recordId ? Number(recordId) : null,
+                          version: recordDraft?.version ?? chat.version,
+                      },
+            );
+            if (result) {
+                if (which === "tags") setTags(null);
+                else setRecord(null);
+            }
+        } finally {
+            setSaving(false);
+        }
+    }
     return (
         <div className="space-y-6 p-5 text-sm">
             <section className="space-y-3">
@@ -436,25 +515,42 @@ function CustomerInfo({
                     </p>
                 </div>
             </section>
+            {((tagDraft && tagDraft.version !== chat.version) ||
+                (recordDraft && recordDraft.version !== chat.version)) && (
+                <div
+                    role="alert"
+                    className="rounded-lg bg-amber-50 p-3 text-xs text-amber-800"
+                >
+                    다른 변경이 있습니다. 작성 중인 값은 보존했습니다.
+                    <button
+                        className="mt-2 block underline"
+                        onClick={() => {
+                            setTags(null);
+                            setRecord(null);
+                        }}
+                    >
+                        최신 태그·연결 정보 불러오기
+                    </button>
+                </div>
+            )}
             <section className="space-y-3 border-t pt-5">
                 <h3 className="font-semibold">상담 태그</h3>
                 <input
                     aria-label="상담 태그"
                     className="w-full rounded-lg border bg-background p-2 text-xs"
                     value={tags}
-                    onChange={(e) => setTags(e.target.value)}
+                    onChange={(e) =>
+                        setTags((old) => ({
+                            value: e.target.value,
+                            version: old?.version ?? chat.version,
+                        }))
+                    }
                     placeholder="도입문의, 비용"
                 />
                 <button
                     className="text-xs text-[#635BFF]"
-                    onClick={() =>
-                        change({
-                            tags: tags
-                                .split(",")
-                                .map((t) => t.trim())
-                                .filter(Boolean),
-                        })
-                    }
+                    disabled={saving}
+                    onClick={() => void save("tags")}
                 >
                     태그 저장
                 </button>
@@ -480,14 +576,18 @@ function CustomerInfo({
                     aria-label="CRM 레코드 번호"
                     className="w-full rounded-lg border bg-background p-2 text-xs"
                     value={recordId}
-                    onChange={(e) => setRecord(e.target.value)}
+                    onChange={(e) =>
+                        setRecord((old) => ({
+                            value: e.target.value,
+                            version: old?.version ?? chat.version,
+                        }))
+                    }
                     placeholder="레코드 번호"
                 />
                 <button
                     className="text-xs text-[#635BFF]"
-                    onClick={() =>
-                        change({ recordId: recordId ? Number(recordId) : null })
-                    }
+                    disabled={saving}
+                    onClick={() => void save("record")}
                 >
                     고객 연결 저장
                 </button>
@@ -508,6 +608,7 @@ function CustomerInfo({
                     </div>
                 )}
             </section>
+            <InboxAudit url={`/api/inbox/conversations/${chat.id}/audit`} />
         </div>
     );
 }

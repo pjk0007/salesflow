@@ -4,6 +4,9 @@ import useSWR from "swr";
 import { ArrowUp, MessageCircle, RotateCcw } from "lucide-react";
 import { inboxRequest, InboxRequestError } from "../api";
 import type { ChatMessage } from "../types";
+import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
+import { AttachmentDrafts } from "./AttachmentDrafts";
+import { AttachmentList } from "./AttachmentList";
 import { draftSessionKey } from "../utils/session";
 export function ChatWidget({ channelKey }: { channelKey: string }) {
     const [token, setToken] = useState(""),
@@ -20,8 +23,13 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         [opened, setOpened] = useState(true),
         [readId, setReadId] = useState(0);
     const generation = useRef(0);
+    const attachments = useAttachmentDrafts(channelKey);
+    const resetAttachments = attachments.reset;
+    const uploadUrl = `/api/messenger/${channelKey}/attachments`;
     const configured = useRef<string | null>(null);
-    const pending = useRef<{ body: string; id: string } | null>(null),
+    const pending = useRef<{ body: string; id: string; files: string } | null>(
+            null,
+        ),
         end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
         follow = useRef(true);
@@ -86,6 +94,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 const session = draftSessionKey(next);
                 if (configured.current !== session) {
                     generation.current++;
+                    resetAttachments();
                     setText("");
                     setOlder([]);
                     setCanLoad(true);
@@ -103,7 +112,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             parent,
         );
         return () => window.removeEventListener("message", listener);
-    }, [config.data, channelKey]);
+    }, [config.data, channelKey, resetAttachments]);
     function parentMessage(
         type: string,
         payload: Record<string, unknown> = {},
@@ -159,13 +168,20 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         );
     const color = config.data?.color ?? "#635BFF";
     async function send() {
-        if (busy || !text.trim()) return;
+        if (busy || (!text.trim() && !attachments.files.length)) return;
         const body = text.trim();
         setBusy(true);
         setError("");
         const currentGeneration = generation.current;
-        if (pending.current?.body !== body)
-            pending.current = { body, id: crypto.randomUUID() };
+        if (
+            pending.current?.body !== body ||
+            pending.current?.files !== attachments.signature
+        )
+            pending.current = {
+                body,
+                id: crypto.randomUUID(),
+                files: attachments.signature,
+            };
         try {
             let session = token;
             if (!session) {
@@ -187,6 +203,8 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 );
                 if (currentGeneration !== generation.current) return;
                 session = result.token;
+                // First anonymous session belongs to the current draft; parent echo must not reset it.
+                configured.current = draftSessionKey(session);
                 setToken(session);
                 if (managed) parentMessage("sendb:session", { token: session });
                 else
@@ -196,9 +214,19 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         /* 현재 창 세션 유지 */
                     }
             }
+            const attachmentIds = await attachments.prepare(
+                uploadUrl,
+                "customer",
+                { Authorization: `Bearer ${session}` },
+            );
+            if (currentGeneration !== generation.current) return;
             await inboxRequest(`/api/messenger/${channelKey}`, {
                 method: "POST",
-                body: JSON.stringify({ clientId: pending.current.id, body }),
+                body: JSON.stringify({
+                    clientId: pending.current!.id,
+                    body,
+                    attachmentIds,
+                }),
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${session}`,
@@ -206,6 +234,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             });
             if (currentGeneration !== generation.current) return;
             setText("");
+            attachments.clear();
             pending.current = null;
             follow.current = true;
             await data.mutate();
@@ -276,6 +305,9 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                     parentMessage("sendb:refresh");
                                     return;
                                 }
+                                generation.current++;
+                                attachments.reset();
+                                pending.current = null;
                                 setToken("");
                                 setOlder([]);
                                 setCanLoad(true);
@@ -369,16 +401,25 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                     },
                                 )}
                             </p>
-                            <p
-                                className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
-                                style={
-                                    m.kind === "customer"
-                                        ? { backgroundColor: color }
-                                        : {}
+                            {m.body && (
+                                <p
+                                    className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
+                                    style={
+                                        m.kind === "customer"
+                                            ? { backgroundColor: color }
+                                            : {}
+                                    }
+                                >
+                                    {m.body}
+                                </p>
+                            )}
+                            <AttachmentList
+                                files={m.attachments}
+                                url={(id) =>
+                                    `/api/messenger/${channelKey}/attachments/${id}`
                                 }
-                            >
-                                {m.body}
-                            </p>
+                                headers={{ Authorization: `Bearer ${token}` }}
+                            />
                         </div>
                     </div>
                 ))}
@@ -404,6 +445,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
                     <textarea
                         aria-label="문의 메시지"
+                        disabled={busy}
                         value={text}
                         maxLength={5000}
                         onChange={(e) => setText(e.target.value)}
@@ -425,7 +467,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         aria-label="문의 보내기"
                         disabled={
                             busy ||
-                            !text.trim() ||
+                            (!text.trim() && !attachments.files.length) ||
                             (!token && !name.trim()) ||
                             !config.data ||
                             !!data.error
@@ -440,6 +482,18 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         )}
                     </button>
                 </div>
+                <AttachmentDrafts
+                    files={attachments.files}
+                    busy={busy || !config.data || !!data.error}
+                    progress={attachments.progress}
+                    onSelect={attachments.select}
+                    onRemove={(id) =>
+                        attachments.remove(id, uploadUrl, {
+                            Authorization: `Bearer ${token}`,
+                        })
+                    }
+                    onError={setError}
+                />
                 <p className="mt-3 text-center text-[10px] text-gray-400">
                     Sendb 고객 상담
                 </p>

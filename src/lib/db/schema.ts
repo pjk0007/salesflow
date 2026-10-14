@@ -26,6 +26,7 @@ export * from "./inbox-schema";
 export * from "./customer-platform-schema";
 export * from "./customer-sales-schema";
 export * from "./customer-activity-schema";
+export * from "./inbox-files-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });

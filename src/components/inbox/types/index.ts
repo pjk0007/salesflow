@@ -10,6 +10,7 @@ export interface InboxChannel {
     enabled: boolean;
 }
 export interface Conversation {
+    version: number;
     contactId: string | null;
     id: string;
     channelId: number;
@@ -27,12 +28,19 @@ export interface Conversation {
     unread: boolean;
 }
 export interface ChatMessage {
+    attachments: ChatAttachment[];
     id: number;
     clientId: string;
     kind: "customer" | "reply" | "note";
     body: string;
     authorName: string;
     createdAt: string;
+}
+export interface ChatAttachment {
+    id: string;
+    fileName: string;
+    contentType: string;
+    size: number;
 }
 export interface InboxBootstrap {
     channels: InboxChannel[];

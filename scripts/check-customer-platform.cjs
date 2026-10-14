@@ -54,6 +54,22 @@ async function runPlatformCheck(extra) {
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [
+            /^\/api\/v1\/inbox\/conversations\/([a-f0-9-]+)\/(attachments|audit)$/,
+            (m) => `v1/inbox/conversations/[id]/${m[2]}`,
+        ],
+        [
+            /^\/api\/v1\/inbox\/attachments\/([a-f0-9-]+)$/,
+            () => "v1/inbox/attachments/[id]",
+        ],
+        [
+            /^\/api\/messenger\/([a-f0-9]+)\/attachments\/([a-f0-9-]+)$/,
+            () => "messenger/[key]/attachments/[id]",
+        ],
+        [
+            /^\/api\/messenger\/([a-f0-9]+)\/attachments$/,
+            () => "messenger/[key]/attachments",
+        ],
         [/^\/api\/v1\/crm\/(contacts|companies)$/, (m) => "v1/crm/" + m[1]],
         [
             /^\/api\/v1\/crm\/contacts\/([a-f0-9-]+)\/events$/,
@@ -86,6 +102,15 @@ async function runPlatformCheck(extra) {
         file,
     }));
     const filenames = [
+        "v1/inbox/conversations/[id]/attachments",
+        "v1/inbox/conversations/[id]/audit",
+        "v1/inbox/attachments/[id]",
+        "messenger/[key]/attachments",
+        "messenger/[key]/attachments/[id]",
+        "inbox/conversations/[id]/attachments",
+        "inbox/conversations/[id]/audit",
+        "inbox/attachments/[id]",
+        "inbox/channels/[id]/audit",
         "v1/crm/contacts",
         "v1/crm/companies",
         "v1/crm/contacts/[id]/events",
@@ -139,7 +164,11 @@ async function runPlatformCheck(extra) {
             params: Promise.resolve({
                 id: definition.file(match).includes("[resource]")
                     ? match[2]
-                    : match[1],
+                    : definition
+                            .file(match)
+                            .includes("messenger/[key]/attachments/[id]")
+                      ? match[2]
+                      : match[1],
                 key: match[1],
                 resource: match[1],
             }),

@@ -101,6 +101,7 @@ export interface SendbTask extends SendbTaskInput {
     updatedAt: string;
 }
 export interface SendbConversation {
+    version: number;
     id: string;
     channelId: number;
     contactId: string | null;
@@ -336,16 +337,18 @@ export class SendbClient {
         body: string,
         clientId: string,
         kind: "reply" | "note" = "reply",
+        attachmentIds: string[] = [],
     ) {
         return this.request(
             `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
             "POST",
-            { body, clientId, kind },
+            { body, clientId, kind, attachmentIds },
         );
     }
     updateConversation(
         conversationId: string,
         change: {
+            version?: number;
             status?: "open" | "snoozed" | "closed";
             assigneeId?: string | null;
             priority?: boolean;
@@ -356,6 +359,89 @@ export class SendbClient {
             `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
             "PATCH",
             change,
+        );
+    }
+    async uploadAttachment(
+        conversationId: string,
+        file: Blob,
+        fileName: string,
+        clientId: string,
+        kind: "reply" | "note" = "reply",
+    ) {
+        const form = new FormData();
+        form.set("file", file, fileName);
+        form.set("clientId", clientId);
+        form.set("kind", kind);
+        const response = await this.#fetch(
+            `${this.#base}/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/attachments`,
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${this.#apiToken}` },
+                body: form,
+                cache: "no-store",
+            },
+        );
+        const result = await response.json();
+        if (!response.ok || !result.success)
+            throw new SendbApiError(
+                result.error ?? "파일을 올리지 못했습니다.",
+                response.status,
+            );
+        return result.data as {
+            id: string;
+            fileName: string;
+            contentType: string;
+            size: number;
+        };
+    }
+    cancelAttachment(conversationId: string, id: string) {
+        return this.request(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/attachments`,
+            "POST",
+            { action: "cancel", id },
+        );
+    }
+    async downloadAttachment(id: string) {
+        const response = await this.#fetch(
+            `${this.#base}/api/v1/inbox/attachments/${encodeURIComponent(id)}`,
+            {
+                headers: { Authorization: `Bearer ${this.#apiToken}` },
+                cache: "no-store",
+            },
+        );
+        if (!response.ok) {
+            const result = await response.json();
+            throw new SendbApiError(
+                result.error ?? "파일을 불러오지 못했습니다.",
+                response.status,
+            );
+        }
+        return {
+            bytes: await response.arrayBuffer(),
+            contentType: response.headers.get("content-type"),
+            disposition: response.headers.get("content-disposition"),
+        };
+    }
+    conversationAudit(conversationId: string, before?: string) {
+        return this.request<{
+            rows: {
+                id: string;
+                actorName: string;
+                action: string;
+                changes: Record<
+                    string,
+                    {
+                        before: unknown;
+                        after: unknown;
+                        beforeLabel?: string;
+                        afterLabel?: string;
+                    }
+                >;
+                createdAt: string;
+            }[];
+            hasMore: boolean;
+        }>(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}/audit${before ? `?before=${encodeURIComponent(before)}` : ""}`,
         );
     }
 }

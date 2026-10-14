@@ -16,7 +16,8 @@ import { sql } from "drizzle-orm";
 import { organizations, workspaces, users, records } from "./schema";
 import { crmContacts } from "./customer-platform-schema";
 
-const time = (name: string) => timestamp(name, { withTimezone: true, precision: 3 });
+const time = (name: string) =>
+    timestamp(name, { withTimezone: true, precision: 3 });
 export const inboxChannels = pgTable(
     "inbox_channels",
     {
@@ -57,7 +58,9 @@ export const inboxConversations = pgTable(
             .notNull()
             .references(() => organizations.id, { onDelete: "cascade" }),
         tokenHash: varchar("token_hash", { length: 64 }).notNull(),
-        contactId: uuid("contact_id").references(() => crmContacts.id, { onDelete: "set null" }),
+        contactId: uuid("contact_id").references(() => crmContacts.id, {
+            onDelete: "set null",
+        }),
         name: varchar("name", { length: 100 }).notNull(),
         email: varchar("email", { length: 254 }),
         pageUrl: text("page_url"),
@@ -73,6 +76,7 @@ export const inboxConversations = pgTable(
         preview: text("preview").notNull().default(""),
         lastMessageAt: time("last_message_at").notNull().defaultNow(),
         customerSeq: integer("customer_seq").notNull().default(0),
+        version: integer("version").notNull().default(1),
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [

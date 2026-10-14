@@ -1,14 +1,26 @@
 import { z } from "zod";
 
-export const messageInput = z.object({
-    clientId: z.string().uuid(),
-    body: z
-        .string()
-        .trim()
-        .min(1, "메시지를 입력해주세요.")
-        .max(5000, "메시지는 5,000자까지 입력할 수 있습니다."),
-});
-export const replyInput = messageInput.extend({
+export const messageInput = z
+    .object({
+        clientId: z.string().uuid(),
+        body: z
+            .string()
+            .trim()
+            .max(5000, "메시지는 5,000자까지 입력할 수 있습니다."),
+        attachmentIds: z
+            .array(z.string().uuid())
+            .max(5, "파일은 한 번에 5개까지 보낼 수 있습니다.")
+            .default([]),
+    })
+    .refine(
+        (v) => !!v.body || v.attachmentIds.length > 0,
+        "메시지 또는 파일을 입력해주세요.",
+    )
+    .refine(
+        (v) => new Set(v.attachmentIds).size === v.attachmentIds.length,
+        "첨부 파일이 중복되었습니다.",
+    );
+export const replyInput = messageInput.safeExtend({
     kind: z.enum(["reply", "note"]),
 });
 export const sessionInput = z.object({
@@ -28,6 +40,7 @@ export const patchInput = z
         recordId: z.number().int().positive().nullable().optional(),
         tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
         priority: z.boolean().optional(),
+        version: z.number().int().positive().optional(),
     })
     .strict();
 export const conversationFiltersInput = z.object({

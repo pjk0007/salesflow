@@ -645,6 +645,13 @@
       "when": 1775400000000,
       "tag": "0091_customer_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1775500000000,
+      "tag": "0092_inbox_files_audit",
+      "breakpoints": true
     }
   ]
 }
