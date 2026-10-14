@@ -12,6 +12,8 @@ import type {
     SendbEmailMailbox,
     SendbEmailClaim,
     SendbEmailDeliveryAction,
+    SendbEmailReplySelection,
+    SendbEmailContext,
 } from "./email-types";
 export type {
     SendbEmailFile,
@@ -19,6 +21,8 @@ export type {
     SendbEmailMailbox,
     SendbEmailClaim,
     SendbEmailDeliveryAction,
+    SendbEmailReplySelection,
+    SendbEmailContext,
 } from "./email-types";
 /** 샌드비 서비스 서버용 클라이언트. API 토큰은 사이트 서버에만 둡니다. */
 export { verifySendbWebhook } from "./webhooks";
@@ -212,6 +216,7 @@ export interface SendbTask extends SendbTaskInput {
     updatedAt: string;
 }
 export interface SendbConversation {
+    emailContext?: SendbEmailContext;
     medium: "web" | "email";
     aiState: "auto" | "human";
     aiHandoffReason: string | null;
@@ -942,6 +947,15 @@ export class SendbClient {
             `/api/v1/inbox/conversations?${params}`,
         );
     }
+    inboxConversation(conversationId: string, before?: string) {
+        return this.request<{
+            conversation: SendbConversation;
+            messages: import("../src/components/inbox/types").ChatMessage[];
+            hasOlder: boolean;
+        }>(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+        );
+    }
     reply(
         conversationId: string,
         body: string,
@@ -949,6 +963,7 @@ export class SendbClient {
         kind: "reply" | "note" = "reply",
         attachmentIds: string[] = [],
         aiDraftId?: string,
+        emailReply?: SendbEmailReplySelection,
     ) {
         return this.request(
             `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
@@ -959,6 +974,7 @@ export class SendbClient {
                 kind,
                 attachmentIds,
                 ...(aiDraftId ? { aiDraftId } : {}),
+                ...(emailReply ? { emailReply } : {}),
             },
         );
     }

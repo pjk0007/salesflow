@@ -1,4 +1,5 @@
 import type { EmailDelivery } from "@/components/inbox-email/types";
+import type { SendbEmailContext } from "../../../../sdk/email-types";
 export type ConversationStatus = "open" | "snoozed" | "closed";
 export interface InboxChannel {
     id: number;
@@ -12,12 +13,7 @@ export interface InboxChannel {
 }
 export interface Conversation {
     medium?: "web" | "email";
-    emailContext?: {
-        subject: string;
-        recipient: string;
-        from: string;
-        enabled: boolean;
-    };
+    emailContext?: SendbEmailContext;
     historyOnly?: boolean;
     importMetadata?: Record<string, unknown> | null;
     aiState: "auto" | "human";
@@ -44,6 +40,7 @@ export interface ChatMessage {
         from: string;
         to: string[];
         cc: string[];
+        replyTo?: string[];
         subject: string;
         receivedAt: string;
         files: {

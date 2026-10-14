@@ -8,6 +8,8 @@
 
 ## 설치 순서
 
+이메일 여러 참여자와 답장/전체 회신/직접 지정은 [EMAIL-RECIPIENTS.md](EMAIL-RECIPIENTS.md)를 따른다. 상세 API/SDK의 최신 sourceMessageId와 replyTo/replyAllTo/replyAllCc를 확인한 뒤 reply의 마지막 emailReply 인자로 선택을 전달한다. 자체 메일 발송 어댑터도 claim의 recipientTo/recipientCc를 사용하도록 갱신한다. 마이그레이션 0104가 선행되어야 한다.
+
 고객·회사 상세/필드 이력·버전 편집·보관/복구는 [CUSTOMER-RECORDS.md](CUSTOMER-RECORDS.md)를 따른다. 연동 upsert의 속성 병합은 유지하며 id PATCH의 attributes는 전체 교체다. 보관은 사업 운영 관리와 키 delete 범위, 복구는 운영 관리와 update 범위가 필요하다. 마이그레이션 0103을 앱보다 먼저 적용한다.
 
 1. 관리자가 고객 상담 → 사이트 상담창에서 디자이너하이어와 백오피스랩 각각의 워크스페이스·설치 출처·환영 문구를 저장하고 켠다. 출처는 `https://site.example` 형식이며 경로를 넣지 않는다.

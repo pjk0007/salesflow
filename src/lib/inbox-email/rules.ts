@@ -37,6 +37,7 @@ export const inboundInput = z
         to: z.array(emailAddress).max(30),
         deliveredTo: z.array(emailAddress).max(30).optional(),
         cc: z.array(emailAddress).max(30).default([]),
+        replyTo: z.array(emailAddress).max(30).optional(),
         subject: header(500).default("(제목 없음)"),
         body: z.string().trim().min(1).max(100000),
         receivedAt: z.iso.datetime({ offset: true }),

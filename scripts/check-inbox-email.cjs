@@ -195,14 +195,36 @@ async function runEmailCheck(extra) {
                     },
                 );
                 await check(
-                    "스레드 참여자 혼합 차단·서로 다른 스레드 허용",
+                    "같은 메일함 스레드의 다중 발신자 원본 보존·별도 스레드 구분",
                     async () => {
-                        await assert.rejects(
-                            clients.dh.receiveEmail(
-                                box.id,
-                                inbound(2, { from: "other@example.test" }),
-                            ),
-                            (e) => e.status === 409,
+                        const participant = await clients.dh.receiveEmail(
+                            box.id,
+                            inbound(2, {
+                                from: "other@example.test",
+                                receivedAt: new Date(
+                                    Date.parse(original.receivedAt) - 1,
+                                ).toISOString(),
+                            }),
+                        );
+                        assert.equal(
+                            participant.conversationId,
+                            received.conversationId,
+                        );
+                        const participantDetail = await repo.conversationDetail(
+                            actor,
+                            received.conversationId,
+                            db,
+                        );
+                        assert.equal(
+                            participantDetail.messages.find(
+                                (m) => m.id === participant.messageId,
+                            ).email.from,
+                            "other@example.test",
+                        );
+                        assert.equal(
+                            participantDetail.conversation.emailContext
+                                .recipient,
+                            original.from,
                         );
                         const second = await clients.dh.receiveEmail(
                             box.id,

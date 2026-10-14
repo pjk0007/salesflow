@@ -28,6 +28,7 @@ export interface SendbInboundEmail {
     to: string[];
     deliveredTo?: string[];
     cc?: string[];
+    replyTo?: string[];
     subject: string;
     body: string;
     receivedAt: string;
@@ -54,6 +55,10 @@ export interface SendbEmailClaim {
     leaseToken: string;
     leaseUntil: string;
     recipient: string;
+    recipientTo?: string[];
+    recipientCc?: string[];
+    replyMode?: "reply" | "reply_all" | "custom";
+    sourceMessageId?: number | null;
     subject: string;
     providerThreadId: string;
     rfcMessageId: string;
@@ -62,6 +67,24 @@ export interface SendbEmailClaim {
     fromName: string;
     body: string;
     authorName: string;
+}
+export interface SendbEmailReplySelection {
+    mode: "reply" | "reply_all" | "custom";
+    sourceMessageId: number;
+    to?: string[];
+    cc?: string[];
+}
+export interface SendbEmailContext {
+    subject: string;
+    recipient: string;
+    from: string;
+    enabled: boolean;
+    sourceMessageId: number | null;
+    sender: string;
+    primarySender: string;
+    replyTo: string[];
+    replyAllTo: string[];
+    replyAllCc: string[];
 }
 export type SendbEmailDeliveryAction =
     | {

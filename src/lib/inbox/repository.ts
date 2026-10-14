@@ -12,7 +12,10 @@ import {
 import {
     queueEmailReply,
     emailMessageDetails,
+    emailConversationContext,
+    assertEmailReplyDuplicate,
 } from "@/lib/inbox-email/outgoing";
+import type { EmailReplySelection } from "@/lib/inbox-email/recipients";
 import { onSupportMessage, consumeSupportDraft } from "@/lib/customer-ai/queue";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { createHash, randomBytes } from "node:crypto";
@@ -504,22 +507,10 @@ export async function conversationDetail(
         alias?.mergedIntoId ?? id,
         exec,
     );
-    const [emailContext] =
+    const emailContext =
         conversation.medium === "email"
-            ? await exec
-                  .select({
-                      subject: inboxEmailThreads.subject,
-                      recipient: inboxEmailThreads.correspondent,
-                      from: inboxMailboxes.address,
-                      enabled: inboxMailboxes.enabled,
-                  })
-                  .from(inboxEmailThreads)
-                  .innerJoin(
-                      inboxMailboxes,
-                      eq(inboxMailboxes.id, inboxEmailThreads.mailboxId),
-                  )
-                  .where(eq(inboxEmailThreads.conversationId, conversation.id))
-            : [];
+            ? await emailConversationContext(exec, conversation.id)
+            : null;
     return {
         conversation: {
             ...conversation,
@@ -716,6 +707,7 @@ export async function appendMessage(
         aiDraftId?: string;
         createdAt?: Date;
         sourceAttachmentCount?: number;
+        emailReply?: EmailReplySelection;
     },
     scope: FileScope,
 ) {
@@ -760,6 +752,13 @@ export async function appendMessage(
                 "회원 상담으로 연결된 이력입니다. 상담 목록을 새로 불러와주세요.",
                 409,
             );
+        if (
+            message.emailReply &&
+            (locked.medium !== "email" || message.kind !== "reply")
+        )
+            throw new InboxError(
+                "메일 받는 사람은 이메일 고객 답변에서만 지정할 수 있습니다.",
+            );
         const [duplicate] = await tx
             .select()
             .from(inboxMessages)
@@ -770,6 +769,12 @@ export async function appendMessage(
                 ),
             );
         if (duplicate) {
+            if (locked.medium === "email" && message.kind === "reply")
+                await assertEmailReplyDuplicate(
+                    tx,
+                    duplicate.id,
+                    message.emailReply,
+                );
             const attached = await messageAttachments(tx, [duplicate.id]);
             if (
                 duplicate.aiDraftId !== (message.aiDraftId ?? null) ||
@@ -832,7 +837,8 @@ export async function appendMessage(
                 "이메일 상담은 사이트 상담창에서 조회할 수 없습니다.",
                 403,
             );
-        const { attachmentIds, sourceAttachmentCount, ...value } = message;
+        const { attachmentIds, sourceAttachmentCount, emailReply, ...value } =
+            message;
         if (
             sourceAttachmentCount !== undefined &&
             (locked.medium !== "email" ||
@@ -859,7 +865,13 @@ export async function appendMessage(
             inserted.id,
         );
         if (locked.medium === "email" && message.kind === "reply")
-            await queueEmailReply(tx, id, inserted.id, attachments.length);
+            await queueEmailReply(
+                tx,
+                id,
+                inserted.id,
+                attachments.length,
+                emailReply,
+            );
         const summary =
             message.body ||
             `파일 ${attachments.length}개 · ${attachments[0]?.fileName ?? ""}`;

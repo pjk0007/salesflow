@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emailReplySelection } from "@/lib/inbox-email/recipients";
 
 export const messageInput = z
     .object({
@@ -24,6 +25,7 @@ export const replyInput = messageInput
     .safeExtend({
         kind: z.enum(["reply", "note"]),
         aiDraftId: z.string().uuid().optional(),
+        emailReply: emailReplySelection.optional(),
     })
     .refine(
         (v) => !v.aiDraftId || v.kind === "reply",

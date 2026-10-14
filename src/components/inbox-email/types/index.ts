@@ -33,6 +33,10 @@ export interface EmailDelivery {
         | "uncertain"
         | "cancelled";
     recipient: string;
+    recipientTo?: string[];
+    recipientCc?: string[];
+    replyMode?: string;
+    sourceMessageId?: number | null;
     sentAt: string | null;
     errorCode: string | null;
 }

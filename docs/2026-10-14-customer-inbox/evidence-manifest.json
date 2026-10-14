@@ -3016,5 +3016,295 @@
       "Real data load, provider accounts, production concurrency and full retention/recovery policy unverified"
     ],
     "hashNote": "SHA256 is raw worktree bytes at capture; Git autocrlf may normalize committed line endings. Evidence preserves all previous nested manifests."
+  },
+  "emailRecipientsQa": {
+    "capturedAt": "2026-10-14T19:24:07.859Z",
+    "scope": "R08: multiple inbound participants, latest Reply-To/To/Cc, reply/reply-all/custom, source freshness and frozen outgoing recipients",
+    "isolation": "Fictional customers, PGlite and fake Gmail transport only; no real sends, production DB, Google grants or R2 deletion",
+    "tests": {
+      "emailRecipientsSqlApi": 16,
+      "newPureUnits": 4,
+      "unit": 1089,
+      "regressionSuites": 15,
+      "types": "passed with final isolated Next build",
+      "featureLint": "passed",
+      "build": "passed"
+    },
+    "browserQa": [
+      "DH reply-all preview and fake provider acceptance with explicit To/Cc",
+      "New participant inbound, draft retained, stale source blocks reservation, reset and custom recipients accepted",
+      "BO reply-all uses separate mailbox and recipient groups; fake provider acceptance",
+      "Internal note hides email recipient controls",
+      "Initial customer retained while latest participant and original message sender are visible; first/latest sender banner"
+    ],
+    "sourceEvidence": [
+      {
+        "url": "https://developers.google.com/workspace/gmail/api/guides/sending",
+        "scope": "Official MIME/raw transport contract"
+      },
+      {
+        "url": "https://developers.google.com/workspace/gmail/api/guides/threads",
+        "scope": "Official thread/subject/reply-reference contract"
+      },
+      "Existing pinned Chatwoot email channel evidence in EMAIL.md/ANALYSIS.md; independent implementation"
+    ],
+    "implementationFiles": [
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "2e4d3e97dd6d9a0d8a083d1072a9d1752904eacc2b12161c7e75a7832beab803",
+        "bytes": 15530
+      },
+      {
+        "path": "scripts/check-inbox-email.cjs",
+        "sha256": "4ff13f8bd52c171b305e2c8407f4e997739ec4438ceabb5da95e0190e2b27603",
+        "bytes": 32447
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "sha256": "ac0d5e3346245279232109f63bbcb0359387607490a33bc008305288e8005005",
+        "bytes": 29994
+      },
+      {
+        "path": "sdk/email-types.ts",
+        "sha256": "1bd1832b25037ec0a9889b424e6c729da411aaf29c1239af6bf99cdca4f32d26",
+        "bytes": 2810
+      },
+      {
+        "path": "sdk/server.ts",
+        "sha256": "7e5fb302b327d0eb3f1f4fe1f30ba256a82de4d3a79c8453f868e2c9e146056f",
+        "bytes": 37585
+      },
+      {
+        "path": "src/components/inbox-email/types/index.ts",
+        "sha256": "8a378f5302aa6c5202626484ea324e8d95fb0565e90e1174a218d91b31bcf2fe",
+        "bytes": 1080
+      },
+      {
+        "path": "src/components/inbox-email/ui/EmailDeliveryStatus.tsx",
+        "sha256": "18641b119fbb921a764e790994af134aa819c67acb5948395605f5fc52a5e39d",
+        "bytes": 3367
+      },
+      {
+        "path": "src/components/inbox/types/index.ts",
+        "sha256": "d11952a620911859385ea7647c5d4227df27618f076dc5d236f57cfb2b726fed",
+        "bytes": 2453
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "37b974d3b7e4b371c31c16ae42e4e142eb2eaf63c4ed3603fff82463d6d854b0",
+        "bytes": 48202
+      },
+      {
+        "path": "src/lib/db/inbox-email-schema.ts",
+        "sha256": "c6ebeeac1fac6e5c6b6118cd759e188aa16a9b5e4c78278e51477c242a104f08",
+        "bytes": 7090
+      },
+      {
+        "path": "src/lib/inbox-email/gmail.ts",
+        "sha256": "bd266e1afa3a63c5b7282a39805bd06794b775fbe0157d23b3409df1666d40e4",
+        "bytes": 27580
+      },
+      {
+        "path": "src/lib/inbox-email/outgoing.ts",
+        "sha256": "f816585bf4e87ef2240347fa28695b6c87e535d2f8c36b9dee2b159f31433fbb",
+        "bytes": 8112
+      },
+      {
+        "path": "src/lib/inbox-email/repository.ts",
+        "sha256": "916c4c1eb78c0eb2502e7a1d7fbf1e85a3d694cdd535fcfaa4eb5d929037cf70",
+        "bytes": 28734
+      },
+      {
+        "path": "src/lib/inbox-email/rules.ts",
+        "sha256": "15b6e26662fbb7dc2a3271466de3164106843d613e547530e36463032e83b060",
+        "bytes": 2911
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "sha256": "8a483dd561372167526891d15aec5ed9d09da6c1698ac46d3b88fbf143d7e89d",
+        "bytes": 49894
+      },
+      {
+        "path": "src/lib/inbox/rules.ts",
+        "sha256": "77f7a1d8d589e8790488ea1aa18707ffb3eddaf20dd72591d38beea27abd22b3",
+        "bytes": 5462
+      },
+      {
+        "path": "drizzle/0104_email_reply_recipients.sql",
+        "sha256": "75500a15cca49090a1d5f340c202fd331a1d057a689c61ed14136919bb1cd085",
+        "bytes": 1601
+      },
+      {
+        "path": "scripts/check-email-recipients.cjs",
+        "sha256": "08544d818a91b634ade3097d9822c80c9cfbc8cd84b4b049070a9ccf041dc587",
+        "bytes": 24636
+      },
+      {
+        "path": "src/components/inbox-email/hooks/useEmailReply.ts",
+        "sha256": "0749b057977a6d097992bfadd499bd4db415780a1fe0ae8cff94bd9b9a322e42",
+        "bytes": 2927
+      },
+      {
+        "path": "src/components/inbox-email/ui/EmailReplyRecipients.tsx",
+        "sha256": "64679e10ac29d4e56e572cf53206ad7aaf76c761c9d7916825d5f1ec15488e61",
+        "bytes": 3562
+      },
+      {
+        "path": "src/lib/inbox-email/recipients.test.ts",
+        "sha256": "2c141bff102947ed2de41555146f86d97224b26d1ade238a5a23638c3d2d5df2",
+        "bytes": 2665
+      },
+      {
+        "path": "src/lib/inbox-email/recipients.ts",
+        "sha256": "0fdefd52d7caa539161bf29c3134d1bbf332cab0a618e6a6d1e0c2081130fd92",
+        "bytes": 2472
+      }
+    ],
+    "screenshots": [
+      {
+        "path": "recipients-bo-preview-qa.png",
+        "sha256": "ab23e297a78e3c12bb8cc13c1074e04b1341daccb8d8242dea76a006e46e26fc",
+        "bytes": 131083
+      },
+      {
+        "path": "recipients-bo-sent-qa.png",
+        "sha256": "9d946aa5ca094e21b0c59b669322c53f8154d6ce0645dce7af74361b13b9664c",
+        "bytes": 136463
+      },
+      {
+        "path": "recipients-dh-custom-sent-qa.png",
+        "sha256": "ae5538079593e0224cac0355af4593c63a64e4ba4f68ee23fbf7fe4c8b2df27a",
+        "bytes": 161744
+      },
+      {
+        "path": "recipients-dh-preview-qa.png",
+        "sha256": "e9009c5d5953c79a40812a2e25d1a9c02f93768293a20e21c0a76d0116f0b24f",
+        "bytes": 147526
+      },
+      {
+        "path": "recipients-dh-stale-qa.png",
+        "sha256": "c57b1531d645b6b56c38c90b7b556fb047a94ba7dda7c45188d7a8a7169b2510",
+        "bytes": 169231
+      },
+      {
+        "path": "recipients-final-reply-all-qa.png",
+        "sha256": "cdedc7c612d97e9babbe27811c6871cb15899b2eb7456fc2bb1fe1882e5ec345",
+        "bytes": 165583
+      },
+      {
+        "path": "recipients-participant-context-qa.png",
+        "sha256": "6118d27310ee933c51a460d806a3fc5cc5de75e730c8e3d26d999ec1b6ef1478",
+        "bytes": 162889
+      }
+    ],
+    "logs": [
+      {
+        "path": "recipients-qa.log",
+        "sha256": "a37ea14422c3496248f72aa800291f472c1e4475913f0bfeb1baf86e274293ce",
+        "bytes": 2565
+      },
+      {
+        "path": "recipients-unit.log",
+        "sha256": "ff142b12ba4fd86d348871efd11131fec7fc37106c5e8d34628510f7e4f94810",
+        "bytes": 104152
+      },
+      {
+        "path": "recipients-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "recipients-build.log",
+        "sha256": "4e3d2b41f5f7c0201efb008915a89fe8fefadd77549c61d44929b4d6cca03c3e",
+        "bytes": 13121
+      },
+      {
+        "path": "recipients-regressions-final.log",
+        "sha256": "1ca55ed89310489c54c6cdaa4160b622724c2281a59309a63b009617a16d0198",
+        "bytes": 422
+      },
+      {
+        "path": "recipients-regression-check-customer-access.log",
+        "sha256": "5e58350fa06520745b77e6142ab5101b68c6ec86d23f06b3c80c98581eaa316d",
+        "bytes": 2648
+      },
+      {
+        "path": "recipients-regression-check-customer-activities.log",
+        "sha256": "1ecc4dfad41a66294c937f9174e5ead2a9a54ae00ee6d1f45ed24a0a6eb191e7",
+        "bytes": 2854
+      },
+      {
+        "path": "recipients-regression-check-customer-ai.log",
+        "sha256": "7a000512aae672216ac3ef4eac4d50e085b15868ffe9c51e0c0c51ea1b941d82",
+        "bytes": 2404
+      },
+      {
+        "path": "recipients-regression-check-customer-imports.log",
+        "sha256": "81bcc5a1f1967df36d934ad86ab96cdeed3b9b97d3876e3f6d1acb9fecb42781",
+        "bytes": 2542
+      },
+      {
+        "path": "recipients-regression-check-customer-records.log",
+        "sha256": "2999ce617e69e3809c96c20140a88556df22eb7494f93a9681174e451b7b0d3f",
+        "bytes": 3004
+      },
+      {
+        "path": "recipients-regression-check-customer-sales.log",
+        "sha256": "903fe4f402462e127af9b228c766bd5dab8808b5489d4e9a923e682d3a535a4d",
+        "bytes": 2105
+      },
+      {
+        "path": "recipients-regression-check-customer-workflows.log",
+        "sha256": "77425aaf87c509afd85d9afee12d1f5ea8764c1245534e83dd7b1a81169812dc",
+        "bytes": 2344
+      },
+      {
+        "path": "recipients-regression-check-inbox-email-files.log",
+        "sha256": "1dccb91ca690ff6068ae94630fce263583ddba15f308ac65f9aae147d35c7bcf",
+        "bytes": 3322
+      },
+      {
+        "path": "recipients-regression-check-inbox-email.log",
+        "sha256": "a0a41b82a0d3209e8cfc4fd8dd1e59c96879c85e176ecf4c508cd3586b7f67bb",
+        "bytes": 2170
+      },
+      {
+        "path": "recipients-regression-check-inbox-files.log",
+        "sha256": "4b1cfb38b65efd00d462b11f1c76558fdcc36f2a0329861a8db00389aa7efe45",
+        "bytes": 4402
+      },
+      {
+        "path": "recipients-regression-check-inbox-google.log",
+        "sha256": "ce4facb0d97217362c4979374b3b1ffcd6c1f71d23eb2bf004721e0edd2b9585",
+        "bytes": 2792
+      },
+      {
+        "path": "recipients-regression-check-inbox-identity.log",
+        "sha256": "be608e92e077f14d48f73035c478582173e2ba47ed2993ea5e49dc6fd19ce4b9",
+        "bytes": 2287
+      },
+      {
+        "path": "recipients-regression-check-inbox-operations.log",
+        "sha256": "63711838b373ca6e113246ac92db265d0e2d2ab3951ce8d449bfbbc3e14c5cc9",
+        "bytes": 3237
+      },
+      {
+        "path": "recipients-regression-check-inbox.log",
+        "sha256": "ed0ce56382c190983490062f27c44117d190253f95ff305431a13926d1d489aa",
+        "bytes": 1567
+      },
+      {
+        "path": "recipients-regression-check-platform-webhooks.log",
+        "sha256": "f4e406cc3fe9e40465378e668663a126efe0e26c80a921fcd0c1b2141d3d1b43",
+        "bytes": 5725
+      }
+    ],
+    "limits": [
+      "Actual dev/production migration and deployment unperformed",
+      "Real mailbox OAuth, delivery, send-as aliases, bounces, push and load/monitoring unverified",
+      "Participants retain message envelopes; no automatic CRM contact merging or per-participant CRM associations",
+      "Public web history remains separate; complete channel/data/site cutover pending"
+    ],
+    "hashNote": "Raw worktree SHA256 at capture; Git autocrlf may normalize commit line endings. Previous manifests and evidence retained."
   }
 }

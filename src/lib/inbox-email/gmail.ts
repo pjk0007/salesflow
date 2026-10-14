@@ -86,6 +86,18 @@ export function gmailReplyRaw(
 ) {
     emailAddress.parse(item.from);
     emailAddress.parse(item.recipient);
+    const to = (item.recipientTo ?? [item.recipient]).map((s) =>
+            emailAddress.parse(s),
+        ),
+        cc = (item.recipientCc ?? []).map((s) => emailAddress.parse(s));
+    if (
+        !to.length ||
+        to[0] !== item.recipient ||
+        to.length + cc.length > 30 ||
+        new Set([...to, ...cc]).size !== to.length + cc.length ||
+        [...to, ...cc].includes(item.from)
+    )
+        throw new Error("메일 받는 사람을 확인해주세요.");
     rfcId.parse(item.rfcMessageId);
     rfcId.parse(item.inReplyTo);
     if (
@@ -99,7 +111,8 @@ export function gmailReplyRaw(
         throw new Error("발송 첨부를 모두 확인해주세요.");
     const headers = [
         `From: ${encoded(item.fromName)} <${item.from}>`,
-        `To: ${item.recipient}`,
+        `To: ${to.join(",\r\n ")}`,
+        ...(cc.length ? [`Cc: ${cc.join(",\r\n ")}`] : []),
         `Subject: ${encoded(item.subject)}`,
         `Date: ${now.toUTCString()}`,
         `Message-ID: ${item.rfcMessageId}`,
@@ -264,6 +277,9 @@ export function gmailInbound(message: GmailInboxMessage) {
             ? { deliveredTo: addresses(header("delivered-to")) }
             : {}),
         cc: addresses(header("cc")),
+        ...(header("reply-to")
+            ? { replyTo: addresses(header("reply-to")) }
+            : {}),
         subject: header("subject") || "(제목 없음)",
         body:
             (plain.join("\n") || htmlToText(html.join("\n"))).trim() ||

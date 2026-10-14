@@ -14,6 +14,8 @@ import { AttachmentList } from "./AttachmentList";
 import { InboxAudit } from "./InboxAudit";
 import { CustomerCrmContext } from "./CustomerCrmContext";
 import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliveryStatus";
+import { EmailReplyRecipients } from "@/components/inbox-email/ui/EmailReplyRecipients";
+import { useEmailReply } from "@/components/inbox-email/hooks/useEmailReply";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 export const statusNames = {
     open: "진행중",
@@ -44,6 +46,7 @@ export function ConversationPane({
     )?.workspaceId;
     const canRespond = workspaceAbilities(bootstrap, workspaceId).respond;
     const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
+    const emailReply = useEmailReply(chat.emailContext, draftStorageKey);
     const [kind, setKind] = useState<"reply" | "note">("reply"),
         [drafts, setDrafts] = useState<Record<string, string>>(() => {
             try {
@@ -81,6 +84,7 @@ export function ConversationPane({
             id: string;
             files: string;
             aiDraftId: string | null;
+            emailReply: string;
         } | null>(null);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
@@ -150,12 +154,26 @@ export function ConversationPane({
         }
         const body = text.trim();
         const source = kind === "reply" ? aiDraftId : null;
+        const emailSelection =
+            kind === "reply" && chat.medium === "email"
+                ? emailReply.selection
+                : undefined;
+        if (
+            kind === "reply" &&
+            chat.medium === "email" &&
+            (emailReply.stale || !emailSelection)
+        ) {
+            toast.error("최신 회신 대상과 받는 사람을 확인해주세요.");
+            return;
+        }
+        const emailSignature = JSON.stringify(emailSelection ?? null);
         setBusy(true);
         if (
             pending.current?.body !== body ||
             pending.current?.kind !== kind ||
             pending.current?.files !== attachments.signature ||
-            pending.current?.aiDraftId !== source
+            pending.current?.aiDraftId !== source ||
+            pending.current?.emailReply !== emailSignature
         )
             pending.current = {
                 body,
@@ -163,6 +181,7 @@ export function ConversationPane({
                 id: crypto.randomUUID(),
                 files: attachments.signature,
                 aiDraftId: source,
+                emailReply: emailSignature,
             };
         try {
             const attachmentIds = await attachments.prepare(uploadUrl, kind);
@@ -172,11 +191,13 @@ export function ConversationPane({
                 body,
                 kind,
                 ...(source ? { aiDraftId: source } : {}),
+                ...(emailSelection ? { emailReply: emailSelection } : {}),
             });
             updateDraft("");
             if (kind === "reply") setAiDraftId(null);
             attachments.clear();
             pending.current = null;
+            if (kind === "reply") emailReply.reset();
             follow.current = true;
             await refresh();
         } catch (e) {
@@ -300,11 +321,20 @@ export function ConversationPane({
                             {chat.emailContext.recipient}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            답장은 위 수신자 한 명에게 발송합니다.{" "}
+                            받는 사람과 참조는 답장 작성란에서 확인합니다.{" "}
                             {chat.emailContext.enabled
                                 ? "메일 서비스 접수 상태를 각 답장에서 확인할 수 있습니다."
                                 : "현재 메일함 연결이 중지되어 있습니다."}
                         </p>
+                        {!!chat.emailContext.primarySender &&
+                            chat.emailContext.sender !==
+                                chat.emailContext.primarySender && (
+                                <p className="mt-2 break-all text-xs">
+                                    다른 참여자가 회신했습니다. 처음 문의한
+                                    주소: {chat.emailContext.primarySender} ·
+                                    최신 발신자: {chat.emailContext.sender}
+                                </p>
+                            )}
                     </div>
                 )}
                 {chat.historyOnly && (
@@ -435,6 +465,31 @@ export function ConversationPane({
                                             {m.body}
                                         </p>
                                     )}
+                                    {m.email && (
+                                        <details className="text-xs text-muted-foreground">
+                                            <summary>
+                                                메일 발신·수신 정보
+                                            </summary>
+                                            <p className="break-all">
+                                                보낸 사람: {m.email.from}
+                                            </p>
+                                            <p className="break-all">
+                                                받는 사람:{" "}
+                                                {m.email.to.join(", ")}
+                                            </p>
+                                            <p className="break-all">
+                                                참조:{" "}
+                                                {m.email.cc.join(", ") ||
+                                                    "없음"}
+                                            </p>
+                                            {!!m.email.replyTo?.length && (
+                                                <p className="break-all">
+                                                    회신 주소:{" "}
+                                                    {m.email.replyTo.join(", ")}
+                                                </p>
+                                            )}
+                                        </details>
+                                    )}
                                     {m.delivery && (
                                         <EmailDeliveryStatus
                                             canRespond={canRespond}
@@ -529,6 +584,12 @@ export function ConversationPane({
                                     내부 메모
                                 </button>
                             </div>
+                            {kind === "reply" && chat.medium === "email" && (
+                                <EmailReplyRecipients
+                                    state={emailReply}
+                                    disabled={busy}
+                                />
+                            )}
                             <textarea
                                 aria-label={
                                     kind === "note"
@@ -782,7 +843,7 @@ function CustomerInfo({
                         <div>
                             <p className="text-xs text-muted-foreground">
                                 {chat.medium === "email"
-                                    ? "이메일 · 수신 발신자"
+                                    ? "이메일 · 상담 시작 주소"
                                     : chat.contactId
                                       ? "이메일 · 연결된 회원"
                                       : "이메일 · 고객 입력"}

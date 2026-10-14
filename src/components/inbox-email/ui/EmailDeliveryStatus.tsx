@@ -38,8 +38,12 @@ export function EmailDeliveryStatus({
             className={`space-y-1 text-xs ${["failed", "uncertain"].includes(item.state) ? "text-amber-800" : "text-muted-foreground"}`}
         >
             <p>
-                {labels[item.state]} · {item.recipient}
+                {labels[item.state]} ·{" "}
+                {(item.recipientTo ?? [item.recipient]).join(", ")}
             </p>
+            {!!item.recipientCc?.length && (
+                <p className="break-all">참조: {item.recipientCc.join(", ")}</p>
+            )}
             {item.state === "failed" &&
                 [
                     "attachment_download",

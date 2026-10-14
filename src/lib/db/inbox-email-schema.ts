@@ -83,6 +83,10 @@ export const inboxEmailThreads = pgTable(
             length: 998,
         }).notNull(),
         lastReceivedAt: time("last_received_at").notNull(),
+        lastInboundMessageId: integer("last_inbound_message_id").references(
+            () => inboxMessages.id,
+            { onDelete: "set null" },
+        ),
     },
     (t) => [
         uniqueIndex("inbox_email_thread_once").on(
@@ -112,6 +116,7 @@ export const inboxEmailReceipts = pgTable(
             t.mailboxId,
             t.providerMessageId,
         ),
+        index("inbox_email_receipt_message").on(t.messageId),
     ],
 );
 export const inboxEmailDeliveries = pgTable(
@@ -126,6 +131,19 @@ export const inboxEmailDeliveries = pgTable(
             .references(() => inboxMessages.id),
         mailboxVersion: integer("mailbox_version").notNull(),
         recipient: varchar("recipient", { length: 254 }).notNull(),
+        recipientTo: jsonb("recipient_to").$type<string[]>(),
+        recipientCc: jsonb("recipient_cc")
+            .$type<string[]>()
+            .notNull()
+            .default([]),
+        replyMode: varchar("reply_mode", { length: 12 })
+            .notNull()
+            .default("reply"),
+        sourceMessageId: integer("source_message_id").references(
+            () => inboxMessages.id,
+            { onDelete: "set null" },
+        ),
+        requestFingerprint: varchar("request_fingerprint", { length: 64 }),
         subject: varchar("subject", { length: 500 }).notNull(),
         providerThreadId: varchar("provider_thread_id", {
             length: 200,
@@ -151,6 +169,14 @@ export const inboxEmailDeliveries = pgTable(
         check(
             "inbox_email_delivery_state",
             sql`${t.state} in ('queued','leased','sending','sent','failed','uncertain','cancelled')`,
+        ),
+        check(
+            "inbox_email_recipients_shape",
+            sql`(${t.recipientTo} IS NULL AND ${t.requestFingerprint} IS NULL AND ${t.replyMode}='reply' AND jsonb_array_length(${t.recipientCc})=0) OR (${t.recipientTo} IS NOT NULL AND jsonb_typeof(${t.recipientTo})='array' AND jsonb_typeof(${t.recipientCc})='array' AND jsonb_array_length(${t.recipientTo})>=1 AND jsonb_array_length(${t.recipientTo})+jsonb_array_length(${t.recipientCc})<=30)`,
+        ),
+        check(
+            "inbox_email_reply_mode",
+            sql`${t.replyMode} IN ('reply','reply_all','custom')`,
         ),
     ],
 );

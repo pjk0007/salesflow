@@ -43,7 +43,7 @@
 - 같은 상담의 답장은 메시지 순서로 준비한다. 준비/발송 중인 이전 답장을 뒤의 답장이 추월하지 않는다. 실제 POST는 한 번이며 결과 미확인은 자동으로 재전송하지 않는다.
 - 403 사용량 제한은 자동 백오프한다. 권한·앱 설정·계정 불일치·암호화 설정 문제는 재연결 필요로 표시하고 수신·발송을 중지한다.
 
-등록한 기본 주소가 To, Cc, 또는 Gmail의 Delivered-To에 있는 원본만 연결한다. BCC 문의는 Delivered-To로 확인한다. 여러 참여자/전체 회신/발신 별칭은 아직 지원하지 않으며 답장은 확인된 원래 고객 한 명에게 보낸다. 회원 웹 상담과 이메일 고객은 자동으로 합치지 않는다.
+등록한 기본 주소가 To, Cc, 또는 Gmail의 Delivered-To에 있는 원본만 연결한다. BCC 문의는 Delivered-To로 확인한다. 여러 참여자와 최신 수신 기준 답장/전체 회신/직접 지정은 [EMAIL-RECIPIENTS.md](EMAIL-RECIPIENTS.md)를 따른다. 발신 별칭은 아직 지원하지 않는다. 회원 웹 상담과 이메일 고객은 자동으로 합치지 않는다.
 
 ## API와 코드
 
@@ -69,6 +69,6 @@ Google 연결·자동 수신 SQL/API **19개**, 기존 이메일14·첨부11·�
 
 Chrome에서는 디하 실패 원본 재시도 → 대기 1 → 완료 1 → 실제 대화 표시, 백오랩 재시도 접수 → 연결 해제/중지, 디하 상태 유지, 수신 범위 선택을 확인했다. 모두 가상 계정이며 Google 승인 화면에서 실제 권한을 부여하지 않았다. 캡처와 로그는 evidence-manifest의 `googleConnectionQa`에 기록한다.
 
-실제 OAuth 앱·계정 승인·배달·수신 지연/처리량·장애 모니터링, push, 다중 참여자와 별칭, 반송/공급자 결과 조정은 남아 있다. 카카오·네이버·전화와 전체 자료 이전/전환도 [전체 장부](REPLACEMENT.md)의 미완료 항목으로 유지한다.
+실제 OAuth 앱·계정 승인·배달·수신 지연/처리량·장애 모니터링, push, 발신 별칭, 반송/공급자 결과 조정은 남아 있다. 카카오·네이버·전화와 전체 자료 이전/전환도 [전체 장부](REPLACEMENT.md)의 미완료 항목으로 유지한다.
 
 설계 근거: [Google OAuth 웹 서버 흐름](https://developers.google.com/identity/protocols/oauth2/web-server), [Gmail 동기화](https://developers.google.com/workspace/gmail/api/guides/sync), [history.list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.history/list), [Google 공식 PKCE 구현](https://github.com/googleapis/google-auth-library-nodejs/blob/main/src/auth/oauth2client.ts). 공개 계약을 참고해 기존 샌드비 구조로 구현했다.

@@ -218,10 +218,11 @@ export async function receiveEmail(
                 ),
             );
         if (previous) {
-            const { deliveredTo: _deliveredTo, ...legacyInput } = input;
-            void _deliveredTo;
+            const legacyInput = { ...input };
+            for (const key of ["deliveredTo", "replyTo"] as const) {
+                if (!(key in previous.envelope)) delete legacyInput[key];
+            }
             const legacyMatch =
-                !("deliveredTo" in previous.envelope) &&
                 previous.fingerprint === emailFingerprint(legacyInput);
             if (previous.fingerprint !== fingerprint && !legacyMatch)
                 throw new InboxError(
@@ -265,12 +266,8 @@ export async function receiveEmail(
                     eq(threads.providerThreadId, input.providerThreadId),
                 ),
             );
-        // Provider thread grouping is insufficient to authorize sharing between participants.
-        if (thread && thread.correspondent !== input.from)
-            throw new InboxError(
-                "여러 고객이 섞인 메일 스레드는 별도 확인이 필요합니다.",
-                409,
-            );
+        // Only the authenticated mailbox adapter supplies provider thread IDs.
+        // Keep the initial CRM owner; each message preserves its actual sender.
         if (!thread) {
             const externalId = emailContactKey(mailboxId, input.from);
             const [existingContact] = await tx
@@ -385,6 +382,7 @@ export async function receiveEmail(
                 .set({
                     lastRfcMessageId: input.rfcMessageId,
                     lastReceivedAt: at,
+                    lastInboundMessageId: message.id,
                 })
                 .where(eq(threads.conversationId, thread.conversationId));
         const [receipt] = await tx
@@ -520,6 +518,7 @@ export async function claimEmail(
         return {
             ...delivery,
             ...message,
+            recipientTo: delivery.recipientTo ?? [delivery.recipient],
             attachments: files,
             from: box.address,
             fromName: box.name,
