@@ -6,6 +6,7 @@ export const eventLabels: Record<string, string> = {
     "customer.event": "고객 행동 이벤트",
     "conversation.created": "상담 시작",
     "conversation.updated": "상담 상태·담당 변경",
+    "conversation.identified": "비회원 상담의 회원 연결",
     "message.created": "공개 메시지 도착",
     "deal.created": "딜 생성",
     "deal.updated": "딜 변경",

@@ -191,6 +191,10 @@
                     </button>
                 </div>
                 <p id="event-status" class="status" role="status"></p>
+                <button id="continue-login" hidden>
+                    비회원 상담 이어서 회원 A 로그인
+                </button>
+                <p id="link-status" class="status" role="status"></p>
             </section>
             <section class="card">
                 <h2>내 화면으로 직접 연결</h2>
@@ -245,6 +249,8 @@
             let identity = "",
                 visitor = "",
                 opened = false,
+                widgetLinked = !!config.profile,
+                linking = false,
                 requestGeneration = 0;
             const status = document.querySelector("#status"),
                 log = document.querySelector("#messages"),
@@ -281,7 +287,7 @@
                 return result.data;
             }
             async function refresh() {
-                if (!opened) return;
+                if (!opened || linking) return;
                 const generation = ++requestGeneration;
                 try {
                     const data = await api();
@@ -323,6 +329,57 @@
                         location.reload();
                     }),
             );
+            const continueButton = document.querySelector("#continue-login");
+            continueButton.hidden = !!config.profile;
+            continueButton.onclick = async () => {
+                continueButton.disabled = true;
+                linking = true;
+                const linkStatus = document.querySelector("#link-status");
+                linkStatus.textContent =
+                    "로그인 후 상담 이력을 연결하고 있습니다…";
+                try {
+                    const login = await fetch("/api/demo/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ member: "a" }),
+                    });
+                    if (!login.ok)
+                        throw new Error("가상 로그인에 실패했습니다.");
+                    const next = await getIdentityToken();
+                    await SendbChat.identify(next.identityToken, {
+                        mergeAnonymous: !widgetLinked,
+                        getIdentityToken,
+                    });
+                    widgetLinked = true;
+                    // The custom UI has its own anonymous session; join it using the same public API.
+                    if (visitor) {
+                        await api("POST", {
+                            action: "identify",
+                            anonymousToken: visitor,
+                        });
+                        visitor = "";
+                    }
+                    const loggedIn = await (
+                        await fetch("/api/demo/config")
+                    ).json();
+                    document.querySelector("#member").textContent =
+                        loggedIn.profile.name;
+                    document.querySelector("#track").disabled = false;
+                    document.querySelector("#refresh-identity").disabled =
+                        false;
+                    continueButton.hidden = true;
+                    linkStatus.textContent =
+                        "회원 이력 연결 완료 · 로그인 전 문의도 이어집니다. 미전송 파일은 다시 선택해주세요.";
+                    linking = false;
+                    await refresh();
+                    SendbChat.show();
+                } catch (error) {
+                    linkStatus.textContent = error.message;
+                } finally {
+                    continueButton.disabled = false;
+                    linking = false;
+                }
+            };
             document.querySelector("#headless-open").onclick = async () => {
                 opened = true;
                 document.querySelector("#headless").classList.add("visible");

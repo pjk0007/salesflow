@@ -486,5 +486,109 @@
         "bytes": 100526
       }
     ]
+  },
+  "identityQa": {
+    "date": "2026-10-14",
+    "environment": "isolated PGlite and two fake member sites; real API/SDK/UI; no production DB or customer delivery",
+    "checks": {
+      "identity": 12,
+      "platform": 11,
+      "files": 18,
+      "ai": 16,
+      "workflows": 15,
+      "webhooks": 14,
+      "unit": 1051,
+      "types": true,
+      "lint": true,
+      "build": true
+    },
+    "browser": [
+      "designerhire anonymous widget and custom UI to existing member history, draft retained",
+      "backofficelab anonymous widget to new member, account B isolated, account A restored"
+    ],
+    "limitations": [
+      "real site login integration",
+      "parallel PostgreSQL load and large history merge",
+      "historical AI job list across source conversations"
+    ],
+    "artifacts": [
+      {
+        "file": "identity-sql.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "file": "identity-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "identity-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "file": "identity-build.log",
+        "sha256": "e7375985703504bf5765224e650f27471b7b49a78a866583e834450e2a3d036f",
+        "bytes": 11975
+      },
+      {
+        "file": "identity-unit.log",
+        "sha256": "76a5a2fe6294ac7e8d370c245d950c50343cf795e18d71a5003955d4127d8594",
+        "bytes": 100524
+      },
+      {
+        "file": "identity-files.log",
+        "sha256": "4ad67f976d52264eb12b7c42744e5501601e12d2d9ac7bdbe3e1ff3428ed38be",
+        "bytes": 4455
+      },
+      {
+        "file": "identity-ai.log",
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c",
+        "bytes": 2433
+      },
+      {
+        "file": "identity-workflows.log",
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551",
+        "bytes": 2372
+      },
+      {
+        "file": "identity-webhooks.log",
+        "sha256": "89302aa5539ecb933be8dde2f7074e075737564f7de922b6caa6f8f91c639986",
+        "bytes": 5793
+      },
+      {
+        "file": "identity-designerhire-linked-qa.png",
+        "sha256": "46e7390d8bf7799287cf27bf8cc02383eb299fa46ae02a6bf030ae7d1eafaf5f",
+        "bytes": 122351
+      },
+      {
+        "file": "identity-backofficelab-restored-qa.png",
+        "sha256": "f1b4b6e9ceb8d3579dea72805e2c480d6a9db93f6c208c14b272f8ba4be17d68",
+        "bytes": 88157
+      }
+    ],
+    "implementation": [
+      {
+        "file": "drizzle/0096_inbox_identity_link.sql",
+        "sha256": "f92e8174f3dca4913695177e4e9bf273d113d79ececcdfef0a25403e6b05022c",
+        "bytes": 503
+      },
+      {
+        "file": "src/lib/inbox/link-identity.ts",
+        "sha256": "5c39b61dbf3db3db4f146ad6dec7d82c70190df7a570cd4723136ed5194a19b5",
+        "bytes": 12784
+      },
+      {
+        "file": "public/sendb-sdk.js",
+        "sha256": "fb7774c087c3562c7f9ca69d425c1bcbd37cb277b6a363ed598c4c236451399f",
+        "bytes": 17400
+      },
+      {
+        "file": "scripts/check-inbox-identity.cjs",
+        "sha256": "75c54ce89fb607d44874d800d0556e2073ea2e96cc18ec56980cf731421f8201",
+        "bytes": 21918
+      }
+    ]
   }
 }

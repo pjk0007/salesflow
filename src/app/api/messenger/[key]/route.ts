@@ -8,6 +8,7 @@ import {
     authenticatedCustomer,
 } from "@/lib/inbox/repository";
 import { recordCustomerEvent } from "@/lib/customer-platform/repository";
+import { linkVisitorIdentity } from "@/lib/inbox/link-identity";
 import {
     applyMessengerHeaders,
     messengerHeaders,
@@ -50,6 +51,8 @@ export async function GET(req: NextRequest, ctx: Context) {
 export async function POST(req: NextRequest, ctx: Context) {
     return run(req, ctx, async (key) => {
         const input = await jsonBody(req);
+        if (input.action === "identify")
+            return linkVisitorIdentity(key, visitorToken(req), input);
         if (input.action === "session") return startVisitorSession(key, input);
         if (input.action === "track") {
             const { contact, channel } = await authenticatedCustomer(

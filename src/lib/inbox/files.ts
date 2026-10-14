@@ -7,6 +7,7 @@ import {
     inboxAttachmentBlobs as blobs,
     inboxChannels,
     inboxMessages,
+    inboxConversations,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "./errors";
@@ -92,6 +93,26 @@ export async function uploadAttachment(
                 ),
             )
             .for("update");
+        if (scope.publicOnly && scope.conversationId) {
+            const [chat] = await tx
+                .select()
+                .from(inboxConversations)
+                .where(eq(inboxConversations.id, scope.conversationId));
+            if (
+                !chat ||
+                chat.mergedIntoId ||
+                (!chat.contactId && !!chat.identifiedAt) ||
+                (chat.contactId &&
+                    scope.ownerKey !==
+                        fileOwner(
+                            `member:${scope.channelId}:${chat.contactId}`,
+                        ))
+            )
+                throw new InboxError(
+                    "상담 연결이 변경되었습니다. 파일을 다시 선택해주세요.",
+                    409,
+                );
+        }
         const [duplicate] = await tx
             .select()
             .from(files)
@@ -255,10 +276,18 @@ export async function downloadAttachment(
             bytes: blobs.bytes,
             conversationId: inboxMessages.conversationId,
             kind: inboxMessages.kind,
+            chat: inboxConversations,
         })
         .from(files)
         .innerJoin(blobs, eq(blobs.attachmentId, files.id))
         .leftJoin(inboxMessages, eq(inboxMessages.id, files.messageId))
+        .leftJoin(
+            inboxConversations,
+            eq(
+                inboxConversations.id,
+                scope.conversationId ?? "00000000-0000-0000-0000-000000000000",
+            ),
+        )
         .where(
             and(
                 eq(files.id, id),
@@ -269,6 +298,16 @@ export async function downloadAttachment(
         );
     if (
         !row ||
+        (scope.publicOnly &&
+            scope.conversationId &&
+            (!row.chat ||
+                row.chat.mergedIntoId ||
+                (row.chat.contactId
+                    ? scope.ownerKey !==
+                      fileOwner(
+                          `member:${scope.channelId}:${row.chat.contactId}`,
+                      )
+                    : !!row.chat.identifiedAt))) ||
         (row.file.messageId
             ? row.conversationId !== scope.conversationId ||
               (scope.publicOnly &&

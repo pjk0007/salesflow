@@ -83,6 +83,7 @@ async function fixture() {
         "0093_platform_webhooks.sql",
         "0094_customer_ai_support.sql",
         "0095_customer_workflows.sql",
+        "0096_inbox_identity_link.sql",
     ])
         for (const statement of fs
             .readFileSync(

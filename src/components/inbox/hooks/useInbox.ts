@@ -63,7 +63,7 @@ export function useInbox(
     );
     async function patch(data: unknown) {
         const updated = await inboxWrite<Conversation>(
-            `/api/inbox/conversations/${conversationId}`,
+            `/api/inbox/conversations/${detail.data?.conversation.id ?? conversationId}`,
             { version: detail.data?.conversation.version, ...(data as object) },
             "PATCH",
         );

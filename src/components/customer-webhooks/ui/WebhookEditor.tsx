@@ -9,6 +9,7 @@ export const eventNames: Record<string, string> = {
     "customer.event": "고객 행동 이벤트",
     "conversation.created": "새 상담",
     "conversation.updated": "상담 상태·담당 변경",
+    "conversation.identified": "비회원 상담의 회원 연결",
     "message.created": "고객 문의·공개 답변",
     "deal.created": "딜 생성",
     "deal.updated": "딜 변경",

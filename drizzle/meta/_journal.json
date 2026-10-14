@@ -673,6 +673,13 @@
       "when": 1775800000000,
       "tag": "0095_customer_workflows",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1775900000000,
+      "tag": "0096_inbox_identity_link",
+      "breakpoints": true
     }
   ]
 }

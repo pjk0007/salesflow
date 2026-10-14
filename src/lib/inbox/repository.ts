@@ -180,6 +180,7 @@ export async function listConversations(
             and(
                 eq(inboxConversations.orgId, actor.orgId),
                 eq(inboxConversations.channelId, channelId),
+                isNull(inboxConversations.mergedIntoId),
                 conversationSearch(input.q),
                 input.status
                     ? eq(inboxConversations.status, input.status)
@@ -270,6 +271,7 @@ export async function conversationListPage(
                 and(
                     eq(inboxConversations.orgId, actor.orgId),
                     eq(inboxConversations.channelId, channelId),
+                    isNull(inboxConversations.mergedIntoId),
                     conversationSearch(input.q),
                     input.status
                         ? eq(inboxConversations.status, input.status)
@@ -291,6 +293,7 @@ export async function ownedConversation(
             and(
                 eq(inboxConversations.id, id),
                 eq(inboxConversations.orgId, actor.orgId),
+                isNull(inboxConversations.mergedIntoId),
             ),
         );
     if (!chat) throw new InboxError("상담을 찾을 수 없습니다.", 404);
@@ -337,8 +340,24 @@ export async function conversationDetail(
     exec: DbExec = db,
     before?: number,
 ) {
-    const conversation = await ownedConversation(actor, id, exec);
-    return { conversation, ...(await readMessages(id, exec, false, before)) };
+    const [alias] = await exec
+        .select({ mergedIntoId: inboxConversations.mergedIntoId })
+        .from(inboxConversations)
+        .where(
+            and(
+                eq(inboxConversations.id, id),
+                eq(inboxConversations.orgId, actor.orgId),
+            ),
+        );
+    const conversation = await ownedConversation(
+        actor,
+        alias?.mergedIntoId ?? id,
+        exec,
+    );
+    return {
+        conversation,
+        ...(await readMessages(conversation.id, exec, false, before)),
+    };
 }
 export async function patchConversation(
     actor: Actor,
@@ -357,6 +376,7 @@ export async function patchConversation(
                 and(
                     eq(inboxConversations.id, id),
                     eq(inboxConversations.orgId, actor.orgId),
+                    isNull(inboxConversations.mergedIntoId),
                 ),
             )
             .for("update");
@@ -506,6 +526,21 @@ async function appendMessage(
             .from(inboxConversations)
             .where(eq(inboxConversations.id, id))
             .for("update");
+        if (
+            !locked ||
+            locked.mergedIntoId ||
+            (scope.publicOnly &&
+                (locked.contactId
+                    ? scope.ownerKey !==
+                      fileOwner(
+                          `member:${locked.channelId}:${locked.contactId}`,
+                      )
+                    : !!locked.identifiedAt))
+        )
+            throw new InboxError(
+                "회원 상담으로 연결된 이력입니다. 상담 목록을 새로 불러와주세요.",
+                409,
+            );
         const [duplicate] = await tx
             .select()
             .from(inboxMessages)
@@ -811,6 +846,8 @@ async function startVisitorSessionInTx(
                     eq(inboxConversations.channelId, channel.id),
                     eq(inboxConversations.tokenHash, hash(token)),
                     isNull(inboxConversations.contactId),
+                    isNull(inboxConversations.mergedIntoId),
+                    isNull(inboxConversations.identifiedAt),
                 ),
             );
         if (!chat)
@@ -880,6 +917,13 @@ async function visitorConversation(
             token,
             exec,
         );
+        // Serialize member creation with anonymous-to-member linking.
+        if (create)
+            await exec
+                .select({ id: crmContacts.id })
+                .from(crmContacts)
+                .where(eq(crmContacts.id, contact.id))
+                .for("update");
         let [chat] = await exec
             .select({
                 id: inboxConversations.id,
@@ -971,6 +1015,8 @@ async function visitorConversation(
                 eq(inboxConversations.channelId, channel.id),
                 eq(inboxConversations.tokenHash, hash(token)),
                 isNull(inboxConversations.contactId),
+                isNull(inboxConversations.mergedIntoId),
+                isNull(inboxConversations.identifiedAt),
             ),
         );
     if (!chat) throw new InboxError("상담 세션을 확인해주세요.", 401);

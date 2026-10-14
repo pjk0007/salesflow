@@ -63,6 +63,10 @@ export const inboxConversations = pgTable(
         contactId: uuid("contact_id").references(() => crmContacts.id, {
             onDelete: "set null",
         }),
+        mergedIntoId: uuid("merged_into_id").references(
+            (): AnyPgColumn => inboxConversations.id,
+        ),
+        identifiedAt: time("identified_at"),
         name: varchar("name", { length: 100 }).notNull(),
         email: varchar("email", { length: 254 }),
         pageUrl: text("page_url"),
@@ -112,6 +116,9 @@ export const inboxMessages = pgTable(
         aiDraftId: uuid("ai_draft_id").references(
             (): AnyPgColumn => customerAiJobs.id,
             { onDelete: "set null" },
+        ),
+        originConversationId: uuid("origin_conversation_id").references(
+            () => inboxConversations.id,
         ),
         createdAt: time("created_at").notNull().defaultNow(),
     },

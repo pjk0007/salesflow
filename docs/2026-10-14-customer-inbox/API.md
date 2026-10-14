@@ -109,7 +109,7 @@ async function startMemberChat(channelKey) {
 
 ## 실행 예제와 검증
 
-`examples/customer-platform/site-server.cjs`와 `site.html`은 두 사업에 같은 계약을 적용하는 로컬 예제다. `startSite({client,workspaceId,channel,port,title,accent})`에 각 사업 설정을 넘긴다. 실행 시 TS 로더가 필요하다. 가상 HttpOnly 로그인 쿠키는 **예제 전용**이며 실제 사이트 인증으로 교체해야 한다. 회원의 자체 API 화면과 위젯은 같은 대화를 공유한다. 비회원 자체 화면은 별도 임시 세션을 사용하고 위젯 세션과 자동 합치지 않는다.
+`examples/customer-platform/site-server.cjs`와 `site.html`은 두 사업에 같은 계약을 적용하는 로컬 예제다. `startSite({client,workspaceId,channel,port,title,accent})`에 각 사업 설정을 넘긴다. 실행 시 TS 로더가 필요하다. 가상 HttpOnly 로그인 쿠키는 **예제 전용**이며 실제 사이트 인증으로 교체해야 한다. 회원의 자체 API 화면과 위젯은 같은 대화를 공유한다. 비회원 자체 화면은 별도 임시 세션을 사용한다. ‘비회원 상담 이어서 회원 A 로그인’은 위젯 SDK `identify(token,{mergeAnonymous:true})`와 자체 UI의 `action:identify` API로 각각의 비회원 이력을 같은 회원에게 연결한다. 일반 계정 전환과 로그아웃에서는 합치지 않는다. [연결 계약](IDENTITY.md) 참고.
 
 격리 QA는 `node --import tsx scripts/check-customer-platform.cjs`, `node --import tsx scripts/check-inbox.cjs`다. 실제 PostgreSQL SQL을 PGlite에서 실행하며 실제 고객·외부 메시지를 전송하지 않는다. 현재 확인 결과와 남은 전체 대체 항목은 `HANDOFF.md`, `REPLACEMENT.md`를 참고한다.
 

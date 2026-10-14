@@ -378,7 +378,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     {selected && detail.data ? (
                         <ConversationPane
                             userId={userId}
-                            key={selected}
+                            key={detail.data.conversation.id}
                             chat={detail.data.conversation}
                             messages={detail.data.messages}
                             hasOlder={detail.data.hasOlder}

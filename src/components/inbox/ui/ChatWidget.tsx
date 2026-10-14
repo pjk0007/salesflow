@@ -19,13 +19,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     const [older, setOlder] = useState<ChatMessage[]>([]),
         [canLoad, setCanLoad] = useState(true);
     const [blocked, setBlocked] = useState(false);
+    const [linking, setLinking] = useState(false);
     const [managed, setManaged] = useState(false),
         [opened, setOpened] = useState(true),
         [readId, setReadId] = useState(0);
     const generation = useRef(0);
     const handoffPending = useRef<string | null>(null);
     async function requestHuman() {
-        if (!token || busy) return;
+        if (!token || busy || linking) return;
         const currentGeneration = generation.current;
         setBusy(true);
         setError("");
@@ -76,7 +77,9 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         hasOlder: boolean;
         profile: { name: string; email: string | null; identified: boolean };
     }>(
-        token && ready ? [`/api/messenger/${channelKey}`, token] : null,
+        token && ready && !linking
+            ? [`/api/messenger/${channelKey}`, token]
+            : null,
         ([url, value]: [string, string]) =>
             inboxRequest(url, {
                 headers: { Authorization: `Bearer ${value}` },
@@ -118,6 +121,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                           ? event.data.visitorToken
                           : "";
                 setManaged(true);
+                setLinking(false);
                 setToken(next);
                 setOpened(!!event.data.opened);
                 setReadId(Number(event.data.readId) || 0);
@@ -125,17 +129,21 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 if (configured.current !== session) {
                     generation.current++;
                     resetAttachments();
-                    setText("");
+                    if (!event.data.continueAnonymous) setText("");
                     setOlder([]);
                     setCanLoad(true);
                     setError("");
-                    pending.current = null;
-                    handoffPending.current = null;
+                    if (!event.data.continueAnonymous || pending.current?.files)
+                        pending.current = null;
+                    if (!event.data.continueAnonymous)
+                        handoffPending.current = null;
                     configured.current = session;
                 }
             }
             if (event.data.type === "sendb:visibility")
                 setOpened(!!event.data.opened);
+            if (event.data.type === "sendb:linking")
+                setLinking(!!event.data.linking);
         };
         window.addEventListener("message", listener);
         window.parent.postMessage(
@@ -199,7 +207,8 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         );
     const color = config.data?.color ?? "#635BFF";
     async function send() {
-        if (busy || (!text.trim() && !attachments.files.length)) return;
+        if (busy || linking || (!text.trim() && !attachments.files.length))
+            return;
         const body = text.trim();
         setBusy(true);
         setError("");
@@ -466,11 +475,19 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     {error}
                 </p>
             )}
+            {linking && (
+                <p role="status" className="px-4 text-sm text-gray-500">
+                    회원 상담 이력을 연결하고 있습니다…
+                </p>
+            )}
             {token && (
                 <button
                     type="button"
                     disabled={
-                        busy || data.data?.aiState === "human" || !!data.error
+                        busy ||
+                        linking ||
+                        data.data?.aiState === "human" ||
+                        !!data.error
                     }
                     onClick={() => void requestHuman()}
                     className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
@@ -490,7 +507,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
                     <textarea
                         aria-label="문의 메시지"
-                        disabled={busy}
+                        disabled={busy || linking}
                         value={text}
                         maxLength={5000}
                         onChange={(e) => setText(e.target.value)}
@@ -512,6 +529,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         aria-label="문의 보내기"
                         disabled={
                             busy ||
+                            linking ||
                             (!text.trim() && !attachments.files.length) ||
                             (!token && !name.trim()) ||
                             !config.data ||
@@ -529,7 +547,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 </div>
                 <AttachmentDrafts
                     files={attachments.files}
-                    busy={busy || !config.data || !!data.error}
+                    busy={busy || linking || !config.data || !!data.error}
                     progress={attachments.progress}
                     onSelect={attachments.select}
                     onRemove={(id) =>

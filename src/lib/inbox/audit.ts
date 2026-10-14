@@ -1,5 +1,5 @@
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
-import { and, desc, eq, lt, or, isNull } from "drizzle-orm";
+import { and, desc, eq, lt, or, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
     db,
@@ -53,7 +53,10 @@ export async function inboxAuditPage(
         eq(events.orgId, orgId),
         eq(events.channelId, channelId),
         conversationId
-            ? eq(events.conversationId, conversationId)
+            ? or(
+                  eq(events.conversationId, conversationId),
+                  sql`EXISTS (SELECT 1 FROM ${inboxConversations} c WHERE c.id=${events.conversationId} AND c.merged_into_id=${conversationId}::uuid)`,
+              )
             : isNull(events.conversationId),
     );
     let cursor;

@@ -50,7 +50,9 @@
                 : store(state.storageKey) || undefined,
             opened: state.opened,
             readId: state.readId,
+            continueAnonymous: !!state.continueAnonymous,
         });
+        state.continueAnonymous = false;
     }
     function visibility(opened) {
         if (!current || !current.frame) return;
@@ -263,6 +265,7 @@
                 emit("unreadCountChange", Math.max(0, Number(data.count) || 0));
             if (data.type === "sendb:refresh") refresh(state);
             if (data.type === "sendb:error") {
+                if (state.identifying) return;
                 if (data.status === 401 && state.identityToken) refresh(state);
                 else if (data.status === 401) {
                     store(state.storageKey, null);
@@ -314,7 +317,7 @@
         return result.data;
     }
     window.SendbChat = {
-        version: "1.0.0",
+        version: "1.1.0",
         boot: boot,
         show: function () {
             visibility(true);
@@ -323,12 +326,63 @@
             visibility(false);
         },
         shutdown: shutdown,
-        identify: async function (identityToken) {
+        identify: async function (identityToken, options) {
             if (!current || !current.ready)
                 throw new Error("상담 SDK 연결을 먼저 완료해주세요.");
             if (typeof identityToken !== "string" || !identityToken)
                 throw new Error("회원 상담 인증이 필요합니다.");
             var state = current;
+            options = options || {};
+            if (state.identifying)
+                throw new Error(
+                    "회원 상담을 연결하고 있습니다. 잠시 기다려주세요.",
+                );
+            if (options.mergeAnonymous && state.identityToken)
+                throw new Error(
+                    "비회원 상담에서 로그인할 때만 이력을 연결할 수 있습니다.",
+                );
+            if (options.mergeAnonymous) {
+                var anonymousToken = store(state.storageKey);
+                if (anonymousToken) {
+                    state.identifying = true;
+                    post(state, "sendb:linking", { linking: true });
+                    try {
+                        var response = await fetch(
+                            state.base +
+                                "/api/messenger/" +
+                                state.options.channelKey,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: "Bearer " + identityToken,
+                                },
+                                body: JSON.stringify({
+                                    action: "identify",
+                                    anonymousToken: anonymousToken,
+                                }),
+                            },
+                        );
+                        var result = await response.json();
+                        if (!response.ok || !result.success)
+                            throw new Error(
+                                result.error ||
+                                    "비회원 상담을 연결하지 못했습니다.",
+                            );
+                        if (current !== state)
+                            throw new Error("상담 연결이 변경되었습니다.");
+                    } finally {
+                        state.identifying = false;
+                        post(state, "sendb:linking", { linking: false });
+                    }
+                }
+            }
+            if (current !== state)
+                throw new Error("상담 연결이 변경되었습니다.");
+            store(state.storageKey, null);
+            state.continueAnonymous = !!options.mergeAnonymous;
+            if (typeof options.getIdentityToken === "function")
+                state.options.getIdentityToken = options.getIdentityToken;
             state.identityToken = identityToken;
             state.readId = 0;
             state.ready = false;

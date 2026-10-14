@@ -8,6 +8,7 @@ export const webhookEventTypes = [
     "customer.event",
     "conversation.created",
     "conversation.updated",
+    "conversation.identified",
     "message.created",
     "deal.created",
     "deal.updated",

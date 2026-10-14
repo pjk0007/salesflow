@@ -18,6 +18,7 @@ type Row = {
     createdAt: string;
 };
 const fields: Record<string, string> = {
+    identity: "회원 이력 연결",
     aiState: "응대 방식",
     aiHandoffReason: "사람 이관 사유",
     status: "상태",
@@ -93,7 +94,9 @@ export function InboxAudit({ url }: { url: string }) {
                             {row.actorName}
                             {row.action === "customer.reopened"
                                 ? " · 재문의로 상담 재개"
-                                : ""}
+                                : row.action === "identity.linked"
+                                  ? " · 비회원 상담 연결"
+                                  : ""}
                         </p>
                         <time className="text-muted-foreground">
                             {new Date(row.createdAt).toLocaleString("ko-KR")}
