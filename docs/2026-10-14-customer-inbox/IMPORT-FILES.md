@@ -15,7 +15,7 @@
 
 ## 원본 주소와 재이전
 
-- 채널톡 File의 `key`만 있는 내보내기는 새 서명 주소가 필요하다. 공식 [UserChat 파일 주소 API](https://developers.channel.io/en/articles/Get-a-file-url-in-a-UserChat-bff12f64)는 `GET /open/v5/user-chats/{userChatId}/messages/file?key=...`로 15분 유효 주소를 제공한다. 목록의 원본 상담 ID·파일 key를 사용해 원본 서비스에서 받은 주소를 갱신한다. 샌드비가 원본 계정의 인증키를 저장하거나 그 API를 자동 호출하지는 않는다.
+- 채널톡 File의 `key`만 있는 내보내기는 새 서명 주소가 필요하다. 기존 [v5 UserChat 파일 주소 안내](https://developers.channel.io/en/articles/Get-a-file-url-in-a-UserChat-bff12f64)는 `/open/v5/.../messages/file?key=...`와15분 유효기간을 설명한다. 새 [내보내기 CLI](IMPORTS.md#채널톡-내보내기-cli)는 [현재 공식 계약](https://api-doc.channel.works/docs/openapi.en.yaml)의 `/open/user-chats/{userChatId}/messages/file?key=...`, `Channel-Version: 2026-06-01`, `{result: string}`을 사용하며 v5 유효기간을 최신 계약의 확정값으로 취급하지 않는다. CLI에서 받은 바이트 백업과 샌드비의 기존 파일 보충/연결은 별도다. 샌드비 서버가 원본 계정의 인증키를 저장하거나 상시 수집하는 기능은 추가하지 않았다.
 - 인터컴은 Part의 `name`, `url`, `filesize`, `content_type`을 사용한다. [공식 첨부 안내](https://www.intercom.com/help/en/articles/2339426-control-how-attachments-are-uploaded-and-used)에 따라 만료 주소는 원본 REST 조회로 새로 확보한다. [Part 모델](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/models/conversation_part)의 첨부 배열을 보존한다. 실제 계정/전체 페이지 추출은 별도 작업이다.
 - 공통 JSON은 `files:[{id,name,size?,sha256?,url?}]`를 사용한다. 100개 첨부를 현행 새 메시지의 5개 제한으로 잘라내지 않는다. 허브스팟의 CRM 파일·노트·다중 객체 파일 관계 전체 이전은 이번 범위에 포함하지 않는다.
 - 파일 ID/key와 메타데이터 버전으로 식별하고 만료되는 URL은 버전 해시에서 제외한다. 주소만 바뀐 재이전은 완료 바이트를 재사용한다. ID/key가 없으면 배열 위치를 식별에 사용하므로 순서 변경 시 원본 검토가 필요하다.

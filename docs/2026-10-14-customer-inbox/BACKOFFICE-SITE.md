@@ -42,6 +42,6 @@ node --import tsx scripts/check-inbox.cjs
 
 SQL 검사는 기존 `.testenv/test-runtime`의 PGlite를 사용한다. 실제 DB URL이나 사이트 환경 파일을 연결하지 않는다.
 
-추가 단위18·실제 SDK 교차VM6·앱/테스트 타입·기능 lint를 확인했다. 로더는 SDK1.4/필수 기능을 검사하고 SDK 오류를 구독하며 최초 준비 timeout도 같은 익명 iframe의 reconnect로 복구한다. 실제 _app·consult→홈·Pages Router 조립의 별도 Chrome에서 앱1회 mount/초안 유지·프로필503/15초 준비 timeout 복구·추가 신청0을 확인했다. 로컬 의존성 변경 사건과 복구 후 페이지200/빌드는 별도 증거로 남긴다. 390px에서 상담/폼 controls는 확인했지만 홈38px overflow 원인은 미확정이다.
+추가 단위18·실제 SDK 교차VM6·앱/테스트 타입·기능 lint를 확인했다. 로더는 SDK1.4/필수 기능을 검사하고 SDK 오류를 구독하며 최초 준비 timeout도 같은 익명 iframe의 reconnect로 복구한다. 실제 _app·consult→홈·Pages Router 조립의 별도 Chrome에서 앱1회 mount/초안 유지·프로필503/15초 준비 timeout 복구·추가 신청0을 확인했다. 로컬 의존성 변경 사건과 복구 후 페이지200/빌드는 별도 증거로 남긴다. 390px에서 상담/폼 controls는 확인했다. 별도 원인 조사로 홈의38px 가로 넘침은 Section2의 폭이 지정되지 않은 FadeInUp과 줄바꿈 없는 배지에서 발생함을 확인했다. 관련 소스는 상담 연결 전 기준 커밋 b3c373b와 같아 기존 홈 레이아웃 문제로 구분하며, 이 작업에서는 수정하지 않았다. 근거는 `bo-final-browser-qa/home-overflow-investigation.json`이다.
 
 실제 도메인/배포 커밋·전체 사업 페이지/팀 업무·부하·설정/설치·지원 자료 이전·전체 대체 전환은 후속이다. 실제 고객 전송·운영 DB 접근·실제 Notion/SMS·서버 반영은 수행하지 않았다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md), 사이트별 상태는 [SITE-INTEGRATION.md](SITE-INTEGRATION.md)를 따른다.

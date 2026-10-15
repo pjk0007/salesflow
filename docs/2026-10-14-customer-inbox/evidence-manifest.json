@@ -7599,5 +7599,217 @@
     "integratedDocument": "SITE-INTEGRATION.md",
     "localPageAndFileGaps": "Current actual page and three file chooser groups are verified; remaining real environment/data/team/AI/performance/policy and advanced requirements retained in R01-R16.",
     "operatingDeploy": false
+  },
+  "channelSourceExportQa": {
+    "recordedAt": "2026-10-15T09:05:40.914Z",
+    "status": "development_candidate_verified",
+    "branch": "codex/sendb-channel-export",
+    "base": "9a395e318b71d9bc3f29e56b2938ab837a3e9002",
+    "originalGoalStatus": "active",
+    "sourceHashes": {
+      "scripts/export-channel-source.cjs": {
+        "sha256": "6d2c89b8b02c4eedd6b3f1511775e76ebfd1cc5e361df056e42bf6069e8cc781",
+        "normalizedLfSha256": "6d2c89b8b02c4eedd6b3f1511775e76ebfd1cc5e361df056e42bf6069e8cc781"
+      },
+      "scripts/check-channel-source-export-cli.cjs": {
+        "sha256": "920fdfb0d4a60ce8d44cd9931404d47ffc8f806f806fe87b2ca53a710ed08634",
+        "normalizedLfSha256": "920fdfb0d4a60ce8d44cd9931404d47ffc8f806f806fe87b2ca53a710ed08634"
+      },
+      "scripts/check-channel-source-export.cjs": {
+        "sha256": "bfe6b29be7f3abab6b489d3e3af83752241fd159695c8fc4d3699e9eba507b90",
+        "normalizedLfSha256": "bfe6b29be7f3abab6b489d3e3af83752241fd159695c8fc4d3699e9eba507b90"
+      },
+      "scripts/fixtures/channel-source-export-fictional.json": {
+        "sha256": "bcd29a9e7d3b307b22d76627f82363e8cccc96175ba74b0273fa2b8227fe218f",
+        "normalizedLfSha256": "bcd29a9e7d3b307b22d76627f82363e8cccc96175ba74b0273fa2b8227fe218f"
+      },
+      "src/lib/customer-imports/channel-export.ts": {
+        "sha256": "e4826f6cdcbfe664d7887cf784fb59517acc71819612b82f3ffd5fc46f54da9d",
+        "normalizedLfSha256": "719fdcf741fe29afcf4d22e44c965c6e0515cb486dfba9637f4012a74d9a83b8"
+      },
+      "src/lib/channel-source-export/http.ts": {
+        "sha256": "f591175dcb393f97ffdc3668d0a304276c14a415ce57cef06af6ef970667122b",
+        "normalizedLfSha256": "f591175dcb393f97ffdc3668d0a304276c14a415ce57cef06af6ef970667122b"
+      },
+      "src/lib/channel-source-export/collector-request.ts": {
+        "sha256": "e91e54b207ec648a70a04cb57a1844a14e9b2c957a1c8b5887fcf3ffc94a58bb",
+        "normalizedLfSha256": "e91e54b207ec648a70a04cb57a1844a14e9b2c957a1c8b5887fcf3ffc94a58bb"
+      },
+      "src/lib/channel-source-export/chunks.ts": {
+        "sha256": "79c85157c08837e541b2a75080a19e9732e55febe1e30c1d83cce10ac225a7bb",
+        "normalizedLfSha256": "79c85157c08837e541b2a75080a19e9732e55febe1e30c1d83cce10ac225a7bb"
+      },
+      "src/lib/channel-source-export/output.ts": {
+        "sha256": "1443888abf13b5464f5d0459d20e7cb66d9b95f5218612485867aeb9b84b2917",
+        "normalizedLfSha256": "1443888abf13b5464f5d0459d20e7cb66d9b95f5218612485867aeb9b84b2917"
+      },
+      "src/lib/channel-source-export/files.ts": {
+        "sha256": "20cfe78fc7b36b6c55b88b7936caaba06a74ed244c6d00b7a7eb0c5e1cff25a0",
+        "normalizedLfSha256": "20cfe78fc7b36b6c55b88b7936caaba06a74ed244c6d00b7a7eb0c5e1cff25a0"
+      },
+      "src/lib/customer-imports/adapters.ts": {
+        "sha256": "2d2d676a389b6561a40cbe1dd39e311928d08169902e088a3227ec24634e1868",
+        "normalizedLfSha256": "0a3170e1e25458d26ee0a327ce50240b524805ecc2eae58f6cbd3c08ea659f3f"
+      },
+      "src/lib/customer-imports/rules.test.ts": {
+        "sha256": "d4e6b151ee5c1e18321794cad7ff69a54c87af8be75e28b5a9971986a2f91c43",
+        "normalizedLfSha256": "732d42c5980fc7627e2065ad56ccf1b9cc41b046a50ef37626d86796f0042975"
+      },
+      "src/lib/customer-imports/channel-export.test.ts": {
+        "sha256": "c2542b602f55bdb136fbfbe7c7a847a99f6e28a21c39316e1bfd8439182781b0",
+        "normalizedLfSha256": "c7b3ad119964e9ffcc3a1553d1acd002a48252dd54c021e8ee8d65330d36c414"
+      },
+      "src/lib/channel-source-export/http.test.ts": {
+        "sha256": "91332cc4637f8aa24c5b176dbdd608cf56b96f7a35e9a989575edd67346b99af",
+        "normalizedLfSha256": "91332cc4637f8aa24c5b176dbdd608cf56b96f7a35e9a989575edd67346b99af"
+      },
+      "src/lib/channel-source-export/collector-request.test.ts": {
+        "sha256": "78944e38ed36b09d6ad527d905d7d3792696b3208f8fdc0724feb1c62a3374b6",
+        "normalizedLfSha256": "78944e38ed36b09d6ad527d905d7d3792696b3208f8fdc0724feb1c62a3374b6"
+      },
+      "src/lib/channel-source-export/chunks.test.ts": {
+        "sha256": "2950c86a0c09ca4d2dff76a3bf44db2be4f3dcb21902ea307eabcb109138b283",
+        "normalizedLfSha256": "2950c86a0c09ca4d2dff76a3bf44db2be4f3dcb21902ea307eabcb109138b283"
+      },
+      "src/lib/channel-source-export/output.test.ts": {
+        "sha256": "e48bc743cabdeb7cd5d0269baaf9db4f6a8a1bec0676c2222283136bc85e03d5",
+        "normalizedLfSha256": "e48bc743cabdeb7cd5d0269baaf9db4f6a8a1bec0676c2222283136bc85e03d5"
+      },
+      "src/lib/channel-source-export/files.test.ts": {
+        "sha256": "f4119b1eada6c596884d09d99a76451cada385373c8ef87f926b042084c2a097",
+        "normalizedLfSha256": "f4119b1eada6c596884d09d99a76451cada385373c8ef87f926b042084c2a097"
+      },
+      "src/lib/customer-import-files/transport.ts": {
+        "sha256": "c15d7df3a1bf372a861c0ffc2b724f28e38ddad8d2b1a11cb4dd44efe3cca401",
+        "normalizedLfSha256": "c15d7df3a1bf372a861c0ffc2b724f28e38ddad8d2b1a11cb4dd44efe3cca401"
+      },
+      "src/lib/customer-import-files/transport.test.ts": {
+        "sha256": "f0d0f70b46f599a6fa32594bf22c6b136f5002be3bafda1987d24f26558044d5",
+        "normalizedLfSha256": "f0d0f70b46f599a6fa32594bf22c6b136f5002be3bafda1987d24f26558044d5"
+      }
+    },
+    "runtimeArtifactHashes": {
+      "node_modules\\.pnpm\\tsx@4.21.0\\node_modules\\tsx\\dist\\client-D6NvIMSC.cjs": "af10790d58385f62c205140c3f7c25dae26638c2961fa24eb958f888d8995a40"
+    },
+    "logs": [
+      {
+        "name": "channel-export-all-units-final.log",
+        "sha256": "89123fa0bb8590c4c9a969214aae0fa16bddd6c119ee8e2c38782f978c063b50",
+        "bytes": 117388,
+        "checks": 1217
+      },
+      {
+        "name": "channel-export-build-final.log",
+        "sha256": "62dc2658655db080f70055847ffc2d360bddce1ed4b0ca16308462c5f0daa643",
+        "bytes": 13654,
+        "checks": null
+      },
+      {
+        "name": "channel-export-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0,
+        "checks": null
+      },
+      {
+        "name": "channel-source-export-root-regression.log",
+        "sha256": "8c7f4a0214686ff7b05c978dfba3d789a1c31db6a05fcde4401768e7502b441e",
+        "bytes": 3347,
+        "checks": 17
+      },
+      {
+        "name": "channel-source-existing-imports.log",
+        "sha256": "984a71372bd78537aeb2676c95f175c7d1471f0fb22bcb2f954fe1c305719d44",
+        "bytes": 2570,
+        "checks": 15
+      }
+    ],
+    "evidence": [
+      {
+        "name": "cli-qa.json",
+        "sha256": "44c626deff38b71fac65d6d2309d2abddd3097b0b0b6b0d2941fd2c82daa0662",
+        "source": "F:\\Dev\\salesflow\\.testenv\\channel-cli-qa\\757a90cc-4270-4962-b76b-0be593ee9023\\result.json"
+      },
+      {
+        "name": "cli-summary.json",
+        "sha256": "86312c9b1e890ddec5e8b7d9eb8b8f32bc8258baa5aa45e8acbc475071ab8b25",
+        "source": "F:\\Dev\\salesflow\\.testenv\\channel-source-export-cli-result.json"
+      },
+      {
+        "name": "file-boundaries.json",
+        "sha256": "10b6ad07c61ac1405cec43e5076f942ae5c016fea01896000d962305663bf198",
+        "source": "F:\\Dev\\salesflow\\.testenv\\channel-files-independent-review-boundaries.json"
+      },
+      {
+        "name": "file-owner.json",
+        "sha256": "fd97215371aeb98690307edc24d0614b06400893b402433c8d6806ec15f5a57a",
+        "source": "F:\\Dev\\salesflow\\.testenv\\channel-files-owner-result.json"
+      }
+    ],
+    "tests": {
+      "allUnits": 1217,
+      "sourceToActualImporter": 17,
+      "existingImporter": 15,
+      "cliGroups": 13,
+      "cliNodeChildren": 23,
+      "fileCoordinatorUnits": 25,
+      "fileIndependentBoundaries": 6,
+      "rootHappyPath": {
+        "contacts": 3,
+        "chats": 6,
+        "messages": 20,
+        "files": 2,
+        "bytes": 102,
+        "chunks": 3
+      }
+    },
+    "validation": {
+      "finalIsolatedBuild": true,
+      "typescriptInFinalBuild": true,
+      "targetedEslint": true,
+      "scopedBridgeTypeScript": true
+    },
+    "networkBoundary": {
+      "nativeNetworkAttempts": 0,
+      "actualConnections": 0,
+      "actualLocalIpcConnections": 0,
+      "deniedExactTsxLocalIpcAttempts": 19,
+      "allNetworkAndLocalIpcDenied": true
+    },
+    "operatingDeploy": false,
+    "actualSourceAccounts": 0,
+    "actualSourceApiCalls": 0,
+    "actualCustomerData": false,
+    "operatingDatabaseChanges": false,
+    "isolatedMemoryDatabaseUsed": true,
+    "fixedDefects": [
+      "Unfinished modern pagination markers accepted",
+      "Modern chat title/state and bot/author names misrepresented",
+      "Anonymous memberId used as member identity candidate",
+      "HTTP retry error type mismatch",
+      "Retry-After shortened below provider minimum",
+      "Concurrent/late raw-page writes",
+      "Foreign channel probe profile archived before channel validation",
+      "Incomplete bundle fixture synthesized into complete export"
+    ],
+    "limitations": [
+      "Endpoint cursor completion does not prove all customers, point-in-time snapshot, permissions or retention coverage.",
+      "Import remains a human-reviewed separate stage; imported history remains staff-only.",
+      "Byte backup is separate from bulk file-to-import relationship binding; a transfer catalog/bulk supplement flow remains.",
+      "Corrupt byte files fail explicitly; automatic quarantine/repair is not implemented.",
+      "Unknown MIME bytes are archived as opaque; preview verification is not claimed.",
+      "Non-cancellable save callbacks can leave orphan bytes after abort; manifests are not promoted.",
+      "Whole-snapshot checkpoint serialization has only a 1k-chat/10k-message synthetic benchmark, not operating load proof."
+    ],
+    "pendingIndependentWork": {
+      "staffDraftCandidate": "Separate 10-file patch; not integrated into this export candidate.",
+      "patch": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/staff-draft-session-implementation/staff-draft-session.patch"
+    },
+    "artifact": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\channel-source-export\\verification.json",
+    "artifactSha256": "c76deb6cfa9e7e24e875acc767b550aa526ff1027d957ef2c4fc10a8f54c806b"
+  },
+  "backofficeLayoutFollowup": {
+    "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/bo-final-browser-qa/home-overflow-investigation.json",
+    "sha256": "266b3be4306d2d839c33458adff3a26927ba48bbb32886aeec7aaa7b0b9fc554",
+    "cause": "Confirmed pre-existing Section2 FadeInUp width/nowrap badges; unchanged from b3c373b. Not support integration regression. No source repair."
   }
 }
