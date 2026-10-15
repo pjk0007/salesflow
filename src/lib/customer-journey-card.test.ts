@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildJourneyCard, summarizeJourney, type JourneyCardInput } from "./customer-journey-card";
+import { buildJourneyCard, journeyPreviewText, summarizeJourney, type JourneyCardInput } from "./customer-journey-card";
 import { postGoogleChatMessage } from "./google-chat";
 
 const start = new Date("2026-10-11T05:00:00Z");
@@ -39,6 +39,39 @@ test("신청 시작 뒤 멈춘 방문: 회사·담당자·페이지 순서·체�
 
 test("방문이 아직 움직이는 중이면 이탈 카드로 보내지 않는다", () => {
     assert.equal(summarizeJourney(fixture(), at(300)).eligible, false);
+});
+
+test("CRM 전화 형식과 연락처 텍스트 칸의 번호를 카드·요약·미리보기에 표시하고 중복 번호는 합친다", () => {
+    const f = fixture();
+    f.fields.push(
+        { key: "phone", label: "휴대폰", fieldType: "phone", value: "010-1234-5678" },
+        { key: "contactPhone", label: "담당자 연락처", fieldType: "text", value: "010 1234 5678" },
+        { key: "officePhone", label: "회사 전화", fieldType: "text", value: "02-123-4567" },
+        { key: "international", label: "해외 전화", fieldType: "phone", value: "+1 (415) 555-0123" },
+        { key: "memo", label: "연락처 메모", fieldType: "text", value: "오후에 통화 가능" },
+        { key: "account", label: "계좌", fieldType: "text", value: "12345678901" },
+    );
+    const phones = ["010-1234-5678", "02-123-4567", "+1 (415) 555-0123"];
+    assert.deepEqual(summarizeJourney(f, at(1000)).phones, phones);
+    const card = buildJourneyCard(f, at(1000));
+    assert.ok(card.text.includes(`연락처: ${phones.join(" · ")}`));
+    assert.match(JSON.stringify(card.cardsV2), /<b>연락처: 010-1234-5678/);
+    assert.ok(journeyPreviewText(f, at(1000)).includes(phones.join(" · ")));
+    assert.doesNotMatch(JSON.stringify(card), /오후에 통화 가능|12345678901/);
+});
+
+test("연락처가 없거나 전화 칸 값이 번호가 아니면 빈 항목 대신 등록 없음으로 표시한다", () => {
+    const f = fixture();
+    f.fields.push(
+        { key: "phone", label: "전화", fieldType: "phone", value: "전화 연결 대기" },
+        { key: "mobile", label: "휴대폰", fieldType: "phone", value: "<script>01012345678</script>" },
+        { key: "short", label: "전화", fieldType: "phone", value: "1234" },
+    );
+    assert.deepEqual(summarizeJourney(f, at(1000)).phones, []);
+    const card = buildJourneyCard(f, at(1000));
+    assert.match(card.text, /연락처: CRM에 등록된 연락처 없음/);
+    assert.match(JSON.stringify(card.cardsV2), /연락처: CRM에 등록된 연락처 없음/);
+    assert.match(journeyPreviewText(f, at(1000)), /연락처: CRM에 등록된 연락처 없음/);
 });
 
 test("신청 완료 기록이 있으면 이탈로 표시하지 않는다", () => {
