@@ -6,6 +6,8 @@
 
 ## 사용할 수 있는 기능
 
+- **백오랩 신청 후 상담**: 실제 폼/hook/API의 접수 성공 뒤 비회원 정보·신청 초안을 연결했습니다. 작성 문장을 보존하고 고객이 직접 전송하며 연결 실패는 재신청 없이 복구합니다. [웹 초안 PR2](https://github.com/matches-plan/back-office-lab/pull/2), 신규9·타입/lint·가상 환경 전체 빌드/10정적 페이지와 실제 폼/가상 저장·SMS Chrome QA. SDK1.3 VM7·비회원 SQL/API8·회원 연결12·상담22 회귀 통과. [백오랩 UX·검수 한계](BACKOFFICE-SITE.md) 참고. 실제 설치/배포·자료 이전·전체 전환은 남습니다.
+
 - **디하 사이트의 상담 연결**: 기존 문의 버튼·회원 인증·익명→회원 초안/이력·계정 분리·실패 재연결·채팅/가이드 중첩 숨김을 별도 기능 브랜치의 [웹 초안 PR25](https://github.com/matches-plan/new-designer-hire/pull/25)에 올렸습니다. 신규17/전체67·타입/lint·가상 환경 전체 정적 빌드/30페이지와 실제 어댑터 Chrome 송수신을 확인했습니다. 서버의 Firebase 확인/회수→고객/JWT 교환은 [서버 초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1), 신규15/전체95·교차 SQL/API8입니다. 샌드비 SDK 1.2 제어와 창 재열기 위치를 보완했습니다. 백오랩 웹·실제 Firebase/설치/배포·팀 검수는 남습니다. [디하 UX·검증 한계](DESIGNER-SITE.md), [사이트 통합 상태](SITE-INTEGRATION.md) 참고.
 
 

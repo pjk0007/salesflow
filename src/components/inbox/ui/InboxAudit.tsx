@@ -18,6 +18,8 @@ type Row = {
     createdAt: string;
 };
 const fields: Record<string, string> = {
+    name: "이름",
+    email: "이메일",
     identity: "회원 이력 연결",
     aiState: "응대 방식",
     aiHandoffReason: "사람 이관 사유",
@@ -26,7 +28,6 @@ const fields: Record<string, string> = {
     recordId: "CRM 연결",
     tags: "태그",
     priority: "중요 표시",
-    name: "상담창 이름",
     greeting: "인사말",
     color: "색상",
     allowedOrigins: "설치 도메인",
@@ -96,7 +97,9 @@ export function InboxAudit({ url }: { url: string }) {
                                 ? " · 재문의로 상담 재개"
                                 : row.action === "identity.linked"
                                   ? " · 비회원 상담 연결"
-                                  : ""}
+                                  : row.action === "visitor.profile.updated"
+                                    ? " · 비회원 입력 정보 변경"
+                                    : ""}
                         </p>
                         <time className="text-muted-foreground">
                             {new Date(row.createdAt).toLocaleString("ko-KR")}

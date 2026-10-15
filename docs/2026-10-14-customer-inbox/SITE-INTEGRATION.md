@@ -7,7 +7,7 @@
 | `pjk0007/salesflow` | 고객/회원/위젯·상담·CRM·권한 API 계약, 가상 사이트 예제 | dev, 초안 PR14 |
 | `matches-plan/designer-hire-server` | Firebase 로그인/서버 고객 문서→사업 고객 upsert→짧은 상담 인증 교환 | `a546d56c251f5f2b7b9beb8d087c0df8d5b9b4e3`, [초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1), master 미병합 |
 | `matches-plan/new-designer-hire` | 기존 문의 CTA·SDK 공급자 선택·Firebase uid 인증 교환·회원 전환/실패 UI·중첩 숨김 | `03e864e12939b8248692e15233e043df0f7430f8`, [초안 PR25](https://github.com/matches-plan/new-designer-hire/pull/25), main 미병합 |
-| `matches-plan/back-office-lab` | Next 서버·문의 저장·채널톡/CTA 지점 확인 | 분리 브랜치 준비, 프런트 구현 미완료 |
+| `matches-plan/back-office-lab` | 비회원 상담·신청 후 입력 정보/초안·기존 문장 보존·재신청 없는 재연결 | `ad32e4555725272fe2851430a3b5cbeea272bac2`, [초안 PR2](https://github.com/matches-plan/back-office-lab/pull/2), main 미병합 |
 
 ## 디하 서버 경로
 
@@ -30,8 +30,10 @@
 node --import tsx scripts/check-designer-hire-identity.cjs F:/Dev/sendb-sites/designer-hire-server
 ```
 
-## 남은 설치 흐름
+## 프런트 연결과 남은 설치 검수
 
-디하 정적 웹의 서버 교환·SDK 설정·로그인 대기·익명→회원·계정 전환·로그아웃·인증 갱신/실패·기존 CTA·채팅/가이드 중첩 숨김을 구현했다. 신규17/전체67·타입·기능 lint·격리 전체 정적 빌드/30페이지 export와 실제 어댑터를 실행한 Chrome 송수신 QA를 확인했다. Firebase는 가상이며 전체 사업 페이지/운영 검수는 아니다. [디하 연결 UX·설정·검증](DESIGNER-SITE.md)과 최신 `designerFrontendQa` 증거를 따른다. 백오랩의 익명 상담/문의 후 CTA·프로필 안내 연결, 실제 배포 커밋 매핑·키/출처 설정 검토·팀 검수는 남아 있다.
+디하 정적 웹의 서버 교환·SDK 설정·로그인 대기·익명→회원·계정 전환·로그아웃·인증 갱신/실패·기존 CTA·채팅/가이드 중첩 숨김을 구현했다. 신규17/전체67·타입·기능 lint·격리 전체 정적 빌드/30페이지 export와 실제 어댑터를 실행한 Chrome 송수신 QA를 확인했다. Firebase는 가상이며 전체 사업 페이지/운영 검수는 아니다. [디하 연결 UX·설정·검증](DESIGNER-SITE.md)과 `designerFrontendQa` 증거를 따른다.
 
-이 문서는 서버 교환과 디하 프런트 구현의 진척이며 두 사이트 설치·전체 서비스 대체 완료를 뜻하지 않는다. 현재 서버·디하 웹·샌드비 PR은 모두 초안이다. 실제 운영 반영 요청으로 해석하지 않는다.
+백오랩은 기존 신청 저장 성공→비회원 정보 갱신→신청 초안→고객 직접 전송을 연결했다. 기존 문장을 보존하고 사람의 교체 선택을 제공하며 접수 후 연결 실패는 재신청 없이 복구한다. 신규9·앱/테스트 타입·기능 lint·가상 환경 전체 빌드/10정적 페이지, 실제 폼/hook/문의 API와 가상 저장/SMS를 연결한 Chrome QA를 확인했다. SDK1.3 VM7·비회원 SQL/API8(플랫폼11 포함)·회원 연결12·상담22 회귀도 통과했다. [백오랩 UX·설정·검증](BACKOFFICE-SITE.md)과 최신 `backofficeFrontendQa` 증거를 따른다. 실제 도메인/배포 커밋 매핑·키/출처 설정·전체 업무/팀 검수와 자료 이전/전환은 남아 있다.
+
+이 문서는 서버 교환과 두 웹 프런트 구현의 진척이며 실제 사이트 설치·전체 서비스 대체 완료를 뜻하지 않는다. 현재 서버·두 웹·샌드비 PR은 모두 초안이다. 실제 운영 반영 요청으로 해석하지 않는다.

@@ -7,11 +7,12 @@ const code = fs.readFileSync(
     path.join(__dirname, "../public/sendb-sdk.js"),
     "utf8",
 );
-function fixture() {
+function fixture(options = {}) {
     const messages = {},
         nodes = [],
         store = new Map(),
-        timers = new Map();
+        timers = new Map(),
+        posts = [];
     let timerId = 0;
     const window = {
         addEventListener: (name, fn) => {
@@ -32,7 +33,7 @@ function fixture() {
                 style: {},
                 attributes: {},
                 hidden: false,
-                contentWindow: { postMessage: () => {} },
+                contentWindow: { postMessage: (value) => posts.push(value) },
                 setAttribute(key, value) {
                     this.attributes[key] = value;
                 },
@@ -54,6 +55,12 @@ function fixture() {
         document,
         location: { origin: "https://site.example.test", pathname: "/" },
         URL,
+        AbortSignal,
+        fetch:
+            options.fetch ??
+            (() => {
+                throw new Error("예상하지 않은 HTTP 호출");
+            }),
         console,
         localStorage: {
             getItem: (key) => store.get(key) ?? null,
@@ -77,7 +84,21 @@ function fixture() {
             origin,
             data: { type: "sendb:ready", key },
         });
-    return { sdk: window.SendbChat, key, active, ready, timers };
+    const session = (token) =>
+        messages.message?.({
+            source: active("iframe").contentWindow,
+            origin: "https://sendb.example.test",
+            data: { type: "sendb:session", key, token },
+        });
+    return {
+        sdk: window.SendbChat,
+        key,
+        active,
+        ready,
+        timers,
+        posts,
+        session,
+    };
 }
 async function main() {
     let checks = 0;
@@ -89,7 +110,7 @@ async function main() {
         "시작 전과 종료 후 세션 상태·버튼 제어는 인증 정보를 노출하지 않음",
         async () => {
             const f = fixture();
-            assert.equal(f.sdk.version, "1.2.0");
+            assert.equal(f.sdk.version, "1.3.0");
             assert.equal(f.sdk.getSessionType(), "uninitialized");
             f.sdk.hideLauncher();
             f.sdk.showLauncher();
@@ -168,8 +189,102 @@ async function main() {
             f.sdk.shutdown();
         },
     );
+    await check(
+        "첫 메시지 전 프로필/문구는 iframe 초안만 변경하고 빈 상담/HTTP 없음",
+        async () => {
+            const f = fixture();
+            await assert.rejects(f.sdk.updateVisitorProfile({ name: "가상" }));
+            const pending = f.sdk.boot({ channelKey: f.key });
+            f.ready();
+            await pending;
+            await f.sdk.updateVisitorProfile({
+                name: " 가상 신청자 ",
+                email: "lead@example.test",
+            });
+            f.sdk.setDraft("가상 도입 문의 초안");
+            assert.deepEqual(JSON.parse(JSON.stringify(f.posts.at(-2))), {
+                type: "sendb:visitor-profile",
+                key: f.key,
+                name: "가상 신청자",
+                email: "lead@example.test",
+            });
+            assert.equal(f.posts.at(-1).type, "sendb:draft");
+            assert.equal(f.posts.at(-1).message, "가상 도입 문의 초안");
+            assert.throws(() => f.sdk.setDraft("a".repeat(5001)));
+            await assert.rejects(
+                f.sdk.updateVisitorProfile({ name: "가상", email: "wrong" }),
+            );
+            assert.equal(f.sdk.getSessionType(), "anonymous");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "기존 익명 증명으로만 입력 정보 저장, 회원으로 승격하지 않음",
+        async () => {
+            const requests = [],
+                f = fixture({
+                    fetch: async (url, init) => {
+                        requests.push({ url, init });
+                        return {
+                            ok: true,
+                            json: async () => ({
+                                success: true,
+                                data: { identified: false },
+                            }),
+                        };
+                    },
+                });
+            const pending = f.sdk.boot({ channelKey: f.key });
+            f.ready();
+            await pending;
+            f.session("b".repeat(64));
+            await f.sdk.updateVisitorProfile({
+                name: "가상",
+                email: "lead@example.test",
+            });
+            assert.equal(requests.length, 1);
+            assert.equal(
+                requests[0].init.headers.Authorization,
+                "Bearer " + "b".repeat(64),
+            );
+            assert.equal(JSON.parse(requests[0].init.body).action, "profile");
+            assert.equal(requests[0].init.credentials, "omit");
+            assert.equal(requests[0].init.redirect, "error");
+            assert.equal(f.sdk.getSessionType(), "anonymous");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "회원 연결은 비회원 입력 수정 불가, 종료된 연결의 늦은 저장도 적용 안 함",
+        async () => {
+            let resolve;
+            const f = fixture({
+                fetch: () =>
+                    new Promise((r) => {
+                        resolve = r;
+                    }),
+            });
+            let pending = f.sdk.boot({
+                channelKey: f.key,
+                identityToken: "fictional-member-token",
+            });
+            f.ready();
+            await pending;
+            await assert.rejects(f.sdk.updateVisitorProfile({ name: "가상" }));
+            pending = f.sdk.boot({ channelKey: f.key });
+            f.ready();
+            await pending;
+            f.session("b".repeat(64));
+            const update = f.sdk.updateVisitorProfile({ name: "가상" });
+            const before = f.posts.length;
+            f.sdk.shutdown();
+            resolve({ ok: true, json: async () => ({ success: true }) });
+            await assert.rejects(update, /상담 연결이 변경/);
+            assert.equal(f.posts.length, before);
+        },
+    );
     console.log(
-        "Chat SDK 1.2.0 가상 DOM/실제 배포 JS QA " +
+        "Chat SDK 1.3.0 가상 DOM/실제 배포 JS QA " +
             checks +
             "개 통과 · 외부 전송 0건",
     );

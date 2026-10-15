@@ -16,6 +16,11 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     const [text, setText] = useState(""),
         [busy, setBusy] = useState(false),
         [error, setError] = useState("");
+    const [suggestedText, setSuggestedText] = useState("");
+    const textRef = useRef(text);
+    useEffect(() => {
+        textRef.current = text;
+    }, [text]);
     const [older, setOlder] = useState<ChatMessage[]>([]),
         [canLoad, setCanLoad] = useState(true);
     const [blocked, setBlocked] = useState(false);
@@ -139,6 +144,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     generation.current++;
                     resetAttachments();
                     if (!event.data.continueAnonymous) setText("");
+                    if (!event.data.continueAnonymous) setSuggestedText("");
                     setOlder([]);
                     setCanLoad(true);
                     setError("");
@@ -153,6 +159,30 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 setOpened(!!event.data.opened);
             if (event.data.type === "sendb:linking")
                 setLinking(!!event.data.linking);
+            if (
+                event.data.type === "sendb:draft" &&
+                typeof event.data.message === "string" &&
+                event.data.message.length <= 5000
+            ) {
+                if (
+                    textRef.current.trim() &&
+                    textRef.current !== event.data.message
+                )
+                    setSuggestedText(event.data.message);
+                else setText(event.data.message);
+            }
+            if (event.data.type === "sendb:visitor-profile") {
+                if (
+                    typeof event.data.name === "string" &&
+                    event.data.name.trim().length <= 100
+                )
+                    setName(event.data.name.trim());
+                if (
+                    typeof event.data.email === "string" &&
+                    event.data.email.length <= 254
+                )
+                    setEmail(event.data.email);
+            }
         };
         window.addEventListener("message", listener);
         window.parent.postMessage(
@@ -534,6 +564,34 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     void send();
                 }}
             >
+                {suggestedText && (
+                    <div
+                        role="status"
+                        className="mb-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-900"
+                    >
+                        <p>
+                            작성 중인 문장을 보관했습니다. 신청 내용으로
+                            바꿀까요?
+                        </p>
+                        <button
+                            type="button"
+                            className="mr-4 mt-2 underline"
+                            onClick={() => {
+                                setText(suggestedText);
+                                setSuggestedText("");
+                            }}
+                        >
+                            신청 내용으로 바꾸기
+                        </button>
+                        <button
+                            type="button"
+                            className="underline"
+                            onClick={() => setSuggestedText("")}
+                        >
+                            작성 중인 문장 유지
+                        </button>
+                    </div>
+                )}
                 <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
                     <textarea
                         aria-label="문의 메시지"

@@ -4060,5 +4060,296 @@
       "Full R01-R16 replacement/cutover remains incomplete"
     ],
     "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. Prior evidence fields kept as historical records."
+  },
+  "backofficeFrontendQa": {
+    "capturedAt": "2026-10-15T02:11:34.822Z",
+    "scope": "R02/R03/R15: actual Back-office-lab consult form/hook/API to anonymous Sendb conversation, visitor profile and human-confirmed draft",
+    "repository": {
+      "name": "matches-plan/back-office-lab",
+      "branch": "codex/sendb-support-integration",
+      "base": "main",
+      "baseSha": "6604ba06ce3624f68a420078c2d32d1bdd12ad51",
+      "head": "ad32e4555725272fe2851430a3b5cbeea272bac2",
+      "pullRequest": "https://github.com/matches-plan/back-office-lab/pull/2",
+      "draft": true,
+      "merged": false
+    },
+    "dependencies": {
+      "sendbBeforeChange": "09bf7604de883d7f5f31029a32a2b0ecf2195ddf",
+      "sendbPr": "https://github.com/pjk0007/salesflow/pull/14",
+      "minimumSdk": "1.3.0"
+    },
+    "tests": {
+      "newFrontend": 9,
+      "frontendAppAndTestTypes": "passed",
+      "frontendFeatureLint": "passed",
+      "isolatedBuild": "passed, 10 static pages and consult API",
+      "sdkRealJsVm": 7,
+      "visitorProfileSqlApi": 8,
+      "includedPlatformApi": 11,
+      "identityRegression": 12,
+      "inboxRegression": 22,
+      "sendbTypesAndFeatureLint": "passed"
+    },
+    "isolation": "Actual BO form/hook/controller and consult API/validate/save/SMS functions imported into separate localhost3125 app. Notion/legacy Sendb/SMS all replaced by localhost3126 mock; actual Sendb messenger handlers/SQL in PGlite. Original production tracker/GA/full business pages not loaded; no real env/key, customer DB, external sends, server settings or deployment.",
+    "verified": [
+      "First consult prepares name/email and proposal without sending a message or creating empty conversation",
+      "Existing typed text survives and human may replace or keep it",
+      "Same anonymous conversation retains history and changes only self-entered name/email with audit/outbox",
+      "Typed email does not identify or merge an existing CRM member",
+      "Saved consult plus failed profile503 shows saved state; retry keeps Notion/Sendb/SMS calls at2 each",
+      "Failed consult save retains form and does not prepare a new chat proposal",
+      "Public inbox reply received on site and restored after browser reload",
+      "Member identity, merged-away anonymous proof, wrong workspace/origin, malformed/extra ID rejected",
+      "Same profile retry creates no duplicate audit; missing email preserved and empty email clears"
+    ],
+    "siteFiles": [
+      {
+        "path": "src/hooks/useChannelTalk.ts",
+        "sha256": "224f4a9f5bcc989285d2900ec49297b5623bd53595fdf64d225256c58b467802",
+        "bytes": 1174
+      },
+      {
+        "path": "src/hooks/useConsultSubmit.ts",
+        "sha256": "ca184c49bf4ba212278900431b24bb6b6bc7e54deb23f430102b77ee32a734c8",
+        "bytes": 2107
+      },
+      {
+        "path": "src/pages/_app.tsx",
+        "sha256": "ae9fb8b22502a77a430a401c1806e6d6960f4191747b7e31dc347437b0c42d8b",
+        "bytes": 1927
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "283b7b0e79c9de08617744dfb713c7d5bd0a87126fbb69d02f096a3c612a16a6",
+        "bytes": 554
+      },
+      {
+        "path": "tsconfig.test.json",
+        "sha256": "da31851930e9f31ed6fd7241d5d29ffbd03132b4d9de1ad503206ebec848be58",
+        "bytes": 256
+      },
+      {
+        "path": "docs/sendb-support-integration.md",
+        "sha256": "a35094cc2e044e69b5b8b44b02c6b62c1c906545776744cab517b1c1b42be07f",
+        "bytes": 4564
+      },
+      {
+        "path": "src/components/support-chat/config.ts",
+        "sha256": "00ffa5037305a68cfb5e0f8ff6cb0535b22c1ffbb355a3de50aa10a59bccf5da",
+        "bytes": 936
+      },
+      {
+        "path": "src/components/support-chat/consult.ts",
+        "sha256": "e0897a139375315321c5c1a17017d2403dc35433a15f298d7ee7c789df08d27e",
+        "bytes": 791
+      },
+      {
+        "path": "src/components/support-chat/controller.test.ts",
+        "sha256": "0edaad84130b037abdbd4d44b1a942f65b3ebe01c06cf292925895899efdc6d5",
+        "bytes": 6664
+      },
+      {
+        "path": "src/components/support-chat/controller.ts",
+        "sha256": "f062839d73e0f675ed418a8b611b21620abe28592fd3975a166eadc6f78e31e5",
+        "bytes": 3535
+      },
+      {
+        "path": "src/components/support-chat/loader.ts",
+        "sha256": "51e46284f411ef9fcde4b18c4646289c3303add55a450332506585dc98bb10b1",
+        "bytes": 1275
+      },
+      {
+        "path": "src/components/support-chat/runtime.ts",
+        "sha256": "02ca14978dcf9584d6d59a93b8591ce99c2fdcadf91813ab96f8490f81512336",
+        "bytes": 306
+      },
+      {
+        "path": "src/components/support-chat/SupportConnectionStatus.tsx",
+        "sha256": "363d1b4a0eb7cd8876b9c1642ca8df39c0d8198cbcc83ada5a9698e239404a1e",
+        "bytes": 1248
+      },
+      {
+        "path": "src/components/support-chat/types.ts",
+        "sha256": "d527b4d170a4d255f328873ae04451bf7b2bceb4d2478f2cec308bd4358f9d67",
+        "bytes": 492
+      }
+    ],
+    "sendbFiles": [
+      {
+        "path": "public/sendb-sdk.js",
+        "sha256": "6e708ee1209158ff54f1225c6731c8eda95316c2346a16f33aaf417d54daf77c",
+        "bytes": 20877
+      },
+      {
+        "path": "scripts/check-chat-sdk.cjs",
+        "sha256": "df4a7fb5169a05770741604f793314e01e6315f5cb3707399815bd8aef96aef9",
+        "bytes": 10481
+      },
+      {
+        "path": "scripts/check-visitor-profile.cjs",
+        "sha256": "c8c3493bcf9d34c53d2464fdb6e81a462a263acb73314c5218f2b1b64c37dd98",
+        "bytes": 12092
+      },
+      {
+        "path": "src/lib/inbox/visitor-profile.ts",
+        "sha256": "c6c46a3a4977672dbfb7ef51cb2e94099a1a59a51df6993b53e92bb65bb2b443",
+        "bytes": 3211
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "sha256": "d52c21850118b8201d3544c1d09588da1d0423aae1b216c3c340dbc87e74aeaf",
+        "bytes": 54275
+      },
+      {
+        "path": "src/app/api/messenger/[key]/route.ts",
+        "sha256": "4d53e95a41c0c18b13197dc9d1cf4596020c96a59fda2e18c642bf029d547484",
+        "bytes": 2944
+      },
+      {
+        "path": "src/components/inbox/ui/ChatWidget.tsx",
+        "sha256": "8264d21ef64821895594ccdaa170c6a0d1ba87478b4cc345a28ed6119f5c0d61",
+        "bytes": 28199
+      },
+      {
+        "path": "src/components/inbox/ui/InboxAudit.tsx",
+        "sha256": "175308a66a51f238dcff411dbaaae8335bdb6af62f9bc66204b17915f05c7b15",
+        "bytes": 4655
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/BACKOFFICE-SITE.md",
+        "sha256": "3c26aa57cc5ed4e49450224967977bfd12a39651fdcf597a51be5f70c4710996",
+        "bytes": 5580
+      }
+    ],
+    "fixtureFiles": [
+      {
+        "path": ".testenv/start-site-bo-ui.cjs",
+        "sha256": "6951b565c9c4a16e8289b44167dd3b608c4d0c4f41ea32b96a24468f80bcd334",
+        "bytes": 2290
+      },
+      {
+        "path": ".testenv/build-site-bo.cjs",
+        "sha256": "63f215b4829db707da30a70bed1aec683b220d41baa614f474c31dc22c639043",
+        "bytes": 985
+      },
+      {
+        "path": ".testenv/site-bo-ui/pages/_app.tsx",
+        "sha256": "877d8c53663fca056294d7bfe3b5170f253e364738d599ed69b226fb86abf5e7",
+        "bytes": 551
+      },
+      {
+        "path": ".testenv/site-bo-ui/pages/index.tsx",
+        "sha256": "fd6b64009ba8fde0808e41a671aff3dc072d8d80970181b7c4b5d355fb21838d",
+        "bytes": 1080
+      },
+      {
+        "path": ".testenv/site-bo-ui/pages/api/consult.ts",
+        "sha256": "99ef9321f99f06c2492c81f478601bbd07927883fdbc4ec78ea60e0ed084b580",
+        "bytes": 104
+      }
+    ],
+    "logs": [
+      {
+        "path": "site-bo-controller-qa.log",
+        "sha256": "2fb7e0aefdbe6ad4ddc474628f963eec23d46a7b28aec46ddf9edad9178f1781",
+        "bytes": 1508
+      },
+      {
+        "path": "site-bo-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-bo-test-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-bo-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-bo-build.log",
+        "sha256": "f6ec600acfe590c34508df7b5cd7c4470e50c9267b7f09500da537d1b35928c6",
+        "bytes": 1576
+      },
+      {
+        "path": "site-bo-sdk-qa.log",
+        "sha256": "4ee23359ee883621de6f688ade62ccde7a86d0aa2801c16af289bd9b4cbc27f8",
+        "bytes": 818
+      },
+      {
+        "path": "site-bo-profile-qa-final.log",
+        "sha256": "86564d6b1169771343f77db65376a0e5452dc77c56b586ddf3161d476e08c440",
+        "bytes": 1780
+      },
+      {
+        "path": "site-bo-identity-regression.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "path": "site-bo-inbox-regression.log",
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137",
+        "bytes": 1590
+      },
+      {
+        "path": "site-bo-root-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-bo-root-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    ],
+    "screenshots": [
+      {
+        "path": "site-bo-draft-preserved-qa.png",
+        "sha256": "40d10cc35b5c3451217d00b9b1ebab3b6648de72a54d5fbc89619b5919dbb66e",
+        "bytes": 97006
+      },
+      {
+        "path": "site-bo-saved-chat-error-qa.png",
+        "sha256": "8d2ff5b94e9f9a1862feed6857d6b800deb61f742503b57c4530ea4065bfc6aa",
+        "bytes": 79356
+      },
+      {
+        "path": "site-bo-duplex-reply-qa.png",
+        "sha256": "98589c50ec835b5bcb68e579aa1e94403727d1b7948dbf03c5873816fd17922b",
+        "bytes": 106524
+      },
+      {
+        "path": "site-bo-profile-audit-qa.png",
+        "sha256": "becfbe8573808f277125d19c528d86ecea314e739d3001859546da299aff9c3c",
+        "bytes": 140719
+      },
+      {
+        "path": "site-bo-save-failure-qa.png",
+        "sha256": "612984fd1f55566cb78a90b83157d339b7eb592b50eb961cf831c4f88109e076",
+        "bytes": 79067
+      },
+      {
+        "path": "site-bo-restored-qa.png",
+        "sha256": "32f493b1e8922a8d3399cb16b2a0853bc0c31ad058a603c8af6d3eb0267c095e",
+        "bytes": 102187
+      },
+      {
+        "path": "site-bo-retry-counts-qa.json",
+        "sha256": "9bd0c0620dcc9e2ab7a15eb5abf3c116e3eba29e5dba3ce24fed1eba241413c9",
+        "bytes": 321
+      }
+    ],
+    "limits": [
+      "Actual deployed commit mapping, full business pages/real service/team/load/cutover unverified",
+      "Existing legacy lead storage/Notion/SMS/analytics unchanged; no automatic CRM identity/link or historical migration",
+      "Connection retry payload and unsent drafts are tab memory, not permanent reload storage",
+      "No actual site/server settings/install, main merge, production DB or external customer sends",
+      "Full R01-R16 replacement remains incomplete"
+    ],
+    "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. All previous evidence fields preserved as historical records."
   }
 }

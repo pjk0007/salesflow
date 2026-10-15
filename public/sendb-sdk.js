@@ -319,7 +319,7 @@
         return result.data;
     }
     window.SendbChat = {
-        version: "1.2.0",
+        version: "1.3.0",
         boot: boot,
         show: function () {
             visibility(true);
@@ -345,6 +345,63 @@
                     ? "member"
                     : "anonymous"
                 : "uninitialized";
+        },
+        setDraft: function (message) {
+            if (!current || !current.ready)
+                throw new Error("상담 연결 후 문구를 준비해주세요.");
+            if (typeof message !== "string" || message.length > 5000)
+                throw new Error("문구는 5,000자까지 입력할 수 있습니다.");
+            post(current, "sendb:draft", { message: message });
+        },
+        updateVisitorProfile: async function (profile) {
+            var state = current;
+            if (!state || !state.ready || state.identityToken)
+                throw new Error("비회원 상담 연결 후 정보를 입력해주세요.");
+            if (
+                !profile ||
+                typeof profile.name !== "string" ||
+                !profile.name.trim() ||
+                profile.name.trim().length > 100 ||
+                (profile.email !== undefined &&
+                    (typeof profile.email !== "string" ||
+                        profile.email.length > 254 ||
+                        (profile.email &&
+                            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email))))
+            )
+                throw new Error("이름과 이메일을 확인해주세요.");
+            var value = { name: profile.name.trim(), email: profile.email },
+                token = store(state.storageKey);
+            if (token) {
+                var response = await fetch(
+                    state.base + "/api/messenger/" + state.options.channelKey,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: "Bearer " + token,
+                        },
+                        body: JSON.stringify(
+                            Object.assign({ action: "profile" }, value),
+                        ),
+                        credentials: "omit",
+                        cache: "no-store",
+                        redirect: "error",
+                        signal: AbortSignal.timeout(10000),
+                    },
+                );
+                var result = await response.json();
+                if (
+                    current !== state ||
+                    state.identityToken ||
+                    store(state.storageKey) !== token
+                )
+                    throw new Error("상담 연결이 변경되었습니다.");
+                if (!response.ok || result.success !== true)
+                    throw new Error(
+                        result.error || "상담 입력 정보를 저장하지 못했습니다.",
+                    );
+            }
+            post(state, "sendb:visitor-profile", value);
         },
         shutdown: shutdown,
         identify: async function (identityToken, options) {

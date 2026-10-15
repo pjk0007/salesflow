@@ -74,12 +74,16 @@ async function startMemberChat(channelKey) {
 | `show()` / `hide()` | 상담창 열기/닫기 |
 | `showLauncher()` / `hideLauncher()` | SDK 1.2.0: 상담 열기 버튼만 표시/숨김. 상담창 열기/닫기와 독립적 |
 | `getSessionType()` | SDK 1.2.0: 로컬 연결 진행 상태 `uninitialized` / `anonymous` / `member`. 서버 인증·접근 권한을 증명하지 않음 |
+| `setDraft(message)` | SDK 1.3.0: 5,000자 이내 입력 초안을 제안. 기존 문장을 덮지 않고 사람의 교체 선택 제공. 전송하지 않음 |
+| `updateVisitorProfile({name,email?})` | SDK 1.3.0: 현재 비회원 입력 정보만 갱신하는 Promise. 첫 문의 전에는 입력란만 준비하며 빈 상담을 만들지 않음 |
 | `shutdown()` | iframe·버튼·현재 인증·사이트의 익명 세션 제거. 서버 대화 기록은 보존 |
 | `identify(identityToken)` | 새 인증이 확인될 때까지 Promise 대기. 같은 회원 인증 갱신은 입력 초안 보존 |
 | `trackEvent(name, properties?, eventId?)` | 확인된 회원의 행동 이벤트 저장. 재시도에는 같은 UUID 사용 |
 | `on(event, handler)` | 구독 해제 함수를 반환. ready/show/hide/shutdown/error/unreadCountChange 사용 |
 
 SDK 1.2.0의 `boot({ hideLauncher: true, ... })`는 버튼을 처음 추가할 때부터 숨긴다. 사이트의 일반 `button` CSS가 HTML hidden을 덮어도 inline display로 숨김을 유지한다. 페이지·가이드 등 여러 숨김 이유의 조합은 설치 어댑터가 관리한다. `hideLauncher()`는 이미 열린 상담창을 닫지 않으므로 필요하면 `hide()`도 호출한다. 디하 실제 소스의 연결·인증 재시도·로그아웃·중첩 숨김과 검수 한계는 [DESIGNER-SITE.md](DESIGNER-SITE.md)를 따른다.
+
+SDK 1.3.0의 비회원 정보 갱신은 이미 있는 익명 증명만 `POST /api/messenger/{key}`의 `{action:"profile",name,email?}`에 전달한다. 해당 상담의 이름/이메일·버전·감사/outbox만 바꾸며 메시지나 기존 CRM 회원을 만들거나 연결하지 않는다. 이메일 생략은 기존 값 보존, 빈 문자열은 삭제다. 회원 JWT·회원에게 연결된 옛 익명 증명·다른 채널/추가 ID 필드는 거절한다. 같은 값 재시도는 변경 이력을 중복 생성하지 않는다. 백오랩 신청 후 초안/재연결 UX·실제 소스 검수는 [BACKOFFICE-SITE.md](BACKOFFICE-SITE.md)를 따른다.
 
 회원 인증은 메모리에만 두고 URL이나 사이트 저장소에 남기지 않는다. 제공한 갱신 함수로 만료 전에 재발급한다. 익명 상담은 사이트 출처의 저장소에 세션을 보존하여 새로고침을 지원한다. 저장소가 제한된 환경에서는 현재 열린 창에서만 이어진다. 익명→회원 연결은 로그인 완료 시 명시적으로 identify(token,{mergeAnonymous:true})를 호출한다. 일반 계정 전환에는 병합하지 않는다. IDENTITY.md의 서버 확인 계약을 따른다.
 

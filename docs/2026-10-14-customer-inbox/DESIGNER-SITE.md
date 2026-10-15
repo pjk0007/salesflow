@@ -35,4 +35,4 @@ Chrome의 포트3124 검수 앱은 실제 디하 `useChannelTalk`, `ChannelServi
 
 검수 소스·로그·화면의 해시는 `evidence-manifest.json`의 `designerFrontendQa`에 기록한다. 로그와 이미지는 로컬 `artifacts/sendb-replacement-20261014`에 보존한다. 이전 `siteIdentityQa`는 당시 서버 검수의 기록이고 최신 프런트 진척은 새 필드를 따른다.
 
-실제 설치/배포·Firebase/전체 페이지·팀 업무·부하·지원 자료 이전·백오랩 프런트 연결과 전체 서비스 전환은 남아 있다. 운영 DB 접근·실제 고객 대화·메일·SMS·Google Chat 전송은 수행하지 않았다.
+백오랩 프런트도 별도 초안 PR2에서 구현/격리 검수했으며 최신 상태는 [BACKOFFICE-SITE.md](BACKOFFICE-SITE.md)를 따른다. 실제 설치/배포·Firebase/전체 페이지·팀 업무·부하·지원 자료 이전과 전체 서비스 전환은 남아 있다. 운영 DB 접근·실제 고객 대화·메일·SMS·Google Chat 전송은 수행하지 않았다.

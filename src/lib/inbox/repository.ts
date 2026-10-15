@@ -1415,6 +1415,7 @@ async function visitorConversation(
         .select({
             id: inboxConversations.id,
             name: inboxConversations.name,
+            email: inboxConversations.email,
             status: inboxConversations.status,
             aiState: inboxConversations.aiState,
         })
@@ -1436,7 +1437,7 @@ async function visitorConversation(
         channelId: channel.id,
         orgId: channel.orgId,
         ownerKey: fileOwner(`visitor:${channel.id}:${token}`),
-        profile: { name: chat.name, identified: false, email: null },
+        profile: { name: chat.name, identified: false, email: chat.email },
     };
 }
 export async function visitorFileScope(
