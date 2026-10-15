@@ -16,10 +16,16 @@ export function createImportFileTransport(
         request?: typeof request;
         resolve?: typeof resolveWebhookAddress;
         timeoutMs?: number;
+        maxBytes?: number;
+        signal?: AbortSignal;
     } = {},
 ): ImportFileTransport {
+    const maxBytes = deps.maxBytes ?? MAX_FILE_BYTES;
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_FILE_BYTES)
+        throw new FileFetchError("파일 다운로드 허용량을 확인해주세요.");
     return async (raw) => {
-        const signal = AbortSignal.timeout(deps.timeoutMs ?? 15000);
+        const deadline = AbortSignal.timeout(deps.timeoutMs ?? 15000);
+        const signal = deps.signal ? AbortSignal.any([deadline, deps.signal]) : deadline;
         let current = sourceFileUrl(raw);
         for (let hop = 0; hop <= 3; hop++) {
             signal.throwIfAborted();
@@ -84,7 +90,7 @@ export function createImportFileTransport(
                         }
                         if (
                             Number(res.headers["content-length"]) >
-                                MAX_FILE_BYTES ||
+                                maxBytes ||
                             (res.headers["content-encoding"] &&
                                 res.headers["content-encoding"] !== "identity")
                         ) {
@@ -108,11 +114,13 @@ export function createImportFileTransport(
                         );
                         res.on("data", (chunk: Buffer) => {
                             size += chunk.length;
-                            if (size > MAX_FILE_BYTES) {
+                            if (size > maxBytes) {
                                 res.destroy();
                                 reject(
                                     new FileFetchError(
-                                        "파일은 20MB까지 이전할 수 있습니다.",
+                                        maxBytes === MAX_FILE_BYTES
+                                            ? "파일은 20MB까지 이전할 수 있습니다."
+                                            : "파일 크기가 다운로드 허용량을 넘었습니다.",
                                     ),
                                 );
                             } else chunks.push(chunk);

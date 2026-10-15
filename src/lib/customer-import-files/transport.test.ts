@@ -185,6 +185,33 @@ test("빈 파일·압축·잘린 전송은 완료로 취급하지 않음", async
             ),
         );
 });
+test("요청별 남은 바이트 예산은 헤더와 스트림에 적용하며 기본 상한을 늘릴 수 없음", async () => {
+    for (const reply of [
+        { headers: { "content-length": "4" } },
+        { chunks: [Buffer.from("ab"), Buffer.from("cd")] },
+    ])
+        await assert.rejects(
+            createImportFileTransport({ ...fakeWire([reply]), maxBytes: 3 })("https://files.example.com/file"),
+            /크기|허용량|중단/,
+        );
+    assert.equal((await createImportFileTransport({ ...fakeWire([{ chunks: [Buffer.from("abc")] }]), maxBytes: 3 })("https://files.example.com/file")).toString(), "abc");
+    for (const maxBytes of [0, -1, 1.5, 20971521])
+        assert.throws(() => createImportFileTransport({ maxBytes }), /허용량/);
+});
+test("외부 중단은 연결 전과 멈춘 DNS 조회 중에도 종료", async () => {
+    const before = new AbortController();
+    before.abort();
+    const wire = fakeWire([]);
+    await assert.rejects(createImportFileTransport({ ...wire, signal: before.signal })("https://files.example.com/file"));
+    assert.equal(wire.observations.length, 0);
+    const during = new AbortController();
+    const pending = createImportFileTransport({
+        signal: during.signal,
+        resolve: () => new Promise(() => {}),
+    })("https://files.example.com/file");
+    during.abort();
+    await assert.rejects(pending, FileFetchError);
+});
 test("DNS 응답이 멈춰도 전체 제한 시간 뒤 실패", async () => {
     const keepAlive = setTimeout(() => {}, 500);
     try {
