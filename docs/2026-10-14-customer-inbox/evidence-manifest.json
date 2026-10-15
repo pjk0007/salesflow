@@ -6610,7 +6610,7 @@
     "build": {
       "command": "node F:/Dev/salesflow/.testenv/build-site-dh.cjs",
       "exitCode": 0,
-      "staticPages": 30,
+      "pageGenerationTotal": 30,
       "environment": "fictional values and external fetch blocked"
     },
     "sdk": {
@@ -8252,12 +8252,51 @@
       "mergedAiHistory": "d2635b1d86f0b9c414dcb7f3879f12d91e47ba56"
     },
     "pendingSources": [],
-    "status": "four approved sources applied; combined unit/type/build pending",
+    "status": "Four approved sources combined locally; combined unit/type/webpack build passed",
     "priorEvidence": "Feature-specific records are retained unchanged as historical evidence at their recorded sources. Their branch-local pending-work statements are not current combination status. They do not prove all four features work together.",
     "deployment": false,
     "liveDatabase": false,
     "actualExternalRequests": false,
-    "scope": "Local combination checkout only. Individual feature PRs remain separate; no dev/main mutation, push, PR or deployment."
+    "scope": "Local combination checkout only. Individual feature PRs remain separate; no dev/main mutation, push, PR or deployment.",
+    "completedAt": "2026-10-15T10:01:22.559Z",
+    "checkedCodeHead": "d960683be8d4820a7912cf4420158692a589fe64",
+    "sourceComparison": {
+      "at": "2026-10-15T09:57:31.722Z",
+      "artifact": "artifacts/development-combination-review/four-heads.json",
+      "sourceFiles": 44,
+      "allProductAndTestSourceBlobsMatch": true,
+      "productCodeConflicts": 0,
+      "scope": "Only the combined checkout is compared here; historical per-feature currentSourceComparison/currentSourcesMatch fields retain their original heads and timestamps."
+    },
+    "validation": {
+      "units": {
+        "passed": 1274,
+        "failed": 0,
+        "skipped": 0,
+        "startedAt": "2026-10-15T09:57:51.189Z",
+        "completedAt": "2026-10-15T09:58:18.427Z"
+      },
+      "types": {
+        "exitCode": 0,
+        "startedAt": "2026-10-15T09:57:50.641Z",
+        "completedAt": "2026-10-15T09:58:33.405Z"
+      },
+      "build": {
+        "tool": "Next.js 16.1.6 webpack",
+        "exitCode": 0,
+        "pageGenerationTotal": 222,
+        "startedAt": "2026-10-15T09:58:42.564Z",
+        "completedAt": "2026-10-15T10:00:56.205Z"
+      },
+      "environment": "OS-only environment; fake DB 127.0.0.1:1; outbound HTTP/TCP/TLS/DNS blocked; existing dependency junction reused without installation",
+      "individualUiApiSuitesRepeated": false
+    },
+    "artifactDirectory": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/development-combination-review",
+    "limitations": [
+      "Combined UI/API scenarios were not repeated. Each earlier feature suite remains evidence for its own original commit.",
+      "No live ChannelTalk account, customer data, real model, deployment, or R16 acceptance was exercised.",
+      "Branch remains local; no push, PR, dev/main update, or server changes."
+    ]
   },
   "channelFileTransferQa": {
     "checkedAt": "2026-10-15T09:38:21.891Z",
