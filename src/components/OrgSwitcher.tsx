@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronsUpDown, Plus, Settings } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
@@ -27,10 +27,11 @@ import { toast } from "sonner";
 
 export function OrgSwitcher() {
     const router = useRouter();
-    const { user, switchOrg, refreshSession } = useSession();
+    const { user, switchOrg, createOrg } = useSession();
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [newOrgName, setNewOrgName] = useState("");
     const [creating, setCreating] = useState(false);
+    const creatingRequest = useRef(false);
 
     if (!user || user.organizations.length === 0) {
         return null;
@@ -39,29 +40,24 @@ export function OrgSwitcher() {
     const currentOrg = user.organizations.find((o) => o.id === user.orgId);
 
     async function handleCreate() {
-        if (!newOrgName.trim()) return;
+        if (!newOrgName.trim() || creatingRequest.current) return;
 
+        creatingRequest.current = true;
         setCreating(true);
         try {
-            const res = await fetch("/api/org/create", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: newOrgName.trim() }),
-            });
-            const json = await res.json();
+            const json = await createOrg(newOrgName.trim());
 
             if (json.success) {
                 toast.success("조직이 생성되었습니다");
                 setCreateDialogOpen(false);
                 setNewOrgName("");
-                await refreshSession();
-                router.push("/");
             } else {
                 toast.error(json.error || "조직 생성에 실패했습니다.");
             }
         } catch {
             toast.error("서버 오류가 발생했습니다.");
         } finally {
+            creatingRequest.current = false;
             setCreating(false);
         }
     }

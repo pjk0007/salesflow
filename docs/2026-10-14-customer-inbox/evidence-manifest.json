@@ -6701,7 +6701,7 @@
           "480x820 document viewport fits without outer overflow"
         ],
         "sourceCount": 19,
-        "currentSourcesMatch": true,
+        "currentSourcesMatch": false,
         "sourceHashes": {
           "scripts/check-inbox.cjs": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
           "scripts/check-customer-platform.cjs": "97a434d1e50a3c8158cec9b0312cdb15a35f79dc9cb65faecfe3d6023530f386",
@@ -6744,7 +6744,16 @@
           "commitAfter": "f8788a6c3a81c05c43ed23708e03438d8b8a61f4",
           "verifiedAt": "2026-10-15T06:51:56.010Z"
         },
-        "requestStatusNote": "Actual page attachment fetches were 200 and four downloads matched. Additional backend401 requests absent from page trace are attributed to trace-resource fallback as an inference; original headers were not retained."
+        "requestStatusNote": "Actual page attachment fetches were 200 and four downloads matched. Additional backend401 requests absent from page trace are attributed to trace-resource fallback as an inference; original headers were not retained.",
+        "currentSourceComparison": {
+          "at": "2026-10-15T09:19:43.131Z",
+          "root": "F:\\Dev\\sendb-staff-inquiry-integration",
+          "normalization": "LF",
+          "mismatches": [
+            "src/components/inbox/hooks/useAttachmentDrafts.ts"
+          ],
+          "followup": "staffDraftSessionQa supersedes the staff-remount/shared-hook claims; historical checks remain scoped to captured source"
+        }
       },
       "importAdmin": {
         "checks": [
@@ -6813,7 +6822,13 @@
           "commitAfter": "8b86899c3a1252f97da059f17371035a8a2c3b03",
           "verifiedAt": "2026-10-15T07:05:26.847Z"
         },
-        "requestStatusNote": "Actual attachment UI GET3 requests were200; explicit cookieless negative GET was401. Actual AttachmentList minimal host, not full InboxPage."
+        "requestStatusNote": "Actual attachment UI GET3 requests were200; explicit cookieless negative GET was401. Actual AttachmentList minimal host, not full InboxPage.",
+        "currentSourceComparison": {
+          "at": "2026-10-15T09:19:43.150Z",
+          "root": "F:\\Dev\\sendb-staff-inquiry-integration",
+          "normalization": "LF",
+          "mismatches": []
+        }
       }
     },
     "staff": {
@@ -6877,7 +6892,7 @@
         }
       ],
       "sourceCount": 159,
-      "currentSourcesMatch": true,
+      "currentSourcesMatch": false,
       "sourceHashes": {
         "scripts/check-inbox.cjs": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
         "src/components/inbox/ui/InboxPage.tsx": "1ad5b75539ce10ae8fe9f2b2b67622f5b80695c9eb027fff9ebea9e3bc84e3f2",
@@ -7059,7 +7074,18 @@
         "Keyed inquiry remount retains text in localStorage but clears File objects; no artificial host preservation",
         "No live customer data, DB, Firebase or outbound services",
         "Actual ConversationPane and API; not complete InboxPage or native Windows Explorer."
-      ]
+      ],
+      "currentSourceComparison": {
+        "at": "2026-10-15T09:19:43.286Z",
+        "root": "F:\\Dev\\sendb-staff-inquiry-integration",
+        "normalization": "LF",
+        "mismatches": [
+          "src/components/inbox/ui/InboxPage.tsx",
+          "src/components/inbox/ui/ConversationPane.tsx",
+          "src/components/inbox/hooks/useAttachmentDrafts.ts"
+        ],
+        "followup": "staffDraftSessionQa supersedes the staff-remount/shared-hook claims; historical checks remain scoped to captured source"
+      }
     }
   },
   "pageBoundaryQa": {
@@ -7599,5 +7625,374 @@
     "integratedDocument": "SITE-INTEGRATION.md",
     "localPageAndFileGaps": "Current actual page and three file chooser groups are verified; remaining real environment/data/team/AI/performance/policy and advanced requirements retained in R01-R16.",
     "operatingDeploy": false
+  },
+  "staffDraftSessionQa": {
+    "verifiedAt": "2026-10-15T09:19:43.286Z",
+    "branch": "codex/sendb-staff-drafts",
+    "baseline": "9a395e318b71d9bc3f29e56b2938ab837a3e9002",
+    "scope": "Separate staff draft/session feature branch; no dev/main merge, live DB, server deployment or outbound customer/provider request",
+    "implementationPatch": "830da3f487002814195c2635551bc02614c658b31c30d1855b3bd3f5107ee93e",
+    "sourceNormalization": "LF",
+    "implementationSources": [
+      {
+        "path": "src/app/inbox/page.tsx",
+        "sha256": "f3c9dd00bfa401c97e6866e61ded5db619da56c553a3390d2aaa2e7dd1226b74"
+      },
+      {
+        "path": "src/contexts/SessionContext.tsx",
+        "sha256": "83c4e5a97e2e230dabb140c08e312125a014f5540960544e69a63ade515c3585"
+      },
+      {
+        "path": "src/components/OrgSwitcher.tsx",
+        "sha256": "b5ed42ceecbe6574581b2675402a6872025d1cc2be5d20cdf05cf623f3b5c800"
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "sha256": "fac0d203a546dcc1be64df002d90fe1bfd3f3bb59a01fcfe2eda6ae79e8d976b"
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "1cf42b2b3a3dc2cf9a729c25cf3337a1f026ae7fbcba2845d7b3d45460cff41a"
+      },
+      {
+        "path": "src/components/inbox/hooks/useAttachmentDrafts.ts",
+        "sha256": "df1331c12e2903e6296ee3b0328cda4c2dd4355c0cc41e86adaf9ee25bea673f"
+      },
+      {
+        "path": "src/components/inbox/hooks/useStaffDraftSession.ts",
+        "sha256": "07c863d01e05668d4e7dad033a22c454466451b17ab221eadade8dd7acb61d77"
+      },
+      {
+        "path": "src/components/inbox/hooks/staff-draft-session.ts",
+        "sha256": "f6713a7f6cc6717994fd2014e25927fa822132076e6cb19f05c327e3c54285a7"
+      },
+      {
+        "path": "src/components/inbox/hooks/staff-draft-session.test.ts",
+        "sha256": "6e687d7c37cf4e061212d1c9b8de0112e0f3cdcaac6ce046eb4af379cf196c0f"
+      },
+      {
+        "path": "src/components/inbox/hooks/session-transition-queue.ts",
+        "sha256": "8e7b6e31dd6050eaa21453ee1a06db67a6e3e5cc2974a32d2c079555e8fd499d"
+      }
+    ],
+    "integration": {
+      "unitTests": 1133,
+      "failed": 0,
+      "storeUnitTestsIncluded": 12,
+      "typeDiagnostics": 0,
+      "lintErrors": 0,
+      "lintWarnings": 0,
+      "filesSqlChecks": 18,
+      "replyGuardSqlChecks": 20,
+      "build": "Next.js full webpack production build with read-only dependency junction; not deployed",
+      "environment": "OS-only allowlist, fictitious DB URL port1, fetch/http/https/http2/net/tls/DNS blocked"
+    },
+    "sourceMatch": {
+      "implementation": 10,
+      "staffBrowserLoaded": 225,
+      "customerSharedHookLoaded": 19,
+      "mismatches": 0
+    },
+    "staffUi": {
+      "checks": 16,
+      "scope": [
+        "Actual React app/inbox/page and SessionProvider",
+        "Actual InboxPage owns draft session and keys ConversationPane",
+        "Actual hooks/store, browser FileChooser and in-memory Files",
+        "Actual OrgSwitcher create callback and session queue",
+        "Actual inbox/attachments/guard/auth/me/org/switch/logout routes with real in-memory SQL via PGlite"
+      ],
+      "limits": [
+        "WorkspaceLayout shell and Next router host simplified; full production shell/navigation not tested",
+        "org/create is a synthetic cookie-switch endpoint to a pre-existing fake organization; no actual org creation tested",
+        "Auth/body failures and held responses deliberately injected; logout network failure uses one route.abort",
+        "AI runtime disabled and synthetic web channels only; AI source/email-recipient fingerprint combinations not newly exercised",
+        "File state is session-memory only; reload/browser close persistence outside scope",
+        "No production/remote accounts/DB or deployment"
+      ],
+      "cleanup": {
+        "memoryPgliteClosed": true,
+        "ownedPorts": [
+          3144,
+          3145
+        ],
+        "serversClosed": true,
+        "persistedCustomerDb": false,
+        "endedAt": "2026-10-15T08:54:34.578Z"
+      },
+      "carryForward": {
+        "checks": [
+          "Q1",
+          "Q2",
+          "Q3",
+          "Q4",
+          "Q5",
+          "Q6",
+          "Q8-viewer",
+          "Q9"
+        ],
+        "from": "functional-ui.json",
+        "changedPreviouslyLoadedSources": [
+          "src/contexts/SessionContext.tsx"
+        ],
+        "reason": "Only SessionContext changed among v2 loaded product sources; InboxPage/ConversationPane/attachment session hooks unchanged, auth was re-tested in final phase."
+      }
+    },
+    "customerUi": {
+      "checks": 17,
+      "downloadHashMatches": 4,
+      "jsErrors": 0,
+      "externalAttempts": 0,
+      "scope": "Actual ChatWidget/messenger APIs/PGlite; actual iframe configure account A→B→A; official browser FileChooser",
+      "limits": [
+        "Official browser FileChooser.setFiles; no native Windows file manager verification.",
+        "Actual ChatWidget and routes imported only from independent worktree; read-only dependency runtime from main.",
+        "Actual configure postMessage protocol in isolated iframe; SDK itself is outside this hook regression.",
+        "Memory PGlite and synthetic contacts/files only; no external calls, production, source changes or dependency changes."
+      ],
+      "cleanup": {
+        "browserClosed": true,
+        "contextClosed": true,
+        "ownedBrowserPid": 70248,
+        "fixtureShutdownStatus": 200,
+        "at": "2026-10-15T08:58:22.947Z",
+        "sharedServersTouched": false,
+        "fixtureProcessExitCode": 0,
+        "portsListeningAfterClose": 0,
+        "ownedBrowserAliveAfterClose": false,
+        "verification": "Read-only Get-NetTCPConnection for3146/3147 and Get-Process70248 after graceful shutdown"
+      }
+    },
+    "callbackHost": {
+      "checks": 9,
+      "scope": "Actual transpiled SessionProvider callbacks/transition queue in synthetic hook host, not React/DOM/backend/cookie rendering"
+    },
+    "evidence": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/report.json",
+        "sha256": "fb24f73cb9186f5a1b1be3b6e6db81c4e9f4d857257005b42cb546198844bc69",
+        "bytes": 6465
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/final-ui.json",
+        "sha256": "63a6a4c31b3ad0638664be349c6e8824de13fff29b73797bf2df223b92405bd3",
+        "bytes": 26703
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/final-backend.json",
+        "sha256": "bda2fac6da81a8d3f6c44b34973ac71d94359b5f1d27566399b2ccf926bea800",
+        "bytes": 129133
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/functional-ui.json",
+        "sha256": "e5ec0b704e9bee58e19708cbfe87909eeee0000e0faff5b5916b0fbe1fff5949",
+        "bytes": 2855
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/functional-backend.json",
+        "sha256": "eedaa8b7d3a1b89caef3f2961e2fa39eb5759134dab49944840da724e39ea845",
+        "bytes": 193745
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/source-hashes.json",
+        "sha256": "b59c63503d2c85ab855b33251e97ceaef26bc93955a43beb4deb5252f023719c",
+        "bytes": 25111
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/freeze-final-check.json",
+        "sha256": "3429469e5e214b1790aa3fed112fbf26d80b1d3f80612709c43559c0348bd9ff",
+        "bytes": 1873
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/evidence.json",
+        "sha256": "d199f5aebae092542d6817dc044b5577612bf74d6a0ff41be3b0ca5408056038",
+        "bytes": 67327
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/staff-draft-session-implementation/session-context-races.json",
+        "sha256": "b169f23c5fb89e8d56d8f63f18630716c6696199112c1b83bda47e17be7dcff8",
+        "bytes": 8228
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/source-match.json",
+        "sha256": "dc9e9c0ac965f7226ff548421009fdacb8d4dbc43e3eb92ad7e78c1373cff80a",
+        "bytes": 5916
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/units.log",
+        "sha256": "ce0603224d5d64a8a46a154d311ee5d93193d062b3545c0f949ce22368442964",
+        "bytes": 107680
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/files.log",
+        "sha256": "4b1cfb38b65efd00d462b11f1c76558fdcc36f2a0329861a8db00389aa7efe45",
+        "bytes": 4402
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/guard.log",
+        "sha256": "d28f1e9f3b949a1a4ac6d48992e7d2c0d83681772537aba868c6c236a430d365",
+        "bytes": 3191
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-staff-integration-20261015/build.log",
+        "sha256": "5671d6c1b056097d8a881a34256a944e9d9bdac299b07d0b09b1cffd75e971b0",
+        "bytes": 13251
+      }
+    ],
+    "remaining": "Full WorkspaceLayout/router, native Windows Explorer, actual org/create backend, AI-source/email-recipient combinations, real team/large/concurrent workflows and complete source cutover acceptance; R16 incomplete",
+    "commands": [
+      {
+        "mode": "types",
+        "command": [
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "status": 0
+      },
+      {
+        "mode": "lint",
+        "command": [
+          "node_modules/eslint/bin/eslint.js",
+          "src/app/inbox/page.tsx",
+          "src/components/OrgSwitcher.tsx",
+          "src/components/inbox/hooks/useAttachmentDrafts.ts",
+          "src/components/inbox/ui/ConversationPane.tsx",
+          "src/components/inbox/ui/InboxPage.tsx",
+          "src/contexts/SessionContext.tsx",
+          "src/components/inbox/hooks/session-transition-queue.ts",
+          "src/components/inbox/hooks/staff-draft-session.test.ts",
+          "src/components/inbox/hooks/staff-draft-session.ts",
+          "src/components/inbox/hooks/useStaffDraftSession.ts"
+        ],
+        "status": 0
+      },
+      {
+        "mode": "units",
+        "command": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-concurrency=4",
+          "src/lib\\auth-admin.test.ts",
+          "src/lib\\auto-personalized-email-outcome.test.ts",
+          "src/lib\\customer-journey-alert-config.test.ts",
+          "src/lib\\customer-journey-card.test.ts",
+          "src/lib\\customer-journey-followup-rules.test.ts",
+          "src/lib\\customer-journey-priority.test.ts",
+          "src/lib\\customer-journey-scheduler.test.ts",
+          "src/lib\\deep-visitor-alert-batch.test.ts",
+          "src/lib\\deep-visitor-alert-delivery.test.ts",
+          "src/lib\\deep-visitor-alert-rules.test.ts",
+          "src/lib\\email-click-bot-rules.test.ts",
+          "src/lib\\email-click-bot-sql.test.ts",
+          "src/lib\\email-mx-lookup.test.ts",
+          "src/lib\\email-random-schedule-rules.test.ts",
+          "src/lib\\email-reply-rules.test.ts",
+          "src/lib\\email-send-queue-rules.test.ts",
+          "src/lib\\email-send-queue-stats.test.ts",
+          "src/lib\\email-send-scheduler.test.ts",
+          "src/lib\\email-sender-limit-paths.test.ts",
+          "src/lib\\email-sender-limit-rules.test.ts",
+          "src/lib\\email-sender-pick.test.ts",
+          "src/lib\\email-status-sync-rules.test.ts",
+          "src/lib\\email-template-link-rules.test.ts",
+          "src/lib\\email-visit-ack-copy.test.ts",
+          "src/lib\\email-visit-ack-rules.test.ts",
+          "src/lib\\gmail-client.test.ts",
+          "src/lib\\google-chat.test.ts",
+          "src/lib\\kst.test.ts",
+          "src/lib\\nhn-email-headers.test.ts",
+          "src/lib\\partition-access.test.ts",
+          "src/lib\\reply-to-rules.test.ts",
+          "src/lib\\safe-next-path.test.ts",
+          "src/lib\\sender-health-rules.test.ts",
+          "src/lib\\ai\\claude-parse.test.ts",
+          "src/lib\\ai\\client.test.ts",
+          "src/lib\\ai\\company-name.test.ts",
+          "src/lib\\ai\\models.test.ts",
+          "src/lib\\ai\\quota-limits.test.ts",
+          "src/lib\\ai-copy\\automation-rules.test.ts",
+          "src/lib\\ai-copy\\evaluation-rules.test.ts",
+          "src/lib\\ai-copy\\observations.test.ts",
+          "src/lib\\ai-copy\\rules.test.ts",
+          "src/lib\\attribution\\parse-params.test.ts",
+          "src/lib\\customer-ai\\rules.test.ts",
+          "src/lib\\customer-import-files\\transport.test.ts",
+          "src/lib\\customer-imports\\rules.test.ts",
+          "src/lib\\customer-platform\\identity.test.ts",
+          "src/lib\\customer-platform\\webhook-rules.test.ts",
+          "src/lib\\customer-records\\changes.test.ts",
+          "src/lib\\customer-workflows\\rules.test.ts",
+          "src/lib\\email-experiments\\rules.test.ts",
+          "src/lib\\inbox\\rules.test.ts",
+          "src/lib\\inbox-collaboration\\rules.test.ts",
+          "src/lib\\inbox-email\\gmail.test.ts",
+          "src/lib\\inbox-email\\recipients.test.ts",
+          "src/lib\\inbox-operations\\calendar.test.ts",
+          "src/lib\\mcp\\tracker-format.test.ts",
+          "src/lib\\tracker\\date-range.test.ts",
+          "src/lib\\tracker\\site-access.test.ts",
+          "src/components\\customer-conversations\\api\\index.test.ts",
+          "src/components\\customer-conversations\\utils\\attachment-groups.test.ts",
+          "src/components\\customer-conversations\\utils\\controller.test.ts",
+          "src/components\\customer-records\\utils\\attributes.test.ts",
+          "src/components\\email\\utils\\sender-profile-list.test.ts",
+          "src/components\\inbox\\hooks\\staff-draft-session.test.ts",
+          "src/components\\inbox-presence\\api\\index.test.ts",
+          "src/components\\email\\clicks\\utils\\clickCell.test.ts",
+          "src/components\\email\\replies\\utils\\labels.test.ts",
+          "src/components\\email\\reply-to\\utils\\replyTo.test.ts",
+          "src/components\\email\\send-health\\utils\\labels.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\limitForm.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\logSender.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\poolCapacity.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\queueStatus.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\ruleSummary.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\senderPool.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\sendResult.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\todayStatus.test.ts"
+        ],
+        "status": 0
+      },
+      {
+        "mode": "files",
+        "command": [
+          "--import",
+          "tsx",
+          "scripts/check-inbox-files.cjs"
+        ],
+        "status": 0
+      },
+      {
+        "mode": "guard",
+        "command": [
+          "--import",
+          "tsx",
+          "scripts/check-inbox-reply-guard.cjs"
+        ],
+        "status": 0
+      },
+      {
+        "mode": "build",
+        "command": [
+          "node_modules/next/dist/bin/next",
+          "build",
+          "--webpack"
+        ],
+        "status": 0
+      }
+    ]
   }
 }

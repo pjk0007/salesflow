@@ -24,18 +24,19 @@ import {
     CheckCheck,
 } from "lucide-react";
 import { useInbox } from "../hooks/useInbox";
+import { useStaffDraftSession, type SubscribeSessionInvalidation } from "../hooks/useStaffDraftSession";
 import { EmailMailboxSettings } from "@/components/inbox-email/ui/EmailMailboxSettings";
 import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
-export function InboxPage({ userId, role }: { userId: string; role: string }) {
+export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
     const params = useSearchParams();
     const [emailSettings, setEmailSettings] = useState(() =>
         params.has("emailConnection"),
     );
-    const [chosenChannel, setChannel] = useState<number | null>(
+    const [chosenChannel, setChosenChannel] = useState<number | null>(
             Number(params.get("channelId")) || null,
         ),
         [selected, setSelectedState] = useState<string | null>(
@@ -92,6 +93,12 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
+    const accessDenied = [initial.bootstrap.error, list.error, detail.error].some((error) => error?.status === 401 || error?.status === 403);
+    const draftSession = useStaffDraftSession(`${orgId}:${userId}:${channelId}`, !!channel && abilities.respond && !accessDenied, subscribeSessionInvalidation);
+    const setChannel = (next: number) => {
+        if (next !== channelId) draftSession.invalidate();
+        setChosenChannel(next);
+    };
     const presence = useAgentPresence(
         channelId,
         detail.data?.conversation.channelId === channelId
@@ -545,12 +552,13 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                             · 모든 상담과 대화에서 검색
                         </p>
                     </section>
-                    {selected && detail.data && !detail.error ? (
+                    {selected && detail.data && detail.data.conversation.channelId === channelId && !detail.error ? (
                         <ConversationPane
+                            draftSession={draftSession}
                             userId={userId}
                             presenceAgents={presence.agents}
                             onActivity={presence.activity}
-                            key={detail.data.conversation.id}
+                            key={`${orgId}:${userId}:${channelId}:${detail.data.conversation.id}`}
                             chat={detail.data.conversation}
                             focusMessageId={focusMessageId}
                             onDismissMention={() => setFocusMessageId(null)}
