@@ -19,6 +19,7 @@ import {
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
 import { sendSystemReply } from "@/lib/inbox/repository";
+import { activeReplyWriter } from "@/lib/inbox-reply-guard/repository";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { InboxError } from "@/lib/inbox/errors";
@@ -336,7 +337,13 @@ export async function onSupportMessage(
             config,
             "고객 요청",
         );
-        if (changed && config.mode === "reply")
+        // The caller holds the conversation lock. Keep the customer message and
+        // handoff when a staff writer blocks only the automatic announcement.
+        if (
+            changed &&
+            config.mode === "reply" &&
+            !(await activeReplyWriter(exec, chat))
+        )
             await sendSystemReply(
                 exec,
                 id,

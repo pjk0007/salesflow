@@ -24,6 +24,7 @@ import {
 } from "@/lib/inbox-collaboration/mentions";
 import { onSupportMessage, consumeSupportDraft } from "@/lib/customer-ai/queue";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
+import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import {
@@ -32,6 +33,7 @@ import {
     inboxConversations,
     inboxMessages,
     inboxReads,
+    inboxCustomerReads,
     organizationMembers,
     users,
     workspaces,
@@ -1386,6 +1388,7 @@ async function visitorConversation(
     token: string,
     exec: DbExec,
     create = false,
+    conversationId?: string,
 ) {
     if (token.includes(".")) {
         const { channel, contact } = await authenticatedCustomer(
@@ -1413,8 +1416,14 @@ async function visitorConversation(
                     eq(inboxConversations.contactId, contact.id),
                     eq(inboxConversations.historyOnly, false),
                     eq(inboxConversations.medium, "web"),
+                    isNull(inboxConversations.mergedIntoId),
+                    conversationId
+                        ? eq(inboxConversations.id, conversationId)
+                        : eq(inboxConversations.isCurrent, true),
                 ),
             );
+        if (conversationId && !chat)
+            throw new InboxError("이 상담을 찾을 수 없습니다.", 404);
         if (!chat && create) {
             const [created] = await exec
                 .insert(inboxConversations)
@@ -1432,7 +1441,7 @@ async function visitorConversation(
                         inboxConversations.channelId,
                         inboxConversations.contactId,
                     ],
-                    where: sql`${inboxConversations.historyOnly}=false AND ${inboxConversations.medium}='web'`,
+                    where: sql`${inboxConversations.historyOnly}=false AND ${inboxConversations.medium}='web' AND ${inboxConversations.isCurrent}=true AND ${inboxConversations.mergedIntoId} IS NULL`,
                 })
                 .returning({ id: inboxConversations.id });
             if (created)
@@ -1462,6 +1471,8 @@ async function visitorConversation(
                         eq(inboxConversations.contactId, contact.id),
                         eq(inboxConversations.historyOnly, false),
                         eq(inboxConversations.medium, "web"),
+                        eq(inboxConversations.isCurrent, true),
+                        isNull(inboxConversations.mergedIntoId),
                     ),
                 );
         }
@@ -1478,6 +1489,7 @@ async function visitorConversation(
                 email: contact.email,
                 identified: true,
             },
+            customerReadContactId: contact.id,
         };
     }
     if (!/^[a-f0-9]{64}$/.test(token))
@@ -1504,6 +1516,8 @@ async function visitorConversation(
             ),
         );
     if (!chat) throw new InboxError("상담 세션을 확인해주세요.", 401);
+    if (conversationId && chat.id !== conversationId)
+        throw new InboxError("이 상담을 찾을 수 없습니다.", 404);
     return {
         ...chat,
         channelId: channel.id,
@@ -1516,8 +1530,29 @@ export async function visitorFileScope(
     key: string,
     token: string,
     exec: DbExec = db,
+    selection: { conversationId?: string; newConversation?: boolean } = {},
 ): Promise<FileScope> {
-    const chat = await visitorConversation(key, token, exec);
+    if (selection.newConversation) {
+        const { channel, contact } = await authenticatedCustomer(
+            key,
+            token,
+            exec,
+        );
+        return {
+            orgId: channel.orgId,
+            channelId: channel.id,
+            conversationId: null,
+            ownerKey: fileOwner(`member:${channel.id}:${contact.id}`),
+            publicOnly: true,
+        };
+    }
+    const chat = await visitorConversation(
+        key,
+        token,
+        exec,
+        false,
+        selection.conversationId,
+    );
     return {
         orgId: chat.orgId,
         channelId: chat.channelId,
@@ -1531,36 +1566,78 @@ export async function visitorDetail(
     token: string,
     exec: DbExec = db,
     before?: number,
+    conversationId?: string,
 ) {
-    const chat = await visitorConversation(key, token, exec);
-    const result = chat.id
-        ? await readMessages(chat.id, exec, true, before)
-        : { messages: [], hasOlder: false };
-    // 방문자에게는 직원 식별자·내부 메모·CRM 연결 정보를 내보내지 않는다.
-    return {
-        status: chat.status,
-        aiState: chat.aiState,
-        profile: chat.profile,
-        hasOlder: result.hasOlder,
-        messages: result.messages.map((m) => ({
-            id: m.id,
-            clientId: m.clientId,
-            kind: m.kind,
-            body: m.body,
-            authorName: m.authorName,
-            createdAt: m.createdAt,
-            attachments: m.attachments,
-        })),
-    };
+    return exec.transaction(async (tx) => {
+        let chat = await visitorConversation(
+            key,
+            token,
+            tx,
+            false,
+            conversationId,
+        );
+        if (chat.id) {
+            // Keep the displayed messages and merge generation from the same
+            // state. A merge or public append must wait for this short read.
+            await tx
+                .select({ id: inboxConversations.id })
+                .from(inboxConversations)
+                .where(eq(inboxConversations.id, chat.id))
+                .for("share");
+            // The identity may have been linked while the lock was pending.
+            chat = await visitorConversation(key, token, tx, false, chat.id);
+        }
+        const result = chat.id
+            ? await readMessages(chat.id, tx, true, before)
+            : { messages: [], hasOlder: false };
+        const readContactId =
+            "customerReadContactId" in chat
+                ? chat.customerReadContactId
+                : undefined;
+        const [read] =
+            chat.id && readContactId
+                ? await tx
+                      .select({ readRevision: inboxCustomerReads.readRevision })
+                      .from(inboxCustomerReads)
+                      .where(
+                          and(
+                              eq(inboxCustomerReads.conversationId, chat.id),
+                              eq(
+                                  inboxCustomerReads.contactId,
+                                  readContactId,
+                              ),
+                          ),
+                      )
+                : [];
+        // 방문자에게는 직원 식별자·내부 메모·CRM 연결 정보를 내보내지 않는다.
+        return {
+            conversationId: chat.id,
+            readRevision: read?.readRevision ?? 0,
+            status: chat.status,
+            aiState: chat.aiState,
+            profile: chat.profile,
+            hasOlder: result.hasOlder,
+            messages: result.messages.map((m) => ({
+                id: m.id,
+                clientId: m.clientId,
+                kind: m.kind,
+                body: m.body,
+                authorName: m.authorName,
+                createdAt: m.createdAt,
+                attachments: m.attachments,
+            })),
+        };
+    });
 }
 export async function sendVisitorMessage(
     key: string,
     token: string,
     raw: unknown,
     exec: DbExec = db,
+    conversationId?: string,
 ) {
     return exec.transaction((tx) =>
-        sendVisitorMessageInTx(key, token, raw, tx),
+        sendVisitorMessageInTx(key, token, raw, tx, conversationId),
     );
 }
 async function sendVisitorMessageInTx(
@@ -1568,9 +1645,20 @@ async function sendVisitorMessageInTx(
     token: string,
     raw: unknown,
     exec: DbExec = db,
+    conversationId?: string,
 ) {
-    const input = messageInput.parse(raw),
-        chat = await visitorConversation(key, token, exec, true);
+    const input = messageInput.parse(raw);
+    const channel = await publicChannel(key, exec);
+    // Use the same workspace-before-contact/conversation order as explicit
+    // new-thread creation, identity linking and workflow event writes.
+    await lockWorkflowWorkspace(channel.orgId, channel.workspaceId, exec);
+    const chat = await visitorConversation(
+        key,
+        token,
+        exec,
+        true,
+        conversationId,
+    );
     if (!chat.id) throw new InboxError("상담을 시작하지 못했습니다.", 503);
     const result = await appendMessage(
         exec,

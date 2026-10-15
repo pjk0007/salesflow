@@ -71,12 +71,20 @@ async function runPlatformCheck(extra, testRuntime) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|inbox-reply-guard|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|customer-import-files|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|inbox-customer-history|inbox-reply-guard|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|customer-import-files|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [
+            /^\/api\/messenger\/([a-f0-9]+)\/conversations$/,
+            () => "messenger/[key]/conversations",
+        ],
+        [
+            /^\/api\/messenger\/([a-f0-9]+)\/conversations\/([a-f0-9-]+)\/read$/,
+            () => "messenger/[key]/conversations/[id]/read",
+        ],
         [
             /^\/api\/v1\/crm\/(contacts|companies)\/([a-f0-9-]+)$/,
             (m) => `v1/crm/${m[1]}/[id]`,
@@ -384,6 +392,8 @@ async function runPlatformCheck(extra, testRuntime) {
         "v1/inbox/conversations",
         "v1/inbox/conversations/[id]",
         "messenger/[key]",
+        "messenger/[key]/conversations",
+        "messenger/[key]/conversations/[id]/read",
         "v1/crm/[resource]",
         "v1/crm/[resource]/[id]",
         "v1/crm/contacts/[id]/activity",
@@ -435,7 +445,10 @@ async function runPlatformCheck(extra, testRuntime) {
                         ? match[2]
                         : definition
                                 .file(match)
-                                .includes("messenger/[key]/attachments/[id]")
+                                .includes("messenger/[key]/attachments/[id]") ||
+                            definition
+                                .file(match)
+                                .includes("messenger/[key]/conversations/[id]")
                           ? match[2]
                           : match[1],
                 fileId: match[2],

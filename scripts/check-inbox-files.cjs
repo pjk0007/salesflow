@@ -123,8 +123,10 @@ async function runFilesCheck(extra) {
                         "contentType",
                         "fileName",
                         "id",
+                        "importMetadata",
                         "size",
                     ]);
+                    assert.equal(customerFile.importMetadata, null);
                 },
             );
             await check(

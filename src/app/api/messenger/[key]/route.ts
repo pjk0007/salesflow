@@ -11,6 +11,7 @@ import {
 import { recordCustomerEvent } from "@/lib/customer-platform/repository";
 import { linkVisitorIdentity } from "@/lib/inbox/link-identity";
 import { updateVisitorProfile } from "@/lib/inbox/visitor-profile";
+import { selectedConversation } from "@/lib/inbox-customer-history/rules";
 import {
     applyMessengerHeaders,
     messengerHeaders,
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest, ctx: Context) {
                 visitorToken(req),
                 undefined,
                 Number(req.nextUrl.searchParams.get("before")) || undefined,
+                selectedConversation(req.nextUrl.searchParams),
             );
         const channel = await publicChannel(key);
         return {
@@ -74,6 +76,6 @@ export async function POST(req: NextRequest, ctx: Context) {
                 "web",
             );
         }
-        return sendVisitorMessage(key, visitorToken(req), input);
+        return sendVisitorMessage(key, visitorToken(req), input, undefined, selectedConversation(req.nextUrl.searchParams));
     });
 }

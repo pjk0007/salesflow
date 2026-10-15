@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { attachmentPost } from "@/lib/inbox/file-http";
 import { handleInbox, visitorToken } from "@/lib/inbox/http";
 import { visitorFileScope } from "@/lib/inbox/repository";
+import { customerFileSelection } from "@/lib/inbox-customer-history/rules";
 import {
     applyMessengerHeaders,
     messengerHeaders,
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest, c: C) {
     const response = await attachmentPost(req, async () => {
         const { key } = await c.params;
         headers = await messengerHeaders(req, key);
-        return visitorFileScope(key, visitorToken(req));
+        return visitorFileScope(key, visitorToken(req), undefined, customerFileSelection(req.nextUrl.searchParams));
     });
     return applyMessengerHeaders(response, headers);
 }

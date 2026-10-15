@@ -12,7 +12,9 @@ function fixture(options = {}) {
         nodes = [],
         store = new Map(),
         timers = new Map(),
-        posts = [];
+        delays = new Map(),
+        posts = [],
+        destinations = [];
     let timerId = 0;
     const window = {
         addEventListener: (name, fn) => {
@@ -33,7 +35,14 @@ function fixture(options = {}) {
                 style: {},
                 attributes: {},
                 hidden: false,
-                contentWindow: { postMessage: (value) => posts.push(value) },
+                contentWindow: {
+                    postMessage: (value, origin) => {
+                        posts.push(value);
+                        destinations.push(origin);
+                        if (value.type === "sendb:configure")
+                            node.configurationId = value.configurationId;
+                    },
+                },
                 setAttribute(key, value) {
                     this.attributes[key] = value;
                 },
@@ -67,29 +76,44 @@ function fixture(options = {}) {
             setItem: (key, value) => store.set(key, value),
             removeItem: (key) => store.delete(key),
         },
-        setTimeout: (fn) => {
+        setTimeout: (fn, delay) => {
             timers.set(++timerId, fn);
+            delays.set(timerId, delay);
             return timerId;
         },
-        clearTimeout: (id) => timers.delete(id),
+        clearTimeout: (id) => {
+            timers.delete(id);
+            delays.delete(id);
+        },
     });
     const key = "a".repeat(48);
     const active = (tag) => nodes.findLast((n) => n.tag === tag && !n.removed);
-    const ready = (
+    const dispatch = (
+        type,
+        extra = {},
         source = active("iframe")?.contentWindow,
         origin = "https://sendb.example.test",
     ) =>
         messages.message?.({
             source,
             origin,
-            data: { type: "sendb:ready", key },
+            data: { type, key, ...extra },
         });
-    const session = (token) =>
-        messages.message?.({
-            source: active("iframe").contentWindow,
-            origin: "https://sendb.example.test",
-            data: { type: "sendb:session", key, token },
-        });
+    const ready = (
+        source = active("iframe")?.contentWindow,
+        origin = "https://sendb.example.test",
+    ) => {
+        const frame = nodes.find((node) => node.contentWindow === source);
+        if (!frame?.configurationId)
+            dispatch("sendb:loaded", {}, source, origin);
+        dispatch(
+            "sendb:ready",
+            { configurationId: frame?.configurationId },
+            source,
+            origin,
+        );
+    };
+    const session = (token) => dispatch("sendb:session", { token });
     return {
         sdk: window.SendbChat,
         key,
@@ -97,7 +121,19 @@ function fixture(options = {}) {
         ready,
         timers,
         posts,
+        destinations,
+        dispatch,
         session,
+        window,
+        document,
+        timeoutReady: () => {
+            const value = [...timers].find(([id]) => delays.get(id) === 15000);
+            assert.ok(value, "활성 준비 타임아웃이 필요합니다.");
+            const [id, callback] = value;
+            timers.delete(id);
+            delays.delete(id);
+            callback();
+        },
     };
 }
 async function main() {
@@ -110,7 +146,7 @@ async function main() {
         "시작 전과 종료 후 세션 상태·버튼 제어는 인증 정보를 노출하지 않음",
         async () => {
             const f = fixture();
-            assert.equal(f.sdk.version, "1.3.0");
+            assert.equal(f.sdk.version, "1.4.0");
             assert.equal(f.sdk.getSessionType(), "uninitialized");
             f.sdk.hideLauncher();
             f.sdk.showLauncher();
@@ -283,13 +319,572 @@ async function main() {
             assert.equal(f.posts.length, before);
         },
     );
+    await check(
+        "연결 전·준비 전·종료 후 탐색은 호출을 보관하거나 창을 열지 않음",
+        async () => {
+            const f = fixture(),
+                id = "2fc0908a-3fbb-49f7-b329-ae485409a71e",
+                calls = [
+                    () => f.sdk.showConversations(),
+                    () => f.sdk.showNewConversation(),
+                    () => f.sdk.showConversation(id),
+                ];
+            calls.forEach((call) => assert.throws(call, /회원 상담 연결/));
+            const pending = f.sdk.boot({
+                channelKey: f.key,
+                identityToken: "fictional-member-A-token",
+            });
+            calls.forEach((call) => assert.throws(call, /회원 상담 연결/));
+            assert.equal(f.posts.length, 0);
+            f.ready();
+            await pending;
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:navigate").length,
+                0,
+            );
+            assert.equal(f.active("iframe").style.display, undefined);
+            f.sdk.shutdown();
+            calls.forEach((call) => assert.throws(call, /회원 상담 연결/));
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:navigate").length,
+                0,
+            );
+        },
+    );
+    await check(
+        "비회원 탐색은 세션·초안·창을 보존하고 기존 show는 계속 사용 가능",
+        async () => {
+            const f = fixture(),
+                pending = f.sdk.boot({ channelKey: f.key });
+            f.ready();
+            await pending;
+            f.session("b".repeat(64));
+            f.sdk.setDraft("비회원이 이미 쓰던 가상 문의");
+            f.sdk.hide();
+            const frame = f.active("iframe"),
+                previous = f.posts.length;
+            [
+                () => f.sdk.showConversations(),
+                () => f.sdk.showNewConversation(),
+                () =>
+                    f.sdk.showConversation(
+                        "2fc0908a-3fbb-49f7-b329-ae485409a71e",
+                    ),
+            ].forEach((call) => assert.throws(call, /로그인한 회원/));
+            assert.equal(f.posts.length, previous);
+            assert.equal(f.active("iframe"), frame);
+            assert.equal(frame.style.display, "none");
+            assert.equal(f.sdk.getSessionType(), "anonymous");
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:draft").length,
+                1,
+            );
+            f.sdk.show();
+            assert.equal(frame.style.display, "block");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "회원의 목록·새 문의·개별 문의는 정확한 iframe 출처로 탐색 뒤 표시",
+        async () => {
+            const f = fixture(),
+                pending = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                    hideLauncher: true,
+                }),
+                id = "2FC0908A-3FBB-49F7-B329-AE485409A71E",
+                values = [
+                    { call: () => f.sdk.showConversations(), view: "list" },
+                    { call: () => f.sdk.showNewConversation(), view: "new" },
+                    {
+                        call: () => f.sdk.showConversation(id),
+                        view: "thread",
+                        conversationId: id,
+                    },
+                ];
+            f.ready();
+            await pending;
+            const frame = f.active("iframe");
+            f.sdk.setDraft("회원이 준비한 가상 문의");
+            for (const value of values) {
+                f.sdk.hide();
+                value.call();
+                assert.deepEqual(
+                    JSON.parse(JSON.stringify(f.posts.at(-2))),
+                    {
+                        type: "sendb:navigate",
+                        key: f.key,
+                        view: value.view,
+                        configurationId: frame.configurationId,
+                        ...(value.conversationId
+                            ? { conversationId: value.conversationId }
+                            : {}),
+                    },
+                );
+                assert.deepEqual(JSON.parse(JSON.stringify(f.posts.at(-1))), {
+                    type: "sendb:visibility",
+                    key: f.key,
+                    opened: true,
+                });
+                assert.equal(f.destinations.at(-2), "https://sendb.example.test");
+                assert.equal(f.destinations.at(-1), "https://sendb.example.test");
+                assert.equal(f.active("iframe"), frame);
+                assert.equal(frame.style.display, "block");
+                assert.equal(f.active("button").hidden, true);
+                assert.equal(f.active("button").attributes["aria-expanded"], "true");
+            }
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:draft").length,
+                1,
+            );
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "잘못된 개별 문의 ID는 메시지·창·기존 초안을 바꾸지 않음",
+        async () => {
+            const f = fixture(),
+                pending = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.ready();
+            await pending;
+            f.sdk.setDraft("보존할 가상 문구");
+            f.sdk.hide();
+            const before = f.posts.length;
+            [
+                undefined,
+                null,
+                123,
+                {},
+                "",
+                "not-a-uuid",
+                "2fc0908a-3fbb-09f7-b329-ae485409a71e",
+                "2fc0908a-3fbb-49f7-c329-ae485409a71e",
+                "https://site.example.test/thread",
+                "2fc0908a-3fbb-49f7-b329-ae485409a71e?x=1",
+                " 2fc0908a-3fbb-49f7-b329-ae485409a71e ",
+            ].forEach((id) =>
+                assert.throws(() => f.sdk.showConversation(id), /문의 ID/),
+            );
+            assert.equal(f.posts.length, before);
+            assert.equal(f.active("iframe").style.display, "none");
+            assert.equal(f.sdk.getSessionType(), "member");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "비회원 이력 병합 중과 새 회원 확인 전 탐색은 전송하지 않음",
+        async () => {
+            let respond;
+            const f = fixture({
+                    fetch: () =>
+                        new Promise((resolve) => {
+                            respond = resolve;
+                        }),
+                }),
+                boot = f.sdk.boot({ channelKey: f.key });
+            f.ready();
+            await boot;
+            f.session("b".repeat(64));
+            f.sdk.setDraft("로그인 전 쓰던 가상 문구");
+            f.sdk.hide();
+            const pending = f.sdk.identify("fictional-member-A-token", {
+                    mergeAnonymous: true,
+                }),
+                before = f.posts.length;
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            assert.throws(() => f.sdk.showNewConversation(), /회원 상담 연결/);
+            assert.equal(f.posts.length, before);
+            respond({ ok: true, json: async () => ({ success: true }) });
+            await new Promise((resolve) => setImmediate(resolve));
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            assert.equal(f.active("iframe").style.display, "none");
+            f.ready();
+            await pending;
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:navigate").length,
+                0,
+            );
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:draft").length,
+                1,
+            );
+            f.sdk.showConversations();
+            assert.equal(f.posts.at(-2).view, "list");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "인증 갱신 중 탐색 차단·준비 후 새 호출만 전달하며 초안 유지",
+        async () => {
+            let resolveIdentity;
+            const f = fixture(),
+                boot = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                    getIdentityToken: () =>
+                        new Promise((resolve) => {
+                            resolveIdentity = resolve;
+                        }),
+                });
+            f.ready();
+            await boot;
+            const frame = f.active("iframe");
+            const previousConfigurationId = frame.configurationId;
+            f.sdk.setDraft("인증 갱신 중에도 보존할 문구");
+            f.sdk.hide();
+            f.dispatch("sendb:refresh");
+            const before = f.posts.length;
+            assert.throws(() => f.sdk.showNewConversation(), /회원 상담 연결/);
+            assert.equal(f.posts.length, before);
+            resolveIdentity("fictional-refreshed-member-A-token");
+            await new Promise((resolve) => setImmediate(resolve));
+            f.dispatch("sendb:ready", {
+                configurationId: previousConfigurationId,
+            });
+            assert.throws(() => f.sdk.showNewConversation(), /회원 상담 연결/);
+            f.ready();
+            assert.equal(f.active("iframe"), frame);
+            assert.equal(frame.style.display, "none");
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:navigate").length,
+                0,
+            );
+            f.sdk.showNewConversation();
+            assert.equal(f.posts.at(-2).view, "new");
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:draft").length,
+                1,
+            );
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "A 갱신이 늦게 끝나도 B 새 연결에는 이전 탐색·인증을 전달하지 않음",
+        async () => {
+            let resolveIdentity;
+            const f = fixture(),
+                first = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                    getIdentityToken: () =>
+                        new Promise((resolve) => {
+                            resolveIdentity = resolve;
+                        }),
+                });
+            f.ready();
+            await first;
+            const previous = f.active("iframe").contentWindow;
+            f.dispatch("sendb:refresh");
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            const next = f.sdk.boot({
+                channelKey: f.key,
+                identityToken: "fictional-member-B-token",
+            });
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            resolveIdentity("fictional-refreshed-member-A-token");
+            await new Promise((resolve) => setImmediate(resolve));
+            f.ready(previous);
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.dispatch("sendb:loaded");
+            assert.equal(f.posts.at(-1).identityToken, "fictional-member-B-token");
+            f.ready();
+            await next;
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:navigate").length,
+                0,
+            );
+            f.sdk.showConversations();
+            assert.equal(f.posts.at(-2).view, "list");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "현재 configurationId가 없는 준비 신호·이전 설정 ACK는 부팅을 완료하지 않음",
+        async () => {
+            const f = fixture(),
+                pending = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.dispatch("sendb:loaded");
+            const id = f.posts.at(-1).configurationId;
+            assert.ok(Number.isSafeInteger(id) && id > 0);
+            f.dispatch("sendb:ready");
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.dispatch("sendb:ready", { configurationId: id - 1 });
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.ready();
+            await pending;
+            f.sdk.showConversations();
+            assert.equal(f.posts.at(-2).configurationId, id);
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "부팅 전·진행 중 중복 연결 거절, 첫 준비 실패 뒤 reconnect로 현재 프레임 복구",
+        async () => {
+            const f = fixture();
+            await assert.rejects(f.sdk.reconnect(), /연결을 먼저 완료/);
+            await assert.rejects(
+                f.sdk.identify("fictional-member-A-token"),
+                /연결을 먼저 완료/,
+            );
+            const pending = f.sdk.boot({ channelKey: f.key }),
+                failed = assert.rejects(pending, /상담창을 연결하지 못했습니다/);
+            f.dispatch("sendb:loaded");
+            const before = f.posts.length;
+            await assert.rejects(f.sdk.reconnect(), /연결하고 있습니다/);
+            await assert.rejects(
+                f.sdk.identify("fictional-member-A-token"),
+                /연결을 먼저 완료/,
+            );
+            f.timeoutReady();
+            await failed;
+            f.ready();
+            assert.throws(() => f.sdk.setDraft("부팅 실패"), /상담 연결 후/);
+            assert.equal(f.posts.length, before);
+            const frame = f.active("iframe"),
+                recovered = f.sdk.reconnect();
+            f.ready();
+            await recovered;
+            assert.equal(f.active("iframe"), frame);
+            f.sdk.setDraft("첫 준비 실패 뒤 복구한 초안");
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "최초 회원 토큰을 받는 동안 프레임 없는 reconnect는 이전 연결을 만들지 않음",
+        async () => {
+            let resolveIdentity;
+            const f = fixture(),
+                pending = f.sdk.boot({
+                    channelKey: f.key,
+                    getIdentityToken: () => new Promise((resolve) => {
+                        resolveIdentity = resolve;
+                    }),
+                });
+            assert.equal(f.active("iframe"), undefined);
+            await assert.rejects(f.sdk.reconnect(), /연결을 먼저 완료/);
+            assert.equal(f.posts.length, 0);
+            resolveIdentity("fictional-member-A-token");
+            await new Promise((resolve) => setImmediate(resolve));
+            f.ready();
+            await pending;
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "identify 타임아웃 뒤 reconnect는 같은 인증·iframe·초안을 유지하고 새 ACK만 수락",
+        async () => {
+            const f = fixture(),
+                boot = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.ready();
+            await boot;
+            const frame = f.active("iframe");
+            f.sdk.setDraft("준비 실패 뒤에도 보존할 실제 SDK 문구");
+            f.sdk.hide();
+            const pending = f.sdk.identify("fictional-refreshed-member-A-token"),
+                failed = assert.rejects(pending, /회원 상담 인증을 확인하지 못/),
+                previousId = frame.configurationId;
+            await assert.rejects(f.sdk.reconnect(), /연결하고 있습니다/);
+            await assert.rejects(
+                f.sdk.identify("fictional-competing-token"),
+                /연결하고 있습니다/,
+            );
+            f.timeoutReady();
+            await failed;
+            f.dispatch("sendb:ready", { configurationId: previousId });
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            const reconnect = f.sdk.reconnect(),
+                nextId = frame.configurationId,
+                configuration = f.posts.at(-1);
+            assert.ok(nextId > previousId);
+            assert.equal(configuration.type, "sendb:configure");
+            assert.equal(configuration.identityToken, "fictional-refreshed-member-A-token");
+            assert.equal(configuration.continueAnonymous, false);
+            assert.equal(f.active("iframe"), frame);
+            assert.equal(frame.style.display, "none");
+            f.dispatch("sendb:ready", { configurationId: previousId });
+            f.dispatch("sendb:ready");
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.ready();
+            await reconnect;
+            f.sdk.showConversations();
+            assert.equal(f.posts.at(-2).configurationId, nextId);
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:draft").length,
+                1,
+            );
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "identify와 reconnect 각각의 타임아웃 뒤 identify를 다시 시도할 수 있음",
+        async () => {
+            const f = fixture(),
+                boot = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.ready();
+            await boot;
+            const frame = f.active("iframe");
+            for (const attempt of [
+                () => f.sdk.identify("fictional-refreshed-member-A-token"),
+                () => f.sdk.reconnect(),
+            ]) {
+                const pending = attempt(),
+                    failed = assert.rejects(pending, /인증을 확인하지 못/),
+                    previousId = frame.configurationId;
+                f.timeoutReady();
+                await failed;
+                const retry = f.sdk.identify("fictional-current-member-A-token");
+                assert.ok(frame.configurationId > previousId);
+                f.dispatch("sendb:ready", { configurationId: previousId });
+                assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+                f.ready();
+                await retry;
+                assert.equal(f.active("iframe"), frame);
+            }
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "재연결 중 A→B 부팅은 A 준비 Promise를 종료하고 옛 ACK를 B에게 적용하지 않음",
+        async () => {
+            const f = fixture(),
+                first = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.ready();
+            await first;
+            const previous = f.active("iframe").contentWindow,
+                reconnect = f.sdk.reconnect(),
+                cancelled = assert.rejects(reconnect, /연결이 종료되었습니다/),
+                second = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-B-token",
+                });
+            await cancelled;
+            f.ready(previous);
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.ready();
+            await second;
+            const configuration = f.posts.findLast(
+                (value) => value.type === "sendb:configure",
+            );
+            assert.equal(configuration.identityToken, "fictional-member-B-token");
+            f.sdk.showConversations();
+            assert.equal(f.posts.at(-2).configurationId, configuration.configurationId);
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "열린 iframe의 재로드는 같은 연결을 재검증하며 오래된 ACK로 탐색을 풀지 않음",
+        async () => {
+            const f = fixture(),
+                boot = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.ready();
+            await boot;
+            f.sdk.setDraft("재로드 전 문구");
+            const frame = f.active("iframe"),
+                previousId = frame.configurationId;
+            f.dispatch("sendb:loaded");
+            assert.ok(frame.configurationId > previousId);
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.dispatch("sendb:ready", { configurationId: previousId });
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            f.ready();
+            f.sdk.showConversations();
+            assert.equal(f.active("iframe"), frame);
+            assert.equal(
+                f.posts.filter((value) => value.type === "sendb:draft").length,
+                1,
+            );
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "옛 설정 오류는 현재 회원에 적용하지 않고 갱신 함수 없는 인증 오류도 수동 identify 복구",
+        async () => {
+            const f = fixture(),
+                errors = [],
+                boot = f.sdk.boot({
+                    channelKey: f.key,
+                    identityToken: "fictional-member-A-token",
+                });
+            f.sdk.on("error", (error) => errors.push(error));
+            f.ready();
+            await boot;
+            const previousId = f.active("iframe").configurationId,
+                update = f.sdk.identify("fictional-refreshed-member-A-token");
+            f.ready();
+            await update;
+            f.dispatch("sendb:error", {
+                status: 401,
+                configurationId: previousId,
+            });
+            f.sdk.showConversations();
+            assert.equal(errors.length, 0);
+            f.dispatch("sendb:refresh");
+            assert.equal(errors.at(-1).code, "identity_refresh_required");
+            assert.throws(() => f.sdk.showConversations(), /회원 상담 연결/);
+            const retry = f.sdk.identify("fictional-current-member-A-token");
+            f.ready();
+            await retry;
+            f.sdk.showConversations();
+            f.sdk.shutdown();
+        },
+    );
+    await check(
+        "만료된 비회원 증명은 제거하고 새 준비 ACK까지 입력 제어를 기다림",
+        async () => {
+            const f = fixture(),
+                boot = f.sdk.boot({ channelKey: f.key });
+            f.ready();
+            await boot;
+            f.session("b".repeat(64));
+            f.dispatch("sendb:read", { readId: 500 });
+            const frame = f.active("iframe"),
+                previousId = frame.configurationId;
+            f.dispatch("sendb:error", {
+                status: 401,
+                configurationId: previousId,
+            });
+            assert.equal(f.active("iframe"), frame);
+            assert.equal(f.posts.at(-1).type, "sendb:configure");
+            assert.equal(f.posts.at(-1).visitorToken, undefined);
+            assert.equal(f.posts.at(-1).readId, 0);
+            assert.ok(frame.configurationId > previousId);
+            assert.throws(() => f.sdk.setDraft("아직 준비 중"), /상담 연결 후/);
+            f.dispatch("sendb:ready", { configurationId: previousId });
+            assert.throws(() => f.sdk.setDraft("아직 준비 중"), /상담 연결 후/);
+            f.ready();
+            f.sdk.setDraft("새 비회원 준비 뒤 초안");
+            assert.equal(f.sdk.getSessionType(), "anonymous");
+            f.sdk.shutdown();
+        },
+    );
     console.log(
-        "Chat SDK 1.3.0 가상 DOM/실제 배포 JS QA " +
+        "Chat SDK 1.4.0 가상 DOM/실제 배포 JS QA " +
             checks +
             "개 통과 · 외부 전송 0건",
     );
 }
-main().catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-});
+module.exports = { fixture };
+if (require.main === module)
+    main().catch((error) => {
+        console.error(error);
+        process.exitCode = 1;
+    });

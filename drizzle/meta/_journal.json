@@ -785,6 +785,13 @@
       "when": 1792054800000,
       "tag": "0111_customer_import_files",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1792058400000,
+      "tag": "0112_inbox_customer_history",
+      "breakpoints": true
     }
   ]
 }

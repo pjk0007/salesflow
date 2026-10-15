@@ -43,7 +43,9 @@
             );
     }
     function configure(state) {
+        state.configurationId++;
         post(state, "sendb:configure", {
+            configurationId: state.configurationId,
             identityToken: state.identityToken || undefined,
             visitorToken: state.identityToken
                 ? undefined
@@ -53,6 +55,43 @@
             continueAnonymous: !!state.continueAnonymous,
         });
         state.continueAnonymous = false;
+    }
+    function waitForReady(state, message, code) {
+        clearTimeout(state.timer);
+        state.ready = false;
+        state.waiting = true;
+        state.awaitingReady = true;
+        var promise = new Promise(function (resolve, reject) {
+            state.resolve = resolve;
+            state.reject = reject;
+        });
+        state.timer = setTimeout(function () {
+            if (current !== state || !state.waiting) return;
+            state.waiting = false;
+            state.awaitingReady = false;
+            var error = new Error(message);
+            state.reject(error);
+            emit("error", { code: code, message: error.message });
+        }, 15000);
+        return promise;
+    }
+    function reconnect() {
+        var state = current;
+        if (!state || !state.frame)
+            return Promise.reject(
+                new Error("상담 SDK 연결을 먼저 완료해주세요."),
+            );
+        if (state.waiting || state.identifying || state.refreshing)
+            return Promise.reject(
+                new Error("회원 상담을 연결하고 있습니다. 잠시 기다려주세요."),
+            );
+        var promise = waitForReady(
+            state,
+            "상담 인증을 확인하지 못했습니다. 다시 연결해주세요.",
+            "reconnect_timeout",
+        );
+        configure(state);
+        return promise;
     }
     function visibility(opened) {
         if (!current || !current.frame) return;
@@ -83,7 +122,14 @@
         emit("shutdown");
     }
     async function refresh(state) {
-        if (state.refreshing || current !== state) return;
+        if (
+            state.refreshing ||
+            state.identifying ||
+            state.waiting ||
+            current !== state
+        )
+            return;
+        state.ready = false;
         if (!state.options.getIdentityToken) {
             emit("error", {
                 code: "identity_refresh_required",
@@ -108,7 +154,11 @@
                 typeof value === "string" ? value : value.identityToken;
             if (!state.identityToken)
                 throw new Error("회원 상담 인증을 받지 못했습니다.");
-            state.ready = false;
+            waitForReady(
+                state,
+                "회원 상담 인증을 확인하지 못했습니다. 다시 연결해주세요.",
+                "identity_refresh_failed",
+            ).catch(function () {});
             configure(state);
             scheduleRefresh(state);
         } catch (error) {
@@ -178,6 +228,10 @@
             opened: false,
             identityToken: options.identityToken || "",
             ready: false,
+            hasConnected: false,
+            waiting: false,
+            awaitingReady: false,
+            configurationId: 0,
             refreshing: false,
             readId: 0,
             storageKey: "sendb-chat-session:" + options.channelKey,
@@ -233,10 +287,11 @@
         state.button.addEventListener("click", function () {
             if (current === state) visibility(!state.opened);
         });
-        var promise = new Promise(function (resolve, reject) {
-            state.resolve = resolve;
-            state.reject = reject;
-        });
+        var promise = waitForReady(
+            state,
+            "상담창을 연결하지 못했습니다. 설치 도메인과 서버 상태를 확인해주세요.",
+            "boot_timeout",
+        );
         state.listener = function (event) {
             if (
                 current !== state ||
@@ -247,9 +302,31 @@
             )
                 return;
             var data = event.data;
-            if (data.type === "sendb:loaded") configure(state);
-            if (data.type === "sendb:ready" && !state.ready) {
+            if (
+                data.configurationId !== undefined &&
+                data.configurationId !== state.configurationId &&
+                data.type !== "sendb:loaded"
+            )
+                return;
+            if (data.type === "sendb:loaded") {
+                if (state.waiting) configure(state);
+                else if (
+                    state.hasConnected &&
+                    !state.identifying &&
+                    !state.refreshing
+                )
+                    reconnect().catch(function () {});
+            }
+            if (
+                data.type === "sendb:ready" &&
+                state.awaitingReady &&
+                state.configurationId > 0 &&
+                data.configurationId === state.configurationId
+            ) {
                 state.ready = true;
+                state.hasConnected = true;
+                state.waiting = false;
+                state.awaitingReady = false;
                 clearTimeout(state.timer);
                 state.resolve();
                 scheduleRefresh(state);
@@ -271,7 +348,9 @@
                 if (data.status === 401 && state.identityToken) refresh(state);
                 else if (data.status === 401) {
                     store(state.storageKey, null);
-                    configure(state);
+                    state.readId = 0;
+                    if (state.waiting) configure(state);
+                    else reconnect().catch(function () {});
                 } else
                     emit("error", {
                         code: "messenger_error",
@@ -282,15 +361,6 @@
         window.addEventListener("message", state.listener);
         document.body.appendChild(state.frame);
         document.body.appendChild(state.button);
-        state.timer = setTimeout(function () {
-            if (current === state && !state.ready) {
-                var error = new Error(
-                    "상담창을 연결하지 못했습니다. 설치 도메인과 서버 상태를 확인해주세요.",
-                );
-                state.reject(error);
-                emit("error", { code: "boot_timeout", message: error.message });
-            }
-        }, 15000);
         return promise;
     }
     async function trackEvent(name, properties, eventId) {
@@ -318,14 +388,56 @@
             throw new Error(result.error || "이벤트를 기록하지 못했습니다.");
         return result.data;
     }
+    function navigate(view, conversationId) {
+        var state = current;
+        if (
+            !state ||
+            !state.ready ||
+            state.identifying ||
+            state.refreshing
+        )
+            throw new Error("회원 상담 연결을 완료한 뒤 문의 화면을 열어주세요.");
+        if (typeof state.identityToken !== "string" || !state.identityToken)
+            throw new Error("문의 목록과 새 문의는 로그인한 회원만 사용할 수 있습니다.");
+        if (
+            view === "thread" &&
+            (typeof conversationId !== "string" ||
+                !/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$/i.test(
+                    conversationId,
+                ))
+        )
+            throw new Error("올바른 문의 ID를 입력해주세요.");
+        post(
+            state,
+            "sendb:navigate",
+            view === "thread"
+                ? {
+                      view: view,
+                      conversationId: conversationId,
+                      configurationId: state.configurationId,
+                  }
+                : { view: view, configurationId: state.configurationId },
+        );
+        visibility(true);
+    }
     window.SendbChat = {
-        version: "1.3.0",
+        version: "1.4.0",
         boot: boot,
+        reconnect: reconnect,
         show: function () {
             visibility(true);
         },
         hide: function () {
             visibility(false);
+        },
+        showConversations: function () {
+            navigate("list");
+        },
+        showNewConversation: function () {
+            navigate("new");
+        },
+        showConversation: function (conversationId) {
+            navigate("thread", conversationId);
         },
         showLauncher: function () {
             if (current && current.button) {
@@ -405,13 +517,13 @@
         },
         shutdown: shutdown,
         identify: async function (identityToken, options) {
-            if (!current || !current.ready)
+            if (!current || !current.hasConnected)
                 throw new Error("상담 SDK 연결을 먼저 완료해주세요.");
             if (typeof identityToken !== "string" || !identityToken)
                 throw new Error("회원 상담 인증이 필요합니다.");
             var state = current;
             options = options || {};
-            if (state.identifying)
+            if (state.identifying || state.waiting || state.refreshing)
                 throw new Error(
                     "회원 상담을 연결하고 있습니다. 잠시 기다려주세요.",
                 );
@@ -463,23 +575,11 @@
                 state.options.getIdentityToken = options.getIdentityToken;
             state.identityToken = identityToken;
             state.readId = 0;
-            state.ready = false;
-            var promise = new Promise(function (resolve, reject) {
-                state.resolve = resolve;
-                state.reject = reject;
-            });
-            state.timer = setTimeout(function () {
-                if (current === state && !state.ready) {
-                    var error = new Error(
-                        "회원 상담 인증을 확인하지 못했습니다.",
-                    );
-                    state.reject(error);
-                    emit("error", {
-                        code: "identity_timeout",
-                        message: error.message,
-                    });
-                }
-            }, 15000);
+            var promise = waitForReady(
+                state,
+                "회원 상담 인증을 확인하지 못했습니다.",
+                "identity_timeout",
+            );
             configure(state);
             scheduleRefresh(state);
             return promise;

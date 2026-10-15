@@ -97,10 +97,19 @@ export async function targetSnapshot(
                 ),
             );
         if (!row) return null;
-        const { preview, lastMessageAt, customerSeq, ...stable } = row.chat;
+        const {
+            preview,
+            lastMessageAt,
+            customerSeq,
+            isCurrent,
+            customerCreateKey,
+            ...stable
+        } = row.chat;
         void preview;
         void lastMessageAt;
         void customerSeq;
+        void isCurrent;
+        void customerCreateKey;
         return object(stable);
     }
     const table = tables[kind];

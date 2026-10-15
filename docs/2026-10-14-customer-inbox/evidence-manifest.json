@@ -5103,5 +5103,1580 @@
     "isolation": "loopback/PGlite·가상 직원/고객·실제 운영 환경/DB/키/설정/배포 접근 없음. 시험용 직원 헤더는 ignored .testenv 내부에만 존재.",
     "limits": "최대90초 접속·12초 작성 만료, 약3초 조회. 강제 발송 잠금/수용량/근무시간/실제 부하·전체 전환은 미완료. R01–R16 원래 목표 유지.",
     "networkRecovery": "접속 API10초 시간 제한·한국어 안내·조회 오류 중 캐시된 활동 숨김. SQL/API 원본 및 실제 InboxPage 오류/복구 Chrome QA."
+  },
+  "capacityQa": {
+    "capturedAt": "2026-10-15T04:22:47.491Z",
+    "branch": "dev",
+    "reviewPullRequest": "https://github.com/pjk0007/salesflow/pull/14",
+    "deployment": {
+      "production": false,
+      "mainMerge": false,
+      "customerDatabaseAccess": false,
+      "settingsChanged": false,
+      "workerEnabled": false
+    },
+    "migration": "0108_inbox_agent_capacity.sql",
+    "checks": {
+      "pglite": 12,
+      "isolatedPostgresql": 15,
+      "platformBaselineEach": 11,
+      "units": 1095,
+      "regressions": {
+        "teams": 18,
+        "ai": 16,
+        "inbox": 22,
+        "operations": 23,
+        "presence": 14,
+        "workflow": 12,
+        "identity": 12
+      },
+      "lint": "passed",
+      "nextBuild": "passed"
+    },
+    "postgres": {
+      "dataDirectory": "F:\\Dev\\salesflow\\.testenv\\pg-capacity-data",
+      "version": "17.11",
+      "port": 55439,
+      "droppedFailedFixtureDatabases": 0,
+      "testsCompleted": true,
+      "checkedAt": "2026-10-15T04:20:45.473Z",
+      "serverStopped": true,
+      "archiveSha256": "4b8db0930c38f6ef845db919551dedda3b6b845aeb0927b3d79a6e8e9e4537cf",
+      "source": "https://www.enterprisedb.com/download-postgresql-binaries",
+      "scope": "fictional loopback databases; independent postgres-js connections; not multi-server load"
+    },
+    "browser": [
+      "0/1/unlimited and existing assignment preserved",
+      "first assignment, full queue, close then manual redispatch",
+      "two-tab CAS retains draft and explicit latest reload",
+      "agent sees own count/limit, no manager settings",
+      "same-owner team transfer and workflow execution recheck are SQL/PostgreSQL tests, not claimed as browser evidence"
+    ],
+    "sourceFiles": [
+      {
+        "path": "docs/2026-10-14-customer-inbox/API.md",
+        "bytes": 15872,
+        "sha256": "1b969c00d739c2e949a0f8b813fd6a1658a314dba8e23ccc337ef8fe56e250e4"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/HANDOFF.md",
+        "bytes": 24031,
+        "sha256": "43ee530701831d6ebe5e3607bf544bae38a7143abda04452e021130840921746"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/PRESENCE.md",
+        "bytes": 8983,
+        "sha256": "34195c2829763ee8ac17813363bf643a3346ee9789e81fa26445da08bfc0ddb1"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/REPLACEMENT.md",
+        "bytes": 12759,
+        "sha256": "571f200b2de18a2ef36fd235514c902c8be9b93e690a3aa61a1dbfdaa60559a9"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/RESEARCH-APPLIED.md",
+        "bytes": 15658,
+        "sha256": "c7e76089d3e04f9c72e504b83ee376523bab36a0132a340c464e8f29f2209375"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/ROUTING.md",
+        "bytes": 8779,
+        "sha256": "99c2dbaedddd690c2711578cd3e36ff0960660689646d865f1112e23f9b7b450"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/WORKFLOW-ROUTING.md",
+        "bytes": 6472,
+        "sha256": "7a7315798c947b25aab087713a1a34fcd954ff0ec30253df3121f1fab5bcf02f"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "bytes": 16115,
+        "sha256": "cfbab2e6c38366bf1b97ff2db1e4244ff0f6ed0b1452864fc149c81835acfbcf"
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "bytes": 30611,
+        "sha256": "d33fd5f824335bbb568f3aa44ec5ae9d331b56bcda17aa84d507872fb8f50768"
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "bytes": 30258,
+        "sha256": "ca53887bd946899a0b14323eb42999aba2cca125a6c765680b6b162de02b5996"
+      },
+      {
+        "path": "sdk/presence-types.ts",
+        "bytes": 413,
+        "sha256": "0c3121e811cb7804f4f012bde031a49e6a3fd2a19acce5bb203483ae47c34039"
+      },
+      {
+        "path": "sdk/server.ts",
+        "bytes": 40934,
+        "sha256": "15995d339d7917d84864928c8b92b1c40fc5ec6bc46d722297699759a53ba5bb"
+      },
+      {
+        "path": "src/components/inbox-presence/ui/AgentStatus.tsx",
+        "bytes": 2703,
+        "sha256": "f4a93bfbf2c17f262bf28a2b75115fe43a6545ad6f5892de5a3c03f171375d88"
+      },
+      {
+        "path": "src/components/inbox/ui/InboxAudit.tsx",
+        "bytes": 4934,
+        "sha256": "16a11b9bb9f45fea95d585877e8f26cfe106891c3ab469c0fdd165b86aaccbfd"
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "bytes": 32918,
+        "sha256": "91cab936a68bde03c5ac77c946e10068aea1cbe0cd1ef906425b11c8716eed3d"
+      },
+      {
+        "path": "src/instrumentation.ts",
+        "bytes": 2809,
+        "sha256": "fe1271f6e13c38e13bfba8e372fcd4dcc65f8d3a309568c1fc2f222de79cac8d"
+      },
+      {
+        "path": "src/lib/customer-ai/queue.ts",
+        "bytes": 14362,
+        "sha256": "7c0bb5dc826f9118d8e1b1dd5ee44b47eb78f7f7c44ad1bdcd77a7a44eeaff7d"
+      },
+      {
+        "path": "src/lib/customer-workflows/routing.ts",
+        "bytes": 3373,
+        "sha256": "3f72190045ad813e0f1e9f67f77e23e454bfacadf9d50acb4e2493ee1c59e6c3"
+      },
+      {
+        "path": "src/lib/db/inbox-presence-schema.ts",
+        "bytes": 2503,
+        "sha256": "c26e4dda2021c5b04bf82b390051b0aecfd791f8012a66a72f8e9054136a721a"
+      },
+      {
+        "path": "src/lib/db/inbox-schema.ts",
+        "bytes": 8714,
+        "sha256": "b2ef7ddc0c3f4428347dd46fcce2dc181f8daf4c7484a3b95dcbc23003d047df"
+      },
+      {
+        "path": "src/lib/inbox-operations/enqueue.ts",
+        "bytes": 26023,
+        "sha256": "eaffd6013fe73e2ba5cba6a6c7f8d7fa176b8b5f7dc22ed32f412280fb77e8c9"
+      },
+      {
+        "path": "src/lib/inbox-operations/reports.ts",
+        "bytes": 9315,
+        "sha256": "92eea2c8a4cb42593813943494dd3fba26178e04963a34df55f355c39a33eee1"
+      },
+      {
+        "path": "src/lib/inbox-presence/repository.ts",
+        "bytes": 8588,
+        "sha256": "31012c65f8f56ea3c71888c6e20db8deba2de67f8ba596fa9eb27966b14ffcc6"
+      },
+      {
+        "path": "src/lib/inbox-routing/assignment.ts",
+        "bytes": 4267,
+        "sha256": "e88740d163b071a2d914fca8b3970df8357e6ef98123421e6b8c0f11684005a4"
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "bytes": 57067,
+        "sha256": "5eee95af3622e11a77765170260fe5f608adb66557c25a562e16dd6398ff52c0"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/CAPACITY.md",
+        "bytes": 10422,
+        "sha256": "48e6e76de89f2176d7262a7a21068cefb6224ba4bceaaa31ebb212c386a0429f"
+      },
+      {
+        "path": "drizzle/0108_inbox_agent_capacity.sql",
+        "bytes": 801,
+        "sha256": "3caa6b08b176edd2219a3f33794ef71512198e6a9a8625ec64ddc58d503ac3f4"
+      },
+      {
+        "path": "scripts/check-inbox-capacity.cjs",
+        "bytes": 35486,
+        "sha256": "40463c009aa3dfe0231ed7bb9b4fc44bf9dddc0940e7be387e21c69af7c798cf"
+      },
+      {
+        "path": "sdk/capacity-types.ts",
+        "bytes": 309,
+        "sha256": "a4da4c5aa23751dd89ec79fffafb7fb2f510cb89dc533b34d62deeb1edd168ff"
+      },
+      {
+        "path": "src/app/api/inbox-capacity/route.ts",
+        "bytes": 1131,
+        "sha256": "e09d7d30144afc7855239d473990f6c4643bdc890276953416425147a6868dec"
+      },
+      {
+        "path": "src/app/api/v1/inbox/capacity/route.ts",
+        "bytes": 1705,
+        "sha256": "f575550e4c0a3274fdc4dcf0257535b2b67a5ff413f0474ac9b0897d59d6665f"
+      },
+      {
+        "path": "src/components/inbox-capacity/api/index.ts",
+        "bytes": 573,
+        "sha256": "bb1bfeae8fbca8b464ed877cdb0c901857a18613580132da233ab102f43c4b69"
+      },
+      {
+        "path": "src/components/inbox-capacity/types/index.ts",
+        "bytes": 137,
+        "sha256": "71b3e150f39527261c55593fc568bd96c1bfcd1ab899af68ea4f0248b53829f4"
+      },
+      {
+        "path": "src/components/inbox-capacity/ui/CapacitySettings.tsx",
+        "bytes": 8705,
+        "sha256": "f8c7f5a251230a8bd0a806eacc62f55a092b6302e15fce13b6a689e266873928"
+      },
+      {
+        "path": "src/lib/inbox-capacity/dispatcher.ts",
+        "bytes": 5175,
+        "sha256": "86dcbffc58b7cf9381237d858cadbf4c4bfc8baef0d9f64257293441c2f34df7"
+      },
+      {
+        "path": "src/lib/inbox-capacity/limits.ts",
+        "bytes": 2481,
+        "sha256": "c1d36dbd5b43aacca096a307cb06ce16f0af9fa536cba9fabfaf274bc367ea02"
+      },
+      {
+        "path": "src/lib/inbox-capacity/repository.ts",
+        "bytes": 5045,
+        "sha256": "401a549f9072a57067ff010d0a96cac4c0e4a5a5ee98ebbf778347bf3facbfd7"
+      },
+      {
+        "path": "src/lib/inbox-capacity/rules.ts",
+        "bytes": 435,
+        "sha256": "2d52d379e6f76e561b01bab5f0f967ff5ae5d8dbfd3e2d130532f62d52fcfc98"
+      }
+    ],
+    "logs": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-qa.log",
+        "bytes": 2316,
+        "sha256": "becf73ac7916b2bcc3a390adb1fe6840e9c1cba9b9889fd827f311a906b8bfaf"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-postgres-qa.log",
+        "bytes": 2654,
+        "sha256": "a2d067ea8793711a22e05f1111de0cbacbf93d79e7829adfe94d79be1f9f6b95"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-units.log",
+        "bytes": 104664,
+        "sha256": "c80547732fcde0da25d66e028bdfdca6086fb312ed96b7e5838ba0975dcbcbbe"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-build.log",
+        "bytes": 13417,
+        "sha256": "73a6d36406d740483c2e049b5f07c7f00e0603da6e2248cc197aa5adfebbdb16"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-teams-regression.log",
+        "bytes": 2685,
+        "sha256": "ed54d83f6f4cec7b55367ea7b4c9e0263c2726823e7fc54bad2f97c50dd50683"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-ai-regression.log",
+        "bytes": 2433,
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-inbox-regression.log",
+        "bytes": 1590,
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-operations-regression.log",
+        "bytes": 3273,
+        "sha256": "b3c83dae12d801cf59cf9531b38e14e78f7cd130bdacace08147a2c73fb7cb85"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-presence-regression.log",
+        "bytes": 2471,
+        "sha256": "c96348ff5f2aa4f6c1d2f334754e35fd3efdbdfbd18228151a52c6ef098a86e3"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-workflow-regression.log",
+        "bytes": 2343,
+        "sha256": "921112eb6fea8e665cd5c6e164ee89d54af44c570adfb1fa3c36241304fe9a4f"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-identity-regression.log",
+        "bytes": 2313,
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-pg-cleanup.log",
+        "bytes": 135,
+        "sha256": "cae90c2e56d07b302cb9691d5a63a31d9e986c3a866268ae04eea969972500a1"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-pg-cleanup.json",
+        "bytes": 242,
+        "sha256": "1c7d10fc1385b0387d5c9b8980ea16ac29937f8aff3b35ecf5dd19597737abdd"
+      }
+    ],
+    "images": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-settings.png",
+        "bytes": 77582,
+        "sha256": "9be50503c74bb1b5029873117293b444202f2885ff61d5d6e4d14cc32977abfb"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-full-queue.png",
+        "bytes": 107620,
+        "sha256": "b845ec866f8dde22f3aa7ccef518ad270e49278c3230495e319f063579021a62"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-dispatch-result.png",
+        "bytes": 118087,
+        "sha256": "5d58f5a4972b9826ea98b2f6278d0f9f008e78ebd2639ec62ff94f8499aabf62"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-conflict-draft.png",
+        "bytes": 125478,
+        "sha256": "e638b9c631059553e1bdb0d72f774d80f26a762c82bb6eecc76e9afca5035bc4"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\capacity-agent-view.png",
+        "bytes": 21920,
+        "sha256": "3056124d44909127bc868456036c0b25bf43feb416739159054703816df40b2c"
+      }
+    ],
+    "remaining": [
+      "work-hours-aware assignment",
+      "forced composer/send lock",
+      "real multi-server/load",
+      "actual site/account installation",
+      "full migration/cutover R01-R16"
+    ],
+    "commit": "5dff5644d7384c957385f5507ebcc482da2a42a4",
+    "pullRequest": {
+      "number": 14,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "verifiedAt": "2026-10-15T04:23:34.445Z"
+    }
+  },
+  "businessHoursRoutingQa": {
+    "capturedAt": "2026-10-15T04:36:00.662Z",
+    "branch": "dev",
+    "reviewPullRequest": "https://github.com/pjk0007/salesflow/pull/14",
+    "migration": "0109_inbox_team_business_hours.sql",
+    "checks": {
+      "pglite": 14,
+      "isolatedPostgres": 14,
+      "platformBaselineEach": 11,
+      "units": 1095,
+      "regressions": {
+        "capacityPglite": 12,
+        "capacityPostgres": 15,
+        "teams": 18,
+        "workflows": 12,
+        "ai": 16,
+        "operations": 23,
+        "presence": 14
+      },
+      "lint": "passed",
+      "nextBuild": "passed"
+    },
+    "database": {
+      "dataDirectory": "F:\\Dev\\salesflow\\.testenv\\pg-capacity-data",
+      "version": "17.11",
+      "port": 55439,
+      "droppedFailedFixtureDatabases": 0,
+      "testsCompleted": true,
+      "checkedAt": "2026-10-15T04:30:40.836Z",
+      "serverStopped": true
+    },
+    "sourceFiles": [
+      {
+        "path": "docs/2026-10-14-customer-inbox/API.md",
+        "bytes": 16046,
+        "sha256": "ac40582c892dcc8deaba56252bae6db127d7eddf30b9732bf041e5206decc8cb"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/CAPACITY.md",
+        "bytes": 10554,
+        "sha256": "d40aedca98360beea62505f33d4164a4b5dae0c61f971d6a731aea3020b38169"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/HANDOFF.md",
+        "bytes": 24817,
+        "sha256": "7a81f198d849a23da0a207e20ffd53cd49985c2aaefc78c4c5deb48691412dfe"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/OPERATIONS.md",
+        "bytes": 12304,
+        "sha256": "b910c211082235d5ed9e6e2e98590eb987e5f1f244cf9a83d4d4c963d9f1141c"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/PRESENCE.md",
+        "bytes": 9092,
+        "sha256": "a86d789205fc98971b66656dd5fe38d6e0d79250e50db131d0427f5f5312033d"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/REPLACEMENT.md",
+        "bytes": 13275,
+        "sha256": "68a1259ff77283dfb9939a2e72db4c46d786d020812bf47e8c0ae0cf7bc7c145"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/RESEARCH-APPLIED.md",
+        "bytes": 16258,
+        "sha256": "48eba42a668c6928989dc810a6a0c3447a863a9e942c7d3b2a92692f6e9f324b"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/ROUTING.md",
+        "bytes": 9047,
+        "sha256": "08b556f0c428c9f7e9cde41ddc76758c40525d6686a91d1d135d554e640fe0b9"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/WORKFLOW-ROUTING.md",
+        "bytes": 6634,
+        "sha256": "5e5fcc436a89bf25936f672dbf3e863de352b4a55d528fb8f4a94fa0fcdd742c"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "bytes": 16270,
+        "sha256": "5d4876d96c935d703a0384a0b1f2ea05295b1afb002053d595ef6129d9d992df"
+      },
+      {
+        "path": "scripts/check-inbox-capacity.cjs",
+        "bytes": 34026,
+        "sha256": "5d9409c3804af9bf926e68a2293ccadf196f974233ba3e51c3ff4c95c3f376bc"
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "bytes": 30304,
+        "sha256": "2d2ca7608bc6096aa67534bc004b215cc3c28519ed0450fb95d3063b4590eb5d"
+      },
+      {
+        "path": "sdk/routing-types.ts",
+        "bytes": 496,
+        "sha256": "fd0c86f217c94337cdbf89ca82eec7c59784ec11c672695aa32ea0c6b2d8cd78"
+      },
+      {
+        "path": "sdk/server.ts",
+        "bytes": 41018,
+        "sha256": "d99157c76bc8c29dcc9d0a62a69743eacb8532fb4cd1464b607da4f19af956d7"
+      },
+      {
+        "path": "src/components/inbox-operations/ui/OperationsSettingsEditor.tsx",
+        "bytes": 18525,
+        "sha256": "a2bfea276d8ba74fe2d0f2a2b0b4119e8905c3437345a77d473b625724ac60cf"
+      },
+      {
+        "path": "src/components/inbox-routing/api/index.ts",
+        "bytes": 869,
+        "sha256": "4466e6735506470b73508413411b2e20fda1c7457c86281238740e664a38f879"
+      },
+      {
+        "path": "src/components/inbox-routing/ui/TeamAssignment.tsx",
+        "bytes": 4419,
+        "sha256": "a2be747e6883002e3440c3f7acf0ce57feac8e808320d7bc5fc2a5cec0a0e704"
+      },
+      {
+        "path": "src/components/inbox-routing/ui/TeamSettings.tsx",
+        "bytes": 18063,
+        "sha256": "f00aed94fc3b826c6223f08d05d0b6f98da6da0d18d67a0588b2fa8973a31e1a"
+      },
+      {
+        "path": "src/components/inbox/ui/InboxAudit.tsx",
+        "bytes": 5003,
+        "sha256": "21272a143e959893d3841f993d6054e8858fb4665d1013aa38468bc650c5293e"
+      },
+      {
+        "path": "src/lib/customer-ai/queue.ts",
+        "bytes": 14811,
+        "sha256": "a6c639233f7c02c78c92d483c8787ac971c5d899f9b58f99492902a092b4ab25"
+      },
+      {
+        "path": "src/lib/customer-workflows/routing.ts",
+        "bytes": 3737,
+        "sha256": "ca0d6edd3bed6a7614370e2ee60547dbc38642f939f9225e532fe9acc5cbda9d"
+      },
+      {
+        "path": "src/lib/db/inbox-schema.ts",
+        "bytes": 8830,
+        "sha256": "03a52037770bdcee5e964a7ea42f82db9a7d9ddbc7474fcc8cf0c496f8584c86"
+      },
+      {
+        "path": "src/lib/inbox-routing/assignment.ts",
+        "bytes": 4390,
+        "sha256": "943c951717398f646a02d9885f37f2a9904a306675ef26b2831ed5d17a53ad3e"
+      },
+      {
+        "path": "src/lib/inbox-routing/repository.ts",
+        "bytes": 11542,
+        "sha256": "88a2108c5f2c1213c3d40b6321eb187ff0f4f3c18fd2c8c36f8cebc87bfb6a75"
+      },
+      {
+        "path": "src/lib/inbox-routing/rules.ts",
+        "bytes": 1797,
+        "sha256": "a5a30d419b5f32c6ad1d54915f701f7ca14e051d461978aeaad0281417635675"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/BUSINESS-HOURS-ROUTING.md",
+        "bytes": 6961,
+        "sha256": "ebe7d7035f3246ba44aca2a695e51df67c3597b9bf0999024b3be67cee113d9a"
+      },
+      {
+        "path": "drizzle/0109_inbox_team_business_hours.sql",
+        "bytes": 90,
+        "sha256": "27264ab4932eafb12413df1f286629fdfb0fc8c74f051d93f0d3e90f7f8e8b9c"
+      },
+      {
+        "path": "scripts/check-inbox-routing-hours.cjs",
+        "bytes": 24509,
+        "sha256": "295e2c3dcd9b8042e6ede5dd3473af32e59e04bdfbe13c77530ee5adcae16192"
+      },
+      {
+        "path": "scripts/customer-platform-test-postgres.cjs",
+        "bytes": 2156,
+        "sha256": "a4e9390f23ccd800cae3e6c24243361b6d996fa6bf7aca1581b7914a0977f920"
+      },
+      {
+        "path": "src/lib/inbox-routing/hours-label.ts",
+        "bytes": 699,
+        "sha256": "d3b4d93bad3c00dac5c2941eaf77f842a459481b0870f6e25e899a564cd27eff"
+      },
+      {
+        "path": "src/lib/inbox-routing/hours.ts",
+        "bytes": 1314,
+        "sha256": "edd8717c3878de948eb51b2cc7cfb8f4c14821e514d73800e1bea9dd1b6fcb58"
+      }
+    ],
+    "logs": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-sql-qa.log",
+        "bytes": 2418,
+        "sha256": "6b0016a72a261501b69333c2b800665c0ebecd3acfad474e53cda2fd92596cee"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-postgres-qa.log",
+        "bytes": 2418,
+        "sha256": "6b0016a72a261501b69333c2b800665c0ebecd3acfad474e53cda2fd92596cee"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-units.log",
+        "bytes": 104675,
+        "sha256": "4f66853cf932f44a4aee90c9cc884c5c55fb4e7ebe5a9cd124b6b5d5bec82f65"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-build.log",
+        "bytes": 13417,
+        "sha256": "b16945a252d974c953c2f7488ba0332956a1f15ce6fd5b933b0b99de5df355de"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-capacity-pg-regression.log",
+        "bytes": 2654,
+        "sha256": "a2d067ea8793711a22e05f1111de0cbacbf93d79e7829adfe94d79be1f9f6b95"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-capacity-regression.log",
+        "bytes": 2316,
+        "sha256": "becf73ac7916b2bcc3a390adb1fe6840e9c1cba9b9889fd827f311a906b8bfaf"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-teams-regression.log",
+        "bytes": 2685,
+        "sha256": "ed54d83f6f4cec7b55367ea7b4c9e0263c2726823e7fc54bad2f97c50dd50683"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-workflows-regression.log",
+        "bytes": 2343,
+        "sha256": "921112eb6fea8e665cd5c6e164ee89d54af44c570adfb1fa3c36241304fe9a4f"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-ai-regression.log",
+        "bytes": 2433,
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-operations-regression.log",
+        "bytes": 3273,
+        "sha256": "b3c83dae12d801cf59cf9531b38e14e78f7cd130bdacace08147a2c73fb7cb85"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-presence-regression.log",
+        "bytes": 2471,
+        "sha256": "c96348ff5f2aa4f6c1d2f334754e35fd3efdbdfbd18228151a52c6ef098a86e3"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-pg-cleanup.log",
+        "bytes": 135,
+        "sha256": "cae90c2e56d07b302cb9691d5a63a31d9e986c3a866268ae04eea969972500a1"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-pg-cleanup.json",
+        "bytes": 242,
+        "sha256": "a3fab7972e722022d019045945a34f60143b86e291d956f0d833fd3b5aaf5239"
+      }
+    ],
+    "browser": {
+      "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-browser-qa.json",
+      "bytes": 1040,
+      "sha256": "4df81d344600ba74461804caf3a6dca951a65877c13eee0846f0b114800d0da9"
+    },
+    "images": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-team-settings.png",
+        "bytes": 122933,
+        "sha256": "5b042d185efb70ae67543cb6a9a808a414292d5ebc206a6b9fab781361b0267b"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\hours-open-assigned.png",
+        "bytes": 133863,
+        "sha256": "93443a154ad3ad7cbbf2470e968d0056aeb3407f7ee82a500533803ddad9a0c5"
+      }
+    ],
+    "production": {
+      "deployed": false,
+      "mainMerged": false,
+      "customerDatabaseAccess": false,
+      "serverSettingsChanged": false,
+      "siteConfigurationChanged": false
+    },
+    "research": {
+      "reference": "https://www.chatwoot.com/features/business-hours",
+      "scope": "public per-inbox schedule/timezone concepts; independent implementation; no new private REA runtime observation"
+    },
+    "remaining": [
+      "per-agent shift rosters",
+      "forced composer/send locks",
+      "real multi-server/load",
+      "actual account/site/channel installation",
+      "full R01-R16 migration/cutover"
+    ],
+    "commit": "fdd2e10955c3114a9e6f48c33bbe3150d655ee48",
+    "pullRequest": {
+      "number": 14,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "verifiedAt": "2026-10-15T04:36:41.929Z"
+    }
+  },
+  "replyGuardQa": {
+    "capturedAt": "2026-10-15T05:07:28.110Z",
+    "branch": "dev",
+    "reviewPullRequest": "https://github.com/pjk0007/salesflow/pull/14",
+    "migration": "0110_inbox_reply_guard.sql",
+    "checks": {
+      "pglite": 20,
+      "isolatedPostgres": 22,
+      "platformBaselineEach": 11,
+      "unit": 1095,
+      "regressions": {
+        "inbox": 22,
+        "email": 14,
+        "identity": 12,
+        "ai": 16,
+        "workflows": 15,
+        "hours": 14,
+        "mentions": 19,
+        "operations": 23,
+        "email-recipients": 16,
+        "email-files": 11
+      },
+      "lint": "passed: 27 changed source files",
+      "nextBuild": "passed including TypeScript"
+    },
+    "postgres": {
+      "dataDirectory": "F:\\Dev\\salesflow\\.testenv\\pg-capacity-data",
+      "version": "17.11",
+      "port": 55439,
+      "droppedFailedFixtureDatabases": 0,
+      "testsCompleted": true,
+      "checkedAt": "2026-10-15T05:04:56.547Z",
+      "serverStopped": true,
+      "connection": "owned loopback 55439; generated fictional databases; reserved raw transaction connection mirrors product",
+      "scope": "independent claim/send transactions and fake-model AI worker; not multi-server/load or real model quality"
+    },
+    "browser": {
+      "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-browser-qa.json",
+      "bytes": 1275,
+      "sha256": "b0407403a1082c5f980b5643b2b860efe3df5fec579aa44d1146cd16817739ce"
+    },
+    "images": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-takeover-stale.png",
+        "bytes": 133242,
+        "sha256": "5ee3c9057fc61c6885de12ac0e0a5b639f75e2b720805dc747073af3d02fc0c7"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-draft-preserved.png",
+        "bytes": 154295,
+        "sha256": "73d0053a327db0bad73114866c50573dfd9673176754be5e435219d6126edf86"
+      }
+    ],
+    "logs": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-sql-qa.log",
+        "bytes": 3226,
+        "sha256": "59a60d325d9cf3b5691f8dbf37cc8201ac089602ad1f3740f041d4fcb5d0984a"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-postgres-qa.log",
+        "bytes": 3422,
+        "sha256": "cf437eeec1b73e371b09b95d3cbf91c87e68269d2b1b0b9dbb3efcb124286120"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-units.log",
+        "bytes": 104659,
+        "sha256": "ed9f6d0fbd8cdb5df79f208a3e316964523c60e9588d8838d9bc091eb2a4592c"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-lint.log",
+        "bytes": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-build.log",
+        "bytes": 13482,
+        "sha256": "153962b874f54dfab7f7e3fba4477a3fa3c275d7958033a21752b0d20e435d68"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-inbox-regression.log",
+        "bytes": 1590,
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-email-regression.log",
+        "bytes": 2197,
+        "sha256": "939d942a4e151ce55b3ddd6b67e4745d5524374fe2816cdd8b12cc910e00fabb"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-identity-regression.log",
+        "bytes": 2313,
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-ai-regression.log",
+        "bytes": 2433,
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-workflows-regression.log",
+        "bytes": 2372,
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-hours-regression.log",
+        "bytes": 2418,
+        "sha256": "6b0016a72a261501b69333c2b800665c0ebecd3acfad474e53cda2fd92596cee"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-mentions-regression.log",
+        "bytes": 2873,
+        "sha256": "1c8134fb61eeeed2d16e91913652a296200418d876f051aaf3032a785918ee8a"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-operations-regression.log",
+        "bytes": 3273,
+        "sha256": "b3c83dae12d801cf59cf9531b38e14e78f7cd130bdacace08147a2c73fb7cb85"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-email-recipients-regression.log",
+        "bytes": 2565,
+        "sha256": "a37ea14422c3496248f72aa800291f472c1e4475913f0bfeb1baf86e274293ce"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-email-files-regression.log",
+        "bytes": 3361,
+        "sha256": "14afe72410b2a9e0cebb8e73394f2d70db86d440f62e385dd1599a6d82753944"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-pg-cleanup.log",
+        "bytes": 135,
+        "sha256": "cae90c2e56d07b302cb9691d5a63a31d9e986c3a866268ae04eea969972500a1"
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-replacement-20261014\\reply-guard-pg-cleanup.json",
+        "bytes": 242,
+        "sha256": "cda4e8bb09fd17535322cf4162e2b992bdbf64a9f88317317f16d17626fa7b03"
+      }
+    ],
+    "sourceFiles": [
+      {
+        "path": "docs/2026-10-14-customer-inbox/AI-SUPPORT.md",
+        "bytes": 9967,
+        "sha256": "2a826f952fdad5e3caa0fe470a8f09d27931f87c053d7217af0bc657fb8bd432"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/API.md",
+        "bytes": 16268,
+        "sha256": "a206ddb5576fd1ca1b88f754060f163bb8b80ab9882158687988a7a0120ab2c7"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/BUSINESS-HOURS-ROUTING.md",
+        "bytes": 7129,
+        "sha256": "6e4c7de0a41bf4c11bad0526e6d85c78dbb2432da31537aaccd052e62a499d5c"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/CAPACITY.md",
+        "bytes": 10722,
+        "sha256": "5f7853cca713033ced28764b2345a63e5b09524072b60ae50493445e3c0f5f9c"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/HANDOFF.md",
+        "bytes": 25625,
+        "sha256": "db41c40dc10fe7efca10c6fc03d5793a9c34b9ce485a7a5e83223240b6d9aeab"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/PRESENCE.md",
+        "bytes": 9260,
+        "sha256": "6acb20e4725394233137fb22dd9d2dd644662d4f0b44f8545a205f383b0b990a"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/REPLACEMENT.md",
+        "bytes": 13874,
+        "sha256": "f7b31388e0888e5cceef704dc867323f886756a38788cf5622db1ad7f2146a10"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/RESEARCH-APPLIED.md",
+        "bytes": 16938,
+        "sha256": "3030ffde49b49d1143eb465cdbd5831b756c7cb262c381a5ae73a84dec479411"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/ROUTING.md",
+        "bytes": 9215,
+        "sha256": "ac0bfd59eaa84678c189f2513283d6b70caa5d6ae813cb587294727b85d59755"
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "bytes": 16417,
+        "sha256": "8577416d39793bef2f0a5085aa5df8ddbf204d0c7211ae78ef4eab2b3bd0f446"
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "bytes": 30832,
+        "sha256": "f2bd891638d52020839e37f1e3e31a4a84dc943c7e87fbee149f3c942d9bfe98"
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "bytes": 30370,
+        "sha256": "5bddf6de6dd260f96880fb9cc2dc77e00823d2fc8782db1e0c479916caad3dbe"
+      },
+      {
+        "path": "scripts/customer-platform-test-postgres.cjs",
+        "bytes": 2185,
+        "sha256": "6786c2602d78e8fdfce26407d072af73e5d9733fe1efd5c839ead4cd1dec9c36"
+      },
+      {
+        "path": "sdk/server.ts",
+        "bytes": 42102,
+        "sha256": "bd251457b8ba00fb78ca7bd5802704bce2846d73f711a33b0e4c2d76f5499d33"
+      },
+      {
+        "path": "src/components/inbox/types/index.ts",
+        "bytes": 2799,
+        "sha256": "eff59615b01b8028a288134c0467aa066e868b1167b010f3ae1657f6df41a6cf"
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "bytes": 50767,
+        "sha256": "577b12063c81fdbad0471870f4f31dd9693c0c3b0f1b5ad81191a0b546753478"
+      },
+      {
+        "path": "src/components/inbox/ui/InboxAudit.tsx",
+        "bytes": 5134,
+        "sha256": "04fc3080b4848210c33a16c75a357d3c3fd62daa10c981fba8e6d5f90f9e083f"
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "bytes": 33782,
+        "sha256": "1ad5b75539ce10ae8fe9f2b2b67622f5b80695c9eb027fff9ebea9e3bc84e3f2"
+      },
+      {
+        "path": "src/lib/customer-ai/worker.ts",
+        "bytes": 15298,
+        "sha256": "acf3630101e21b224e3522a342d6e975895dbca9d464d17c761478e370616afc"
+      },
+      {
+        "path": "src/lib/db/inbox-schema.ts",
+        "bytes": 9091,
+        "sha256": "d5b451d3f9f8071ee51e3d9c21009ed83dd3b174f55a90b91762033e5dc67758"
+      },
+      {
+        "path": "src/lib/db/schema.ts",
+        "bytes": 109830,
+        "sha256": "396f9a6819e30761f7a0d4a2eb2dfd78f52e6a49e8cdd677dbc79cc8af8348c2"
+      },
+      {
+        "path": "src/lib/inbox/link-identity.ts",
+        "bytes": 13680,
+        "sha256": "b1d7091fa772711eff0c22440500ff3922744f91305989bbc6e6535b9c19e1c6"
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "bytes": 57472,
+        "sha256": "a9425279abdc721a2758cc3f0bbba381dd44e1bd3353dea5769f1f9de9d3fb95"
+      },
+      {
+        "path": "src/lib/inbox/rules.ts",
+        "bytes": 6317,
+        "sha256": "4fbdffa5ee7a5da3d61d60f28865b6a91ac7507c18fcea3c049ed6259670b1e6"
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/REPLY-GUARD.md",
+        "bytes": 9163,
+        "sha256": "c46cc18df545c260bf023a8d6cd995cfb44769e77fcb111c3ad40f1eb86450e3"
+      },
+      {
+        "path": "drizzle/0110_inbox_reply_guard.sql",
+        "bytes": 888,
+        "sha256": "1ee4391d48bc5baf116b6d416ee00da113b6df7580dadbffe228cd10b2cf9c5f"
+      },
+      {
+        "path": "scripts/check-inbox-reply-guard.cjs",
+        "bytes": 41315,
+        "sha256": "41d0a1f3a38d3d23534ea14faaa7f742c728921bdc39fa5a43c8969eb5576c1a"
+      },
+      {
+        "path": "sdk/reply-guard-types.ts",
+        "bytes": 859,
+        "sha256": "06ac0100464e51c1ccb8a79829786de000dde556cf6871632be274cbf1b26566"
+      },
+      {
+        "path": "src/app/api/inbox-reply-guard/route.ts",
+        "bytes": 132,
+        "sha256": "d8cd4dd994299d2ff62acdf4c43a39e2703c4326f1f1c441634755f027ef8067"
+      },
+      {
+        "path": "src/app/api/v1/inbox/reply-guard/route.ts",
+        "bytes": 131,
+        "sha256": "efeb957ca6154ff99e38875a6d97638cf6dc16c237556b6b794aba5c9835757e"
+      },
+      {
+        "path": "src/components/inbox-reply-guard/api/index.ts",
+        "bytes": 1073,
+        "sha256": "d343bd030c7a3f0874ec6dd77bfaf6338d3ed497f7f5a2bacdaa899d58c6a360"
+      },
+      {
+        "path": "src/components/inbox-reply-guard/hooks/useReplyGuard.ts",
+        "bytes": 5158,
+        "sha256": "6a767ef080cfc081afff60f9db4db1d91661c137cb90da92bbca5ba509b11caa"
+      },
+      {
+        "path": "src/components/inbox-reply-guard/types/index.ts",
+        "bytes": 195,
+        "sha256": "d88d064c62e1d62e7cbe1489492649512d5f06e887314ee43a631993fc5ba703"
+      },
+      {
+        "path": "src/components/inbox-reply-guard/ui/ReplyGuardSettings.tsx",
+        "bytes": 5695,
+        "sha256": "17718e13d37c94a3a0d9fff4f51fe6cd2163b2fde92602f3e295f8f3fb493fcd"
+      },
+      {
+        "path": "src/components/inbox-reply-guard/ui/ReplyGuardStatus.tsx",
+        "bytes": 4846,
+        "sha256": "16ff2d1e0a8cb2f8f75d6ac0c67567d18180242c32a3e962dd6b7b79b4f0ea23"
+      },
+      {
+        "path": "src/lib/db/inbox-reply-guard-schema.ts",
+        "bytes": 1133,
+        "sha256": "555a37f385d6fc265f334a4a071b778623f2f57cd1846b5a085b4929ad611a87"
+      },
+      {
+        "path": "src/lib/inbox-reply-guard/repository.ts",
+        "bytes": 13465,
+        "sha256": "3e9623b74a9b9e8b620946fca11f8b0cace17175198d1bdb2c4d123e59275aaf"
+      },
+      {
+        "path": "src/lib/inbox-reply-guard/routes.ts",
+        "bytes": 2501,
+        "sha256": "1f1cd272fc901470b42e423ca166b95aa47a65d7b1f1ca7c14311766324f60db"
+      },
+      {
+        "path": "src/lib/inbox-reply-guard/rules.ts",
+        "bytes": 1667,
+        "sha256": "3a36058d3bdddda76bbecdf5cadf697963df00bc8663ed699ca87cb2d62a7398"
+      }
+    ],
+    "research": {
+      "reference": "https://www.chatwoot.com/features/collision-detection",
+      "scope": "public typing/assignment concept; independent lease/revision implementation; no new private REA runtime observation"
+    },
+    "production": {
+      "deployed": false,
+      "mainMerged": false,
+      "customerDatabaseAccess": false,
+      "serverSettingsChanged": false,
+      "actualSiteConfigurationChanged": false
+    },
+    "remaining": [
+      "staff shift rosters",
+      "external/OS notifications",
+      "real multi-server/load",
+      "actual account/site/channel installation",
+      "whole data/file migration",
+      "R01-R16 full business cutover"
+    ],
+    "commit": "9849837157d31fc39d33ac59a7c796bf84a97b8a",
+    "pullRequest": {
+      "number": 14,
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "verifiedAt": "2026-10-15T05:08:42.637Z"
+    }
+  },
+  "importFileQa": {
+    "commit": "12a8dc32acfe08c7b3cd002179b1134a4b597805",
+    "branch": "dev",
+    "pr": "https://github.com/pjk0007/salesflow/pull/14",
+    "prDraft": true,
+    "merged": false,
+    "pgliteCases": 23,
+    "postgresCases": 23,
+    "transportUnitCases": 10,
+    "totalUnits": 1105,
+    "regressions": {
+      "inbox": 22,
+      "emailFiles": 11,
+      "imports": 15
+    },
+    "build": "passed including types",
+    "lint": "passed",
+    "postgresStopped": true,
+    "browser": "JSON text approval; expired URL recovery; 3 original files; 1x1 image loaded; stop after current; reload and resume remaining files",
+    "browserFileChooser": "unverified: Chrome Allow access to file URLs disabled",
+    "download": {
+      "bytes": 43,
+      "sha256": "bf3b167f43e7a72dc6f418fae5fa2395e311236e5b38cac309e7c1af5409446f"
+    },
+    "logs": [
+      "import-files-pglite-qa.log",
+      "import-files-pg-qa.log",
+      "import-files-transport-qa.log",
+      "import-files-unit-qa.log",
+      "import-files-build-qa.log",
+      "import-files-lint-qa.log",
+      "import-files-inbox-qa.log",
+      "import-files-email-files-qa.log",
+      "import-files-imports-qa.log"
+    ],
+    "screenshots": [
+      "import-files-ready.png",
+      "import-files-history.png",
+      "import-files-resumed.png",
+      "import-files-panel.png"
+    ],
+    "observations": "import-files-browser-qa.json",
+    "remaining": "full source extraction, large and CRM files, multi-participant data, live-channel transition, whole replacement QA",
+    "productionChanges": false,
+    "recordedAt": "2026-10-15T05:41:11.307Z"
+  },
+  "updatedAt": "2026-10-15T06:46:35.926Z",
+  "customerHistoryQa": {
+    "capturedAt": "2026-10-15T06:46:35.898Z",
+    "branch": "dev",
+    "migration": "0112_inbox_customer_history.sql",
+    "sources": [
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "3665b2b0e3e33a80e4de59c1916f554f547d0ef1fec8272b88338230917daef7",
+        "bytes": 16720
+      },
+      {
+        "path": "examples/customer-platform/site.html",
+        "sha256": "bdf017bcc1357587aee847a9cea21ba34d2e164e4a4f6bce90a52586c062f1ae",
+        "bytes": 20210
+      },
+      {
+        "path": "public/sendb-sdk.js",
+        "sha256": "ddfae22f5ce169711829ca97113dd41b91005b01ade10ba574e75933d75824ec",
+        "bytes": 24507
+      },
+      {
+        "path": "scripts/check-chat-sdk.cjs",
+        "sha256": "b514aa7c620d73c5b7a11220e3469852dc26d021930d0f4b3dc1ccdff2aff288",
+        "bytes": 35592
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "sha256": "97a434d1e50a3c8158cec9b0312cdb15a35f79dc9cb65faecfe3d6023530f386",
+        "bytes": 31759
+      },
+      {
+        "path": "scripts/check-inbox-files.cjs",
+        "sha256": "43ebb1f8d4835f8960d4a264e309d2d6c7086b0c7584b0375131db99890ff9ef",
+        "bytes": 38504
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "sha256": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
+        "bytes": 30455
+      },
+      {
+        "path": "src/app/api/messenger/[key]/attachments/[id]/route.ts",
+        "sha256": "624af6ffb4e95cdd43c034cda11377f5b5f1f379a9e8fad4c69435150f87af54",
+        "bytes": 1279
+      },
+      {
+        "path": "src/app/api/messenger/[key]/attachments/route.ts",
+        "sha256": "73f4810b5c5379dcb05025301dca32a483a0633b6a662b4d9ebc3cb41346c57c",
+        "bytes": 1187
+      },
+      {
+        "path": "src/app/api/messenger/[key]/route.ts",
+        "sha256": "eb6fcb51b1fa288b1468ecb70f33368cf64481094b45e0c1673f437833c74507",
+        "bytes": 3144
+      },
+      {
+        "path": "src/components/inbox/hooks/useAttachmentDrafts.ts",
+        "sha256": "25c20b49fbd6116a7634e0b4c8c3240ffb4c29998bb32be27ea19166d0fd1d61",
+        "bytes": 5005
+      },
+      {
+        "path": "src/components/inbox/ui/ChatWidget.tsx",
+        "sha256": "c5b3cfda8a9e532a92804155676843c11ea1e27d49a1c8d92b08f9bd7590d37a",
+        "bytes": 46694
+      },
+      {
+        "path": "src/lib/customer-ai/queue.ts",
+        "sha256": "4b852918b086357ad3ee082a445ac2e30402db30f547fd90e3d2161be8abd762",
+        "bytes": 15131
+      },
+      {
+        "path": "src/lib/customer-imports/storage.ts",
+        "sha256": "02f7742102a6936b2490c73a217d463ff3ff8a30919b3a63f954c67c95ca789d",
+        "bytes": 7371
+      },
+      {
+        "path": "src/lib/customer-platform/repository.ts",
+        "sha256": "0be27388650f38d00ac07b3b5ac4715de75aac1d1905d7bef8808fc9ea3fdd43",
+        "bytes": 18029
+      },
+      {
+        "path": "src/lib/db/inbox-schema.ts",
+        "sha256": "6eca815c034b5fb2e7c84a7bb970161b4181380770fb51d3d182d78e455370c3",
+        "bytes": 9598
+      },
+      {
+        "path": "src/lib/db/schema.ts",
+        "sha256": "b789a6dfdb0c8ed2794f3a51df058ac703ea0a92a8f97ac63968d2c3c5b7d158",
+        "bytes": 109927
+      },
+      {
+        "path": "src/lib/inbox/link-identity.ts",
+        "sha256": "05834ecc2f48334aec33785f877ad0b209562c97264d5f7a5427ddf2f6035468",
+        "bytes": 15381
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "sha256": "62500094952804239fa12750e54e4682cea65e573884542b4c49bb22463a0b12",
+        "bytes": 60968
+      },
+      {
+        "path": "drizzle/0112_inbox_customer_history.sql",
+        "sha256": "65d01af8e372ca87ba5b26347115e353f14d14df957135aaa5882a0d67279a09",
+        "bytes": 1095
+      },
+      {
+        "path": "scripts/check-channel-contact-reimport.cjs",
+        "sha256": "11671b4ae52dcd9814ae2d21a2746b996c37228e86cbae0e3b4b49ddfcee8d09",
+        "bytes": 11055
+      },
+      {
+        "path": "scripts/check-customer-history-scale.cjs",
+        "sha256": "966cb4da9fe71313df7908173f0152c0bd63d9c326ab476779459454a9eefb35",
+        "bytes": 26404
+      },
+      {
+        "path": "scripts/check-customer-history-sdk.cjs",
+        "sha256": "a54a7626df6ae59b10e6e846bcfaf011c745ee3cdf8309291b3453d1f0c0b628",
+        "bytes": 12897
+      },
+      {
+        "path": "scripts/check-customer-history-upgrade.cjs",
+        "sha256": "9086487c10a3ab39196813e750c56ada62b4d79977b264093088128906ec1f1b",
+        "bytes": 20890
+      },
+      {
+        "path": "scripts/check-customer-history.cjs",
+        "sha256": "4dd6eb96327456b84fd6517d27da2650644ffc801a23530ee5e52516dcce9d07",
+        "bytes": 26284
+      },
+      {
+        "path": "scripts/check-inbox-reply-guard-handoff.cjs",
+        "sha256": "a059eb3728c80f33f0e742615266e15c3b940da36467a1688aa505f41a7532be",
+        "bytes": 8525
+      },
+      {
+        "path": "sdk/messenger.ts",
+        "sha256": "d2b9dbb76ad2eedb96d58131787b48e2fd168b8b1b6126a01b67e8f7e3260157",
+        "bytes": 6620
+      },
+      {
+        "path": "src/app/api/messenger/[key]/conversations/[id]/read/route.ts",
+        "sha256": "ba14e1593d345d0f125df9efdd5f9590d5a98ffeadded3f4b24e3d5f0af1e5f0",
+        "bytes": 150
+      },
+      {
+        "path": "src/app/api/messenger/[key]/conversations/route.ts",
+        "sha256": "55fc897bf0adedeb0c3dab27ea95567e3b3f1cef271c8db57f905b2c2452c438",
+        "bytes": 146
+      },
+      {
+        "path": "src/components/customer-conversations/api/index.test.ts",
+        "sha256": "0cf9a190984b8c212478f10a0d4e5290a8e302df7e9afc17ccb968f137f60e22",
+        "bytes": 2475
+      },
+      {
+        "path": "src/components/customer-conversations/api/index.ts",
+        "sha256": "2adbca10d733ce7821c931485426e7836da82e714602eff1db919db1470d6918",
+        "bytes": 1426
+      },
+      {
+        "path": "src/components/customer-conversations/hooks/useCustomerConversations.ts",
+        "sha256": "011a5180c271a6aeebdce493b7f3696f08476521b030d265f9253b3dbeb05ec2",
+        "bytes": 1946
+      },
+      {
+        "path": "src/components/customer-conversations/types/index.ts",
+        "sha256": "0691b6762967c887345ea7d50710465bdad7503f03c05a5cf4118578b562eae9",
+        "bytes": 653
+      },
+      {
+        "path": "src/components/customer-conversations/ui/CustomerConversationList.tsx",
+        "sha256": "580dada5f4fe7537d694199f3bf8f54b264937c7e3c38d61e622a2f20bb3ce9d",
+        "bytes": 4532
+      },
+      {
+        "path": "src/components/customer-conversations/utils/attachment-groups.test.ts",
+        "sha256": "91ff9418046ed1bf0d83aa06a190a8954e774896907d0542c794c7a63b9c5da5",
+        "bytes": 2187
+      },
+      {
+        "path": "src/components/customer-conversations/utils/controller.test.ts",
+        "sha256": "25c361de0e9ff79f9bc1cceb79bac57ad0ade6a8db82eeb59d1e7f94f5689a4f",
+        "bytes": 7007
+      },
+      {
+        "path": "src/components/customer-conversations/utils/controller.ts",
+        "sha256": "2003595dc26c123e4f1037dc4932585ae1d9f720f570759c9b835f8b14f07bfd",
+        "bytes": 6613
+      },
+      {
+        "path": "src/lib/db/inbox-customer-history-schema.ts",
+        "sha256": "e77c171c3d1f4c4af51dc28bd4bdbebc46bc4b480e4d1f4a2d1411d53e006d91",
+        "bytes": 1462
+      },
+      {
+        "path": "src/lib/inbox-customer-history/repository.ts",
+        "sha256": "0c54f976838e23044784f14e33bc22bdf89284478ffcc47710a0cd6577d73dcd",
+        "bytes": 11696
+      },
+      {
+        "path": "src/lib/inbox-customer-history/routes.ts",
+        "sha256": "8581f9897a6baea3408ac27395f8d03111dd7e69d43a7b374cecee30a006ad2b",
+        "bytes": 2083
+      },
+      {
+        "path": "src/lib/inbox-customer-history/rules.ts",
+        "sha256": "05846175eee224ec822a0eb433a70eb222480ea87e7d89223a9a7f81da0c9803",
+        "bytes": 1599
+      }
+    ],
+    "checks": {
+      "apiPglite": 26,
+      "apiPostgres": 26,
+      "platformPerApiRun": 11,
+      "identity": 12,
+      "upgrade": 12,
+      "uiApiAttachmentUnits": 14,
+      "sdkVm": 23,
+      "designerSdkCrossVm": 6,
+      "allUnits": 1119,
+      "files": 18,
+      "salesWithinFiles": 13,
+      "activitiesWithinFiles": 7,
+      "imports": 15,
+      "importFiles": 23,
+      "aiHandoff": 4,
+      "browser": 15,
+      "typecheck": true,
+      "lint": true,
+      "isolatedBuild": true
+    },
+    "files": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-api-pglite.log",
+        "sha256": "7b042904dcb0707b1e70149f28cbcd4e4ca0761216edf09595b32161d29ca96e",
+        "bytes": 4236
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-api-postgres.log",
+        "sha256": "9da11895b04c5da913eb213475a97504f8ac2bd852c853c3121222b1d04df10f",
+        "bytes": 4602
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-api-identity.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-sdk-agent-final.log",
+        "sha256": "053489e121e1b65af0cdf245d1ec3efe20527d69a3c1df89d1b981de56254a15",
+        "bytes": 2635
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-sdk-cross-agent-final.log",
+        "sha256": "577355aa4368ffaf68f04ec259ac2eef2b564f8ef444b5da2e0ac139fd69e1d4",
+        "bytes": 848
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-units.log",
+        "sha256": "0374e639b97f218dd64e27b2c2c2d22a2c8a8e6031f4542be550f95ef672e42d",
+        "bytes": 107082
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-tsc.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-lint.log",
+        "sha256": "f19f6aba3fe4f52352e4e92a762d0a0af1d212d37d8488237c85706b0cee779c",
+        "bytes": 2975
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-build-final.log",
+        "sha256": "d9edc600e3198972c4a123e0254206b8d09714bda78664073352b175707649a4",
+        "bytes": 13655
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-files-regression.log",
+        "sha256": "4ad67f976d52264eb12b7c42744e5501601e12d2d9ac7bdbe3e1ff3428ed38be",
+        "bytes": 4455
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-imports-regression.log",
+        "sha256": "984a71372bd78537aeb2676c95f175c7d1471f0fb22bcb2f954fe1c305719d44",
+        "bytes": 2570
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-import-files-regression.log",
+        "sha256": "d59e5c5b25d7a84d93b108b51ffabd050e5b3861b28630e90a8143f4f5cf899e",
+        "bytes": 3470
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-handoff-regression.log",
+        "sha256": "1b75562d2a22a06a9148754454c9ddf07376b6f0ae4befe55206178bdd0dfe81",
+        "bytes": 1520
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-upgrade.log",
+        "sha256": "9b6ad8c85a44d49f59f4f1b092ced4383adba7cf2e9a1b3965402e872feecabb",
+        "bytes": 1657
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-browser-qa.json",
+        "sha256": "ee6915fcf37f47540685127dbda12e5a21eaa0dbf7482dcc1a0d89cd67e5cbf1",
+        "bytes": 26267
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-dh-list.png",
+        "sha256": "2d8d5846c1baa6b6fc7b3331270993146c5588c7592ebf2f7c61406e6a276ec9",
+        "bytes": 33316
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-bo-list.png",
+        "sha256": "4eb6c4d8b3133e5f9113019ef41b00f3f53d1faac10bc004c03ed3fca2f8c1d4",
+        "bytes": 32117
+      }
+    ],
+    "scope": {
+      "syntheticOnly": true,
+      "productionChanged": false,
+      "customerDatabaseAccess": false,
+      "realMessagesSent": 0
+    },
+    "limitations": [
+      "파일 선택기 전체 UI 검수 미완료: Chrome 확장 로컬 파일 권한. 파일 API/SDK 및 그룹 이동은 별도 검사.",
+      "실제 Firebase·사이트 도메인·운영 DB/서버·실제 고객 발송 미사용."
+    ]
+  },
+  "customerHistoryScaleQa": {
+    "capturedAt": "2026-10-15T06:46:35.912Z",
+    "status": "passed",
+    "conversations": 10000,
+    "messages": 100170,
+    "members": 20,
+    "businesses": 2,
+    "publicConversationsVerified": 7000,
+    "checks": [
+      "2사업 모든 회원의 전체 목록 ID·순서·50건 커서·정확한 미읽음·메모 제외",
+      "고객 상세의 모든 공개 메시지 ID·내용·100건 이전 커서와 내부 필드 제외",
+      "다른 회원·사업 및 과거/메일/병합 상세·읽음 차단",
+      "직원 전체 본문 검색의 2사업 ID·100건 커서·전체/과거 집계 정확성",
+      "실제 읽음 API 이후 총 미읽음 감소량과 다른 문의 미읽음 보존"
+    ],
+    "postgresMetrics": [
+      {
+        "operation": "customer_list_first_and_total_unread",
+        "p50Ms": 21.211,
+        "p95Ms": 26.847,
+        "samples": 10
+      },
+      {
+        "operation": "customer_list_next_cursor",
+        "p50Ms": 27.09,
+        "p95Ms": 31.032,
+        "samples": 10
+      },
+      {
+        "operation": "customer_detail_latest",
+        "p50Ms": 12.883,
+        "p95Ms": 20.439,
+        "samples": 10
+      },
+      {
+        "operation": "customer_detail_older_cursor",
+        "p50Ms": 10.861,
+        "p95Ms": 13.57,
+        "samples": 10
+      },
+      {
+        "operation": "staff_body_search_first",
+        "p50Ms": 76.985,
+        "p95Ms": 87.858,
+        "samples": 10
+      },
+      {
+        "operation": "staff_body_search_next_cursor",
+        "p50Ms": 67.149,
+        "p95Ms": 78.993,
+        "samples": 10
+      },
+      {
+        "operation": "customer_read_write_and_remaining_unread",
+        "p50Ms": 7.057,
+        "p95Ms": 8.897,
+        "samples": 10
+      }
+    ],
+    "sourceStable": true,
+    "files": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-scale-pglite.json",
+        "sha256": "b695c513c1fcb909f14f54898ddbde1cca848c1f0eca1824a4ad337951ea7c78",
+        "bytes": 12286
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-scale-postgres.json",
+        "sha256": "a000dd778f76f34036abca3c73275973b39d3a699519dc3440d673abee0d6dca",
+        "bytes": 12389
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/customer-history-scale-server-cleanup.json",
+        "sha256": "328ba29997f476c1e4fcb325df7f3a6694cb7d1aaa05ce1b73aa0b4bd7cd124b",
+        "bytes": 249
+      }
+    ],
+    "limitations": "Measured isolated API latency includes route/auth/SQL/serialization within one process. Warm caches, one client, synthetic fixtures. No network round-trip, production SLA, multi-server capacity or operational acceptance is claimed."
+  },
+  "designerReconnectQa": {
+    "commit": "23f27cc3f5785d83d071bb2c1b8f96b114313b71",
+    "branch": "codex/sendb-support-integration",
+    "pr": {
+      "repo": "matches-plan/new-designer-hire",
+      "number": 25,
+      "url": "https://github.com/matches-plan/new-designer-hire/pull/25",
+      "state": "open",
+      "draft": true,
+      "merged": false,
+      "head": "codex/sendb-support-integration",
+      "sha": "23f27cc3f5785d83d071bb2c1b8f96b114313b71",
+      "verifiedAt": "2026-10-15T06:16:05.361Z"
+    },
+    "tests": {
+      "command": "pnpm test",
+      "passed": 75,
+      "failed": 0
+    },
+    "typecheck": {
+      "command": "pnpm typecheck",
+      "exitCode": 0
+    },
+    "build": {
+      "command": "node F:/Dev/salesflow/.testenv/build-site-dh.cjs",
+      "exitCode": 0,
+      "staticPages": 30,
+      "environment": "fictional values and external fetch blocked"
+    },
+    "sdk": {
+      "version": "1.4.0",
+      "testedSha256": "ddfae22f5ce169711829ca97113dd41b91005b01ade10ba574e75933d75824ec",
+      "vmScenarios": 5,
+      "unchangedDuringCheck": true
+    },
+    "files": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/designer-all-tests-fixed.log",
+        "sha256": "770b70f25b3be20ef43b609a46a636d012ea25d896c8f1bd7b7119a6e50352b6"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/designer-typecheck.log",
+        "sha256": "653f5d9eecbb94f6ba67b87d1c6c8b26060bbc0ec8411260069aa069341c6232"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/designer-isolated-build.log",
+        "sha256": "86014f4fd29ca6fa05dbd583cb30712ce9e638cb0f32193d045afa481c932c33"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/site-sdk-reconnect-check.cjs",
+        "sha256": "5276544f96c15a724efd654747072493560e1afe0292e894621857145a4cb132"
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/designer-sdk-integration-final.log",
+        "sha256": "360698991559c54ad3099ff5f790fa314044b92a896db7a0afac94dc862e77ea"
+      }
+    ],
+    "evidence": {
+      "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/designer-reconnect-evidence.json",
+      "sha256": "562c21abdbff1e3f2e8f8b4bf2db4ac5ab7d0283c50598981d5fc7ea66ef2b61",
+      "bytes": 2119
+    }
+  },
+  "channelContactReimportQa": {
+    "capturedAt": "2026-10-15T06:46:35.923Z",
+    "checks": 7,
+    "relatedChecksReportedByIndependentReviewer": {
+      "imports": 15,
+      "records": 19,
+      "typecheck": true
+    },
+    "sources": [
+      {
+        "path": "src/lib/customer-platform/repository.ts",
+        "sha256": "0be27388650f38d00ac07b3b5ac4715de75aac1d1905d7bef8808fc9ea3fdd43",
+        "bytes": 18029
+      },
+      {
+        "path": "scripts/check-channel-contact-reimport.cjs",
+        "sha256": "11671b4ae52dcd9814ae2d21a2746b996c37228e86cbae0e3b4b49ddfcee8d09",
+        "bytes": 11055
+      }
+    ],
+    "before": {
+      "expectedReproductionFailure": true,
+      "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/channel-contact-reimport-before.log",
+      "sha256": "f69f4b07dfbdf805cc435c640e5622c8266531d81dfad69eebdd034f84962130",
+      "bytes": 1949
+    },
+    "after": {
+      "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/channel-contact-reimport-after.log",
+      "sha256": "7a78eaae0732da4a62da76f568290c1e21ac1fa3c26b3c7eecd561ac33a6bd03",
+      "bytes": 1850
+    }
   }
 }

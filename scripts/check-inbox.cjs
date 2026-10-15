@@ -101,6 +101,7 @@ async function fixture(testRuntime) {
         "0109_inbox_team_business_hours.sql",
         "0110_inbox_reply_guard.sql",
         "0111_customer_import_files.sql",
+        "0112_inbox_customer_history.sql",
     ])
         for (const statement of fs
             .readFileSync(

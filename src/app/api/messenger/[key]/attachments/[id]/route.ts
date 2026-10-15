@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { attachmentGet } from "@/lib/inbox/file-http";
 import { handleInbox, visitorToken } from "@/lib/inbox/http";
 import { visitorFileScope } from "@/lib/inbox/repository";
+import { selectedConversation } from "@/lib/inbox-customer-history/rules";
 import {
     applyMessengerHeaders,
     messengerHeaders,
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest, c: C) {
         async () => {
             const { key } = await c.params;
             headers = await messengerHeaders(req, key);
-            return visitorFileScope(key, visitorToken(req));
+            return visitorFileScope(key, visitorToken(req), undefined, {conversationId:selectedConversation(req.nextUrl.searchParams)});
         },
         () => c.params.then((p) => p.id),
     );

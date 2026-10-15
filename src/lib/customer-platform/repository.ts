@@ -267,6 +267,7 @@ export async function upsertContact(
                 and(
                     eq(inboxConversations.orgId, orgId),
                     eq(inboxConversations.contactId, contact.id),
+                    eq(inboxConversations.historyOnly, false),
                     or(
                         sql`${inboxConversations.name} IS DISTINCT FROM ${contact.name}`,
                         sql`${inboxConversations.email} IS DISTINCT FROM ${contact.email}`,

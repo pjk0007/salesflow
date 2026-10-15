@@ -1,5 +1,7 @@
 # 두 사이트의 API/SDK 통합
 
+0112의 회원 문의 목록·첫 메시지로 새 문의 생성·선택 문의/첨부·서버 읽음과 고객용 `sdk/messenger.ts`는 [CUSTOMER-HISTORY.md](CUSTOMER-HISTORY.md)를 따른다. SDK1.4와 위젯의 설정별 ACK를 함께 설치해야 한다. 실제 운영 설치는 수행하지 않았다.
+
 0111의 과거 상담 파일 원본 목록·다운로드 이전·주소 갱신·보관 파일 보충 API와 서버 SDK는 [IMPORT-FILES.md](IMPORT-FILES.md)를 따른다. 관리자가 별도로 시작하며 현재 상담의 파일 전송 계약은 유지한다.
 
 현재 SDK는 샌드비 저장소에 포함된 소스다. 별도 npm 패키지로 배포하지 않았다. 서비스 서버용 `sdk/server.ts`는 Node의 fetch를 사용하며, 브라우저 SDK는 배포 서버의 `/sendb-sdk.js`에서 제공한다. 기존 한 줄 설치 `/sendb-chat.js`도 계속 동작한다.
@@ -76,6 +78,8 @@ async function startMemberChat(channelKey) {
 |---|---|
 | `boot(options)` | 연결 완료까지 Promise 대기. 시작만으로 빈 회원 상담을 만들지 않는다 |
 | `show()` / `hide()` | 상담창 열기/닫기 |
+| `showConversations()` / `showNewConversation()` / `showConversation(id)` | SDK1.4: 준비된 회원의 목록·새 작성·선택 문의 열기. 빈 문의는 첫 전송에서만 생성 |
+| `reconnect()` | SDK1.4: 현재 iframe·인증·초안을 유지해 새 설정/조회 확인. 기존 프레임이 있는 최초 준비 타임아웃도 복구 |
 | `showLauncher()` / `hideLauncher()` | SDK 1.2.0: 상담 열기 버튼만 표시/숨김. 상담창 열기/닫기와 독립적 |
 | `getSessionType()` | SDK 1.2.0: 로컬 연결 진행 상태 `uninitialized` / `anonymous` / `member`. 서버 인증·접근 권한을 증명하지 않음 |
 | `setDraft(message)` | SDK 1.3.0: 5,000자 이내 입력 초안을 제안. 기존 문장을 덮지 않고 사람의 교체 선택 제공. 전송하지 않음 |

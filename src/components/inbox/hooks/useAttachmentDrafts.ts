@@ -7,6 +7,23 @@ export type FileDraft = {
     file: File;
     uploaded?: ChatAttachment;
 };
+export function moveAttachmentDraftGroup(
+    groups: Record<string, FileDraft[]>,
+    from: string,
+    to: string,
+): Record<string, FileDraft[]> {
+    if (from === to) return groups;
+    const combined = new Map<string, FileDraft>();
+    for (const draft of [...(groups[to] ?? []), ...(groups[from] ?? [])]) {
+        const previous = combined.get(draft.clientId);
+        // Retain a completed upload even when a duplicate draft is in the destination.
+        if (!previous || (!previous.uploaded && draft.uploaded))
+            combined.set(draft.clientId, draft);
+    }
+    if (combined.size > 5)
+        throw new Error("파일은 한 번에 5개까지 보낼 수 있습니다. 기존 파일을 확인해주세요.");
+    return { ...groups, [from]: [], [to]: [...combined.values()] };
+}
 export function useAttachmentDrafts(key: string) {
     const [groups, setGroups] = useState<Record<string, FileDraft[]>>({});
     const current = useRef(groups);
@@ -105,6 +122,11 @@ export function useAttachmentDrafts(key: string) {
         },
         clear() {
             update(key, () => []);
+        },
+        moveTo(newGroupKey: string) {
+            const next = moveAttachmentDraftGroup(current.current, key, newGroupKey);
+            current.current = next;
+            setGroups(next);
         },
         reset,
     };

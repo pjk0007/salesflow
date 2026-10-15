@@ -10,6 +10,7 @@ import {
     inboxAttachments as files,
     customerAiJobs,
     customerWorkflowRuns as runs,
+    inboxCustomerReads,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { authenticatedCustomer } from "./repository";
@@ -119,6 +120,8 @@ export async function linkVisitorIdentity(
                     eq(chats.contactId, member.id),
                     eq(chats.historyOnly, false),
                     eq(chats.medium, "web"),
+                    eq(chats.isCurrent, true),
+                    isNull(chats.mergedIntoId),
                 ),
             );
         const ids = [hint.id, ...(existing ? [existing.id] : [])].sort();
@@ -145,6 +148,15 @@ export async function linkVisitorIdentity(
                 409,
             );
         if (target.id !== source.id) {
+            const movedReplies = await tx
+                .select({ id: messages.id })
+                .from(messages)
+                .where(
+                    and(
+                        eq(messages.conversationId, source.id),
+                        eq(messages.kind, "reply"),
+                    ),
+                );
             const duplicates = await tx
                 .select({ id: messages.id })
                 .from(messages)
@@ -185,6 +197,30 @@ export async function linkVisitorIdentity(
                     version: source.version + 1,
                 })
                 .where(eq(chats.id, source.id));
+            if (movedReplies.length) {
+                // Bind one typed array so a long-running anonymous thread does
+                // not consume one SQL parameter per reply on identification.
+                const movedIds = sql`${`{${movedReplies.map(({ id }) => id).join(",")}}`}::integer[]`;
+                await tx
+                    .insert(inboxCustomerReads)
+                    .values({
+                        conversationId: target.id,
+                        contactId: member.id,
+                        mergedUnreadIds: movedReplies.map(({ id }) => id),
+                        readRevision: 1,
+                    })
+                    .onConflictDoUpdate({
+                        target: [
+                            inboxCustomerReads.conversationId,
+                            inboxCustomerReads.contactId,
+                        ],
+                        set: {
+                            mergedUnreadIds: sql`ARRAY(SELECT DISTINCT moved_id FROM unnest(${inboxCustomerReads.mergedUnreadIds} || ${movedIds}) AS moved_id)`,
+                            readRevision: sql`${inboxCustomerReads.readRevision}+1`,
+                            updatedAt: new Date(),
+                        },
+                    });
+            }
         }
         const now = new Date();
         const reason =
