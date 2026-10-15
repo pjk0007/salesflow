@@ -6,6 +6,11 @@ import { supportRequest, supportWrite } from "../api";
 import { useSupportJobs } from "../hooks/useSupportJobs";
 import type { SupportJobDetail } from "../types";
 import type { Conversation, ChatMessage } from "@/components/inbox/types";
+import {
+    supportJobCreatedAt,
+    supportJobProvenance,
+    supportProvenanceNames,
+} from "../utils/job-provenance";
 export const supportStateNames: Record<string, string> = {
     queued: "생성 대기",
     generating: "생성·근거 검토 중",
@@ -72,7 +77,18 @@ export function SupportDraftPanel({
             setBusy(false);
         }
     }
-    const job = detail.data?.job;
+    const job =
+        selected && detail.data?.job?.id === selected
+            ? detail.data.job
+            : undefined;
+    const provenance = job
+        ? supportJobProvenance(
+              job,
+              chat.id,
+              rows.find((row) => row.id === job.id),
+          )
+        : "unknown";
+    const readOnly = provenance !== "current";
     return (
         <div className="mx-4 space-y-2 text-xs">
             {chat.aiState === "human" && chat.aiHandoffReason && (
@@ -89,9 +105,12 @@ export function SupportDraftPanel({
                 </summary>
                 <div className="mt-3 max-h-80 space-y-3 overflow-auto">
                     <p className="text-muted-foreground">
-                        승인된 상담 지식으로 초안을 만들고 인용 근거를 다시
-                        검토합니다. 초안을 입력창에 넣은 뒤 확인하고 전송하세요.
+                        현재 상담의 승인된 지식으로 초안을 만들고 인용 근거를
+                        다시 검토합니다. 현재 초안은 입력창에서 확인하고
+                        전송하세요. 병합 전 상담 기록은 확인용으로만 볼 수
+                        있습니다.
                     </p>
+                    <p className="font-medium">현재 상담 작업</p>
                     <div className="flex flex-wrap gap-2">
                         <button
                             type="button"
@@ -102,8 +121,8 @@ export function SupportDraftPanel({
                             {busy
                                 ? "생성·근거 검토 중…"
                                 : pending.current
-                                  ? "이전 생성 결과 확인"
-                                  : "초안 생성"}
+                                  ? "현재 상담의 이전 생성 결과 확인"
+                                  : "현재 상담 초안 생성"}
                         </button>
                         <button
                             type="button"
@@ -116,8 +135,8 @@ export function SupportDraftPanel({
                             }
                         >
                             {chat.aiState === "human"
-                                ? "AI 자동 응대 재개 허용"
-                                : "사람이 응대하기"}
+                                ? "현재 상담 AI 자동 응대 재개 허용"
+                                : "현재 상담 사람이 응대하기"}
                         </button>
                         <a
                             className="py-2 text-[#635BFF]"
@@ -134,6 +153,7 @@ export function SupportDraftPanel({
                                 pages.error?.message ||
                                 detail.error?.message}
                             <button
+                                type="button"
                                 className="ml-2 underline"
                                 onClick={() => {
                                     void pages.mutate();
@@ -153,13 +173,23 @@ export function SupportDraftPanel({
                         >
                             {rows.map((r) => (
                                 <option key={r.id} value={r.id}>
-                                    {new Date(r.createdAt).toLocaleTimeString(
-                                        "ko-KR",
-                                    )}{" "}
-                                    · {supportStateNames[r.state] ?? r.state}
+                                    {
+                                        supportProvenanceNames[
+                                            supportJobProvenance(r, chat.id)
+                                        ]
+                                    }{" "}
+                                    · {supportJobCreatedAt(r.createdAt)} ·{" "}
+                                    {supportStateNames[r.state] ?? r.state}
                                 </option>
                             ))}
                         </select>
+                    )}
+                    {(pages.isLoading || (detail.isLoading && selected)) && (
+                        <p role="status" className="text-muted-foreground">
+                            {pages.isLoading
+                                ? "생성 기록을 불러오는 중…"
+                                : "선택한 생성 기록을 불러오는 중…"}
+                        </p>
                     )}
                     {job && (
                         <article
@@ -167,8 +197,36 @@ export function SupportDraftPanel({
                             className="space-y-2 rounded-lg border bg-background p-3"
                         >
                             <strong>
+                                {supportProvenanceNames[provenance]} ·{" "}
                                 {supportStateNames[job.state] ?? job.state}
                             </strong>
+                            <p className="text-muted-foreground">
+                                {provenance === "merged"
+                                    ? "원본 생성 시각"
+                                    : "생성 시각"}{" "}
+                                <time dateTime={job.createdAt}>
+                                    {supportJobCreatedAt(job.createdAt)}
+                                </time>
+                            </p>
+                            {readOnly && (
+                                <p className="rounded-lg bg-amber-50 p-2 text-amber-900">
+                                    {provenance === "merged"
+                                        ? "병합 전 상담에서 생성한 기록입니다. 당시 문구와 근거만 확인할 수 있으며, 현재 답변에 넣거나 생성 작업을 취소할 수 없습니다. 새 초안은 위의 현재 상담 작업에서 생성해주세요."
+                                        : "이 기록이 현재 상담의 초안인지 확인할 수 없어 읽기 전용으로 표시합니다. 다시 불러온 뒤 출처를 확인해주세요."}
+                                </p>
+                            )}
+                            {provenance === "merged" &&
+                                job.originConversationId && (
+                                <details className="text-muted-foreground">
+                                    <summary className="cursor-pointer">
+                                        원본 상담 확인 정보
+                                    </summary>
+                                    <p className="mt-1 break-all">
+                                        원본 상담 ID:{" "}
+                                        <code>{job.originConversationId}</code>
+                                    </p>
+                                </details>
+                            )}
                             {job.reason && (
                                 <p className="text-amber-800">{job.reason}</p>
                             )}
@@ -177,18 +235,23 @@ export function SupportDraftPanel({
                                     {job.answer}
                                 </p>
                             )}
-                            {job.state === "ready" && !detail.data?.usable && (
+                            {!readOnly &&
+                                job.state === "ready" &&
+                                !detail.data?.usable && (
                                 <p role="alert" className="text-amber-800">
                                     근거 또는 대화가 변경되었습니다. 최신 초안을
                                     생성해주세요.
                                 </p>
                             )}
-                            {job.state === "ready" && (
+                            {!readOnly && job.state === "ready" && (
                                 <button
                                     type="button"
                                     disabled={!detail.data?.usable}
                                     className="rounded-lg bg-[#635BFF] px-3 py-2 text-white disabled:opacity-40"
-                                    onClick={() => onUse(job.answer!, job.id)}
+                                    onClick={() => {
+                                        if (!readOnly && detail.data?.usable)
+                                            onUse(job.answer!, job.id);
+                                    }}
                                 >
                                     {hasDraft
                                         ? "작성 중인 답변 뒤에 추가"
@@ -242,13 +305,15 @@ export function SupportDraftPanel({
                                     · 지식 v{job.knowledgeVersionId ?? "없음"}
                                 </p>
                             )}
-                            {["queued", "generating", "ready"].includes(
-                                job.state,
-                            ) && (
+                            {!readOnly &&
+                                ["queued", "generating", "ready"].includes(
+                                    job.state,
+                                ) && (
                                 <button
                                     type="button"
                                     className="text-muted-foreground underline"
                                     onClick={async () => {
+                                        if (readOnly) return;
                                         try {
                                             await supportWrite(
                                                 `/api/inbox/conversations/${chat.id}/ai/${job.id}`,
@@ -268,7 +333,7 @@ export function SupportDraftPanel({
                             )}
                         </article>
                     )}
-                    {!pages.isLoading && !rows.length && (
+                    {!pages.isLoading && !pages.error && !rows.length && (
                         <p className="text-muted-foreground">
                             생성한 초안이 없습니다. 고객 문의가 들어오면
                             수동으로 만들어볼 수 있습니다.

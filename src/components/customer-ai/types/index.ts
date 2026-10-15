@@ -45,6 +45,8 @@ export interface SupportKnowledge {
 }
 export interface SupportJob {
     id: string;
+    originConversationId: string;
+    fromMergedConversation: boolean;
     state: string;
     reason: string | null;
     answer: string | null;
@@ -72,6 +74,8 @@ export interface SupportJobDetail {
 export type SupportJobSummary = Pick<
     SupportJob,
     | "id"
+    | "originConversationId"
+    | "fromMergedConversation"
     | "state"
     | "createdAt"
     | "mode"
