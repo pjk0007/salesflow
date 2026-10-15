@@ -1,4 +1,5 @@
 import type { EmailDelivery } from "@/components/inbox-email/types";
+import type { RoutingTeam } from "@/components/inbox-routing/types";
 import type { SendbEmailContext } from "../../../../sdk/email-types";
 export type ConversationStatus = "open" | "snoozed" | "closed";
 export interface InboxChannel {
@@ -12,6 +13,7 @@ export interface InboxChannel {
     enabled: boolean;
 }
 export interface Conversation {
+    teamId?: string | null;
     medium?: "web" | "email";
     emailContext?: SendbEmailContext;
     historyOnly?: boolean;
@@ -71,6 +73,7 @@ export interface ChatAttachment {
     size: number;
 }
 export interface InboxBootstrap {
+    teams?: RoutingTeam[];
     mentionMembers?: { id: string; name: string; workspaceIds: number[] }[];
     channels: InboxChannel[];
     members: { id: string; name: string; workspaceIds: number[] }[];
@@ -89,7 +92,8 @@ export type ConversationFilter =
     | "unread"
     | "priority"
     | "history"
-    | "mentioned";
+    | "mentioned"
+    | "myTeams";
 export interface InboxListPage {
     rows: Conversation[];
     counts: Record<ConversationFilter, number>;

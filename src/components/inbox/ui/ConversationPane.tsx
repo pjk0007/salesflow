@@ -20,6 +20,7 @@ import { useNoteMentions } from "@/components/inbox-collaboration/hooks/useNoteM
 import { NoteMentions } from "@/components/inbox-collaboration/ui/NoteMentions";
 import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTargetCard";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
+import { TeamAssignment } from "@/components/inbox-routing/ui/TeamAssignment";
 export const statusNames = {
     open: "진행중",
     snoozed: "보류중",
@@ -829,51 +830,13 @@ function CustomerInfo({
                 </>
             ) : (
                 <>
-                    <section className="space-y-3">
-                        <h3 className="font-semibold">담당 정보</h3>
-                        <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-                            담당자
-                            <select
-                                disabled={chat.historyOnly || !canRespond}
-                                aria-label="담당자"
-                                className="max-w-[160px] rounded-lg border bg-background px-2 py-1.5 text-foreground"
-                                value={chat.assigneeId ?? ""}
-                                onChange={(e) =>
-                                    change({
-                                        assigneeId: e.target.value || null,
-                                    })
-                                }
-                            >
-                                <option value="">담당자 없음</option>
-                                {chat.assigneeId &&
-                                    !bootstrap.members.some(
-                                        (m) =>
-                                            m.id === chat.assigneeId &&
-                                            m.workspaceIds.includes(
-                                                workspaceId ?? 0,
-                                            ),
-                                    ) && (
-                                        <option
-                                            value={chat.assigneeId}
-                                            disabled
-                                        >
-                                            기존 담당자 · 현재 응대 권한 없음
-                                        </option>
-                                    )}
-                                {bootstrap.members
-                                    .filter((m) =>
-                                        m.workspaceIds.includes(
-                                            workspaceId ?? 0,
-                                        ),
-                                    )
-                                    .map((m) => (
-                                        <option key={m.id} value={m.id}>
-                                            {m.name}
-                                        </option>
-                                    ))}
-                            </select>
-                        </label>
-                    </section>
+                    <TeamAssignment
+                        bootstrap={bootstrap}
+                        chat={chat}
+                        workspaceId={workspaceId ?? 0}
+                        canRespond={canRespond}
+                        change={change}
+                    />
                     <CustomerCrmContext chat={chat} bootstrap={bootstrap} />
                     <section className="space-y-3 border-t pt-5">
                         <h3 className="font-semibold">고객 정보</h3>

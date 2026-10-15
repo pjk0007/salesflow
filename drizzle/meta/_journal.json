@@ -743,6 +743,13 @@
       "when": 1792033200000,
       "tag": "0105_inbox_mentions",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1792036800000,
+      "tag": "0106_inbox_teams",
+      "breakpoints": true
     }
   ]
 }

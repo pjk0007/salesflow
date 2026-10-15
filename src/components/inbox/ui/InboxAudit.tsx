@@ -18,6 +18,11 @@ type Row = {
     createdAt: string;
 };
 const fields: Record<string, string> = {
+    teamId: "상담팀",
+    team: "팀",
+    description: "담당 업무",
+    memberIds: "팀원",
+    autoAssign: "자동 배정",
     name: "이름",
     email: "이메일",
     identity: "회원 이력 연결",

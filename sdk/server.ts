@@ -1,3 +1,5 @@
+import type { SendbInboxTeam } from "./routing-types";
+export type { SendbInboxTeam } from "./routing-types";
 import type {
     SendbOperationsSettings,
     SendbOperationsPolicy,
@@ -216,6 +218,7 @@ export interface SendbTask extends SendbTaskInput {
     updatedAt: string;
 }
 export interface SendbConversation {
+    teamId?: string | null;
     emailContext?: SendbEmailContext;
     medium: "web" | "email";
     aiState: "auto" | "human";
@@ -936,7 +939,9 @@ export class SendbClient {
                 | "unread"
                 | "priority"
                 | "history"
-                | "mentioned";
+                | "mentioned"
+                | "myTeams";
+            teamId?: string;
             before?: string;
             beforeId?: string;
         } = {},
@@ -987,6 +992,42 @@ export class SendbClient {
             `/api/v1/inbox/channels/${channelId}/teammates`,
         );
     }
+    inboxTeams(channelId: number) {
+        return this.request<SendbInboxTeam[]>(
+            `/api/v1/inbox/teams?channelId=${channelId}`,
+        );
+    }
+    createInboxTeam(input: {
+        channelId: number;
+        name: string;
+        description?: string;
+        autoAssign?: boolean;
+        enabled?: boolean;
+        memberIds?: string[];
+    }) {
+        return this.request<SendbInboxTeam>(
+            "/api/v1/inbox/teams",
+            "POST",
+            input,
+        );
+    }
+    updateInboxTeam(
+        id: string,
+        input: {
+            version: number;
+            name?: string;
+            description?: string;
+            autoAssign?: boolean;
+            enabled?: boolean;
+            memberIds?: string[];
+        },
+    ) {
+        return this.request<SendbInboxTeam>(
+            `/api/v1/inbox/teams/${encodeURIComponent(id)}`,
+            "PATCH",
+            input,
+        );
+    }
     reply(
         conversationId: string,
         body: string,
@@ -1015,6 +1056,7 @@ export class SendbClient {
             version?: number;
             status?: "open" | "snoozed" | "closed";
             assigneeId?: string | null;
+            teamId?: string | null;
             priority?: boolean;
             tags?: string[];
             aiState?: "auto" | "human";

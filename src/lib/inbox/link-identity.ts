@@ -267,7 +267,14 @@ export async function linkVisitorIdentity(
                 recordId: member.recordId,
                 identifiedAt: target.identifiedAt ?? now,
                 tags,
-                assigneeId: target.assigneeId ?? source.assigneeId,
+                teamId:
+                    target.teamId || target.assigneeId
+                        ? target.teamId
+                        : source.teamId,
+                assigneeId:
+                    target.teamId || target.assigneeId
+                        ? target.assigneeId
+                        : source.assigneeId,
                 priority: target.priority || source.priority,
                 aiState: "human",
                 aiHandoffReason: "회원 이력 연결 후 상담원이 확인해야 합니다.",

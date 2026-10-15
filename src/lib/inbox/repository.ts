@@ -62,6 +62,12 @@ import { InboxError } from "./errors";
 export { InboxError } from "./errors";
 import { verifyCustomerIdentity } from "@/lib/customer-platform/identity";
 import { appendActivity } from "@/lib/customer-platform/activities";
+import { visibleTeams } from "@/lib/inbox-routing/repository";
+import {
+    assignmentTeam,
+    chooseTeamAssignee,
+    teamMemberPredicate,
+} from "@/lib/inbox-routing/assignment";
 import {
     bindAttachments,
     fileOwner,
@@ -86,6 +92,7 @@ const conversationColumns = {
     pageUrl: inboxConversations.pageUrl,
     status: inboxConversations.status,
     assigneeId: inboxConversations.assigneeId,
+    teamId: inboxConversations.teamId,
     recordId: inboxConversations.recordId,
     tags: inboxConversations.tags,
     priority: inboxConversations.priority,
@@ -166,6 +173,7 @@ export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
     });
     return {
         channels,
+        teams: await visibleTeams(actor, exec),
         members: members
             .map(({ role, ...m }) => ({
                 ...m,
@@ -302,6 +310,10 @@ export async function listConversations(
                 isNull(inboxConversations.mergedIntoId),
                 eq(inboxConversations.historyOnly, input.filter === "history"),
                 conversationSearch(input.q),
+                teamFilter(input.teamId),
+                input.filter === "myTeams"
+                    ? myTeamPredicate(actor.userId)
+                    : undefined,
                 input.status && input.filter !== "history"
                     ? eq(inboxConversations.status, input.status)
                     : undefined,
@@ -353,6 +365,16 @@ function conversationSearch(q: string) {
         sql`EXISTS (SELECT 1 FROM ${inboxMessages} WHERE ${inboxMessages.conversationId} = ${inboxConversations.id} AND ${inboxMessages.body} ILIKE ${pattern})`,
     );
 }
+function teamFilter(teamId: string) {
+    return teamId === "none"
+        ? isNull(inboxConversations.teamId)
+        : teamId
+          ? eq(inboxConversations.teamId, teamId)
+          : undefined;
+}
+function myTeamPredicate(userId: string) {
+    return sql`EXISTS (SELECT 1 FROM inbox_team_members itm WHERE itm.team_id=${inboxConversations.teamId} AND itm.user_id=${userId}::uuid)`;
+}
 export async function conversationListPage(
     actor: Actor,
     channelId: number,
@@ -370,6 +392,10 @@ export async function conversationListPage(
                 all: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly})`.mapWith(
                     Number,
                 ),
+                myTeams:
+                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${myTeamPredicate(actor.userId)})`.mapWith(
+                        Number,
+                    ),
                 history:
                     sql<number>`count(*) FILTER (WHERE ${inboxConversations.historyOnly})`.mapWith(
                         Number,
@@ -407,6 +433,7 @@ export async function conversationListPage(
                     eq(inboxConversations.channelId, channelId),
                     isNull(inboxConversations.mergedIntoId),
                     conversationSearch(input.q),
+                    teamFilter(input.teamId),
                     input.status && input.filter !== "history"
                         ? or(
                               eq(inboxConversations.historyOnly, true),
@@ -638,6 +665,37 @@ export async function patchConversation(
                 "다른 사람이 상담 정보를 변경했습니다. 최신 정보를 확인한 뒤 다시 저장해주세요.",
                 409,
             );
+        const teamChanged =
+            input.teamId !== undefined && input.teamId !== chat.teamId;
+        const nextTeamId =
+            input.teamId === undefined ? chat.teamId : input.teamId;
+        if (nextTeamId && (input.teamId !== undefined || input.assigneeId)) {
+            const team = (await assignmentTeam(
+                tx,
+                actor.orgId,
+                chat.channelId,
+                nextTeamId,
+            ))!;
+            if (teamChanged && input.assigneeId === undefined)
+                input.assigneeId = await chooseTeamAssignee(tx, team);
+            if (input.assigneeId) {
+                const [eligible] = await tx
+                    .select({ id: users.id })
+                    .from(users)
+                    .where(
+                        and(
+                            eq(users.id, input.assigneeId),
+                            teamMemberPredicate(team.id, input.assigneeId),
+                        ),
+                    );
+                if (!eligible)
+                    throw new InboxError(
+                        "선택한 상담팀의 응대 가능한 팀원을 선택해주세요.",
+                        409,
+                    );
+            }
+        } else if (teamChanged && input.assigneeId === undefined)
+            input.assigneeId = null;
         if (input.assigneeId) {
             await requireCustomerAccess(
                 await customerStaffActor(
@@ -711,6 +769,13 @@ export async function patchConversation(
                 changes[key] = { before: chat[key], after: normalized[key] };
         }
         if (!Object.keys(changes).length) return chat;
+        if (changes.teamId) {
+            const teams = await visibleTeams(actor, tx);
+            changes.teamId.beforeLabel =
+                teams.find((t) => t.id === chat.teamId)?.name ?? "팀 없음";
+            changes.teamId.afterLabel =
+                teams.find((t) => t.id === input.teamId)?.name ?? "팀 없음";
+        }
         if (changes.assigneeId) {
             const ids = [chat.assigneeId, input.assigneeId].filter(
                 (v): v is string => !!v,

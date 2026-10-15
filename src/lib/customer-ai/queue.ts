@@ -22,6 +22,11 @@ import { sendSystemReply } from "@/lib/inbox/repository";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { InboxError } from "@/lib/inbox/errors";
+import {
+    assignmentTeam,
+    chooseTeamAssignee,
+    teamMemberPredicate,
+} from "@/lib/inbox-routing/assignment";
 import { getSupportSettings, chatKnowledge } from "./catalog";
 import {
     retrieveSources,
@@ -88,6 +93,9 @@ export async function handoffSupport(
                     eq(users.id, config.handoffAssigneeId),
                     eq(users.isActive, 1),
                     eq(organizationMembers.organizationId, chat.orgId),
+                    chat.teamId
+                        ? teamMemberPredicate(chat.teamId, sql`${users.id}`)
+                        : undefined,
                     customerAccessPredicate(
                         chat.orgId,
                         users.id,
@@ -97,6 +105,16 @@ export async function handoffSupport(
                 ),
             );
         assigneeId = person?.id ?? null;
+    }
+    if (attention && !assigneeId && chat.teamId) {
+        const team = await assignmentTeam(
+            exec,
+            chat.orgId,
+            chat.channelId,
+            chat.teamId,
+            false,
+        );
+        if (team) assigneeId = await chooseTeamAssignee(exec, team);
     }
     await exec
         .update(chats)

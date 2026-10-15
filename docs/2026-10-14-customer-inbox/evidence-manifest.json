@@ -4351,5 +4351,323 @@
       "Full R01-R16 replacement remains incomplete"
     ],
     "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. All previous evidence fields preserved as historical records."
+  },
+  "routingQa": {
+    "capturedAt": "2026-10-15T02:54:58.746Z",
+    "scope": "R02/R06/R13: workspace/channel support teams, eligible assignment and team queue; isolated implementation and UI verification only",
+    "repository": {
+      "branch": "dev",
+      "beforeHead": "b5eac632b2d3e7bc3eb93caefdfb61071bc6083e",
+      "pullRequest": "https://github.com/pjk0007/salesflow/pull/14",
+      "draft": true,
+      "merged": false
+    },
+    "migration": "0106_inbox_teams.sql",
+    "tests": {
+      "routingSqlApi": 18,
+      "includedPlatformApi": 11,
+      "allUnits": 1093,
+      "featureLint": "passed",
+      "types": "passed in full isolated Next build",
+      "isolatedNextBuild": "passed with no actual env files/keys",
+      "regression": {
+        "inbox": 22,
+        "identity": 12,
+        "operations": 23,
+        "ai": 16,
+        "workflows": 15,
+        "access": 18,
+        "mentions": 19
+      }
+    },
+    "verified": [
+      "Team create/read/partial patch/version/unique name/idempotence and current manager/key scopes",
+      "Only currently eligible active staff added; retained revoked member does not regain access or receive a new assignment",
+      "Manual team change clears individual assignee; only members may be selected; explicit valid individual takes priority",
+      "Opt-in auto assignment chooses least open workload then oldest auto assignment, serialized under team row lock",
+      "No eligible staff leaves unassigned team queue; archived teams keep history/owners and block new assignments",
+      "Team/null/myTeams filter and counts use same server predicate; composite FK prevents cross-channel team assignment",
+      "Unassigned team notifications reach eligible team members and business managers, not other staff",
+      "AI preferred assignee respects team; manual/auto team fallback remains consistent",
+      "Existing member routing pair wins anonymous merge; otherwise anonymous pair inherited without public team disclosure",
+      "Team and assignment timestamp changes roll back if audit save fails",
+      "Chrome: DH manual team and my-team queue; BO web/email auto assigned to two distinct fictional staff; conflict preserves text and explicit reload; archive/restore preserves owner; viewer controls disabled"
+    ],
+    "isolation": "PGlite with actual migrations/handlers and fictional users/keys; actual inbox components in localhost3120 UI. Real source env files/keys and actual customer DB not loaded. No actual team/permissions/server settings/main merge/production deployment or external customer messages.",
+    "sources": [
+      {
+        "url": "https://www.chatwoot.com/hc/user-guide/articles/1677492970-adding-teams",
+        "scope": "Official team versus individual assignee/manual-auto workflow, adapted to existing Sendb workspace roles; no private runtime/REA claim"
+      }
+    ],
+    "files": [
+      {
+        "path": "src/lib/inbox-routing/assignment.ts",
+        "sha256": "cc22e39449689d0b5d37a0d33d474a2c7885c079bd460615f5cb798981616dc7",
+        "bytes": 2552
+      },
+      {
+        "path": "src/lib/inbox-routing/repository.ts",
+        "sha256": "db1a28e7b0a4ef6d6e0ddcf63c136d6105e48ad52447513e567f7579d3c45126",
+        "bytes": 9796
+      },
+      {
+        "path": "src/lib/inbox-routing/rules.ts",
+        "sha256": "318857b14ae7476173eab1cc7c9e097b274b3aaa96ee1fe4af9855195963f4f7",
+        "bytes": 1451
+      },
+      {
+        "path": "src/components/inbox-routing/api\\index.ts",
+        "sha256": "de07fb78d5dcb7758486626c92e46038cd7d41b092548f4d92f24eea86642b30",
+        "bytes": 793
+      },
+      {
+        "path": "src/components/inbox-routing/hooks\\useInboxTeams.ts",
+        "sha256": "bd1f1917630b6cd47f0ccfeddb07c460cd6ec4cca66416399f46f7b55679745b",
+        "bytes": 515
+      },
+      {
+        "path": "src/components/inbox-routing/types\\index.ts",
+        "sha256": "75f7f3dbf242d48e594bae4f9535c86f3187ebdacfdddb1cac5915552a326530",
+        "bytes": 84
+      },
+      {
+        "path": "src/components/inbox-routing/ui\\TeamAssignment.tsx",
+        "sha256": "34dc21d1ec2731637e81fabc9d5b8e29fadc231dcf68f2b644f276463326ff15",
+        "bytes": 4118
+      },
+      {
+        "path": "src/components/inbox-routing/ui\\TeamSettings.tsx",
+        "sha256": "acfb7d86792e61697c75f6c9ff7c291c4625fa036cfa224a5a0edea3a013cd9e",
+        "bytes": 13700
+      },
+      {
+        "path": "src/app/api/inbox-routing/teams\\route.ts",
+        "sha256": "131b99cad25e7031f7d7ead3c1b0e948ade2f18a19af45af1ee62c33280c9378",
+        "bytes": 669
+      },
+      {
+        "path": "src/app/api/inbox-routing/teams\\[id]\\route.ts",
+        "sha256": "9d835b9e02bf824e4d27a0bbf3921d640ae18bce6503d2bf1b757ad8f77f4c9b",
+        "bytes": 832
+      },
+      {
+        "path": "src/app/api/v1/inbox/teams/route.ts",
+        "sha256": "ca389d19b11507cdae95b6d1f3f43630b81ddbb78f24a3a381263e624a6be18e",
+        "bytes": 1206
+      },
+      {
+        "path": "src/app/api/v1/inbox/teams/[id]\\route.ts",
+        "sha256": "d26e5623ccde735bfe0393eaf3e5c36ed3fd061a88ee54446498015506d3577d",
+        "bytes": 1204
+      },
+      {
+        "path": "drizzle/0106_inbox_teams.sql",
+        "sha256": "8f1eb44630476667d56e0e880e2f0d0a3fb5a89c9baadfafa7a872fe59b7263e",
+        "bytes": 1415
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "c6f8bcd630a480657cff3b7429172a20824e5c744509054ae6a648da808546bf",
+        "bytes": 15815
+      },
+      {
+        "path": "src/lib/db/inbox-schema.ts",
+        "sha256": "16293bda52f9f65190110a39eefb85e71ddd0452324ba5f97722a8652c897590",
+        "bytes": 8064
+      },
+      {
+        "path": "src/lib/inbox/rules.ts",
+        "sha256": "0fc02ed5ddf5de6849730869440d599aa98eac0878bad4f52d769d7d73574958",
+        "bytes": 6050
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "sha256": "54aa002b7950a35c081ee48edd17bd0df301aeb6b296b25ba2f657cc038945d6",
+        "bytes": 57031
+      },
+      {
+        "path": "src/lib/inbox/link-identity.ts",
+        "sha256": "10207982b762b256af26309d39dd5b595d463b3720aaf198de9fd0f624f6eb58",
+        "bytes": 13623
+      },
+      {
+        "path": "src/lib/customer-ai/queue.ts",
+        "sha256": "e47134cca37d5297842e1d837b35df97a7e592bc1b253bec17234cb7bd4479fc",
+        "bytes": 13294
+      },
+      {
+        "path": "src/lib/inbox-operations/enqueue.ts",
+        "sha256": "a88e727a4a076d227ca43b6bbdb8c270e3f790e4eed97b49e57891848b77ee74",
+        "bytes": 25861
+      },
+      {
+        "path": "src/components/inbox/types/index.ts",
+        "sha256": "f6feca1fcac7f61f6d05d71ac6309457015d73573796add0ce73c4eba0927622",
+        "bytes": 2739
+      },
+      {
+        "path": "src/components/inbox/hooks/useInbox.ts",
+        "sha256": "0f16b5c41795c9c70020f83f60801aecd1332884078849cd7dc24e1c228537ef",
+        "bytes": 2629
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "243c6a25768a3626f7bba89b569bb7bfb677aaae4cca577091128add8b338e5f",
+        "bytes": 48221
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "sha256": "788b53169b8a3b78cba132cfd44b1ed4e9b69db193812f7044178ec080e2f62a",
+        "bytes": 31212
+      },
+      {
+        "path": "src/components/inbox/ui/InboxAudit.tsx",
+        "sha256": "1bd22d50b1d4acbb842aa41433fbd7b9fb51d48cd7baf93c6e1389cf8a4306a9",
+        "bytes": 4789
+      },
+      {
+        "path": "sdk/server.ts",
+        "sha256": "8135d752138e2595ba443fd41cff6812e87bc048f34c5ae7c041d7b9250475c0",
+        "bytes": 39799
+      },
+      {
+        "path": "sdk/routing-types.ts",
+        "sha256": "e8f0eaad3a42b050d649caeb64be06bfcb8e71b9d6c1ac97195de3acb64d689a",
+        "bytes": 275
+      },
+      {
+        "path": "scripts/check-inbox-routing.cjs",
+        "sha256": "0e4e2e1d370aa06dad79f43c2bc30708e2dc7ee9e9a33abaa3fb11db20cca888",
+        "bytes": 26280
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "sha256": "cd5760a74a1f3d973300c62687103b6f2f7fa1fb77fb12d1e495ee881e773c64",
+        "bytes": 30187
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "sha256": "fb21d73b3a6e14fa99797ed0f3973d124b0d2d4b5dd42ec960a81016636d31ab",
+        "bytes": 30127
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/ROUTING.md",
+        "sha256": "e3c0bdbafc8c6e39387e1ebaa1016845f8008f622e4b595b7583b0af7fd44ab6",
+        "bytes": 7768
+      }
+    ],
+    "logs": [
+      {
+        "path": "routing-qa-final.log",
+        "sha256": "ed54d83f6f4cec7b55367ea7b4c9e0263c2726823e7fc54bad2f97c50dd50683",
+        "bytes": 2685
+      },
+      {
+        "path": "routing-units.log",
+        "sha256": "96a21198ae6e2091d00c5c35b030fcbc18589160f6ec7e55ff1856d1f45ce7fd",
+        "bytes": 104449
+      },
+      {
+        "path": "routing-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "routing-build-verified.log",
+        "sha256": "e1cb225d2fcb389c1b4bdefbd117867e72a6ce12dfd17560ba05a79bba008c23",
+        "bytes": 13300
+      },
+      {
+        "path": "routing-inbox-regression.log",
+        "sha256": "e08a25384ac070c4d11618b80f965c5c82861bc6fa0422d2fa9f765f75fff137",
+        "bytes": 1590
+      },
+      {
+        "path": "routing-identity-regression.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "path": "routing-operations-regression.log",
+        "sha256": "b3c83dae12d801cf59cf9531b38e14e78f7cd130bdacace08147a2c73fb7cb85",
+        "bytes": 3273
+      },
+      {
+        "path": "routing-ai-regression.log",
+        "sha256": "84b75971fb3e953e605807a66b51e75b34c57920e6083550b7cbe0133142434c",
+        "bytes": 2433
+      },
+      {
+        "path": "routing-workflows-regression.log",
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551",
+        "bytes": 2372
+      },
+      {
+        "path": "routing-access-regression.log",
+        "sha256": "156d4c4a99ce20ad04f9830952af858bbeb87abde820dd13c2ac59962e0da688",
+        "bytes": 2679
+      },
+      {
+        "path": "routing-mentions-regression.log",
+        "sha256": "1c8134fb61eeeed2d16e91913652a296200418d876f051aaf3032a785918ee8a",
+        "bytes": 2873
+      }
+    ],
+    "screenshots": [
+      {
+        "path": "routing-dh-settings-qa.png",
+        "sha256": "3e4a0476360ddd7f965571c4a0a2b73d33b8de5edf29b691137f81cdbb875bf0",
+        "bytes": 77362
+      },
+      {
+        "path": "routing-dh-queue-qa.png",
+        "sha256": "c61d52fd6d35f6933cf05fc87e360e5514bb1ba1cc2d7d2ea4581c4b7dbdfe65",
+        "bytes": 55063
+      },
+      {
+        "path": "routing-bo-settings-qa.png",
+        "sha256": "a431861f61c9d5408cd3d02a5a030e7633553f84e684986377b637a9859e0e1f",
+        "bytes": 102651
+      },
+      {
+        "path": "routing-bo-auto-assignment-qa.png",
+        "sha256": "7031fc4b83275784a1c3456abad12c69cd3494d07cdf6968ecba1a80e0accc83",
+        "bytes": 98022
+      },
+      {
+        "path": "routing-team-conflict-qa.png",
+        "sha256": "bde32ca9399b1e1ed9f6d60f1b7d4802186422eee2e803658753185906d99727",
+        "bytes": 75801
+      },
+      {
+        "path": "routing-archived-queue-qa.png",
+        "sha256": "d67d38bcfee02d49f4b2600568ec0b14dfd3faa7834156f8ec24d0a7dced35a1",
+        "bytes": 100050
+      },
+      {
+        "path": "routing-viewer-qa.png",
+        "sha256": "ca60054ff3440cf1bb382e7ca762e2ccbc3917a226209f3f3b7f259e201f3477",
+        "bytes": 72121
+      },
+      {
+        "path": "routing-bo-restored-qa.png",
+        "sha256": "e9ab17b8116abc4e6a0cebd077cbebb43cbdb202611c479ba7eb2a8d14a2b2f4",
+        "bytes": 99626
+      },
+      {
+        "path": "routing-bo-owners-qa.json",
+        "sha256": "7776b78117e6e83d478aa19a6b03a97e3987a9340b3808afb37ad4ef6e1194fc",
+        "bytes": 317
+      }
+    ],
+    "limits": [
+      "Availability/presence/typing collision/capacity policies not implemented",
+      "No default inbound team or conditional workflow team-routing editor yet; team assignment starts from human/API/AI handoff",
+      "No team-level historical performance metrics; actual PostgreSQL multi-instance/load/team/cutover verification pending",
+      "Existing assignments are not bulk reassigned when membership/config changes; current roles still govern access",
+      "No actual DB migration, real team configuration, main merge or deployment; full R01-R16 goal remains incomplete"
+    ],
+    "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. Earlier evidence fields preserved as historical records. Final assignment/conflict captures recaptured after rendering settled."
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 import { StaffAccessPanel } from "@/components/customer-access/ui/StaffAccessPanel";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
+import { TeamSettings } from "@/components/inbox-routing/ui/TeamSettings";
 import { useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
 import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
@@ -57,6 +58,8 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     void role;
     const [accessOpen, setAccessOpen] = useState(false);
     const [operationsOpen, setOperationsOpen] = useState(false);
+    const [teamsOpen, setTeamsOpen] = useState(false);
+    const [teamFilters, setTeamFilters] = useState<Record<number, string>>({});
     const openSupport: OpenSupportConversation = ({
         conversationId,
         channelId,
@@ -64,6 +67,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         messageId,
     }) => {
         setChannel(channelId);
+        setTeamFilters((value) => ({ ...value, [channelId]: "" }));
         setSelected(conversationId);
         setFocusMessageId(messageId ?? null);
         setFilter("all");
@@ -78,6 +82,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         q: query,
         status,
         filter,
+        teamId: channelId ? (teamFilters[channelId] ?? "") : "",
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
@@ -93,6 +98,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         { id: "all", label: "전체 상담", icon: Inbox },
         { id: "unread", label: "안 읽은 메시지", icon: MessageCircle },
         { id: "mine", label: "내 상담", icon: UserRound },
+        { id: "myTeams", label: "내 팀 상담", icon: UserRound },
         { id: "unassigned", label: "담당자 없음", icon: Archive },
         { id: "priority", label: "중요 상담", icon: Star },
         { id: "history", label: "이전 상담 기록", icon: Archive },
@@ -125,6 +131,14 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         onClick={() => setOperationsOpen(true)}
                     >
                         운영·성과
+                    </button>
+                )}
+                {abilities.manage && channel && (
+                    <button
+                        className="rounded-xl border px-3 py-2 text-xs"
+                        onClick={() => setTeamsOpen(true)}
+                    >
+                        상담팀
                     </button>
                 )}
                 {abilities.manage && channel && (
@@ -245,6 +259,32 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                                 </span>
                             </button>
                         ))}
+                        <label className="mt-4 block px-3 text-xs text-muted-foreground">
+                            팀 대기열
+                            <select
+                                aria-label="팀 대기열"
+                                className="mt-2 w-full rounded-lg border bg-background px-2 py-2 text-foreground"
+                                value={teamFilters[channelId!] ?? ""}
+                                onChange={(e) => {
+                                    setTeamFilters({
+                                        ...teamFilters,
+                                        [channelId!]: e.target.value,
+                                    });
+                                    setSelected(null);
+                                }}
+                            >
+                                <option value="">모든 팀</option>
+                                <option value="none">팀 없음</option>
+                                {(bootstrap.teams ?? [])
+                                    .filter((t) => t.channelId === channelId)
+                                    .map((t) => (
+                                        <option key={t.id} value={t.id}>
+                                            {t.name}
+                                            {!t.enabled ? " · 보관됨" : ""}
+                                        </option>
+                                    ))}
+                            </select>
+                        </label>
                         <div className="mt-6 border-t pt-4">
                             <p className="px-3 text-xs text-muted-foreground">
                                 팀원
@@ -536,6 +576,15 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     canManage={abilities.manage}
                     onClose={() => setOperationsOpen(false)}
                     onSelect={openSupport}
+                />
+            )}
+            {teamsOpen && channel && bootstrap && abilities.manage && (
+                <TeamSettings
+                    key={channel.id}
+                    channel={channel}
+                    bootstrap={bootstrap}
+                    onClose={() => setTeamsOpen(false)}
+                    onSaved={() => initial.bootstrap.mutate()}
                 />
             )}
             {emailSettings && channel && abilities.manage && (

@@ -51,6 +51,7 @@ export const patchInput = z
     .object({
         status: z.enum(["open", "snoozed", "closed"]).optional(),
         assigneeId: z.string().uuid().nullable().optional(),
+        teamId: z.string().uuid().nullable().optional(),
         recordId: z.number().int().positive().nullable().optional(),
         tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
         priority: z.boolean().optional(),
@@ -70,14 +71,18 @@ export const conversationFiltersInput = z.object({
             "priority",
             "history",
             "mentioned",
+            "myTeams",
         ])
         .default("all"),
+    teamId: z
+        .union([z.string().uuid(), z.literal("none"), z.literal("")])
+        .default(""),
 });
 export type ConversationFilters = z.infer<typeof conversationFiltersInput>;
 export function readConversationFilters(params: URLSearchParams) {
     return conversationFiltersInput.parse(
         Object.fromEntries(
-            ["q", "status", "filter"].flatMap((key) =>
+            ["q", "status", "filter", "teamId"].flatMap((key) =>
                 params.has(key) ? [[key, params.get(key)]] : [],
             ),
         ),

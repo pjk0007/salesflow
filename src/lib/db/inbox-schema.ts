@@ -10,6 +10,8 @@ import {
     jsonb,
     index,
     uniqueIndex,
+    primaryKey,
+    foreignKey,
     check,
     type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -49,6 +51,43 @@ export const inboxChannels = pgTable(
     ],
 );
 
+export const inboxTeams = pgTable(
+    "inbox_teams",
+    {
+        id: uuid("id").primaryKey().defaultRandom(),
+        channelId: integer("channel_id")
+            .notNull()
+            .references(() => inboxChannels.id, { onDelete: "cascade" }),
+        orgId: uuid("org_id")
+            .notNull()
+            .references(() => organizations.id, { onDelete: "cascade" }),
+        name: varchar("name", { length: 100 }).notNull(),
+        description: varchar("description", { length: 500 })
+            .notNull()
+            .default(""),
+        autoAssign: boolean("auto_assign").notNull().default(false),
+        enabled: boolean("enabled").notNull().default(true),
+        version: integer("version").notNull().default(1),
+        createdAt: time("created_at").notNull().defaultNow(),
+    },
+    (t) => [
+        uniqueIndex("inbox_team_name").on(t.channelId, sql`lower(${t.name})`),
+        uniqueIndex("inbox_team_channel_key").on(t.id, t.channelId),
+    ],
+);
+export const inboxTeamMembers = pgTable(
+    "inbox_team_members",
+    {
+        teamId: uuid("team_id")
+            .notNull()
+            .references(() => inboxTeams.id, { onDelete: "cascade" }),
+        userId: uuid("user_id")
+            .notNull()
+            .references(() => users.id, { onDelete: "cascade" }),
+        lastAssignedAt: time("last_assigned_at"),
+    },
+    (t) => [primaryKey({ columns: [t.teamId, t.userId] })],
+);
 export const inboxConversations = pgTable(
     "inbox_conversations",
     {
@@ -78,6 +117,7 @@ export const inboxConversations = pgTable(
         assigneeId: uuid("assignee_id").references(() => users.id, {
             onDelete: "set null",
         }),
+        teamId: uuid("team_id"),
         recordId: integer("record_id").references(() => records.id, {
             onDelete: "set null",
         }),
@@ -92,6 +132,14 @@ export const inboxConversations = pgTable(
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [
+        foreignKey({
+            name: "inbox_conversation_team_channel",
+            columns: [t.teamId, t.channelId],
+            foreignColumns: [inboxTeams.id, inboxTeams.channelId],
+        }),
+        index("inbox_team_queue")
+            .on(t.channelId, t.teamId, t.lastMessageAt, t.id)
+            .where(sql`${t.mergedIntoId} is null`),
         uniqueIndex("inbox_session_unique").on(t.channelId, t.tokenHash),
         uniqueIndex("inbox_contact_unique")
             .on(t.channelId, t.contactId)

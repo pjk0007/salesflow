@@ -25,7 +25,18 @@ export async function operationsRecipients(
     target?: string | null,
 ) {
     const rows = await exec
-        .select({ id: users.id })
+        .select({
+            id: users.id,
+            inTeam: chat.teamId
+                ? sql<boolean>`EXISTS (SELECT 1 FROM inbox_team_members itm WHERE itm.team_id=${chat.teamId}::uuid AND itm.user_id=${users.id})`
+                : sql<boolean>`true`,
+            manager: customerAccessPredicate(
+                chat.orgId,
+                users.id,
+                sql`(SELECT workspace_id FROM inbox_channels WHERE id=${chat.channelId})`,
+                "manage",
+            ),
+        })
         .from(organizationMembers)
         .innerJoin(users, eq(users.id, organizationMembers.userId))
         .where(
@@ -43,7 +54,7 @@ export async function operationsRecipients(
     const recipient = target ?? chat.assigneeId;
     return recipient && rows.some((u) => u.id === recipient)
         ? rows.filter((u) => u.id === recipient)
-        : rows;
+        : rows.filter((u) => u.inTeam || u.manager);
 }
 export async function notifyOperations(
     exec: DbExec,
@@ -674,6 +685,19 @@ export async function onOperationsEvent(
             { target: changes.assigneeId.after },
         );
     const status = changes?.status?.after;
+    if (
+        typeof changes?.teamId?.after === "string" &&
+        changes.teamId.after !== changes.teamId.before &&
+        !chat.assigneeId
+    )
+        await notifyOperations(
+            exec,
+            chat,
+            "assigned",
+            event.eventKey,
+            "담당팀으로 이관됐습니다. 상담 내용을 확인해주세요.",
+            at,
+        );
     if (!["open", "snoozed", "closed"].includes(String(status))) return;
     const active = await exec
         .select()

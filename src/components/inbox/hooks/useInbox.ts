@@ -17,6 +17,7 @@ export function useInbox(
         q: string;
         status: ConversationStatus;
         filter: ConversationFilter;
+        teamId?: string;
     } = { q: "", status: "open", filter: "all" },
 ) {
     const bootstrap = useSWR<InboxBootstrap>("/api/inbox", inboxRequest, {
