@@ -211,6 +211,8 @@
         state.button.setAttribute("aria-expanded", "false");
         state.button.style.cssText =
             "position:fixed;right:24px;bottom:24px;z-index:2147483000;border:0;border-radius:22px;padding:18px 22px;background:#635BFF;color:white;font:600 15px system-ui;box-shadow:0 6px 24px #0002;cursor:pointer";
+        state.button.hidden = !!options.hideLauncher;
+        if (options.hideLauncher) state.button.style.display = "none";
         state.frame = document.createElement("iframe");
         state.frame.title = "Sendb 고객 상담";
         state.frame.style.cssText =
@@ -317,13 +319,32 @@
         return result.data;
     }
     window.SendbChat = {
-        version: "1.1.0",
+        version: "1.2.0",
         boot: boot,
         show: function () {
             visibility(true);
         },
         hide: function () {
             visibility(false);
+        },
+        showLauncher: function () {
+            if (current && current.button) {
+                current.button.hidden = false;
+                current.button.style.display = "";
+            }
+        },
+        hideLauncher: function () {
+            if (current && current.button) {
+                current.button.hidden = true;
+                current.button.style.display = "none";
+            }
+        },
+        getSessionType: function () {
+            return current
+                ? current.identityToken
+                    ? "member"
+                    : "anonymous"
+                : "uninitialized";
         },
         shutdown: shutdown,
         identify: async function (identityToken, options) {

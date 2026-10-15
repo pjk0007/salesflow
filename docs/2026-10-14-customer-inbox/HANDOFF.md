@@ -6,7 +6,7 @@
 
 ## 사용할 수 있는 기능
 
-- **실제 디하 서버의 회원 인증 교환**: Firebase 확인/회수 검사→서버 고객 문서→샌드비 사업 고객/JWT를 연결했습니다. 서버 신규15·전체95·교차 SQL/API8을 통과하고 별도 기능 브랜치의 [서버 초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1)에 올렸습니다. 두 웹 프런트 설치·실제 Firebase/배포 검수는 남습니다. [현재 사이트 통합 상태](SITE-INTEGRATION.md) 참고.
+- **디하 사이트의 상담 연결**: 기존 문의 버튼·회원 인증·익명→회원 초안/이력·계정 분리·실패 재연결·채팅/가이드 중첩 숨김을 별도 기능 브랜치의 [웹 초안 PR25](https://github.com/matches-plan/new-designer-hire/pull/25)에 올렸습니다. 신규17/전체67·타입/lint·가상 환경 전체 정적 빌드/30페이지와 실제 어댑터 Chrome 송수신을 확인했습니다. 서버의 Firebase 확인/회수→고객/JWT 교환은 [서버 초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1), 신규15/전체95·교차 SQL/API8입니다. 샌드비 SDK 1.2 제어와 창 재열기 위치를 보완했습니다. 백오랩 웹·실제 Firebase/설치/배포·팀 검수는 남습니다. [디하 UX·검증 한계](DESIGNER-SITE.md), [사이트 통합 상태](SITE-INTEGRATION.md) 참고.
 
 
 - **내부 메모 팀원 멘션**: 같은 사업의 활성 열람/응대 직원 선택→개인 알림→오래된 메모 원문 바로 열기와 나를 멘션한 상담 목록을 추가했습니다. 초안·멱등/롤백·권한 회수·회원 연결을 처리하며 고객 답변/메일 발송과 분리합니다. SQL/API19·전체 단위1,093·회귀16묶음·두 사업 Chrome QA. 마이그레이션 0105, [멘션 UX/API·검수](MENTIONS.md) 참고.

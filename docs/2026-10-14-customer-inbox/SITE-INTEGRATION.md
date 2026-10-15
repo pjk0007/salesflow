@@ -6,7 +6,7 @@
 |---|---|---|
 | `pjk0007/salesflow` | 고객/회원/위젯·상담·CRM·권한 API 계약, 가상 사이트 예제 | dev, 초안 PR14 |
 | `matches-plan/designer-hire-server` | Firebase 로그인/서버 고객 문서→사업 고객 upsert→짧은 상담 인증 교환 | `a546d56c251f5f2b7b9beb8d087c0df8d5b9b4e3`, [초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1), master 미병합 |
-| `matches-plan/new-designer-hire` | Firebase/기존 채널톡 호출 지점과 여정 트래커 확인 | 분리 브랜치 준비, 프런트 구현 미완료 |
+| `matches-plan/new-designer-hire` | 기존 문의 CTA·SDK 공급자 선택·Firebase uid 인증 교환·회원 전환/실패 UI·중첩 숨김 | `03e864e12939b8248692e15233e043df0f7430f8`, [초안 PR25](https://github.com/matches-plan/new-designer-hire/pull/25), main 미병합 |
 | `matches-plan/back-office-lab` | Next 서버·문의 저장·채널톡/CTA 지점 확인 | 분리 브랜치 준비, 프런트 구현 미완료 |
 
 ## 디하 서버 경로
@@ -32,6 +32,6 @@ node --import tsx scripts/check-designer-hire-identity.cjs F:/Dev/sendb-sites/de
 
 ## 남은 설치 흐름
 
-디하 정적 웹은 서버 교환 경로와 공개 SDK 설정을 연결하고, 로그인 대기·익명→회원·계정 전환·로그아웃·인증 갱신/실패를 구현해야 한다. 기존 채팅 페이지의 버튼 숨김과 여러 문의 CTA, 여정 트래커를 보존해야 한다. 백오랩은 익명 상담/문의 후 CTA·프로필 안내를 같은 상담으로 연결해야 한다. 이후 가상 두 사이트 브라우저 QA, 실제 배포 커밋 매핑·키/출처 설정 검토·팀 검수를 진행한다.
+디하 정적 웹의 서버 교환·SDK 설정·로그인 대기·익명→회원·계정 전환·로그아웃·인증 갱신/실패·기존 CTA·채팅/가이드 중첩 숨김을 구현했다. 신규17/전체67·타입·기능 lint·격리 전체 정적 빌드/30페이지 export와 실제 어댑터를 실행한 Chrome 송수신 QA를 확인했다. Firebase는 가상이며 전체 사업 페이지/운영 검수는 아니다. [디하 연결 UX·설정·검증](DESIGNER-SITE.md)과 최신 `designerFrontendQa` 증거를 따른다. 백오랩의 익명 상담/문의 후 CTA·프로필 안내 연결, 실제 배포 커밋 매핑·키/출처 설정 검토·팀 검수는 남아 있다.
 
-이 문서는 서버 교환 구현의 진척이며 두 사이트 설치·전체 서비스 대체 완료를 뜻하지 않는다. 현재 서버 PR과 샌드비 PR은 초안이다. 실제 운영 반영 요청으로 해석하지 않는다.
+이 문서는 서버 교환과 디하 프런트 구현의 진척이며 두 사이트 설치·전체 서비스 대체 완료를 뜻하지 않는다. 현재 서버·디하 웹·샌드비 PR은 모두 초안이다. 실제 운영 반영 요청으로 해석하지 않는다.

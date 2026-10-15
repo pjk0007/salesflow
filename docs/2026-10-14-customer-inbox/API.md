@@ -72,10 +72,14 @@ async function startMemberChat(channelKey) {
 |---|---|
 | `boot(options)` | 연결 완료까지 Promise 대기. 시작만으로 빈 회원 상담을 만들지 않는다 |
 | `show()` / `hide()` | 상담창 열기/닫기 |
+| `showLauncher()` / `hideLauncher()` | SDK 1.2.0: 상담 열기 버튼만 표시/숨김. 상담창 열기/닫기와 독립적 |
+| `getSessionType()` | SDK 1.2.0: 로컬 연결 진행 상태 `uninitialized` / `anonymous` / `member`. 서버 인증·접근 권한을 증명하지 않음 |
 | `shutdown()` | iframe·버튼·현재 인증·사이트의 익명 세션 제거. 서버 대화 기록은 보존 |
 | `identify(identityToken)` | 새 인증이 확인될 때까지 Promise 대기. 같은 회원 인증 갱신은 입력 초안 보존 |
 | `trackEvent(name, properties?, eventId?)` | 확인된 회원의 행동 이벤트 저장. 재시도에는 같은 UUID 사용 |
 | `on(event, handler)` | 구독 해제 함수를 반환. ready/show/hide/shutdown/error/unreadCountChange 사용 |
+
+SDK 1.2.0의 `boot({ hideLauncher: true, ... })`는 버튼을 처음 추가할 때부터 숨긴다. 사이트의 일반 `button` CSS가 HTML hidden을 덮어도 inline display로 숨김을 유지한다. 페이지·가이드 등 여러 숨김 이유의 조합은 설치 어댑터가 관리한다. `hideLauncher()`는 이미 열린 상담창을 닫지 않으므로 필요하면 `hide()`도 호출한다. 디하 실제 소스의 연결·인증 재시도·로그아웃·중첩 숨김과 검수 한계는 [DESIGNER-SITE.md](DESIGNER-SITE.md)를 따른다.
 
 회원 인증은 메모리에만 두고 URL이나 사이트 저장소에 남기지 않는다. 제공한 갱신 함수로 만료 전에 재발급한다. 익명 상담은 사이트 출처의 저장소에 세션을 보존하여 새로고침을 지원한다. 저장소가 제한된 환경에서는 현재 열린 창에서만 이어진다. 익명→회원 연결은 로그인 완료 시 명시적으로 identify(token,{mergeAnonymous:true})를 호출한다. 일반 계정 전환에는 병합하지 않는다. IDENTITY.md의 서버 확인 계약을 따른다.
 

@@ -204,7 +204,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     const lastMessageId = data.data?.messages.at(-1)?.id;
     useEffect(() => {
         if (follow.current) end.current?.scrollIntoView({ block: "end" });
-    }, [lastMessageId]);
+    }, [lastMessageId, opened]);
     const baseError = config.error?.message;
     if (baseError || blocked)
         return (

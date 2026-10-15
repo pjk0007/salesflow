@@ -60,4 +60,4 @@ Opencom/erxes/Twenty 등은 라이선스 조건이 서로 다르므로 설계와
 
 실제 사이트 저장소는 GitHub 앱 목록에 한정하지 않고 기존 Git 로그인으로 확인했다. `matches-plan/new-designer-hire`의 Firebase 회원 인증/채널톡 hook, `matches-plan/back-office-lab`의 Next 서버/채널톡 hook과 기존 Sendb 문의 저장, `matches-plan/designer-hire-server`의 Cloud Functions 소스를 찾았다. 실제 사이트 배포와 새 상담 API 설치는 아직 수행하지 않았으며 [SITE-SOURCES.md](SITE-SOURCES.md)에 확인 범위를 기록했다.
 
-- 실제 사이트 통합 진척: 디하 Firebase 서버의 별도 브랜치에서 검증 uid·서버 회원 문서 기반 샌드비 고객/JWT 교환을 구현/검수했다. 서버15/전체95·실제 샌드비 API/PGlite8과 초안 PR1이며 웹 프런트·실제 설치/배포는 후속이다. [SITE-INTEGRATION.md](SITE-INTEGRATION.md) 참고.
+- 실제 사이트 통합 진척: 디하 Firebase 서버의 검증 uid·서버 회원 문서 기반 고객/JWT 교환(서버15/전체95·교차 SQL/API8, 초안 PR1)에 이어 디하 웹의 기존 CTA·회원/익명 전환·인증 재시도·중첩 숨김을 구현했다(신규17/전체67·격리 전체 빌드·실제 어댑터 Chrome QA, 초안 PR25). SDK 1.2의 launcher 제어와 숨긴 창의 최신 답변/과거 읽기 위치도 보완했다. Firebase/고객은 가상이며 백오랩 웹·실제 설치/배포·전체 전환은 후속이다. [SITE-INTEGRATION.md](SITE-INTEGRATION.md), [DESIGNER-SITE.md](DESIGNER-SITE.md) 참고.

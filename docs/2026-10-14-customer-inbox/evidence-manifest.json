@@ -3782,5 +3782,283 @@
       "Exchange uses two HTTP operations; contact sync can succeed before identity fails, retry remains idempotent"
     ],
     "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. All prior evidence fields preserved."
+  },
+  "designerFrontendQa": {
+    "capturedAt": "2026-10-15T01:49:25.365Z",
+    "scope": "R02/R03/R15: actual designer-hire frontend source adapter and Sendb SDK1.2/widget; fictional Firebase session and loopback/PGlite only",
+    "repository": {
+      "name": "matches-plan/new-designer-hire",
+      "branch": "codex/sendb-support-integration",
+      "base": "main",
+      "baseSha": "025036ce6dbb917e0358b5f98b6558010a7df090",
+      "head": "03e864e12939b8248692e15233e043df0f7430f8",
+      "pullRequest": "https://github.com/matches-plan/new-designer-hire/pull/25",
+      "draft": true,
+      "merged": false
+    },
+    "dependencies": {
+      "designerServerHead": "a546d56c251f5f2b7b9beb8d087c0df8d5b9b4e3",
+      "designerServerPr": "https://github.com/matches-plan/designer-hire-server/pull/1",
+      "sendbBeforeChange": "1589d589a92254bc1f51cd90e4e41a571b3a90bd",
+      "sendbPr": "https://github.com/pjk0007/salesflow/pull/14",
+      "minimumSdk": "1.2.0"
+    },
+    "tests": {
+      "newFrontendCases": 17,
+      "allFrontendUnits": 67,
+      "appTypes": "passed",
+      "testTypes": "passed",
+      "featureLint": "passed with one baseline _app dependency warning",
+      "isolatedStaticBuild": "30 pages exported; 62 existing lint warnings including that one",
+      "realSdkJsVmCases": 4,
+      "platformApiRegression": 11,
+      "identitySqlApiRegression": 12,
+      "sendbTypesAndFeatureLint": "passed"
+    },
+    "isolation": "Actual DH hook/ChannelService/connection UI imported into separate localhost3124 app; fake Firebase credentials/member session, real Sendb handlers/SQL in isolated PGlite. Existing full business pages/Firebase SDK/production tracker not loaded. No production/dev customer DB, credential/env files, server settings, actual sends or deployment.",
+    "verified": [
+      "Existing CTA opens Sendb",
+      "Anonymous history and draft survive first member login and send",
+      "Member B/logout do not show A history",
+      "Identity failure and retry preserve current member",
+      "Late A identity response ignored after B switch",
+      "Internal/admin profile starts no iframe",
+      "Chat/guide hide reasons compose and host button CSS cannot override hiding",
+      "Inbox public reply received by same member; internal notes stay private",
+      "First open shows latest reply; closing/reopening while reading old history preserves scrollTop0"
+    ],
+    "siteFiles": [
+      {
+        "path": "docs/sendb-support-integration.md",
+        "sha256": "4160565419c653416aae6b52764ee2fd00796875c6b427fa7e566370dddde349",
+        "bytes": 6859
+      },
+      {
+        "path": "src/pages/_app.tsx",
+        "sha256": "28ea68d885eb1b0dfe3201aa6304303c1ac544e9dc7d3f39d8a0056202db91db",
+        "bytes": 5361
+      },
+      {
+        "path": "src/hooks/common/useChannelTalk.ts",
+        "sha256": "d43068336eb021db26e4d3e0b08da39e711aee9ec1fdfb89df8f2565562999d6",
+        "bytes": 2038
+      },
+      {
+        "path": "src/lib/channelTalk.ts",
+        "sha256": "c5374fe5afc9fc140e48c0f18dd592d88cfdff30b9dd4ef79bbd12f1c5bda338",
+        "bytes": 6423
+      },
+      {
+        "path": "src/components/support-chat/SupportChatNotification.tsx",
+        "sha256": "d4ecce006e40d492d95c7e0a1066e0e6c255551b6fca55623d7f711b1d2ca11c",
+        "bytes": 11080
+      },
+      {
+        "path": "tsconfig.test.json",
+        "sha256": "108218da6ca89c9c761128a0360aadbb06dad7ab4d740d3cee4c450dd36ffadb",
+        "bytes": 348
+      },
+      {
+        "path": "src/components/support-chat/sendb/api.ts",
+        "sha256": "0e51a81aec7be6c4b75fe04dfa4aa6029b0cb79287b2a3b5f5b70ec9fa33b116",
+        "bytes": 1995
+      },
+      {
+        "path": "src/components/support-chat/sendb/config.ts",
+        "sha256": "352c5bccc2584594b1bc8b139b998c504610cf09bfe34ad630a7c1d8e540c923",
+        "bytes": 1452
+      },
+      {
+        "path": "src/components/support-chat/sendb/controller.test.ts",
+        "sha256": "24b0fc7e28b13df394987b6d1700408327ce7dd853430edafa17f6c9d068b557",
+        "bytes": 14129
+      },
+      {
+        "path": "src/components/support-chat/sendb/controller.ts",
+        "sha256": "2d0df0fc5c00ee083fd879624233bacd1e34403b5142205a2f224008a7002fc7",
+        "bytes": 5794
+      },
+      {
+        "path": "src/components/support-chat/sendb/loader.ts",
+        "sha256": "dfcacbb396f1764d51b1fd529aa2e3eaab8b17361bf8748b812e736f29899a19",
+        "bytes": 1358
+      },
+      {
+        "path": "src/components/support-chat/sendb/runtime.ts",
+        "sha256": "14189ee5b33c6b03f075ba1bfadd94ce80a08bb025d9896a6b9732940780cd36",
+        "bytes": 257
+      },
+      {
+        "path": "src/components/support-chat/sendb/SupportConnectionStatus.tsx",
+        "sha256": "c1a30d6189dbb8ab7f5fd5276871983be73ab5e5cb40c24f9a3d9afcbdafb08d",
+        "bytes": 794
+      },
+      {
+        "path": "src/components/support-chat/sendb/types.ts",
+        "sha256": "c751dfdc901d30fd9bcba5c1315043c63f7a424b5d0f82d5060025914d9c4d32",
+        "bytes": 1189
+      },
+      {
+        "path": "src/components/support-chat/sendb/useSendbSupport.ts",
+        "sha256": "11c9cabecf24d2f16e0cc0217dfbaaaeae0a722aa867b1c4fb7a897996059163",
+        "bytes": 932
+      }
+    ],
+    "sendbFiles": [
+      {
+        "path": "public/sendb-sdk.js",
+        "sha256": "41fb50a8a92f2f56201695693408706076d1a643c47a0ab16a59ebd62a0ab638",
+        "bytes": 18152
+      },
+      {
+        "path": "src/components/inbox/ui/ChatWidget.tsx",
+        "sha256": "d232c5d1edb1b034303d5c4f27bec44f6c058d1fcc8b8177f9647961d7d62b80",
+        "bytes": 25825
+      },
+      {
+        "path": "scripts/check-chat-sdk.cjs",
+        "sha256": "b631b301201f76daa0ae8f555ffd8c8989763b7ff00c62308d80fd0353f9ea38",
+        "bytes": 6105
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/DESIGNER-SITE.md",
+        "sha256": "ffeda381fc35630056c6236fb81dfd3aab752ae9514e4925fdbba482b694b065",
+        "bytes": 5795
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/SITE-INTEGRATION.md",
+        "sha256": "e29d088f76343e8bca0d1eaf85bafa33370156258eb45b02468287e24833d3c3",
+        "bytes": 5092
+      }
+    ],
+    "fixtureFiles": [
+      {
+        "path": ".testenv/build-site-dh.cjs",
+        "sha256": "35b853c87c6a5dee9702a93c5269b73d0bce1a5005ac6fef84ec41a8c823777c",
+        "bytes": 1428
+      },
+      {
+        "path": ".testenv/block-site-build-network.cjs",
+        "sha256": "87d751457453b878cc3416161ed576ab62fd901b0008fe6db4e7ac46f1e06018",
+        "bytes": 300
+      },
+      {
+        "path": ".testenv/start-site-dh-ui.cjs",
+        "sha256": "2cd2c18d378704932d571f2e81b86fb3d795f5295c60b2f484d523232bddc135",
+        "bytes": 913
+      }
+    ],
+    "logs": [
+      {
+        "path": "site-dh-all-units-final.log",
+        "sha256": "54c9fb539fc4b473adae60f8ab2df86ffe7fbaf175e8556f5158845d684a5093",
+        "bytes": 10777
+      },
+      {
+        "path": "site-dh-types-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-dh-test-types-verified.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-dh-lint-verified.log",
+        "sha256": "1a9c0a3e1ba41ee7c92ef4c632c54f3961a32e7d79c3797f65f8c50e49ae701c",
+        "bytes": 308
+      },
+      {
+        "path": "site-dh-lint-baseline.log",
+        "sha256": "22bf2635e0169825d8b54a43503dff351d6470027403f625e8ae4caa212624b9",
+        "bytes": 308
+      },
+      {
+        "path": "site-dh-build-verified.log",
+        "sha256": "638a34a8a7bb748ad6feb68c5f25fd9acf2b99e14c34153365a18d696ffd5a38",
+        "bytes": 14809
+      },
+      {
+        "path": "site-chat-sdk-qa-final.log",
+        "sha256": "c16abf97297426547a50d3af389a2d3abed892730033dc3cc0c62b0a4037d887",
+        "bytes": 654
+      },
+      {
+        "path": "site-chat-feature-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-chat-types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-chat-platform-regression.log",
+        "sha256": "4036be9ef3afa9099c360cd0e178f42f305e9c71dfffd0c31f84ed5f07d8019a",
+        "bytes": 960
+      },
+      {
+        "path": "site-chat-identity-regression.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      }
+    ],
+    "screenshots": [
+      {
+        "path": "site-dh-anonymous-member-draft-qa.png",
+        "sha256": "ffe4ec95869c57b23e8bb823fe6719141fbd8d80674d105cacbc1fcb4e689607",
+        "bytes": 97742
+      },
+      {
+        "path": "site-dh-member-b-isolation-qa.png",
+        "sha256": "85fc5fb7b76d1dad9528ec985dad95b5fc46cbdd6ce61f48325e5e71c2c2205e",
+        "bytes": 88232
+      },
+      {
+        "path": "site-dh-reconnect-error-qa.png",
+        "sha256": "8b1455b14bf41a2b8f90e0de3bd654f4756a3f5412cb26892cd425f500c8c54c",
+        "bytes": 97866
+      },
+      {
+        "path": "site-dh-chat-route-hidden-qa.png",
+        "sha256": "452d58e71d8b03f084625cb077bf075d8c0607c26d25fc7f4536337c4cc00e25",
+        "bytes": 69520
+      },
+      {
+        "path": "site-dh-late-identity-isolation-qa.png",
+        "sha256": "17b9b68763e6ac4bb84a7c0d722f90dfde65ce8b7f02442b6a4ff166bddc5874",
+        "bytes": 90564
+      },
+      {
+        "path": "site-dh-inbox-reply-qa.png",
+        "sha256": "fcf5fef2acbf5eae2122c49a56d9094dc1ccc50cf450cb2a3a3e884a1c1b7566",
+        "bytes": 143572
+      },
+      {
+        "path": "site-dh-duplex-reply-qa.png",
+        "sha256": "47af95a326c4efcb9116c069520761408b676b37364e2fd0fe2e40363a6be3a5",
+        "bytes": 100155
+      },
+      {
+        "path": "site-dh-history-position-qa.png",
+        "sha256": "0d0e3d37d99c9438a72f5b914bf7a34b7e076bde85f72c13287acda69ab5a6f1",
+        "bytes": 96572
+      },
+      {
+        "path": "site-dh-scroll-qa.json",
+        "sha256": "690ad79b0e7614dce0ff4bb1e6e87c0e815cbc4bda76a9112d62c44f31512c9c",
+        "bytes": 383
+      }
+    ],
+    "limits": [
+      "Actual Firebase login/full business pages and deployed commit mapping unverified",
+      "Back-office-lab frontend still pending",
+      "No actual installation/settings, main/master merge or real server deployment",
+      "Legacy project chat/Firestore support replies and historical support migration not replaced by this adapter",
+      "Full R01-R16 replacement/cutover remains incomplete"
+    ],
+    "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. Prior evidence fields kept as historical records."
   }
 }
