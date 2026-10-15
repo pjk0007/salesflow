@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { emailReplySelection } from "@/lib/inbox-email/recipients";
 import { mentionIdsInput } from "@/lib/inbox-collaboration/rules";
+import { replyGuardContext } from "@/lib/inbox-reply-guard/rules";
 
 export const messageInput = z
     .object({
@@ -28,6 +29,7 @@ export const replyInput = messageInput
         aiDraftId: z.string().uuid().optional(),
         emailReply: emailReplySelection.optional(),
         mentionedUserIds: mentionIdsInput.default([]),
+        replyGuard: replyGuardContext.optional(),
     })
     .refine(
         (v) => !v.aiDraftId || v.kind === "reply",
@@ -36,6 +38,10 @@ export const replyInput = messageInput
     .refine(
         (v) => !v.mentionedUserIds.length || v.kind === "note",
         "팀원 멘션은 내부 메모에서만 사용할 수 있습니다.",
+    )
+    .refine(
+        (v) => !v.replyGuard || v.kind === "reply",
+        "답변 잠금은 고객 답변에서만 사용할 수 있습니다.",
     );
 export const sessionInput = z.object({
     name: z.string().trim().min(1).max(100).optional(),

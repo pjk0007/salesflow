@@ -59,6 +59,8 @@ import {
 } from "./rules";
 
 import { InboxError } from "./errors";
+import { enforceReplyGuard } from "@/lib/inbox-reply-guard/repository";
+import type { SendbReplyGuardContext } from "../../../sdk/reply-guard-types";
 export { InboxError } from "./errors";
 import { verifyCustomerIdentity } from "@/lib/customer-platform/identity";
 import { appendActivity } from "@/lib/customer-platform/activities";
@@ -99,6 +101,7 @@ const conversationColumns = {
     preview: inboxConversations.preview,
     lastMessageAt: inboxConversations.lastMessageAt,
     customerSeq: inboxConversations.customerSeq,
+    replyRevision: inboxConversations.replyRevision,
     contactId: inboxConversations.contactId,
 };
 export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
@@ -849,6 +852,7 @@ export async function appendMessage(
         sourceAttachmentCount?: number;
         emailReply?: EmailReplySelection;
         mentionedUserIds?: string[];
+        replyGuard?: SendbReplyGuardContext;
     },
     scope: FileScope,
 ) {
@@ -955,6 +959,8 @@ export async function appendMessage(
         }
         if (message.kind === "reply" && locked.status === "closed")
             throw new InboxError("상담을 다시 연 뒤 답변해주세요.");
+        if (message.kind === "reply")
+            await enforceReplyGuard(tx, locked, message);
         if (message.kind === "customer" && locked.medium === "web") {
             const recent = await tx
                 .select({ id: inboxMessages.id })
@@ -1145,6 +1151,7 @@ export async function appendMessage(
                             ? summary.slice(0, 200)
                             : locked.preview,
                     lastMessageAt: sql`greatest(${inboxConversations.lastMessageAt},${inserted.createdAt.toISOString()}::timestamptz)`,
+                    replyRevision: locked.replyRevision + 1,
                     ...(message.kind === "customer"
                         ? {
                               status: newCustomer ? "open" : locked.status,

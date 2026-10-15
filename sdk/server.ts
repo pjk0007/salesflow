@@ -1,4 +1,10 @@
 import type { SendbInboxTeam } from "./routing-types";
+import type {
+    SendbReplyGuardPage,
+    SendbReplyGuardContext,
+    SendbReplyLeaseInput,
+} from "./reply-guard-types";
+export type * from "./reply-guard-types";
 export type { SendbInboxTeam } from "./routing-types";
 import type {
     SendbOperationsSettings,
@@ -1002,6 +1008,29 @@ export class SendbClient {
             `/api/v1/inbox/presence?channelId=${channelId}${conversationId ? `&conversationId=${encodeURIComponent(conversationId)}` : ""}`,
         );
     }
+    replyGuard(channelId: number, conversationId?: string, sessionId?: string) {
+        return this.request<SendbReplyGuardPage>(
+            `/api/v1/inbox/reply-guard?channelId=${channelId}${conversationId ? `&conversationId=${encodeURIComponent(conversationId)}` : ""}${sessionId ? `&sessionId=${encodeURIComponent(sessionId)}` : ""}`,
+        );
+    }
+    saveReplyGuard(input: {
+        channelId: number;
+        version: number;
+        enabled: boolean;
+    }) {
+        return this.request<SendbReplyGuardPage>(
+            "/api/v1/inbox/reply-guard",
+            "PATCH",
+            input,
+        );
+    }
+    updateReplyLease(input: SendbReplyLeaseInput) {
+        return this.request<SendbReplyGuardPage>(
+            "/api/v1/inbox/reply-guard",
+            "POST",
+            input,
+        );
+    }
     inboxCapacity(channelId: number) {
         return this.request<import("./capacity-types").SendbInboxCapacity>(
             `/api/v1/inbox/capacity?channelId=${channelId}`,
@@ -1068,6 +1097,7 @@ export class SendbClient {
         attachmentIds: string[] = [],
         aiDraftId?: string,
         emailReply?: SendbEmailReplySelection,
+        replyGuard?: SendbReplyGuardContext,
     ) {
         return this.request(
             `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
@@ -1079,6 +1109,7 @@ export class SendbClient {
                 attachmentIds,
                 ...(aiDraftId ? { aiDraftId } : {}),
                 ...(emailReply ? { emailReply } : {}),
+                ...(replyGuard ? { replyGuard } : {}),
             },
         );
     }

@@ -33,6 +33,7 @@ async function runPostgresPlatformCheck(scenario) {
     });
     const runtime = {
         db: drizzle(client, { schema }),
+        queryClient: client,
         pg: {
             waitReady: Promise.resolve(),
             exec: (q) => client.unsafe(q),

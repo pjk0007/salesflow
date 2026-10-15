@@ -4,7 +4,7 @@
 
 ## 직원과 서비스 키의 사업 권한
 
-상담팀 CRUD·팀원·선택 자동 배정과 기존 상담의 `teamId`/`filter=myTeams`, native/서비스 API와 서버 SDK는 [ROUTING.md](ROUTING.md)를 따른다. 팀 구성이 직원 권한을 부여하지 않는다. 0107의 선택 `requireAvailable`은 현재 접속과 응대 가능 상태도 확인한다. 직원의 접속/작성·개인 상태 API와 서비스 키의 조회 SDK는 [PRESENCE.md](PRESENCE.md)를 따른다. 자동 배정과 접속 필터는 기본 꺼짐이다.0108의 직원별 자동 배정 한도/진행중 수·대기열 재처리 native/서비스 API와 SDK는 [CAPACITY.md](CAPACITY.md)를 따른다. 큐 워커는 기본 꺼짐이며 한도는 기본 무제한이다.0109의 선택 `requireBusinessHours`와 조회 `businessHours`·같은 사업 달력의 적용 시점은 [BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)를 따른다.
+상담팀 CRUD·팀원·선택 자동 배정과 기존 상담의 `teamId`/`filter=myTeams`, native/서비스 API와 서버 SDK는 [ROUTING.md](ROUTING.md)를 따른다. 팀 구성이 직원 권한을 부여하지 않는다. 0107의 선택 `requireAvailable`은 현재 접속과 응대 가능 상태도 확인한다. 직원의 접속/작성·개인 상태 API와 서비스 키의 조회 SDK는 [PRESENCE.md](PRESENCE.md)를 따른다. 자동 배정과 접속 필터는 기본 꺼짐이다.0110의 선택 고객 답변 작성 잠금/명시 인계·최신 대화 확인 API/SDK는 [REPLY-GUARD.md](REPLY-GUARD.md)를 따른다. 잠금 기본 꺼짐이며 직원 SDK도 작성 권한 계약을 연결해야 한다.0108의 직원별 자동 배정 한도/진행중 수·대기열 재처리 native/서비스 API와 SDK는 [CAPACITY.md](CAPACITY.md)를 따른다. 큐 워커는 기본 꺼짐이며 한도는 기본 무제한이다.0109의 선택 `requireBusinessHours`와 조회 `businessHours`·같은 사업 달력의 적용 시점은 [BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)를 따른다.
 
 고객 플랫폼 직원 업무는 사업별 열람/응대·편집/운영 관리 역할을 사용한다. 일반 직원의 초기 접근은 없으며 조직 관리자가 고객 상담 → 직원 권한에서 배정한다. 서비스 API 키의 기존 읽기·생성·수정 범위는 발급자의 현재 사업 역할과 함께 확인하며, 설정 변경에는 사업 운영 관리가 필요하다. 조직 관리자 발급 키도 토큰 범위를 넘지 못한다. 직원 권한 배정 API에는 직원의 조직 관리자 세션만 사용할 수 있다. 계약·회수/준비 중 이메일·Google/자동화 처리·마이그레이션 0102 배포 순서는 [ACCESS.md](ACCESS.md)를 따른다.
 

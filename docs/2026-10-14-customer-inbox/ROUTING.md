@@ -47,4 +47,6 @@
 
 기존 단위1,093·타입/기능 lint·실제 환경 파일 없는 전체 Next 빌드가 통과했다. 상담22·회원 연결12·운영23·AI16·자동화15·직원 권한18·멘션19 회귀도 확인했다. Chrome에서 두 사업 팀 설정/수동·자동 배정/팀과 내 팀 필터, 두 가상 문의의 서로 다른 담당자, 설정 충돌/초안 보존/최신 복구, 보관/복원과 열람 직원의 변경 제한을 확인했다. 보관된 팀의 기존 담당자도 이름을 유지해 표시한다.
 
-코드·마이그레이션·로그·화면 해시는 `evidence-manifest.json`의 `routingQa`에 기록한다. 모두 가상 고객/직원·loopback/PGlite이며 실제 팀 구성·운영 DB·실제 고객/외부 알림은 변경하지 않았다. 조건별 팀 분류의 SQL/API12·모의 실행·사람 게시·실제 배정/보존 Chrome QA를 추가했다. 접속·응대 상태/작성 표시와 선택 접속 필터는 [PRESENCE.md](PRESENCE.md)의 SQL/API14·두 가상 직원 Chrome 검수로 추가했다. 수용량/큐의 PGlite12·격리 PostgreSQL15와 Chrome 검수는 [CAPACITY.md](CAPACITY.md)에 추가했다. 사업 업무시간 배정은0109의 PGlite14·격리 PostgreSQL14·Chrome 검수로 추가했다([BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)). 강제 작성/발송 잠금·직원별 교대표/기본 팀 설정·팀별 성과와 실제 업무/부하/전체 전환은 남아 있다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 따른다.
+코드·마이그레이션·로그·화면 해시는 `evidence-manifest.json`의 `routingQa`에 기록한다. 모두 가상 고객/직원·loopback/PGlite이며 실제 팀 구성·운영 DB·실제 고객/외부 알림은 변경하지 않았다. 조건별 팀 분류의 SQL/API12·모의 실행·사람 게시·실제 배정/보존 Chrome QA를 추가했다. 접속·응대 상태/작성 표시와 선택 접속 필터는 [PRESENCE.md](PRESENCE.md)의 SQL/API14·두 가상 직원 Chrome 검수로 추가했다. 수용량/큐의 PGlite12·격리 PostgreSQL15와 Chrome 검수는 [CAPACITY.md](CAPACITY.md)에 추가했다. 사업 업무시간 배정은0109의 PGlite14·격리 PostgreSQL14·Chrome 검수로 추가했다([BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)). 직원별 교대표/기본 팀 설정·팀별 성과와 실제 업무/부하/전체 전환은 남아 있다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 따른다.
+
+고객 공개 답변의 서버 작성 잠금·인계·새 대화 재검토·초안 보존은0110의 [REPLY-GUARD.md](REPLY-GUARD.md)에 추가했다. 내부 메모는 함께 작성할 수 있다.

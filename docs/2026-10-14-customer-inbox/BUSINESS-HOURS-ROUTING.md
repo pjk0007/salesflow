@@ -43,4 +43,6 @@ SLA의 진행 중·과거 응대는 원래 저장한 목표/달력으로 계속 
 
 [Chatwoot 공식 업무시간 설명](https://www.chatwoot.com/features/business-hours)의 사업 상담함별 시간대/일정 개념을 참고했다. 샌드비의 기존 SLA 달력과 팀·접속·수용량을 연결하는 배정 동작은 독립 구현한 제품 결정이다. 새 비공개 SaaS 내부 관찰을 REA로 수행했다는 주장은 하지 않는다. 기존 배포 아티팩트의 REA 근거는 [ANALYSIS.md](ANALYSIS.md)에 유지한다.
 
-코드/마이그레이션·로그·가상 PG 종료·화면 증거는 `evidence-manifest.json`의 `businessHoursRoutingQa`에 기록한다. 직원별 교대표·강제 작성/발송 잠금·실제 다중 서버/대규모 부하·전체 채널/계정 설치·자료 이전/실제 업무 전환은 남아 있다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 유지한다.
+코드/마이그레이션·로그·가상 PG 종료·화면 증거는 `evidence-manifest.json`의 `businessHoursRoutingQa`에 기록한다. 직원별 교대표·실제 다중 서버/대규모 부하·전체 채널/계정 설치·자료 이전/실제 업무 전환은 남아 있다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 유지한다.
+
+고객 공개 답변의 서버 작성 잠금·인계·새 대화 재검토·초안 보존은0110의 [REPLY-GUARD.md](REPLY-GUARD.md)에 추가했다. 내부 메모는 함께 작성할 수 있다.

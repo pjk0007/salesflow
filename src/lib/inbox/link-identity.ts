@@ -290,6 +290,7 @@ export async function linkVisitorIdentity(
                     : target.preview,
                 lastMessageAt: latest?.createdAt ?? target.lastMessageAt,
                 version: target.version + 1,
+                replyRevision: target.replyRevision + 1,
             })
             .where(eq(chats.id, target.id));
         const detail = {

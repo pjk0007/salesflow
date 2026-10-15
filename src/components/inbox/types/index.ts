@@ -11,6 +11,7 @@ export interface InboxChannel {
     color: string;
     allowedOrigins: string[];
     enabled: boolean;
+    replyGuardEnabled?: boolean;
 }
 export interface Conversation {
     teamId?: string | null;
@@ -35,6 +36,7 @@ export interface Conversation {
     preview: string;
     lastMessageAt: string;
     customerSeq: number;
+    replyRevision: number;
     unread: boolean;
 }
 export interface ChatMessage {

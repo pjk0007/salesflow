@@ -71,7 +71,7 @@ async function runPlatformCheck(extra, testRuntime) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|inbox-reply-guard|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
@@ -83,6 +83,8 @@ async function runPlatformCheck(extra, testRuntime) {
         ],
         [/^\/api\/inbox$/, () => "inbox"],
         [/^\/api\/inbox-presence$/, () => "inbox-presence"],
+        [/^\/api\/inbox-reply-guard$/, () => "inbox-reply-guard"],
+        [/^\/api\/v1\/inbox\/reply-guard$/, () => "v1/inbox/reply-guard"],
         [/^\/api\/inbox-capacity$/, () => "inbox-capacity"],
         [/^\/api\/v1\/inbox\/capacity$/, () => "v1/inbox/capacity"],
         [/^\/api\/v1\/inbox\/presence$/, () => "v1/inbox/presence"],
@@ -285,6 +287,8 @@ async function runPlatformCheck(extra, testRuntime) {
         "inbox/channels",
         "inbox-routing/teams",
         "inbox-presence",
+        "inbox-reply-guard",
+        "v1/inbox/reply-guard",
         "inbox-capacity",
         "v1/inbox/capacity",
         "v1/inbox/presence",

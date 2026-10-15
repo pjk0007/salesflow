@@ -22,6 +22,8 @@ import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTa
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 import { TeamAssignment } from "@/components/inbox-routing/ui/TeamAssignment";
 import { ConversationPresence } from "@/components/inbox-presence/ui/ConversationPresence";
+import { useReplyGuard } from "@/components/inbox-reply-guard/hooks/useReplyGuard";
+import { ReplyGuardStatus } from "@/components/inbox-reply-guard/ui/ReplyGuardStatus";
 import type {
     AgentActivity,
     InboxPresence,
@@ -111,6 +113,16 @@ export function ConversationPane({
         } | null>(null);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
+    const guard = useReplyGuard(
+        chat.channelId,
+        chat.id,
+        chat.replyRevision,
+        userId,
+        !!bootstrap.channels.find((c) => c.id === chat.channelId)
+            ?.replyGuardEnabled,
+        kind === "reply" && chat.status !== "closed",
+        canRespond && !chat.historyOnly,
+    );
     useEffect(() => {
         onActivity(null);
         return () => onActivity(null);
@@ -162,6 +174,14 @@ export function ConversationPane({
     async function send() {
         if (!canRespond) return;
         if ((!text.trim() && !attachments.files.length) || busy) return;
+        if (kind === "reply" && !guard.canSend) {
+            toast.error(
+                "확인된 작성 권한과 최신 대화가 필요합니다. 초안을 유지하고 작성 상태를 확인해주세요.",
+            );
+            void guard.refresh();
+            return;
+        }
+        const replyGuard = kind === "reply" ? guard.context() : undefined;
         if (
             chat.medium === "email" &&
             kind === "reply" &&
@@ -224,6 +244,7 @@ export function ConversationPane({
                 ...(source ? { aiDraftId: source } : {}),
                 ...(emailSelection ? { emailReply: emailSelection } : {}),
                 ...(mentionIds.length ? { mentionedUserIds: mentionIds } : {}),
+                ...(replyGuard ? { replyGuard } : {}),
             });
             updateDraft("");
             onActivity(null);
@@ -234,8 +255,10 @@ export function ConversationPane({
             if (kind === "note") noteMentions.clear();
             follow.current = true;
             await refresh();
+            void guard.refresh();
         } catch (e) {
             toast.error((e as Error).message);
+            void guard.refresh();
         } finally {
             setBusy(false);
         }
@@ -643,6 +666,16 @@ export function ConversationPane({
                                     disabled={busy}
                                 />
                             )}
+                            {kind === "reply" && (
+                                <ReplyGuardStatus
+                                    guard={guard}
+                                    refresh={refresh}
+                                    hasDraft={
+                                        !!text.trim() ||
+                                        !!attachments.files.length
+                                    }
+                                />
+                            )}
                             {kind === "note" && (
                                 <NoteMentions
                                     state={noteMentions}
@@ -676,7 +709,8 @@ export function ConversationPane({
                                 disabled={
                                     busy ||
                                     (kind === "reply" &&
-                                        chat.status === "closed")
+                                        (chat.status === "closed" ||
+                                            (guard.required && !guard.mine)))
                                 }
                                 maxLength={5000}
                                 rows={3}
@@ -712,7 +746,8 @@ export function ConversationPane({
                                 busy={
                                     busy ||
                                     (kind === "reply" &&
-                                        chat.status === "closed")
+                                        (chat.status === "closed" ||
+                                            (guard.required && !guard.mine)))
                                 }
                                 progress={attachments.progress}
                                 onSelect={attachments.select}
@@ -733,7 +768,8 @@ export function ConversationPane({
                                         (!text.trim() &&
                                             !attachments.files.length) ||
                                         (kind === "reply" &&
-                                            chat.status === "closed")
+                                            (chat.status === "closed" ||
+                                                !guard.canSend))
                                     }
                                     className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 ${kind === "note" ? "bg-amber-700" : "bg-[#635BFF]"}`}
                                 >

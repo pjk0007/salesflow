@@ -43,6 +43,10 @@ export const inboxChannels = pgTable(
             .notNull()
             .default([]),
         enabled: boolean("enabled").notNull().default(false),
+        replyGuardEnabled: boolean("reply_guard_enabled")
+            .notNull()
+            .default(false),
+        replyGuardVersion: integer("reply_guard_version").notNull().default(0),
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [
@@ -131,6 +135,7 @@ export const inboxConversations = pgTable(
         preview: text("preview").notNull().default(""),
         lastMessageAt: time("last_message_at").notNull().defaultNow(),
         customerSeq: integer("customer_seq").notNull().default(0),
+        replyRevision: integer("reply_revision").notNull().default(0),
         version: integer("version").notNull().default(1),
         aiState: varchar("ai_state", { length: 16 }).notNull().default("auto"),
         aiHandoffReason: varchar("ai_handoff_reason", { length: 300 }),

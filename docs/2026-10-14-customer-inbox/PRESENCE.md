@@ -50,4 +50,6 @@ PATCH는 `{channelId,version,state:"available"|"away"}`다. 최초 version0, 저
 
 기존 상담팀18·조건별 분류12·회원 연결12 회귀와 전체 단위1,095·기능 lint·타입을 포함한 격리 전체 Next 빌드가 통과했다. Chrome의 두 가상 직원 iframe에서 실제 InboxPage 컴포넌트로 답변 작성 경고·메모 작성 표시·초안 비공유, 자리 비움 교대 후 자동 담당 변경·모두 자리 비움일 때 미배정 큐를 확인했다. 사업 변경 시 별도 상태와 열람 직원의 제어 제한도 검수했다. 조회503 모의에서 오래된 작성 표시를 숨기고 상태 선택을 제한한 뒤 자동 재조회 복구도 확인했다. 시간 초과 한국어 안내·원래403 권한 안내 보존의 단위2개를 추가했다. 두 iframe의 서로 다른 가상 인증 전달은 `.testenv` 시험 전용이며 제품 코드에 포함하지 않았다.
 
-증거는 `evidence-manifest.json`의 `presenceQa`에 기록한다. 모든 직원/고객/DB는 가상·PGlite/loopback이며 실제 고객 발송·서버 설정·운영 DB·main/master 병합·배포는 수행하지 않았다. 개인별 자동 배정 수용량과 대기열 재처리는 [CAPACITY.md](CAPACITY.md)에 추가했다. 실제 다중 서버/다수 직원 부하·직원별 교대표·강제 작성/발송 잠금·웹소켓·OS/외부 알림·세션 전체 보존/파기와 실제 업무/전체 전환은 남아 있다. 사업 업무시간 배정은 [BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)에 추가했다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 유지한다.
+증거는 `evidence-manifest.json`의 `presenceQa`에 기록한다. 모든 직원/고객/DB는 가상·PGlite/loopback이며 실제 고객 발송·서버 설정·운영 DB·main/master 병합·배포는 수행하지 않았다. 개인별 자동 배정 수용량과 대기열 재처리는 [CAPACITY.md](CAPACITY.md)에 추가했다. 실제 다중 서버/다수 직원 부하·직원별 교대표·웹소켓·OS/외부 알림·세션 전체 보존/파기와 실제 업무/전체 전환은 남아 있다. 사업 업무시간 배정은 [BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)에 추가했다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 유지한다.
+
+고객 공개 답변의 서버 작성 잠금·인계·새 대화 재검토·초안 보존은0110의 [REPLY-GUARD.md](REPLY-GUARD.md)에 추가했다. 내부 메모는 함께 작성할 수 있다.

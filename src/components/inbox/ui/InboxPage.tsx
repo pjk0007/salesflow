@@ -3,6 +3,7 @@ import { StaffAccessPanel } from "@/components/customer-access/ui/StaffAccessPan
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { TeamSettings } from "@/components/inbox-routing/ui/TeamSettings";
 import { useAgentPresence } from "@/components/inbox-presence/hooks/useAgentPresence";
+import { ReplyGuardSettings } from "@/components/inbox-reply-guard/ui/ReplyGuardSettings";
 import { AgentStatus } from "@/components/inbox-presence/ui/AgentStatus";
 import { CapacitySettings } from "@/components/inbox-capacity/ui/CapacitySettings";
 import { useState } from "react";
@@ -63,6 +64,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     const [operationsOpen, setOperationsOpen] = useState(false);
     const [teamsOpen, setTeamsOpen] = useState(false);
     const [capacityOpen, setCapacityOpen] = useState(false);
+    const [replyGuardOpen, setReplyGuardOpen] = useState(false);
     const [teamFilters, setTeamFilters] = useState<Record<number, string>>({});
     const openSupport: OpenSupportConversation = ({
         conversationId,
@@ -158,6 +160,14 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         onClick={() => setCapacityOpen(true)}
                     >
                         배정 수용량
+                    </button>
+                )}
+                {abilities.manage && channel && (
+                    <button
+                        className="rounded-xl border px-3 py-2 text-xs"
+                        onClick={() => setReplyGuardOpen(true)}
+                    >
+                        답변 충돌 방지
                     </button>
                 )}
                 {abilities.manage && channel && (
@@ -616,6 +626,15 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     onAssigned={async () => {
                         await Promise.all([list.mutate(), detail.mutate()]);
                     }}
+                />
+            )}
+            {replyGuardOpen && channel && abilities.manage && (
+                <ReplyGuardSettings
+                    key={channel.id}
+                    channelId={channel.id}
+                    name={channel.name}
+                    onClose={() => setReplyGuardOpen(false)}
+                    onSaved={() => initial.bootstrap.mutate()}
                 />
             )}
             {teamsOpen && channel && bootstrap && abilities.manage && (
