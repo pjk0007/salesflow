@@ -3,12 +3,13 @@ import { ConversationServiceStatus } from "@/components/inbox-operations/ui/Conv
 import { IncomingEmailFiles } from "@/components/inbox-email/ui/IncomingEmailFiles";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
 import { inboxRequest, inboxWrite } from "../api";
 import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
+import type { StaffDraftSession } from "../hooks/staff-draft-session";
 import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { InboxAudit } from "./InboxAudit";
@@ -34,6 +35,7 @@ export const statusNames = {
     closed: "종료됨",
 };
 export function ConversationPane({
+    draftSession,
     userId,
     chat,
     messages,
@@ -47,6 +49,7 @@ export function ConversationPane({
     presenceAgents,
     onActivity,
 }: {
+    draftSession: StaffDraftSession;
     userId: string;
     chat: Conversation;
     messages: ChatMessage[];
@@ -63,7 +66,8 @@ export function ConversationPane({
     const workspaceId = bootstrap.channels.find(
         (c) => c.id === chat.channelId,
     )?.workspaceId;
-    const canRespond = workspaceAbilities(bootstrap, workspaceId).respond;
+    const sharedDrafts = useSyncExternalStore(draftSession.subscribe, draftSession.getSnapshot, draftSession.getSnapshot);
+    const canRespond = workspaceAbilities(bootstrap, workspaceId).respond && sharedDrafts.active;
     const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
     const emailReply = useEmailReply(chat.emailContext, draftStorageKey);
     const noteMentions = useNoteMentions(
@@ -72,7 +76,7 @@ export function ConversationPane({
         workspaceId,
     );
     const [kind, setKind] = useState<"reply" | "note">("reply"),
-        [drafts, setDrafts] = useState<Record<string, string>>(() => {
+        [savedDrafts] = useState<Record<string, string>>(() => {
             try {
                 return JSON.parse(
                     localStorage.getItem(draftStorageKey) ?? "{}",
@@ -80,8 +84,10 @@ export function ConversationPane({
             } catch {
                 return {};
             }
-        }),
-        [busy, setBusy] = useState(false);
+        });
+    const drafts = { ...savedDrafts, ...sharedDrafts.text };
+    const mounted = useRef(false);
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
     const [older, setOlder] = useState<ChatMessage[]>([]),
         [canLoad, setCanLoad] = useState(hasOlder),
         [loading, setLoading] = useState(false);
@@ -101,18 +107,10 @@ export function ConversationPane({
     }, [aiDraftId, aiStorageKey]);
     const end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
-        follow = useRef(true),
-        pending = useRef<{
-            body: string;
-            kind: string;
-            id: string;
-            files: string;
-            aiDraftId: string | null;
-            emailReply: string;
-            mentions: string;
-        } | null>(null);
+        follow = useRef(true);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
+    const busy = sharedDrafts.pending[draftKey]?.busy ?? false;
     const guard = useReplyGuard(
         chat.channelId,
         chat.id,
@@ -127,7 +125,19 @@ export function ConversationPane({
         onActivity(null);
         return () => onActivity(null);
     }, [kind, onActivity]);
-    const attachments = useAttachmentDrafts(draftKey);
+    const attachments = useAttachmentDrafts(draftKey, draftSession);
+    const replyCompleted = sharedDrafts.completed[`${chat.id}:reply`] ?? 0;
+    const noteCompleted = sharedDrafts.completed[`${chat.id}:note`] ?? 0;
+    const completion = useRef({ reply: replyCompleted, note: noteCompleted });
+    useEffect(() => {
+        // A send started in an earlier pane can finish after returning to this conversation.
+        if (completion.current.reply !== replyCompleted) {
+            setAiDraftId(null);
+            emailReply.reset();
+        }
+        if (completion.current.note !== noteCompleted) noteMentions.clear();
+        completion.current = { reply: replyCompleted, note: noteCompleted };
+    }, [replyCompleted, noteCompleted]); // eslint-disable-line react-hooks/exhaustive-deps
     const uploadUrl = `/api/inbox/conversations/${chat.id}/attachments`;
     const lastMessageId = messages.at(-1)?.id;
     useEffect(() => {
@@ -162,17 +172,18 @@ export function ConversationPane({
             return false;
         }
     }
+    function persistDraft(value: string, key = draftKey) {
+        try {
+            const current = JSON.parse(localStorage.getItem(draftStorageKey) ?? "{}");
+            localStorage.setItem(draftStorageKey, JSON.stringify({ ...current, [key]: value }));
+        } catch {}
+    }
     function updateDraft(value: string, key = draftKey) {
-        setDrafts((current) => {
-            const next = { ...current, [key]: value };
-            try {
-                localStorage.setItem(draftStorageKey, JSON.stringify(next));
-            } catch {}
-            return next;
-        });
+        draftSession.setText(key, value);
+        persistDraft(value, key);
     }
     async function send() {
-        if (!canRespond) return;
+        if (!canRespond || !draftSession.capture().isCurrent()) return;
         if ((!text.trim() && !attachments.files.length) || busy) return;
         if (kind === "reply" && !guard.canSend) {
             toast.error(
@@ -216,51 +227,53 @@ export function ConversationPane({
         const emailSignature = JSON.stringify(emailSelection ?? null);
         const mentionIds = kind === "note" ? noteMentions.ids : [],
             mentionSignature = JSON.stringify([...mentionIds].sort());
-        setBusy(true);
-        if (
-            pending.current?.body !== body ||
-            pending.current?.kind !== kind ||
-            pending.current?.files !== attachments.signature ||
-            pending.current?.aiDraftId !== source ||
-            pending.current?.emailReply !== emailSignature ||
-            pending.current?.mentions !== mentionSignature
-        )
-            pending.current = {
-                body,
-                kind,
-                id: crypto.randomUUID(),
-                files: attachments.signature,
-                aiDraftId: source,
-                emailReply: emailSignature,
-                mentions: mentionSignature,
-            };
+        const operation = draftSession.begin(draftKey, JSON.stringify({
+            body, kind, files: attachments.signature, aiDraftId: source,
+            emailReply: emailSignature, mentions: mentionSignature,
+        }));
+        if (!operation) return;
         try {
-            const attachmentIds = await attachments.prepare(uploadUrl, kind);
-            await inboxWrite(`/api/inbox/conversations/${chat.id}`, {
-                attachmentIds,
-                clientId: pending.current.id,
-                body,
-                kind,
-                ...(source ? { aiDraftId: source } : {}),
-                ...(emailSelection ? { emailReply: emailSelection } : {}),
-                ...(mentionIds.length ? { mentionedUserIds: mentionIds } : {}),
-                ...(replyGuard ? { replyGuard } : {}),
+            const attachmentIds = await attachments.prepare(uploadUrl, kind, undefined, operation);
+            operation.assertCurrent();
+            await inboxRequest(`/api/inbox/conversations/${chat.id}`, {
+                method: "POST",
+                signal: operation.signal,
+                body: JSON.stringify({
+                    attachmentIds,
+                    clientId: operation.clientId,
+                    body,
+                    kind,
+                    ...(source ? { aiDraftId: source } : {}),
+                    ...(emailSelection ? { emailReply: emailSelection } : {}),
+                    ...(mentionIds.length ? { mentionedUserIds: mentionIds } : {}),
+                    ...(replyGuard ? { replyGuard } : {}),
+                }),
             });
-            updateDraft("");
-            onActivity(null);
-            if (kind === "reply") setAiDraftId(null);
-            attachments.clear();
-            pending.current = null;
-            if (kind === "reply") emailReply.reset();
-            if (kind === "note") noteMentions.clear();
-            follow.current = true;
-            await refresh();
-            void guard.refresh();
+            operation.assertCurrent();
+            persistDraft("");
+            try {
+                if (kind === "reply") {
+                    localStorage.removeItem(aiStorageKey);
+                    localStorage.removeItem(draftStorageKey + ":email-recipients");
+                } else localStorage.removeItem(draftStorageKey + ":note-mentions");
+            } catch {}
+            operation.complete();
+            if (mounted.current) {
+                onActivity(null);
+                follow.current = true;
+                await refresh();
+                if (operation.isCurrent() && mounted.current) void guard.refresh();
+            }
         } catch (e) {
-            toast.error((e as Error).message);
-            void guard.refresh();
+            if (operation.isCurrent()) {
+                draftSession.requestFailed(e);
+                if (operation.isCurrent() && mounted.current) {
+                    toast.error((e as Error).message);
+                    void guard.refresh();
+                }
+            }
         } finally {
-            setBusy(false);
+            operation.finish();
         }
     }
     const allMessages = [
@@ -632,6 +645,10 @@ export function ConversationPane({
                                 }
                                 hasDraft={!!drafts[`${chat.id}:reply`]?.trim()}
                                 onUse={(answer, id) => {
+                                    if (draftSession.getSnapshot().pending[`${chat.id}:reply`]?.busy) {
+                                        toast.info("답변 전송이 끝난 뒤 AI 초안을 추가해주세요.");
+                                        return;
+                                    }
                                     const old =
                                         drafts[`${chat.id}:reply`]?.trim();
                                     updateDraft(
@@ -738,6 +755,7 @@ export function ConversationPane({
                                     AI 초안의 근거를 전송할 때 다시 확인합니다.{" "}
                                     <button
                                         type="button"
+                                        disabled={busy}
                                         className="underline"
                                         onClick={() => setAiDraftId(null)}
                                     >
@@ -766,6 +784,11 @@ export function ConversationPane({
                                 }
                                 onError={(message) => toast.error(message)}
                             />
+                            {attachments.files.length > 0 && (
+                                <p className="mt-1 text-[10px] text-muted-foreground">
+                                    첨부 초안은 문의를 오가며 유지됩니다. 사업·조직·계정 변경이나 상담함 이탈 시 초기화됩니다.
+                                </p>
+                            )}
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-muted-foreground">
                                     {kind === "note"
