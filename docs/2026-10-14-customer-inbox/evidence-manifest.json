@@ -7811,5 +7811,347 @@
     "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/bo-final-browser-qa/home-overflow-investigation.json",
     "sha256": "266b3be4306d2d839c33458adff3a26927ba48bbb32886aeec7aaa7b0b9fc554",
     "cause": "Confirmed pre-existing Section2 FadeInUp width/nowrap badges; unchanged from b3c373b. Not support integration regression. No source repair."
+  },
+  "channelFileTransferQa": {
+    "checkedAt": "2026-10-15T09:38:21.891Z",
+    "status": "development_branch_verified",
+    "branch": "codex/sendb-file-transfer",
+    "pullRequestBase": "codex/sendb-channel-export",
+    "referenceExporterCommit": "65f2d04b2f067d7bc7037172d8fc606bcafe2b13",
+    "scope": "D1: approved immutable file plan, sequential existing upload API, and protected-download verification. No schema, SDK or existing API changes.",
+    "artifactRoot": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015",
+    "sources": [
+      {
+        "relative": "src/lib/channel-source-export/transfer-plan.ts",
+        "expectedSha256": "9c195e941e619d61be23b1dfc334e06328031267488902fa78453ccb19a80fb4",
+        "sha256": "8cb9ccaa5b14b171b16254c8743a183dc8572dccf01367f6a3b21737742ce228",
+        "normalizedSha256": "9c195e941e619d61be23b1dfc334e06328031267488902fa78453ccb19a80fb4",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      },
+      {
+        "relative": "src/lib/channel-source-export/transfer-plan.test.ts",
+        "expectedSha256": "496251f08b272f90626d50f0f7fcc171e473b27605ad12db4bd52414e7ad1ddc",
+        "sha256": "94e11f70a29525b0cb54075792b531ad94806545ab2585621aa513e976644d1c",
+        "normalizedSha256": "496251f08b272f90626d50f0f7fcc171e473b27605ad12db4bd52414e7ad1ddc",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      },
+      {
+        "relative": "src/lib/channel-source-export/transfer-runner.ts",
+        "expectedSha256": "791d77736c1a74898986b99180c75045a500cb33a70f7768ab31f3e05dc080e8",
+        "sha256": "9511c12f64939bdac3ad8ad5ffab155fe8b675ebd38eac5137e036f5789d4a19",
+        "normalizedSha256": "791d77736c1a74898986b99180c75045a500cb33a70f7768ab31f3e05dc080e8",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      },
+      {
+        "relative": "src/lib/channel-source-export/transfer-runner.test.ts",
+        "expectedSha256": "4fb550a374cef93aa9a8a19b9abaa8d7984d0aeadd4dd9b5527d85702dc4f912",
+        "sha256": "9bdb0368a1b5cf94fd3ab73a8aa3aa40984405907699e6aa712eb1227aba12d1",
+        "normalizedSha256": "4fb550a374cef93aa9a8a19b9abaa8d7984d0aeadd4dd9b5527d85702dc4f912",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      },
+      {
+        "relative": "src/lib/channel-source-export/transfer-local.ts",
+        "expectedSha256": "833553788a96c0335e4268e7e6ba40f23f98c4b692934eb7b21fc43b23889cf1",
+        "sha256": "fd647636f7e54ca0dd6f8601eb2b7d721191b87317fd67a9ef009792bf881d1a",
+        "normalizedSha256": "833553788a96c0335e4268e7e6ba40f23f98c4b692934eb7b21fc43b23889cf1",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      },
+      {
+        "relative": "src/lib/channel-source-export/transfer-local.test.ts",
+        "expectedSha256": "ec27e0e94c9b1b61c2515d6ef5eaee55c7c8d3f91729119ffe95a1443484f495",
+        "sha256": "555a5adc9d631297ebdb5252e4c9844ba8af44f86e1bcc45a47475092cb32bf8",
+        "normalizedSha256": "ec27e0e94c9b1b61c2515d6ef5eaee55c7c8d3f91729119ffe95a1443484f495",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      },
+      {
+        "relative": "scripts/supplement-channel-source-files.cjs",
+        "expectedSha256": "3d6e610dd2abca3a5c6531fc7ff1e0b1777c9c798e3ba6d5d7e568233a45c269",
+        "sha256": "1ed16a56632d283d058a5370ad9f63bec2599973e47d01b71072e7a5baccdc0d",
+        "normalizedSha256": "3d6e610dd2abca3a5c6531fc7ff1e0b1777c9c798e3ba6d5d7e568233a45c269",
+        "exactBytesMatch": false,
+        "match": true,
+        "difference": "CRLF checkout only; Git LF content matches approved file"
+      }
+    ],
+    "patches": [
+      {
+        "relative": "file-transfer-core/file-transfer-core.patch",
+        "sha256": "67f54178a648d84f70cc00282b26f6d6c9d89c66f3ac6b5f49227436f9cf12aa",
+        "newFiles": 4,
+        "currentSha256": "67f54178a648d84f70cc00282b26f6d6c9d89c66f3ac6b5f49227436f9cf12aa"
+      },
+      {
+        "relative": "file-transfer-local-implementation/file-transfer-local.patch",
+        "sha256": "16fb3ecf27d8860191216b84d733004f7ce76dedaa0f4d4061e9f1c1d5d33871",
+        "newFiles": 3,
+        "currentSha256": "16fb3ecf27d8860191216b84d733004f7ce76dedaa0f4d4061e9f1c1d5d33871"
+      }
+    ],
+    "sourceEquality": "All seven source/test files match approved SHA-256 after Git CRLF-to-LF normalization; checkout byte hashes recorded separately. Accepted actual API/CLI/ready-race results are carried forward without repeating those checks.",
+    "integrationChecks": {
+      "types": {
+        "exitCode": 0,
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "startedAt": "2026-10-15T09:34:01.351Z",
+        "completedAt": "2026-10-15T09:34:44.489Z",
+        "log": "file-transfer-integration-release/types.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "lint": {
+        "exitCode": 0,
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "node_modules/eslint/bin/eslint.js",
+          "scripts/supplement-channel-source-files.cjs",
+          "src/lib/channel-source-export/transfer-plan.ts",
+          "src/lib/channel-source-export/transfer-plan.test.ts",
+          "src/lib/channel-source-export/transfer-runner.ts",
+          "src/lib/channel-source-export/transfer-runner.test.ts",
+          "src/lib/channel-source-export/transfer-local.ts",
+          "src/lib/channel-source-export/transfer-local.test.ts"
+        ],
+        "startedAt": "2026-10-15T09:34:01.375Z",
+        "completedAt": "2026-10-15T09:34:10.156Z",
+        "log": "file-transfer-integration-release/lint.log",
+        "logSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "units": {
+        "exitCode": 0,
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "--import",
+          "tsx",
+          "--test",
+          "--test-concurrency=4",
+          "src/lib\\auth-admin.test.ts",
+          "src/lib\\auto-personalized-email-outcome.test.ts",
+          "src/lib\\customer-journey-alert-config.test.ts",
+          "src/lib\\customer-journey-card.test.ts",
+          "src/lib\\customer-journey-followup-rules.test.ts",
+          "src/lib\\customer-journey-priority.test.ts",
+          "src/lib\\customer-journey-scheduler.test.ts",
+          "src/lib\\deep-visitor-alert-batch.test.ts",
+          "src/lib\\deep-visitor-alert-delivery.test.ts",
+          "src/lib\\deep-visitor-alert-rules.test.ts",
+          "src/lib\\email-click-bot-rules.test.ts",
+          "src/lib\\email-click-bot-sql.test.ts",
+          "src/lib\\email-mx-lookup.test.ts",
+          "src/lib\\email-random-schedule-rules.test.ts",
+          "src/lib\\email-reply-rules.test.ts",
+          "src/lib\\email-send-queue-rules.test.ts",
+          "src/lib\\email-send-queue-stats.test.ts",
+          "src/lib\\email-send-scheduler.test.ts",
+          "src/lib\\email-sender-limit-paths.test.ts",
+          "src/lib\\email-sender-limit-rules.test.ts",
+          "src/lib\\email-sender-pick.test.ts",
+          "src/lib\\email-status-sync-rules.test.ts",
+          "src/lib\\email-template-link-rules.test.ts",
+          "src/lib\\email-visit-ack-copy.test.ts",
+          "src/lib\\email-visit-ack-rules.test.ts",
+          "src/lib\\gmail-client.test.ts",
+          "src/lib\\google-chat.test.ts",
+          "src/lib\\kst.test.ts",
+          "src/lib\\nhn-email-headers.test.ts",
+          "src/lib\\partition-access.test.ts",
+          "src/lib\\reply-to-rules.test.ts",
+          "src/lib\\safe-next-path.test.ts",
+          "src/lib\\sender-health-rules.test.ts",
+          "src/lib\\ai\\claude-parse.test.ts",
+          "src/lib\\ai\\client.test.ts",
+          "src/lib\\ai\\company-name.test.ts",
+          "src/lib\\ai\\models.test.ts",
+          "src/lib\\ai\\quota-limits.test.ts",
+          "src/lib\\ai-copy\\automation-rules.test.ts",
+          "src/lib\\ai-copy\\evaluation-rules.test.ts",
+          "src/lib\\ai-copy\\observations.test.ts",
+          "src/lib\\ai-copy\\rules.test.ts",
+          "src/lib\\attribution\\parse-params.test.ts",
+          "src/lib\\channel-source-export\\chunks.test.ts",
+          "src/lib\\channel-source-export\\collector-request.test.ts",
+          "src/lib\\channel-source-export\\files.test.ts",
+          "src/lib\\channel-source-export\\http.test.ts",
+          "src/lib\\channel-source-export\\output.test.ts",
+          "src/lib\\channel-source-export\\transfer-local.test.ts",
+          "src/lib\\channel-source-export\\transfer-plan.test.ts",
+          "src/lib\\channel-source-export\\transfer-runner.test.ts",
+          "src/lib\\customer-ai\\rules.test.ts",
+          "src/lib\\customer-import-files\\transport.test.ts",
+          "src/lib\\customer-imports\\channel-export.test.ts",
+          "src/lib\\customer-imports\\rules.test.ts",
+          "src/lib\\customer-platform\\identity.test.ts",
+          "src/lib\\customer-platform\\webhook-rules.test.ts",
+          "src/lib\\customer-records\\changes.test.ts",
+          "src/lib\\customer-workflows\\rules.test.ts",
+          "src/lib\\email-experiments\\rules.test.ts",
+          "src/lib\\inbox\\rules.test.ts",
+          "src/lib\\inbox-collaboration\\rules.test.ts",
+          "src/lib\\inbox-email\\gmail.test.ts",
+          "src/lib\\inbox-email\\recipients.test.ts",
+          "src/lib\\inbox-operations\\calendar.test.ts",
+          "src/lib\\mcp\\tracker-format.test.ts",
+          "src/lib\\tracker\\date-range.test.ts",
+          "src/lib\\tracker\\site-access.test.ts",
+          "src/components\\customer-conversations\\api\\index.test.ts",
+          "src/components\\customer-conversations\\utils\\attachment-groups.test.ts",
+          "src/components\\customer-conversations\\utils\\controller.test.ts",
+          "src/components\\customer-records\\utils\\attributes.test.ts",
+          "src/components\\email\\utils\\sender-profile-list.test.ts",
+          "src/components\\inbox-presence\\api\\index.test.ts",
+          "src/components\\email\\clicks\\utils\\clickCell.test.ts",
+          "src/components\\email\\replies\\utils\\labels.test.ts",
+          "src/components\\email\\reply-to\\utils\\replyTo.test.ts",
+          "src/components\\email\\send-health\\utils\\labels.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\limitForm.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\logSender.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\poolCapacity.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\queueStatus.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\ruleSummary.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\senderPool.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\sendResult.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\todayStatus.test.ts"
+        ],
+        "startedAt": "2026-10-15T09:34:01.700Z",
+        "completedAt": "2026-10-15T09:34:25.265Z",
+        "log": "file-transfer-integration-release/units.log",
+        "logSha256": "b0415395fcb6c3349c8ddd60c384ae760dbc4de775509968facb3cf6c7bc56bc",
+        "tests": 1256,
+        "passed": 1256,
+        "failed": 0
+      },
+      "build": {
+        "exitCode": 0,
+        "command": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "node_modules/next/dist/bin/next",
+          "build",
+          "--webpack"
+        ],
+        "startedAt": "2026-10-15T09:34:52.140Z",
+        "completedAt": "2026-10-15T09:37:23.598Z",
+        "log": "file-transfer-integration-release/build.log",
+        "logSha256": "a52f5e4f71f2e332418e393eeac668f60a3b7b9e1b71e653612d6cef0687253f",
+        "pagesGenerated": 222,
+        "webpack": true
+      }
+    },
+    "acceptedChecks": {
+      "coreUnit": {
+        "passed": 28,
+        "failed": 0,
+        "command": "node --require \"C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-master-review-20261015\\file-transfer-core/test-bootstrap.cjs\" --test \"F:/Dev/sendb-review-import-adapter/src/lib/channel-source-export/transfer-plan.test.ts\" \"F:/Dev/sendb-review-import-adapter/src/lib/channel-source-export/transfer-runner.test.ts\""
+      },
+      "localCliUnit": {
+        "passed": 11,
+        "total": 11,
+        "log": "unit.log"
+      },
+      "strictTypeAndLint": "passed",
+      "actualApiRunner": {
+        "flows": 9,
+        "actualUploadRequests": 124,
+        "protectedDownloads": 124,
+        "targetVerified": 124,
+        "completedCounts": {
+          "planned": 124,
+          "uploaded": 123,
+          "alreadyReady": 1,
+          "blocked": 0,
+          "failed": 0,
+          "uncertain": 0,
+          "pending": 0,
+          "unmatchedTargets": 0,
+          "uploadedThisRun": 117,
+          "uploadedBytesThisRun": 4933,
+          "confirmedUploadedBytes": 5179,
+          "targetVerified": 124,
+          "verifiedTargetBytes": 5220,
+          "newAttachmentsCreated": null
+        }
+      },
+      "actualApiCli": {
+        "flows": 5,
+        "uploads": 5,
+        "protectedDownloadCalls": 11
+      },
+      "actualApiReadyRace": {
+        "scopedChecks": 4,
+        "falseConfirmed": false,
+        "finalAttachmentRows": 3
+      }
+    },
+    "acceptedEvidence": [
+      {
+        "relative": "file-transfer-accepted.json",
+        "sha256": "ac6a3127036286696fd347e15ee6ff29d05a05f89b61728172c708c387cd6432"
+      },
+      {
+        "relative": "file-transfer-core/evidence.json",
+        "sha256": "179fa1f4389e16bd5c78fad94c6abbc110cd729723e6435541fbc9a5bd935e17"
+      },
+      {
+        "relative": "file-transfer-local-implementation/patch-manifest.json",
+        "sha256": "ecb8f643d88c039233927be678f6186547f18b13217bb2c5d96a03ff295b56aa"
+      },
+      {
+        "relative": "file-transfer-integration/runner-result.json",
+        "sha256": "a5552befb1852f03ddccc817d4e1e342f07e3e72ad4a10c1414144a72ea7d47a"
+      },
+      {
+        "relative": "file-transfer-integration/cli-api-result.json",
+        "sha256": "2d9ffde67ef7dae9cae8552b5145cc4bca64d542a98c3f9899368eec09993034"
+      },
+      {
+        "relative": "file-transfer-readonly-review/ready-race-api-before.json",
+        "sha256": "cff114f1ceb9515d412a54540e485e1e6d38189ed5cfce4cd668ae1ca87136ad"
+      },
+      {
+        "relative": "file-transfer-readonly-review/ready-race-api-after.json",
+        "sha256": "a2c77f93f0074dda380380678a185d089eed0ddf18f827922b611a024795c5a5"
+      }
+    ],
+    "evidenceReuse": "Actual 124-file API/PGlite, CLI5, ready-race4 and prior UI checks were not repeated during integration. Approved source content matches; previously accepted results retain their original scope.",
+    "executionEnvironment": "Only isolated F:/Dev/sendb-file-transfer-integration; existing dependencies read-only, no installation, OS-only process environment, fictional DB port1, native fetch/http/https/http2/net/tls/DNS blocked. No account, provider key, actual customer DB, deployment, server or browser used.",
+    "transferSemantics": {
+      "targetVerified": "Ready target protected-download SHA/size equals the archived receipt.",
+      "newAttachmentsCreated": null,
+      "uploaded": "POST returned and protected target bytes matched; competing same-byte creation remains possible.",
+      "uncertainResult": "Server commit followed by response loss or cancellation before verification yields failed/operation_uncertain and unknown; resume rechecks target bytes without duplicate POST."
+    },
+    "explicitExecution": {
+      "readOnlyPlan": "--fixture or explicit --online --api-base; default is no upload",
+      "upload": "--execute --approve-sha256 <reviewed hash>",
+      "resume": "same plan and approval plus --resume",
+      "targetBinding": "Canonical origin and offline/online mode included in plan SHA; changed destination rejected before requests.",
+      "token": "SENDB_FILE_TRANSFER_API_TOKEN process environment; no .env loading."
+    },
+    "limitations": [
+      "Fictional source and memory PGlite only; no actual ChannelTalk account or customer database.",
+      "Target registry and import jobs must already exist. This command does not import metadata or prepare registries.",
+      "Verified target bytes are reported separately from new attachment creation: newAttachmentsCreated is null because the API does not identify which competing POST created the attachment.",
+      "Existing file-size limits and staff-only archived-history policy remain; this does not establish whole-account export completeness or production readiness."
+    ],
+    "deployment": {
+      "merged": false,
+      "deployed": false,
+      "actualDatabaseAccess": false
+    }
   }
 }
