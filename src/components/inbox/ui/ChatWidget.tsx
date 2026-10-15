@@ -8,6 +8,7 @@ import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
 import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { draftSessionKey } from "../utils/session";
+import { useJourneyAttachment } from "@/components/inbox-journey/hooks/useJourneyAttachment";
 import { useCustomerConversations } from "@/components/customer-conversations/hooks/useCustomerConversations";
 import { CustomerConversationList } from "@/components/customer-conversations/ui/CustomerConversationList";
 import {
@@ -124,7 +125,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     const resetAttachments = attachments.reset;
     const uploadUrl = `${baseUrl}/attachments${isNew ? "?newConversation=1" : selectedId ? `?conversationId=${encodeURIComponent(selectedId)}` : ""}`;
     const configured = useRef<string | null>(null);
-    const journeyToken = useRef<string | undefined>(undefined);
+    const [journeyToken, setJourneyToken] = useState<string | undefined>(undefined);
     const pending = useRef<PendingMessage | null>(null),
         end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
@@ -181,6 +182,10 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             (detailResolved && isReadOnlyCustomerConversation(data.data)));
     const detailPending = history.enabled && !isNew && !detailResolved;
     const canWrite = !readOnly && !detailPending && !data.error;
+    useJourneyAttachment({ channelKey, token, journeyToken,
+        conversationId: detailResolved ? data.data?.conversationId : undefined,
+        readOnly, ready: ready && !linking && !isNew && !isList && detailResolved,
+    });
     const inquiryPending =
         history.enabled && history.view === "current" && !currentResolved;
     const navigationBusy = busy || linking || inquiryPending;
@@ -238,7 +243,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             )
                 return;
             if (event.data.type === "sendb:configure") {
-                journeyToken.current = typeof event.data.journeyToken === "string" ? event.data.journeyToken : undefined;
+                setJourneyToken(typeof event.data.journeyToken === "string" ? event.data.journeyToken : undefined);
                 if (
                     event.data.configurationId !== undefined &&
                     (!Number.isSafeInteger(event.data.configurationId) ||
@@ -286,7 +291,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             if (event.data.type === "sendb:visibility")
                 setOpened(!!event.data.opened);
             if (event.data.type === "sendb:journey-context")
-                journeyToken.current = typeof event.data.journeyToken === "string" ? event.data.journeyToken : undefined;
+                setJourneyToken(typeof event.data.journeyToken === "string" ? event.data.journeyToken : undefined);
             if (event.data.type === "sendb:linking")
                 setLinking(!!event.data.linking);
             if (
@@ -655,17 +660,6 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 },
             );
             if (currentGeneration !== generation.current) return;
-            if (journeyToken.current) {
-                try {
-                    await inboxRequest(`/api/messenger/${channelKey}`, {
-                        method: "POST",
-                        body: JSON.stringify({ action: "journey", journeyToken: journeyToken.current,
-                            conversationId: result.conversationId || selectedId || undefined }),
-                        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session}` },
-                    });
-                } catch { /* 경로 증명이 만료돼도 이미 보낸 문의는 유지한다. */ }
-                if (currentGeneration !== generation.current) return;
-            }
             setText("");
             attachments.clear();
             pending.current = null;

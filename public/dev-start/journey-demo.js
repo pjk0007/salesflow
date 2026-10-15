@@ -2,6 +2,13 @@
     "use strict";
     var storage = "sendb-journey-demo-v1", setup = null, connected = false;
     var status = document.getElementById("status");
+    var late = new URLSearchParams(location.search).get("late") === "1";
+    var trackerLoaded = false;
+    async function tracker() {
+        if (trackerLoaded) return;
+        await script("/tracker.js", { "data-api-key": setup.trackerKey, "data-endpoint": location.origin + "/api/tracker/collect" });
+        trackerLoaded = true;
+    }
     function script(src, attrs) {
         return new Promise(function (resolve, reject) {
             var el = document.createElement("script"); el.src = src;
@@ -23,7 +30,11 @@
         var staff = document.getElementById("staff"); staff.href = "/inbox?channelId=" + setup.channelId; staff.target = "_blank"; staff.hidden = false;
         status.textContent = "가상 리드 #" + setup.recordId + " 준비 완료 · 실제 외부 발송 없음";
         if (connected) return;
-        await script("/tracker.js", { "data-api-key": setup.trackerKey, "data-endpoint": location.origin + "/api/tracker/collect" });
+        if (late) {
+            document.getElementById("late-note").hidden = false;
+            var lateButton = document.getElementById("late-tracker"); lateButton.hidden = false; lateButton.disabled = false;
+            lateButton.onclick = async function () { this.disabled = true; try { await tracker(); this.textContent = "방문 경로 연결 요청 완료"; } catch (e) { status.textContent = e.message; this.disabled = false; } };
+        } else await tracker();
         await script("/sendb-sdk.js");
         await window.SendbChat.boot({ apiBase: location.origin, channelKey: setup.channelKey });
         connected = true; document.getElementById("member").disabled = false;

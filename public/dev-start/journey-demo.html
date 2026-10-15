@@ -3,6 +3,7 @@
 <body><main><div class="badge">개발 서버 · 가상 고객 전용</div><h1>메일을 받은 리드가<br>상담을 시작한다면?</h1>
 <p class="lead">실제 메일·알림톡을 보내지 않고 가상 발송 기록을 준비합니다. 이 페이지의 방문과 하단 상담은 실제 dev 기능으로 기록됩니다.</p>
 <p><a href="index.html">← 개발 체험 시작</a> · <a href="guide/index.html">UX 가이드</a></p>
+<p id="late-note" hidden>지연 연결 검수: 먼저 하단 상담에서 문의를 보낸 뒤, 방문 경로 연결하기를 누르세요. 두 번째 문의 없이 경로가 연결되는지 확인합니다.</p><button id="late-tracker" class="secondary" hidden disabled>방문 경로 연결하기</button>
 <section><h2>1. 가상 리드 준비</h2><p>개발 샌드비에 관리자 계정으로 로그인한 뒤 눌러주세요.</p><button id="prepare" class="primary">가상 리드·발송 기록 준비</button><p id="status" role="status">아직 시작하지 않았습니다.</p><a id="staff" hidden>직원 상담함 열기 →</a></section>
 <section><h2 id="page-title">2. 서비스 페이지 방문</h2><p>아래 페이지를 오가며 내용을 확인한 뒤, 오른쪽 아래 상담 버튼으로 문의를 보내세요.</p><div class="inline-links"><a id="service" href="?step=service">서비스 소개 보기</a><a id="pricing" href="?step=pricing">가격·도입 안내 보기</a></div><p id="page-copy">디자인 인력이 필요한 업무와 시작 일정을 상담할 수 있다는 가상 서비스 안내입니다.</p></section>
 <section><h2>3. 상담에서 이전 경로 확인</h2><ol><li>하단 상담에서 이름과 가상 문의를 입력하고 직접 전송합니다.</li><li>직원 상담함에서 새 문의를 열고 오른쪽 <strong>발송·방문·상담 경로</strong>를 확인합니다.</li><li>‘메일 링크 유입 · 본인 미확인’과 가상 메일·알림톡 기록, 방문 페이지, 현재 문의가 표시됩니다.</li></ol>
