@@ -77,7 +77,7 @@ node node_modules/tsx/dist/cli.mjs --test "src/**/*.test.ts"
 - Gmail19, 이메일14/첨부11, 회원 연결12, 자동화15, AI16, 이전15, 웹훅14 회귀와 타입/lint/격리 빌드. 실제 고객/모델/Google Chat 발송·운영 DB 접근은 없다.
 - Chrome: 디하 목표 15→20분 저장/휴무일/안내 수정 → 기존 15분 시한 보존 → 사이트 업무시간 밖 문의 접수 → 새 설정 v2/09:20 시한 확인. 사업명을 표시한 초과 알림→백오랩 상담 이동과 독립 설정/성과, 날짜/매체 조회·원본 메시지 날짜별 구분을 확인했다. 캡처/로그는 evidence-manifest의 `operationsQa`에 기록한다.
 
-팀별 라우팅/구독·모바일/OS push·외부 채널 알림, 우선순위/고객 등급별 여러 SLA 정책, 과거 지표 정밀 복원·전체 내보내기/고급 분석, 실제 팀 업무/부하/워커 장애 모니터링·보존/삭제/전환 검수는 남아 있다. 전체 대체 완료나 운영 배포를 의미하지 않는다.
+기본 [상담팀 배정](ROUTING.md)과 팀 이관 시 현재 팀원·관리자에게 보내는 앱 알림은 이후 0106에 추가했다. 팀별 별도 알림 구독 설정·모바일/OS push·외부 채널 알림, 우선순위/고객 등급별 여러 SLA 정책, 과거 지표 정밀 복원·전체 내보내기/고급 분석은 남은 범위다. 실제 팀 업무/부하/워커 장애 모니터링·보존/삭제/전환 검수도 남아 있으며, 전체 대체 완료나 운영 배포를 의미하지 않는다.
 
 참고 근거는 [Chatwoot의 개인 알림 모델](https://github.com/chatwoot/chatwoot/blob/develop/app/models/notification.rb), [Intercom의 첫/추가/해결 SLA와 업무시간](https://www.intercom.com/help/en/articles/6546152-set-slas-for-conversations-and-tickets), [응대 지표 설명](https://www.intercom.com/help/en/articles/7022438-reporting-metrics-attributes)이다. 공개 문서/도메인 구조를 참고해 기존 샌드비 이벤트에 구현했다. 설정 고정·AI 포함 선택·코호트/표본 표시 등은 두 사업에 맞춰 정한 샌드비의 동작이며 원제품과 완전히 같은 계산이라고 주장하지 않는다.
 
