@@ -1,4 +1,6 @@
-import type { SendbCustomerConversationPage } from "../../../../sdk/messenger";
+import type { SendbCustomerConversationPage, SendbCustomerMessages } from "../../../../sdk/messenger";
+
+export type CustomerConversationAccess = Pick<SendbCustomerMessages, "historyOnly" | "readOnly">;
 
 export type CustomerConversationPage = SendbCustomerConversationPage;
 export type CustomerConversationRow = CustomerConversationPage["rows"][number];

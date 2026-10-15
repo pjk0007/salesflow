@@ -13,6 +13,10 @@ export interface SendbCustomerConversationPage {
         isCurrent: boolean;
         lastMessageAt: string;
         unread: number;
+        /** Verified owner's imported ChannelTalk record; never a writable thread. */
+        historyOnly?: boolean;
+        /** Older servers omit this field and never return imported history. */
+        readOnly?: boolean;
     }[];
     hasMore: boolean;
     nextBefore: string | null;
@@ -25,6 +29,9 @@ export interface SendbCustomerMessages {
     aiState: "auto" | "human";
     profile: { name: string; email: string | null; identified: boolean };
     hasOlder: boolean;
+    /** Imported public history is read-only even if its original status was open. */
+    historyOnly?: boolean;
+    readOnly?: boolean;
     messages: {
         id: number;
         clientId: string;

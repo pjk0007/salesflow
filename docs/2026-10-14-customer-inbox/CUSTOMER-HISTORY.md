@@ -6,13 +6,15 @@
 
 1. 로그인한 고객이 상담창의 **내 문의 목록**을 연다. 첫 질문·최근 공개 메시지·상태·시각·안 읽은 답변 수를 보고 문의를 선택한다.
 2. 다른 주제는 **새 문의**에서 작성한다. 화면만 열거나 목록으로 돌아가면 빈 문의가 생기지 않는다. 첫 메시지와 문의를 같은 트랜잭션으로 저장한다.
-3. 기존 문의를 선택하면 그 문의에만 답변한다. 완료된 문의에 다시 보내면 재개하고, 새 문의를 만들더라도 기존 문의의 담당·상태는 그대로 둔다.
+3. 기존 웹 문의를 선택하면 그 문의에만 답변한다. 완료된 웹 문의에 다시 보내면 재개하고, 새 문의를 만들더라도 기존 문의의 담당·상태는 그대로 둔다. 가져온 과거 상담은 읽기 전용이며 재개하지 않는다.
 4. 이 창 안에서 문의별 문장·제안 초안·첨부를 보관한다. 첫 조회 중에는 문의 ID를 확인할 때까지 전환/전송을 잠시 제한하며 입력은 보관한다. 문의가 없는 회원의 최초 초안은 새 문의로 이어진다. 토큰 갱신과 SDK 재연결은 현재 문의와 초안을 유지한다. 전체 페이지 새로고침·창 종료·로그아웃 이후의 영구 초안 저장은 제공하지 않는다.
-5. 목록을 보기만 하면 답변을 읽음 처리하지 않는다. 열린 문의의 공개 메시지를 확인한 위치와 병합 세대를 서버에 저장한다. 다른 기기에서도 같은 확인 상태를 조회한다.
+5. 목록을 보기만 하면 답변을 읽음 처리하지 않는다. 열린 현재 웹 문의의 공개 메시지를 확인한 위치와 병합 세대를 서버에 저장한다. 다른 기기에서도 같은 확인 상태를 조회한다. 과거 상담은 미확인 수에 포함하지 않고 읽음 위치를 저장하지 않는다.
 
 비회원은 현재 익명 세션의 문의만 이어간다. 회원 전체 목록과 복수 새 문의 기능은 로그인 후 사용할 수 있다. 비회원 문의를 명시적으로 회원에게 연결하면 회원의 현재 문의와 합치며 이전 별도 문의는 유지한다. 이때 미전송 파일은 다시 선택해야 한다는 기존 안내를 유지한다.
 
-이 목록은 현재 회원의 **웹 상담**을 위한 것이다. 직원 메모·다른 고객·다른 사업·이메일 상담·가져온 과거 상담·병합된 원본 행은 포함하지 않는다. 가져온 기록은 직원 수신함의 과거 상담에서 별도로 확인한다.
+이 목록은 현재 회원의 **웹 상담**과 조건을 충족한 **본인의 과거 채널톡 공개 상담**을 구분해 제공한다. 과거 상담은 관리자가 원본 계정과 회원 ID 체계의 일치를 확인해 `verifiedCustomerHistory`로 승인한 경우에만 읽기 전용으로 표시한다. 기본값은 `false`이며 직원 메모·다른 고객/사업·이메일 상담·미승인 과거 상담·병합된 원본 행은 제외한다. [관리자 사용법·인증과 회수의 한계](CUSTOMER-IMPORT-HISTORY.md)를 따른다.
+
+과거 기록을 왕복해도 현재/새 문의의 문장·선택 파일을 보존한다. 과거 기록에서 받은 사이트 `setDraft()` 문구는 새 문의용으로 따로 보관하고 사람이 **새 문의 초안 열기**로 확인한다. 기존 새 문의 문장을 자동으로 덮거나 전송하지 않는다.
 
 ## 브라우저 SDK
 
@@ -26,16 +28,16 @@ SDK1.4.0과 같은 버전의 위젯을 함께 사용한다. 사이트의 인증 
 
 | 호출 | 계약 |
 |---|---|
-| `GET /api/messenger/{key}/conversations?before=...` | `rows,hasMore,nextBefore,unreadCount`. 최대50건, 최신 시각/ID 내림차순. 다음 요청은 응답의 불투명 `nextBefore`를 그대로 사용 |
+| `GET /api/messenger/{key}/conversations?before=...` | `rows,hasMore,nextBefore,unreadCount`. 행의 `historyOnly,readOnly`로 과거 상담을 구분. 최대50건, 정렬 시각/ID 내림차순. 다음 요청은 응답의 불투명 `nextBefore`를 그대로 사용 |
 | `POST /api/messenger/{key}/conversations` | `{clientId,body,attachmentIds?}` → `{conversationId,id,clientId}`. 첫 공개 메시지와 새 문의를 함께 저장 |
-| `GET /api/messenger/{key}?conversationId=...&before=...` | 해당 문의의 공개 메시지 최대100개·프로필·`conversationId,readRevision,hasOlder,status,aiState`. 메시지 이전 커서는 정수 ID |
-| `POST /api/messenger/{key}?conversationId=...` | 선택한 문의에 기존 메시지 입력 계약으로 전송 |
-| `POST /api/messenger/{key}/conversations/{id}/read` | `{lastMessageId,readRevision?}` → `{lastMessageId,readRevision,unread}`. 상세 응답의 세대를 전달 |
+| `GET /api/messenger/{key}?conversationId=...&before=...` | 해당 문의의 공개 메시지 최대100개·프로필·`conversationId,historyOnly,readOnly,readRevision,hasOlder,status,aiState`. 메시지 이전 커서는 정수 ID이며 과거 기록은 원래 시각/ID 순서로 조회 |
+| `POST /api/messenger/{key}?conversationId=...` | 선택한 쓰기 가능한 현재 웹 문의에 기존 메시지 입력 계약으로 전송. 과거 상담은 거절 |
+| `POST /api/messenger/{key}/conversations/{id}/read` | `{lastMessageId,readRevision?}` → `{lastMessageId,readRevision,unread}`. 현재 웹 문의는 상세 응답의 세대를 전달. 과거 공개 메시지는 읽음 행을 쓰지 않고 세대/미확인 수 0을 반환 |
 | `POST /api/messenger/{key}/attachments?newConversation=1` | 아직 생성하지 않은 새 문의의 고객 첨부 준비. 첫 메시지에서 결합 |
-| `POST /api/messenger/{key}/attachments?conversationId=...` | 선택한 문의의 첨부 준비/취소 |
-| `GET /api/messenger/{key}/attachments/{id}?conversationId=...` | 선택한 문의에 속한 공개 첨부 다운로드 |
+| `POST /api/messenger/{key}/attachments?conversationId=...` | 선택한 현재 웹 문의의 첨부 준비/취소. 과거 상담에 새 첨부 불가 |
+| `GET /api/messenger/{key}/attachments/{id}?conversationId=...` | 선택한 문의의 현재 유효한 공개 첨부 다운로드. 과거 기록도 본인 관계·공개 승인 재확인 |
 
-`conversationId`를 생략한 기존 조회/전송은 서버의 기본 문의를 사용한다. 자체 화면은 첫 조회로 확인한 ID를 고정해야 다른 기기에서 새 문의를 시작해도 작성 중인 문장의 대상이 바뀌지 않는다. 같은 생성 요청 재시도는 같은 `clientId`를 사용한다. 이미 성공한 이전 생성 요청을 다시 보내도 나중에 만든 문의의 기본 설정을 되돌리지 않는다.
+`conversationId`를 생략한 기존 조회/전송은 서버의 기본 현재 웹 문의를 사용한다. 자체 화면은 첫 조회로 확인한 ID를 고정해야 다른 기기에서 새 문의를 시작해도 작성 중인 문장의 대상이 바뀌지 않는다. 같은 생성 요청 재시도는 같은 `clientId`를 사용한다. 이미 성공한 이전 생성 요청을 다시 보내도 나중에 만든 문의의 기본 설정을 되돌리지 않는다.
 
 목록 커서는 고정 ISO 시각+UUID를 포함한 문자열이다. 경계 문의에 새 답변이 도착해도 조회 시점마다 경계 시각을 다시 읽지 않는다. 예전 UUID 입력도 호환하지만 새 화면은 `nextBefore`를 직접 해석하지 않는다. 이는 데이터 전체 스냅샷을 고정하는 계약은 아니다.
 
@@ -57,7 +59,7 @@ const page = await messenger.conversations();
 const inquiry = await messenger.conversation(page.rows[0].id);
 // 해당 문의를 실제로 표시하고 확인했을 때만 호출한다.
 const lastId = inquiry.messages.at(-1)?.id;
-if (inquiry.conversationId && lastId)
+if (inquiry.conversationId && lastId && !inquiry.historyOnly && !inquiry.readOnly)
     await messenger.markRead(inquiry.conversationId, lastId, inquiry.readRevision);
 
 const input = { clientId: crypto.randomUUID(), body: "새 주제로 문의합니다." };
@@ -69,6 +71,8 @@ await messenger.sendMessage(created.conversationId, {
 ```
 
 ## 마이그레이션·검증·한계
+
+아래는 기존 0112 문의 기능의 당시 검증 기록이다. 새 고객 과거 상담 정책의 검증 결과로 바꾸지 않으며, 후속 기능의 진행 상태는 [CUSTOMER-IMPORT-HISTORY.md](CUSTOMER-IMPORT-HISTORY.md)에 구분한다.
 
 0112를 앱보다 먼저 적용하는 변경으로 검토한다. 기존 기본 문의에는 `is_current=true`를 유지하고 복수 문의·생성 요청 키·읽음 테이블/병합 세대를 추가한다. 과거 상담의 이전 지문은 새 운영용 컬럼을 제외해 이전에 완료한 가져오기 기록을 무효화하지 않는다. 실제 DB에는 적용하지 않았다.
 

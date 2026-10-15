@@ -147,11 +147,19 @@ export const createImportInput = z
         columns: z.record(z.string(), z.string().max(150)).default({}),
         updateImported: z.boolean().default(false),
         allowPartialHistory: z.boolean().default(false),
+        verifiedCustomerHistory: z.boolean().default(false),
         expectedCounts: z
             .record(z.string(), z.number().int().min(0))
             .default({}),
     })
-    .strict();
+    .strict()
+    .refine(
+        (input) => !input.verifiedCustomerHistory || input.source === "channel",
+        {
+            path: ["verifiedCustomerHistory"],
+            message: "고객 본인 공개 확인은 채널톡 원본에만 사용할 수 있습니다.",
+        },
+    );
 export type ImportInput = z.infer<typeof createImportInput>;
 export function fingerprint(value: unknown): string {
     function stable(v: unknown): unknown {

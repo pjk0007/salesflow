@@ -542,6 +542,26 @@ export async function applyImportRow(
                         updatedAt: new Date(),
                     },
                 });
+        else if (
+            scope.source === "channel" &&
+            (row.kind === "contacts" || row.kind === "conversations")
+        )
+            // A reviewed reuse updates disclosure provenance only. Keep the
+            // original fingerprints so later imports still detect staff edits.
+            await tx
+                .update(keys)
+                .set({ jobId: job.id, updatedAt: new Date() })
+                .where(
+                    and(
+                        eq(keys.orgId, scope.orgId),
+                        eq(keys.workspaceId, scope.workspaceId),
+                        eq(keys.source, scope.source),
+                        eq(keys.namespace, scope.namespace),
+                        eq(keys.kind, row.kind),
+                        eq(keys.sourceId, row.sourceId),
+                        eq(keys.targetId, targetId),
+                    ),
+                );
         if (row.kind === "messages")
             await registerImportFiles(scope, job.id, row, Number(targetId), tx);
         await tx.insert(results).values({

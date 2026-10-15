@@ -273,7 +273,7 @@
             "position:fixed;right:20px;bottom:96px;width:min(390px,calc(100vw - 32px));height:min(680px,calc(100dvh - 120px));border:1px solid #e5e7eb;border-radius:24px;box-shadow:0 16px 64px #0003;z-index:2147482999;background:white;display:none";
         state.frame.setAttribute(
             "sandbox",
-            "allow-scripts allow-same-origin allow-forms",
+            "allow-scripts allow-same-origin allow-forms allow-downloads",
         );
         state.frame.setAttribute("referrerpolicy", "no-referrer");
         state.frame.src =

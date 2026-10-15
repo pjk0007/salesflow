@@ -39,6 +39,7 @@ export function ImportsPage({ role }: { role: string }) {
             columns: {},
             updateImported: false,
             allowPartialHistory: false,
+            verifiedCustomerHistory: false,
             expectedCounts: {},
         }),
         [columns, setColumns] = useState<string[]>([]),
@@ -62,7 +63,17 @@ export function ImportsPage({ role }: { role: string }) {
     const locked = busy || runner.busy,
         change = (part: Partial<ImportForm>) => {
             if (locked) return;
-            setForm((old) => ({ ...old, ...part }));
+            setForm((old) => ({
+                ...old,
+                ...part,
+                verifiedCustomerHistory:
+                    (part.source ?? old.source) === "channel" &&
+                    (part.format ?? old.format) === "json" &&
+                    (part.verifiedCustomerHistory ??
+                        ("namespace" in part || "workspaceId" in part || "source" in part || "content" in part || "format" in part || "csvKind" in part || "columns" in part
+                            ? false
+                            : old.verifiedCustomerHistory === true)),
+            }));
             setJob(null);
             setAck(false);
             setOffset(0);
@@ -73,7 +84,7 @@ export function ImportsPage({ role }: { role: string }) {
         try {
             const next = await importWrite<ImportJob>(
                 "/api/customer-imports",
-                { ...form, workspaceId },
+                { ...form, workspaceId, verifiedCustomerHistory: form.source === "channel" && form.format === "json" && form.verifiedCustomerHistory === true },
                 "POST",
             );
             setJob(next);
@@ -131,7 +142,10 @@ export function ImportsPage({ role }: { role: string }) {
             const source = await importRequest<{ input: ImportForm }>(
                 `/api/customer-imports/${job.id}?source=1`,
             );
-            setForm(source.input);
+            setForm({
+                ...source.input,
+                verifiedCustomerHistory: source.input.source === "channel" && source.input.format === "json" && source.input.verifiedCustomerHistory === true,
+            });
             setJob(null);
             setColumns(
                 source.input.format === "csv"
@@ -206,7 +220,7 @@ export function ImportsPage({ role }: { role: string }) {
                     disabled={locked}
                     onChange={(e) => {
                         setWorkspace(Number(e.target.value));
-                        setJob(null);
+                        change({ workspaceId: Number(e.target.value), verifiedCustomerHistory: false });
                     }}
                 >
                     {availableWorkspaces.map((w) => (
@@ -403,6 +417,21 @@ export function ImportsPage({ role }: { role: string }) {
                     </div>
                 )}
                 <div className="space-y-2 text-sm">
+                    {form.source === "channel" && form.format === "json" && (
+                        <label className="flex gap-2">
+                            <input
+                                type="checkbox"
+                                aria-label="확인된 회원 ID 기준 과거 상담 공개 확인"
+                                checked={form.verifiedCustomerHistory === true}
+                                disabled={locked}
+                                onChange={(e) => change({ verifiedCustomerHistory: e.target.checked })}
+                            />
+                            이 원본 계정의 회원 ID가 이 사업 사이트의 확인된 회원 ID와 같은 체계임을 확인했으며, 고객 본인에게 공개 대화 이력을 제공합니다.
+                        </label>
+                    )}
+                    {form.source === "channel" && form.format === "csv" && (
+                        <p className="text-xs text-muted-foreground">CSV는 회원 원본 확인 근거가 없어 직원 보관용으로 가져옵니다.</p>
+                    )}
                     <label className="flex gap-2">
                         <input
                             type="checkbox"
@@ -501,8 +530,10 @@ export function ImportsPage({ role }: { role: string }) {
                         </p>
                     )}
                     <p className="text-sm text-muted-foreground">
-                        과거 상담은 ‘이전 상담 기록’에 저장하며 고객에게
-                        공개하거나 발송하지 않습니다. 첨부파일은 상담 정보 저장
+                        {job.source === "channel" && job.input.format === "json" && job.input.verifiedCustomerHistory === true
+                            ? "저장된 공개 선택: 확인된 고객 본인에게 공개 대화와 공개 첨부파일을 읽기 전용으로 제공합니다. 내부 메모는 직원만 볼 수 있으며, 과거 상담으로 메시지를 발송하지 않습니다."
+                            : "저장된 공개 선택: 직원 전용입니다. 확인된 회원 ID 체계의 공개를 승인하려면 원본을 불러와 확인한 뒤 새 미리보기로 재이전해야 합니다."}
+                        {" "}과거 상담은 ‘이전 상담 기록’에 저장합니다. 첨부파일은 상담 정보 저장
                         후 아래 ‘과거 상담 첨부파일 원본’에서 따로 가져옵니다.
                         이 화면을 열어둔 동안 25행씩 진행하며, 닫은 뒤에도
                         완료한 행은 남아 나중에 계속할 수 있습니다.

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { CustomerConversationController } from "./controller";
 import type { CustomerConversationPage, CustomerReadAck } from "../types";
+import { InboxRequestError } from "@/components/inbox/api";
 const ack: CustomerReadAck = { lastMessageId: 5, readRevision: 0, unread: 0 };
 
 function row(id: string, at = "2026-10-15T01:00:00.000Z") {
@@ -172,4 +173,77 @@ test("같은 마지막 ID의 새 병합 revision은 별도 읽음 요청하고 �
     await c.markSeen("x", 15, 2);
     assert.deepEqual(revisions, [1, 2]);
     assert.equal(c.getSnapshot().rows.find((r) => r.id === "x")?.unread, 0);
+});
+
+for (const status of [401, 403, 404]) {
+    test(`목록 ${status}은 확장 캐시의 제목·미리보기를 숨기고 선택은 보존`, async () => {
+        let denied = false;
+        const c = new CustomerConversationController({
+            page: async (_token, before) => {
+                if (denied) throw new InboxRequestError("가상 접근 거절", status);
+                return before ? page(["old-history"]) : page(["current"], "next");
+            },
+            read: async () => ack,
+        });
+        c.activate("fictional-owner");
+        await c.refresh();
+        await c.loadMore();
+        c.open("current");
+        denied = true;
+        await c.refresh();
+        assert.deepEqual(c.getSnapshot().rows, []);
+        assert.equal(c.getSnapshot().conversationId, "current");
+        assert.equal(c.getSnapshot().hasMore, false);
+        assert.equal(c.getSnapshot().loading, false);
+        denied = false;
+        await c.refresh();
+        assert.deepEqual(c.getSnapshot().rows.map((r) => r.id), ["current"]);
+    });
+}
+
+test("일시적 목록 503은 공개 캐시와 더보기 커서를 유지", async () => {
+    let unavailable = false;
+    const c = new CustomerConversationController({
+        page: async (_token, before) => {
+            if (unavailable) throw new InboxRequestError("가상 일시 장애", 503);
+            return before ? page(["older"]) : page(["current"], "next");
+        },
+        read: async () => ack,
+    });
+    c.activate("fictional-owner");
+    await c.refresh();
+    const cached = c.getSnapshot().rows;
+    unavailable = true;
+    await c.refresh();
+    assert.equal(c.getSnapshot().rows, cached);
+    assert.equal(c.getSnapshot().hasMore, true);
+    unavailable = false;
+    await c.loadMore();
+    assert.deepEqual(c.getSnapshot().rows.map((r) => r.id), ["older", "current"]);
+});
+
+test("거절된 선택행만 제거하고 늦은 확장 페이지가 복원하지 못함", async () => {
+    const late = deferred<CustomerConversationPage>();
+    let requests = 0;
+    const c = new CustomerConversationController({
+        page: async (_token, before) => {
+            requests++;
+            if (requests === 1) return page(["current", "archive"], "next");
+            if (requests === 2) return page(["valid-older"], "more");
+            if (before) return late.promise;
+            return page(["current"], "next");
+        },
+        read: async () => ack,
+    });
+    c.activate("fictional-owner");
+    await c.refresh();
+    await c.loadMore();
+    c.open("archive");
+    const oldRequest = c.loadMore();
+    c.invalidate("archive");
+    await c.refresh();
+    late.resolve(page(["archive", "late-secret-preview"]));
+    await oldRequest;
+    assert.deepEqual(c.getSnapshot().rows.map((r) => r.id), ["valid-older", "current"]);
+    assert.equal(c.getSnapshot().conversationId, "archive");
 });

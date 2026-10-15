@@ -6174,7 +6174,7 @@
     "productionChanges": false,
     "recordedAt": "2026-10-15T05:41:11.307Z"
   },
-  "updatedAt": "2026-10-15T06:46:35.926Z",
+  "updatedAt": "2026-10-15T11:22:37.299Z",
   "customerHistoryQa": {
     "capturedAt": "2026-10-15T06:46:35.898Z",
     "branch": "dev",
@@ -9113,6 +9113,207 @@
       "No immutable general-check start-time source capture; timing/freeze/UI source evidence explicitly distinguished",
       "No claim that every malformed legacy worker state is immutable",
       "Full R16 cutover, real model quality/load and real site/Firebase remain incomplete"
+    ]
+  },
+  "customerImportHistoryQa": {
+    "capturedAt": "2026-10-15T11:22:37.299Z",
+    "branch": "codex/sendb-customer-import-history",
+    "base": "81107dda0d5ecdf50282b07769c730ab7a57a425",
+    "status": "scoped_development_checks_passed_with_documented_browser_limits",
+    "sourceFreeze": {
+      "freeze": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r4-sdk-site\\frozen-sources.json",
+      "freezeSha256": "432a1edfc16a65538c872ed70051a53f4b2cf8329092ae5cc39df60b209b8be2",
+      "matched": 1523,
+      "mismatches": [],
+      "publicSdkSha256": "1ce90e4b125b5b0d44e3013ce1376749b359a6462b022f903e153b2098aa8692"
+    },
+    "checks": [
+      {
+        "name": "focused",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r3\\focused.json",
+        "sha256": "1c71b4857b2470eed14036d861ef9b53001c455468118bd89f92d47789f9dafe",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "2fac2d0e61bfc898ebee4c4f8bf9d29ce496c0a4b628fff0c048def73836890f",
+        "completedAt": "2026-10-15T10:53:48.928Z"
+      },
+      {
+        "name": "history",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r3\\history.json",
+        "sha256": "61b40027303bb4c8e32bc2c1b71cdccf77a4fa76dbca346c890f66b36b2f8629",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "2fac2d0e61bfc898ebee4c4f8bf9d29ce496c0a4b628fff0c048def73836890f",
+        "completedAt": "2026-10-15T10:53:36.770Z"
+      },
+      {
+        "name": "files",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r3\\files.json",
+        "sha256": "02d7f0d863e3b9ba81189d9cc4f2e8f576e29481b3e3906e1765defd2303e4f3",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "2fac2d0e61bfc898ebee4c4f8bf9d29ce496c0a4b628fff0c048def73836890f",
+        "completedAt": "2026-10-15T10:53:35.718Z"
+      },
+      {
+        "name": "imports",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r3\\imports.json",
+        "sha256": "79b8664191d7e08b70c574b4f1ab6a3d47de71ca30d9ea6e1f09978bcabc8af1",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "2fac2d0e61bfc898ebee4c4f8bf9d29ce496c0a4b628fff0c048def73836890f",
+        "completedAt": "2026-10-15T10:53:38.472Z"
+      },
+      {
+        "name": "build",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r3\\build.json",
+        "sha256": "af583cd1d6f9b828d500ea3b60df380a154c14a75e0fae0e6da4894a4323dac0",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "2fac2d0e61bfc898ebee4c4f8bf9d29ce496c0a4b628fff0c048def73836890f",
+        "completedAt": "2026-10-15T10:56:22.791Z"
+      },
+      {
+        "name": "sdk24",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r4-sdk\\chatsdk.json",
+        "sha256": "64def143e9320ceb2a71da5857bbccd30dbda9bf08401f099886ee9c2bc10862",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "87c14d6419fed8838d11b67707dea9dbbcf513210b412c45412a88c92f0600fd",
+        "completedAt": "2026-10-15T11:06:19.206Z"
+      },
+      {
+        "name": "siteSdk6",
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-customer-import-history-20261015\\validation-r4-sdk-site\\sdk.json",
+        "sha256": "8539140544c1b840ef84fb6ebef67f03dfd47ac591d02271cd7bd6a3345f98db",
+        "status": 0,
+        "sourceUnchanged": true,
+        "frozenSourcesSha256": "432a1edfc16a65538c872ed70051a53f4b2cf8329092ae5cc39df60b209b8be2",
+        "completedAt": "2026-10-15T11:07:27.376Z"
+      }
+    ],
+    "scopedResults": {
+      "featureApi": 13,
+      "commonApi": 11,
+      "historyRegression": 26,
+      "filesRegression": 18,
+      "importsRegression": 15,
+      "relatedUnits": 41,
+      "browserSdkVm": 24,
+      "designerAdapterSdkVm": 6,
+      "uiConfirmedItems": 18,
+      "buildPassed": true
+    },
+    "independentSourceAudit": {
+      "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-master-review-20261015\\customer-archive-policy\\current-source-evidence-reconciliation.json",
+      "sha256": "bb82b29fad7e7c03bd394e79cea3716887ace0e9ecc5f36b9c64aa870366091d"
+    },
+    "independentPrivateFileAudit": {
+      "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-master-review-20261015\\customer-archive-policy\\r3-review.json",
+      "sha256": "a2c4aea4305976a8eb30fe63ed8ea9a8a1aa40ad2453c482f02eed7b491e59c4"
+    },
+    "ui": {
+      "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-master-review-20261015\\customer-archive-policy\\master-ui-observations.json",
+      "sha256": "7111aea38febcb826fdcadd7221767f42f1593ea71a174233af249e759d352df",
+      "artifacts": [
+        {
+          "file": "master-ui-503.txt",
+          "sha256": "856938309dde994249dc727de61273210c53c538f1e45d215b4e65a575eee1a2"
+        },
+        {
+          "file": "master-ui-admin-business-reset.txt",
+          "sha256": "361a8c80b4b6d206d59191d258a838cb170d3a56c7abf79f9eb82be6de69a565"
+        },
+        {
+          "file": "master-ui-admin-preview.jpg",
+          "sha256": "d913ecc077f42a764b11213ed3e04301912dd66781c0adfe01fc0e8407a8bfea"
+        },
+        {
+          "file": "master-ui-admin-preview.txt",
+          "sha256": "b234e64628b4d7cbadd3331a8d9b7d573b3b06fbb80064a489c45b41e5137c52"
+        },
+        {
+          "file": "master-ui-bo-history.jpg",
+          "sha256": "1cda111c7b1a0d93411ae79c6da276cd5dd3ce9b4a53b25994bdbf06c9a0127e"
+        },
+        {
+          "file": "master-ui-bo-history.txt",
+          "sha256": "cbc84324cdde56642d90d3546c26e9aabd77bac257aaf759d77fdd29eb154127"
+        },
+        {
+          "file": "master-ui-bo-list.txt",
+          "sha256": "bc65058971217b75b9e7be5626e2f1c094d953a4978f7f049e9bf3f881aa8afd"
+        },
+        {
+          "file": "master-ui-deferred-draft.txt",
+          "sha256": "e7c4f5e0b587aec1b919d2f64a11310d3fd30f76576a31a4c8b6576be672cfb7"
+        },
+        {
+          "file": "master-ui-denied.txt",
+          "sha256": "d5141168cab42d40d5b67023ee1f683320564a8c6dd419a874b20c8960f119ff"
+        },
+        {
+          "file": "master-ui-final-backend.json",
+          "sha256": "83523fb018cc9f9037dbad9a5843ab1614a5af79ce8ab8070439f5e7ecb34671"
+        },
+        {
+          "file": "master-ui-full-list.txt",
+          "sha256": "f53eb1cf3bbc3ca2bd2cc9d226e4dd4ea055efee7bee3f4a24935f0cdc3df49e"
+        },
+        {
+          "file": "master-ui-history.jpg",
+          "sha256": "d5bcbb7bee024248e61ef28f7825d0c4453c1c5fdbde7d306855fba6754a6996"
+        },
+        {
+          "file": "master-ui-history.txt",
+          "sha256": "1ab379e181d529922a1195dc41110dec3fcfdc16891d62729b9b8d8f83433fbf"
+        },
+        {
+          "file": "master-ui-initial-list.txt",
+          "sha256": "5714787d8ca932a64cb441df87011e9d11a568496482317695d7db1e27d892ed"
+        },
+        {
+          "file": "master-ui-list-denied.txt",
+          "sha256": "ba2f0616dd748d34118bf534a94ab188fb6e4e8b076c49258ed3319e61d0d74e"
+        },
+        {
+          "file": "master-ui-member-b.txt",
+          "sha256": "d263f323d51573e0e02b09fc816a0747104ab6cd3af64a32b87f3322786599c7"
+        },
+        {
+          "file": "master-ui-observations.json",
+          "sha256": "7111aea38febcb826fdcadd7221767f42f1593ea71a174233af249e759d352df"
+        },
+        {
+          "file": "master-ui-older.txt",
+          "sha256": "ae0c2600fb466731ae3980fa1619be31629fbfb9c3e0754e85fcd07922f85ee7"
+        }
+      ],
+      "limits": [
+        "Fictional identities/data and memory PGlite; actual SDK/ChatWidget/API, synthetic QA host and ImportsPage service-route adapter; not live-site or native employee-login acceptance.",
+        "PDF download click sent a request, but download-completion event timed out after 10 seconds. Browser save completion remains unverified. No browser/extension permission settings changed.",
+        "New File selection not attempted again because earlier browser automation permission restriction remains. API bytes/private-file rejection separately verified.",
+        "Frozen fixture member tokens expired; refresh during failed SDK boot was rejected by documented SDK ready gate. Fresh-token reconnect/new boot restored B and Backoffice fixture. These host timing failures are retained, not counted as product-pass cases.",
+        "Initial 48-row loading snapshot settled at 52 archive rows. Selector errors were corrected after current DOM inspection; they are not product failures."
+      ]
+    },
+    "cleanup": {
+      "ownedPort": 3154,
+      "ownedPid": 92588,
+      "shutdownRequested": true,
+      "processAbsent": true,
+      "portFree": true,
+      "memoryDatabaseOnly": true,
+      "rootBrowserTabsClosed": true
+    },
+    "finalCommitEvidence": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-master-review-20261015\\customer-archive-policy\\final-review.json",
+    "realAccountOrProductionAcceptance": false,
+    "remotePush": false,
+    "fullReplacementComplete": false,
+    "notes": [
+      "The final commit reference is maintained outside the commit to avoid a self-referential hash.",
+      "SDK site check passed with the required external path; those external controller/api/loader files were reconciled to prior hashes and current clean HEAD, but were not part of the original run freeze.",
+      "Original failed fixture and missing-argument runs remain preserved. Tests were not rerun solely to repeat successful evidence."
     ]
   }
 }

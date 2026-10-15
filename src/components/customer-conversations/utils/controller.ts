@@ -4,6 +4,7 @@ import type {
     CustomerConversationState,
     CustomerReadAck,
 } from "../types";
+import { InboxRequestError } from "@/components/inbox/api";
 
 type Transport = {
     page(token: string, before?: string): Promise<CustomerConversationPage>;
@@ -52,6 +53,18 @@ export class CustomerConversationController {
         this.#state = { ...this.#state, ...patch };
         for (const listener of this.#listeners) listener();
     }
+    #pageError(error: unknown, generation: number) {
+        if (generation !== this.#generation) return;
+        if (error instanceof InboxRequestError && [401, 403, 404].includes(error.status)) {
+            // Do not let an older in-flight page restore data after access denial.
+            this.#generation++;
+            this.#first = this.#more = undefined;
+            this.#readPending.clear();
+            this.#nextBefore = null;
+            this.#expanded = false;
+            this.#set({ rows: [], unreadCount: 0, hasMore: false, loading: false, error });
+        } else this.#set({ error: asError(error) });
+    }
     activate(token: string) {
         this.#token = token;
         this.#generation++;
@@ -70,6 +83,14 @@ export class CustomerConversationController {
     open = (id: string) =>
         this.#set({ view: "thread", conversationId: id });
     reset = () => this.#set({ view: "current", conversationId: undefined });
+    invalidate = (id: string) => {
+        this.#generation++;
+        this.#first = this.#more = undefined;
+        this.#readPending.clear();
+        this.#set({ rows: this.#state.rows.filter((row) => row.id !== id), loading: false });
+        // Keep valid older pages and every inquiry's draft; only this row was rejected.
+        void this.refresh();
+    };
 
     refresh = (): Promise<unknown> => {
         if (!this.#token) return Promise.resolve();
@@ -92,8 +113,7 @@ export class CustomerConversationController {
                 return page;
             })
             .catch((error: unknown) => {
-                if (generation === this.#generation)
-                    this.#set({ error: asError(error) });
+                this.#pageError(error, generation);
             })
             .finally(() => {
                 if (this.#first === request) {
@@ -127,8 +147,7 @@ export class CustomerConversationController {
                 return page;
             })
             .catch((error: unknown) => {
-                if (generation === this.#generation)
-                    this.#set({ error: asError(error) });
+                this.#pageError(error, generation);
             })
             .finally(() => {
                 if (this.#more === request) {

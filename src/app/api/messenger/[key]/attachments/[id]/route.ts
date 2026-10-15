@@ -14,7 +14,10 @@ export async function GET(req: NextRequest, c: C) {
         async () => {
             const { key } = await c.params;
             headers = await messengerHeaders(req, key);
-            return visitorFileScope(key, visitorToken(req), undefined, {conversationId:selectedConversation(req.nextUrl.searchParams)});
+            return visitorFileScope(key, visitorToken(req), undefined, {
+                conversationId: selectedConversation(req.nextUrl.searchParams),
+                readHistory: true,
+            });
         },
         () => c.params.then((p) => p.id),
     );

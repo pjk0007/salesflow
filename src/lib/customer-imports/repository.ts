@@ -348,6 +348,7 @@ export async function previewImport(
                 total: plan.length,
                 errors: errors.length,
                 warnings: warnings.length,
+                verifiedCustomerHistory: input.verifiedCustomerHistory,
             },
         });
         return importDetail(actor, job.id, tx);

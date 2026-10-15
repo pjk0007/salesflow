@@ -155,6 +155,20 @@ async function main() {
         },
     );
     await check(
+        "보호된 첨부 다운로드를 허용하면서 iframe의 기존 sandbox 범위를 유지",
+        async () => {
+            const f = fixture(),
+                pending = f.sdk.boot({ channelKey: f.key });
+            assert.deepEqual(
+                f.active("iframe").attributes.sandbox.split(/\s+/).sort(),
+                ["allow-downloads", "allow-forms", "allow-same-origin", "allow-scripts"],
+            );
+            f.ready();
+            await pending;
+            f.sdk.shutdown();
+        },
+    );
+    await check(
         "숨김 옵션은 첫 삽입부터 적용하고 명시적 문의 열기와 독립",
         async () => {
             const f = fixture(),

@@ -3,13 +3,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { ArrowUp, MessageCircle, RotateCcw } from "lucide-react";
 import { inboxRequest, InboxRequestError } from "../api";
-import type { ChatMessage } from "../types";
+import type { SendbCustomerMessages } from "../../../../sdk/messenger";
 import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
 import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { draftSessionKey } from "../utils/session";
 import { useCustomerConversations } from "@/components/customer-conversations/hooks/useCustomerConversations";
 import { CustomerConversationList } from "@/components/customer-conversations/ui/CustomerConversationList";
+import {
+    customerConversationTimestamp,
+    isReadOnlyCustomerConversation,
+} from "@/components/customer-conversations/utils/presentation";
+import { mergeCustomerDraftText } from "@/components/customer-conversations/utils/draft-text";
 type PendingMessage = { body: string; id: string; files: string };
 type ConversationDraft = {
     text: string;
@@ -17,15 +22,8 @@ type ConversationDraft = {
     pending: PendingMessage | null;
     handoff: string | null;
 };
-type VisitorDetail = {
-    conversationId: string | null;
-    readRevision: number;
-    status: string;
-    aiState: "auto" | "human";
-    messages: ChatMessage[];
-    hasOlder: boolean;
-    profile: { name: string; email: string | null; identified: boolean };
-};
+type VisitorDetail = SendbCustomerMessages;
+type CustomerMessage = VisitorDetail["messages"][number];
 const conversationUuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function ChatWidget({ channelKey }: { channelKey: string }) {
@@ -37,11 +35,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         [busy, setBusy] = useState(false),
         [error, setError] = useState("");
     const [suggestedText, setSuggestedText] = useState("");
+    const deferredDraft = useRef<string | null>(null);
+    const [hasDeferredDraft, setHasDeferredDraft] = useState(false);
+    const incomingDraft = useRef<(message: string) => void>(() => {});
     const textRef = useRef(text);
     useEffect(() => {
         textRef.current = text;
     }, [text]);
-    const [older, setOlder] = useState<ChatMessage[]>([]),
+    const [older, setOlder] = useState<CustomerMessage[]>([]),
         [canLoad, setCanLoad] = useState(true);
     const [blocked, setBlocked] = useState(false);
     const [linking, setLinking] = useState(false);
@@ -63,6 +64,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     const navigation = useRef<(view: string, id?: string) => void>(() => {});
     const history = useCustomerConversations(channelKey, token, ready, opened);
     const markSeen = history.markSeen;
+    const invalidateConversation = history.invalidate;
     const openConversation = history.open;
     const startInquiry = history.newInquiry;
     const isList = history.enabled && history.view === "list";
@@ -74,7 +76,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         : baseUrl;
     const handoffPending = useRef<string | null>(null);
     async function requestHuman() {
-        if (!token || busy || linking || inquiryPending) return;
+        if (!token || busy || linking || inquiryPending || !canWrite) return;
         if (isNew && pending.current) {
             setError(
                 "먼저 작성한 메시지를 다시 보내 결과를 확인해주세요. 작성 내용은 보관되어 있습니다.",
@@ -161,14 +163,46 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             shouldRetryOnError: false,
         },
     );
-    const currentResolved = data.data?.sessionToken === token;
+    const currentResolved =
+        data.data?.sessionToken === token &&
+        data.data?.configurationNonce === (configuration?.nonce ?? 0);
+    const detailAccessDenied =
+        data.error instanceof InboxRequestError &&
+        [401, 403, 404].includes(data.error.status);
+    const detailResolved =
+        currentResolved &&
+        !detailAccessDenied &&
+        (!selectedId || data.data?.conversationId === selectedId);
+    const selectedRow = history.rows.find((row) => row.id === selectedId);
+    const readOnly =
+        !isNew &&
+        (isReadOnlyCustomerConversation(selectedRow) ||
+            (detailResolved && isReadOnlyCustomerConversation(data.data)));
+    const detailPending = history.enabled && !isNew && !detailResolved;
+    const canWrite = !readOnly && !detailPending && !data.error;
     const inquiryPending =
         history.enabled && history.view === "current" && !currentResolved;
     const navigationBusy = busy || linking || inquiryPending;
+    incomingDraft.current = (message: string) => {
+        if (history.enabled && (readOnly || detailPending || linking || isList || busy)) {
+            deferredDraft.current = message;
+            setHasDeferredDraft(true);
+            return;
+        }
+        const next = mergeCustomerDraftText(textRef.current, suggestedText, message);
+        setText(next.text);
+        setSuggestedText(next.suggestion);
+    };
+    useEffect(() => {
+        if (history.enabled && detailAccessDenied && selectedId)
+            invalidateConversation(selectedId);
+    }, [history.enabled, detailAccessDenied, selectedId, invalidateConversation]);
     useEffect(() => {
         generation.current++;
         configured.current = null;
         drafts.current.clear();
+        deferredDraft.current = null;
+        setHasDeferredDraft(false);
         resetAttachments();
         pending.current = null;
         handoffPending.current = null;
@@ -232,6 +266,8 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     setBusy(false);
                     resetAttachments();
                     drafts.current.clear();
+                    deferredDraft.current = null;
+                    setHasDeferredDraft(false);
                     setDraftKey("current");
                     if (!event.data.continueAnonymous) setText("");
                     if (!event.data.continueAnonymous) setSuggestedText("");
@@ -259,12 +295,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 typeof event.data.message === "string" &&
                 event.data.message.length <= 5000
             ) {
-                if (
-                    textRef.current.trim() &&
-                    textRef.current !== event.data.message
-                )
-                    setSuggestedText(event.data.message);
-                else setText(event.data.message);
+                incomingDraft.current(event.data.message);
             }
             if (event.data.type === "sendb:visitor-profile") {
                 if (
@@ -378,6 +409,8 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             linking ||
             isList ||
             isNew ||
+            readOnly ||
+            !detailResolved ||
             !id ||
             !latestId
         )
@@ -404,6 +437,8 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         linking,
         isList,
         isNew,
+        readOnly,
+        detailResolved,
         latestId,
         data.data?.conversationId,
         data.data?.readRevision,
@@ -450,10 +485,17 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                 handoff: handoffPending.current,
             });
             const next = drafts.current.get(target);
+            const nextText = target === "new" && deferredDraft.current !== null
+                ? mergeCustomerDraftText(next?.text ?? "", next?.suggestion ?? "", deferredDraft.current)
+                : { text: next?.text ?? "", suggestion: next?.suggestion ?? "" };
             generation.current++;
             setDraftKey(target);
-            setText(next?.text ?? "");
-            setSuggestedText(next?.suggestion ?? "");
+            setText(nextText.text);
+            setSuggestedText(nextText.suggestion);
+            if (target === "new") {
+                deferredDraft.current = null;
+                setHasDeferredDraft(false);
+            }
             pending.current = next?.pending ?? null;
             handoffPending.current = next?.handoff ?? null;
             setOlder([]);
@@ -532,6 +574,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             busy ||
             linking ||
             inquiryPending ||
+            !canWrite ||
             (!text.trim() && !attachments.files.length)
         )
             return;
@@ -626,14 +669,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
         }
     }
     const messages =
-        isNew || linking
+        isNew || linking || !detailResolved
             ? []
             : [
                   ...older.filter(
                       (o) => !data.data?.messages.some((m) => m.id === o.id),
                   ),
                   ...(data.data?.messages ?? []),
-              ];
+              ].filter((message) => message.kind === "customer" || message.kind === "reply");
     return (
         <div className="flex h-dvh flex-col bg-white font-sans text-gray-900">
             <header
@@ -649,14 +692,18 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                             {config.data?.name ?? "고객 상담"}
                         </h1>
                         <p className="mt-1 text-xs text-white/75">
-                            문의 내용을 남겨주시면 순서대로 답변드려요
+                            {readOnly
+                                ? "이전 상담 기록을 확인하고 있습니다"
+                                : "문의 내용을 남겨주시면 순서대로 답변드려요"}
                         </p>
                     </div>
                 </div>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">
-                    {config.data?.greeting}
-                </p>
-                {config.data?.businessHours && (
+                {!readOnly && (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">
+                        {config.data?.greeting}
+                    </p>
+                )}
+                {!readOnly && config.data?.businessHours && (
                     <p className="mt-3 text-xs text-white/90">
                         {config.data.businessHours.open
                             ? "지금은 상담 업무시간입니다."
@@ -703,6 +750,12 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     </div>
                 )}
             </header>
+            {hasDeferredDraft && (
+                <div role="status" className="shrink-0 border-b bg-blue-50 px-4 py-3 text-xs text-blue-900">
+                    <p>사이트에서 전달한 문구를 새 문의 초안으로 보관했습니다. 새 문의를 열어 내용을 확인한 뒤 직접 보내주세요.</p>
+                    <button type="button" disabled={navigationBusy || !history.enabled} onClick={() => changeConversation("new")} className="mt-2 underline disabled:opacity-50">새 문의 초안 열기</button>
+                </div>
+            )}
             {isList ? (
                 <CustomerConversationList
                     history={history}
@@ -733,11 +786,17 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         role="log"
                         aria-label="고객 상담 대화"
                     >
-                        {inquiryPending && (
+                        {detailPending && !data.error && (
                             <p role="status" className="text-xs text-gray-500">
-                                기존 문의를 확인하고 있습니다. 작성 중인 내용은
+                                문의를 확인하고 있습니다. 작성 중인 내용은
                                 보관됩니다.
                             </p>
+                        )}
+                        {readOnly && (
+                            <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600" role="status" aria-label="이전 상담 안내">
+                                <h2 className="font-semibold text-gray-900">이전 상담 · 읽기 전용</h2>
+                                <p className="mt-1">이전에 나눈 공개 대화와 첨부파일을 확인할 수 있습니다. 이 기록에는 메시지를 보내거나 상담원을 요청할 수 없습니다. 추가로 궁금한 점은 새 문의로 남겨주세요.</p>
+                            </div>
                         )}
                         {data.error && (
                             <div
@@ -762,6 +821,8 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                         generation.current++;
                                         attachments.reset();
                                         drafts.current.clear();
+                                        deferredDraft.current = null;
+                                        setHasDeferredDraft(false);
                                         setDraftKey("current");
                                         pending.current = null;
                                         handoffPending.current = null;
@@ -781,7 +842,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                 </button>
                             </div>
                         )}
-                        {!isNew && data.data?.hasOlder && canLoad && (
+                        {!isNew && detailResolved && data.data?.hasOlder && canLoad && (
                             <button
                                 className="w-full text-xs text-gray-500"
                                 onClick={async () => {
@@ -789,7 +850,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                         generation.current;
                                     try {
                                         const result = await inboxRequest<{
-                                            messages: ChatMessage[];
+                                            messages: CustomerMessage[];
                                             hasOlder: boolean;
                                         }>(
                                             `${selectedUrl}${selectedId ? "&" : "?"}before=${messages[0]?.id}`,
@@ -883,12 +944,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                         className={`mb-1.5 text-[10px] text-gray-400 ${m.kind === "customer" ? "text-right" : ""}`}
                                     >
                                         {m.authorName} ·{" "}
-                                        {new Date(
-                                            m.createdAt,
-                                        ).toLocaleTimeString("ko-KR", {
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })}
+                                        <time dateTime={m.createdAt}>
+                                            {readOnly
+                                                ? customerConversationTimestamp(m.createdAt)
+                                                : new Date(m.createdAt).toLocaleTimeString("ko-KR", {
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                  })}
+                                        </time>
                                     </p>
                                     {m.body && (
                                         <p
@@ -916,7 +979,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         ))}
                         <div ref={end} />
                     </div>
-                    {!isNew && data.data?.status === "closed" && (
+                    {!isNew && !readOnly && detailResolved && data.data?.status === "closed" && (
                         <p className="bg-gray-50 px-5 py-2 text-center text-xs text-gray-500">
                             상담이 종료되었습니다. 메시지를 보내면 다시
                             연결됩니다.
@@ -935,13 +998,14 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                             회원 상담 이력을 연결하고 있습니다…
                         </p>
                     )}
-                    {token && (
+                    {token && !readOnly && (
                         <button
                             type="button"
                             disabled={
                                 busy ||
                                 linking ||
                                 inquiryPending ||
+                                !canWrite ||
                                 (!isNew && data.data?.aiState === "human") ||
                                 !!data.error
                             }
@@ -953,6 +1017,19 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                 : "상담원 연결 요청"}
                         </button>
                     )}
+                    {readOnly ? (
+                        <div className="shrink-0 border-t border-gray-100 p-4">
+                            <button
+                                type="button"
+                                disabled={navigationBusy}
+                                onClick={() => changeConversation("new")}
+                                className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                                style={{ backgroundColor: color }}
+                            >
+                                새 문의로 상담 시작하기
+                            </button>
+                        </div>
+                    ) : (
                     <form
                         className="shrink-0 border-t border-gray-100 p-4"
                         onSubmit={(e) => {
@@ -991,7 +1068,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
                             <textarea
                                 aria-label="문의 메시지"
-                                disabled={busy || linking}
+                                disabled={busy || linking || !canWrite}
                                 value={text}
                                 maxLength={5000}
                                 onChange={(e) => setText(e.target.value)}
@@ -1015,6 +1092,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                                     busy ||
                                     linking ||
                                     inquiryPending ||
+                                    !canWrite ||
                                     (!text.trim() &&
                                         !attachments.files.length) ||
                                     (!token && !name.trim()) ||
@@ -1037,7 +1115,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                         <AttachmentDrafts
                             files={attachments.files}
                             busy={
-                                busy || linking || !config.data || !!data.error
+                                busy || linking || !canWrite || !config.data
                             }
                             progress={attachments.progress}
                             onSelect={attachments.select}
@@ -1052,6 +1130,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                             Sendb 고객 상담
                         </p>
                     </form>
+                    )}
                 </>
             )}
         </div>

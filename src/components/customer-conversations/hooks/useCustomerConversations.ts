@@ -45,6 +45,7 @@ export function useCustomerConversations(
         newInquiry: controller.newInquiry,
         open: controller.open,
         reset: controller.reset,
+        invalidate: controller.invalidate,
         refresh: controller.refresh,
         loadMore: controller.loadMore,
         markSeen: controller.markSeen,

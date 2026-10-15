@@ -14,6 +14,7 @@ import { InboxError } from "./errors";
 
 import { MAX_FILE_BYTES } from "./file-rules";
 import { fileName, safeContentType } from "./file-metadata";
+import { readableCustomerConversation } from "@/lib/inbox-customer-history/visibility";
 export { fileName, safeContentType } from "./file-metadata";
 export { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "./file-rules";
 export type FileScope = {
@@ -22,6 +23,8 @@ export type FileScope = {
     conversationId: string | null;
     ownerKey: string;
     publicOnly: boolean;
+    readOnly?: boolean;
+    customer?: { id: string; externalId: string; workspaceId: number };
 };
 export const fileOwner = (value: string) =>
     createHash("sha256").update(value).digest("hex");
@@ -32,6 +35,29 @@ export const fileColumns = {
     size: files.size,
     importMetadata: files.importMetadata,
 };
+function publicAttachedFile() {
+    // Qualify outer columns explicitly: one-table SELECTs otherwise unqualify
+    // nested SQL references and can accidentally bind the inner table's id.
+    const attachmentId = sql.raw('"inbox_attachments"."id"');
+    const messageId = sql.raw('"inbox_attachments"."message_id"');
+    return sql`${files.kind} in ('customer','reply')
+        and exists(select 1 from inbox_attachment_blobs b where b.attachment_id=${attachmentId})
+        and exists(
+            select 1 from inbox_messages m
+            join inbox_conversations c on c.id=m.conversation_id
+            join inbox_channels channel on channel.id=c.channel_id
+            where m.id=${messageId} and m.kind in ('customer','reply')
+            and (not c.history_only or exists(
+                select 1 from customer_import_files current_file
+                where current_file.attachment_id=${attachmentId}
+                and current_file.message_id=m.id
+                and current_file.org_id=c.org_id
+                and current_file.workspace_id=channel.workspace_id
+                and current_file.active=true and current_file.metadata_valid=true
+                and current_file.state='ready'
+            ))
+        )`;
+}
 export function attachmentQuotaBytes() {
     const configured = Number(process.env.INBOX_ATTACHMENT_QUOTA_MB ?? 2048);
     return (
@@ -47,6 +73,8 @@ export async function uploadAttachment(
     raw: { clientId: string; kind: string; fileName: string; bytes: Buffer },
     exec: DbExec = db,
 ) {
+    if (scope.readOnly)
+        throw new InboxError("과거 상담 기록에는 새 파일을 올릴 수 없습니다.", 409);
     const clientId = z.string().uuid().parse(raw.clientId),
         kind = z.enum(["customer", "reply", "note"]).parse(raw.kind);
     if (scope.publicOnly && kind !== "customer")
@@ -210,6 +238,8 @@ export async function cancelAttachment(
     id: string,
     exec: DbExec = db,
 ) {
+    if (scope.readOnly)
+        throw new InboxError("과거 상담 기록의 첨부는 변경할 수 없습니다.", 409);
     z.string().uuid().parse(id);
     return exec.transaction(async (tx) => {
         const [row] = await tx
@@ -250,6 +280,16 @@ export async function downloadAttachment(
     exec: DbExec = db,
 ) {
     z.string().uuid().parse(id);
+    if (scope.readOnly && (!scope.customer || !scope.conversationId))
+        throw new InboxError("첨부 파일을 찾을 수 없습니다.", 404);
+    const readable =
+        scope.publicOnly && scope.readOnly && scope.customer
+            ? await readableCustomerConversation(
+                  { id: scope.channelId, orgId: scope.orgId, workspaceId: scope.customer.workspaceId },
+                  scope.customer,
+                  exec,
+              )
+            : undefined;
     const [row] = await exec
         .select({
             file: files,
@@ -274,6 +314,11 @@ export async function downloadAttachment(
                 eq(files.orgId, scope.orgId),
                 eq(files.channelId, scope.channelId),
                 isNull(files.cancelledAt),
+                readable,
+                scope.readOnly ? sql`${files.messageId} is not null` : undefined,
+                scope.publicOnly
+                    ? sql`(${files.messageId} is null or (${publicAttachedFile()}))`
+                    : undefined,
             ),
         );
     if (
@@ -282,6 +327,7 @@ export async function downloadAttachment(
             scope.conversationId &&
             (!row.chat ||
                 row.chat.mergedIntoId ||
+                (row.chat.historyOnly && !scope.readOnly) ||
                 (row.chat.contactId
                     ? scope.ownerKey !==
                       fileOwner(
@@ -353,11 +399,11 @@ export async function bindAttachments(
         size: f.size,
     }));
 }
-export async function messageAttachments(exec: DbExec, ids: number[]) {
+export async function messageAttachments(exec: DbExec, ids: number[], publicOnly = false) {
     if (!ids.length) return [];
     return exec
         .select({ ...fileColumns, messageId: files.messageId })
         .from(files)
-        .where(and(inArray(files.messageId, ids), isNull(files.cancelledAt)))
+        .where(and(inArray(files.messageId, ids), isNull(files.cancelledAt), publicOnly ? publicAttachedFile() : undefined))
         .orderBy(files.createdAt, files.id);
 }

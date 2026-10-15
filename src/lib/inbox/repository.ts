@@ -25,6 +25,7 @@ import {
 import { onSupportMessage, consumeSupportDraft } from "@/lib/customer-ai/queue";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
+import { readableCustomerConversation } from "@/lib/inbox-customer-history/visibility";
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
 import {
@@ -477,7 +478,7 @@ async function readMessages(
     historical = false,
 ) {
     const [cursor] =
-        historical && before
+        (historical || publicOnly) && before
             ? await exec
                   .select()
                   .from(inboxMessages)
@@ -485,10 +486,13 @@ async function readMessages(
                       and(
                           eq(inboxMessages.conversationId, id),
                           eq(inboxMessages.id, before),
+                        publicOnly
+                            ? sql`${inboxMessages.kind} in ('customer','reply')`
+                            : undefined,
                       ),
                   )
             : [];
-    if (historical && before && !cursor)
+    if ((historical || publicOnly) && before && !cursor)
         throw new InboxError("과거 대화 위치를 확인해주세요.", 404);
     const messages = await exec
         .select()
@@ -496,7 +500,9 @@ async function readMessages(
         .where(
             and(
                 eq(inboxMessages.conversationId, id),
-                publicOnly ? sql`${inboxMessages.kind} <> 'note'` : undefined,
+                publicOnly
+                    ? sql`${inboxMessages.kind} in ('customer','reply')`
+                    : undefined,
                 before
                     ? historical && cursor
                         ? or(
@@ -519,6 +525,7 @@ async function readMessages(
     const attachments = await messageAttachments(
         exec,
         messages.map((m) => m.id),
+        publicOnly,
     );
     const emailDetails = publicOnly
         ? { incoming: [], outgoing: [] }
@@ -1389,6 +1396,7 @@ async function visitorConversation(
     exec: DbExec,
     create = false,
     conversationId?: string,
+    readHistory = false,
 ) {
     if (token.includes(".")) {
         const { channel, contact } = await authenticatedCustomer(
@@ -1403,20 +1411,28 @@ async function visitorConversation(
                 .from(crmContacts)
                 .where(eq(crmContacts.id, contact.id))
                 .for("update");
+        const readable =
+            readHistory && conversationId
+                ? await readableCustomerConversation(channel, contact, exec)
+                : undefined;
         let [chat] = await exec
             .select({
                 id: inboxConversations.id,
                 status: inboxConversations.status,
                 aiState: inboxConversations.aiState,
+                historyOnly: inboxConversations.historyOnly,
             })
             .from(inboxConversations)
             .where(
                 and(
-                    eq(inboxConversations.channelId, channel.id),
-                    eq(inboxConversations.contactId, contact.id),
-                    eq(inboxConversations.historyOnly, false),
-                    eq(inboxConversations.medium, "web"),
-                    isNull(inboxConversations.mergedIntoId),
+                    readable ?? and(
+                        eq(inboxConversations.orgId, channel.orgId),
+                        eq(inboxConversations.channelId, channel.id),
+                        eq(inboxConversations.contactId, contact.id),
+                        eq(inboxConversations.historyOnly, false),
+                        eq(inboxConversations.medium, "web"),
+                        isNull(inboxConversations.mergedIntoId),
+                    ),
                     conversationId
                         ? eq(inboxConversations.id, conversationId)
                         : eq(inboxConversations.isCurrent, true),
@@ -1463,6 +1479,7 @@ async function visitorConversation(
                     id: inboxConversations.id,
                     status: inboxConversations.status,
                     aiState: inboxConversations.aiState,
+                    historyOnly: inboxConversations.historyOnly,
                 })
                 .from(inboxConversations)
                 .where(
@@ -1483,6 +1500,8 @@ async function visitorConversation(
             ownerKey: fileOwner(`member:${channel.id}:${contact.id}`),
             status: chat?.status ?? "open",
             aiState: chat?.aiState ?? "auto",
+            historyOnly: chat?.historyOnly ?? false,
+            readOnly: chat?.historyOnly ?? false,
             name: contact.name,
             profile: {
                 name: contact.name,
@@ -1490,6 +1509,7 @@ async function visitorConversation(
                 identified: true,
             },
             customerReadContactId: contact.id,
+            customer: { id: contact.id, externalId: contact.externalId, workspaceId: channel.workspaceId },
         };
     }
     if (!/^[a-f0-9]{64}$/.test(token))
@@ -1524,13 +1544,16 @@ async function visitorConversation(
         orgId: channel.orgId,
         ownerKey: fileOwner(`visitor:${channel.id}:${token}`),
         profile: { name: chat.name, identified: false, email: chat.email },
+        historyOnly: false,
+        readOnly: false,
+        customer: undefined,
     };
 }
 export async function visitorFileScope(
     key: string,
     token: string,
     exec: DbExec = db,
-    selection: { conversationId?: string; newConversation?: boolean } = {},
+    selection: { conversationId?: string; newConversation?: boolean; readHistory?: boolean } = {},
 ): Promise<FileScope> {
     if (selection.newConversation) {
         const { channel, contact } = await authenticatedCustomer(
@@ -1552,6 +1575,7 @@ export async function visitorFileScope(
         exec,
         false,
         selection.conversationId,
+        selection.readHistory === true,
     );
     return {
         orgId: chat.orgId,
@@ -1559,6 +1583,8 @@ export async function visitorFileScope(
         conversationId: chat.id,
         ownerKey: chat.ownerKey,
         publicOnly: true,
+        readOnly: chat.readOnly,
+        customer: chat.customer,
     };
 }
 export async function visitorDetail(
@@ -1575,6 +1601,7 @@ export async function visitorDetail(
             tx,
             false,
             conversationId,
+            true,
         );
         if (chat.id) {
             // Keep the displayed messages and merge generation from the same
@@ -1585,17 +1612,17 @@ export async function visitorDetail(
                 .where(eq(inboxConversations.id, chat.id))
                 .for("share");
             // The identity may have been linked while the lock was pending.
-            chat = await visitorConversation(key, token, tx, false, chat.id);
+            chat = await visitorConversation(key, token, tx, false, chat.id, true);
         }
         const result = chat.id
-            ? await readMessages(chat.id, tx, true, before)
+            ? await readMessages(chat.id, tx, true, before, chat.historyOnly)
             : { messages: [], hasOlder: false };
         const readContactId =
             "customerReadContactId" in chat
                 ? chat.customerReadContactId
                 : undefined;
         const [read] =
-            chat.id && readContactId
+            chat.id && readContactId && !chat.historyOnly
                 ? await tx
                       .select({ readRevision: inboxCustomerReads.readRevision })
                       .from(inboxCustomerReads)
@@ -1614,6 +1641,8 @@ export async function visitorDetail(
             conversationId: chat.id,
             readRevision: read?.readRevision ?? 0,
             status: chat.status,
+            historyOnly: chat.historyOnly,
+            readOnly: chat.readOnly,
             aiState: chat.aiState,
             profile: chat.profile,
             hasOlder: result.hasOlder,
@@ -1624,7 +1653,12 @@ export async function visitorDetail(
                 body: m.body,
                 authorName: m.authorName,
                 createdAt: m.createdAt,
-                attachments: m.attachments,
+                attachments: m.attachments.map((file) => ({
+                    id: file.id,
+                    fileName: file.fileName,
+                    contentType: file.contentType,
+                    size: file.size,
+                })),
             })),
         };
     });

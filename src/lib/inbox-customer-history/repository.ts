@@ -14,6 +14,7 @@ import { InboxError } from "@/lib/inbox/errors";
 import { fileOwner } from "@/lib/inbox/files";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
+import { readableCustomerConversation } from "./visibility";
 import {
     customerThreadCreate,
     customerThreadRead,
@@ -28,6 +29,8 @@ const visible = (channelId: number, contactId: string) =>
         eq(chats.medium, "web"),
         isNull(chats.mergedIntoId),
     );
+const threadId = sql.raw('"inbox_conversations"."id"');
+const publicLastMessageAt = sql<Date>`case when ${chats.historyOnly} then coalesce((select max(m.created_at) from inbox_messages m where m.conversation_id=${threadId} and m.kind in ('customer','reply')),${chats.createdAt}) else ${chats.lastMessageAt} end`.mapWith(chats.lastMessageAt);
 export async function customerConversationPage(
     key: string,
     token: string,
@@ -35,13 +38,13 @@ export async function customerConversationPage(
     exec: DbExec = db,
 ) {
     const { channel, contact } = await authenticatedCustomer(key, token, exec),
-        where = visible(channel.id, contact.id);
+        where = await readableCustomerConversation(channel, contact, exec);
     const position = before ? parseCustomerConversationCursor(before) : null;
     const [cursorRow] = position
         ? await exec
-              .select({ id: chats.id, at: chats.lastMessageAt })
+              .select({ id: chats.id, at: publicLastMessageAt })
               .from(chats)
-              .where(and(where, eq(chats.id, position.id)))
+              .where(and(where, eq(chats.id, position.id), sql`exists(select 1 from inbox_messages m where m.conversation_id=${threadId} and m.kind in ('customer','reply'))`))
         : [];
     if (before && !cursorRow)
         throw new InboxError("상담 목록 위치를 확인해주세요.", 404);
@@ -49,17 +52,18 @@ export async function customerConversationPage(
         ? { ...cursorRow, at: position?.at ?? cursorRow.at }
         : null;
     // Drizzle unqualifies SELECT columns on one-table queries, including nested SQL.
-    const threadId = sql.raw('"inbox_conversations"."id"');
     // Use public message rows; staff notes and administrative previews cannot enter this contract.
     const rows = await exec
         .select({
             id: chats.id,
             status: chats.status,
-            isCurrent: chats.isCurrent,
-            lastMessageAt: chats.lastMessageAt,
-            title: sql<string>`coalesce((select coalesce(nullif(left(m.body,120),''),'첨부파일 문의') from inbox_messages m where m.conversation_id=${threadId} and m.kind='customer' order by m.created_at,m.id limit 1),'문의')`,
-            preview: sql<string>`coalesce((select coalesce(nullif(left(m.body,200),''),'파일 첨부') from inbox_messages m where m.conversation_id=${threadId} and m.kind<>'note' order by m.created_at desc,m.id desc limit 1),'')`,
-            unread: sql<number>`(select count(*) from inbox_messages m left join inbox_customer_reads r on r.conversation_id=m.conversation_id and r.contact_id=${contact.id}::uuid where m.conversation_id=${threadId} and m.kind='reply' and (m.id>coalesce(r.last_message_id,0) or m.id=any(coalesce(r.merged_unread_ids,'{}'::integer[]))))`.mapWith(
+            historyOnly: chats.historyOnly,
+            readOnly: chats.historyOnly,
+            isCurrent: sql<boolean>`case when ${chats.historyOnly} then false else ${chats.isCurrent} end`,
+            lastMessageAt: publicLastMessageAt,
+            title: sql<string>`coalesce((select coalesce(nullif(left(m.body,120),''),'첨부파일 문의') from inbox_messages m where m.conversation_id=${threadId} and m.kind='customer' order by m.created_at,m.id limit 1),case when ${chats.historyOnly} then '이전 상담' else '문의' end)`,
+            preview: sql<string>`coalesce((select coalesce(nullif(left(m.body,200),''),'파일 첨부') from inbox_messages m where m.conversation_id=${threadId} and m.kind in ('customer','reply') order by m.created_at desc,m.id desc limit 1),'')`,
+            unread: sql<number>`case when ${chats.historyOnly} then 0 else (select count(*) from inbox_messages m left join inbox_customer_reads r on r.conversation_id=m.conversation_id and r.contact_id=${contact.id}::uuid where m.conversation_id=${threadId} and m.kind='reply' and (m.id>coalesce(r.last_message_id,0) or m.id=any(coalesce(r.merged_unread_ids,'{}'::integer[])))) end`.mapWith(
                 Number,
             ),
         })
@@ -67,19 +71,19 @@ export async function customerConversationPage(
         .where(
             and(
                 where,
-                sql`exists(select 1 from inbox_messages m where m.conversation_id=${threadId} and m.kind<>'note')`,
+                sql`exists(select 1 from inbox_messages m where m.conversation_id=${threadId} and m.kind in ('customer','reply'))`,
                 cursor
                     ? or(
-                          lt(chats.lastMessageAt, cursor.at),
+                          lt(publicLastMessageAt, cursor.at),
                           and(
-                              eq(chats.lastMessageAt, cursor.at),
+                              eq(publicLastMessageAt, cursor.at),
                               lt(chats.id, cursor.id),
                           ),
                       )
                     : undefined,
             ),
         )
-        .orderBy(desc(chats.lastMessageAt), desc(chats.id))
+        .orderBy(desc(publicLastMessageAt), desc(chats.id))
         .limit(51);
     const [total] = await exec
         .select({ unread: sql<number>`count(*)`.mapWith(Number) })
@@ -95,6 +99,7 @@ export async function customerConversationPage(
         .where(
             and(
                 where,
+                eq(chats.historyOnly, false),
                 eq(messages.kind, "reply"),
                 sql`(${messages.id}>coalesce(${reads.lastMessageId},0) or ${messages.id}=any(coalesce(${reads.mergedUnreadIds},'{}'::integer[])))`,
             ),
@@ -222,6 +227,7 @@ export async function markCustomerConversationRead(
 ) {
     const input = customerThreadRead.parse(raw),
         { channel, contact } = await authenticatedCustomer(key, token, exec);
+    const readable = await readableCustomerConversation(channel, contact, exec);
     return exec.transaction(async (tx) => {
         // The read marker's contact FK obtains a KEY SHARE lock. Take it before
         // the conversation, matching create/link contact-before-thread order.
@@ -231,9 +237,9 @@ export async function markCustomerConversationRead(
             .where(eq(crmContacts.id, contact.id))
             .for("share");
         const [chat] = await tx
-            .select({ id: chats.id })
+            .select({ id: chats.id, historyOnly: chats.historyOnly })
             .from(chats)
-            .where(and(visible(channel.id, contact.id), eq(chats.id, id)))
+            .where(and(readable, eq(chats.id, id)))
             .for("update");
         if (!chat) throw new InboxError("이 상담을 찾을 수 없습니다.", 404);
         const [seen] = await tx
@@ -243,11 +249,15 @@ export async function markCustomerConversationRead(
                 and(
                     eq(messages.id, input.lastMessageId),
                     eq(messages.conversationId, id),
-                    sql`${messages.kind}<>'note'`,
+                    sql`${messages.kind} in ('customer','reply')`,
                 ),
             );
         if (!seen)
             throw new InboxError("확인한 메시지를 다시 불러와주세요.", 409);
+        // Historical replies never become new unread work. Legacy clients may
+        // acknowledge a displayed public message without creating a read row.
+        if (chat.historyOnly)
+            return { lastMessageId: seen.id, readRevision: 0, unread: 0 };
         const [saved] = await tx
             .insert(reads)
             .values({
