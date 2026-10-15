@@ -23,6 +23,7 @@ const columns = {
     name: inboxTeams.name,
     description: inboxTeams.description,
     autoAssign: inboxTeams.autoAssign,
+    requireAvailable: inboxTeams.requireAvailable,
     enabled: inboxTeams.enabled,
     version: inboxTeams.version,
 };
@@ -208,6 +209,8 @@ export async function saveTeam(
             name: input.name ?? current!.name,
             description: input.description ?? current!.description,
             autoAssign: input.autoAssign ?? current!.autoAssign,
+            requireAvailable:
+                input.requireAvailable ?? current!.requireAvailable,
             enabled: input.enabled ?? current!.enabled,
         };
         const [duplicate] = await tx

@@ -21,6 +21,11 @@ import { NoteMentions } from "@/components/inbox-collaboration/ui/NoteMentions";
 import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTargetCard";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 import { TeamAssignment } from "@/components/inbox-routing/ui/TeamAssignment";
+import { ConversationPresence } from "@/components/inbox-presence/ui/ConversationPresence";
+import type {
+    AgentActivity,
+    InboxPresence,
+} from "@/components/inbox-presence/types";
 export const statusNames = {
     open: "진행중",
     snoozed: "보류중",
@@ -37,6 +42,8 @@ export function ConversationPane({
     onBack,
     focusMessageId,
     onDismissMention,
+    presenceAgents,
+    onActivity,
 }: {
     userId: string;
     chat: Conversation;
@@ -48,6 +55,8 @@ export function ConversationPane({
     onBack: () => void;
     focusMessageId?: number | null;
     onDismissMention: () => void;
+    presenceAgents: InboxPresence["agents"];
+    onActivity: (activity: AgentActivity | null) => void;
 }) {
     const workspaceId = bootstrap.channels.find(
         (c) => c.id === chat.channelId,
@@ -102,6 +111,10 @@ export function ConversationPane({
         } | null>(null);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
+    useEffect(() => {
+        onActivity(null);
+        return () => onActivity(null);
+    }, [kind, onActivity]);
     const attachments = useAttachmentDrafts(draftKey);
     const uploadUrl = `/api/inbox/conversations/${chat.id}/attachments`;
     const lastMessageId = messages.at(-1)?.id;
@@ -213,6 +226,7 @@ export function ConversationPane({
                 ...(mentionIds.length ? { mentionedUserIds: mentionIds } : {}),
             });
             updateDraft("");
+            onActivity(null);
             if (kind === "reply") setAiDraftId(null);
             attachments.clear();
             pending.current = null;
@@ -571,6 +585,7 @@ export function ConversationPane({
                     ))}
                     <div ref={end} />
                 </div>
+                <ConversationPresence agents={presenceAgents} userId={userId} />
                 {!chat.historyOnly && canRespond && (
                     <>
                         {chat.medium !== "email" && (
@@ -641,7 +656,13 @@ export function ConversationPane({
                                         : "고객 답변 입력"
                                 }
                                 value={text}
-                                onChange={(e) => updateDraft(e.target.value)}
+                                onChange={(e) => {
+                                    updateDraft(e.target.value);
+                                    onActivity(
+                                        e.target.value.trim() ? kind : null,
+                                    );
+                                }}
+                                onBlur={() => onActivity(null)}
                                 onKeyDown={(e) => {
                                     if (
                                         e.key === "Enter" &&

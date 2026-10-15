@@ -14,6 +14,7 @@ const fields = {
         .trim()
         .max(500, "담당 업무는 500자까지 입력할 수 있습니다."),
     autoAssign: z.boolean(),
+    requireAvailable: z.boolean(),
     enabled: z.boolean(),
     memberIds,
 };
@@ -23,6 +24,7 @@ export const createTeamInput = z
         name: fields.name,
         description: fields.description.default(""),
         autoAssign: fields.autoAssign.default(false),
+        requireAvailable: fields.requireAvailable.default(false),
         enabled: fields.enabled.default(true),
         memberIds: fields.memberIds.default([]),
     })
@@ -32,6 +34,7 @@ export const patchTeamInput = z
         name: fields.name.optional(),
         description: fields.description.optional(),
         autoAssign: fields.autoAssign.optional(),
+        requireAvailable: fields.requireAvailable.optional(),
         enabled: fields.enabled.optional(),
         memberIds: fields.memberIds.optional(),
         version: z.number().int().positive(),

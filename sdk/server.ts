@@ -997,11 +997,17 @@ export class SendbClient {
             `/api/v1/inbox/teams?channelId=${channelId}`,
         );
     }
+    inboxPresence(channelId: number, conversationId?: string) {
+        return this.request<import("./presence-types").SendbInboxPresence>(
+            `/api/v1/inbox/presence?channelId=${channelId}${conversationId ? `&conversationId=${encodeURIComponent(conversationId)}` : ""}`,
+        );
+    }
     createInboxTeam(input: {
         channelId: number;
         name: string;
         description?: string;
         autoAssign?: boolean;
+        requireAvailable?: boolean;
         enabled?: boolean;
         memberIds?: string[];
     }) {
@@ -1018,6 +1024,7 @@ export class SendbClient {
             name?: string;
             description?: string;
             autoAssign?: boolean;
+            requireAvailable?: boolean;
             enabled?: boolean;
             memberIds?: string[];
         },

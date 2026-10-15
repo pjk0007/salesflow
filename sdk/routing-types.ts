@@ -4,6 +4,7 @@ export interface SendbInboxTeam {
     name: string;
     description: string;
     autoAssign: boolean;
+    requireAvailable: boolean;
     enabled: boolean;
     version: number;
     memberIds: string[];

@@ -3,6 +3,7 @@ import { inboxTeams, inboxTeamMembers as members } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { customerAccessPredicate } from "@/lib/customer-access/access";
 import { InboxError } from "@/lib/inbox/errors";
+import { agentAvailablePredicate } from "@/lib/inbox-presence/repository";
 export const teamMemberPredicate = (
     teamId: string,
     userId: string | ReturnType<typeof sql>,
@@ -50,6 +51,9 @@ export async function teamAssigneeCandidate(
         .where(
             and(
                 eq(members.teamId, team.id),
+                team.requireAvailable
+                    ? agentAvailablePredicate(team.channelId, members.userId)
+                    : undefined,
                 customerAccessPredicate(
                     team.orgId,
                     members.userId,

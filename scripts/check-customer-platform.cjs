@@ -71,7 +71,7 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
@@ -82,6 +82,8 @@ async function runPlatformCheck(extra) {
             (m) => `v1/crm/${m[1]}/[id]`,
         ],
         [/^\/api\/inbox$/, () => "inbox"],
+        [/^\/api\/inbox-presence$/, () => "inbox-presence"],
+        [/^\/api\/v1\/inbox\/presence$/, () => "v1/inbox/presence"],
         [/^\/api\/inbox-routing\/teams$/, () => "inbox-routing/teams"],
         [
             /^\/api\/inbox-routing\/teams\/([a-f0-9-]+)$/,
@@ -280,6 +282,8 @@ async function runPlatformCheck(extra) {
         "inbox",
         "inbox/channels",
         "inbox-routing/teams",
+        "inbox-presence",
+        "v1/inbox/presence",
         "inbox-routing/teams/[id]",
         "v1/inbox/teams",
         "v1/inbox/teams/[id]",

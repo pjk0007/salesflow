@@ -2,6 +2,8 @@
 import { StaffAccessPanel } from "@/components/customer-access/ui/StaffAccessPanel";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { TeamSettings } from "@/components/inbox-routing/ui/TeamSettings";
+import { useAgentPresence } from "@/components/inbox-presence/hooks/useAgentPresence";
+import { AgentStatus } from "@/components/inbox-presence/ui/AgentStatus";
 import { useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
 import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
@@ -86,6 +88,13 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
+    const presence = useAgentPresence(
+        channelId,
+        detail.data?.conversation.channelId === channelId
+            ? detail.data.conversation.id
+            : null,
+        userId,
+    );
     const canSetChannel = channel
         ? abilities.manage
         : !!bootstrap?.workspaces.some((w) => w.abilities.manage);
@@ -125,6 +134,14 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     channels={bootstrap?.channels ?? []}
                     initialOpen={params.get("notifications") === "open"}
                 />
+                {channel && (
+                    <AgentStatus
+                        key={`${channel.id}:${userId}`}
+                        presence={presence}
+                        userId={userId}
+                        canRespond={abilities.respond}
+                    />
+                )}
                 {channel && (
                     <button
                         className="rounded-xl border px-3 py-2 text-xs"
@@ -511,6 +528,8 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     {selected && detail.data && !detail.error ? (
                         <ConversationPane
                             userId={userId}
+                            presenceAgents={presence.agents}
+                            onActivity={presence.activity}
                             key={detail.data.conversation.id}
                             chat={detail.data.conversation}
                             focusMessageId={focusMessageId}

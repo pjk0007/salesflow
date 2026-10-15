@@ -10,6 +10,7 @@ export function saveRoutingTeam(
         description: string;
         enabled: boolean;
         autoAssign: boolean;
+        requireAvailable?: boolean;
         memberIds: string[];
     },
 ) {

@@ -18,6 +18,7 @@ type Form = {
     name: string;
     description: string;
     autoAssign: boolean;
+    requireAvailable: boolean;
     enabled: boolean;
     memberIds: string[];
 };
@@ -25,6 +26,7 @@ const fresh = (): Form => ({
     name: "",
     description: "",
     autoAssign: false,
+    requireAvailable: false,
     enabled: true,
     memberIds: [],
 });
@@ -34,6 +36,7 @@ const editForm = (t: RoutingTeam): Form => ({
     name: t.name,
     description: t.description,
     autoAssign: t.autoAssign,
+    requireAvailable: t.requireAvailable ?? false,
     enabled: t.enabled,
     memberIds: [...t.memberIds],
 });
@@ -142,7 +145,7 @@ export function TeamSettings({
                                 <strong>{t.name}</strong>
                                 <span className="mt-1 block text-xs text-muted-foreground">
                                     {t.enabled
-                                        ? `${t.members.filter((m) => m.eligible).length}명 응대 가능`
+                                        ? `${t.members.filter((m) => m.eligible).length}명 응대 권한`
                                         : "보관됨"}{" "}
                                     · {t.autoAssign ? "자동 배정" : "수동 배정"}
                                 </span>
@@ -250,8 +253,29 @@ export function TeamSettings({
                             </label>
                             <p className="text-xs text-muted-foreground">
                                 응대 가능한 팀원의 진행중 상담이 적은 순서로
-                                배정합니다. 접속 상태는 반영하지 않습니다.
-                                응대할 팀원이 없으면 팀 대기열에 남습니다.
+                                배정합니다. 응대할 팀원이 없으면 팀 대기열에
+                                남습니다.
+                            </p>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    aria-label="접속 응대 가능 직원만 배정"
+                                    disabled={!form.autoAssign}
+                                    checked={form.requireAvailable}
+                                    onChange={(e) =>
+                                        setForm({
+                                            ...form,
+                                            requireAvailable: e.target.checked,
+                                        })
+                                    }
+                                />
+                                접속 중이며 응대 가능한 직원에게만 자동 배정
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                                켜면 자리 비움·접속 종료 직원을 제외합니다.
+                                조건에 맞는 직원이 없으면 팀 대기열에 남습니다.
+                                끄면 접속 상태와 관계없이 기존 응대 권한을
+                                기준으로 배정합니다.
                             </p>
                             <label className="flex items-center gap-2 text-sm">
                                 <input

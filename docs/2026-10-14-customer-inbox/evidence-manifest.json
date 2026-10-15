@@ -4833,5 +4833,275 @@
     ],
     "isolation": "가상 직원/고객·loopback/PGlite·테스트 전용 워커. 운영 환경 파일/DB/키/설정/서버 배포 접근 없음. main/master 미병합.",
     "remaining": "전체 REPLACEMENT R01–R16 목표 유지. 실제 사이트 전체 설치/업무/부하·접속/근무/수용량·고급 분기·전체 채널 전환 미완료."
+  },
+  "presenceQa": {
+    "recordedAt": "2026-10-15T03:38:39.987Z",
+    "branch": "dev",
+    "beforeHead": "f6c4164c0b432c6a5c3e0d00acce9406df242ccb",
+    "changes": "사업별 개인 응대 상태·탭별 접속/순번/만료·다른 직원 답변/메모 작성 표시·팀 requireAvailable와 API/SDK 조회",
+    "sourceHashes": [
+      {
+        "path": "src/lib/inbox-presence/repository.ts",
+        "sha256": "43aa45094bff068bfd8520180f6a302c385e87a3fd67245151da0786d1970c2c",
+        "bytes": 8347
+      },
+      {
+        "path": "src/lib/inbox-presence/rules.ts",
+        "sha256": "673348565865709d4e1cd6a0f18040482db466a63e7628c437c438ba68c25152",
+        "bytes": 1269
+      },
+      {
+        "path": "src/components/inbox-presence/api/index.ts",
+        "sha256": "1f7b1646fcec054de64c1591743e648ca6a9788006fbff5d5c379d03c97b3329",
+        "bytes": 1309
+      },
+      {
+        "path": "src/components/inbox-presence/hooks/useAgentPresence.ts",
+        "sha256": "c23a3470d7c9d469edacf9cf664ecf238125cd58b6731b42a62e0fe156627e1b",
+        "bytes": 3863
+      },
+      {
+        "path": "src/components/inbox-presence/types/index.ts",
+        "sha256": "76d0c0160d6bae4db6c4c3f2523dd63ccd2071fceebb33e41e302958a5a20bf3",
+        "bytes": 156
+      },
+      {
+        "path": "src/components/inbox-presence/ui/AgentStatus.tsx",
+        "sha256": "f7c51ca4f576c5e767508a174eed5d8bd4565bd2c8350e5ff69873858c6109c9",
+        "bytes": 2298
+      },
+      {
+        "path": "src/components/inbox-presence/ui/ConversationPresence.tsx",
+        "sha256": "93f59d08b19a63f40166eca6923c3897231abcce093777f4fc8bce790b63a5d3",
+        "bytes": 1280
+      },
+      {
+        "path": "src/app/api/inbox-presence/route.ts",
+        "sha256": "d7584d2764b70289b1e75d3bd4f9494f97f6e3cd3017af34fafb5429b60b54c7",
+        "bytes": 1099
+      },
+      {
+        "path": "src/app/api/v1/inbox/presence/route.ts",
+        "sha256": "48d7ac904e0d5d839fd3b01af5248ffc4470cc600dbfd4f9d6a7d54b4a6ec614",
+        "bytes": 992
+      },
+      {
+        "path": "src/lib/db/inbox-presence-schema.ts",
+        "sha256": "5b4fb0d263ed19971d4bdb8a0b08f246c0112f4e2c627fdc74341544e94dc745",
+        "bytes": 2270
+      },
+      {
+        "path": "src/lib/db/inbox-schema.ts",
+        "sha256": "820a27d0ef267504336df5eef8f2a755b25254d1c882426bbc76a3938467666d",
+        "bytes": 8145
+      },
+      {
+        "path": "src/lib/db/schema.ts",
+        "sha256": "0c3f83d6c399df7442e24b4a3d0acae0d5b317e2ae9e6f086f706f9235fcd71f",
+        "bytes": 109786
+      },
+      {
+        "path": "src/lib/inbox-routing/rules.ts",
+        "sha256": "a8b93b5b314031b1cbae111e38c83577fe126b02f49c0701a5fc08be9d24da46",
+        "bytes": 1614
+      },
+      {
+        "path": "src/lib/inbox-routing/repository.ts",
+        "sha256": "b2632ed8e80972647f17294372a92492224fb1d7f538d633f625d4db5aec9f02",
+        "bytes": 9946
+      },
+      {
+        "path": "src/lib/inbox-routing/assignment.ts",
+        "sha256": "f201635e347c596e6b1e559991255d343895d658f2f754d24776e5a5086bc993",
+        "bytes": 2949
+      },
+      {
+        "path": "src/components/inbox-routing/ui/TeamSettings.tsx",
+        "sha256": "318427b7de8f6fac7ddbb64410d3168d3dcce900ebc8bd4397d1671be545fd26",
+        "bytes": 15099
+      },
+      {
+        "path": "src/components/inbox-routing/api/index.ts",
+        "sha256": "a870f08ad63f1ae72dc56f9942495c677b27990ec165d1d847385d24b40499a7",
+        "bytes": 829
+      },
+      {
+        "path": "src/components/inbox/ui/InboxAudit.tsx",
+        "sha256": "e10a8e7ed8c16314ecdb7aa3af6ed49174c0bec1c0361ef76ab54a465f6bd0dd",
+        "bytes": 4853
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "sha256": "55b13bd9a30b7e3117dcdca3394d249d85a4c15d5342b08a842cb3c9dedf7a3a",
+        "bytes": 31994
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "74caa37222dd04fa8215cc5b636f5fa85c2cc7ac79a5052bb3c803f9fe8cd89b",
+        "bytes": 49075
+      },
+      {
+        "path": "sdk/server.ts",
+        "sha256": "511b052f3762f80334aca2640d18bb37cd02fd595c27744bea946d83aa8c38a1",
+        "bytes": 40173
+      },
+      {
+        "path": "sdk/routing-types.ts",
+        "sha256": "ffb9baafe138a0172ba58015ae43ca42ba690eb814b9b83a2f2983932fea42d3",
+        "bytes": 306
+      },
+      {
+        "path": "sdk/presence-types.ts",
+        "sha256": "925c8811b4e5b79c5b89a4412bc014e146473f71624019f2d7ab1929f01d0216",
+        "bytes": 333
+      },
+      {
+        "path": "scripts/check-inbox-presence.cjs",
+        "sha256": "d685006d1e2d5864453844497aa2709cf5a8b8b989ba6c85f8c199f663b17e5c",
+        "bytes": 28862
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "sha256": "6b509f11983b66c2cc4ab5065f864a84ceae6c34e2f0f015ffea90c6703bcf20",
+        "bytes": 30387
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "sha256": "9de669ba8958580b9a61249cf3a892ed99c51545e9fe0c2630707c8244c09857",
+        "bytes": 30168
+      },
+      {
+        "path": "drizzle/0107_inbox_agent_presence.sql",
+        "sha256": "027737292f787429ba2c6791ef1aba3e8185080cb9db2592b0491beadd89e753",
+        "bytes": 1291
+      },
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "38a3e10e397b1774de2c5d4b5cbcff7e603414ea9f4175b109b8115e3843e290",
+        "bytes": 15965
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/PRESENCE.md",
+        "sha256": "3603ae0e4c1df1a24a7b67d420ed53448a1605cdefb0266a91b3920c17b3e1cb",
+        "bytes": 8900
+      },
+      {
+        "path": "src/components/inbox-presence/api/index.test.ts",
+        "sha256": "6bcde34ac7394f87d8a09977c453ee84b1f85c6d04a429cc04b945906f111b7a",
+        "bytes": 1638
+      }
+    ],
+    "rawHashNote": "작업 트리 바이트. Git autocrlf 정규화와 다를 수 있음.",
+    "tests": {
+      "sqlApi": 14,
+      "platformBaseline": 11,
+      "teamRegression": 18,
+      "workflowRoutingRegression": 12,
+      "identityRegression": 12,
+      "units": 1095,
+      "lint": "pass",
+      "fullIsolatedBuildWithTypes": "pass"
+    },
+    "logs": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-qa.log",
+        "sha256": "c96348ff5f2aa4f6c1d2f334754e35fd3efdbdfbd18228151a52c6ef098a86e3",
+        "bytes": 2471
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-teams-regression.log",
+        "sha256": "ed54d83f6f4cec7b55367ea7b4c9e0263c2726823e7fc54bad2f97c50dd50683",
+        "bytes": 2685
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-workflows-regression.log",
+        "sha256": "921112eb6fea8e665cd5c6e164ee89d54af44c570adfb1fa3c36241304fe9a4f",
+        "bytes": 2343
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-identity-regression.log",
+        "sha256": "cb7330adb1ca0a56219b12c0fd92682733d579f91b0bbcb07b1aa4b8c5c6b530",
+        "bytes": 2313
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-final-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-build.log",
+        "sha256": "c592f6d1d6e26b74ee29829489b1ba6fe3a65db645d3a3160413c41974086c21",
+        "bytes": 13358
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-units.log",
+        "sha256": "dfe91253bcaebbbf5b4058bfa29838b3cfbe6559566dde361b43c5e1d6dcc94b",
+        "bytes": 104672
+      }
+    ],
+    "browserArtifacts": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-two-agents-reply.png",
+        "sha256": "2841276410331fc0326babc3cdf38f0e83cb5adbeb7e0675cd7ab9fd83be49d8",
+        "bytes": 96575
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-two-agents-note.png",
+        "sha256": "41a109eb54e2874c99428bd84c9159119c711ef5c73d57284ad37bd98c76b0b7",
+        "bytes": 93923
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-auto-assignment.png",
+        "sha256": "74fdc406a5588f21d3555017b2d0bc52f317afdce334a993599d66b4035cb350",
+        "bytes": 128702
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-empty-queue.png",
+        "sha256": "179ba83bdfc9d1cfecd7dc2db96d449ebe5622a5991ff4ae148cdee205742429",
+        "bytes": 128188
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-viewer.png",
+        "sha256": "d18db83e8349ddf25f27a8df90fde85beb28f793e9e393b7cec3360e13f9afaf",
+        "bytes": 91871
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/presence-stale-query-hidden.png",
+        "sha256": "a848e4783ef2b0e03c7cc794a01d7b3a89247c771a8ac072ea226441b3f0f237",
+        "bytes": 94710
+      }
+    ],
+    "qaHarness": [
+      {
+        "path": ".testenv/inbox-demo-ui/app/presence-qa/page.tsx",
+        "sha256": "5afdcca378b2262907910b7a10e46edd07d5033a1076758611b06abf34986c13",
+        "bytes": 596
+      },
+      {
+        "path": ".testenv/inbox-demo-ui/app/presence-agent/page.tsx",
+        "sha256": "a651c13ca9e60bc4c08d817a6cd637c67975c0e104ddf8e3f25d2a86a38839f8",
+        "bytes": 1925
+      },
+      {
+        "path": ".testenv/inbox-demo-ui/app/api/[...path]/route.ts",
+        "sha256": "df09bc0cfb074bbd89336cb1b5a2624be92eedb96c655a60913e6c08de944a4b",
+        "bytes": 1133
+      }
+    ],
+    "browserChecks": [
+      "두 가상 직원 실제 InboxPage의 답변 작성 경고/메모 표시·초안 비공유",
+      "응대 상태 교대 후 현재 가능한 직원에게 새 배정",
+      "모두 자리 비움일 때 미배정 팀 큐",
+      "사업별 상태 분리·열람 직원 제어 없음",
+      "조회503 모의→오래된 작성 표시 숨김/상태 변경 제한→자동 재조회 복구"
+    ],
+    "isolation": "loopback/PGlite·가상 직원/고객·실제 운영 환경/DB/키/설정/배포 접근 없음. 시험용 직원 헤더는 ignored .testenv 내부에만 존재.",
+    "limits": "최대90초 접속·12초 작성 만료, 약3초 조회. 강제 발송 잠금/수용량/근무시간/실제 부하·전체 전환은 미완료. R01–R16 원래 목표 유지.",
+    "networkRecovery": "접속 API10초 시간 제한·한국어 안내·조회 오류 중 캐시된 활동 숨김. SQL/API 원본 및 실제 InboxPage 오류/복구 Chrome QA."
   }
 }
