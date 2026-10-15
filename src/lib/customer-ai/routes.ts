@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
-import { db, customerAiJobs } from "@/lib/db";
+import { db, customerAiJobs, inboxConversations } from "@/lib/db";
 import { handleInbox, jsonBody } from "@/lib/inbox/http";
 import { InboxError } from "@/lib/inbox/errors";
 import { supportActor, supportKnowledgeBody } from "./http";
@@ -193,6 +193,25 @@ export function supportRunHandlers(external: boolean) {
                             eq(customerAiJobs.id, runId),
                             eq(customerAiJobs.conversationId, id),
                             eq(customerAiJobs.orgId, actor.orgId),
+                            // Historical source paths remain read-only, even if
+                            // a legacy job still has a cancellable state.
+                            exists(
+                                db
+                                    .select({ id: inboxConversations.id })
+                                    .from(inboxConversations)
+                                    .where(
+                                        and(
+                                            eq(inboxConversations.id, id),
+                                            eq(
+                                                inboxConversations.orgId,
+                                                actor.orgId,
+                                            ),
+                                            isNull(
+                                                inboxConversations.mergedIntoId,
+                                            ),
+                                        ),
+                                    ),
+                            ),
                             inArray(customerAiJobs.state, [
                                 "queued",
                                 "generating",
