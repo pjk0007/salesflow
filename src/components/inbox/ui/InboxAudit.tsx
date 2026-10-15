@@ -24,6 +24,7 @@ const fields: Record<string, string> = {
     memberIds: "팀원",
     autoAssign: "자동 배정",
     requireAvailable: "접속·응대 가능 직원만 배정",
+    requireBusinessHours: "사업 업무시간에만 자동 배정",
     capacity: "자동 배정 한도",
     capacityAgent: "한도 적용 직원",
     name: "이름",

@@ -12,6 +12,8 @@ import type { InboxBootstrap, InboxChannel } from "@/components/inbox/types";
 import { useInboxTeams } from "../hooks/useInboxTeams";
 import type { RoutingTeam } from "../types";
 import { toast } from "sonner";
+import { OperationsSettingsEditor } from "@/components/inbox-operations/ui/OperationsSettingsEditor";
+import { assignmentHoursLabel } from "@/lib/inbox-routing/hours-label";
 type Form = {
     id?: string;
     version?: number;
@@ -19,6 +21,7 @@ type Form = {
     description: string;
     autoAssign: boolean;
     requireAvailable: boolean;
+    requireBusinessHours: boolean;
     enabled: boolean;
     memberIds: string[];
 };
@@ -27,6 +30,7 @@ const fresh = (): Form => ({
     description: "",
     autoAssign: false,
     requireAvailable: false,
+    requireBusinessHours: false,
     enabled: true,
     memberIds: [],
 });
@@ -37,6 +41,7 @@ const editForm = (t: RoutingTeam): Form => ({
     description: t.description,
     autoAssign: t.autoAssign,
     requireAvailable: t.requireAvailable ?? false,
+    requireBusinessHours: t.requireBusinessHours ?? false,
     enabled: t.enabled,
     memberIds: [...t.memberIds],
 });
@@ -115,6 +120,21 @@ export function TeamSettings({
                         응대 권한을 사용합니다.
                     </DialogDescription>
                 </DialogHeader>
+                <details className="rounded-lg border p-3">
+                    <summary className="cursor-pointer text-sm font-medium">
+                        사업 업무시간 설정
+                    </summary>
+                    <p className="my-3 text-xs text-muted-foreground">
+                        이 사업의 상담 운영·성과와 자동 배정이 같은
+                        시간대·요일·휴무일을 사용합니다. 아래 팀 편집 내용은
+                        유지됩니다. 응대 목표나 고객 안내를 켜지 않아도 저장한
+                        업무시간을 배정에 사용할 수 있습니다.
+                    </p>
+                    <OperationsSettingsEditor
+                        channelId={channel.id}
+                        canManage
+                    />
+                </details>
                 <div className="grid gap-5 md:grid-cols-[200px_1fr]">
                     <nav aria-label="상담팀 목록" className="space-y-2">
                         <button
@@ -149,6 +169,11 @@ export function TeamSettings({
                                         : "보관됨"}{" "}
                                     · {t.autoAssign ? "자동 배정" : "수동 배정"}
                                 </span>
+                                {t.autoAssign && t.requireBusinessHours && (
+                                    <span className="mt-1 block text-xs text-muted-foreground">
+                                        {assignmentHoursLabel(t.businessHours)}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </nav>
@@ -276,6 +301,29 @@ export function TeamSettings({
                                 조건에 맞는 직원이 없으면 팀 대기열에 남습니다.
                                 끄면 접속 상태와 관계없이 기존 응대 권한을
                                 기준으로 배정합니다.
+                            </p>
+                            <label className="flex items-center gap-2 text-sm">
+                                <input
+                                    type="checkbox"
+                                    aria-label="사업 업무시간에만 자동 배정"
+                                    disabled={!form.autoAssign}
+                                    checked={form.requireBusinessHours}
+                                    onChange={(e) =>
+                                        setForm({
+                                            ...form,
+                                            requireBusinessHours:
+                                                e.target.checked,
+                                        })
+                                    }
+                                />
+                                사업 업무시간에만 자동 배정
+                            </label>
+                            <p className="text-xs text-muted-foreground">
+                                위 사업 업무시간을 먼저 저장해주세요. 켜면
+                                업무시간 밖·휴무일에는 팀 대기열에 남기고, 업무
+                                시작 후 대기 상담 배정에서 다시 확인합니다. 기존
+                                담당과 직접 지정은 유지합니다. 접속·수용량
+                                조건도 함께 적용합니다.
                             </p>
                             <label className="flex items-center gap-2 text-sm">
                                 <input

@@ -4,6 +4,7 @@ import type { DbExec } from "@/lib/db/tx";
 import { customerAccessPredicate } from "@/lib/customer-access/access";
 import { InboxError } from "@/lib/inbox/errors";
 import { agentAvailablePredicate } from "@/lib/inbox-presence/repository";
+import { teamAssignmentHours } from "./hours";
 import {
     openWorkload,
     hasCapacity,
@@ -62,6 +63,7 @@ async function teamAssigneeCandidates(
     excludeConversationId?: string,
 ) {
     if (!team.autoAssign) return [];
+    if ((await teamAssignmentHours(exec, team))?.open === false) return [];
     const next = await exec
         .select({
             userId: members.userId,

@@ -64,7 +64,7 @@ export function OperationsSettingsEditor({
                         setHolidays(null);
                         await mutate();
                         toast.success(
-                            "운영 설정을 저장했습니다. 새 응대부터 적용됩니다.",
+                            "운영 설정을 저장했습니다. 자동 배정은 다음 판단부터, 응대 계산은 새 응대부터 적용합니다.",
                         );
                     })
                     .catch((e) => toast.error((e as Error).message))
@@ -72,9 +72,10 @@ export function OperationsSettingsEditor({
             }}
         >
             <p className="rounded-lg bg-muted p-3 text-sm">
-                업무시간·휴무일은 고객 안내와 응대 시간 계산에 사용합니다.
-                변경한 목표와 업무시간은 새로 시작하는 응대부터 적용하며 진행
-                중·과거 응대의 기준은 유지합니다.
+                업무시간·휴무일은 고객 안내, 응대 시간 계산과 선택한 팀의 자동
+                배정에 사용합니다. 응대 계산은 새로 시작하는 응대부터 적용하며
+                진행 중·과거 응대의 기준은 유지합니다. 업무시간 배정 옵션을 켠
+                팀의 대기 상담은 다음 배정 판단부터 최신 달력을 사용합니다.
             </p>
             {!canManage && <p>설정 변경은 관리자에게 요청해주세요.</p>}
             <fieldset
@@ -375,7 +376,7 @@ export function OperationsSettingsEditor({
                         disabled={busy}
                         className="rounded bg-violet-600 px-4 py-2 text-white"
                     >
-                        {busy ? "저장 중…" : "새 응대부터 적용"}
+                        {busy ? "저장 중…" : "운영 설정 저장"}
                     </button>
                     <button
                         type="button"

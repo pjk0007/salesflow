@@ -17,6 +17,7 @@ import {
 import { InboxError } from "@/lib/inbox/errors";
 import { appendInboxAudit, type AuditChanges } from "@/lib/inbox/audit";
 import { createTeamInput, patchTeamInput } from "./rules";
+import { channelAssignmentHours } from "./hours";
 const columns = {
     id: inboxTeams.id,
     channelId: inboxTeams.channelId,
@@ -24,6 +25,7 @@ const columns = {
     description: inboxTeams.description,
     autoAssign: inboxTeams.autoAssign,
     requireAvailable: inboxTeams.requireAvailable,
+    requireBusinessHours: inboxTeams.requireBusinessHours,
     enabled: inboxTeams.enabled,
     version: inboxTeams.version,
 };
@@ -56,8 +58,35 @@ async function rows(channelIds: number[], exec: DbExec) {
                   ),
               )
         : [];
+    const windows = new Map(
+        await Promise.all(
+            channelIds.map(async (channelId) => {
+                const restricted = teams.find(
+                    (t) => t.channelId === channelId && t.requireBusinessHours,
+                );
+                return [
+                    channelId,
+                    restricted
+                        ? await channelAssignmentHours(
+                              exec,
+                              (
+                                  await exec
+                                      .select({ orgId: inboxChannels.orgId })
+                                      .from(inboxChannels)
+                                      .where(eq(inboxChannels.id, channelId))
+                              )[0]!.orgId,
+                              channelId,
+                          )
+                        : null,
+                ] as const;
+            }),
+        ),
+    );
     return teams.map((t) => ({
         ...t,
+        businessHours: t.requireBusinessHours
+            ? (windows.get(t.channelId) ?? null)
+            : null,
         memberIds: members
             .filter((m) => m.teamId === t.id)
             .map((m) => m.userId)
@@ -211,8 +240,19 @@ export async function saveTeam(
             autoAssign: input.autoAssign ?? current!.autoAssign,
             requireAvailable:
                 input.requireAvailable ?? current!.requireAvailable,
+            requireBusinessHours:
+                input.requireBusinessHours ?? current!.requireBusinessHours,
             enabled: input.enabled ?? current!.enabled,
         };
+        if (
+            value.requireBusinessHours &&
+            !(await channelAssignmentHours(tx, actor.orgId, channelId))
+                .configured
+        )
+            throw new InboxError(
+                "운영·성과에서 이 사업의 업무시간을 먼저 저장해주세요.",
+                409,
+            );
         const [duplicate] = await tx
             .select({ id: inboxTeams.id })
             .from(inboxTeams)

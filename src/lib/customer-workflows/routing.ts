@@ -3,6 +3,8 @@ import { inboxTeams, inboxChannels, inboxTeamMembers, users } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "@/lib/inbox/errors";
 import { teamAssigneeCandidate } from "@/lib/inbox-routing/assignment";
+import { teamAssignmentHours } from "@/lib/inbox-routing/hours";
+import { assignmentHoursLabel } from "@/lib/inbox-routing/hours-label";
 import type { LoadedWorkflowContext } from "./context";
 
 export async function workflowTeam(
@@ -87,6 +89,9 @@ export async function previewWorkflowTeam(
     if (chat.teamId === team.id)
         return `${team.name} · 같은 팀이므로 기존 담당을 유지합니다.`;
     chat.teamId = team.id;
+    const hours = team.autoAssign
+        ? await teamAssignmentHours(exec, team)
+        : null;
     chat.assigneeId = await teamAssigneeCandidate(
         exec,
         team,
@@ -94,5 +99,9 @@ export async function previewWorkflowTeam(
         chat.id,
     );
     const person = await routingPersonName(chat.assigneeId, exec);
-    return `${team.name} · ${team.autoAssign ? (person ? `자동 배정 예상: ${person}` : "현재 조건에 맞는 배정 후보가 없어 팀 대기열 유지") : "수동 배정 대기열"}. 처리 시점의 팀 설정·권한·상담 수에 따라 결과가 달라질 수 있습니다.`;
+    const waiting =
+        hours?.open === false
+            ? assignmentHoursLabel(hours)
+            : "현재 조건에 맞는 배정 후보가 없어 팀 대기열 유지";
+    return `${team.name} · ${team.autoAssign ? (person ? `자동 배정 예상: ${person}` : waiting) : "수동 배정 대기열"}. 처리 시점의 팀 설정·업무시간·권한·상담 수에 따라 결과가 달라질 수 있습니다.`;
 }

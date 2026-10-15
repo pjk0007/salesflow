@@ -23,6 +23,7 @@ import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { InboxError } from "@/lib/inbox/errors";
 import { claimCapacity, hasCapacity } from "@/lib/inbox-capacity/limits";
+import { teamAssignmentHours } from "@/lib/inbox-routing/hours";
 import { agentAvailablePredicate } from "@/lib/inbox-presence/repository";
 import {
     assignmentTeam,
@@ -94,7 +95,14 @@ export async function handoffSupport(
                       false,
                   )
                 : null;
-        if (attention && !assigneeId && config.handoffAssigneeId) {
+        const withinHours =
+            !team || (await teamAssignmentHours(exec, team))?.open !== false;
+        if (
+            attention &&
+            !assigneeId &&
+            config.handoffAssigneeId &&
+            withinHours
+        ) {
             const [person] = await exec
                 .select({ id: users.id })
                 .from(users)
@@ -124,7 +132,14 @@ export async function handoffSupport(
                 );
             assigneeId =
                 person &&
-                (await claimCapacity(exec, chat.channelId, person.id, chat.id))
+                (await claimCapacity(
+                    exec,
+                    chat.channelId,
+                    person.id,
+                    chat.id,
+                )) &&
+                (!team ||
+                    (await teamAssignmentHours(exec, team))?.open !== false)
                     ? person.id
                     : null;
         }

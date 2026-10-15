@@ -60,4 +60,4 @@ node --import tsx scripts/check-inbox-capacity.cjs --postgres
 
 기존 상담팀18·AI16·상담22·응대 운영23·접속14·조건별 자동화12·회원 연결12의7개 회귀 묶음, 단위1,095·기능 lint·타입 포함 격리 전체 Next 빌드가 통과했다. Chrome에서는 가상 직원 한도0/1 저장·기존 상담 유지·첫 자동 배정/추가 문의 대기·기존 상담 종료 후1건 재배정·두 창 저장 충돌/초안/최신 복구·일반 상담원의 한도 조회/설정 제한을 확인했다.
 
-코드·마이그레이션·가상 DB 종료·로그·화면 증거는 `evidence-manifest.json`의 `capacityQa`에 기록한다. 운영 서버/DB·키·직원 설정·main/master 병합·배포·실제 고객 발송은 변경하지 않았다. 근무시간별 배정·강제 작성/발송 잠금·실제 다중 서버/대규모 부하·전체 채널/사이트 설치·자료 이전/전체 전환 검수는 남아 있다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 유지한다.
+코드·마이그레이션·가상 DB 종료·로그·화면 증거는 `evidence-manifest.json`의 `capacityQa`에 기록한다. 운영 서버/DB·키·직원 설정·main/master 병합·배포·실제 고객 발송은 변경하지 않았다. 직원별 교대표·강제 작성/발송 잠금·실제 다중 서버/대규모 부하·전체 채널/사이트 설치·자료 이전/전체 전환 검수는 남아 있다. 사업 업무시간에만 자동 배정하는0109의 흐름은 [BUSINESS-HOURS-ROUTING.md](BUSINESS-HOURS-ROUTING.md)에 추가했다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md)를 유지한다.

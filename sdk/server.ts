@@ -1031,6 +1031,7 @@ export class SendbClient {
         description?: string;
         autoAssign?: boolean;
         requireAvailable?: boolean;
+        requireBusinessHours?: boolean;
         enabled?: boolean;
         memberIds?: string[];
     }) {
@@ -1048,6 +1049,7 @@ export class SendbClient {
             description?: string;
             autoAssign?: boolean;
             requireAvailable?: boolean;
+            requireBusinessHours?: boolean;
             enabled?: boolean;
             memberIds?: string[];
         },

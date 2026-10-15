@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { InboxBootstrap, Conversation } from "@/components/inbox/types";
+import { assignmentHoursLabel } from "@/lib/inbox-routing/hours-label";
 export function TeamAssignment({
     bootstrap,
     chat,
@@ -65,6 +66,11 @@ export function TeamAssignment({
             <p className="text-[10px] text-muted-foreground">
                 팀을 바꾸면 개인 담당자도 팀 설정에 맞춰 바뀝니다.
             </p>
+            {team?.autoAssign && team.requireBusinessHours && (
+                <p className="text-[10px] text-muted-foreground">
+                    {assignmentHoursLabel(team.businessHours)}
+                </p>
+            )}
             <label className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                 담당자
                 <select

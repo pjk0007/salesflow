@@ -11,6 +11,7 @@ export function saveRoutingTeam(
         enabled: boolean;
         autoAssign: boolean;
         requireAvailable?: boolean;
+        requireBusinessHours?: boolean;
         memberIds: string[];
     },
 ) {

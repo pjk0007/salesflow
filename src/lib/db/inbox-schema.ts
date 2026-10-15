@@ -67,6 +67,9 @@ export const inboxTeams = pgTable(
             .default(""),
         autoAssign: boolean("auto_assign").notNull().default(false),
         requireAvailable: boolean("require_available").notNull().default(false),
+        requireBusinessHours: boolean("require_business_hours")
+            .notNull()
+            .default(false),
         enabled: boolean("enabled").notNull().default(true),
         version: integer("version").notNull().default(1),
         createdAt: time("created_at").notNull().defaultNow(),

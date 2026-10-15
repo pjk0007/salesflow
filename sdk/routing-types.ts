@@ -5,6 +5,13 @@ export interface SendbInboxTeam {
     description: string;
     autoAssign: boolean;
     requireAvailable: boolean;
+    requireBusinessHours: boolean;
+    businessHours: {
+        configured: boolean;
+        open: boolean;
+        timezone: string | null;
+        nextOpenAt: string | null;
+    } | null;
     enabled: boolean;
     version: number;
     memberIds: string[];
