@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>샌드비 · 직원 업무 UX 가이드</title>
+  <link rel="stylesheet" href="style.css">
+  <script defer src="guide-data.js"></script>
+  <script defer src="guide.js"></script>
+</head>
+<body>
+  <a class="skip" href="#task-title">업무 설명으로 이동</a>
+  <div class="scope"><span class="status-dot" aria-hidden="true"></span><strong>개발본 사용 안내</strong><span>검수용 가상 화면 · 운영 미반영</span></div>
+  <header class="masthead">
+    <div class="brand">sendb <span>TEAM GUIDE / 2026.10.15</span></div>
+    <div class="intro"><div><p class="eyebrow">직원 업무 UX 가이드</p><h1>상담에서<br>다음 업무까지.</h1><p class="lead">문의 찾기, 고객 정보 연결, 동료 인계와 AI 검토를<br class="desktop-break"> 실제 개발본의 메뉴 순서로 살펴보세요.</p></div><div class="context"><label for="business">안내 예시의 사업</label><select id="business"><option value="designer">디자이너하이어</option><option value="backoffice">백오피스랩</option></select><p id="business-context"></p><p class="fictional">예시의 고객·회사는 모두 가상입니다.</p></div></div>
+    <p class="notice">이 페이지에서는 설명과 검수 화면만 봅니다. 실제 답장·저장·게시·가져오기는 실행하지 않습니다.</p>
+    <details class="roles"><summary>시작 전: 사업 선택과 직원 역할 확인</summary><div class="roles-body"><p>같은 메뉴라도 배정받은 사업과 역할에 따라 사용할 수 있는 기능이 달라집니다. 사업이 보이지 않으면 조직 관리자에게 <strong>고객 상담 → 직원 권한</strong>의 배정을 요청하세요. 상담팀에 들어가는 것만으로 사업 접근 권한이 생기지는 않습니다.</p><table><caption>직원 역할별 사용 범위</caption><thead><tr><th scope="col">역할</th><th scope="col">업무</th></tr></thead><tbody><tr><th scope="row">열람</th><td>상담·메모·첨부·고객·영업 조회, 내 알림 확인</td></tr><tr><th scope="row">응대·편집</th><td>답변·내부 메모·첨부·담당 배정, 고객·딜·할 일 편집</td></tr><tr><th scope="row">운영 관리</th><td>응대·편집과 상담팀·AI·자동화·파이프라인·자료 이전 설정</td></tr><tr><th scope="row">조직 관리자</th><td>모든 사업 관리, 직원의 사업 권한 배정·회수</td></tr></tbody></table></div></details>
+  </header>
+  <div class="workspace">
+    <nav class="task-nav" aria-label="업무 선택"><p class="eyebrow">어떤 업무를 하시나요?</p><div id="tasks"></div></nav>
+    <main id="guide-main">
+      <div class="task-heading"><p class="eyebrow" id="task-counter"></p><h2 id="task-title" tabindex="-1"></h2><p id="task-summary"></p><div class="task-meta"><span id="task-role"></span><span id="task-example"></span></div></div>
+      <nav id="steps" class="step-nav" aria-label="설명 단계"></nav>
+      <article class="step-card" aria-labelledby="step-title">
+        <div class="location"><span>화면 위치</span><p id="step-location"></p></div>
+        <div class="step-body"><p class="step-kicker" id="step-counter"></p><h3 id="step-title" tabindex="-1"></h3><p class="step-description" id="step-description"></p><ol id="actions"></ol><div class="completion"><span class="small-label">완료 확인</span><p id="completion"></p></div><div class="attention" id="attention-wrap"><span class="small-label">함께 알아두세요</span><p id="attention"></p></div><details class="recovery" id="recovery-wrap"><summary>막혔을 때 확인할 것</summary><p id="recovery"></p></details></div>
+      </article>
+      <div class="step-controls"><button type="button" id="previous">← 이전 설명</button><span id="position" aria-live="polite"></span><button type="button" id="next">다음 설명 →</button></div>
+      <section class="capture" id="capture" aria-labelledby="capture-title"><div class="capture-heading"><div><p class="eyebrow">관련 검수 화면</p><h3 id="capture-title"></h3></div><button type="button" id="enlarge">화면 크게 보기 ↗</button></div><figure><img id="capture-image" alt=""><figcaption><p id="capture-caption"></p><p id="capture-scope" class="capture-scope"></p></figcaption></figure><p class="capture-limit">기능 검수 당시 가상 화면입니다. 최신 개발본과의 동일성이나 운영 적용을 의미하지 않습니다. 화면의 검수 전용 제어는 실제 제품 사용 절차에 포함하지 않습니다.</p></section>
+      <details class="customer-view" id="customer-view"><summary>고객에게는 어떻게 보이나요?</summary><p>문의 목록에서 이전 문의를 다시 열거나 새 문의를 시작하고, 메시지에 파일을 붙일 수 있습니다. 아래는 실제 사이트에 설치한 화면이 아닌, 별도 검수 환경의 가상 고객 화면입니다.</p><div id="customer-images"></div></details>
+      <section class="next-task" id="next-task"><p class="eyebrow">이어서 볼 업무</p><button type="button" id="next-task-button"></button></section>
+    </main>
+  </div>
+  <footer><details class="manager-reference"><summary>관리자 추가 안내: 권한·업무시간·성과·보관과 복구</summary><div class="manager-grid"><section><h3>직원 권한</h3><p><strong>고객 상담 → 직원 권한</strong><br>조직 관리자가 사업별 역할을 배정·회수합니다. 운영 관리자는 다른 직원의 사업 권한을 배정할 수 없습니다. 권한 회수는 이미 저장한 발송의 취소를 보장하지 않습니다.</p></section><section><h3>업무시간·응대 목표</h3><p><strong>고객 상담 → 운영·성과 → 업무시간·응대 목표</strong><br>운영 관리자가 요일·휴무·고객 안내와 첫/추가 답변·해결 목표를 검토한 뒤 <strong>운영 설정 저장</strong>을 누릅니다. 목표는 기본 꺼짐이며 변경은 새 응대부터 적용합니다. 목표 설정과 자동 초과 알림 실행 준비는 별도입니다.</p></section><section><h3>응대 성과</h3><p><strong>고객 상담 → 운영·성과 → 응대 성과</strong><br>날짜·상담 매체를 선택해 첫 답변/해결 중앙값과 표본, 목표 준수·초과, 담당자별 결과를 확인합니다. 해당 기간에 시작한 응대 기준이며 표본이 없으면 —로 표시합니다. 과거 보관 상담과 내부 고객은 집계에서 제외합니다.</p></section><section><h3>고객·회사 보관과 복구</h3><p><strong>고객 관리 → 고객 / 회사 → 항목 열기</strong><br>운영 관리자가 입력을 먼저 저장하고 <strong>보관하기 → 영향 확인 → 보관 실행</strong>을 진행합니다. 보관함에서 <strong>보관 복구 → 복구 실행</strong>으로 다시 사용합니다. 영구 삭제나 고객 계정 정지가 아니며 기존 업무는 취소하지 않습니다. 중단한 자동화도 복구만으로 재개하지 않습니다.</p></section></div><p>이 안내는 현재 개발본의 진입 방법입니다. 전체 보존 기간·영구 파기·선택 복구 정책과 고급 분석·여러 응대 목표 정책은 후속 범위입니다. 근거 문서는 검증 기록의 sourceReferences에 연결했습니다.</p></details><p><strong>개발 검토용 안내</strong> · 실제 사이트 설치, 계정 연결, 전체 자료 이전과 현업 인수는 별도 확인이 필요합니다.</p><details><summary>이 가이드의 기준과 검증 범위</summary><p>로컬 통합 브랜치 <code>codex/sendb-development-review</code>, 제품 코드 기준 <code>055be37</code>의 메뉴·문서와 기능별 가상 검수 화면을 연결했습니다. 화면마다 촬영 범위가 다르며 전체 업무의 운영 검증을 뜻하지 않습니다. 이 페이지는 네트워크 요청 없이 동작하는 오프라인 설명 자료입니다.</p><p>첨부와 본문 초안의 수명, 읽기 전용 기록, 사람의 게시·전송, 기본 꺼짐 상태를 구분했습니다. 제품 코드를 변경하거나 서버를 배포하지 않았습니다.</p><a href="evidence.json">근거·화면 출처와 가이드 검증 기록 보기</a></details></footer>
+  <dialog id="image-dialog" aria-labelledby="dialog-title"><header><h2 id="dialog-title"></h2><button type="button" id="close-dialog">닫기</button></header><img id="dialog-image" alt=""><p id="dialog-caption"></p></dialog>
+  <noscript><p class="noscript">단계별 안내를 보려면 JavaScript를 켜주세요. 이 가이드는 외부 서비스에 연결하지 않습니다.</p></noscript>
+</body>
+</html>

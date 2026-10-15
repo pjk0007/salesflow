@@ -1,0 +1,433 @@
+{
+  "startedAt": "2026-10-15T10:21:31.035Z",
+  "browser": "Chrome 5",
+  "tabId": "1715090004",
+  "baseUrl": "http://127.0.0.1:3151/",
+  "steps": [
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "1 / 4 단계",
+      "step": "먼저 사업과 문의를 확인하세요.",
+      "task": "문의 찾고 답변하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "2 / 4 단계",
+      "step": "답변 문장과 파일을 준비하세요.",
+      "task": "문의 찾고 답변하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "3 / 4 단계",
+      "step": "검토한 답변을 직접 전송하세요.",
+      "task": "문의 찾고 답변하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "4 / 4 단계",
+      "step": "상담을 마무리하고 초안의 보존 범위를 확인하세요.",
+      "task": "문의 찾고 답변하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "1 / 4 단계",
+      "step": "기존 고객과 회사를 먼저 찾으세요.",
+      "task": "고객과 다음 업무 연결하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "2 / 4 단계",
+      "step": "진행할 거래를 고객과 연결하세요.",
+      "task": "고객과 다음 업무 연결하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "3 / 4 단계",
+      "step": "담당자와 다음 행동을 남기세요.",
+      "task": "고객과 다음 업무 연결하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "4 / 4 단계",
+      "step": "대화와 영업 기록을 함께 확인하세요.",
+      "task": "고객과 다음 업무 연결하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "1 / 4 단계",
+      "step": "받을 팀과 담당자를 확인하세요.",
+      "task": "팀에 인계하고 동료 호출하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "2 / 4 단계",
+      "step": "직원에게만 보이는 맥락을 남기세요.",
+      "task": "팀에 인계하고 동료 호출하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "3 / 4 단계",
+      "step": "받는 직원은 알림에서 원문을 확인합니다.",
+      "task": "팀에 인계하고 동료 호출하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "4 / 4 단계",
+      "step": "초안과 배정 상태를 확인한 뒤 이어받으세요.",
+      "task": "팀에 인계하고 동료 호출하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "1 / 5 단계",
+      "step": "현재 상담을 위한 초안을 만드세요.",
+      "task": "AI 초안을 검토하고 답변에 사용하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "2 / 5 단계",
+      "step": "답변 문구와 근거를 함께 읽으세요.",
+      "task": "AI 초안을 검토하고 답변에 사용하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "3 / 5 단계",
+      "step": "입력창에서 최종 검토한 뒤 보내세요.",
+      "task": "AI 초안을 검토하고 답변에 사용하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "4 / 5 단계",
+      "step": "병합 전 AI 기록은 확인용으로 읽으세요.",
+      "task": "AI 초안을 검토하고 답변에 사용하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "5 / 5 단계",
+      "step": "승인과 자동 실행 상태는 별도로 확인하세요.",
+      "task": "AI 초안을 검토하고 답변에 사용하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "1 / 5 단계",
+      "step": "시작 이벤트와 할 일을 정하세요.",
+      "task": "자동화를 검토하고 게시하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "2 / 5 단계",
+      "step": "실행 전 검토할 버전을 저장하세요.",
+      "task": "자동화를 검토하고 게시하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "3 / 5 단계",
+      "step": "실제 변경 전에 예상 행동을 확인하세요.",
+      "task": "자동화를 검토하고 게시하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "4 / 5 단계",
+      "step": "확인한 버전만 사람이 게시하세요.",
+      "task": "자동화를 검토하고 게시하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "5 / 5 단계",
+      "step": "처리 결과와 남은 단계를 확인하세요.",
+      "task": "자동화를 검토하고 게시하기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "1 / 6 단계",
+      "step": "사업과 원본 계정을 구분하세요.",
+      "task": "기존 자료를 검토해서 가져오기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "2 / 6 단계",
+      "step": "실행 전에 오류와 연결을 검토하세요.",
+      "task": "기존 자료를 검토해서 가져오기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "3 / 6 단계",
+      "step": "검토한 선택 범위만 가져오세요.",
+      "task": "기존 자료를 검토해서 가져오기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "4 / 6 단계",
+      "step": "가져온 과거 상담은 직원 열람용입니다.",
+      "task": "기존 자료를 검토해서 가져오기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "5 / 6 단계",
+      "step": "목록과 실제 파일 확보를 구분하세요.",
+      "task": "기존 자료를 검토해서 가져오기"
+    },
+    {
+      "actionCount": 3,
+      "completedText": true,
+      "focusedId": "step-title",
+      "overflow": 0,
+      "position": "6 / 6 단계",
+      "step": "실패한 파일만 확인해 다시 확보하세요.",
+      "task": "기존 자료를 검토해서 가져오기"
+    }
+  ],
+  "keyboard": [
+    {
+      "action": "Enter on step 2",
+      "focusedId": "step-title",
+      "title": "답변 문장과 파일을 준비하세요."
+    },
+    {
+      "action": "Space on step 3",
+      "focusedId": "step-title",
+      "title": "검토한 답변을 직접 전송하세요."
+    },
+    {
+      "action": "Enter on task 1",
+      "focusedId": "task-title",
+      "title": "문의 찾고 답변하기"
+    }
+  ],
+  "locatorCorrection": "Task textContent concatenates child text; used the observed ordered #tasks button list instead of exact accessible-name matching.",
+  "businessSelection": {
+    "context": "백오피스 서비스 문의를 확인하고, 회사·도입 거래와 다음 상담 업무로 연결하는 예시입니다.",
+    "example": "가상 예시 · 가상 백오랩 상담 묶음과 첨부",
+    "value": "backoffice"
+  },
+  "previous": "5 / 6 단계",
+  "next": "6 / 6 단계",
+  "recoveryExpanded": "",
+  "modalOpen": {
+    "focusedId": "close-dialog",
+    "imageLoaded": true,
+    "open": true
+  },
+  "modalClosed": {
+    "focusedId": "enlarge",
+    "open": false
+  },
+  "customerImages": [
+    {
+      "complete": true,
+      "src": "assets/customer-list.png",
+      "width": 480
+    },
+    {
+      "complete": true,
+      "src": "assets/customer-files.png",
+      "width": 480
+    }
+  ],
+  "mobile": [
+    {
+      "currentTask": "01문의 찾고 답변하기문의 목록 → 답변 → 상태 확인",
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 4,
+      "task": "문의 찾고 답변하기",
+      "width": 375
+    },
+    {
+      "currentTask": "02고객과 다음 업무 연결회사·고객 → 딜 → 할 일",
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 4,
+      "task": "고객과 다음 업무 연결하기",
+      "width": 375
+    },
+    {
+      "currentTask": "03팀에 인계하고 호출담당 배정 → 내부 메모 → 멘션",
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 4,
+      "task": "팀에 인계하고 동료 호출하기",
+      "width": 375
+    },
+    {
+      "currentTask": "04AI 답변 검토하기현재 초안 → 근거 → 사람 전송",
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 5,
+      "task": "AI 초안을 검토하고 답변에 사용하기",
+      "width": 375
+    },
+    {
+      "currentTask": "05자동화 검토·게시버전 저장 → 모의 실행 → 사람 게시",
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 5,
+      "task": "자동화를 검토하고 게시하기",
+      "width": 375
+    },
+    {
+      "currentTask": "06기존 자료 이전미리보기 → 가져오기 → 첨부 복구",
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 6,
+      "task": "기존 자료를 검토해서 가져오기",
+      "width": 375
+    }
+  ],
+  "mobileFirstAttempt": [
+    {
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 4,
+      "task": "문의 찾고 답변하기",
+      "width": 375
+    },
+    {
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 6,
+      "task": "기존 자료를 검토해서 가져오기",
+      "width": 375
+    },
+    {
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 4,
+      "task": "팀에 인계하고 동료 호출하기",
+      "width": 375
+    },
+    {
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 5,
+      "task": "AI 초안을 검토하고 답변에 사용하기",
+      "width": 375
+    },
+    {
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 5,
+      "task": "자동화를 검토하고 게시하기",
+      "width": 375
+    },
+    {
+      "focusedId": "task-title",
+      "overflow": 0,
+      "scrollWidth": 375,
+      "stepCount": 6,
+      "task": "기존 자료를 검토해서 가져오기",
+      "width": 375
+    }
+  ],
+  "adminReference": [
+    "직원 권한",
+    "업무시간·응대 목표",
+    "응대 성과",
+    "고객·회사 보관과 복구"
+  ],
+  "evidenceLink": {
+    "url": "http://127.0.0.1:3151/evidence.json",
+    "contentVisible": 0
+  },
+  "mobileScreenshotState": {
+    "scrollTop": 0,
+    "task": "문의 찾고 답변하기",
+    "width": 375
+  },
+  "viewportReset": {
+    "scrollWidth": 1263,
+    "width": 1263
+  },
+  "completedAt": "2026-10-15T10:25:48.468Z"
+}
