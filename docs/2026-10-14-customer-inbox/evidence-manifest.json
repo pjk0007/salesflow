@@ -3306,5 +3306,350 @@
       "Public web history remains separate; complete channel/data/site cutover pending"
     ],
     "hashNote": "Raw worktree SHA256 at capture; Git autocrlf may normalize commit line endings. Previous manifests and evidence retained."
+  },
+  "mentionsQa": {
+    "capturedAt": "2026-10-15T00:44:09.958Z",
+    "scope": "R06/R13: individual teammate mentions in internal notes, private app notifications, mentioned conversation filter and direct historical note focus; identity merge continuity",
+    "isolation": "Fictional customers, PGlite, loopback HTTP only; no real sends, production DB, OAuth grants or R2 deletion",
+    "tests": {
+      "mentionsSqlApi": 19,
+      "newPureUnits": 4,
+      "unit": 1093,
+      "regressionSuites": 16,
+      "types": "passed, standalone tsc and isolated Next build",
+      "featureLint": "passed without warnings",
+      "build": "passed"
+    },
+    "browserQa": [
+      "DH same-business viewer selection and exclusion of BO teammate, reply/note switch retains text and selected recipient, save clears selection",
+      "Viewer notification opens a note older than latest 100 after 110 subsequent notes, retains read-only UI",
+      "Read notification does not remove mentioned conversation filter result",
+      "BO email note targets only BO teammate; own notification opens note and excludes DH content",
+      "BO note text and selected teammate survive page reload and conversation reselection"
+    ],
+    "sourceEvidence": [
+      {
+        "url": "https://www.intercom.com/help/en/articles/6525765-loop-teammates-or-teams-into-conversations",
+        "scope": "Official teammate mention flow, independently implemented on existing Sendb transactions"
+      },
+      "Existing pinned Chatwoot and Opencom model/feature evidence retained"
+    ],
+    "implementationFiles": [
+      {
+        "path": "drizzle/meta/_journal.json",
+        "sha256": "da921bc4c23eecf4a424f5772a899a448f39663cd0e5be78b06de2a70d610d83",
+        "bytes": 15674
+      },
+      {
+        "path": "scripts/check-customer-platform.cjs",
+        "sha256": "a057ffca1a59fda811d9280c61eb702c998c5eac72cb01abea8cd8a0be120790",
+        "bytes": 29671
+      },
+      {
+        "path": "scripts/check-inbox.cjs",
+        "sha256": "f5cf3a225eda17edfa340734b356fdb254a33d2b08440452bc22032da32e618a",
+        "bytes": 30063
+      },
+      {
+        "path": "sdk/server.ts",
+        "sha256": "6838797c95d53637885b592517213367dddd719f4629bc68710df6721f36a301",
+        "bytes": 38641
+      },
+      {
+        "path": "sdk/support-types.ts",
+        "sha256": "898ac88a189568babdc8ba07e9434056083cd445706873d4a62b55774520103b",
+        "bytes": 3394
+      },
+      {
+        "path": "src/app/api/inbox/conversations/[id]/route.ts",
+        "sha256": "d2946def6c663f802c2498098def14346c4d5ad046fab03242a424368a49b763",
+        "bytes": 1778
+      },
+      {
+        "path": "src/app/api/v1/inbox/conversations/[id]/route.ts",
+        "sha256": "822fa63fb05753a2e0f18e591de1a4a9360a498adc69354064a38636fd68282a",
+        "bytes": 1991
+      },
+      {
+        "path": "src/components/inbox-operations/types/index.ts",
+        "sha256": "81bdc494d5189d7ee623af096eb69bbd816f3ad7e258821ba8ba6e20da44f804",
+        "bytes": 529
+      },
+      {
+        "path": "src/components/inbox-operations/ui/SupportNotifications.tsx",
+        "sha256": "3ec5aa957085bd2ca717906d4a4161c833add5921989f456ebff01316ddfa3ed",
+        "bytes": 8457
+      },
+      {
+        "path": "src/components/inbox-operations/utils/display.ts",
+        "sha256": "dded3f459a0e824dcaba7df55ddc3908358c87f0b663a4472a7e48d360b7e28c",
+        "bytes": 1170
+      },
+      {
+        "path": "src/components/inbox/types/index.ts",
+        "sha256": "4f2d08963d6105059e60cc5fdd17117c50460745533ae49aa193117b85d552fb",
+        "bytes": 2599
+      },
+      {
+        "path": "src/components/inbox/ui/ConversationPane.tsx",
+        "sha256": "4e5346318cc295c708f44d0e9d9d3c18cf86706423f0ae08d19aeb80d02d2599",
+        "bytes": 50356
+      },
+      {
+        "path": "src/components/inbox/ui/InboxPage.tsx",
+        "sha256": "7b434bd535cb37bfc720a578973fc643dba8aecb4e1441849588610805408439",
+        "bytes": 28619
+      },
+      {
+        "path": "src/lib/db/inbox-operations-schema.ts",
+        "sha256": "265d98a043f81492736f2eecc51b2c69a6a9e9c6effc08c69aad6906bc5fa7a6",
+        "bytes": 5852
+      },
+      {
+        "path": "src/lib/db/schema.ts",
+        "sha256": "17f588a2189bd75dfaa1d134b533154f1adad5561f19379dd9862ae3b4b704a5",
+        "bytes": 111964
+      },
+      {
+        "path": "src/lib/inbox-operations/enqueue.ts",
+        "sha256": "555da1948d169b9a6f1eff263bec659703045f5c3dafc6b303e2cf4c5f4d8e0f",
+        "bytes": 24969
+      },
+      {
+        "path": "src/lib/inbox-operations/repository.ts",
+        "sha256": "492f07a09ba84837e621d3e8c3ce9f60f21596b15b68fce9451280f47f6b9193",
+        "bytes": 13881
+      },
+      {
+        "path": "src/lib/inbox/link-identity.ts",
+        "sha256": "65de069eda9c41d2b1eab50fac40be0b8470e474033778f4a702c98f529ae199",
+        "bytes": 13359
+      },
+      {
+        "path": "src/lib/inbox/repository.ts",
+        "sha256": "a10094d0132b2505f0f042ebc49df955b42995856e24ca86ab19dbbe6cdb130b",
+        "bytes": 54224
+      },
+      {
+        "path": "src/lib/inbox/rules.ts",
+        "sha256": "2faa1b09da62f110cc5f93e0407a68ffa8824eee6df8cb8a84f20c3ffa29994a",
+        "bytes": 5854
+      },
+      {
+        "path": "drizzle/0105_inbox_mentions.sql",
+        "sha256": "8a6415122e882dabf33576fcd9a13be434e4ce789f64e24b179def0288d06af9",
+        "bytes": 759
+      },
+      {
+        "path": "scripts/check-inbox-mentions.cjs",
+        "sha256": "7e0d298632bfd04466317061cd34812b79304a9a29a01c7f4c43fc346949e856",
+        "bytes": 31633
+      },
+      {
+        "path": "src/app/api/v1/inbox/channels/[id]/teammates/route.ts",
+        "sha256": "cdd959203ffad85648cbfdb992ebfff6498a225ce2b03fd6e62964402f4693a6",
+        "bytes": 769
+      },
+      {
+        "path": "src/components/inbox-collaboration/api/index.ts",
+        "sha256": "c11554c161c1792091450f444e1533cd1a6264c3c8f8303aa6ebcf25b5f3a8cb",
+        "bytes": 79
+      },
+      {
+        "path": "src/components/inbox-collaboration/hooks/useNoteMentions.ts",
+        "sha256": "c4e8e394a04fc4cfe71605bd5371886ff7c6904c3150356a0f890c1c53d6e899",
+        "bytes": 1767
+      },
+      {
+        "path": "src/components/inbox-collaboration/types/index.ts",
+        "sha256": "abd1ff7b00c51179f8c3cc1605d84621640d95bee926ded3eae2f2169dcfc47c",
+        "bytes": 97
+      },
+      {
+        "path": "src/components/inbox-collaboration/ui/MentionTargetCard.tsx",
+        "sha256": "b7fc4123de6feb4428b433e856b3daef29432940f22841fa661edaf1f12c4a20",
+        "bytes": 2436
+      },
+      {
+        "path": "src/components/inbox-collaboration/ui/NoteMentions.tsx",
+        "sha256": "5932c4af63499082b8fcfe9809878995c3351dd20561ed44ac0f3daae20875d9",
+        "bytes": 3242
+      },
+      {
+        "path": "src/lib/db/inbox-collaboration-schema.ts",
+        "sha256": "0e51fd351817c866af673af23c522779002f191f19ba98f68faec3593bba3bde",
+        "bytes": 1427
+      },
+      {
+        "path": "src/lib/inbox-collaboration/mentions.ts",
+        "sha256": "78fce9308e7d50bfdf1feeac38f7a9525df768d0e4b6a2f332cfef5a53a9e39f",
+        "bytes": 5377
+      },
+      {
+        "path": "src/lib/inbox-collaboration/rules.test.ts",
+        "sha256": "43e93301f5e8f79f09f7582ec9e7a1dd962b98c3fe4f9174e58c08876bf99719",
+        "bytes": 1168
+      },
+      {
+        "path": "src/lib/inbox-collaboration/rules.ts",
+        "sha256": "2a5d121e4d0e484b1bf0c0dcdd3b7b41021c21182866ae2fa15642944a5b640b",
+        "bytes": 418
+      }
+    ],
+    "screenshots": [
+      {
+        "path": "mentions-bo-draft-reload-qa.png",
+        "sha256": "4cb28ab73b5cb63999b60a983ed1200c34813e00ef1cae7e4ab9b61b04d0a25c",
+        "bytes": 131358
+      },
+      {
+        "path": "mentions-bo-isolated-focus-qa.png",
+        "sha256": "0c407a833b6340c0f268c4632013252f6458e4e0e16a7f15e3a22c49dff924c3",
+        "bytes": 92644
+      },
+      {
+        "path": "mentions-dh-composer-qa.png",
+        "sha256": "87374c93169b81f9195cddc6bd3064337d003a8bb7d7c687acbab84e01349c0c",
+        "bytes": 139639
+      },
+      {
+        "path": "mentions-dh-filter-read-qa.png",
+        "sha256": "c182c5bf63c9a0d30df4625bf93279454985ac8b88ed047dec61e108b5ec66cb",
+        "bytes": 49319
+      },
+      {
+        "path": "mentions-dh-old-note-focus-qa.png",
+        "sha256": "3932c9dbaf0c5f8d891c9e96f9ebeb77fa5945919312c838b576cd99d3ed32b9",
+        "bytes": 138299
+      }
+    ],
+    "logs": [
+      {
+        "path": "mentions-qa-final.log",
+        "sha256": "1c8134fb61eeeed2d16e91913652a296200418d876f051aaf3032a785918ee8a",
+        "bytes": 2873
+      },
+      {
+        "path": "mentions-unit.log",
+        "sha256": "864f6ed1c0d361c8cfa4febd78752fb2df12795c0684ed3bbc6d6c2a406ddfcb",
+        "bytes": 104439
+      },
+      {
+        "path": "mentions-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "mentions-types-verified.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "mentions-build.log",
+        "sha256": "afd9c7e2ec037b545fa8664f56bf365af28ace13f0deeb54a67aa964788aebdf",
+        "bytes": 13167
+      },
+      {
+        "path": "mentions-regressions.log",
+        "sha256": "13c1bd91964c4c18973457a2b0b50ff4941be83b827ae2c2deea7144d15be66c",
+        "bytes": 452
+      },
+      {
+        "path": "mentions-regression-check-customer-access.log",
+        "sha256": "5e58350fa06520745b77e6142ab5101b68c6ec86d23f06b3c80c98581eaa316d",
+        "bytes": 2648
+      },
+      {
+        "path": "mentions-regression-check-customer-activities.log",
+        "sha256": "1ecc4dfad41a66294c937f9174e5ead2a9a54ae00ee6d1f45ed24a0a6eb191e7",
+        "bytes": 2854
+      },
+      {
+        "path": "mentions-regression-check-customer-ai.log",
+        "sha256": "7a000512aae672216ac3ef4eac4d50e085b15868ffe9c51e0c0c51ea1b941d82",
+        "bytes": 2404
+      },
+      {
+        "path": "mentions-regression-check-customer-imports.log",
+        "sha256": "81bcc5a1f1967df36d934ad86ab96cdeed3b9b97d3876e3f6d1acb9fecb42781",
+        "bytes": 2542
+      },
+      {
+        "path": "mentions-regression-check-customer-records.log",
+        "sha256": "2999ce617e69e3809c96c20140a88556df22eb7494f93a9681174e451b7b0d3f",
+        "bytes": 3004
+      },
+      {
+        "path": "mentions-regression-check-customer-sales.log",
+        "sha256": "903fe4f402462e127af9b228c766bd5dab8808b5489d4e9a923e682d3a535a4d",
+        "bytes": 2105
+      },
+      {
+        "path": "mentions-regression-check-customer-workflows.log",
+        "sha256": "77425aaf87c509afd85d9afee12d1f5ea8764c1245534e83dd7b1a81169812dc",
+        "bytes": 2344
+      },
+      {
+        "path": "mentions-regression-check-email-recipients.log",
+        "sha256": "ce0aa3447ffc29eea2b479f75b7e870e31c16bce940c70a65e2bdd8e2ad97c81",
+        "bytes": 2536
+      },
+      {
+        "path": "mentions-regression-check-inbox-email-files.log",
+        "sha256": "1dccb91ca690ff6068ae94630fce263583ddba15f308ac65f9aae147d35c7bcf",
+        "bytes": 3322
+      },
+      {
+        "path": "mentions-regression-check-inbox-email.log",
+        "sha256": "a0a41b82a0d3209e8cfc4fd8dd1e59c96879c85e176ecf4c508cd3586b7f67bb",
+        "bytes": 2170
+      },
+      {
+        "path": "mentions-regression-check-inbox-files.log",
+        "sha256": "4b1cfb38b65efd00d462b11f1c76558fdcc36f2a0329861a8db00389aa7efe45",
+        "bytes": 4402
+      },
+      {
+        "path": "mentions-regression-check-inbox-google.log",
+        "sha256": "ce4facb0d97217362c4979374b3b1ffcd6c1f71d23eb2bf004721e0edd2b9585",
+        "bytes": 2792
+      },
+      {
+        "path": "mentions-regression-check-inbox-identity.log",
+        "sha256": "be608e92e077f14d48f73035c478582173e2ba47ed2993ea5e49dc6fd19ce4b9",
+        "bytes": 2287
+      },
+      {
+        "path": "mentions-regression-check-inbox-operations.log",
+        "sha256": "63711838b373ca6e113246ac92db265d0e2d2ab3951ce8d449bfbbc3e14c5cc9",
+        "bytes": 3237
+      },
+      {
+        "path": "mentions-regression-check-inbox.log",
+        "sha256": "ed0ce56382c190983490062f27c44117d190253f95ff305431a13926d1d489aa",
+        "bytes": 1567
+      },
+      {
+        "path": "mentions-regression-check-platform-webhooks.log",
+        "sha256": "f4e406cc3fe9e40465378e668663a126efe0e26c80a921fcd0c1b2141d3d1b43",
+        "bytes": 5725
+      }
+    ],
+    "limits": [
+      "Actual dev/production migration and deployment not performed",
+      "No inline @typing autocomplete, team groups, routing, presence, OS/email/Google Chat mention alerts",
+      "Real site repositories found via existing Git login; source entry points read, no site changes or deployment, live deployed commit mapping remains unverified",
+      "Real team workflow, concurrent/load and complete channel/data cutover remain pending"
+    ],
+    "siteSources": {
+      "access": "GitHub App inventory showed only isaackimmatches; existing Git auth exposed matches-plan organization private repositories",
+      "repositories": [
+        "matches-plan/new-designer-hire",
+        "matches-plan/designer-hire-server",
+        "matches-plan/back-office-lab"
+      ],
+      "guide": "SITE-SOURCES.md"
+    },
+    "hashNote": "Raw worktree SHA256 at capture; Git autocrlf may normalize line endings. Earlier evidence fields retained."
   }
 }

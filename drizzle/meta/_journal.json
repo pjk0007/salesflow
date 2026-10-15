@@ -736,6 +736,13 @@
       "when": 1792029600000,
       "tag": "0104_email_reply_recipients",
       "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1792033200000,
+      "tag": "0105_inbox_mentions",
+      "breakpoints": true
     }
   ]
 }

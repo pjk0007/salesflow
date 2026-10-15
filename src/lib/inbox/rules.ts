@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { emailReplySelection } from "@/lib/inbox-email/recipients";
+import { mentionIdsInput } from "@/lib/inbox-collaboration/rules";
 
 export const messageInput = z
     .object({
@@ -26,10 +27,15 @@ export const replyInput = messageInput
         kind: z.enum(["reply", "note"]),
         aiDraftId: z.string().uuid().optional(),
         emailReply: emailReplySelection.optional(),
+        mentionedUserIds: mentionIdsInput.default([]),
     })
     .refine(
         (v) => !v.aiDraftId || v.kind === "reply",
         "AI 초안은 고객 답변에만 연결할 수 있습니다.",
+    )
+    .refine(
+        (v) => !v.mentionedUserIds.length || v.kind === "note",
+        "팀원 멘션은 내부 메모에서만 사용할 수 있습니다.",
     );
 export const sessionInput = z.object({
     name: z.string().trim().min(1).max(100).optional(),
@@ -56,7 +62,15 @@ export const conversationFiltersInput = z.object({
     q: z.string().trim().max(200).default(""),
     status: z.enum(["open", "snoozed", "closed"]).optional(),
     filter: z
-        .enum(["all", "mine", "unassigned", "unread", "priority", "history"])
+        .enum([
+            "all",
+            "mine",
+            "unassigned",
+            "unread",
+            "priority",
+            "history",
+            "mentioned",
+        ])
         .default("all"),
 });
 export type ConversationFilters = z.infer<typeof conversationFiltersInput>;

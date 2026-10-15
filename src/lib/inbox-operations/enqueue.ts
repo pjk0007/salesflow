@@ -616,6 +616,7 @@ export async function onOperationsEvent(
                     and(
                         eq(notices.orgId, chat.orgId),
                         inArray(notices.conversationId, [source, id]),
+                        sql`${notices.type}<>'mentioned'`,
                         isNull(notices.readAt),
                     ),
                 );

@@ -53,6 +53,9 @@ export const inboxNotifications = pgTable(
         type: varchar("type", { length: 30 }).notNull(),
         preview: varchar("preview", { length: 250 }).notNull(),
         customerSeq: integer("customer_seq"),
+        messageId: integer("message_id").references(() => inboxMessages.id, {
+            onDelete: "set null",
+        }),
         readAt: time("read_at"),
         createdAt: time("created_at").notNull().defaultNow(),
     },

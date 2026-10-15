@@ -170,7 +170,7 @@ function noticeScope(actor: OperationsActor, channelId?: number) {
         eq(chats.channelId, notices.channelId),
         eq(chats.historyOnly, false),
         isNull(chats.mergedIntoId),
-        sql`coalesce(${crmContacts.isInternal},false)=false`,
+        sql`(${notices.type}='mentioned' OR coalesce(${crmContacts.isInternal},false)=false)`,
         channelId ? eq(notices.channelId, channelId) : undefined,
     );
 }
@@ -180,6 +180,7 @@ function noticeQuery(exec: DbExec) {
             id: notices.id,
             conversationId: notices.conversationId,
             channelId: notices.channelId,
+            messageId: notices.messageId,
             type: notices.type,
             preview: notices.preview,
             name: chats.name,

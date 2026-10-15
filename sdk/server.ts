@@ -935,7 +935,8 @@ export class SendbClient {
                 | "unassigned"
                 | "unread"
                 | "priority"
-                | "history";
+                | "history"
+                | "mentioned";
             before?: string;
             beforeId?: string;
         } = {},
@@ -947,13 +948,43 @@ export class SendbClient {
             `/api/v1/inbox/conversations?${params}`,
         );
     }
-    inboxConversation(conversationId: string, before?: string) {
+    inboxConversation(
+        conversationId: string,
+        before?: string,
+        focusMessageId?: number,
+    ) {
         return this.request<{
             conversation: SendbConversation;
             messages: import("../src/components/inbox/types").ChatMessage[];
             hasOlder: boolean;
+            focusedMessage?: import("../src/components/inbox/types").ChatMessage;
         }>(
-            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}${before ? `?before=${encodeURIComponent(before)}` : ""}`,
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}?${new URLSearchParams({ ...(before ? { before } : {}), ...(focusMessageId ? { focusMessageId: String(focusMessageId) } : {}) })}`,
+        );
+    }
+    note(
+        conversationId: string,
+        body: string,
+        clientId: string,
+        options: { attachmentIds?: string[]; mentionedUserIds?: string[] } = {},
+    ) {
+        return this.request<
+            import("../src/components/inbox/types").ChatMessage
+        >(
+            `/api/v1/inbox/conversations/${encodeURIComponent(conversationId)}`,
+            "POST",
+            {
+                kind: "note",
+                body,
+                clientId,
+                attachmentIds: options.attachmentIds ?? [],
+                mentionedUserIds: options.mentionedUserIds ?? [],
+            },
+        );
+    }
+    mentionTeammates(channelId: number) {
+        return this.request<{ id: string; name: string }[]>(
+            `/api/v1/inbox/channels/${channelId}/teammates`,
         );
     }
     reply(

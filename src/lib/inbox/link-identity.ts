@@ -18,6 +18,7 @@ import { appendInboxAudit } from "./audit";
 import { appendActivity } from "@/lib/customer-platform/activities";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
+import { moveConversationMentions } from "@/lib/inbox-collaboration/mentions";
 
 const inputSchema = z
     .object({
@@ -166,6 +167,7 @@ export async function linkVisitorIdentity(
                     originConversationId: sql`coalesce(${messages.originConversationId}, ${source.id}::uuid)`,
                 })
                 .where(eq(messages.conversationId, source.id));
+            await moveConversationMentions(tx, target, source.id);
             await tx
                 .update(files)
                 .set({ draftConversationId: target.id })

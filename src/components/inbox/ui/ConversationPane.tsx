@@ -16,6 +16,9 @@ import { CustomerCrmContext } from "./CustomerCrmContext";
 import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliveryStatus";
 import { EmailReplyRecipients } from "@/components/inbox-email/ui/EmailReplyRecipients";
 import { useEmailReply } from "@/components/inbox-email/hooks/useEmailReply";
+import { useNoteMentions } from "@/components/inbox-collaboration/hooks/useNoteMentions";
+import { NoteMentions } from "@/components/inbox-collaboration/ui/NoteMentions";
+import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTargetCard";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 export const statusNames = {
     open: "진행중",
@@ -31,6 +34,8 @@ export function ConversationPane({
     patch,
     refresh,
     onBack,
+    focusMessageId,
+    onDismissMention,
 }: {
     userId: string;
     chat: Conversation;
@@ -40,6 +45,8 @@ export function ConversationPane({
     patch: (value: unknown) => Promise<void>;
     refresh: () => Promise<unknown>;
     onBack: () => void;
+    focusMessageId?: number | null;
+    onDismissMention: () => void;
 }) {
     const workspaceId = bootstrap.channels.find(
         (c) => c.id === chat.channelId,
@@ -47,6 +54,11 @@ export function ConversationPane({
     const canRespond = workspaceAbilities(bootstrap, workspaceId).respond;
     const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
     const emailReply = useEmailReply(chat.emailContext, draftStorageKey);
+    const noteMentions = useNoteMentions(
+        draftStorageKey,
+        bootstrap.mentionMembers ?? bootstrap.members,
+        workspaceId,
+    );
     const [kind, setKind] = useState<"reply" | "note">("reply"),
         [drafts, setDrafts] = useState<Record<string, string>>(() => {
             try {
@@ -85,6 +97,7 @@ export function ConversationPane({
             files: string;
             aiDraftId: string | null;
             emailReply: string;
+            mentions: string;
         } | null>(null);
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
@@ -167,13 +180,16 @@ export function ConversationPane({
             return;
         }
         const emailSignature = JSON.stringify(emailSelection ?? null);
+        const mentionIds = kind === "note" ? noteMentions.ids : [],
+            mentionSignature = JSON.stringify([...mentionIds].sort());
         setBusy(true);
         if (
             pending.current?.body !== body ||
             pending.current?.kind !== kind ||
             pending.current?.files !== attachments.signature ||
             pending.current?.aiDraftId !== source ||
-            pending.current?.emailReply !== emailSignature
+            pending.current?.emailReply !== emailSignature ||
+            pending.current?.mentions !== mentionSignature
         )
             pending.current = {
                 body,
@@ -182,6 +198,7 @@ export function ConversationPane({
                 files: attachments.signature,
                 aiDraftId: source,
                 emailReply: emailSignature,
+                mentions: mentionSignature,
             };
         try {
             const attachmentIds = await attachments.prepare(uploadUrl, kind);
@@ -192,12 +209,14 @@ export function ConversationPane({
                 kind,
                 ...(source ? { aiDraftId: source } : {}),
                 ...(emailSelection ? { emailReply: emailSelection } : {}),
+                ...(mentionIds.length ? { mentionedUserIds: mentionIds } : {}),
             });
             updateDraft("");
             if (kind === "reply") setAiDraftId(null);
             attachments.clear();
             pending.current = null;
             if (kind === "reply") emailReply.reset();
+            if (kind === "note") noteMentions.clear();
             follow.current = true;
             await refresh();
         } catch (e) {
@@ -351,6 +370,13 @@ export function ConversationPane({
                         않습니다.
                     </p>
                 )}
+                {focusMessageId && (
+                    <MentionTargetCard
+                        conversationId={chat.id}
+                        messageId={focusMessageId}
+                        onDismiss={onDismissMention}
+                    />
+                )}
                 <div
                     ref={scroll}
                     onScroll={() => {
@@ -465,6 +491,17 @@ export function ConversationPane({
                                             {m.body}
                                         </p>
                                     )}
+                                    {m.kind === "note" &&
+                                        !!m.mentions?.length && (
+                                            <p className="text-xs text-amber-800">
+                                                {m.mentions
+                                                    .map(
+                                                        (person) =>
+                                                            `@${person.name}`,
+                                                    )
+                                                    .join(" ")}
+                                            </p>
+                                        )}
                                     {m.email && (
                                         <details className="text-xs text-muted-foreground">
                                             <summary>
@@ -588,6 +625,12 @@ export function ConversationPane({
                                 <EmailReplyRecipients
                                     state={emailReply}
                                     disabled={busy}
+                                />
+                            )}
+                            {kind === "note" && (
+                                <NoteMentions
+                                    state={noteMentions}
+                                    busy={busy}
                                 />
                             )}
                             <textarea

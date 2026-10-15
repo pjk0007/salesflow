@@ -3,6 +3,7 @@ export const operationsLabels: Record<string, string> = {
     assigned: "상담 담당 배정",
     handoff: "상담원 확인 요청",
     identity: "회원 상담 이력 연결",
+    mentioned: "내부 메모 멘션",
     sla_first: "첫 답변 목표 초과",
     sla_next: "추가 답변 목표 초과",
     sla_resolution: "해결 목표 초과",

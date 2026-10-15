@@ -43,3 +43,6 @@ const history = await client.conversationAudit(conversationId);
 `node --import tsx scripts/check-inbox-files.cjs`: 플랫폼 11·영업 13·공통 활동 7개에 파일/감사 18개를 추가한다. 원본 bytea/SHA256, 파일만 전송, SDK·공개 multipart, 다운로드 바이트, 재시도, 내부 메모 격리, 사업/조직/계정 범위, JWT 갱신, 익명, 취소/만료 회수, 용량/초안 제한, 원자적 거절, 버전 충돌/무변경, 재문의 감사와 100건 커서를 격리 PGlite로 확인했다. 실제 R2·운영 DB·고객 발송은 없다.
 
 브라우저에서 로컬 API로 준비한 가상 파일의 수신·이미지 미리보기, 고객의 내부 파일 비노출, 다운로드 원본 SHA256 일치, 담당 변경 이력, 두 화면 간 오래된 태그 저장 거절·초안 보존·최신 정보 복원을 확인했다. Chrome 확장의 로컬 파일 접근이 꺼져 파일 선택기 setFiles는 완료하지 못했다. **브라우저 선택→업로드→전송 전체 흐름은 수동 재검수 필요**다. 실제 multipart 업로드와 메시지 연결은 API/SDK QA를 통과했다.
+
+
+개인 내부 메모 멘션·앱 알림·나를 멘션한 상담·오래된 원문 조회와 회원 연결 보존은 0105에 추가했다. 고객 읽음/메일 발송과 구분한다. [MENTIONS.md](MENTIONS.md)에 UX·API/SDK·권한·SQL/API19·Chrome 검수와 남은 팀 협업 범위를 기록했다.

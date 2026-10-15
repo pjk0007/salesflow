@@ -33,12 +33,25 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     const [chosenChannel, setChannel] = useState<number | null>(
             Number(params.get("channelId")) || null,
         ),
-        [selected, setSelected] = useState<string | null>(
+        [selected, setSelectedState] = useState<string | null>(
             params.get("conversation"),
         );
+    const [focusMessageId, setFocusMessageId] = useState<number | null>(
+        Number(params.get("message")) > 0
+            ? Number(params.get("message"))
+            : null,
+    );
+    const setSelected = (id: string | null) => {
+        setSelectedState(id);
+        setFocusMessageId(null);
+    };
     const [status, setStatus] = useState<ConversationStatus>("open"),
         [filter, setFilter] = useState<ConversationFilter>(
-            params.get("filter") === "history" ? "history" : "all",
+            params.get("filter") === "history"
+                ? "history"
+                : params.get("filter") === "mentioned"
+                  ? "mentioned"
+                  : "all",
         ),
         [query, setQuery] = useState("");
     void role;
@@ -48,9 +61,11 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         conversationId,
         channelId,
         status,
+        messageId,
     }) => {
         setChannel(channelId);
         setSelected(conversationId);
+        setFocusMessageId(messageId ?? null);
         setFilter("all");
         setStatus(status);
         setQuery("");
@@ -81,6 +96,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
         { id: "unassigned", label: "담당자 없음", icon: Archive },
         { id: "priority", label: "중요 상담", icon: Star },
         { id: "history", label: "이전 상담 기록", icon: Archive },
+        { id: "mentioned", label: "나를 멘션한 상담", icon: MessageCircle },
     ];
     const count = (id: ConversationFilter) => list.counts?.[id] ?? 0;
     const error = initial.bootstrap.error || list.error || detail.error;
@@ -457,6 +473,8 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                             userId={userId}
                             key={detail.data.conversation.id}
                             chat={detail.data.conversation}
+                            focusMessageId={focusMessageId}
+                            onDismissMention={() => setFocusMessageId(null)}
                             messages={detail.data.messages}
                             hasOlder={detail.data.hasOlder}
                             bootstrap={bootstrap}

@@ -10,4 +10,5 @@ export type OpenSupportConversation = (value: {
     conversationId: string;
     channelId: number;
     status: "open" | "snoozed" | "closed";
+    messageId?: number | null;
 }) => void;

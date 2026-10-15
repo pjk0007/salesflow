@@ -21,6 +21,13 @@ export async function GET(req: NextRequest, ctx: Context) {
             await chatId(ctx),
             undefined,
             Number(req.nextUrl.searchParams.get("before")) || undefined,
+            req.nextUrl.searchParams.has("focusMessageId")
+                ? z.coerce
+                      .number()
+                      .int()
+                      .positive()
+                      .parse(req.nextUrl.searchParams.get("focusMessageId"))
+                : undefined,
         ),
     );
 }

@@ -94,6 +94,7 @@ async function fixture() {
         "0102_customer_workspace_access.sql",
         "0103_crm_object_lifecycle.sql",
         "0104_email_reply_recipients.sql",
+        "0105_inbox_mentions.sql",
     ])
         for (const statement of fs
             .readFileSync(
@@ -762,6 +763,7 @@ async function runCheck(extra) {
                     unassigned: 0,
                     unread: 1,
                     priority: 1,
+                    mentioned: 0,
                 });
                 await repo.markRead(actor, open.id, 2, db);
                 assert.equal(

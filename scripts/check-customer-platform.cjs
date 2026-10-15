@@ -71,7 +71,7 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
@@ -82,6 +82,10 @@ async function runPlatformCheck(extra) {
             (m) => `v1/crm/${m[1]}/[id]`,
         ],
         [/^\/api\/inbox$/, () => "inbox"],
+        [
+            /^\/api\/v1\/inbox\/channels\/(\d+)\/teammates$/,
+            () => "v1/inbox/channels/[id]/teammates",
+        ],
         [/^\/api\/inbox\/channels$/, () => "inbox/channels"],
         [
             /^\/api\/inbox\/conversations\/([a-f0-9-]+)$/,
@@ -339,6 +343,7 @@ async function runPlatformCheck(extra) {
         "v1/crm/companies",
         "v1/crm/contacts/[id]/events",
         "v1/inbox/channels",
+        "v1/inbox/channels/[id]/teammates",
         "v1/inbox/sessions",
         "v1/inbox/conversations",
         "v1/inbox/conversations/[id]",

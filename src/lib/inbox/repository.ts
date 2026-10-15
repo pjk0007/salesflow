@@ -16,6 +16,12 @@ import {
     assertEmailReplyDuplicate,
 } from "@/lib/inbox-email/outgoing";
 import type { EmailReplySelection } from "@/lib/inbox-email/recipients";
+import {
+    readMessageMentions,
+    saveMessageMentions,
+    assertMentionRetry,
+    mentionedConversation,
+} from "@/lib/inbox-collaboration/mentions";
 import { onSupportMessage, consumeSupportDraft } from "@/lib/customer-ai/queue";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { createHash, randomBytes } from "node:crypto";
@@ -149,14 +155,10 @@ export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
         .select({
             workspaceId: customerWorkspaceAccess.workspaceId,
             userId: customerWorkspaceAccess.userId,
+            role: customerWorkspaceAccess.role,
         })
         .from(customerWorkspaceAccess)
-        .where(
-            and(
-                eq(customerWorkspaceAccess.orgId, actor.orgId),
-                sql`${customerWorkspaceAccess.role} IN ('agent','manager')`,
-            ),
-        );
+        .where(and(eq(customerWorkspaceAccess.orgId, actor.orgId)));
     const visibleSpaces = spaces.map(({ assignedRole, ...w }) => {
         const role: WorkspaceRole =
             actor.role === "member" ? (assignedRole ?? "none") : "manager";
@@ -173,13 +175,34 @@ export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
                             role !== "member" ||
                             assignments.some(
                                 (a) =>
-                                    a.userId === m.id && a.workspaceId === w.id,
+                                    a.userId === m.id &&
+                                    a.workspaceId === w.id &&
+                                    ["agent", "manager"].includes(a.role),
                             ),
                     )
                     .map((w) => w.id),
             }))
             .filter((m) => m.workspaceIds.length),
         workspaces: visibleSpaces,
+        mentionMembers: members
+            .map(({ role, ...m }) => ({
+                ...m,
+                workspaceIds: visibleSpaces
+                    .filter(
+                        (w) =>
+                            role !== "member" ||
+                            assignments.some(
+                                (a) =>
+                                    a.userId === m.id &&
+                                    a.workspaceId === w.id &&
+                                    ["viewer", "agent", "manager"].includes(
+                                        a.role,
+                                    ),
+                            ),
+                    )
+                    .map((w) => w.id),
+            }))
+            .filter((m) => m.workspaceIds.length),
         canManageAccess: actor.role !== "member",
     };
 }
@@ -291,6 +314,9 @@ export async function listConversations(
                 input.filter === "priority"
                     ? eq(inboxConversations.priority, true)
                     : undefined,
+                input.filter === "mentioned"
+                    ? mentionedConversation(actor.userId)
+                    : undefined,
                 input.filter === "unread"
                     ? sql`${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0)`
                     : undefined,
@@ -360,6 +386,10 @@ export async function conversationListPage(
                 ),
                 priority:
                     sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.priority})`.mapWith(
+                        Number,
+                    ),
+                mentioned:
+                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${mentionedConversation(actor.userId)})`.mapWith(
                         Number,
                     ),
             })
@@ -464,6 +494,12 @@ async function readMessages(
               exec,
               messages.map((m) => m.id),
           );
+    const mentions = publicOnly
+        ? []
+        : await readMessageMentions(
+              exec,
+              messages.filter((m) => m.kind === "note").map((m) => m.id),
+          );
     return {
         messages: messages.reverse().map((m) => ({
             ...(!publicOnly
@@ -474,6 +510,16 @@ async function readMessages(
                       delivery: emailDetails.outgoing.find(
                           (e) => e.messageId === m.id,
                       ),
+                      ...(m.kind === "note"
+                          ? {
+                                mentions: mentions
+                                    .filter((x) => x.messageId === m.id)
+                                    .map(({ userId, name }) => ({
+                                        userId,
+                                        name,
+                                    })),
+                            }
+                          : {}),
                   }
                 : {}),
             ...m,
@@ -492,6 +538,7 @@ export async function conversationDetail(
     id: string,
     exec: DbExec = db,
     before?: number,
+    focusMessageId?: number,
 ) {
     const [alias] = await exec
         .select({ mergedIntoId: inboxConversations.mergedIntoId })
@@ -511,11 +558,39 @@ export async function conversationDetail(
         conversation.medium === "email"
             ? await emailConversationContext(exec, conversation.id)
             : null;
+    let focusedMessage;
+    if (focusMessageId) {
+        const [note] = await exec
+            .select()
+            .from(inboxMessages)
+            .where(
+                and(
+                    eq(inboxMessages.id, focusMessageId),
+                    eq(inboxMessages.conversationId, conversation.id),
+                    eq(inboxMessages.kind, "note"),
+                ),
+            );
+        if (!note)
+            throw new InboxError("알림의 내부 메모를 찾을 수 없습니다.", 404);
+        const [files, mentioned] = await Promise.all([
+            messageAttachments(exec, [note.id]),
+            readMessageMentions(exec, [note.id]),
+        ]);
+        focusedMessage = {
+            ...note,
+            attachments: files.map(({ messageId: _, ...file }) => {
+                void _;
+                return file;
+            }),
+            mentions: mentioned.map(({ userId, name }) => ({ userId, name })),
+        };
+    }
     return {
         conversation: {
             ...conversation,
             ...(emailContext ? { emailContext } : {}),
         },
+        ...(focusedMessage ? { focusedMessage } : {}),
         ...(await readMessages(
             conversation.id,
             exec,
@@ -708,6 +783,7 @@ export async function appendMessage(
         createdAt?: Date;
         sourceAttachmentCount?: number;
         emailReply?: EmailReplySelection;
+        mentionedUserIds?: string[];
     },
     scope: FileScope,
 ) {
@@ -759,6 +835,13 @@ export async function appendMessage(
             throw new InboxError(
                 "메일 받는 사람은 이메일 고객 답변에서만 지정할 수 있습니다.",
             );
+        if (
+            message.mentionedUserIds?.length &&
+            (message.kind !== "note" || !message.authorId || scope.publicOnly)
+        )
+            throw new InboxError(
+                "팀원 멘션은 직원의 내부 메모에서만 사용할 수 있습니다.",
+            );
         const [duplicate] = await tx
             .select()
             .from(inboxMessages)
@@ -769,6 +852,12 @@ export async function appendMessage(
                 ),
             );
         if (duplicate) {
+            if (message.kind === "note")
+                await assertMentionRetry(
+                    tx,
+                    duplicate.id,
+                    message.mentionedUserIds ?? [],
+                );
             if (locked.medium === "email" && message.kind === "reply")
                 await assertEmailReplyDuplicate(
                     tx,
@@ -786,6 +875,13 @@ export async function appendMessage(
                 throw new InboxError("이미 처리된 메시지 번호입니다.", 409);
             return {
                 ...duplicate,
+                ...(message.kind === "note"
+                    ? {
+                          mentions: (
+                              await readMessageMentions(tx, [duplicate.id])
+                          ).map(({ userId, name }) => ({ userId, name })),
+                      }
+                    : {}),
                 attachments: attached.map(({ messageId: _, ...f }) => {
                     void _;
                     return f;
@@ -837,8 +933,13 @@ export async function appendMessage(
                 "이메일 상담은 사이트 상담창에서 조회할 수 없습니다.",
                 403,
             );
-        const { attachmentIds, sourceAttachmentCount, emailReply, ...value } =
-            message;
+        const {
+            attachmentIds,
+            sourceAttachmentCount,
+            emailReply,
+            mentionedUserIds,
+            ...value
+        } = message;
         if (
             sourceAttachmentCount !== undefined &&
             (locked.medium !== "email" ||
@@ -864,6 +965,15 @@ export async function appendMessage(
             attachmentIds,
             inserted.id,
         );
+        const mentioned =
+            message.kind === "note"
+                ? await saveMessageMentions(
+                      tx,
+                      locked,
+                      inserted,
+                      mentionedUserIds ?? [],
+                  )
+                : [];
         if (locked.medium === "email" && message.kind === "reply")
             await queueEmailReply(
                 tx,
@@ -982,7 +1092,11 @@ export async function appendMessage(
         }
         if (locked.medium === "web")
             await onSupportMessage(tx, id, inserted, attachments.length);
-        return { ...inserted, attachments };
+        return {
+            ...inserted,
+            attachments,
+            ...(message.kind === "note" ? { mentions: mentioned } : {}),
+        };
     });
 }
 

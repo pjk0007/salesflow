@@ -91,7 +91,7 @@ export function SupportNotifications({
                             </button>
                         </header>
                         <p className="text-xs text-muted-foreground">
-                            내 담당 문의와 미배정 문의, 배정·응대 목표
+                            내 담당 문의와 미배정 문의, 멘션·배정·응대 목표
                             알림입니다. 상담을 읽으면 해당 고객 문의 알림도 읽음
                             처리됩니다.
                         </p>

@@ -26,6 +26,7 @@ export interface SendbNotification {
     id: string;
     conversationId: string;
     channelId: number;
+    messageId: number | null;
     type: string;
     preview: string;
     name: string;

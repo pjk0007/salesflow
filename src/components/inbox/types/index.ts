@@ -36,6 +36,7 @@ export interface Conversation {
     unread: boolean;
 }
 export interface ChatMessage {
+    mentions?: { userId: string; name: string }[];
     email?: {
         from: string;
         to: string[];
@@ -70,6 +71,7 @@ export interface ChatAttachment {
     size: number;
 }
 export interface InboxBootstrap {
+    mentionMembers?: { id: string; name: string; workspaceIds: number[] }[];
     channels: InboxChannel[];
     members: { id: string; name: string; workspaceIds: number[] }[];
     workspaces: {
@@ -86,7 +88,8 @@ export type ConversationFilter =
     | "unassigned"
     | "unread"
     | "priority"
-    | "history";
+    | "history"
+    | "mentioned";
 export interface InboxListPage {
     rows: Conversation[];
     counts: Record<ConversationFilter, number>;
