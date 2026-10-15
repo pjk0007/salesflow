@@ -1,4 +1,6 @@
 import type { SendbInboxTeam } from "./routing-types";
+import type { SendbImportFile, SendbImportFilePage } from "./import-file-types";
+export type * from "./import-file-types";
 import type {
     SendbReplyGuardPage,
     SendbReplyGuardContext,
@@ -440,6 +442,57 @@ export class SendbClient {
             `/api/v1/imports/${encodeURIComponent(id)}`,
             "POST",
             { action: "step", cursor },
+        );
+    }
+    importFiles(jobId: string, offset = 0) {
+        return this.request<SendbImportFilePage>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files?offset=${offset}`,
+        );
+    }
+    prepareImportFiles(jobId: string, offset = 0) {
+        return this.request<{
+            nextOffset: number;
+            total: number;
+            hasMore: boolean;
+            skipped: number;
+        }>(`/api/v1/imports/${encodeURIComponent(jobId)}/files`, "POST", {
+            action: "prepare",
+            offset,
+        });
+    }
+    fetchImportFile(jobId: string, id: string, version: number) {
+        return this.request<SendbImportFile>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files`,
+            "POST",
+            { action: "fetch", id, version },
+        );
+    }
+    refreshImportFileSource(
+        jobId: string,
+        id: string,
+        version: number,
+        url: string,
+    ) {
+        return this.request<SendbImportFile>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files`,
+            "POST",
+            { action: "source", id, version, url },
+        );
+    }
+    uploadImportFile(
+        jobId: string,
+        id: string,
+        version: number,
+        file: Blob,
+        fileName: string,
+    ) {
+        const form = new FormData();
+        form.set("id", id);
+        form.set("version", String(version));
+        form.set("file", file, fileName);
+        return this.#upload<SendbImportFile>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files`,
+            form,
         );
     }
     #apiToken: string;

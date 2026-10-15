@@ -71,7 +71,7 @@ async function runPlatformCheck(extra, testRuntime) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|inbox-reply-guard|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|inbox-reply-guard|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|customer-import-files|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
@@ -114,6 +114,10 @@ async function runPlatformCheck(extra, testRuntime) {
         [/^\/api\/customer-ai\/settings$/, () => "customer-ai/settings"],
         [/^\/api\/customer-workflows$/, () => "customer-workflows"],
         [/^\/api\/customer-imports$/, () => "customer-imports"],
+        [
+            /^\/api\/customer-imports\/([a-f0-9-]+)\/files$/,
+            () => "customer-imports/[id]/files",
+        ],
         [
             /^\/api\/customer-platform\/webhooks$/,
             () => "customer-platform/webhooks",
@@ -195,6 +199,10 @@ async function runPlatformCheck(extra, testRuntime) {
             () => "v1/email/deliveries/[id]",
         ],
         [/^\/api\/v1\/imports$/, () => "v1/imports"],
+        [
+            /^\/api\/v1\/imports\/([a-f0-9-]+)\/files$/,
+            () => "v1/imports/[id]/files",
+        ],
         [/^\/api\/v1\/imports\/([a-f0-9-]+)$/, () => "v1/imports/[id]"],
         [/^\/api\/v1\/workflows$/, () => "v1/workflows"],
         [/^\/api\/v1\/workflows\/events$/, () => "v1/workflows/events"],
@@ -326,6 +334,8 @@ async function runPlatformCheck(extra, testRuntime) {
         "v1/imports/[id]",
         "customer-imports",
         "customer-imports/[id]",
+        "customer-imports/[id]/files",
+        "v1/imports/[id]/files",
         "v1/workflows",
         "v1/workflows/events",
         "v1/workflows/[id]",

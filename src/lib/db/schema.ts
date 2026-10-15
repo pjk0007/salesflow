@@ -35,6 +35,7 @@ export * from "./platform-webhook-schema";
 export * from "./customer-ai-schema";
 export * from "./customer-workflow-schema";
 export * from "./customer-import-schema";
+export * from "./customer-import-files-schema";
 export * from "./customer-access-schema";
 export * from "./customer-records-schema";
 export * from "./inbox-collaboration-schema";

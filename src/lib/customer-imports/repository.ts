@@ -211,7 +211,7 @@ export async function previewImport(
             row.data.files.length
         )
             warnings.push(
-                "첨부 이름·정보만 보존합니다. 원본 파일은 아직 가져오지 않습니다.",
+                "첨부 이름·정보를 먼저 저장합니다. 원본 파일은 상담 저장 후 첨부파일 이전 단계에서 따로 가져오거나 보충해주세요.",
             );
         plan.push({
             ...row,

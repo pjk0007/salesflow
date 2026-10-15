@@ -52,6 +52,8 @@ function Attachment({
                     {file.fileName}
                     <small className="block text-gray-500">
                         {Math.max(1, Math.ceil(file.size / 1024))}KB
+                        {file.importMetadata?.previousSource &&
+                            " · 이전 원본 파일"}
                     </small>
                 </span>
                 {/^image\/(png|jpeg|gif|webp)$/.test(file.contentType) && (

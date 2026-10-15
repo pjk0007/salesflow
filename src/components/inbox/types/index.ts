@@ -73,6 +73,11 @@ export interface ChatAttachment {
     fileName: string;
     contentType: string;
     size: number;
+    importMetadata?: {
+        taskId: string;
+        source: string;
+        previousSource: boolean;
+    } | null;
 }
 export interface InboxBootstrap {
     teams?: RoutingTeam[];

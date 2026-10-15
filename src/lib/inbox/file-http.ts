@@ -10,7 +10,7 @@ import {
     type FileScope,
 } from "./files";
 
-export async function readUpload(req: NextRequest) {
+export async function readFileUpload(req: NextRequest) {
     const max = MAX_FILE_BYTES + 65536;
     if (Number(req.headers.get("content-length")) > max)
         throw new InboxError("첨부 파일은 20MB까지 보낼 수 있습니다.", 413);
@@ -47,10 +47,17 @@ export async function readUpload(req: NextRequest) {
     if (!(file instanceof File) || form.getAll("file").length !== 1)
         throw new InboxError("파일을 하나씩 첨부해주세요.");
     return {
-        clientId: z.string().uuid().parse(form.get("clientId")),
-        kind: z.enum(["customer", "reply", "note"]).parse(form.get("kind")),
+        form,
         fileName: file.name,
         bytes: Buffer.from(await file.arrayBuffer()),
+    };
+}
+export async function readUpload(req: NextRequest) {
+    const { form, ...file } = await readFileUpload(req);
+    return {
+        ...file,
+        clientId: z.string().uuid().parse(form.get("clientId")),
+        kind: z.enum(["customer", "reply", "note"]).parse(form.get("kind")),
     };
 }
 export async function attachmentPost(

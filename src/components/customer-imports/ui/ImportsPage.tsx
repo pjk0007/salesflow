@@ -16,6 +16,7 @@ import {
     fieldNames,
 } from "../utils/labels";
 import { exampleBundle } from "../utils/example";
+import { ImportFilesPanel } from "@/components/customer-import-files/ui/ImportFilesPanel";
 const box = "rounded-xl border bg-background p-4",
     button = "rounded-lg border px-3 py-2 text-sm disabled:opacity-40",
     inputClass = "w-full rounded-lg border bg-background px-3 py-2 text-sm";
@@ -501,9 +502,10 @@ export function ImportsPage({ role }: { role: string }) {
                     )}
                     <p className="text-sm text-muted-foreground">
                         과거 상담은 ‘이전 상담 기록’에 저장하며 고객에게
-                        공개하거나 발송하지 않습니다. 첨부는 이름·정보만
-                        보존합니다. 이 화면을 열어둔 동안 25행씩 진행하며, 닫은
-                        뒤에도 완료한 행은 남아 나중에 계속할 수 있습니다.
+                        공개하거나 발송하지 않습니다. 첨부파일은 상담 정보 저장
+                        후 아래 ‘과거 상담 첨부파일 원본’에서 따로 가져옵니다.
+                        이 화면을 열어둔 동안 25행씩 진행하며, 닫은 뒤에도
+                        완료한 행은 남아 나중에 계속할 수 있습니다.
                     </p>
                     {job.state === "ready" && (
                         <label className="flex gap-2 text-sm">
@@ -695,6 +697,9 @@ export function ImportsPage({ role }: { role: string }) {
                         ))}
                     </details>
                 </section>
+            )}
+            {job && job.cursor > 0 && (
+                <ImportFilesPanel key={job.id} jobId={job.id} />
             )}
             <section className={box + " space-y-3"}>
                 <h2 className="font-semibold">최근 이전 작업</h2>

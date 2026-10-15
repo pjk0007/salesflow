@@ -48,6 +48,11 @@ export const inboxAttachments = pgTable(
         contentType: varchar("content_type", { length: 120 }).notNull(),
         size: integer("size").notNull(),
         sha256: varchar("sha256", { length: 64 }).notNull(),
+        importMetadata: jsonb("import_metadata").$type<{
+            taskId: string;
+            source: string;
+            previousSource: boolean;
+        }>(),
         expiresAt: time("expires_at"),
         cancelledAt: time("cancelled_at"),
         createdAt: time("created_at").notNull().defaultNow(),

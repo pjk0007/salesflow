@@ -13,6 +13,8 @@ import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "./errors";
 
 import { MAX_FILE_BYTES } from "./file-rules";
+import { fileName, safeContentType } from "./file-metadata";
+export { fileName, safeContentType } from "./file-metadata";
 export { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "./file-rules";
 export type FileScope = {
     orgId: string;
@@ -28,42 +30,17 @@ export const fileColumns = {
     fileName: files.fileName,
     contentType: files.contentType,
     size: files.size,
+    importMetadata: files.importMetadata,
 };
-export function fileName(raw: string) {
+export function attachmentQuotaBytes() {
+    const configured = Number(process.env.INBOX_ATTACHMENT_QUOTA_MB ?? 2048);
     return (
-        Array.from(
-            raw
-                .toWellFormed()
-                .replace(/[\u0000-\u001f\u007f/\\]/g, "_")
-                .trim(),
-        )
-            .slice(0, 160)
-            .join("") || "파일"
+        (Number.isFinite(configured)
+            ? Math.min(102400, Math.max(20, configured))
+            : 2048) *
+        1024 *
+        1024
     );
-}
-export function safeContentType(bytes: Buffer) {
-    if (
-        bytes
-            .subarray(0, 8)
-            .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-    )
-        return "image/png";
-    if (
-        bytes.length > 3 &&
-        bytes[0] === 255 &&
-        bytes[1] === 216 &&
-        bytes[2] === 255
-    )
-        return "image/jpeg";
-    if (["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString()))
-        return "image/gif";
-    if (
-        bytes.subarray(0, 4).toString() === "RIFF" &&
-        bytes.subarray(8, 12).toString() === "WEBP"
-    )
-        return "image/webp";
-    if (bytes.subarray(0, 5).toString() === "%PDF-") return "application/pdf";
-    return "application/octet-stream";
 }
 export async function uploadAttachment(
     scope: FileScope,
@@ -195,15 +172,7 @@ export async function uploadAttachment(
                     isNull(files.cancelledAt),
                 ),
             );
-        const configured = Number(
-            process.env.INBOX_ATTACHMENT_QUOTA_MB ?? 2048,
-        );
-        const quota =
-            (Number.isFinite(configured)
-                ? Math.min(102400, Math.max(20, configured))
-                : 2048) *
-            1024 *
-            1024;
+        const quota = attachmentQuotaBytes();
         if (usage.bytes + raw.bytes.length > quota)
             throw new InboxError(
                 "이 사업의 상담 파일 저장 한도에 도달했습니다. 관리자에게 문의해주세요.",

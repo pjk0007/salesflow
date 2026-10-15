@@ -42,6 +42,7 @@ import {
     type ImportScope,
 } from "./storage";
 import type { ImportJob } from "./repository";
+import { registerImportFiles } from "@/lib/customer-import-files/registry";
 
 export async function applyImportRow(
     actor: SalesActor,
@@ -541,6 +542,8 @@ export async function applyImportRow(
                         updatedAt: new Date(),
                     },
                 });
+        if (row.kind === "messages")
+            await registerImportFiles(scope, job.id, row, Number(targetId), tx);
         await tx.insert(results).values({
             jobId: job.id,
             position: row.index,

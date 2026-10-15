@@ -598,8 +598,18 @@ export function ConversationPane({
                                                     ),
                                                 )
                                                 .join(", ")}{" "}
-                                            · 파일 원본은 아직 가져오지
-                                            않았습니다.
+                                            · 파일 원본{" "}
+                                            {
+                                                m.attachments.filter(
+                                                    (f) =>
+                                                        f.importMetadata &&
+                                                        !f.importMetadata
+                                                            .previousSource,
+                                                ).length
+                                            }
+                                            /{m.importMetadata.files.length}개
+                                            확보. 미확보 파일은 기존 자료
+                                            이전에서 보충할 수 있습니다.
                                         </p>
                                     )}
                                 </div>

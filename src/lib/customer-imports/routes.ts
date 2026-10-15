@@ -31,7 +31,7 @@ async function actorFor(
     await requireCustomerAccess(actor, workspaceId, "manage");
     return actor;
 }
-async function ownedActor(
+export async function ownedActor(
     req: NextRequest,
     external: boolean,
     id: string,
