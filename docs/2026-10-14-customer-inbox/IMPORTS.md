@@ -70,7 +70,7 @@ node scripts/export-channel-source.cjs --fixture scripts/fixtures/channel-source
 - `bytes/`·`files.json`·`files-checkpoint.json`: 선택한 첨부 원본의 바이트/크기/SHA-256·공개/메모 구분과 상태. 서명 주소는 매 시도 새로 받고, 재개 시 검증된 파일은 다시 다운로드하지 않는다. 불일치·누락·미지원·중단은 파일별 상태에 남긴다. 손상된 보관 바이트를 자동 덮어쓰지 않는다.
 - `manifest.json`: `sourceStatus`, `importStatus`, `importReady`, 파일 백업 상태와 각 묶음의 `expectedCounts`. 빈 완성 원본은 `no-import-data`이며 가져오기 준비 완료가 아니다. `migrationApplied:false`는 이 도구가 CRM 가져오기나 운영 반영을 실행하지 않았다는 뜻이다.
 
-자료를 검토한 뒤 `chunks/`의 파일을 번호 순서로 같은 namespace와 사업에 가져온다. 파일별 `expectedCounts`는 manifest의 값을 입력한다. 바이트 백업은 기존 파일 보충/연결과 별도이며, `bytes/<hash>.bin`을 그대로 골라 넣는 것만으로 원본 파일 이름·관계가 자동 연결되지는 않는다. 원본의 상담/메시지/파일 식별·이름·크기/해시와 대조해 [파일 보충 단계](IMPORT-FILES.md)를 사용한다. 대량 파일 연결을 위한 전송 계획/일괄 보충 UX는 남은 작업이다.
+자료를 검토한 뒤 `chunks/`의 파일을 번호 순서로 같은 namespace와 사업에 가져온다. 파일별 `expectedCounts`는 manifest의 값을 입력한다. 바이트 백업은 기존 파일 보충/연결과 별도이며, `bytes/<hash>.bin`을 그대로 골라 넣는 것만으로 원본 파일 이름·관계가 자동 연결되지는 않는다. 원본의 상담/메시지/파일 식별·이름·크기/해시와 대조해 [파일 보충 단계](IMPORT-FILES.md)를 사용한다. D1 후속의 [보관 첨부 일괄 보충 CLI](FILE-TRANSFER.md)는 검증된 원본과 기존 대상 파일 목록을 유일 매칭한 계획을 만들고, 명시적으로 승인한 SHA의 계획만 기존 단건 API로 순차 실행한다. 대상 보호 다운로드의 바이트 검증과 중단/응답 유실 재개를 포함하며 메타데이터 가져오기나 파일 목록 준비를 자동 실행하지 않는다.
 
 실계정 조회는 `--fixture` 대신 명시적인 `--run`, 사업 ID와 `CHANNEL_SOURCE_ACCESS_KEY`·`CHANNEL_SOURCE_ACCESS_SECRET` 환경변수가 필요하다. 도구는 `.env`를 읽거나 키를 출력하지 않는다. 이 개발 검수에서는 `--run`·실제 키·고객 API·실제 고객 파일을 사용하지 않았다. 실제 API에서 보이는 전체 범위·삭제/보관 만료·상담 없는 고객·수집 중 시점 일관성과 실제 원본 건수는 아직 증명되지 않았다.
 

@@ -2,6 +2,8 @@
 
 2026-10-15 · 개발 브랜치 전용. 0111 마이그레이션을 추가했으며 실제 서버·운영/개발 고객 DB에는 적용하지 않았다. [기존 자료 이전](IMPORTS.md)의 상담 파일 단계이며 실제 원본 계정 전체 추출이나 전체 서비스 전환 완료를 뜻하지 않는다.
 
+D1 후속으로 [채널톡 보관 첨부 일괄 보충](FILE-TRANSFER.md)을 추가했다. 원본 manifest/바이트와 기존 파일 목록으로 검토 계획을 만들고, 승인된 SHA에 대해서만 아래 단건 API를 순차 호출한다. 보호 다운로드로 실제 대상 바이트를 확인하며 서버·DB·SDK 계약과 0111 마이그레이션은 변경하지 않는다.
+
 ## 관리자 사용 흐름
 
 1. 기존 자료 이전에서 원본 서비스·계정·사업을 확인하고 상담 정보 가져오기를 승인한다. 메시지 저장 트랜잭션에서 파일 목록을 등록하며 파일 다운로드는 시작하지 않는다.
@@ -15,7 +17,7 @@
 
 ## 원본 주소와 재이전
 
-- 채널톡 File의 `key`만 있는 내보내기는 새 서명 주소가 필요하다. 기존 [v5 UserChat 파일 주소 안내](https://developers.channel.io/en/articles/Get-a-file-url-in-a-UserChat-bff12f64)는 `/open/v5/.../messages/file?key=...`와15분 유효기간을 설명한다. 새 [내보내기 CLI](IMPORTS.md#채널톡-내보내기-cli)는 [현재 공식 계약](https://api-doc.channel.works/docs/openapi.en.yaml)의 `/open/user-chats/{userChatId}/messages/file?key=...`, `Channel-Version: 2026-06-01`, `{result: string}`을 사용하며 v5 유효기간을 최신 계약의 확정값으로 취급하지 않는다. CLI에서 받은 바이트 백업과 샌드비의 기존 파일 보충/연결은 별도다. 샌드비 서버가 원본 계정의 인증키를 저장하거나 상시 수집하는 기능은 추가하지 않았다.
+- 채널톡 File의 `key`만 있는 내보내기는 새 서명 주소가 필요하다. 기존 [v5 UserChat 파일 주소 안내](https://developers.channel.io/en/articles/Get-a-file-url-in-a-UserChat-bff12f64)는 `/open/v5/.../messages/file?key=...`와15분 유효기간을 설명한다. 새 [내보내기 CLI](IMPORTS.md#채널톡-내보내기-cli)는 [현재 공식 계약](https://api-doc.channel.works/docs/openapi.en.yaml)의 `/open/user-chats/{userChatId}/messages/file?key=...`, `Channel-Version: 2026-06-01`, `{result: string}`을 사용하며 v5 유효기간을 최신 계약의 확정값으로 취급하지 않는다. 바이트 백업 뒤 기존 파일 보충/연결을 별도로 승인하며 [D1 일괄 보충 CLI](FILE-TRANSFER.md)에서도 원본 식별과 검증된 파일만 사용한다. 샌드비 서버가 원본 계정의 인증키를 저장하거나 상시 수집하는 기능은 추가하지 않았다.
 - 인터컴은 Part의 `name`, `url`, `filesize`, `content_type`을 사용한다. [공식 첨부 안내](https://www.intercom.com/help/en/articles/2339426-control-how-attachments-are-uploaded-and-used)에 따라 만료 주소는 원본 REST 조회로 새로 확보한다. [Part 모델](https://developers.intercom.com/docs/references/rest-api/api.intercom.io/models/conversation_part)의 첨부 배열을 보존한다. 실제 계정/전체 페이지 추출은 별도 작업이다.
 - 공통 JSON은 `files:[{id,name,size?,sha256?,url?}]`를 사용한다. 100개 첨부를 현행 새 메시지의 5개 제한으로 잘라내지 않는다. 허브스팟의 CRM 파일·노트·다중 객체 파일 관계 전체 이전은 이번 범위에 포함하지 않는다.
 - 파일 ID/key와 메타데이터 버전으로 식별하고 만료되는 URL은 버전 해시에서 제외한다. 주소만 바뀐 재이전은 완료 바이트를 재사용한다. ID/key가 없으면 배열 위치를 식별에 사용하므로 순서 변경 시 원본 검토가 필요하다.
