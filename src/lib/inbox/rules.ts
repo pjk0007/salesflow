@@ -176,3 +176,25 @@ export function sameRequestOrigin(origin: string, expected: string): boolean {
         return false;
     }
 }
+
+export function sameApplicationOrigin(
+    origin: string,
+    requestOrigin: string,
+    configuredAppUrl: string | undefined,
+): boolean {
+    // HTTPS 프록시 뒤의 NextRequest는 내부 HTTP 주소일 수 있다.
+    // 전달 헤더가 아니라 배포 설정의 공개 주소를 기준으로 비교한다.
+    if (!configuredAppUrl) return sameRequestOrigin(origin, requestOrigin);
+    try {
+        const app = new URL(configuredAppUrl);
+        if (
+            !["http:", "https:"].includes(app.protocol) ||
+            app.username ||
+            app.password
+        )
+            return false;
+        return sameRequestOrigin(origin, app.origin);
+    } catch {
+        return false;
+    }
+}

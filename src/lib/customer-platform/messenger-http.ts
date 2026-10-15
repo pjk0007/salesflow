@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { InboxError } from "@/lib/inbox/errors";
 import { publicChannel } from "@/lib/inbox/repository";
 import { rateLimit } from "@/lib/tracker/rate-limit";
-import { sameRequestOrigin } from "@/lib/inbox/rules";
+import { sameApplicationOrigin } from "@/lib/inbox/rules";
 export async function messengerHeaders(req: NextRequest, key: string) {
     if (!/^[a-f0-9]{48}$/.test(key))
         throw new InboxError("상담창을 찾을 수 없습니다.", 404);
@@ -10,7 +10,11 @@ export async function messengerHeaders(req: NextRequest, key: string) {
         origin = req.headers.get("origin");
     if (
         origin &&
-        !sameRequestOrigin(origin, req.nextUrl.origin) &&
+        !sameApplicationOrigin(
+            origin,
+            req.nextUrl.origin,
+            process.env.NEXT_PUBLIC_APP_URL,
+        ) &&
         !channel.allowedOrigins.includes(origin)
     )
         throw new InboxError(

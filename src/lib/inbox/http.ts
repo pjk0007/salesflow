@@ -3,14 +3,18 @@ import { z } from "zod";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { InboxError } from "./repository";
 import { rateLimit } from "@/lib/tracker/rate-limit";
-import { sameRequestOrigin } from "./rules";
+import { sameApplicationOrigin } from "./rules";
 export function inboxActor(req: NextRequest) {
     const user = getUserFromNextRequest(req);
     if (!user) throw new InboxError("인증이 필요합니다.", 401);
     if (
         req.method !== "GET" &&
         req.headers.get("origin") &&
-        !sameRequestOrigin(req.headers.get("origin")!, req.nextUrl.origin)
+        !sameApplicationOrigin(
+            req.headers.get("origin")!,
+            req.nextUrl.origin,
+            process.env.NEXT_PUBLIC_APP_URL,
+        )
     )
         throw new InboxError("허용되지 않은 요청입니다.", 403);
     return user;
@@ -65,7 +69,14 @@ export function publicGuard(req: NextRequest, key: string) {
         throw new InboxError("상담창을 찾을 수 없습니다.", 404);
     // 외부 사이트는 iframe으로 설치한다. API는 iframe과 같은 출처에서만 호출한다.
     const origin = req.headers.get("origin");
-    if (origin && !sameRequestOrigin(origin, req.nextUrl.origin))
+    if (
+        origin &&
+        !sameApplicationOrigin(
+            origin,
+            req.nextUrl.origin,
+            process.env.NEXT_PUBLIC_APP_URL,
+        )
+    )
         throw new InboxError("상담창에서 다시 시도해주세요.", 403);
     const ip =
         req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "unknown";

@@ -24,3 +24,5 @@ CloudType의 `sendb-dev`·`dev`와 개발 DB 연결을 먼저 확인한다. 개�
 ## 개발 배포 결과물
 
 CloudType의 Standalone 결과물에 `drizzle/meta/_journal.json`이 없어 최초 `b128f2e` 실행은 마이그레이션 전에 중단됐다. 실패를 무시하는 설정은 사용하지 않는다. `output: standalone`과 `pnpm run build:cloudtype`로 빌드하고, 복사 스크립트가 standalone 서버에 전체 drizzle 파일을 포함한 뒤 journal의 SQL별 해시를 검증한다. 이 빌드 스크립트는 DB에 접속하거나 마이그레이션을 실행하지 않는다. DB 적용은 개발 서버의 기존 시작 절차에서만 이뤄진다.
+
+`5a9b8c6` 배포에서 개발 마이그레이션 완료·서비스 1/1 실행·자동 워커 건너뛰기 로그를 확인했다. 개발 DB에 `샌드비 상담 체험 2026-10-15` 사업(id 19)을 만들었다. 최초 실제 상담창 저장은 프록시 내부 HTTP origin과 공개 HTTPS origin이 달라 403으로 거부됐다. 출처 검사를 끄지 않고 서버 설정의 `NEXT_PUBLIC_APP_URL`을 기준으로 직원 API·고객 상담 API·Messenger API가 동일하게 비교하도록 수정한다. 요청자가 보낸 전달 헤더는 허용 근거로 사용하지 않는다. 관련 단위·실제 NextRequest 가드 검사 9개와 변경 파일 ESLint를 통과했다. 추가 SQL은 없다. 수정 배포 뒤 가상 문의와 직원 답변을 다시 확인한다.
