@@ -16,6 +16,7 @@ import {
 import { requestUuid } from "@/lib/customer-ai/rules";
 import { type WorkflowStep, conditionValue, templatePaths } from "./rules";
 import type { LoadedWorkflowContext } from "./context";
+import { workflowTeam, routingPersonName } from "./routing";
 export async function validateWorkflowReferences(
     orgId: string,
     workspaceId: number,
@@ -23,6 +24,8 @@ export async function validateWorkflowReferences(
     exec: DbExec = db,
 ) {
     for (const step of steps) {
+        if (step.kind === "team")
+            await workflowTeam(orgId, workspaceId, step.teamId, exec);
         const texts =
             step.kind === "reply"
                 ? [step.body]
@@ -101,10 +104,18 @@ export function stepTargetProblem(
     now = new Date(),
 ) {
     if (
-        ["tag", "assign", "status", "handoff", "reply"].includes(step.kind) &&
+        ["tag", "assign", "team", "status", "handoff", "reply"].includes(
+            step.kind,
+        ) &&
         (!ctx.conversation || !ctx.conversation.enabled)
     )
         return "사용 중인 상담이 없습니다.";
+    if (
+        step.kind === "team" &&
+        step.onlyUnassigned &&
+        (ctx.conversation?.teamId || ctx.conversation?.assigneeId)
+    )
+        return "이미 상담팀 또는 담당자가 있어 기존 배정을 유지했습니다.";
     if (["contact_stage", "event"].includes(step.kind) && !ctx.contact)
         return "연결된 고객이 없습니다.";
     if (
@@ -274,6 +285,28 @@ export async function executeWorkflowAction(
         };
     }
     const chat = ctx.conversation!;
+    if (step.kind === "team") {
+        const saved = await patchConversation(
+            actor,
+            chat.id,
+            { version: chat.version, teamId: step.teamId },
+            exec,
+        );
+        const team = await workflowTeam(
+            actor.orgId,
+            workspaceId,
+            step.teamId,
+            exec,
+        );
+        return {
+            conversationId: saved.id,
+            channelId: saved.channelId,
+            teamId: saved.teamId,
+            teamName: team.name,
+            assigneeId: saved.assigneeId,
+            assigneeName: await routingPersonName(saved.assigneeId, exec),
+        };
+    }
     const change =
         step.kind === "tag"
             ? {

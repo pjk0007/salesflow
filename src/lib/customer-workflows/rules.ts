@@ -82,6 +82,14 @@ export const workflowStepSchema = z.discriminatedUnion("kind", [
     z
         .object({
             ...common,
+            kind: z.literal("team"),
+            teamId: z.string().uuid("배정할 상담팀을 선택해주세요."),
+            onlyUnassigned: z.boolean().default(true),
+        })
+        .strict(),
+    z
+        .object({
+            ...common,
             kind: z.literal("status"),
             status: z.enum(["open", "snoozed", "closed"]),
         })
@@ -268,6 +276,7 @@ export const stepNames: Record<WorkflowStep["kind"], string> = {
     wait: "예약 대기",
     tag: "상담 태그",
     assign: "담당자 배정",
+    team: "상담팀 배정",
     status: "상담 상태",
     handoff: "사람에게 이관",
     task: "후속 업무 생성",

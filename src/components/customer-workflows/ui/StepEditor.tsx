@@ -2,8 +2,10 @@
 import type { ReactNode } from "react";
 import type { WorkflowStep } from "../types";
 import { ConditionEditor } from "./ConditionEditor";
+import type { RoutingTeam } from "@/components/inbox-routing/types";
 export type StepOptions = {
     members: { id: string; name: string }[];
+    teams: RoutingTeam[];
     pipelines: {
         id: string;
         name: string;
@@ -27,6 +29,8 @@ export function newWorkflowStep(
             return { ...base, kind, tag: "관심 고객", remove: false };
         case "assign":
             return { ...base, kind, assigneeId: null };
+        case "team":
+            return { ...base, kind, teamId: "", onlyUnassigned: true };
         case "status":
             return { ...base, kind, status: "open" };
         case "task":
@@ -207,6 +211,83 @@ export function StepEditor({
                         onChange({ ...value, assigneeId: id }),
                     ),
                 )}
+            {value.kind === "team" && (
+                <>
+                    {field(
+                        "배정할 상담팀",
+                        <select
+                            aria-label={`단계 ${index + 1} 상담팀`}
+                            className={input}
+                            value={value.teamId}
+                            onChange={(e) =>
+                                onChange({ ...value, teamId: e.target.value })
+                            }
+                        >
+                            <option value="">상담팀 선택</option>
+                            {value.teamId &&
+                                !options.teams.some(
+                                    (t) => t.id === value.teamId,
+                                ) && (
+                                    <option value={value.teamId} disabled>
+                                        사용 불가한 팀 · 다시 선택해주세요
+                                    </option>
+                                )}
+                            {options.teams.map((t) => (
+                                <option
+                                    key={t.id}
+                                    value={t.id}
+                                    disabled={!t.enabled}
+                                >
+                                    {t.name} ·{" "}
+                                    {!t.enabled
+                                        ? "보관됨"
+                                        : t.autoAssign
+                                          ? "자동 배정"
+                                          : "수동 배정"}
+                                </option>
+                            ))}
+                        </select>,
+                    )}
+                    {field(
+                        "기존 배정 처리",
+                        <select
+                            aria-label={`단계 ${index + 1} 팀 배정 방식`}
+                            className={input}
+                            value={String(value.onlyUnassigned)}
+                            onChange={(e) =>
+                                onChange({
+                                    ...value,
+                                    onlyUnassigned: e.target.value === "true",
+                                })
+                            }
+                        >
+                            <option value="true">
+                                팀·담당자가 없는 상담에만 배정
+                            </option>
+                            <option value="false">
+                                기존 팀·개인 배정을 선택한 팀으로 교체
+                            </option>
+                        </select>,
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                        선택한 팀의 설정을 따릅니다. 수동 팀이거나 응대 가능한
+                        팀원이 없으면 팀 대기열에 남깁니다. 같은 팀이면 기존
+                        담당을 유지합니다.
+                    </p>
+                    {!value.onlyUnassigned && (
+                        <p className="text-xs text-amber-800">
+                            다른 팀으로 이동하면 기존 개인 담당이 해제되며, 자동
+                            팀은 실행 시점의 상담 수를 기준으로 다시 배정합니다.
+                        </p>
+                    )}
+                    {!options.teams.some((t) => t.enabled) && (
+                        <p className="text-xs text-amber-800">
+                            사용할 팀이 없습니다. 고객 상담의 상담팀 설정에서
+                            먼저 팀을 만들어주세요.
+                        </p>
+                    )}
+                </>
+            )}
             {value.kind === "status" &&
                 field(
                     "변경할 상담 상태",

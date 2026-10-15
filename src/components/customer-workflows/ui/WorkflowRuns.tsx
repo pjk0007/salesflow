@@ -131,6 +131,15 @@ export function WorkflowRuns({
                                             {String(s.detail.reason)}
                                         </p>
                                     )}
+                                    {!!s.detail.teamName && (
+                                        <p className="text-muted-foreground">
+                                            상담팀: {String(s.detail.teamName)}{" "}
+                                            · 담당:{" "}
+                                            {s.detail.assigneeName
+                                                ? String(s.detail.assigneeName)
+                                                : "팀 대기열"}
+                                        </p>
+                                    )}
                                     {!!s.detail.waitUntil && (
                                         <p className="text-muted-foreground">
                                             예약:{" "}

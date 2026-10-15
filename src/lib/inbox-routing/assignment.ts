@@ -32,7 +32,7 @@ export async function assignmentTeam(
         throw new InboxError("이 사업의 사용 중인 상담팀을 선택해주세요.", 409);
     return team ?? null;
 }
-export async function chooseTeamAssignee(
+export async function teamAssigneeCandidate(
     exec: DbExec,
     team: typeof inboxTeams.$inferSelect,
 ) {
@@ -64,12 +64,17 @@ export async function chooseTeamAssignee(
             asc(members.userId),
         )
         .limit(1);
-    if (!next) return null;
+    return next?.userId ?? null;
+}
+export async function chooseTeamAssignee(
+    exec: DbExec,
+    team: typeof inboxTeams.$inferSelect,
+) {
+    const userId = await teamAssigneeCandidate(exec, team);
+    if (!userId) return null;
     await exec
         .update(members)
         .set({ lastAssignedAt: new Date() })
-        .where(
-            and(eq(members.teamId, team.id), eq(members.userId, next.userId)),
-        );
-    return next.userId;
+        .where(and(eq(members.teamId, team.id), eq(members.userId, userId)));
+    return userId;
 }

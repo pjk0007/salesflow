@@ -27,6 +27,7 @@ import {
 } from "./rules";
 import { workflowFingerprint } from "./rules";
 import { workflowContext } from "./context";
+import { previewWorkflowTeam, previewWorkflowPerson } from "./routing";
 import {
     validateWorkflowReferences,
     stepTargetProblem,
@@ -377,6 +378,14 @@ export async function simulateWorkflow(
                 detail = problem;
             } else
                 try {
+                    if (step.kind === "team")
+                        detail = await previewWorkflowTeam(
+                            actor.orgId,
+                            workflow.workspaceId,
+                            step.teamId,
+                            context,
+                            exec,
+                        );
                     if (step.kind === "reply")
                         detail = renderWorkflowText(step.body, context);
                     if (step.kind === "task")
@@ -397,7 +406,13 @@ export async function simulateWorkflow(
                                   ]),
                               ];
                     if (step.kind === "assign" && context.conversation)
-                        context.conversation.assigneeId = step.assigneeId;
+                        await previewWorkflowPerson(
+                            actor.orgId,
+                            workflow.workspaceId,
+                            step.assigneeId,
+                            context,
+                            exec,
+                        );
                     if (step.kind === "status" && context.conversation)
                         context.conversation.status = step.status;
                     if (step.kind === "handoff" && context.conversation)

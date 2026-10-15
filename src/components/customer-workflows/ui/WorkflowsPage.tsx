@@ -5,6 +5,7 @@ import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import useSWR from "swr";
 import { toast } from "sonner";
 import type { InboxBootstrap } from "@/components/inbox/types";
+import type { RoutingTeam } from "@/components/inbox-routing/types";
 import { workflowRequest, workflowWrite } from "../api";
 import type { WorkflowList, WorkflowDetail } from "../types";
 import { WorkflowEditor } from "./WorkflowEditor";
@@ -44,6 +45,16 @@ export function WorkflowsPage({ role }: { role: string }) {
                 ? `/api/customer-crm/pipelines?workspaceId=${workspaceId}`
                 : null,
             workflowRequest,
+        ),
+        channelId = bootstrap.data?.channels.find(
+            (c) => c.workspaceId === workspaceId,
+        )?.id,
+        teams = useSWR<RoutingTeam[]>(
+            channelId
+                ? `/api/inbox-routing/teams?channelId=${channelId}`
+                : null,
+            workflowRequest,
+            { refreshInterval: 15000 },
         ),
         canManage = workspaceAbilities(bootstrap.data, workspaceId).manage;
     async function refreshed(id: string) {
@@ -89,12 +100,14 @@ export function WorkflowsPage({ role }: { role: string }) {
             {(bootstrap.error ||
                 list.error ||
                 detail.error ||
-                pipelines.error) && (
+                pipelines.error ||
+                teams.error) && (
                 <p role="alert" className="text-red-600">
                     {bootstrap.error?.message ||
                         list.error?.message ||
                         detail.error?.message ||
-                        pipelines.error?.message}
+                        pipelines.error?.message ||
+                        teams.error?.message}
                     <button
                         className="ml-2 underline"
                         onClick={() => {
@@ -102,6 +115,7 @@ export function WorkflowsPage({ role }: { role: string }) {
                             void list.mutate();
                             void detail.mutate();
                             void pipelines.mutate();
+                            void teams.mutate();
                         }}
                     >
                         다시 불러오기
@@ -177,7 +191,13 @@ export function WorkflowsPage({ role }: { role: string }) {
                                     workspaceId={workspaceId}
                                     detail={creating ? undefined : detail.data}
                                     options={{
-                                        members: bootstrap.data.members,
+                                        members: bootstrap.data.members.filter(
+                                            (m) =>
+                                                m.workspaceIds.includes(
+                                                    workspaceId,
+                                                ),
+                                        ),
+                                        teams: teams.data ?? [],
                                         pipelines: pipelines.data ?? [],
                                         names: list.data.stepNames,
                                     }}

@@ -4669,5 +4669,169 @@
       "No actual DB migration, real team configuration, main merge or deployment; full R01-R16 goal remains incomplete"
     ],
     "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. Earlier evidence fields preserved as historical records. Final assignment/conflict captures recaptured after rendering settled."
+  },
+  "workflowRoutingQa": {
+    "recordedAt": "2026-10-15T03:11:02.423Z",
+    "branch": "dev",
+    "beforeHead": "e801c657a2f5b81f6d2d41c63a62a813c03bad38",
+    "changes": "조건별 팀 단계·기본 기존 배정 보존/명시 교체·읽기 전용 예상 개인·실제 팀/담당 결과·모의 실행 개인 소속 검사",
+    "sourceHashes": [
+      {
+        "path": "src/lib/customer-workflows/rules.ts",
+        "sha256": "518f23554238415221f47efba1e7f6db7449b19ab0d919da89e253c8f513a93e",
+        "bytes": 9017
+      },
+      {
+        "path": "src/lib/customer-workflows/actions.ts",
+        "sha256": "3a603df3cd88c37a98bf4626fa34f25cd89eba5e725ad38347fada272ed38c98",
+        "bytes": 11718
+      },
+      {
+        "path": "src/lib/customer-workflows/repository.ts",
+        "sha256": "b68a95f85e08de5a9ae42d7a0cd2ff6227117238fb87620face4d1ca5f0ac3ff",
+        "bytes": 25890
+      },
+      {
+        "path": "src/lib/customer-workflows/routing.ts",
+        "sha256": "b2b93be991a8d92a04f50b7f3de076b15e0522400c4625e1c113de10614f4d0d",
+        "bytes": 3300
+      },
+      {
+        "path": "src/lib/inbox-routing/assignment.ts",
+        "sha256": "c4a6ecb86fb43aa41cb42c165cddbf04ad0ab53faa7590f36413a5cba365d1fd",
+        "bytes": 2725
+      },
+      {
+        "path": "src/components/customer-workflows/ui/StepEditor.tsx",
+        "sha256": "6e1c944132e5cc6ac45c8cbadd9bd52cdbf12ec40b917214c0ad438deae17051",
+        "bytes": 18647
+      },
+      {
+        "path": "src/components/customer-workflows/ui/WorkflowsPage.tsx",
+        "sha256": "30d0947248c27ab89870583314c12ffe3626b6ee813a29b3862f8d657c517203",
+        "bytes": 14402
+      },
+      {
+        "path": "src/components/customer-workflows/ui/WorkflowRuns.tsx",
+        "sha256": "3f19b104b521d60c874b32edc47bee29346ecc2e046da26d7e00ee4574f7f4cf",
+        "bytes": 11806
+      },
+      {
+        "path": "src/components/customer-workflows/utils/labels.ts",
+        "sha256": "cd79c73741a3c27dc870528b60d602fae3b3bad5f34bb30bb0ba9383c63a8762",
+        "bytes": 3247
+      },
+      {
+        "path": "scripts/check-workflow-routing.cjs",
+        "sha256": "3e261e4153006801d71598118c5ae9fad42402977bc121dab552b41ef70dea59",
+        "bytes": 26663
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/WORKFLOW-ROUTING.md",
+        "sha256": "698584f2c20bc5cc393c169f186ecf78267c4a6262c99f85c313791c5cc45abf",
+        "bytes": 6237
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/WORKFLOWS.md",
+        "sha256": "35f958759fce9d769a7bf7b0fd487e0de07d6eb147a82a5bdc581d6894597c23",
+        "bytes": 11027
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/ROUTING.md",
+        "sha256": "329312c105a9055d52a76e485e4685d8cd726af6828bdcabde568efa4a74b38d",
+        "bytes": 8064
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/REPLACEMENT.md",
+        "sha256": "558c8dfcfdf899716323c09fa6183988c79b0917db293a73459acdeeac02ccf9",
+        "bytes": 11668
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/HANDOFF.md",
+        "sha256": "6e4be61225aab65779d972db3cff2ed67eaa0c35dd65320e40f303fb8eb3b26d",
+        "bytes": 22311
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/RESEARCH-APPLIED.md",
+        "sha256": "65145e27381474e3767e3df897907bfc7cc43600502e6a90166b685c7a5c9d6d",
+        "bytes": 14683
+      }
+    ],
+    "rawHashNote": "현재 작업 트리 원본 바이트. Git autocrlf 정규화와 다를 수 있음.",
+    "tests": {
+      "newSqlApi": 12,
+      "platformBaseline": 11,
+      "workflowRegression": 15,
+      "teamRegression": 18,
+      "units": 1093,
+      "lint": "pass",
+      "fullIsolatedBuildWithTypes": "pass"
+    },
+    "logs": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-qa.log",
+        "sha256": "921112eb6fea8e665cd5c6e164ee89d54af44c570adfb1fa3c36241304fe9a4f",
+        "bytes": 2343
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-regression.log",
+        "sha256": "3a23030e913f832ffbaff57a5e1ecc0e9190565f973648885daf184bfb4bf551",
+        "bytes": 2372
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-team-regression.log",
+        "sha256": "ed54d83f6f4cec7b55367ea7b4c9e0263c2726823e7fc54bad2f97c50dd50683",
+        "bytes": 2685
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-units.log",
+        "sha256": "1780b2d7619078fc3b7d9b719e56ca414bca29660bb5dc296fe014ac4748d171",
+        "bytes": 104454
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-build.log",
+        "sha256": "ed4ee830a643dd234e95828316a56b7a58f9b11104a1079a9775d4e3bee24702",
+        "bytes": 13300
+      }
+    ],
+    "browserArtifacts": [
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-dh-queue.png",
+        "sha256": "7a9dfed788ae76c35b538eb2243202530ddbd084e88714dfdf1f19d1726bed38",
+        "bytes": 98658
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-bo-preview.png",
+        "sha256": "555fcf2c2cae8716a00294718fed531eb6335d92b8ca06bb7c9d148976b1d77a",
+        "bytes": 100745
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-bo-queue.png",
+        "sha256": "5a8ecc0f2b4c4595c19610a82b428b32f743cd2e98e199f6ef4b4320b567fa66",
+        "bytes": 99543
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-bo-result.png",
+        "sha256": "a4dd69afd9f47768a86e0b0379881905de2757a148da6a109b3af11c5e92a268",
+        "bytes": 113740
+      },
+      {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/workflow-routing-preserve-owner.png",
+        "sha256": "ec79d22eb9a8517cf06b570c22423e84aecbd570232e9e42b30d106ceed7c621",
+        "bytes": 113904
+      }
+    ],
+    "browserChecks": [
+      "디하 문의 조건→수동 팀 큐",
+      "백오랩 예상 개인·사람 게시→실제 자동 배정/이력",
+      "수동 담당 변경→재문의→현재 담당 유지와 제외 사유"
+    ],
+    "isolation": "가상 직원/고객·loopback/PGlite·테스트 전용 워커. 운영 환경 파일/DB/키/설정/서버 배포 접근 없음. main/master 미병합.",
+    "remaining": "전체 REPLACEMENT R01–R16 목표 유지. 실제 사이트 전체 설치/업무/부하·접속/근무/수용량·고급 분기·전체 채널 전환 미완료."
   }
 }

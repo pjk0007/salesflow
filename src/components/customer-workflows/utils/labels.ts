@@ -61,6 +61,8 @@ export const conditionFields: Record<string, string> = {
     "conversation.status": "상담 상태",
     "conversation.priority": "중요 상담 여부",
     "conversation.tags": "상담 태그",
+    "conversation.teamId": "상담팀 번호",
+    "conversation.assigneeId": "담당자 번호",
     "conversation.aiState": "상담 응대 방식",
     "deal.stageId": "딜 단계 번호",
     "deal.amount": "딜 금액",
