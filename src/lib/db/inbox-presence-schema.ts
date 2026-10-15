@@ -24,6 +24,7 @@ export const inboxAgentAvailability = pgTable(
             .references(() => users.id, { onDelete: "cascade" }),
         state: varchar("state", { length: 16 }).notNull().default("away"),
         version: integer("version").notNull().default(1),
+        maxOpenConversations: integer("max_open_conversations"),
         updatedAt: time("updated_at").notNull().defaultNow(),
     },
     (t) => [
@@ -31,6 +32,10 @@ export const inboxAgentAvailability = pgTable(
         check(
             "inbox_agent_state_valid",
             sql`${t.state} in ('available','away')`,
+        ),
+        check(
+            "inbox_agent_capacity_valid",
+            sql`${t.maxOpenConversations} IS NULL OR ${t.maxOpenConversations} BETWEEN 0 AND 1000`,
         ),
     ],
 );

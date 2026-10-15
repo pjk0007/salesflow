@@ -3,6 +3,8 @@ export interface SendbInboxPresence {
         id: string;
         name: string;
         canRespond: boolean;
+        openConversations: number;
+        maxOpenConversations: number | null;
         online: boolean;
         state: "available" | "away";
         activity: "viewing" | "reply" | "note" | null;

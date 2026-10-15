@@ -44,4 +44,4 @@ UUID는 예시다. 팀 API로 만든 실제 같은 사업의 활성 팀 ID를 �
 
 기존 자동화15개·상담팀18개 회귀와 전체 단위1,093개, 기능 lint, 실제 환경 파일을 쓰지 않는 전체 Next 빌드(타입 포함)가 통과했다. Chrome에서 디하 가상 사이트의 디자인 문의→모의 실행/사람 게시→수동 팀 대기열, 백오랩 경리 문의→예상 담당 표시→사람 게시→실제 자동 담당/이력, 담당자 수동 변경 뒤 재문의→기존 담당 유지/제외 사유를 검수했다.
 
-증거는 `evidence-manifest.json`의 `workflowRoutingQa`와 로컬 `artifacts/sendb-replacement-20261014/workflow-routing-*`에 기록한다. 모든 데이터는 가상이며 loopback/PGlite만 사용했다. UI 시험용 워커를 직접 구동했으며 제품의 자동 워커 기본 꺼짐 설정은 바꾸지 않았다. 실제 다중 서버 부하·전체 사이트 설치·실제 업무 검수·근무시간·수용량·고급 분기·전체 채널 전환은 남아 있다. 전체 대체 완료는 [REPLACEMENT.md](REPLACEMENT.md)의 기준으로 따로 검증한다.
+증거는 `evidence-manifest.json`의 `workflowRoutingQa`와 로컬 `artifacts/sendb-replacement-20261014/workflow-routing-*`에 기록한다. 모든 데이터는 가상이며 loopback/PGlite만 사용했다. UI 시험용 워커를 직접 구동했으며 제품의 자동 워커 기본 꺼짐 설정은 바꾸지 않았다. 수용량0의 모의 실행/사람 게시 후 실제 한도 재확인은 PGlite/별도 PostgreSQL에서 추가 검수했다([CAPACITY.md](CAPACITY.md)). 실제 다중 서버 부하·전체 사이트 설치·실제 업무 검수·근무시간·고급 분기·전체 채널 전환은 남아 있다. 전체 대체 완료는 [REPLACEMENT.md](REPLACEMENT.md)의 기준으로 따로 검증한다.

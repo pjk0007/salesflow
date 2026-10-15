@@ -13,6 +13,7 @@ import {
     type CustomerActor,
 } from "@/lib/customer-access/access";
 import { InboxError } from "@/lib/inbox/errors";
+import { openWorkload } from "@/lib/inbox-capacity/limits";
 import {
     heartbeatInput,
     availabilityInput,
@@ -48,7 +49,7 @@ export const agentAvailablePredicate = (
     now = new Date(),
 ) => sql`EXISTS (
     SELECT 1 FROM inbox_agent_availability iaa WHERE iaa.channel_id=${channelId} AND iaa.user_id=${userId}::uuid AND iaa.state='available'
-    AND EXISTS (SELECT 1 FROM inbox_agent_sessions ias WHERE ias.channel_id=iaa.channel_id AND ias.user_id=iaa.user_id AND ias.expires_at>${now}))`;
+    AND EXISTS (SELECT 1 FROM inbox_agent_sessions ias WHERE ias.channel_id=iaa.channel_id AND ias.user_id=iaa.user_id AND ias.expires_at>${now.toISOString()}::timestamptz))`;
 
 export async function presencePage(
     actor: CustomerActor,
@@ -69,7 +70,8 @@ export async function presencePage(
         .select({
             id: users.id,
             name: users.name,
-            canRespond: sql<boolean>`${customerAccessPredicate(actor.orgId, users.id, sql`${channel.workspaceId}`, "respond")}`,
+            openConversations: openWorkload(channelId, sql`${users}.id`),
+            canRespond: sql<boolean>`${customerAccessPredicate(actor.orgId, sql`${users}.id`, sql`${channel.workspaceId}`, "respond")}`,
         })
         .from(users)
         .where(
@@ -101,6 +103,7 @@ export async function presencePage(
         );
         return {
             ...p,
+            maxOpenConversations: config?.maxOpenConversations ?? null,
             online: !!mine.length,
             state:
                 config?.state === "available"

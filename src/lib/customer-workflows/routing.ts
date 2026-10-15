@@ -87,7 +87,12 @@ export async function previewWorkflowTeam(
     if (chat.teamId === team.id)
         return `${team.name} · 같은 팀이므로 기존 담당을 유지합니다.`;
     chat.teamId = team.id;
-    chat.assigneeId = await teamAssigneeCandidate(exec, team);
+    chat.assigneeId = await teamAssigneeCandidate(
+        exec,
+        team,
+        undefined,
+        chat.id,
+    );
     const person = await routingPersonName(chat.assigneeId, exec);
-    return `${team.name} · ${team.autoAssign ? (person ? `자동 배정 예상: ${person}` : "응대 가능한 팀원이 없어 팀 대기열 유지") : "수동 배정 대기열"}. 처리 시점의 팀 설정·권한·상담 수에 따라 결과가 달라질 수 있습니다.`;
+    return `${team.name} · ${team.autoAssign ? (person ? `자동 배정 예상: ${person}` : "현재 조건에 맞는 배정 후보가 없어 팀 대기열 유지") : "수동 배정 대기열"}. 처리 시점의 팀 설정·권한·상담 수에 따라 결과가 달라질 수 있습니다.`;
 }

@@ -1002,6 +1002,29 @@ export class SendbClient {
             `/api/v1/inbox/presence?channelId=${channelId}${conversationId ? `&conversationId=${encodeURIComponent(conversationId)}` : ""}`,
         );
     }
+    inboxCapacity(channelId: number) {
+        return this.request<import("./capacity-types").SendbInboxCapacity>(
+            `/api/v1/inbox/capacity?channelId=${channelId}`,
+        );
+    }
+    updateInboxCapacity(input: {
+        channelId: number;
+        userId: string;
+        version: number;
+        maxOpenConversations: number | null;
+    }) {
+        return this.request<{
+            version: number;
+            maxOpenConversations: number | null;
+        }>("/api/v1/inbox/capacity", "PATCH", input);
+    }
+    dispatchInbox(channelId: number) {
+        return this.request<import("./capacity-types").SendbInboxDispatch>(
+            "/api/v1/inbox/capacity",
+            "POST",
+            { channelId, action: "dispatch" },
+        );
+    }
     createInboxTeam(input: {
         channelId: number;
         name: string;

@@ -215,8 +215,8 @@ async function incoming(
             .where(
                 and(
                     eq(cases.conversationId, chat.id),
-                    sql`${cases.startedAt}>${at}`,
-                    sql`${cases.firstReplyAt}>=${at}`,
+                    sql`${cases.startedAt}>${at.toISOString()}::timestamptz`,
+                    sql`${cases.firstReplyAt}>=${at.toISOString()}::timestamptz`,
                 ),
             )
             .orderBy(cases.startedAt)
@@ -421,8 +421,8 @@ async function incoming(
                               eq(messages.conversationId, chat.id),
                               eq(messages.kind, "reply"),
                               sql`${messages.authorId} IS NOT NULL`,
-                              sql`${messages.createdAt}>=${waiting[0].startedAt}`,
-                              sql`${messages.createdAt}<${at}`,
+                              sql`${messages.createdAt}>=${waiting[0].startedAt.toISOString()}::timestamptz`,
+                              sql`${messages.createdAt}<${at.toISOString()}::timestamptz`,
                           ),
                       )
                       .orderBy(desc(messages.createdAt))
@@ -468,7 +468,7 @@ async function responded(
             and(
                 eq(cases.conversationId, chat.id),
                 lte(cases.startedAt, message.createdAt),
-                sql`(${cases.closedAt} IS NULL OR ${cases.closedAt}>=${message.createdAt})`,
+                sql`(${cases.closedAt} IS NULL OR ${cases.closedAt}>=${message.createdAt.toISOString()}::timestamptz)`,
             ),
         )
         .for("update");
@@ -540,7 +540,7 @@ async function responded(
                 await exec
                     .update(cases)
                     .set({
-                        lastReplyAt: sql`greatest(${cases.lastReplyAt},${at})`,
+                        lastReplyAt: sql`greatest(${cases.lastReplyAt},${at.toISOString()}::timestamptz)`,
                     })
                     .where(eq(cases.id, c.id));
         }

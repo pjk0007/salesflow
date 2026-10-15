@@ -42,11 +42,11 @@ export async function operationsReport(
         eq(chats.historyOnly, false),
         isNull(chats.mergedIntoId),
         sql`coalesce(${crmContacts.isInternal},false)=false`,
-        sql`${cases.startedAt}>=${from}`,
-        sql`${cases.startedAt}<${to}`,
+        sql`${cases.startedAt}>=${from.toISOString()}::timestamptz`,
+        sql`${cases.startedAt}<${to.toISOString()}::timestamptz`,
         medium !== "all" ? eq(chats.medium, medium) : undefined,
     );
-    const lateResolution = sql`(${cases.resolutionBreachedAt} IS NOT NULL OR (${cases.resolutionDueAt} IS NOT NULL AND coalesce(${cases.closedAt},${now})>${cases.resolutionDueAt} AND (${cases.pausedAt} IS NULL OR ${cases.pausedAt}>${cases.resolutionDueAt})))`;
+    const lateResolution = sql`(${cases.resolutionBreachedAt} IS NOT NULL OR (${cases.resolutionDueAt} IS NOT NULL AND coalesce(${cases.closedAt},${now.toISOString()}::timestamptz)>${cases.resolutionDueAt} AND (${cases.pausedAt} IS NULL OR ${cases.pausedAt}>${cases.resolutionDueAt})))`;
     const stats = {
         started: count(),
         closed: count(sql`${cases.closedAt} IS NOT NULL`),
@@ -75,7 +75,7 @@ export async function operationsReport(
             .innerJoin(chats, eq(chats.id, cases.conversationId))
             .leftJoin(crmContacts, eq(crmContacts.id, chats.contactId));
     const [summary] = await base().where(scope);
-    const lateResponse = sql`(${obligations.breachedAt} IS NOT NULL OR (${obligations.dueAt} IS NOT NULL AND (${obligations.respondedAt}>${obligations.dueAt} OR (${obligations.respondedAt} IS NULL AND ${cases.closedAt} IS NULL AND ${obligations.dueAt}<${now} AND (${cases.pausedAt} IS NULL OR ${cases.pausedAt}>${obligations.dueAt})))))`;
+    const lateResponse = sql`(${obligations.breachedAt} IS NOT NULL OR (${obligations.dueAt} IS NOT NULL AND (${obligations.respondedAt}>${obligations.dueAt} OR (${obligations.respondedAt} IS NULL AND ${cases.closedAt} IS NULL AND ${obligations.dueAt}<${now.toISOString()}::timestamptz AND (${cases.pausedAt} IS NULL OR ${cases.pausedAt}>${obligations.dueAt})))))`;
     const responseStats = await exec
         .select({
             kind: obligations.kind,
@@ -138,8 +138,8 @@ export async function operationsReport(
                     eq(cases.id, raw.before),
                     eq(cases.orgId, actor.orgId),
                     eq(cases.channelId, channelId),
-                    sql`${cases.startedAt}>=${from}`,
-                    sql`${cases.startedAt}<${to}`,
+                    sql`${cases.startedAt}>=${from.toISOString()}::timestamptz`,
+                    sql`${cases.startedAt}<${to.toISOString()}::timestamptz`,
                 ),
             );
         if (!cursor)
@@ -197,7 +197,7 @@ export async function operationsReport(
                 isNull(chats.mergedIntoId),
                 sql`coalesce(${crmContacts.isInternal},false)=false`,
                 medium !== "all" ? eq(chats.medium, medium) : undefined,
-                sql`EXISTS(SELECT 1 FROM ${messages} WHERE ${messages.conversationId}=${chats.id} AND ${messages.kind}='customer' AND ${messages.createdAt}>=${from} AND ${messages.createdAt}<${to})`,
+                sql`EXISTS(SELECT 1 FROM ${messages} WHERE ${messages.conversationId}=${chats.id} AND ${messages.kind}='customer' AND ${messages.createdAt}>=${from.toISOString()}::timestamptz AND ${messages.createdAt}<${to.toISOString()}::timestamptz)`,
             ),
         );
     return {

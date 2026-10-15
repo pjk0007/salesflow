@@ -4,6 +4,11 @@ import type { DbExec } from "@/lib/db/tx";
 import { customerAccessPredicate } from "@/lib/customer-access/access";
 import { InboxError } from "@/lib/inbox/errors";
 import { agentAvailablePredicate } from "@/lib/inbox-presence/repository";
+import {
+    openWorkload,
+    hasCapacity,
+    claimCapacity,
+} from "@/lib/inbox-capacity/limits";
 export const teamMemberPredicate = (
     teamId: string,
     userId: string | ReturnType<typeof sql>,
@@ -36,21 +41,46 @@ export async function assignmentTeam(
 export async function teamAssigneeCandidate(
     exec: DbExec,
     team: typeof inboxTeams.$inferSelect,
+    onlyUserId?: string,
+    excludeConversationId?: string,
 ) {
-    if (!team.autoAssign) return null;
-    const [next] = await exec
+    return (
+        (
+            await teamAssigneeCandidates(
+                exec,
+                team,
+                onlyUserId,
+                excludeConversationId,
+            )
+        )[0]?.userId ?? null
+    );
+}
+async function teamAssigneeCandidates(
+    exec: DbExec,
+    team: typeof inboxTeams.$inferSelect,
+    onlyUserId?: string,
+    excludeConversationId?: string,
+) {
+    if (!team.autoAssign) return [];
+    const next = await exec
         .select({
             userId: members.userId,
-            workload: sql<number>`(SELECT count(*) FROM inbox_conversations ic
-            WHERE ic.channel_id=${team.channelId} AND ic.assignee_id=${members.userId}
-            AND ic.status='open' AND ic.history_only=false AND ic.merged_into_id IS NULL)`.mapWith(
-                Number,
+            workload: openWorkload(
+                team.channelId,
+                members.userId,
+                excludeConversationId,
             ),
         })
         .from(members)
         .where(
             and(
                 eq(members.teamId, team.id),
+                onlyUserId ? eq(members.userId, onlyUserId) : undefined,
+                hasCapacity(
+                    team.channelId,
+                    members.userId,
+                    excludeConversationId,
+                ),
                 team.requireAvailable
                     ? agentAvailablePredicate(team.channelId, members.userId)
                     : undefined,
@@ -67,18 +97,48 @@ export async function teamAssigneeCandidate(
             sql`${members.lastAssignedAt} ASC NULLS FIRST`,
             asc(members.userId),
         )
-        .limit(1);
-    return next?.userId ?? null;
+        .limit(100);
+    return next;
 }
 export async function chooseTeamAssignee(
     exec: DbExec,
     team: typeof inboxTeams.$inferSelect,
+    excludeConversationId?: string,
 ) {
-    const userId = await teamAssigneeCandidate(exec, team);
-    if (!userId) return null;
-    await exec
-        .update(members)
-        .set({ lastAssignedAt: new Date() })
-        .where(and(eq(members.teamId, team.id), eq(members.userId, userId)));
-    return userId;
+    const candidates = await teamAssigneeCandidates(
+        exec,
+        team,
+        undefined,
+        excludeConversationId,
+    );
+    if (!candidates) return null;
+    for (const candidate of candidates) {
+        const userId = candidate.userId;
+        if (
+            !(await claimCapacity(
+                exec,
+                team.channelId,
+                userId,
+                excludeConversationId,
+            ))
+        )
+            continue;
+        if (
+            !(await teamAssigneeCandidate(
+                exec,
+                team,
+                userId,
+                excludeConversationId,
+            ))
+        )
+            continue;
+        await exec
+            .update(members)
+            .set({ lastAssignedAt: new Date() })
+            .where(
+                and(eq(members.teamId, team.id), eq(members.userId, userId)),
+            );
+        return userId;
+    }
+    return null;
 }

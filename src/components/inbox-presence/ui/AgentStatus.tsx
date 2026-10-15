@@ -44,6 +44,14 @@ export function AgentStatus({
                     </select>
                 </label>
             )}
+            {self && typeof self.openConversations === "number" && (
+                <p className="mt-1 text-muted-foreground">
+                    진행중 {self.openConversations}건 · 자동 배정 한도{" "}
+                    {self.maxOpenConversations == null
+                        ? "무제한"
+                        : `${self.maxOpenConversations}건`}
+                </p>
+            )}
             {(error || presence.error || presence.connectionError) && (
                 <p role="status" className="mt-1 text-amber-800">
                     {error ||

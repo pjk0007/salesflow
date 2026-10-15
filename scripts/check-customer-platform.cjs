@@ -3,8 +3,8 @@ const assert = require("node:assert/strict"),
     Module = require("node:module"),
     { randomUUID, randomBytes } = require("node:crypto");
 const { fixture } = require("./check-inbox.cjs");
-async function runPlatformCheck(extra) {
-    const ctx = await fixture(),
+async function runPlatformCheck(extra, testRuntime) {
+    const ctx = await fixture(testRuntime),
         { db, pg, actor } = ctx,
         schema = require("../src/lib/db/schema.ts");
     const keys = {
@@ -71,7 +71,7 @@ async function runPlatformCheck(extra) {
     };
     for (const name of Object.keys(require.cache))
         if (
-            /\/src\/lib\/(inbox|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
+            /\/src\/lib\/(inbox|inbox-capacity|inbox-presence|inbox-routing|inbox-collaboration|customer-records|customer-access|customer-platform|customer-ai|customer-workflows|customer-imports|inbox-email|inbox-operations)\//.test(
                 name.replaceAll("\\", "/"),
             )
         )
@@ -83,6 +83,8 @@ async function runPlatformCheck(extra) {
         ],
         [/^\/api\/inbox$/, () => "inbox"],
         [/^\/api\/inbox-presence$/, () => "inbox-presence"],
+        [/^\/api\/inbox-capacity$/, () => "inbox-capacity"],
+        [/^\/api\/v1\/inbox\/capacity$/, () => "v1/inbox/capacity"],
         [/^\/api\/v1\/inbox\/presence$/, () => "v1/inbox/presence"],
         [/^\/api\/inbox-routing\/teams$/, () => "inbox-routing/teams"],
         [
@@ -283,6 +285,8 @@ async function runPlatformCheck(extra) {
         "inbox/channels",
         "inbox-routing/teams",
         "inbox-presence",
+        "inbox-capacity",
+        "v1/inbox/capacity",
         "v1/inbox/presence",
         "inbox-routing/teams/[id]",
         "v1/inbox/teams",

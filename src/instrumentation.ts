@@ -34,5 +34,7 @@ export async function register() {
         startGoogleMailScheduler();
         const {startOperationsScheduler}=await import("@/lib/inbox-operations/worker");
         startOperationsScheduler();
+        const {startRoutingScheduler}=await import("@/lib/inbox-capacity/dispatcher");
+        startRoutingScheduler();
     }
 }

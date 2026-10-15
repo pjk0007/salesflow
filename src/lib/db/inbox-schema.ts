@@ -119,6 +119,7 @@ export const inboxConversations = pgTable(
             onDelete: "set null",
         }),
         teamId: uuid("team_id"),
+        routingAttemptAt: time("routing_attempt_at"),
         recordId: integer("record_id").references(() => records.id, {
             onDelete: "set null",
         }),
@@ -141,6 +142,16 @@ export const inboxConversations = pgTable(
         index("inbox_team_queue")
             .on(t.channelId, t.teamId, t.lastMessageAt, t.id)
             .where(sql`${t.mergedIntoId} is null`),
+        index("inbox_agent_open_workload")
+            .on(t.channelId, t.assigneeId)
+            .where(
+                sql`${t.status}='open' AND ${t.historyOnly}=false AND ${t.mergedIntoId} IS NULL`,
+            ),
+        index("inbox_routing_pending")
+            .on(t.channelId, t.routingAttemptAt, t.createdAt, t.id)
+            .where(
+                sql`${t.status}='open' AND ${t.assigneeId} IS NULL AND ${t.teamId} IS NOT NULL AND ${t.historyOnly}=false AND ${t.mergedIntoId} IS NULL`,
+            ),
         uniqueIndex("inbox_session_unique").on(t.channelId, t.tokenHash),
         uniqueIndex("inbox_contact_unique")
             .on(t.channelId, t.contactId)

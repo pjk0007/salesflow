@@ -22,6 +22,8 @@ import { sendSystemReply } from "@/lib/inbox/repository";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { InboxError } from "@/lib/inbox/errors";
+import { claimCapacity, hasCapacity } from "@/lib/inbox-capacity/limits";
+import { agentAvailablePredicate } from "@/lib/inbox-presence/repository";
 import {
     assignmentTeam,
     chooseTeamAssignee,
@@ -77,84 +79,99 @@ export async function handoffSupport(
     actorName = "AI 상담 도우미",
     attention = true,
 ) {
-    const { chat, workspaceId } = await supportConversation(id, exec, true);
-    if (chat.aiState === "human") return false;
-    let assigneeId = chat.assigneeId;
-    if (attention && !assigneeId && config.handoffAssigneeId) {
-        const [person] = await exec
-            .select({ id: users.id })
-            .from(users)
-            .innerJoin(
-                organizationMembers,
-                eq(organizationMembers.userId, users.id),
-            )
-            .where(
-                and(
-                    eq(users.id, config.handoffAssigneeId),
-                    eq(users.isActive, 1),
-                    eq(organizationMembers.organizationId, chat.orgId),
-                    chat.teamId
-                        ? teamMemberPredicate(chat.teamId, sql`${users.id}`)
-                        : undefined,
-                    customerAccessPredicate(
-                        chat.orgId,
-                        users.id,
-                        sql`${workspaceId}`,
-                        "respond",
+    return exec.transaction(async (tx) => {
+        exec = tx;
+        const { chat, workspaceId } = await supportConversation(id, exec, true);
+        if (chat.aiState === "human") return false;
+        let assigneeId = chat.assigneeId;
+        const team =
+            attention && !assigneeId && chat.teamId
+                ? await assignmentTeam(
+                      exec,
+                      chat.orgId,
+                      chat.channelId,
+                      chat.teamId,
+                      false,
+                  )
+                : null;
+        if (attention && !assigneeId && config.handoffAssigneeId) {
+            const [person] = await exec
+                .select({ id: users.id })
+                .from(users)
+                .innerJoin(
+                    organizationMembers,
+                    eq(organizationMembers.userId, users.id),
+                )
+                .where(
+                    and(
+                        eq(users.id, config.handoffAssigneeId),
+                        eq(users.isActive, 1),
+                        eq(organizationMembers.organizationId, chat.orgId),
+                        hasCapacity(chat.channelId, users.id, chat.id),
+                        team?.requireAvailable
+                            ? agentAvailablePredicate(chat.channelId, users.id)
+                            : undefined,
+                        chat.teamId
+                            ? teamMemberPredicate(chat.teamId, sql`${users.id}`)
+                            : undefined,
+                        customerAccessPredicate(
+                            chat.orgId,
+                            users.id,
+                            sql`${workspaceId}`,
+                            "respond",
+                        ),
                     ),
-                ),
-            );
-        assigneeId = person?.id ?? null;
-    }
-    if (attention && !assigneeId && chat.teamId) {
-        const team = await assignmentTeam(
-            exec,
-            chat.orgId,
-            chat.channelId,
-            chat.teamId,
-            false,
-        );
-        if (team) assigneeId = await chooseTeamAssignee(exec, team);
-    }
-    await exec
-        .update(chats)
-        .set({
-            aiState: "human",
-            aiHandoffReason: reason.slice(0, 300),
-            priority: attention ? true : chat.priority,
-            assigneeId,
-            status: "open",
-            version: chat.version + 1,
-        })
-        .where(eq(chats.id, id));
-    await appendInboxAudit(exec, {
-        orgId: chat.orgId,
-        channelId: chat.channelId,
-        conversationId: id,
-        actorName,
-        action: "ai.handoff",
-        changes: {
-            aiState: { before: chat.aiState, after: "human" },
-            priority: {
-                before: chat.priority,
-                after: attention ? true : chat.priority,
-            },
-            assigneeId: { before: chat.assigneeId, after: assigneeId },
-        },
-    });
-    await enqueuePlatformEvent(exec, {
-        orgId: chat.orgId,
-        workspaceId,
-        key: `ai-handoff:${id}:${chat.version + 1}`,
-        type: "ai.handoff",
-        data: {
+                );
+            assigneeId =
+                person &&
+                (await claimCapacity(exec, chat.channelId, person.id, chat.id))
+                    ? person.id
+                    : null;
+        }
+        if (attention && !assigneeId && chat.teamId) {
+            if (team)
+                assigneeId = await chooseTeamAssignee(exec, team, chat.id);
+        }
+        await exec
+            .update(chats)
+            .set({
+                aiState: "human",
+                aiHandoffReason: reason.slice(0, 300),
+                priority: attention ? true : chat.priority,
+                assigneeId,
+                status: "open",
+                version: chat.version + 1,
+            })
+            .where(eq(chats.id, id));
+        await appendInboxAudit(exec, {
+            orgId: chat.orgId,
+            channelId: chat.channelId,
             conversationId: id,
-            aiState: "human",
-            assigneeId,
-            priority: attention ? true : chat.priority,
-        },
+            actorName,
+            action: "ai.handoff",
+            changes: {
+                aiState: { before: chat.aiState, after: "human" },
+                priority: {
+                    before: chat.priority,
+                    after: attention ? true : chat.priority,
+                },
+                assigneeId: { before: chat.assigneeId, after: assigneeId },
+            },
+        });
+        await enqueuePlatformEvent(exec, {
+            orgId: chat.orgId,
+            workspaceId,
+            key: `ai-handoff:${id}:${chat.version + 1}`,
+            type: "ai.handoff",
+            data: {
+                conversationId: id,
+                aiState: "human",
+                assigneeId,
+                priority: attention ? true : chat.priority,
+            },
+        });
+        return true;
     });
-    return true;
 }
 export async function queueSupportJob(
     actor: SalesActor | undefined,

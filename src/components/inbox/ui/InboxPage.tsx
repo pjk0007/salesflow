@@ -4,6 +4,7 @@ import { workspaceAbilities } from "@/components/customer-access/utils/abilities
 import { TeamSettings } from "@/components/inbox-routing/ui/TeamSettings";
 import { useAgentPresence } from "@/components/inbox-presence/hooks/useAgentPresence";
 import { AgentStatus } from "@/components/inbox-presence/ui/AgentStatus";
+import { CapacitySettings } from "@/components/inbox-capacity/ui/CapacitySettings";
 import { useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
 import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
@@ -61,6 +62,7 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
     const [accessOpen, setAccessOpen] = useState(false);
     const [operationsOpen, setOperationsOpen] = useState(false);
     const [teamsOpen, setTeamsOpen] = useState(false);
+    const [capacityOpen, setCapacityOpen] = useState(false);
     const [teamFilters, setTeamFilters] = useState<Record<number, string>>({});
     const openSupport: OpenSupportConversation = ({
         conversationId,
@@ -148,6 +150,14 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                         onClick={() => setOperationsOpen(true)}
                     >
                         운영·성과
+                    </button>
+                )}
+                {abilities.manage && channel && (
+                    <button
+                        className="rounded-xl border px-3 py-2 text-xs"
+                        onClick={() => setCapacityOpen(true)}
+                    >
+                        배정 수용량
                     </button>
                 )}
                 {abilities.manage && channel && (
@@ -595,6 +605,17 @@ export function InboxPage({ userId, role }: { userId: string; role: string }) {
                     canManage={abilities.manage}
                     onClose={() => setOperationsOpen(false)}
                     onSelect={openSupport}
+                />
+            )}
+            {capacityOpen && channel && abilities.manage && (
+                <CapacitySettings
+                    key={channel.id}
+                    channelId={channel.id}
+                    name={channel.name}
+                    onClose={() => setCapacityOpen(false)}
+                    onAssigned={async () => {
+                        await Promise.all([list.mutate(), detail.mutate()]);
+                    }}
                 />
             )}
             {teamsOpen && channel && bootstrap && abilities.manage && (

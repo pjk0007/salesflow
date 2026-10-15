@@ -677,7 +677,7 @@ export async function patchConversation(
                 nextTeamId,
             ))!;
             if (teamChanged && input.assigneeId === undefined)
-                input.assigneeId = await chooseTeamAssignee(tx, team);
+                input.assigneeId = await chooseTeamAssignee(tx, team, chat.id);
             if (input.assigneeId) {
                 const [eligible] = await tx
                     .select({ id: users.id })
@@ -1144,7 +1144,7 @@ export async function appendMessage(
                         inserted.createdAt >= locked.lastMessageAt
                             ? summary.slice(0, 200)
                             : locked.preview,
-                    lastMessageAt: sql`greatest(${inboxConversations.lastMessageAt},${inserted.createdAt})`,
+                    lastMessageAt: sql`greatest(${inboxConversations.lastMessageAt},${inserted.createdAt.toISOString()}::timestamptz)`,
                     ...(message.kind === "customer"
                         ? {
                               status: newCustomer ? "open" : locked.status,

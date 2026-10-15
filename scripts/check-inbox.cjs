@@ -52,8 +52,8 @@ function ddl(table) {
             : `'${(typeof v === "string" ? v : JSON.stringify(v)).replaceAll("'", "''")}'`;
     return `CREATE TABLE "${c.name}" (${c.columns.map((col) => `"${col.name}" ${col.getSQLType()}${col.primary ? " PRIMARY KEY" : ""}${col.notNull ? " NOT NULL" : ""}${col.default === undefined ? "" : ` DEFAULT ${col.default instanceof SQL ? dialect.sqlToQuery(col.default).sql : literal(col.default)}`}`).join(",")})`;
 }
-async function fixture() {
-    const pg = new PGlite();
+async function fixture(testRuntime) {
+    const pg = testRuntime?.pg ?? new PGlite();
     await pg.waitReady;
     for (const table of [
         schema.organizations,
@@ -97,6 +97,7 @@ async function fixture() {
         "0105_inbox_mentions.sql",
         "0106_inbox_teams.sql",
         "0107_inbox_agent_presence.sql",
+        "0108_inbox_agent_capacity.sql",
     ])
         for (const statement of fs
             .readFileSync(
@@ -105,7 +106,7 @@ async function fixture() {
             )
             .split("--> statement-breakpoint"))
             if (statement.trim()) await pg.exec(statement);
-    const db = drizzle(pg, { schema });
+    const db = testRuntime?.db ?? drizzle(pg, { schema });
     await db.insert(schema.organizations).values([
         { id: org, name: "가상 디자이너하이어", slug: "fake-dh" },
         { id: other, name: "가상 타 조직", slug: "fake-other" },
