@@ -6877,7 +6877,7 @@
         }
       ],
       "sourceCount": 159,
-      "currentSourcesMatch": true,
+      "currentSourcesMatch": false,
       "sourceHashes": {
         "scripts/check-inbox.cjs": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
         "src/components/inbox/ui/InboxPage.tsx": "1ad5b75539ce10ae8fe9f2b2b67622f5b80695c9eb027fff9ebea9e3bc84e3f2",
@@ -7059,7 +7059,16 @@
         "Keyed inquiry remount retains text in localStorage but clears File objects; no artificial host preservation",
         "No live customer data, DB, Firebase or outbound services",
         "Actual ConversationPane and API; not complete InboxPage or native Windows Explorer."
-      ]
+      ],
+      "currentSourceComparison": {
+        "at": "2026-10-15T09:48:52.576Z",
+        "root": "F:\\Dev\\sendb-merged-ai-history",
+        "normalization": "LF",
+        "mismatches": [
+          "src/components/customer-ai/ui/SupportDraftPanel.tsx"
+        ],
+        "scope": "Historical file chooser capture kept intact; changed AI history components/routes are covered by mergedAiHistoryQa. Whole file chooser flow was not re-run for this feature."
+      }
     }
   },
   "pageBoundaryQa": {
@@ -7599,5 +7608,480 @@
     "integratedDocument": "SITE-INTEGRATION.md",
     "localPageAndFileGaps": "Current actual page and three file chooser groups are verified; remaining real environment/data/team/AI/performance/policy and advanced requirements retained in R01-R16.",
     "operatingDeploy": false
+  },
+  "mergedAiHistoryQa": {
+    "verifiedAt": "2026-10-15T09:48:52.576Z",
+    "branch": "codex/sendb-merged-ai-history",
+    "baseline": "9a395e318b71d9bc3f29e56b2938ab837a3e9002",
+    "scope": "Read-only staff AI history of current and directly merged source conversations; no deployment, real customers or external model calls",
+    "productSources": [
+      {
+        "path": "src/lib/customer-ai/queries.ts",
+        "sha256": "fda76e317fc6e5c6bd560223936d6b6a448e2a90541fe821da4b1eeb8a797eec",
+        "lastEditedAt": "2026-10-15T09:26:44.984Z",
+        "lastEditBeforeGeneralChecks": true
+      },
+      {
+        "path": "src/lib/customer-ai/routes.ts",
+        "sha256": "274317a3a34130e5dfd0ac622ac55b90d32eea3ac7bb7badf6a21c219f804628",
+        "lastEditedAt": "2026-10-15T09:32:11.831Z",
+        "lastEditBeforeGeneralChecks": true
+      },
+      {
+        "path": "src/components/customer-ai/types/index.ts",
+        "sha256": "64b995849e405b77ebf2ac178f4f99481f697820ce9e3520065704e738d2f169",
+        "lastEditedAt": "2026-10-15T09:26:44.984Z",
+        "lastEditBeforeGeneralChecks": true
+      },
+      {
+        "path": "src/components/customer-ai/ui/SupportDraftPanel.tsx",
+        "sha256": "23a76cddf66a20929e406311716ce9db4540dac8ca56f2288bfb28defef3bb19",
+        "lastEditedAt": "2026-10-15T09:30:31.623Z",
+        "lastEditBeforeGeneralChecks": true
+      },
+      {
+        "path": "src/components/customer-ai/utils/job-provenance.ts",
+        "sha256": "9eabcbb5cb9273afe9f428c0533946cf21aedbd50258518c036c45ae0dccb17c",
+        "lastEditedAt": "2026-10-15T09:28:18.361Z",
+        "lastEditBeforeGeneralChecks": true
+      },
+      {
+        "path": "src/components/customer-ai/utils/job-provenance.test.ts",
+        "sha256": "c81915b1dcd574d6fe67109423ea42af9dc9f9ffe6358b8fbb1e38efd577d2ae",
+        "lastEditedAt": "2026-10-15T09:31:04.091Z",
+        "lastEditBeforeGeneralChecks": true
+      }
+    ],
+    "checker": {
+      "path": "scripts/check-merged-ai-history.cjs",
+      "sha256": "230efa5511f333085559966216c533d6476fb7a679f81656595caef9ea3195a7"
+    },
+    "integration": {
+      "units": 1127,
+      "provenanceAndInitialSsrTestsIncluded": 6,
+      "typeDiagnostics": 0,
+      "lintErrors": 0,
+      "lintWarnings": 0,
+      "focusedChecks": 10,
+      "platformBaseline": 11,
+      "oldAiChecks": 16,
+      "oldIdentityChecks": 12,
+      "build": "Next.js complete webpack production build; not deployed",
+      "sourceEvidence": "General command results do not capture start-time SHA. Product last edits precede general check starts; frozen API hashes and UI-loaded source hashes independently match final content."
+    },
+    "focused": {
+      "suite": "merged-ai-history",
+      "checks": 10,
+      "expectedJobs": 120,
+      "excludedJobs": 5,
+      "sameTimestampJobs": 119,
+      "sourceConversations": 2,
+      "permissionRevocation": true,
+      "fakeModelCalls": 2,
+      "actualModelCalls": 0,
+      "actualNetworkCalls": 0,
+      "realCustomerData": false,
+      "nativeAndServiceRoutes": true,
+      "database": "memory PGlite",
+      "scope": "staff AI history only; full Inbox visual QA is separate"
+    },
+    "ui": {
+      "checks": [
+        {
+          "name": "DH list distinguishes current and merged records with dates",
+          "pass": true
+        },
+        {
+          "name": "DH current ready inserts into the host composer",
+          "pass": true
+        },
+        {
+          "name": "DH historical ready is read-only with no use/cancel control",
+          "pass": true
+        },
+        {
+          "name": "DH source confirmation reveals original conversation ID without changing content",
+          "pass": true
+        },
+        {
+          "name": "Switching test business resets host selection/composer",
+          "pass": true
+        },
+        {
+          "name": "BO list includes separate current and merged provenance/date",
+          "pass": true
+        },
+        {
+          "name": "BO current ready inserts into the host composer",
+          "pass": true
+        },
+        {
+          "name": "BO historical ready remains read-only",
+          "pass": true
+        },
+        {
+          "name": "Inconsistent historical detail still has no use/cancel control",
+          "at": "2026-10-15T09:41:08.698Z",
+          "pass": true
+        },
+        {
+          "name": "Detail error is visible and preserves selected historical record/composer",
+          "pass": true
+        },
+        {
+          "name": "Explicit retry recovers the same historical record without enabling actions",
+          "pass": true
+        },
+        {
+          "name": "390px host with actual panel has no horizontal document overflow",
+          "pass": true,
+          "metrics": {
+            "clientWidth": 375,
+            "innerWidth": 390,
+            "scrollWidth": 375
+          }
+        }
+      ],
+      "console": [],
+      "mobile": {
+        "clientWidth": 375,
+        "innerWidth": 390,
+        "scrollWidth": 375
+      },
+      "scope": "Actual SupportDraftPanel/hooks and native API/PGlite; synthetic keyed React host. Host use/mode callbacks only record intent; actual send/cancel behavior verified by focused SDK/API checker.",
+      "limits": [
+        "Not full InboxPage/WorkspaceLayout/Next router or actual site/Firebase",
+        "Small DH/BO fixtures have 15 jobs each; 120-job/3-page boundary is separate SQL/API test",
+        "No real model/customer/provider/database deployment"
+      ],
+      "loadedSources": 281,
+      "sourceStable": true,
+      "temporaryViewportReset": true,
+      "ownedTabClosed": true,
+      "productMutationRequests": 0,
+      "currentUseHostCallbacks": 2,
+      "backendRowsUnchanged": true,
+      "cleanup": {
+        "ownedPort": 3148,
+        "serverClosed": true,
+        "memoryPgliteClosed": true,
+        "at": "2026-10-15T09:44:16.703Z"
+      }
+    },
+    "sourcesEvidence": {
+      "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-source-hashes.json",
+      "sha256": "bd0dff00d4ed65dbf114f4a6335b08a73bcca7cbda8940477ae9a18395209a7e",
+      "bytes": 31383
+    },
+    "commands": [
+      {
+        "mode": "types",
+        "command": [
+          "node_modules/typescript/bin/tsc",
+          "--noEmit",
+          "--incremental",
+          "false"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:32:51.645Z",
+        "completedAt": "2026-10-15T09:33:29.806Z"
+      },
+      {
+        "mode": "units",
+        "command": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-concurrency=4",
+          "src/lib\\auth-admin.test.ts",
+          "src/lib\\auto-personalized-email-outcome.test.ts",
+          "src/lib\\customer-journey-alert-config.test.ts",
+          "src/lib\\customer-journey-card.test.ts",
+          "src/lib\\customer-journey-followup-rules.test.ts",
+          "src/lib\\customer-journey-priority.test.ts",
+          "src/lib\\customer-journey-scheduler.test.ts",
+          "src/lib\\deep-visitor-alert-batch.test.ts",
+          "src/lib\\deep-visitor-alert-delivery.test.ts",
+          "src/lib\\deep-visitor-alert-rules.test.ts",
+          "src/lib\\email-click-bot-rules.test.ts",
+          "src/lib\\email-click-bot-sql.test.ts",
+          "src/lib\\email-mx-lookup.test.ts",
+          "src/lib\\email-random-schedule-rules.test.ts",
+          "src/lib\\email-reply-rules.test.ts",
+          "src/lib\\email-send-queue-rules.test.ts",
+          "src/lib\\email-send-queue-stats.test.ts",
+          "src/lib\\email-send-scheduler.test.ts",
+          "src/lib\\email-sender-limit-paths.test.ts",
+          "src/lib\\email-sender-limit-rules.test.ts",
+          "src/lib\\email-sender-pick.test.ts",
+          "src/lib\\email-status-sync-rules.test.ts",
+          "src/lib\\email-template-link-rules.test.ts",
+          "src/lib\\email-visit-ack-copy.test.ts",
+          "src/lib\\email-visit-ack-rules.test.ts",
+          "src/lib\\gmail-client.test.ts",
+          "src/lib\\google-chat.test.ts",
+          "src/lib\\kst.test.ts",
+          "src/lib\\nhn-email-headers.test.ts",
+          "src/lib\\partition-access.test.ts",
+          "src/lib\\reply-to-rules.test.ts",
+          "src/lib\\safe-next-path.test.ts",
+          "src/lib\\sender-health-rules.test.ts",
+          "src/lib\\ai\\claude-parse.test.ts",
+          "src/lib\\ai\\client.test.ts",
+          "src/lib\\ai\\company-name.test.ts",
+          "src/lib\\ai\\models.test.ts",
+          "src/lib\\ai\\quota-limits.test.ts",
+          "src/lib\\ai-copy\\automation-rules.test.ts",
+          "src/lib\\ai-copy\\evaluation-rules.test.ts",
+          "src/lib\\ai-copy\\observations.test.ts",
+          "src/lib\\ai-copy\\rules.test.ts",
+          "src/lib\\attribution\\parse-params.test.ts",
+          "src/lib\\customer-ai\\rules.test.ts",
+          "src/lib\\customer-import-files\\transport.test.ts",
+          "src/lib\\customer-imports\\rules.test.ts",
+          "src/lib\\customer-platform\\identity.test.ts",
+          "src/lib\\customer-platform\\webhook-rules.test.ts",
+          "src/lib\\customer-records\\changes.test.ts",
+          "src/lib\\customer-workflows\\rules.test.ts",
+          "src/lib\\email-experiments\\rules.test.ts",
+          "src/lib\\inbox\\rules.test.ts",
+          "src/lib\\inbox-collaboration\\rules.test.ts",
+          "src/lib\\inbox-email\\gmail.test.ts",
+          "src/lib\\inbox-email\\recipients.test.ts",
+          "src/lib\\inbox-operations\\calendar.test.ts",
+          "src/lib\\mcp\\tracker-format.test.ts",
+          "src/lib\\tracker\\date-range.test.ts",
+          "src/lib\\tracker\\site-access.test.ts",
+          "src/components\\customer-ai\\utils\\job-provenance.test.ts",
+          "src/components\\customer-conversations\\api\\index.test.ts",
+          "src/components\\customer-conversations\\utils\\attachment-groups.test.ts",
+          "src/components\\customer-conversations\\utils\\controller.test.ts",
+          "src/components\\customer-records\\utils\\attributes.test.ts",
+          "src/components\\email\\utils\\sender-profile-list.test.ts",
+          "src/components\\inbox-presence\\api\\index.test.ts",
+          "src/components\\email\\clicks\\utils\\clickCell.test.ts",
+          "src/components\\email\\replies\\utils\\labels.test.ts",
+          "src/components\\email\\reply-to\\utils\\replyTo.test.ts",
+          "src/components\\email\\send-health\\utils\\labels.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\limitForm.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\logSender.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\poolCapacity.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\queueStatus.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\ruleSummary.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\senderPool.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\sendResult.test.ts",
+          "src/components\\email\\sender-profiles\\utils\\todayStatus.test.ts"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:32:52.012Z",
+        "completedAt": "2026-10-15T09:33:12.092Z"
+      },
+      {
+        "mode": "lint",
+        "command": [
+          "node_modules/eslint/bin/eslint.js",
+          "src/components/customer-ai/types/index.ts",
+          "src/components/customer-ai/ui/SupportDraftPanel.tsx",
+          "src/lib/customer-ai/queries.ts",
+          "src/lib/customer-ai/routes.ts",
+          "scripts/check-merged-ai-history.cjs",
+          "src/components/customer-ai/utils/job-provenance.test.ts",
+          "src/components/customer-ai/utils/job-provenance.ts"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:34:53.880Z",
+        "completedAt": "2026-10-15T09:35:02.940Z"
+      },
+      {
+        "mode": "checker-lint",
+        "command": [
+          "node_modules/eslint/bin/eslint.js",
+          "scripts/check-merged-ai-history.cjs"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:47:28.352Z",
+        "completedAt": "2026-10-15T09:47:33.403Z"
+      },
+      {
+        "mode": "focused",
+        "command": [
+          "--import",
+          "tsx",
+          "scripts/check-merged-ai-history.cjs"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:34:47.444Z",
+        "completedAt": "2026-10-15T09:35:03.318Z"
+      },
+      {
+        "mode": "ai",
+        "command": [
+          "--import",
+          "tsx",
+          "scripts/check-customer-ai.cjs"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:32:51.695Z",
+        "completedAt": "2026-10-15T09:33:10.136Z"
+      },
+      {
+        "mode": "identity",
+        "command": [
+          "--import",
+          "tsx",
+          "scripts/check-inbox-identity.cjs"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:32:51.658Z",
+        "completedAt": "2026-10-15T09:33:06.936Z"
+      },
+      {
+        "mode": "build",
+        "command": [
+          "node_modules/next/dist/bin/next",
+          "build",
+          "--webpack"
+        ],
+        "status": 0,
+        "startedAt": "2026-10-15T09:33:58.254Z",
+        "completedAt": "2026-10-15T09:36:38.834Z"
+      }
+    ],
+    "evidence": [
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\types.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\units.log",
+        "sha256": "0cf4a9c3dd0dfc7e922f4434a15af19d72b39dd51f6b3949345150636d3006a0",
+        "bytes": 106855
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\checker-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\focused.log",
+        "sha256": "ce92ea077b740edee9a77e369e410aab57814ea7c90abe9842bead11393a5059",
+        "bytes": 2406
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ai.log",
+        "sha256": "7a000512aae672216ac3ef4eac4d50e085b15868ffe9c51e0c0c51ea1b941d82",
+        "bytes": 2404
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\identity.log",
+        "sha256": "9f555051a7fb4b3b63e4c2c9d25531ea28d75dd3776818b09bb056fbb963e1e5",
+        "bytes": 2287
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\build.log",
+        "sha256": "81d28087aa652f57f2ba40b21c79130c5176cc0ea237c120ae66fbfd7bcff7a0",
+        "bytes": 13251
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\types.json",
+        "sha256": "5d408a84c0aa62b23a1d72f5b31d9da1c93063e6ee30b3bdf8c3afeff6252ab3",
+        "bytes": 524
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\units.json",
+        "sha256": "2c8426a0ccbacd3249e9df825229c210cd2592a32e440225c8d23c0e781842f2",
+        "bytes": 4511
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\lint.json",
+        "sha256": "6bea41ad8d833736ed5958362e2a1c0805aa1dcd7f6499438614b440d64f57ff",
+        "bytes": 821
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\checker-lint.json",
+        "sha256": "fa60907d198c6133699482840b5533c063a82f193c577da0f868b5c97ae6bc1c",
+        "bytes": 533
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\focused.json",
+        "sha256": "7935fca9e9606ce82776a57b51017d32938602613a91c73fced5d8009d48b42c",
+        "bytes": 509
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ai.json",
+        "sha256": "7ba2e8b0bfdef6af6766e4fa059c055abdd6f94f9b4c8f49633dcf018aa24520",
+        "bytes": 493
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\identity.json",
+        "sha256": "28878aa02ebdb811da4b9e81349a3124d89565592a1d4ebcf4df3829e0a30117",
+        "bytes": 508
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\build.json",
+        "sha256": "313df15141ef91419bbadb3f11feb7af5a8d37ccecae08fb033c2b4961e82bd4",
+        "bytes": 504
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\focused-before-cancel-fix.log",
+        "sha256": "920aa9be28728c6d3fe16bb2c20edf773373618b34f4d7ae491d223009dc8b8e",
+        "bytes": 2226
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\focused-before-cancel-fix.json",
+        "sha256": "3aae758518a3ec25f45934e8ca629d979287cd311ce15dad52b1acee547ecb58",
+        "bytes": 509
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-report.json",
+        "sha256": "0c21d28bb5d5b24948c670d5ce96382ea4572c4e65c1e2ea187d340c8dc82abc",
+        "bytes": 2446
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-backend-evidence.json",
+        "sha256": "0d1ab33b121b665d424d65080ec2c6a249408340b7e02cd8d9bd9e240978a294",
+        "bytes": 97543
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-cleanup.json",
+        "sha256": "24b3b17738b0235fe2bffddc0ddcadb8001a0e3bdb89f62ed8f1476040c4b03c",
+        "bytes": 113
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-live-stats.json",
+        "sha256": "d317075f1c286895ba4ec41bd00b434a082adc7109abfd414060ea3d6c96c003",
+        "bytes": 80246
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-dh-history.jpg",
+        "sha256": "ec16a1c21ed755e1a688097f5bdd4886475ba05e2bbc6f74ca53aa98a6af4303",
+        "bytes": 63201
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-bo-history.jpg",
+        "sha256": "398f91fc70f475fc2bfac888f6ef395ade1eeff367aa7beddb6e056ff13b8fb1",
+        "bytes": 69327
+      },
+      {
+        "path": "C:\\Users\\PW1234\\Documents\\ChatGPT\\이삭\\artifacts\\sendb-merged-ai-history-20261015\\ui-bo-mobile.jpg",
+        "sha256": "8d10da7c75901b78429b362598c342034c99785e186443f517a4c2d7e9d3dee4",
+        "bytes": 46461
+      }
+    ],
+    "limits": [
+      "Actual SupportDraftPanel/hooks + synthetic React host, not whole InboxPage/WorkspaceLayout or Next router",
+      "Actual native routes and memory PGlite; seeded outputs are fictional and fake model calls only",
+      "UI host onUse/mode record local callback intent; actual send/use/cancel guards are covered by separate actual SDK/API checker",
+      "Deliberately inconsistent detail response used only to test UI read-only guard",
+      "No immutable general-check start-time source capture; timing/freeze/UI source evidence explicitly distinguished",
+      "No claim that every malformed legacy worker state is immutable",
+      "Full R16 cutover, real model quality/load and real site/Firebase remain incomplete"
+    ]
   }
 }
