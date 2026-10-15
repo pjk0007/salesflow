@@ -6678,5 +6678,926 @@
       "sha256": "7a78eaae0732da4a62da76f568290c1e21ac1fa3c26b3c7eecd561ac33a6bd03",
       "bytes": 1850
     }
+  },
+  "filePickerQa": {
+    "verifiedAt": "2026-10-15T07:14:18.652Z",
+    "scope": "fictional isolated local browser + actual routes and memory PGlite; no server deployment or customer data",
+    "groups": {
+      "customerWidget": {
+        "checks": [
+          "file chooser cancellation has no draft and no DB upload",
+          "actual button -> filechooser -> PDF/PNG draft rows",
+          "remove and reselect PNG before send",
+          "selecting files and entering new inquiry creates no empty inquiry or upload",
+          "return from new inquiry restores existing text and both file objects",
+          "new inquiry draft remains separate on second roundtrip",
+          "send uses actual multipart routes and attaches both files to actual message",
+          "authenticated PNG preview decodes original 160x90 image",
+          "PDF and PNG UI downloads match synthetic originals byte for byte",
+          "new inquiry PDF/PNG file objects survive existing inquiry roundtrip",
+          "new inquiry creates exactly one conversation on first send and binds both uploaded files",
+          "new inquiry attachment previews and both downloads succeed with matching hashes",
+          "390x844 mobile document viewport fits without outer overflow",
+          "480x820 document viewport fits without outer overflow"
+        ],
+        "sourceCount": 19,
+        "currentSourcesMatch": true,
+        "sourceHashes": {
+          "scripts/check-inbox.cjs": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
+          "scripts/check-customer-platform.cjs": "97a434d1e50a3c8158cec9b0312cdb15a35f79dc9cb65faecfe3d6023530f386",
+          "src/components/inbox/ui/ChatWidget.tsx": "c5b3cfda8a9e532a92804155676843c11ea1e27d49a1c8d92b08f9bd7590d37a",
+          "src/components/inbox/ui/AttachmentDrafts.tsx": "e92e14c78d0475ce818a20269ee0f34532877c8f349dbdd4455a0f466ff47f0f",
+          "src/components/inbox/ui/AttachmentList.tsx": "22e30e0e0596585a74868869540f1667e2273bf808cc414f9d913014e6be299e",
+          "src/components/inbox/hooks/useAttachmentDrafts.ts": "25c20b49fbd6116a7634e0b4c8c3240ffb4c29998bb32be27ea19166d0fd1d61",
+          "src/lib/inbox/file-http.ts": "9fe079b43b098d5d9eea2e84ebe4537c6b64b480466ebfc99b162591da075830",
+          "src/lib/inbox/files.ts": "75dd849f79bff96bb26554060d260a3cff93d021d6cd7766bb6ebf5a81cfcaca",
+          "src/lib/inbox-customer-history/repository.ts": "0c54f976838e23044784f14e33bc22bdf89284478ffcc47710a0cd6577d73dcd",
+          "src/lib/inbox-customer-history/routes.ts": "8581f9897a6baea3408ac27395f8d03111dd7e69d43a7b374cecee30a006ad2b",
+          "src/app/api/messenger/[key]/route.ts": "eb6fcb51b1fa288b1468ecb70f33368cf64481094b45e0c1673f437833c74507",
+          "src/app/api/messenger/[key]/attachments/route.ts": "73f4810b5c5379dcb05025301dca32a483a0633b6a662b4d9ebc3cb41346c57c",
+          "src/app/api/messenger/[key]/attachments/[id]/route.ts": "624af6ffb4e95cdd43c034cda11377f5b5f1f379a9e8fad4c69435150f87af54",
+          "src/components/inbox/api/index.ts": "e9666bc855b6c1639c3ca3b695a66b24a6753e9090a6f1232f8cc9eae8ddb402",
+          "src/components/inbox/utils/session.ts": "65f2cd566f08e12bad0d573c3d5cc835e98695b55d7fe5cd8e566d3ed88d5cc4",
+          "src/components/customer-conversations/api/index.ts": "2adbca10d733ce7821c931485426e7836da82e714602eff1db919db1470d6918",
+          "src/components/customer-conversations/utils/controller.ts": "2003595dc26c123e4f1037dc4932585ae1d9f720f570759c9b835f8b14f07bfd",
+          "src/components/customer-conversations/hooks/useCustomerConversations.ts": "011a5180c271a6aeebdce493b7f3696f08476521b030d265f9253b3dbeb05ec2",
+          "src/components/customer-conversations/ui/CustomerConversationList.tsx": "580dada5f4fe7537d694199f3bf8f54b264937c7e3c38d61e622a2f20bb3ce9d"
+        },
+        "commit": "f8788a6c3a81c05c43ed23708e03438d8b8a61f4",
+        "evidence": {
+          "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/file-picker-qa/evidence.json",
+          "sha256": "0946f5597023049f665b41b6beef44a9853f73fb5de2412844fb1103c414f952",
+          "copy": "file-picker-customerWidget-evidence.json"
+        },
+        "limitations": [
+          "Official FileChooser.setFiles API, not native Windows Explorer manual selection.",
+          "Actual routes with memory PGlite; no production, Firebase, R2, or external customer data.",
+          "Draft UI offers filename rows; image preview is exercised on the sent attachment."
+        ],
+        "cleanup": {
+          "ownedBrowserClosed": true,
+          "ownedContextClosed": true,
+          "fixtureProcessExitCode": 0,
+          "pgliteClosed": true,
+          "ports3138And3139Listening": false,
+          "repositoryClean": true,
+          "commitAfter": "f8788a6c3a81c05c43ed23708e03438d8b8a61f4",
+          "verifiedAt": "2026-10-15T06:51:56.010Z"
+        },
+        "requestStatusNote": "Actual page attachment fetches were 200 and four downloads matched. Additional backend401 requests absent from page trace are attributed to trace-resource fallback as an inference; original headers were not retained."
+      },
+      "importAdmin": {
+        "checks": [
+          "JSON chooser cancellation leaves source and DB unchanged",
+          "actual JSON filechooser loads synthetic ChannelTalk export into ImportsPage",
+          "real preview parses customer/conversation/message and creates zero attachment bytes",
+          "actual UI execution creates two pending archive file tasks without bytes",
+          "supplement chooser cancellation performs no upload",
+          "wrong filename produces durable 409 and no attachment bytes",
+          "same name with wrong byte size produces 409 and keeps retry usable",
+          "correct PDF reselection succeeds after filename and size errors",
+          "both completed files hide upload controls and create exactly two blobs",
+          "completed state remains locked after explicit refresh without duplicate upload",
+          "real imported attachment preview decodes original PNG",
+          "actual protected UI PDF/PNG downloads match original bytes and hashes",
+          "trace-disabled UI generated exactly three authenticated attachment GETs and zero automatic 401s",
+          "separate cookieless API request is rejected by actual protected download route"
+        ],
+        "sourceCount": 23,
+        "currentSourcesMatch": true,
+        "sourceHashes": {
+          "scripts/check-inbox.cjs": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
+          "src/components/customer-import-files/ui/ImportFilesPanel.tsx": "6f76404f0d88792727f43edffe95c9cda08574d97f101009978a05c3135beb40",
+          "src/components/customer-import-files/hooks/useImportFiles.ts": "beb42f2a41c2e8a18531fd3fee5b475217468bb52fe3ce1f4a24e122aa941f1d",
+          "src/components/customer-import-files/api/index.ts": "f0f5c7ce84128b366dd44df62155098a78829018b4e0c52ef52c3a6322dbcecf",
+          "src/components/customer-imports/ui/ImportsPage.tsx": "beda326d4b327769d906f4e065ac784203dd559d58821b4f6f45e93223eaec87",
+          "src/lib/customer-import-files/repository.ts": "8e556bd2d616bdd5180e6885a3fe9206796dc9330878eb5bec2d18a736aa1876",
+          "src/lib/customer-import-files/routes.ts": "34a67ab3939b29448f0dc1640e28795e148cf9f580844565175f28cc965e0572",
+          "src/lib/customer-import-files/rules.ts": "4da879cf8df96bbfc6ea8db7e41b7a0e51c93fe318ee3810567c45c774ef061d",
+          "src/lib/customer-imports/repository.ts": "b09f234b0a65b190733332c9e3016d17e71cb9644ff13b8d8b0d9cbbd8a00215",
+          "src/lib/customer-imports/routes.ts": "072065fc2e9a76e35d89cd33f48300cf3a6ac2c9aed2a0114ad8e73d74d2717a",
+          "src/lib/customer-imports/adapters.ts": "15fb45401556f132118df1fbf9d486b3bd1820b9dbb019438df6e6e1502c7833",
+          "src/lib/inbox/file-http.ts": "9fe079b43b098d5d9eea2e84ebe4537c6b64b480466ebfc99b162591da075830",
+          "src/lib/inbox/files.ts": "75dd849f79bff96bb26554060d260a3cff93d021d6cd7766bb6ebf5a81cfcaca",
+          "src/app/api/customer-imports/route.ts": "5b7fc0d4b52bffc8286974ad23798ea6ae7488b4f1ceb1770019eef6d888d5b6",
+          "src/app/api/customer-imports/[id]/route.ts": "b63adbf69413609ee66e4666af8afd9b88cdadcab1d9a6c8e43e67fbecdfda76",
+          "src/app/api/customer-imports/[id]/files/route.ts": "15da84341d36843ca8241d3f93ac44f8626357bfc1f543e5225c14935ee1c03c",
+          "src/app/api/inbox/attachments/[id]/route.ts": "83218528723ae1e7c21981a368f3ceeea2da69909e6db3d964f03d309264a4ac",
+          "src/components/inbox/api/index.ts": "e9666bc855b6c1639c3ca3b695a66b24a6753e9090a6f1232f8cc9eae8ddb402",
+          "src/components/customer-imports/api/index.ts": "c7e7e0f3aa2607fdf9b120d79508bb9d63eb1a616b2aba1f71ab41a2e81b0baa",
+          "src/components/customer-imports/hooks/useImportRun.ts": "95b24efd88e52d0278bae3d59689567805a4358b8409c1868fa0e30094371d05",
+          "src/components/customer-imports/utils/labels.ts": "1e7f41f64727fbc82cfab3804189e788de252f0ef20a2a7c52575f844d82b24e",
+          "src/components/customer-imports/utils/example.ts": "afde81a6e36a438640aaa65b3a2233d18a876da81928066c99661dc70dea3343",
+          "src/components/inbox/ui/AttachmentList.tsx": "22e30e0e0596585a74868869540f1667e2273bf808cc414f9d913014e6be299e"
+        },
+        "commit": "8b86899c3a1252f97da059f17371035a8a2c3b03",
+        "evidence": {
+          "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/import-file-picker-qa/evidence.json",
+          "sha256": "dd51ecb7ed0459e5ee8471ef84d3cd0cdd41523c98ad4e1ec02990373c9838ec",
+          "copy": "file-picker-importAdmin-evidence.json"
+        },
+        "limitations": [
+          "Official FileChooser API, not manual Windows Explorer operation.",
+          "Actual ImportsPage and ImportFilesPanel; actual AttachmentList mounted in a minimal archive QA host, not the complete InboxPage.",
+          "Actual API handlers and memory PGlite with synthetic ChannelTalk export; no production/Firebase/R2 or external customer access.",
+          "Trace body capture disabled; screenshots and explicit request metadata retained."
+        ],
+        "cleanup": {
+          "ownedBrowserClosed": true,
+          "ownedContextClosed": true,
+          "pgliteClosed": true,
+          "fixtureProcessExitCode": 0,
+          "ports3138And3139Listening": false,
+          "orphanedHeadlessPlaywrightChromeCount": 0,
+          "repositoryClean": true,
+          "commitAfter": "8b86899c3a1252f97da059f17371035a8a2c3b03",
+          "verifiedAt": "2026-10-15T07:05:26.847Z"
+        },
+        "requestStatusNote": "Actual attachment UI GET3 requests were200; explicit cookieless negative GET was401. Actual AttachmentList minimal host, not full InboxPage."
+      }
+    },
+    "staff": {
+      "verifiedAt": "2026-10-15T07:31:50.978Z",
+      "checks": [
+        {
+          "name": "official FileChooser cancelled without draft or upload",
+          "status": "passed"
+        },
+        {
+          "name": "reply official FileChooser PDF+PNG selection, PDF removal and same file reselection",
+          "status": "passed"
+        },
+        {
+          "name": "internal note official FileChooser PDF+PNG selection, PNG removal and same file reselection",
+          "status": "passed"
+        },
+        {
+          "name": "reply/note mode retains separate body and two files per mode",
+          "status": "passed"
+        },
+        {
+          "name": "keyed inquiry A→B→A keeps separate reply/note text and clears File objects; no eager upload",
+          "status": "passed"
+        },
+        {
+          "name": "actual multipart public reply sent; reply cleared and note draft retained",
+          "status": "passed"
+        },
+        {
+          "name": "actual multipart internal note sent and only its own draft cleared",
+          "status": "passed"
+        },
+        {
+          "name": "four protected staff UI downloads match original SHA-256",
+          "status": "passed"
+        },
+        {
+          "name": "both protected PNG previews decode at original natural width 160",
+          "status": "passed"
+        },
+        {
+          "name": "customer public reply and both file hashes visible; internal note body/file IDs absent and direct file requests 404",
+          "status": "passed"
+        },
+        {
+          "name": "other customer public attachment request 404",
+          "status": "passed"
+        },
+        {
+          "name": "explicit no-cookie staff download and multipart upload both 401",
+          "status": "passed"
+        },
+        {
+          "name": "desktop 1360x960 viewport has no document overflow",
+          "status": "passed"
+        },
+        {
+          "name": "visual pass: reply purple, note amber/private label, file rows/remove actions and send controls fit at 1360x960; log scrolls independently",
+          "status": "passed"
+        }
+      ],
+      "sourceCount": 159,
+      "currentSourcesMatch": true,
+      "sourceHashes": {
+        "scripts/check-inbox.cjs": "a1ba0cd7a7fd5f252f801e202f01a46c4ddbf45e2a319f3d72928111b75bde06",
+        "src/components/inbox/ui/InboxPage.tsx": "1ad5b75539ce10ae8fe9f2b2b67622f5b80695c9eb027fff9ebea9e3bc84e3f2",
+        "src/components/inbox/ui/ConversationPane.tsx": "ca2960c739798c67035ed76892f68ccc452ecde6f573c2b62bbb31d3fd1f3fcd",
+        "src/components/inbox/hooks/useAttachmentDrafts.ts": "25c20b49fbd6116a7634e0b4c8c3240ffb4c29998bb32be27ea19166d0fd1d61",
+        "src/lib/inbox/repository.ts": "62500094952804239fa12750e54e4682cea65e573884542b4c49bb22463a0b12",
+        "src/lib/inbox/files.ts": "75dd849f79bff96bb26554060d260a3cff93d021d6cd7766bb6ebf5a81cfcaca",
+        "src/lib/db/schema.ts": "b789a6dfdb0c8ed2794f3a51df058ac703ea0a92a8f97ac63968d2c3c5b7d158",
+        "src/lib/db/ai-copy-schema.ts": "d1e5e61af59bf187eb1b946dc916cfe71f3341a67c463f9ee207b51898fa10a1",
+        "src/lib/db/email-experiment-schema.ts": "203fdebcef99ce2068d551b4bcdce99d0611a71b0c8dfd05f6a173001f7f7d98",
+        "src/lib/db/copy-automation-schema.ts": "6a4b45181128db7069cf71bae0f02fda8c911573a725530b4a52976c46fb961e",
+        "src/lib/db/inbox-schema.ts": "6eca815c034b5fb2e7c84a7bb970161b4181380770fb51d3d182d78e455370c3",
+        "src/lib/db/customer-platform-schema.ts": "af0af2643db336e9797abf193bcd7f957a060cfe16afd64ea1b8f028c83a2243",
+        "src/lib/db/customer-ai-schema.ts": "24d24457cdc8c13465c5c87d30aef0ffa3790cfc47727d97e11a12dcd62ff847",
+        "src/lib/db/inbox-presence-schema.ts": "c26e4dda2021c5b04bf82b390051b0aecfd791f8012a66a72f8e9054136a721a",
+        "src/lib/db/inbox-reply-guard-schema.ts": "555a37f385d6fc265f334a4a071b778623f2f57cd1846b5a085b4929ad611a87",
+        "src/lib/db/inbox-customer-history-schema.ts": "e77c171c3d1f4c4af51dc28bd4bdbebc46bc4b480e4d1f4a2d1411d53e006d91",
+        "src/lib/db/inbox-email-schema.ts": "c6ebeeac1fac6e5c6b6118cd759e188aa16a9b5e4c78278e51477c242a104f08",
+        "src/lib/db/inbox-files-schema.ts": "c4bacb6af7f19fdb174d6f7cb006429cee9fbb263b0898ed46e9bdc69814821d",
+        "src/lib/db/inbox-google-schema.ts": "fe397952d9a2fbe40285dfb2f346390a13c0ea28e547f8f29df11761cae5da78",
+        "src/lib/db/customer-sales-schema.ts": "13a9ce3f624918d0ff283288c9a99e359e3159a48da4cbe07a063b749788c7ec",
+        "src/lib/db/customer-activity-schema.ts": "325664f6454767069e53759744d5a59bdcf30fb9dff38f7f4d8b18bdf6623883",
+        "src/lib/db/platform-webhook-schema.ts": "170c0cf019328b2ed32f50f4c034c0e28b6b4f6a890fe9c0267bba737570cd2a",
+        "src/lib/db/customer-workflow-schema.ts": "2a7879a13f94b1f3e24945274f76ad2f035a12d38b12b9ec26f3c713732b151c",
+        "src/lib/db/customer-import-schema.ts": "a60395f9a8236279752c206e863ab4be05c2b1aad7d25964325f74f71ef553f3",
+        "src/lib/db/customer-import-files-schema.ts": "a66bcedbf4d7cbc49f0e49d4b6e135402507c524adc52502ecfa6f20d43c6254",
+        "src/lib/db/customer-access-schema.ts": "1712fae855780aa13a3875b422643d298e828b8f21fc7f8195aade20f792ce46",
+        "src/lib/db/customer-records-schema.ts": "714e05749e907b0d383e85c6d7d99843b212f38cb1165698bf8f2ccdc4090753",
+        "src/lib/db/inbox-collaboration-schema.ts": "0e51fd351817c866af673af23c522779002f191f19ba98f68faec3593bba3bde",
+        "src/lib/db/inbox-operations-schema.ts": "265d98a043f81492736f2eecc51b2c69a6a9e9c6effc08c69aad6906bc5fa7a6",
+        "src/lib/db/index.ts": "80a737d9e95181f593de4dee86d6b83fec27bf378f01ef05412a886f0db87b17",
+        "src/lib/customer-access/access.ts": "f251ef4bfb70b3bf8fb2655f728c3ae9fc5c27b97a69ac442f111d9dcd5e6cf8",
+        "src/lib/auth-admin-rules.ts": "2c29e52acec9ccc2e4de218b6f1810c98116be0aed796472671819a4b82232ae",
+        "src/lib/inbox/errors.ts": "4b85e5a18b1d539037b8ca611892586bd8d1975ce0fe92a1e4c86808c5c3ad89",
+        "src/lib/customer-access/rules.ts": "b84aec5e5a55ea30678f55889fa7abbd03d4828b493c266c6e2da9b9f6a92b82",
+        "src/lib/inbox-email/outgoing.ts": "f816585bf4e87ef2240347fa28695b6c87e535d2f8c36b9dee2b159f31433fbb",
+        "src/lib/inbox/file-rules.ts": "585835cd57aa9ce79910b5b2f3fe39365f323a002afff9c9105df821cd34ffac",
+        "src/lib/inbox/file-metadata.ts": "6a352485b865565ecc2eecba68e329ce16c59996934cb9ae8591245d0db6956a",
+        "src/lib/inbox-email/files.ts": "27f75e509cce0e6bb4d4096d4be5723c2561f054b42c4db560ecc9047ebf52fd",
+        "src/lib/inbox-email/google-guard.ts": "936dec9e2f00d836cdb3536dfc4af8963409ec8b4dda26b59c42bcfd701fa50f",
+        "src/lib/customer-platform/activities.ts": "0568ea3fc8fad2ad933bef931fb027d8887d882cefb3603d73a8a7042a46c614",
+        "src/lib/customer-platform/repository.ts": "0be27388650f38d00ac07b3b5ac4715de75aac1d1905d7bef8808fc9ea3fdd43",
+        "src/lib/customer-records/audit.ts": "43f30b773a9c31f8e97aed18b32cc36b71d4c6e3111f75cdb14962a4ddfb5771",
+        "src/lib/customer-records/changes.ts": "d19c6cc35476439a391c2fb9e2421304d3505352f7ba3cd9306c37ad22264cc3",
+        "src/lib/customer-records/rules.ts": "7bdb82cfea380bd8a9f3a60b5b5ddc90b2c762d7c34489d1dcadd95872149559",
+        "src/lib/customer-platform/rules.ts": "e99fa5bf8174c905ba60299e78efcc0a3c8e68072adaab1505a905f5abfa783c",
+        "src/lib/customer-platform/outbox.ts": "8182c7825ddea1a969790e9638de39532d363ed0603d4b797ba7075ff68180f7",
+        "src/lib/inbox-operations/enqueue.ts": "eaffd6013fe73e2ba5cba6a6c7f8d7fa176b8b5f7dc22ed32f412280fb77e8c9",
+        "src/lib/inbox-operations/rules.ts": "70a416418e5cbe2422085e7c5dd63a1311fc9f9a47005a991b040966a6b24779",
+        "src/lib/inbox-operations/calendar.ts": "3a5c43cc496a7623ab2b65f3d0f64d9aa033e086166ac89694fe57550c6d7e3d",
+        "src/lib/customer-workflows/origin.ts": "25e11ec7c4341fac6ae92786e5ab16ee144d42dca6ec953d924247ccb0bee26f",
+        "src/lib/customer-workflows/enqueue.ts": "fd4719b7b0bd09eeb764d2e86232f3388009eb628833061bb9b68a65b266ff2a",
+        "src/lib/customer-workflows/context.ts": "24702ef3c60d195e634c15ec8ef3327544ba24b636554e0e6089e332b5d95e50",
+        "src/lib/customer-workflows/rules.ts": "518f23554238415221f47efba1e7f6db7449b19ab0d919da89e253c8f513a93e",
+        "src/lib/customer-platform/webhook-rules.ts": "186022bb4e3c1d0b9c25a9f670161452aa77980af1a8a5d80d7168c161e322ce",
+        "src/lib/customer-imports/origin.ts": "97ce34ab0727cf13ee34106b39c9a77ea9c6287d40ff246a0be51f9cf0cd49f1",
+        "src/lib/inbox-email/rules.ts": "15b6e26662fbb7dc2a3271466de3164106843d613e547530e36463032e83b060",
+        "src/lib/inbox-email/recipients.ts": "0fdefd52d7caa539161bf29c3134d1bbf332cab0a618e6a6d1e0c2081130fd92",
+        "src/lib/inbox-collaboration/mentions.ts": "78fce9308e7d50bfdf1feeac38f7a9525df768d0e4b6a2f332cfef5a53a9e39f",
+        "src/lib/inbox-collaboration/rules.ts": "2a5d121e4d0e484b1bf0c0dcdd3b7b41021c21182866ae2fa15642944a5b640b",
+        "src/lib/customer-ai/queue.ts": "4b852918b086357ad3ee082a445ac2e30402db30f547fd90e3d2161be8abd762",
+        "src/lib/inbox-reply-guard/repository.ts": "3e9623b74a9b9e8b620946fca11f8b0cace17175198d1bdb2c4d123e59275aaf",
+        "src/lib/inbox/audit.ts": "091056266dcb433ca8474d45c10f1eb66be326bb101d2861a4bee49cb0b0a451",
+        "src/lib/inbox-reply-guard/rules.ts": "3a36058d3bdddda76bbecdf5cadf697963df00bc8663ed699ca87cb2d62a7398",
+        "src/lib/inbox-capacity/limits.ts": "c1d36dbd5b43aacca096a307cb06ce16f0af9fa536cba9fabfaf274bc367ea02",
+        "src/lib/inbox-routing/hours.ts": "edd8717c3878de948eb51b2cc7cfb8f4c14821e514d73800e1bea9dd1b6fcb58",
+        "src/lib/inbox-presence/repository.ts": "31012c65f8f56ea3c71888c6e20db8deba2de67f8ba596fa9eb27966b14ffcc6",
+        "src/lib/inbox-presence/rules.ts": "673348565865709d4e1cd6a0f18040482db466a63e7628c437c438ba68c25152",
+        "src/lib/inbox-routing/assignment.ts": "943c951717398f646a02d9885f37f2a9904a306675ef26b2831ed5d17a53ad3e",
+        "src/lib/customer-ai/catalog.ts": "4fdf9c36bfa8522c0e35d88c60d817e274ce2a41ca627fe4516bc26f900bde5b",
+        "src/lib/ai/models.ts": "ca1347a9e382d7382adac945d8b16d410c6a2ae5cdae712677ce79ab1eb6e345",
+        "src/lib/ai/client.ts": "0602005292c1be4147f8497069555435567752fa2a5476b223ba912683795f13",
+        "src/lib/ai-copy/versions.ts": "ef668763c6db73a30a5e014fb589fae911e521c614a16626260a4adfedf8988a",
+        "src/lib/ai-copy/rules.ts": "80222691eb1f07388b5634b21bc3381dc3006850d085e3c3521f93718e4ffa1f",
+        "src/lib/email-visit-ack-copy.ts": "458a36e61a00a111a52b87c392e17db6b80a4c8a7d9c30330b1f2ec2ae7a86f6",
+        "src/lib/email-visit-ack-rules.ts": "ddeca315ecc661b67fdd79e02bb79ea16815362a1c93f4f8e4f4e99c64d6840d",
+        "src/lib/deep-visitor-alert-rules.ts": "9536abec8067847af4f413e4ebd1e55d882451f71fbc6f3091f8771547c94417",
+        "src/lib/kst.ts": "a17bd845d1fe22c7fa1200b10a6031b9528ddf594a07cd14df8c7dcab87abd8d",
+        "src/lib/chat-text.ts": "38a5f3f861f8aa568ee0f557055c7a4f9cb650b7bd57da6aeeef7c8114171498",
+        "src/lib/google-chat.ts": "03b88efdc5b9bf010bbae215d1784329e235643f0778fd9ab2f1d29578b0eac6",
+        "src/lib/tracker-session-duration.ts": "e9b6cc7d05632c0dc1a635332ccd50e0a708e3d69015cebbb41f69163ea602a7",
+        "src/lib/ai-copy/defaults.ts": "ea5bdc78adcf4049431696706b0d0cdb6339f138cade20a5c62056a8912a47c6",
+        "src/lib/ai-copy/generation.ts": "5563973d6293c0f7d3ed41ec897119e59f51ae869a77eb5d8fe975cc28d092f0",
+        "src/lib/ai-copy/provider.ts": "25fc8be43191f2e8ace29c2cb00ebcc04730cb964b4e924b513f9f911ff47442",
+        "src/lib/ai-copy/errors.ts": "607a41d505b158143bfb966dbf358e271d1d0257c4d2f3c1ac6737a49aa08f27",
+        "src/lib/customer-ai/rules.ts": "20f378e190010e8add01023240c5eef106d54aab492de3baf57fb0507825bd73",
+        "src/lib/customer-workflows/repository.ts": "b68a95f85e08de5a9ae42d7a0cd2ff6227117238fb87620face4d1ca5f0ac3ff",
+        "src/lib/customer-workflows/routing.ts": "ca0d6edd3bed6a7614370e2ee60547dbc38642f939f9225e532fe9acc5cbda9d",
+        "src/lib/inbox-routing/hours-label.ts": "d3b4d93bad3c00dac5c2941eaf77f842a459481b0870f6e25e899a564cd27eff",
+        "src/lib/customer-workflows/actions.ts": "3a603df3cd88c37a98bf4626fa34f25cd89eba5e725ad38347fada272ed38c98",
+        "src/lib/customer-platform/sales-repository.ts": "59659ce721c8e93b86bb369d944e78fec59b2fbaafb4e04eb2011e97f634e28f",
+        "src/lib/customer-platform/sales-rules.ts": "ae732b5ec65cde17fa689959e356329629e599a2e8062e4a77b1f6fcf28738d9",
+        "src/lib/inbox/rules.ts": "4fbdffa5ee7a5da3d61d60f28865b6a91ac7507c18fcea3c049ed6259670b1e6",
+        "src/lib/customer-platform/identity.ts": "6eb22ee382d6a724b8407a471f48272dfc463d37bcff1da4702e874d90a97312",
+        "src/lib/inbox-routing/repository.ts": "88a2108c5f2c1213c3d40b6321eb187ff0f4f3c18fd2c8c36f8cebc87bfb6a75",
+        "src/lib/inbox-routing/rules.ts": "a5a30d419b5f32c6ad1d54915f701f7ca14e051d461978aeaad0281417635675",
+        "src/lib/auth.ts": "666edd18b12359fc83a26089cb53c9f421e8f87a0990e324261eda45f9209722",
+        "src/app/api/inbox/route.ts": "983ecc08310d670ecf0199aa68ede8d0cdeba2fcbdd116dbe80e551b259d4d93",
+        "src/lib/inbox/http.ts": "c8ab155687bc59b2178b446f9ec7c1a82e6b775e126cedbcfe0856fe5f4d1dd2",
+        "src/lib/tracker/rate-limit.ts": "0df07221776b90a4038d1adec4c19916488fcd5ebe4aaffff45be363d7d6bccb",
+        "src/app/api/inbox-reply-guard/route.ts": "d8cd4dd994299d2ff62acdf4c43a39e2703c4326f1f1c441634755f027ef8067",
+        "src/lib/inbox-reply-guard/routes.ts": "1f1cd272fc901470b42e423ca166b95aa47a65d7b1f1ca7c14311766324f60db",
+        "src/lib/customer-platform/external-auth.ts": "33b03714092f616837badc4ceaf21512fb5f2c4bbcd7ae7cbe492b5b9439d590",
+        "src/app/api/inbox/conversations/[id]/route.ts": "d2946def6c663f802c2498098def14346c4d5ad046fab03242a424368a49b763",
+        "src/app/api/inbox/conversations/[id]/attachments/route.ts": "7400f379881991c04dd7c903e40d13b4c723637e2b7f530f526bd187b97607fd",
+        "src/lib/inbox/file-http.ts": "9fe079b43b098d5d9eea2e84ebe4537c6b64b480466ebfc99b162591da075830",
+        "src/app/api/inbox/conversations/[id]/audit/route.ts": "e66214988acf28cc6fb2c32b2936bbbc3fc05e3c21605bd792e0e1e91b1a0cf9",
+        "src/app/api/inbox/conversations/[id]/customer/route.ts": "7f7bfc11048e68b141566de218530bfeef7c6da36a659804ec50ee34ecf251cb",
+        "src/lib/customer-platform/inbox-context.ts": "b60a0e44cc030173808771e549f9f1fc432cd9a4a4951f3a414fe4035b4f12ab",
+        "src/app/api/inbox-operations/conversations/[id]/route.ts": "441db384e792f83594958fd8fdf16ebe7ed0ae5b53c5abe1676cbf5513ad3d75",
+        "src/lib/inbox-operations/routes.ts": "e13274db361c1c50153564d4218842fe85752b62e50ad1f1d9d7f6bfb5720d8f",
+        "src/lib/customer-ai/http.ts": "7a4f79a22dd5192088cf707f0325261d8b4e39957588fd02969c430a558e7e40",
+        "src/lib/customer-platform/webhook-http.ts": "b3fa8c52add2804e71b9703155f375871e3bcd2a44e31a1cb034659bd15256e5",
+        "src/lib/customer-platform/webhook-repository.ts": "958771657438ac8fe358f703736322221fe89c8b56c2ea4f0ab32d7c1dd33fa2",
+        "src/lib/customer-platform/webhook-crypto.ts": "d5879ae5733e6fdade7cf8c843536dffe3e3865c95d92257ccf0f3088e3e8f6a",
+        "src/lib/secret-box.ts": "44f44040990fc3e225f6be0e8f5d2313d76988712da0c3edd28348c06527fcae",
+        "src/lib/inbox-operations/repository.ts": "492f07a09ba84837e621d3e8c3ce9f60f21596b15b68fce9451280f47f6b9193",
+        "src/lib/inbox-operations/reports.ts": "92eea2c8a4cb42593813943494dd3fba26178e04963a34df55f355c39a33eee1",
+        "src/app/api/inbox/attachments/[id]/route.ts": "83218528723ae1e7c21981a368f3ceeea2da69909e6db3d964f03d309264a4ac",
+        "src/app/api/messenger/[key]/route.ts": "eb6fcb51b1fa288b1468ecb70f33368cf64481094b45e0c1673f437833c74507",
+        "src/lib/inbox/link-identity.ts": "05834ecc2f48334aec33785f877ad0b209562c97264d5f7a5427ddf2f6035468",
+        "src/lib/inbox/visitor-profile.ts": "c6c46a3a4977672dbfb7ef51cb2e94099a1a59a51df6993b53e92bb65bb2b443",
+        "src/lib/inbox-customer-history/rules.ts": "05846175eee224ec822a0eb433a70eb222480ea87e7d89223a9a7f81da0c9803",
+        "src/lib/customer-platform/messenger-http.ts": "7f6898a2b1dc524797484df6e9c7a2f36e00960856194a5b9f6e80f32bcfab99",
+        "src/app/api/messenger/[key]/attachments/[id]/route.ts": "624af6ffb4e95cdd43c034cda11377f5b5f1f379a9e8fad4c69435150f87af54",
+        "src/components/inbox/api/index.ts": "e9666bc855b6c1639c3ca3b695a66b24a6753e9090a6f1232f8cc9eae8ddb402",
+        "src/components/inbox-operations/api/index.ts": "2d53dbcd01afa3cf08c55ce1aa11fd242b58b78f783d571f2f0f2e8e1ad1c5f0",
+        "src/components/inbox-operations/hooks/useOperations.ts": "fb7803cce21ae577007ac898d8d53143bffd135cacb621cc4fd8f07962256b04",
+        "src/components/inbox-operations/utils/display.ts": "dded3f459a0e824dcaba7df55ddc3908358c87f0b663a4472a7e48d360b7e28c",
+        "src/components/inbox-operations/ui/ConversationServiceStatus.tsx": "42a817db492ea6ba72d6de73fd755e485bbe92c212b2be8f05be3255f7a2d9ea",
+        "src/components/inbox-email/api/index.ts": "0627fb3930d36192998646b530f8fb2a679e7149f56f17943ee592335c78616d",
+        "src/components/inbox-email/ui/IncomingEmailFiles.tsx": "2773c513dc0ed49ab6203eec31de40d67ff16db96b5d7e6ad1d61bb9ffe2a9c5",
+        "src/components/customer-access/utils/abilities.ts": "ea230edcde03bb17bbd5d2e1ca00c7ee6ae1277b1badf9f380356dc76b4c5c4c",
+        "src/components/inbox/ui/AttachmentDrafts.tsx": "e92e14c78d0475ce818a20269ee0f34532877c8f349dbdd4455a0f466ff47f0f",
+        "src/components/inbox/ui/AttachmentList.tsx": "22e30e0e0596585a74868869540f1667e2273bf808cc414f9d913014e6be299e",
+        "src/components/inbox/ui/InboxAudit.tsx": "04fc3080b4848210c33a16c75a357d3c3fd62daa10c981fba8e6d5f90f9e083f",
+        "src/components/customer-records/utils/attributes.ts": "c392e1e44f81f67005290e52f258864e1550bf7f582b3338376b590ae3d54ca7",
+        "src/components/customer-records/ui/AttributesEditor.tsx": "606baa3f8c90e121c8a6ef7b418152d2c6c4ef05bd220e297541222e8213c4cd",
+        "src/lib/utils.ts": "605cb03771c8d65005bfe536d13b27d615376ca008cd27873df24a80ba043484",
+        "src/components/ui/button.tsx": "bd547a6d2e64a37abc4b6294936b776ba35aeb7e48b5ee513f1a48221c644ca9",
+        "src/components/ui/dialog.tsx": "ae5fcd184edd1f8070ffab1e1a9e29238ed0e5023fc6d0ee12ea56fe8027367e",
+        "src/components/customer-crm/ui/EntityEditor.tsx": "e3b0deb61eeed76f449289ed9adc102bdee10dbd19a0e0a20c760df02080b293",
+        "src/components/customer-crm/api/index.ts": "31f62cb660a6bef54167eee7b94a6f6cc5a1b8554b960cb3b8e7190aa676a1d8",
+        "src/components/customer-crm/ui/ActivityTimeline.tsx": "00f84e9899d1151f58f9dea6317ad2b87e72684d1e1381c1868ec1d790fe3326",
+        "src/components/inbox/ui/CustomerCrmContext.tsx": "e18cdf1c4c6a52647d1ed3195d965ae0226f320ab783bf4f9f0950c7285957c3",
+        "src/components/inbox-email/ui/EmailDeliveryStatus.tsx": "18641b119fbb921a764e790994af134aa819c67acb5948395605f5fc52a5e39d",
+        "src/components/inbox-email/ui/EmailReplyRecipients.tsx": "64679e10ac29d4e56e572cf53206ad7aaf76c761c9d7916825d5f1ec15488e61",
+        "src/components/inbox-email/hooks/useEmailReply.ts": "0749b057977a6d097992bfadd499bd4db415780a1fe0ae8cff94bd9b9a322e42",
+        "src/components/inbox-collaboration/hooks/useNoteMentions.ts": "c4e8e394a04fc4cfe71605bd5371886ff7c6904c3150356a0f890c1c53d6e899",
+        "src/components/inbox-collaboration/ui/NoteMentions.tsx": "5932c4af63499082b8fcfe9809878995c3351dd20561ed44ac0f3daae20875d9",
+        "src/components/inbox-collaboration/api/index.ts": "c11554c161c1792091450f444e1533cd1a6264c3c8f8303aa6ebcf25b5f3a8cb",
+        "src/components/inbox-collaboration/ui/MentionTargetCard.tsx": "b7fc4123de6feb4428b433e856b3daef29432940f22841fa661edaf1f12c4a20",
+        "src/components/customer-ai/api/index.ts": "904c5aa0934fd5115cb37d4dba4168177f86829b6ca2b67edfb691862c39a6b8",
+        "src/components/customer-ai/hooks/useSupportJobs.ts": "f72c86efe463469921af51bcfe1c59e68ec2d02f515abd531c0d4a58c1e7713a",
+        "src/components/customer-ai/ui/SupportDraftPanel.tsx": "08889cb52a73dcaaa9946652966798f8155f301a51e0f0457b7b284c85331453",
+        "src/components/inbox-routing/ui/TeamAssignment.tsx": "a2be747e6883002e3440c3f7acf0ce57feac8e808320d7bc5fc2a5cec0a0e704",
+        "src/components/inbox-presence/ui/ConversationPresence.tsx": "93f59d08b19a63f40166eca6923c3897231abcce093777f4fc8bce790b63a5d3",
+        "src/components/inbox-reply-guard/api/index.ts": "d343bd030c7a3f0874ec6dd77bfaf6338d3ed497f7f5a2bacdaa899d58c6a360",
+        "src/components/inbox-reply-guard/hooks/useReplyGuard.ts": "6a767ef080cfc081afff60f9db4db1d91661c137cb90da92bbca5ba509b11caa",
+        "src/components/inbox-reply-guard/ui/ReplyGuardStatus.tsx": "16ff2d1e0a8cb2f8f75d6ac0c67567d18180242c32a3e962dd6b7b79b4f0ea23"
+      },
+      "evidence": {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/staff-file-picker-qa/evidence.json",
+        "sha256": "5735575b0eff123243955a5d3f485f024634c68f26c2f9e513fcb49c14f2373f"
+      },
+      "cleanup": {
+        "checkedAt": "2026-10-15T16:29:00.4998575+09:00",
+        "ports": [
+          3138,
+          3139
+        ],
+        "listenerCount": 0,
+        "browserPid": 86828,
+        "browserPresent": false,
+        "fixtureExitCode": 0
+      },
+      "limitations": [
+        "Official Playwright FileChooser, not manual Windows Explorer",
+        "Keyed inquiry remount retains text in localStorage but clears File objects; no artificial host preservation",
+        "No live customer data, DB, Firebase or outbound services",
+        "Actual ConversationPane and API; not complete InboxPage or native Windows Explorer."
+      ]
+    }
+  },
+  "pageBoundaryQa": {
+    "designer": {
+      "capturedAt": "2026-10-15T07:26:18.586Z",
+      "scope": "Actual DH _app/FireAuthProvider/SupportAuthBridge/hooks/controller and actual CTA/guide/page/router components, fictional Firebase/network/business data, local Chrome extension CUA only.",
+      "browser": {
+        "auth": {
+          "url": "http://127.0.0.1:3141",
+          "checks": [
+            "초기 auth pending에서 SDK iframe 없음",
+            "비회원 확인 완료 뒤 실제 상담 열기",
+            "공개 페이지 익명→A 문서 대기에서 창/버튼 숨김",
+            "A 고객 문서 확인 뒤 비회원 작성 문구 보존",
+            "같은 UID auth 이벤트/정상 문서 갱신 뒤 초안 보존",
+            "A→B 문서 대기 즉시 이전 회원 iframe 제거·user null",
+            "구독 종료된 A 문서 callback이 B pending을 덮지 않음",
+            "무관한 재렌더에서도 B 문서 전 조기 회원 연결 없음",
+            "B 문서 오류에서 이전 A 문서/상담 없음",
+            "B 고객 확인 후 A 이력/초안 없이 새 문의 표시",
+            "B 문서 ID 불일치에서 iframe 제거",
+            "B 문서 삭제에서 iframe 제거",
+            "비공개 페이지 본문 pending gate 중에도 상담 계정 변경 관찰",
+            "A 토큰 지연 중 B가 먼저 ready; 늦은 A 응답 뒤 B 유지·identity HTTP는 B 1개뿐",
+            "열린 B 상담 로그아웃 뒤 익명 입력과 빈 문구",
+            "관리자 문서 수신 뒤 이전 회원 상담 제거와 기존 로그아웃 동작",
+            "비공개 페이지 첫 로그인 pending에서 실제 open 재요청도 숨김 유지·확인 후 초안 복원"
+          ],
+          "allPassed": true
+        },
+        "ui": {
+          "url": "http://127.0.0.1:3142",
+          "checks": [
+            "실제 SupportChatNotification 상담 연결과 onClose",
+            "실제 GuestFooter 상담 아이콘으로 열기",
+            "1278px 실제 SettingsSidebar 표시·모바일 메뉴 숨김·문의 열기",
+            "실제 GuidedFlowView mount에서 상담창/launcher 숨김",
+            "가이드→업무채팅→가이드 닫기 순서에서 계속 숨김; 경로 이탈 후 기존 초안 복원",
+            "업무채팅→가이드→경로 이탈 순서에서 계속 숨김; 실제 처음으로 종료 후 복원",
+            "실제 SupportChatBell 팝오버와 그 안의 상담 연결",
+            "390px 외부 프레임/389px 내부 viewport에서 실제 모바일 메뉴만 표시·문의 열기",
+            "푸터와 알림 아이콘의 한국어 접근성 이름"
+          ],
+          "allPassed": true,
+          "css": "Actual source globals + @source scanned Tailwind utilities; desktop md:hidden=none/md:flex=flex; mobile inverse verified via DOM computed style."
+        }
+      },
+      "sources": [
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\pages\\_app.tsx",
+          "sha256": "ef1fb570030cb5d2f2b668b4934984dab0d1459f4b019eef3fc33e9567296553"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\FireProvider\\FireAuthProvider.tsx",
+          "sha256": "1895cb46168a3bfd760b00c2ba13b464832b347b6c729830a882aa2fb1ff7e84"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\FireProvider\\utils\\authBoundary.ts",
+          "sha256": "8d53983d61dadae23871f6b7181ee1c9b4babdac6074748f42bb750e67eb089a"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\SupportAuthBridge.tsx",
+          "sha256": "a27c91cda8ba8e730ba0ad83e0598348e985b16686ccac7d9fc3251f61914173"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\utils\\authSession.ts",
+          "sha256": "de695491d2f8935b99893ccd5836622a30f921fe7a4641c9a51b2f0ae2b3348a"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\hooks\\common\\useChannelTalk.ts",
+          "sha256": "d43068336eb021db26e4d3e0b08da39e711aee9ec1fdfb89df8f2565562999d6"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\useSendbSupport.ts",
+          "sha256": "1b685d60f33fe6b1b443257c2e9b354614e95062cc276940787babe65146f734"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\runtime.ts",
+          "sha256": "14189ee5b33c6b03f075ba1bfadd94ce80a08bb025d9896a6b9732940780cd36"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\controller.ts",
+          "sha256": "a1c2848d0a6fc28b133ab141f66c1e8a59db9190c13170674c0b871ba6a3e7e3"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\loader.ts",
+          "sha256": "1a0996f596083947eea3f4ec5013a5d4041c9101d6d7d72be556bb4eed13d528"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\api.ts",
+          "sha256": "0e51a81aec7be6c4b75fe04dfa4aa6029b0cb79287b2a3b5f5b70ec9fa33b116"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\config.ts",
+          "sha256": "352c5bccc2584594b1bc8b139b998c504610cf09bfe34ad630a7c1d8e540c923"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\sendb\\SupportConnectionStatus.tsx",
+          "sha256": "c1a30d6189dbb8ab7f5fd5276871983be73ab5e5cb40c24f9a3d9afcbdafb08d"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\lib\\channelTalk.ts",
+          "sha256": "c5374fe5afc9fc140e48c0f18dd592d88cfdff30b9dd4ef79bbd12f1c5bda338"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\constants\\path.ts",
+          "sha256": "be3cf3ebab9012939cb56f509cff85230ef5e89e5ff3b3d212868bde0446f91d"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\types\\user.ts",
+          "sha256": "d807b1ec9e772157264d967b7440f1d36a434eb949fb960ef835c0b8e6627c42"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\layouts\\guest\\GuestFooter.tsx",
+          "sha256": "9ff6ba8c4fe5b4b6837e675ceb7cb5b5ad7a8ef458af2149d74bd944170564d7"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\auth\\settings\\SettingsSidebar.tsx",
+          "sha256": "bd0010feb1f7106c6de716005f2a53665353c2f2fcff00e0dfe06f8b1190b12d"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\pages\\main\\settings.tsx",
+          "sha256": "67868ede16ff036396c1fd010f22ec82776a8d2661d17a7ffa35e84c92d2c485"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\pages\\main\\chat.tsx",
+          "sha256": "80706144770521409628d3be712d373c849c151e42056f4fbe75544c5f907e52"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\SupportChatNotification.tsx",
+          "sha256": "d4ecce006e40d492d95c7e0a1066e0e6c255551b6fca55623d7f711b1d2ca11c"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\support-chat\\SupportChatBell.tsx",
+          "sha256": "f3efc9e0c052b42019191524fcffb7ef30f8f6062c078b4c890661daed2a8f3d"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\ai-request\\guided\\GuidedFlowView.tsx",
+          "sha256": "20f5d91fe511766a7e595c5e6393a8e12c902b61d4d62d2b8ab6c5898e22222f"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\ai-request\\guided\\GuidedChatPanel.tsx",
+          "sha256": "156c5b4b55918a2b1356a6e637e70cd881d37c66c304c17cd15751d4c76a9b3e"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\ai-request\\ui\\FormPanel.tsx",
+          "sha256": "d03eafdbcb6a91856e486aa17f206366ff044c6638402b8d061ac315c4d659f3"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\ai-request\\hooks\\useAiFormSync.ts",
+          "sha256": "12bd5a97d6d5ba774d57eb6d7380130f8b04e536ae587c49bd2c1c94f3abf19d"
+        },
+        {
+          "file": "F:\\Dev\\sendb-sites\\new-designer-hire\\src\\components\\ai-request\\guided\\useGuidedFlow.ts",
+          "sha256": "9ee5c1055a51b29c2672f7b87cef70d6c1d43238fdfcf0d42c7aef759ab54fa7"
+        }
+      ],
+      "tests": {
+        "allDesignerUnits": 90,
+        "authRelated": 40,
+        "actualSdkAuthTimeoutVm": 2
+      },
+      "limitations": [
+        "No actual Firebase or deployed domains/keys/server configuration/customer DB.",
+        "Private QA page body is a fixture inside actual AppContent and actual auth gate; business page contents are mocked.",
+        "Guide/payments/work chat/notifications data and side effects are fictional; actual provider effects and route lifetime are retained.",
+        "File chooser checks are separate evidence groups.",
+        "BO final-source browser QA is performed independently; not included in these26 checks."
+      ],
+      "artifacts": [
+        {
+          "name": "dh-auth-anonymous-merged-fixed.txt",
+          "sha256": "0acee9974ea7b7a1181f755e839767d5c17126635c8133bced10290d69de024c"
+        },
+        {
+          "name": "dh-auth-anonymous-pending-fixed.txt",
+          "sha256": "872f2daca0f11c8dbd0adf3d0f3b61f2d4da99c8d15961ad741aec896e07a287"
+        },
+        {
+          "name": "dh-auth-b-member-fixed.txt",
+          "sha256": "c7048e42b4ecadfcd5c24af25cff359d39cdf0aa2fade0dd3450190e0102cb3d"
+        },
+        {
+          "name": "dh-auth-logout-anonymous-fixed.txt",
+          "sha256": "4bb2071f34b94d21339536b6876f2cf732ca9568f30c3dac2ab1200a9e24d931"
+        },
+        {
+          "name": "dh-auth-logout-fixed.txt",
+          "sha256": "fd06883e294942d333fc4cc8e69dd52b8fc6899882c228f298168a08b06d4b8f"
+        },
+        {
+          "name": "dh-auth-member-error-fixed.txt",
+          "sha256": "1c01cd60c8180d34f22778ed8aa166072a0c2a921cd1f18c85cabf9ea3c003e0"
+        },
+        {
+          "name": "dh-auth-member-pending-fixed.txt",
+          "sha256": "f8aa868a43131dc2f3d2b75a97e38db9233d2b9364d4ff09b17716b55d8e54a8"
+        },
+        {
+          "name": "dh-auth-private-anonymous-restored.txt",
+          "sha256": "5575fddd28215198137b9ec4285158255a4beb5de289b63df96f3bd8f0e845b8"
+        },
+        {
+          "name": "dh-auth-private-pending-fixed.txt",
+          "sha256": "2fd21cb385d291acec6359fb18f88d161ae5b7892ddcbb4fd7756bedaa4d4fb3"
+        },
+        {
+          "name": "dh-auth-role-blocked-fixed.txt",
+          "sha256": "088e4d9d0bc5b623aa26ddfc8ea232de64d1cb5a2ab0f868ff9d24ba2166fb6c"
+        },
+        {
+          "name": "dh-auth-token-race-fixed.txt",
+          "sha256": "e4c810d83af143263ce96f17a03e36bc507eaf3edc333b220eec1bc1502cada3"
+        },
+        {
+          "name": "dh-auth-token-race-requests.json",
+          "sha256": "6784b814e680f4f7512f06e6350bf0b97a3a03c5fd3f857fb08dfd8ba153be41"
+        },
+        {
+          "name": "dh-ui-footer-notification-final.txt",
+          "sha256": "a898561b84649ba48b88cd9809de99d463433ca2bbfb21e9207b17c7d49e89d5"
+        },
+        {
+          "name": "dh-ui-guide-closed-on-chat.txt",
+          "sha256": "35aeb671c89266b24a3b1f910277a21e7746e23f0bd00ea3d7f9c1d0d86dc8b5"
+        },
+        {
+          "name": "dh-ui-guide-mounted.txt",
+          "sha256": "c97f51ec5feda68585023108699136309cf3fe9b52e5c53a2015c17292d6951e"
+        },
+        {
+          "name": "dh-ui-mobile-settings.png",
+          "sha256": "282ce1ef411f6d6234b7c66dc11a9dd02be19182a3b2dbf341acfedf3a3f7bf9"
+        },
+        {
+          "name": "dh-ui-mobile-settings.txt",
+          "sha256": "613eaa6120fec3f8bfa9c1f0f0459527a63a7b97090bb3cb489745d9d0ae0807"
+        },
+        {
+          "name": "dh-ui-nested-restored.txt",
+          "sha256": "ef23d5be49e96d15d1bc99da62e0587d41846b9caeafc597c74cfb30af4235dd"
+        }
+      ]
+    },
+    "backoffice": {
+      "verifiedAt": "2026-10-15T07:31:50.979Z",
+      "evidence": {
+        "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/bo-final-browser-qa/evidence.json",
+        "sha256": "de3afb640c8ff9218072c415bbb5e9466c1855ca5dcb28295d46cec151bc03f3"
+      },
+      "sourceCount": 25,
+      "currentSourcesMatch": true,
+      "coreLiveChecksPassed": true,
+      "checks": [
+        {
+          "name": "context profile 503 injected",
+          "pass": true,
+          "at": "2026-10-15T07:19:33.196Z",
+          "profile": "가상 BO 최종 bo-final-1792048744638"
+        },
+        {
+          "name": "real consult submitted once and routed home",
+          "pass": true,
+          "at": "2026-10-15T07:19:49.973Z"
+        },
+        {
+          "name": "same iframe retained after router navigation",
+          "pass": true,
+          "at": "2026-10-15T07:19:49.974Z"
+        },
+        {
+          "name": "one own named save to each fictional sink",
+          "pass": true,
+          "at": "2026-10-15T07:19:49.975Z"
+        },
+        {
+          "name": "one bounded fictional SMS after one submission",
+          "pass": true,
+          "details": {
+            "before": {
+              "consultRequests": 3,
+              "notion": 3,
+              "sendb": 3,
+              "sms": 3
+            },
+            "after": {
+              "consultRequests": 4,
+              "notion": 4,
+              "sendb": 4,
+              "sms": 4
+            }
+          },
+          "at": "2026-10-15T07:19:49.975Z"
+        },
+        {
+          "name": "existing unsent draft preserved after profile503 retry",
+          "pass": true,
+          "at": "2026-10-15T07:21:07.258Z"
+        },
+        {
+          "name": "profile retry actual API succeeded",
+          "pass": true,
+          "at": "2026-10-15T07:21:07.258Z"
+        },
+        {
+          "name": "app mount preserved across consult to home",
+          "pass": true,
+          "at": "2026-10-15T07:21:07.260Z"
+        },
+        {
+          "name": "profile retry no additional consult/save/SMS",
+          "pass": true,
+          "at": "2026-10-15T07:21:07.272Z"
+        },
+        {
+          "name": "actual submission draft restored",
+          "pass": true,
+          "at": "2026-10-15T07:21:07.435Z"
+        },
+        {
+          "name": "context detail 503 injected",
+          "pass": true,
+          "at": "2026-10-15T07:21:10.640Z"
+        }
+      ],
+      "recoveredObservations": {
+        "provenance": "Recorded after the07:21:15Z disk checkpoint from successful Node REPL tool outputs and retained screenshot artifacts. This is not a recovered full network log.",
+        "checks": [
+          {
+            "name": "SDK15s ready timeout appeared with same iframe and textarea text retained",
+            "pass": true,
+            "observedAt": "2026-10-15T07:21:31Z",
+            "evidence": "06-ready-timeout.png; assertion completed in Node REPL"
+          },
+          {
+            "name": "Actual retry reached ready, same iframe identity and exact draft unchanged",
+            "pass": true,
+            "observedAt": "2026-10-15T07:21:51Z",
+            "evidence": "07-reconnected-draft.png; assertion completed in Node REPL"
+          },
+          {
+            "name": "Readiness retries did not repeat consult/save/SMS",
+            "pass": true,
+            "observedAt": "2026-10-15T07:21:51Z",
+            "evidence": "In-memory afterReadiness state compared equal to saved postSubmit and consult POST count remained1; assertion passed"
+          },
+          {
+            "name": "Loaded SDK1.4 query,version,and served source SHA equal final source",
+            "pass": true,
+            "observedAt": "2026-10-15T07:21:51Z",
+            "url": "http://127.0.0.1:3120/sendb-sdk.js?v=1.4.0",
+            "version": "1.4.0",
+            "sha256": "ddfae22f5ce169711829ca97113dd41b91005b01ade10ba574e75933d75824ec"
+          },
+          {
+            "name": "Mobile messenger and composer controls fit390x844 viewport",
+            "pass": true,
+            "evidence": "08-mobile-home-chat.png and returned rectangle measurements",
+            "hostIframe": {
+              "x": 12,
+              "y": 68,
+              "width": 358,
+              "height": 680
+            },
+            "frame": {
+              "width": 356,
+              "height": 678,
+              "scrollWidth": 356
+            },
+            "composer": {
+              "x": 29,
+              "y": 554,
+              "right": 282,
+              "bottom": 594
+            },
+            "send": {
+              "x": 290,
+              "y": 557,
+              "right": 327,
+              "bottom": 594
+            },
+            "attachment": {
+              "x": 16,
+              "y": 607,
+              "right": 214.40625,
+              "bottom": 635
+            }
+          },
+          {
+            "name": "Mobile real consult top and submit/footer visible without clipping required form controls",
+            "pass": true,
+            "evidence": [
+              "10-mobile-consult-top.png",
+              "11-mobile-consult-submit.png"
+            ],
+            "provenance": "Visual inspection; last numeric mobile/hidden-frame assertions were not persisted after REPL timeout"
+          }
+        ]
+      },
+      "networkLogCoverage": {
+        "original": "Only requests saved through07:21:15Z are in requests[]. Later readiness recovery succeeded but its complete request objects were lost with REPL reset.",
+        "knownInjectedFailures": 2,
+        "additionalObservedFailure": "First real profile retry CORS ERR_FAILED; next retry actual API200. Shared failProfileOnce503 lacking CORS is a plausible pre-existing fixture cause, not directly proven.",
+        "externalRequestsInSavedLog": 0
+      },
+      "mobileLayoutCaveat": {
+        "firstResizedHome": {
+          "viewport": 390,
+          "scrollWidth": 428
+        },
+        "visibleViewport": "Home CTA and entire messenger/composer visible in09/08 screenshots.",
+        "cause": "Unresolved beyond current viewport; no support-chat clipping observed. Existing marquee elements extend beyond viewport within clipping ancestors, which alone does not prove the38px root overflow cause.",
+        "invalidLaterCheck": "A separate fresh page returned empty Next500 fallback. Its390px scrollWidth is invalid as product layout evidence and excluded."
+      },
+      "environmentInterruption": {
+        "error": "ModuleBuildError ENOENT F:/Dev/sendb-sites/back-office-lab/node_modules/motion/dist/es/motion/lib/react.mjs",
+        "parentConfirmation": "Main BO owner reported a package-manager mistake had changed local node_modules while this QA was finishing; restoration owned by main.",
+        "impact": "Core interaction and screenshots01-11 had completed before the observed missing-dependency error. Further requests/tests stopped. No source or dependency repairs by this reviewer.",
+        "observedDuring": "Post-screenshot follow-up, after mobile screenshots10/11 at2026-10-15T07:22:25Z. Exact browser failure timestamp was not retained."
+      },
+      "cleanup": {
+        "primaryContext": "REPL timeout reset disposed primary session; following process inventory found no matching headless browser. No explicit browser.close could be issued after reset.",
+        "lastIsolatedMobileContext": "Explicit context.close and browser.close completed in Node REPL.",
+        "otherOwnedBrowser": {
+          "pid": 86828,
+          "owner": "/root/api_review",
+          "profile": "F:/Temp/playwright_chromiumdev_profile-qbuUMx",
+          "action": "not touched; owner responsible"
+        },
+        "sharedServers": "Existing3140/3120/3121 servers were not stopped, reset or reconfigured.",
+        "finalReadOnlyProcessInventory": {
+          "ownHeadlessBrowsersFound": 0,
+          "otherHeadlessBrowserPids": [
+            86828
+          ],
+          "otherOwnerConfirmedByParent": true
+        }
+      },
+      "buildEnvironmentRestoration": {
+        "status": "passed",
+        "manager": "Original npm package-lock.json retained; npm ci --ignore-scripts --no-audit --no-fund",
+        "packageManifestsUnchanged": true,
+        "packageLockSha256": "666528e66c453c592c3b87c9077d1f7eb92913e2d93b87a54c25236e1d56268d",
+        "generatedPnpmFiles": "Moved only the two newly generated pnpm files into local evidence; not committed.",
+        "stoppedQaServers": "Revalidated3140 chain and obsolete3125/3126 source fixture chain, then stopped exact owners to release native module. No unrelated process stopped.",
+        "restored": {
+          "pages": [
+            {
+              "route": "/consult/",
+              "status": 200
+            },
+            {
+              "route": "/",
+              "status": 200
+            }
+          ],
+          "externalSends": 0,
+          "units": 18,
+          "staticBuildPages": 10,
+          "liveChromeSnapshot": {
+            "file": "bo-page-restored-smoke.txt",
+            "sha256": "77f8072e8757f8f7883814870685332ba71b828b553572f05b67cf02f6625b82"
+          }
+        },
+        "history": "Package-manager choice mistake changed local node_modules and produced later Next500 after independent core live checks. Initial native lock restore failed; exact owned BO dev processes were stopped before successful npm restore. Original success evidence and environment interruption retained separately."
+      }
+    },
+    "finalChecks": {
+      "capturedAt": "2026-10-15T07:37:47.957Z",
+      "designerUnits": 90,
+      "backofficeUnits": 18,
+      "designerStaticPages": 30,
+      "backofficeStaticPages": 10,
+      "logs": [
+        {
+          "file": "page-boundary-dh-all-units.log",
+          "sha256": "89eb2044c0dd019279ff5a240570d746cb464f2f4147e00778ca5d1adc178a75"
+        },
+        {
+          "file": "page-boundary-dh-build.log",
+          "sha256": "e00f4b190bfc613d1deca247164e952baa1693d28b2970e69a6944279eee2f30"
+        },
+        {
+          "file": "page-boundary-bo-units-restored.log",
+          "sha256": "6a389e15619756112d639c33392c659f463a63f0fe32b27f03fc86619d500f3b"
+        },
+        {
+          "file": "page-boundary-bo-build-restored.log",
+          "sha256": "6775fb3a35eab68148ddf0cb97525e0af2f212dfd62b73d365b202de4c86d614"
+        },
+        {
+          "file": "page-boundary-bo-dependency-restore-verified.log",
+          "sha256": "97c9c486ba483fb28d7ff58378517c6687ff40c8d7648ddefdd81ccae1b22d05"
+        },
+        {
+          "file": "page-boundary-bo-restored-smoke.log",
+          "sha256": "64272c925a25cf156d88683e952359e86289dacc37dac1665d1058aedbed4cca"
+        }
+      ],
+      "realSdkCrossVm": {
+        "designerAuthTimeout": 2,
+        "backofficeReadinessRecovery": 6
+      },
+      "operatingDeploy": false,
+      "notes": "Source auth/controller/CTA fixes on feature branches only. Root product source unchanged; docs and evidence update only. Existing source checks/types/lint retained; no redundant full root product rerun."
+    },
+    "release": {
+      "designer": {
+        "head": "ea47ee016e21d32be34e027c599bba2bbf5b7966",
+        "branch": "codex/sendb-support-integration",
+        "pr": 25
+      },
+      "backoffice": {
+        "head": "400cad49173a827cf0565849fba791977aab5cfb",
+        "branch": "codex/sendb-support-integration",
+        "pr": 2
+      },
+      "server": {
+        "head": "a546d56c251f5f2b7b9beb8d087c0df8d5b9b4e3",
+        "branch": "codex/sendb-support-integration",
+        "pr": 1
+      },
+      "mergeCompatibility": {
+        "method": "git merge-tree --write-tree HEAD origin/main; writes no branch/ref or worktree changes",
+        "designerMain": "ed7c86c0116419d9bd543593efb015a2a8a54799",
+        "backofficeMain": "b3c373bcefceefd2f1695df9d751d043bf84d36a",
+        "conflicts": false,
+        "limitation": "Conflict check only; combined upstream task/profile changes not included in the site source test builds."
+      },
+      "operatingDeploy": false
+    }
+  },
+  "transitionReadiness": {
+    "source": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/transition-readiness.json",
+    "sha256": "462dc389454a23a2b1ccae4b29a478390c1e5a23d6342d114b60d9be6702cb89",
+    "kind": "Independent read-only preparation, not executed deployment proof",
+    "integratedDocument": "SITE-INTEGRATION.md",
+    "localPageAndFileGaps": "Current actual page and three file chooser groups are verified; remaining real environment/data/team/AI/performance/policy and advanced requirements retained in R01-R16.",
+    "operatingDeploy": false
   }
 }

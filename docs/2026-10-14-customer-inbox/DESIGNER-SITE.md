@@ -1,6 +1,6 @@
 # 디자이너하이어 상담 연결 UX와 검수
 
-2026-10-15 · [디하 웹 초안 PR25](https://github.com/matches-plan/new-designer-hire/pull/25), `codex/sendb-support-integration` / `03e864e12939b8248692e15233e043df0f7430f8`. 기준 main은 `025036ce6dbb917e0358b5f98b6558010a7df090`이다. 서버 교환은 [디하 서버 초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1), 샌드비 SDK/위젯은 [초안 PR14](https://github.com/pjk0007/salesflow/pull/14)에 의존한다. 모두 검토용이며 실제 서버/키/출처 설정·main/master 병합·운영 배포는 수행하지 않았다.
+2026-10-15 · [디하 웹 초안 PR25](https://github.com/matches-plan/new-designer-hire/pull/25), `codex/sendb-support-integration` / `ea47ee016e21d32be34e027c599bba2bbf5b7966`. 기준 main은 `025036ce6dbb917e0358b5f98b6558010a7df090`이다. 서버 교환은 [디하 서버 초안 PR1](https://github.com/matches-plan/designer-hire-server/pull/1), 샌드비 SDK/위젯은 [초안 PR14](https://github.com/pjk0007/salesflow/pull/14)에 의존한다. 모두 검토용이며 실제 서버/키/출처 설정·main/master 병합·운영 배포는 수행하지 않았다.
 
 ## 고객이 사용하는 흐름
 
@@ -21,7 +21,7 @@
 
 실제 값은 이번 작업에서 생성/수정하지 않았다. 브라우저의 공개 변수는 `NEXT_PUBLIC_SUPPORT_PROVIDER=sendb`, `NEXT_PUBLIC_SENDB_SUPPORT_API_BASE`, `NEXT_PUBLIC_SENDB_SUPPORT_CHANNEL_KEY`, `NEXT_PUBLIC_SENDB_SUPPORT_IDENTITY_URL`이다. identity URL은 Firebase 함수까지 포함하는 전체 `/api/support/identity` 주소다. API 서비스 키·서명 비밀과 사업/채널 권한은 서버 전용이다.
 
-공급자 미설정은 기존 채널톡을 유지한다. sendb 선택 후 설정/인증 실패는 오류를 표시하며 다른 고객의 익명 상담이나 채널톡을 자동 시작하지 않는다. SDK 1.2.0 이상의 `showLauncher/hideLauncher/getSessionType`가 필요하다. `getSessionType`은 SDK 로컬 상태이며 로그인 검증·접근 권한 증명이 아니다. 고객 검증과 범위 확인은 서버가 한다. 샌드비 설치 출처와 디하 서버 허용 origin을 함께 검토해야 한다.
+공급자 미설정은 기존 채널톡을 유지한다. sendb 선택 후 설정/인증 실패는 오류를 표시하며 다른 고객의 익명 상담이나 채널톡을 자동 시작하지 않는다. SDK 1.4.0 이상의 `showLauncher/hideLauncher/getSessionType/reconnect`가 필요하다. `getSessionType`은 SDK 로컬 상태이며 로그인 검증·접근 권한 증명이 아니다. 고객 검증과 범위 확인은 서버가 한다. 샌드비 설치 출처와 디하 서버 허용 origin을 함께 검토해야 한다.
 
 서버의 Firebase 확인→고객 upsert→회원 인증과 재현 명령은 [SITE-INTEGRATION.md](SITE-INTEGRATION.md), SDK 계약은 [API.md](API.md)를 따른다. 관련 PR의 앱·서버·SDK 버전과 공개 설정을 함께 검토한 뒤 별도 승인된 환경에서 설치해야 한다.
 
@@ -34,5 +34,7 @@ Chrome의 포트3124 검수 앱은 실제 디하 `useChannelTalk`, `ChannelServi
 샌드비 SDK 실제 JS의 가상 DOM 검사4, 기존 플랫폼 API11·회원연결12도 통과했다. 일반 사이트 button CSS가 hidden을 덮던 문제를 inline display 제어로 보완하고 실제 화면에서 확인했다. 숨긴 위젯을 처음 열 때 최신 답변 대신 첫 대화가 보이던 문제는 열기 상태에도 스크롤 효과를 실행해 수정했으며, 위로 이동해 과거 대화를 읽다가 닫고 열 때 위치0을 유지하는 것을 확인했다.
 
 검수 소스·로그·화면의 해시는 `evidence-manifest.json`의 `designerFrontendQa`에 기록한다. 로그와 이미지는 로컬 `artifacts/sendb-replacement-20261014`에 보존한다. 이전 `siteIdentityQa`는 당시 서버 검수의 기록이고 최신 프런트 진척은 새 필드를 따른다.
+
+추가 실제 _app/FireAuthProvider/SupportAuthBridge 조립에서 계정 전환 후 이전 문서가 남는 결함을 재현해 수정했다. 공개/비공개 로그인 대기에는 기존 회원을 즉시 정리하고 익명 초안은 숨겨 보존한다. Chrome 인증17/실제 CTA·가이드·라우터9개, 전체 단위90·관련40·실제 SDK 최초준비실패 교차VM2·격리30페이지 빌드를 통과했다. 자세한 범위와 전환 준비는 [SITE-INTEGRATION.md](SITE-INTEGRATION.md), `pageBoundaryQa.designer`를 따른다.
 
 백오랩 프런트도 별도 초안 PR2에서 구현/격리 검수했으며 최신 상태는 [BACKOFFICE-SITE.md](BACKOFFICE-SITE.md)를 따른다. 실제 설치/배포·Firebase/전체 페이지·팀 업무·부하·지원 자료 이전과 전체 서비스 전환은 남아 있다. 운영 DB 접근·실제 고객 대화·메일·SMS·Google Chat 전송은 수행하지 않았다.

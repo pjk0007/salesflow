@@ -1,6 +1,6 @@
 # 백오피스랩 신청 후 상담 연결
 
-2026-10-15 · [백오랩 웹 초안 PR2](https://github.com/matches-plan/back-office-lab/pull/2), `codex/sendb-support-integration` / `ad32e4555725272fe2851430a3b5cbeea272bac2`. 기준 main은 `6604ba06ce3624f68a420078c2d32d1bdd12ad51`이다. [샌드비 초안 PR14](https://github.com/pjk0007/salesflow/pull/14)의 SDK1.3과 비회원 입력 정보 API에 의존한다. 실제 설정/키 변경·main 병합·운영 서버 배포는 수행하지 않았다.
+2026-10-15 · [백오랩 웹 초안 PR2](https://github.com/matches-plan/back-office-lab/pull/2), `codex/sendb-support-integration` / `400cad49173a827cf0565849fba791977aab5cfb`. 기준 main은 `6604ba06ce3624f68a420078c2d32d1bdd12ad51`이다. [샌드비 초안 PR14](https://github.com/pjk0007/salesflow/pull/14)의 SDK1.4와 비회원 입력 정보 API에 의존한다. 실제 설정/키 변경·main 병합·운영 서버 배포는 수행하지 않았다.
 
 ## 고객과 상담원의 흐름
 
@@ -41,5 +41,7 @@ node --import tsx scripts/check-inbox.cjs
 ```
 
 SQL 검사는 기존 `.testenv/test-runtime`의 PGlite를 사용한다. 실제 DB URL이나 사이트 환경 파일을 연결하지 않는다.
+
+추가 단위18·실제 SDK 교차VM6·앱/테스트 타입·기능 lint를 확인했다. 로더는 SDK1.4/필수 기능을 검사하고 SDK 오류를 구독하며 최초 준비 timeout도 같은 익명 iframe의 reconnect로 복구한다. 실제 _app·consult→홈·Pages Router 조립의 별도 Chrome에서 앱1회 mount/초안 유지·프로필503/15초 준비 timeout 복구·추가 신청0을 확인했다. 로컬 의존성 변경 사건과 복구 후 페이지200/빌드는 별도 증거로 남긴다. 390px에서 상담/폼 controls는 확인했지만 홈38px overflow 원인은 미확정이다.
 
 실제 도메인/배포 커밋·전체 사업 페이지/팀 업무·부하·설정/설치·지원 자료 이전·전체 대체 전환은 후속이다. 실제 고객 전송·운영 DB 접근·실제 Notion/SMS·서버 반영은 수행하지 않았다. 전체 목표는 [REPLACEMENT.md](REPLACEMENT.md), 사이트별 상태는 [SITE-INTEGRATION.md](SITE-INTEGRATION.md)를 따른다.

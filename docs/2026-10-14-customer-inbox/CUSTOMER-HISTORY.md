@@ -79,4 +79,4 @@ await messenger.sendMessage(created.conversationId, {
 - Chrome15개 흐름: 두 사업 문의 생성/전환, 문장 보존, 전송 전 빈 문의 없음, 전체 미확인/선택 읽음, 회원 변경, 비회원/명시적 회원 연결, 실제 API503/준비 타임아웃 후 복구와 초기10초 조회 지연/문의 없는 회원의 초안 보존을 확인했다. 원본 화면·로그·소스 해시는 `evidence-manifest.json`의 `customerHistoryQa`에 기록한다.
 - 가상 문의10,000개·메시지100,170개·2사업20회원의 전체 목록/검색/읽음 정확성과 로컬 지연은 PGlite/독립 PostgreSQL에서 추가 검수했다. [방법·수치·한계](CUSTOMER-HISTORY-SCALE.md).
 
-파일 선택기 전체 UI 검수는 Chrome 확장의 로컬 파일 권한 때문에 미완료다. multipart API/SDK와 File 객체/업로드 정보의 그룹 이동은 검사했다. 실제 Firebase·사이트 도메인·고객 데이터·기기 간 실제 세션·운영 동시 부하와 직원 업무 검수는 이 결과로 완료 선언하지 않는다. 전체 전환 상태는 [REPLACEMENT.md](REPLACEMENT.md)를 따른다.
+고객 위젯 파일 선택→문의 전환/초안 보존→multipart 전송→미리보기/다운로드는 별도 격리 Chrome의 공식 FileChooser API로 14개 시나리오를 추가 통과했다. 소스19개 전후/현재 일치, 다운로드4개의 원본 SHA256 일치와 두 화면 크기를 확인했다. 네이티브 Windows 파일 탐색기나 직원 첨부 UI 검수는 포함하지 않는다. [범위·한계](FILES-AUDIT.md), `evidence-manifest.json`의 `filePickerQa.groups.customerWidget`을 따른다. 실제 Firebase·사이트 도메인·고객 데이터·기기 간 실제 세션·운영 동시 부하와 직원 업무 검수는 이 결과로 완료 선언하지 않는다. 전체 전환 상태는 [REPLACEMENT.md](REPLACEMENT.md)를 따른다.
