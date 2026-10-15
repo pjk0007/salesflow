@@ -33,6 +33,7 @@ export interface JourneyCardSummary {
     lastActivityAt: Date;
     company: string;
     person: string;
+    phones: string[];
     stage: string;
     completed: boolean;
     totalSeconds: number | null;
@@ -66,9 +67,15 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
     const { events, verdict } = evaluateJourney(input, now);
     const lastActivityAt = new Date(Math.max((verdict.lastActivityAt ?? s.startedAt).getTime(), input.audience?.lastActivityAt.getTime() ?? 0));
     const contacts = { company: "", name: "" };
+    const phones = new Map<string, string>();
     for (const f of input.fields) {
         const kind = contactKindOf(f);
         if ((kind === "company" || kind === "name") && !contacts[kind]) contacts[kind] = clean(f.value, 90);
+        if (kind === "phone") {
+            const value = f.value.trim();
+            const number = value.replace(/[\s().-]/g, "");
+            if (/^\+?\d{8,15}$/.test(number) && !phones.has(number)) phones.set(number, value);
+        }
     }
     // 세션 종료/측정된 길이까지만 쓴다. now와의 차이를 마지막 페이지 체류로 계산하지 않는다.
     const measuredEnd = s.endedAt && s.endedAt <= now ? s.endedAt : s.duration !== null && s.duration >= 0
@@ -114,6 +121,7 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         eligible,
         chatEligible, chatSuppressionReason,
         lastActivityAt, company: contacts.company || "회사 정보 없음", person: contacts.name || clean(input.recipientEmail, 120),
+        phones: [...phones.values()],
         stage, completed,
         totalSeconds,
         pages, sections: [...sectionMap].map(([label, seconds]) => ({ label, seconds })).sort((a, b) => b.seconds - a.seconds),
@@ -134,7 +142,8 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date, notificatio
     const priority = assessedPriority ?? summary.priority;
     const priorityLabel = journeyPriorityLabel(priority);
     const prefix = priority.tier === "normal" ? "" : priority.tier === "urgent" ? `🔴 ${priorityLabel} | ` : `🟠 ${priorityLabel} | `;
-    const text = `${prefix}${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}`;
+    const phoneText = summary.phones.join(" · ") || "CRM에 등록된 연락처 없음";
+    const text = `${prefix}${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}\n연락처: ${phoneText}`;
     const ownerNote = notification ? notification.state === "tag" ? `담당자: ${clean(notification.ownerName)} · 확인 요청`
         : notification.state === "handled" ? `담당자: ${clean(notification.ownerName)} · 후속 대응 상태에 따라 추가 태그 생략`
         : `담당자: ${clean(notification.ownerName)} · 최근 24시간 내 확인 요청이 있어 재태그 생략` : "담당자 태그 연결 없음 · CRM에서 담당자 확인 필요";
@@ -152,6 +161,7 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date, notificatio
                         ...(priority.tier === "urgent" ? [paragraph(html(ownerNote))] : []),
                     ] }] : []),
                     { header: "누가 · 어떤 메일에서 왔나", widgets: [
+                        paragraph(`<b>연락처: ${html(phoneText)}</b>`),
                         paragraph(`${html(clean(input.recipientEmail))}<br>메일: ${html(clean(input.subject || "제목 없음"))}<br>링크 클릭 ${formatKstShort(input.clickedAt)} · 방문 ${formatKstShort(input.session.startedAt)}<br>메일 열람 여부: 수집하지 않음 · 링크 클릭 확인`),
                     ] },
                     { header: "여정과 마지막 도달 단계", widgets: [
@@ -177,6 +187,7 @@ export type JourneyCardMessage = ReturnType<typeof buildJourneyCard>;
 export const journeyPreviewText = (input: JourneyCardInput, now: Date): string => {
     const s = summarizeJourney(input, now);
     return clipChars([`[샌드비 고객 여정 · 예시 / 가상 고객]`, `${s.company} · ${s.person}`, `사업: ${input.businessName}`,
+        `연락처: ${s.phones.join(" · ") || "CRM에 등록된 연락처 없음"}`,
         `상태: ${s.completed ? "완료" : "이탈 추정"} · ${s.stage}`, `체류: ${durationLabel(s.totalSeconds)}`,
         "", "방문 순서 (페이지 시간은 추정)", ...s.pages.map((p) => `• ${p.title} · ${durationLabel(p.seconds)}`),
         "", "관심 영역 (측정값)", ...s.sections.map((p) => `• ${p.label} · ${durationLabel(p.seconds)}`),
