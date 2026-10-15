@@ -16,7 +16,7 @@
 직원 세션의 `/api/inbox`와 사업 범위 서비스 토큰의 `/api/v1/inbox`가 같은 저장 로직을 사용한다. 서비스 키는 발급자의 현재 사업 권한을 넘지 못한다.
 
 - `GET /api/v1/inbox/channels/{channelId}/teammates`: 현재 사업을 열람할 수 있는 `{id,name}[]`. 네이티브 화면은 bootstrap의 `mentionMembers`를 사용한다. 응대 담당자 후보인 기존 `members`와 구분한다.
-- `POST /api/v1/inbox/conversations/{id}/messages`: `{kind:"note",body,clientId,attachmentIds?,mentionedUserIds:UUID[]}`. UUID는 중복 없이 최대 20개다. 공개 답변에 멘션을 붙이면 거절한다. 방문자 API는 직원 호출 기능을 제공하지 않는다.
+- `POST /api/v1/inbox/conversations/{id}`: `{kind:"note",body,clientId,attachmentIds?,mentionedUserIds:UUID[]}`. UUID는 중복 없이 최대 20개다. 공개 답변에 멘션을 붙이면 거절한다. 방문자 API는 직원 호출 기능을 제공하지 않는다.
 - `GET /api/v1/inbox/conversations/{id}?focusMessageId=N`: 해당 상담의 내부 메모만 `focusedMessage`로 반환한다. 기본 `messages`의 최신 100건과 별도로 원문을 찾는다. 다른 상담/사업/조직의 번호나 공개 메시지는 거절한다. 기존 `before` 메시지 커서와 함께 사용할 수 있다.
 - 상담 목록 `filter=mentioned`: 현재 인증된 직원 자신이 멘션된 상담이다. 다른 직원 ID를 입력해 목록을 바꿀 수 없다.
 - 알림은 `type:"mentioned"`, `messageId:number`를 포함한다. 기존 개인 알림 조회·읽음 API를 재사용한다.
@@ -52,4 +52,6 @@ const detail = await client.inboxConversation(conversationId, undefined, message
 
 ## 실제 사이트 연결 확인
 
-확인한 `F:/Users/PW1234/Documents/projects/designer-hire-desktop`은 `designer-hire.com/login`을 여는 Electron 앱이다. 기존 `partners/package.json` 수정은 보존했고 이 저장소는 수정하지 않았다. 연결된 `isaackimmatches/goal-designer-hire-com-4-qa`는 QA 보고서·이미지 등 244개 파일이며 실제 웹 서버/로그인 소스가 아니다. 후속으로 기존 Git 로그인에서 `matches-plan` 비공개 저장소를 찾았다. `new-designer-hire`의 Firebase 회원 인증·채널톡 hook, `back-office-lab`의 채널톡·기존 Sendb 문의 저장, `designer-hire-server` Cloud Functions를 확인했다. [SITE-SOURCES.md](SITE-SOURCES.md)에 고정 소스와 남은 설치 검수를 기록했다. 해당 저장소를 수정하거나 실제 사이트에 배포하지 않았으며 로컬 예제를 실제 서비스 설치 완료로 취급하지 않는다.
+확인한 `F:/Users/PW1234/Documents/projects/designer-hire-desktop`은 `designer-hire.com/login`을 여는 Electron 앱이다. 기존 `partners/package.json` 수정은 보존했고 이 저장소는 수정하지 않았다. 연결된 `isaackimmatches/goal-designer-hire-com-4-qa`는 QA 보고서·이미지 등 244개 파일이며 실제 웹 서버/로그인 소스가 아니다. 후속으로 기존 Git 로그인에서 `matches-plan` 비공개 저장소를 찾았다. `new-designer-hire`의 Firebase 회원 인증·채널톡 hook, `back-office-lab`의 채널톡·기존 Sendb 문의 저장, `designer-hire-server` Cloud Functions를 확인했다. [SITE-SOURCES.md](SITE-SOURCES.md)에 고정 소스와 남은 설치 검수를 기록했다. 멘션 구현 시점에는 해당 저장소를 수정하거나 실제 사이트에 배포하지 않았으며 로컬 예제를 실제 서비스 설치 완료로 취급하지 않는다.
+
+후속 디하 서버 브랜치의 회원 인증 교환 구현·초안 PR·서버95/SQL8 검증은 [SITE-INTEGRATION.md](SITE-INTEGRATION.md)에 기록했다. 실제 사이트 배포는 수행하지 않았다.

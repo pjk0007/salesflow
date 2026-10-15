@@ -59,3 +59,5 @@ Opencom/erxes/Twenty 등은 라이선스 조건이 서로 다르므로 설계와
 - R06/R13 개인 협업 확장: 내부 메모의 사업별 팀원 선택·스냅샷 이름·개인 앱 알림·나를 멘션한 상담·100건 밖 원문 조회를 구현했다. 메모/첨부/멘션/알림 원자 저장, 재시도·권한 회수·비회원→회원 병합과 고객 읽음 분리, SQL/API19·단위1,093·회귀16묶음·두 사업 Chrome QA. 팀 라우팅·접속 상태·외부 알림은 후속이다. [MENTIONS.md](MENTIONS.md) 참고.
 
 실제 사이트 저장소는 GitHub 앱 목록에 한정하지 않고 기존 Git 로그인으로 확인했다. `matches-plan/new-designer-hire`의 Firebase 회원 인증/채널톡 hook, `matches-plan/back-office-lab`의 Next 서버/채널톡 hook과 기존 Sendb 문의 저장, `matches-plan/designer-hire-server`의 Cloud Functions 소스를 찾았다. 실제 사이트 배포와 새 상담 API 설치는 아직 수행하지 않았으며 [SITE-SOURCES.md](SITE-SOURCES.md)에 확인 범위를 기록했다.
+
+- 실제 사이트 통합 진척: 디하 Firebase 서버의 별도 브랜치에서 검증 uid·서버 회원 문서 기반 샌드비 고객/JWT 교환을 구현/검수했다. 서버15/전체95·실제 샌드비 API/PGlite8과 초안 PR1이며 웹 프런트·실제 설치/배포는 후속이다. [SITE-INTEGRATION.md](SITE-INTEGRATION.md) 참고.

@@ -3651,5 +3651,136 @@
       "guide": "SITE-SOURCES.md"
     },
     "hashNote": "Raw worktree SHA256 at capture; Git autocrlf may normalize line endings. Earlier evidence fields retained."
+  },
+  "siteIdentityQa": {
+    "capturedAt": "2026-10-15T01:19:16.187Z",
+    "scope": "R02/R03: actual designer-hire-server source, Firebase verified customer uid to Sendb customer/identity exchange; frontend integration remains pending",
+    "repository": {
+      "name": "matches-plan/designer-hire-server",
+      "branch": "codex/sendb-support-integration",
+      "base": "master",
+      "baseSha": "3d09f62931b9e8960cf89c981d8111beece1f96c",
+      "head": "a546d56c251f5f2b7b9beb8d087c0df8d5b9b4e3",
+      "pullRequest": "https://github.com/matches-plan/designer-hire-server/pull/1",
+      "draft": true,
+      "merged": false
+    },
+    "tests": {
+      "newServerCases": 15,
+      "serverAllUnits": 95,
+      "serverFullTypescript": "passed",
+      "serverNewFeatureLint": "passed",
+      "crossRepositorySqlApi": 8,
+      "includedPlatformApi": 11,
+      "crossScriptLint": "passed"
+    },
+    "isolation": "Firebase/Firestore login and member document mocked; real Sendb HTTP handler/SQL in PGlite and fictional Express loopback. No real Firebase/production DB, credentials/env loading, external customer sends, server settings or deployment.",
+    "sourceEvidence": [
+      {
+        "url": "https://firebase.google.com/docs/auth/admin/verify-id-tokens",
+        "scope": "Official client ID token verification contract"
+      },
+      {
+        "url": "https://firebase.google.com/docs/auth/admin/manage-sessions",
+        "scope": "Official checkRevoked behavior"
+      }
+    ],
+    "serverFiles": [
+      {
+        "path": "src/api.ts",
+        "sha256": "c9736015dd3a50e0537ea2b6e492880a7ca6dd99a885bcc3f79cf18d7e387e5f",
+        "bytes": 10413
+      },
+      {
+        "path": "docs/sendb-support-integration.md",
+        "sha256": "ebb6cb3ccfde4c611a1eb9b81203df207e81333d4c8f467bd92a968befad3abc",
+        "bytes": 6095
+      },
+      {
+        "path": "src/customer-support/config.ts",
+        "sha256": "d9603c366cf21d4f8965e4f880e012806c32dc8dd8eac33f98943de418a275c4",
+        "bytes": 1642
+      },
+      {
+        "path": "src/customer-support/identity.test.ts",
+        "sha256": "ae77855811a9f97e16a2015659d79e298e4087f5f19f3975c9fd28778a6ac078",
+        "bytes": 16813
+      },
+      {
+        "path": "src/customer-support/identity.ts",
+        "sha256": "dd11a2f4f05dfb01f85ce6f89e70bd37294d388bf430951708d20e6ee5a43c8c",
+        "bytes": 3600
+      },
+      {
+        "path": "src/customer-support/router.ts",
+        "sha256": "0217573f4e207245edcc349e461146d0483adc031afdcbfaa32262feffc97624",
+        "bytes": 1178
+      },
+      {
+        "path": "src/customer-support/sendb.ts",
+        "sha256": "0011724320e35bb79a0cadf2ad0deb2096eaedd444734ec14aa5ec19e81cfa49",
+        "bytes": 2788
+      }
+    ],
+    "sendbFiles": [
+      {
+        "path": "scripts/check-designer-hire-identity.cjs",
+        "sha256": "04fa315912156285f18657a7b6059b6dbd63156ccaff4dda7d8b9b7ca999b084",
+        "bytes": 9072
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/SITE-INTEGRATION.md",
+        "sha256": "2405711918005dd01d5a14bd23e5d1e3dee7b45f7c3f3e0283e57ffb1ef3a66a",
+        "bytes": 4776
+      },
+      {
+        "path": "docs/2026-10-14-customer-inbox/SITE-SOURCES.md",
+        "sha256": "5dbae8c46982f46f33a696ce1d4ba147892617d199105ebb954c5cf8f8f9b7be",
+        "bytes": 3430
+      }
+    ],
+    "logs": [
+      {
+        "path": "site-server-all-units.log",
+        "sha256": "cbaa16f35c99aa1df9a0077dec02667791ff1a27d2f5c279e6f4ddffe43b4e9e",
+        "bytes": 7297
+      },
+      {
+        "path": "site-server-compile.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-server-lint.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      },
+      {
+        "path": "site-identity-sql-final.log",
+        "sha256": "d3ed913401efd56b7aa9127fabfd4b81a69267f3f97e72258d2140915510e9b1",
+        "bytes": 1882
+      },
+      {
+        "path": "site-cross-lint-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    ],
+    "verified": [
+      "No body-supplied identity/workspace trusted; configured current Firebase customer document only",
+      "Actual router invokes verifyIdToken(token,true)",
+      "No missing-config production fallback; allowed origins and server API token separated",
+      "Same uid refresh reuses contact; same uid in two workspaces remains isolated",
+      "Actual member message uses same contact/conversation; initial identity read creates no empty conversation",
+      "Archived CRM contact keeps archive state and existing member history; archive is not account suspension",
+      "Read-only service key, cross-workspace channel, disabled channel and malformed upstream responses rejected"
+    ],
+    "limits": [
+      "No frontend SDK installation yet in new-designer-hire/back-office-lab",
+      "Actual Firebase auth/data/production deployed commit mapping and team/load/cutover unverified",
+      "No key/setting changes, master/main merge or real server deployment",
+      "Exchange uses two HTTP operations; contact sync can succeed before identity fails, retry remains idempotent"
+    ],
+    "hashNote": "Raw worktree bytes; Git autocrlf may normalize line endings. All prior evidence fields preserved."
   }
 }

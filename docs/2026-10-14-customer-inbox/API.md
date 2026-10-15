@@ -77,7 +77,7 @@ async function startMemberChat(channelKey) {
 | `trackEvent(name, properties?, eventId?)` | 확인된 회원의 행동 이벤트 저장. 재시도에는 같은 UUID 사용 |
 | `on(event, handler)` | 구독 해제 함수를 반환. ready/show/hide/shutdown/error/unreadCountChange 사용 |
 
-회원 인증은 메모리에만 두고 URL이나 사이트 저장소에 남기지 않는다. 제공한 갱신 함수로 만료 전에 재발급한다. 익명 상담은 사이트 출처의 저장소에 세션을 보존하여 새로고침을 지원한다. 저장소가 제한된 환경에서는 현재 열린 창에서만 이어진다. 익명 이력을 회원에게 자동 병합하는 기능은 아직 없다.
+회원 인증은 메모리에만 두고 URL이나 사이트 저장소에 남기지 않는다. 제공한 갱신 함수로 만료 전에 재발급한다. 익명 상담은 사이트 출처의 저장소에 세션을 보존하여 새로고침을 지원한다. 저장소가 제한된 환경에서는 현재 열린 창에서만 이어진다. 익명→회원 연결은 로그인 완료 시 명시적으로 identify(token,{mergeAnonymous:true})를 호출한다. 일반 계정 전환에는 병합하지 않는다. IDENTITY.md의 서버 확인 계약을 따른다.
 
 서명/갱신 실패는 `error` 이벤트 및 연결 Promise 오류로 표시한다. 유효하지 않은 회원 인증을 익명으로 자동 강등하지 않는다. 위젯 조회는 열린 상태 3초, 닫힌 상태 최대 15초 간격이다. 실시간 push 방식은 후속 확장이다.
 
@@ -140,3 +140,5 @@ Google OAuth 관리자 UI API·서버 자동 수신/history 체크포인트·기
 
 
 개인 내부 메모 멘션·앱 알림·나를 멘션한 상담·오래된 원문 조회와 회원 연결 보존은 0105에 추가했다. 고객 읽음/메일 발송과 구분한다. [MENTIONS.md](MENTIONS.md)에 UX·API/SDK·권한·SQL/API19·Chrome 검수와 남은 팀 협업 범위를 기록했다.
+
+실제 디하 서버 저장소에 Firebase 회원 확인→샌드비 인증 교환을 기능 브랜치로 구현했다. 설치/운영 완료와 구분하며 [SITE-INTEGRATION.md](SITE-INTEGRATION.md)를 따른다.
