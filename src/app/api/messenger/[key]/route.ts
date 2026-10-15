@@ -12,6 +12,7 @@ import { recordCustomerEvent } from "@/lib/customer-platform/repository";
 import { linkVisitorIdentity } from "@/lib/inbox/link-identity";
 import { updateVisitorProfile } from "@/lib/inbox/visitor-profile";
 import { selectedConversation } from "@/lib/inbox-customer-history/rules";
+import { attachJourneyContext } from "@/lib/inbox-journey/repository";
 import {
     applyMessengerHeaders,
     messengerHeaders,
@@ -56,6 +57,8 @@ export async function GET(req: NextRequest, ctx: Context) {
 export async function POST(req: NextRequest, ctx: Context) {
     return run(req, ctx, async (key) => {
         const input = await jsonBody(req);
+        if (input.action === "journey")
+            return attachJourneyContext(key, visitorToken(req), input);
         if (input.action === "identify")
             return linkVisitorIdentity(key, visitorToken(req), input);
         if (input.action === "session") return startVisitorSession(key, input);

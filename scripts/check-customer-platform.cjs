@@ -111,6 +111,8 @@ async function runPlatformCheck(extra, testRuntime) {
             () => "v1/inbox/channels/[id]/teammates",
         ],
         [/^\/api\/inbox\/channels$/, () => "inbox/channels"],
+        [/^\/api\/tracker\/collect$/, () => "tracker/collect"],
+        [/^\/api\/inbox\/conversations\/([a-f0-9-]+)\/journey$/, () => "inbox/conversations/[id]/journey"],
         [
             /^\/api\/inbox\/conversations\/([a-f0-9-]+)$/,
             () => "inbox/conversations/[id]",
@@ -401,7 +403,7 @@ async function runPlatformCheck(extra, testRuntime) {
         "customer-crm/contacts/[id]/activity",
     ];
     const modules = Object.fromEntries(
-        filenames.map((name) => [
+        [...filenames, "tracker/collect", "inbox/conversations/[id]/journey", "inbox-journey/demo"].map((name) => [
             name,
             require("../src/app/api/" + name + "/route.ts"),
         ]),

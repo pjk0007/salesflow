@@ -19,6 +19,7 @@ import { sql } from "drizzle-orm";
 import { organizations, workspaces, users, records } from "./schema";
 import { crmContacts } from "./customer-platform-schema";
 import { customerAiJobs } from "./customer-ai-schema";
+import type { StoredJourneyContext } from "../inbox-journey/context";
 
 const time = (name: string) =>
     timestamp(name, { withTimezone: true, precision: 3 });
@@ -123,6 +124,7 @@ export const inboxConversations = pgTable(
         name: varchar("name", { length: 100 }).notNull(),
         email: varchar("email", { length: 254 }),
         pageUrl: text("page_url"),
+        journeyContext: jsonb("journey_context").$type<StoredJourneyContext>(),
         status: varchar("status", { length: 16 }).notNull().default("open"),
         assigneeId: uuid("assignee_id").references(() => users.id, {
             onDelete: "set null",

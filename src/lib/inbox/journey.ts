@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, or, sql } from "drizzle-orm";
 import {
     db,
     inboxConversations,
@@ -11,8 +11,9 @@ export async function loadInboxJourney(
     orgId: string,
     recordIds: number[],
     exec: DbExec = db,
+    contactIds: string[] = [],
 ): Promise<JourneyEvent[]> {
-    if (!recordIds.length) return [];
+    if (!recordIds.length && !contactIds.length) return [];
     const rows = await exec
         .select({
             at: inboxMessages.createdAt,
@@ -30,7 +31,8 @@ export async function loadInboxJourney(
         .where(
             and(
                 eq(inboxConversations.orgId, orgId),
-                inArray(inboxConversations.recordId, recordIds),
+                or(recordIds.length ? inArray(inboxConversations.recordId, recordIds) : undefined,
+                    contactIds.length ? inArray(inboxConversations.contactId, contactIds) : undefined),
                 ne(inboxMessages.kind, "note"),
             ),
         )

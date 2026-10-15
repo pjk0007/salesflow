@@ -130,6 +130,11 @@ export class SendbMessengerClient {
             `/conversations${before ? "?before=" + encodeURIComponent(before) : ""}`,
         );
     }
+    attachJourneyContext(journeyToken: string, conversationId?: string) {
+        return this.#request<{ linked: boolean; reason?: string }>("", "POST", {
+            action: "journey", journeyToken, conversationId,
+        });
+    }
     conversation(id?: string, before?: number) {
         const query = new URLSearchParams({
             ...(id ? { conversationId: id } : {}),

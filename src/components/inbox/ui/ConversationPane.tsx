@@ -14,6 +14,7 @@ import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { InboxAudit } from "./InboxAudit";
 import { CustomerCrmContext } from "./CustomerCrmContext";
+import { ConversationJourneyPanel } from "@/components/inbox-journey/ui/ConversationJourneyPanel";
 import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliveryStatus";
 import { EmailReplyRecipients } from "@/components/inbox-email/ui/EmailReplyRecipients";
 import { useEmailReply } from "@/components/inbox-email/hooks/useEmailReply";
@@ -894,6 +895,7 @@ function CustomerInfo({
     }
     return (
         <div className="space-y-6 p-5 text-sm">
+            <ConversationJourneyPanel key={chat.id} id={chat.id} recordId={chat.recordId} version={chat.version} canConfirm={canRespond && !chat.historyOnly} change={change} />
             <ConversationServiceStatus id={chat.id} />
             {chat.historyOnly ? (
                 <>

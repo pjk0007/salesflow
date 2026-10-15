@@ -116,6 +116,10 @@ function fixture(options = {}) {
     const session = (token) => dispatch("sendb:session", { token });
     return {
         sdk: window.SendbChat,
+        journey: (value) => {
+            window.sendb = { getJourneyContext: () => value };
+            messages["sendb:journey-context"]?.();
+        },
         key,
         active,
         ready,
@@ -142,11 +146,23 @@ async function main() {
         await fn();
         console.log("PASS CHAT SDK " + ++checks + " " + title);
     }
+    await check("트래커의 경로 증명은 최초 설정과 늦은 수신 모두 iframe에 전달하며 회원으로 승격하지 않음", async () => {
+        const f = fixture();
+        f.journey("fictional-context-first");
+        const ready = f.sdk.boot({ apiBase: "https://sendb.example.test", channelKey: f.key });
+        f.ready(); await ready;
+        assert.equal(f.posts.findLast(p => p.type === "sendb:configure").journeyToken, "fictional-context-first");
+        f.journey("fictional-context-later");
+        assert.equal(f.posts.at(-1).type, "sendb:journey-context");
+        assert.equal(f.posts.at(-1).journeyToken, "fictional-context-later");
+        assert.equal(f.sdk.getSessionType(), "anonymous");
+        f.sdk.shutdown(); const count = f.posts.length; f.journey("after-shutdown"); assert.equal(f.posts.length, count);
+    });
     await check(
         "시작 전과 종료 후 세션 상태·버튼 제어는 인증 정보를 노출하지 않음",
         async () => {
             const f = fixture();
-            assert.equal(f.sdk.version, "1.4.0");
+            assert.equal(f.sdk.version, "1.5.0");
             assert.equal(f.sdk.getSessionType(), "uninitialized");
             f.sdk.hideLauncher();
             f.sdk.showLauncher();
@@ -891,7 +907,7 @@ async function main() {
         },
     );
     console.log(
-        "Chat SDK 1.4.0 가상 DOM/실제 배포 JS QA " +
+        "Chat SDK 1.5.0 가상 DOM/실제 배포 JS QA " +
             checks +
             "개 통과 · 외부 전송 0건",
     );

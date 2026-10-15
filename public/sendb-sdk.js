@@ -53,9 +53,17 @@
             opened: state.opened,
             readId: state.readId,
             continueAnonymous: !!state.continueAnonymous,
+            journeyToken: journeyContext(),
         });
         state.continueAnonymous = false;
     }
+    function journeyContext() {
+        try { return window.sendb && window.sendb.getJourneyContext ? window.sendb.getJourneyContext() : undefined; }
+        catch { return undefined; }
+    }
+    window.addEventListener("sendb:journey-context", function () {
+        if (current) post(current, "sendb:journey-context", { journeyToken: journeyContext() });
+    });
     function waitForReady(state, message, code) {
         clearTimeout(state.timer);
         state.ready = false;
@@ -421,7 +429,7 @@
         visibility(true);
     }
     window.SendbChat = {
-        version: "1.4.0",
+        version: "1.5.0",
         boot: boot,
         reconnect: reconnect,
         show: function () {

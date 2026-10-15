@@ -792,6 +792,13 @@
       "when": 1792058400000,
       "tag": "0112_inbox_customer_history",
       "breakpoints": true
+    },
+    {
+      "idx": 113,
+      "version": "7",
+      "when": 1792062000000,
+      "tag": "0113_inbox_lead_journey",
+      "breakpoints": true
     }
   ]
 }

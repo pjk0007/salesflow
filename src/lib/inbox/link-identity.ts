@@ -302,6 +302,7 @@ export async function linkVisitorIdentity(
                 email: member.email,
                 recordId: member.recordId,
                 identifiedAt: target.identifiedAt ?? now,
+                journeyContext: source.journeyContext ?? target.journeyContext,
                 tags,
                 teamId:
                     target.teamId || target.assigneeId

@@ -9,6 +9,8 @@ import {
 } from "@/lib/customer-platform/external-auth";
 import { platformContact } from "@/lib/customer-platform/repository";
 import { issueCustomerIdentity } from "@/lib/customer-platform/identity";
+import { connectVerifiedLead } from "@/lib/inbox-journey/repository";
+import { canAccessWorkspace } from "@/lib/customer-platform/rules";
 export async function POST(req: NextRequest) {
     return handleInbox(async () => {
         const ctx = await authenticatePlatform(req),
@@ -28,6 +30,10 @@ export async function POST(req: NextRequest) {
             channel.workspaceId,
             input.contactId,
         );
+        if (canAccessWorkspace(ctx.token.scopes, channel.workspaceId, "update")) {
+            await authorizeWorkspace(ctx, channel.workspaceId, "update");
+            await connectVerifiedLead(ctx.token.orgId, channel.workspaceId, contact.id);
+        }
         return {
             ...issueCustomerIdentity(contact.id, channel.publicKey),
             channelKey: channel.publicKey,

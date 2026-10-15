@@ -14,6 +14,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { collectEventSchema, collectBatchSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
 import { rateLimit } from "@/lib/tracker/rate-limit";
+import { issueJourneyContext } from "@/lib/inbox-journey/context";
 
 function corsHeaders(origin: string) {
     return {
@@ -353,6 +354,11 @@ export async function POST(req: NextRequest) {
                 record_id: result.visitor.recordId,
                 // 크로스도메인 링킹용 — 등록된 도메인 목록
                 domains: site.domains,
+                // 직원용 유입 근거다. 고객 본인 인증이나 과거 상담 열람 권한이 아니다.
+                journey_context: origin ? issueJourneyContext({
+                    orgId: site.orgId, workspaceId: site.workspaceId, siteId: site.id,
+                    visitorId: result.visitor.id, sessionId: result.sessionId, origin,
+                }) : undefined,
             },
             origin,
         );
