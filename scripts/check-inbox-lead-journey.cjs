@@ -34,6 +34,7 @@ runPlatformCheck(async ctx => {
         const result = await journey.conversationJourney(actor, anonymous.id, db);
         assert.equal(result.status, "attributed"); assert.equal(result.record.id, 1);
         for (const type of ["email_sent", "email_click", "alimtalk_sent", "session", "chat_customer"]) assert.ok(result.events.some(e => e.type === type), type);
+        assert.match(result.events.find(e => e.type === "session").label, /^사이트 방문 · 페이지·행동 /);
         const [chat] = await db.select().from(s.inboxConversations).where(eq(s.inboxConversations.id, anonymous.id));
         assert.equal(chat.recordId, null); assert.equal(chat.contactId, null);
         assert.ok(!JSON.stringify(await repo.visitorDetail(channels.dh.publicKey, anonymous.token, db)).includes("fictional-tracker-key"));
@@ -68,6 +69,19 @@ runPlatformCheck(async ctx => {
         await ctx.clients.dh.customerIdentity(channels.dh.id, duplicate.id);
         const [row] = await db.select().from(s.crmContacts).where(eq(s.crmContacts.id, duplicate.id));
         assert.equal(row.recordId, null);
+    });
+    await check("같은 CRM 고객에 매핑된 과거 상담은 공개 대화만 여정에 포함하고 원본 연결은 수정하지 않음", async () => {
+        const oldId = randomUUID();
+        await db.insert(s.inboxConversations).values({ id: oldId, channelId: channels.dh.id, orgId: actor.orgId,
+            contactId: member.id, tokenHash: "e".repeat(64), historyOnly: true, isCurrent: false,
+            name: "가상 과거 상담", status: "closed" });
+        for (const [kind, body] of [["reply", "PAST_PUBLIC_JOURNEY"], ["note", "PAST_PRIVATE_JOURNEY"]])
+            await db.insert(s.inboxMessages).values({ conversationId: oldId, orgId: actor.orgId, clientId: randomUUID(), kind, body, authorName: "가상 원본 상담원" });
+        const result = await journey.conversationJourney(actor, anonymous.id, db);
+        assert.ok(JSON.stringify(result).includes("PAST_PUBLIC_JOURNEY"));
+        assert.ok(!JSON.stringify(result).includes("PAST_PRIVATE_JOURNEY"));
+        const [unchanged] = await db.select().from(s.inboxConversations).where(eq(s.inboxConversations.id, oldId));
+        assert.equal(unchanged.recordId, null); assert.equal(unchanged.historyOnly, true);
     });
     await check("공유 링크 수신 대상과 확인된 리드가 다르면 다른 리드 발송 기록을 섞지 않음", async () => {
         const current = await repo.ownedConversation(actor, anonymous.id, db);

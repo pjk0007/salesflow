@@ -17,7 +17,7 @@ export function ConversationJourneyPanel({ id, recordId, version, canConfirm, ch
     id: string; recordId: number | null; version: number; canConfirm: boolean;
     change: (value: unknown) => Promise<unknown>;
 }) {
-    const { data, error, isLoading, mutate } = useConversationJourney(id);
+    const { data, error, isLoading, mutate } = useConversationJourney(id, version);
     const [count, setCount] = useState(20);
     const [busy, setBusy] = useState(false);
     const [saveError, setSaveError] = useState("");

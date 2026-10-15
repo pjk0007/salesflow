@@ -148,7 +148,8 @@ export async function conversationJourney(actor: Pick<JWTPayload, "orgId" | "use
         const pages = await exec.select().from(trackerEvents).where(inArray(trackerEvents.sessionId, sessionRows.map(row => row.id))).orderBy(asc(trackerEvents.occurredAt));
         const cleanUrl = (value: string | null) => { try { const url = new URL(value || ""); return url.origin + url.pathname; } catch { return null; } };
         events.push(...normalizeTrackerEvents(sessionRows.map(row => ({ ...row, landingPage: cleanUrl(row.landingPage), referrer: cleanUrl(row.referrer) })),
-            pages.map(row => ({ ...row, pageUrl: cleanUrl(row.pageUrl), properties: null })), buildTrackerLabelMaps([], [])));
+            pages.map(row => ({ ...row, pageUrl: cleanUrl(row.pageUrl), properties: null })), buildTrackerLabelMaps([], []))
+            .map(event => event.type === "session" ? { ...event, label: `사이트 방문 · 페이지·행동 ${event.children?.length ?? 0}개` } : event));
     }
     if (!verifiedRecordId) {
         // 유입 후보는 기존 고객을 변경하지 않는다. 현재 상담은 별도로 합쳐 보여준다.

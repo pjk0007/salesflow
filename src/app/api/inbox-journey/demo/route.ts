@@ -7,6 +7,7 @@ import { InboxError } from "@/lib/inbox/errors";
 import { isDevelopmentPreviewRuntime } from "@/lib/development-runtime";
 import { connectVerifiedLead } from "@/lib/inbox-journey/repository";
 import { issueCustomerIdentity } from "@/lib/customer-platform/identity";
+import { requireCustomerAccess } from "@/lib/customer-access/access";
 
 export async function POST(req: NextRequest) {
     return handleInbox(async () => {
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
             // 기존 실제 고객 자료를 수정하지 않고 이름이 고정된 가상 사업만 사용한다.
             const [workspace] = await tx.select().from(workspaces).where(and(eq(workspaces.orgId, actor.orgId), eq(workspaces.name, "샌드비 상담 체험 2026-10-15"))).for("update");
             if (!workspace) throw new InboxError("먼저 샌드비 상담 체험 2026-10-15 사업을 준비해주세요.", 404);
+            await requireCustomerAccess(actor, workspace.id, "manage", tx);
             const [channel] = await tx.select().from(inboxChannels).where(and(eq(inboxChannels.orgId, actor.orgId), eq(inboxChannels.workspaceId, workspace.id), eq(inboxChannels.enabled, true)));
             if (!channel) throw new InboxError("체험 사업의 상담창을 먼저 켜주세요.", 404);
             let [partition] = await tx.select().from(partitions).where(and(eq(partitions.workspaceId, workspace.id), eq(partitions.name, "경로 연결 가상자료")));
