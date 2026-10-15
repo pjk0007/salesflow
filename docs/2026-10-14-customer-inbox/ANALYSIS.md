@@ -35,6 +35,19 @@ REA CLI 6.4.0, Node 22.23.3으로 다음 **선택된 컴파일 JS**를 분석했
 
 REST 계약 참고: [인터컴 공식 Node SDK](https://github.com/intercom/intercom-node), [허브스팟 공식 Node SDK](https://github.com/HubSpot/hubspot-api-nodejs), [허브스팟 파이프라인](https://developers.hubspot.com/docs/api-reference/legacy/crm/pipelines/guide), [허브스팟 웹훅](https://developers.hubspot.com/docs/apps/developer-platform/build-apps/features/configure-webhooks), [채널톡 개발 문서](https://developers.channel.io/en/articles/20516f31).
 
+### 채널톡 자료 추출의 최신 공개 계약
+
+2026-10-15 [현재 Open API 소개](https://docs.channel.io/developers/en/articles/What-is-Open-API-c8c76fba)에서 연결되는 [공식 API 문서](https://api-doc.channel.works/)와 [공개 OpenAPI YAML](https://api-doc.channel.works/docs/openapi.en.yaml)을 저장해 대조했다. YAML은408,324바이트, SHA-256 `dc1a99f9319f7b4b65c775f1ae80e02d108e7ab72a57ac7e83694d4fba99eb92`다. 공개 문서 파일만 조회했으며 실제 `api.channel.io` 계정·키·고객 API를 호출하지 않았다. 이 계약 검토는 기존 배포 SDK의 REA 증거와 구분한다.
+
+- 현재 계약은 `/open` 경로와 `Channel-Version: 2026-06-01`, `cursor`·`nextCursor`·`hasNext`를 사용한다. 기존 `/open/v5`의 `since`·`next`와 섞지 않는다.
+- 상담 목록의 `deskUpdatedAt`은 기간 생략을 허용하지만 상태를 생략하면 열린 상담만 반환한다. 따라서 `opened`·`closed`·`snoozed`·`queued`·`initial`·`missed`를 각각 조회해야 한다. `managedAt`의 기간·2026년 시작 제한을 전체 과거 자료 수집의 근거로 삼지 않는다.
+- 상담 목록에 함께 담기는 메시지는 최신 메시지다. 상담마다 메시지 페이지가 끝났는지 별도로 기록해야 한다. 고객·상담원·봇·메모·파일·스레드 등 원본 필드를 유지하며, 텍스트 화면에서 원본 블록 레이아웃을 재현했다고 주장하지 않는다.
+- 전체 고객을 열거하는 `GET /open/users`는 이 스키마에 없다. 상담에 참조된 고객의 상세 조회가 끝나도 상담 없는 고객까지 확보한 것은 아니다.
+- 익명 방문자의 `memberId`가 `veilId`와 같을 수 있다. 이름·이메일 또는 `memberId` 존재만으로 회원을 판별하지 않는다. CRM 연결 후보와 사이트 본인 인증·과거 이력 공개 정책은 별개다.
+- 첨부의 `key`로 파일 주소를 조회하는 응답은 `{result: string}`이다. 파일 메타데이터, 서명 주소 발급, 실제 바이트 백업·크기/해시 검증을 구분한다. 최신 스키마에 없는 주소 유효기간을 이전 v5 설명에서 추정해 확정하지 않는다.
+
+페이지 종료는 해당 엔드포인트의 순회 완료다. 수집 중 자료가 바뀌지 않는 스냅샷, 삭제·보관 만료 복구, API 권한으로 제외된 상담·내부 스레드의 완전성까지 증명하지 않는다. 실제 계정 원본 대조와 전환 인수는 여전히 별도 검수다.
+
 ## GitHub 공개 구현체
 
 전체 소스가 공개된 저장소는 일반 소스 분석으로 확인했다. 이를 REA로 SaaS의 비공개 코드를 분석한 것처럼 표현하지 않는다. 소스 파일별 URL·SHA-256은 `evidence-manifest.json`에 기록한다.

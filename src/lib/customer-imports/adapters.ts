@@ -39,6 +39,16 @@ export function normalizeImport(input: ImportInput) {
         } else if (input.source === "channel") {
             for (const user of array(bundle.users)) {
                 const profile = object(user.profile);
+                const memberId = text(user.memberId),
+                    isMember =
+                        user.member !== false &&
+                        (user.type === "member" ||
+                            (!user.type && user.member === true)) &&
+                        memberId !== text(user.veilId);
+                if (memberId && !isMember)
+                    warnings.push(
+                        `고객 ${user.id}: 회원 여부가 확인되지 않은 memberId는 외부 회원 ID로 사용하지 않습니다. 원본은 보존합니다.`,
+                    );
                 add(
                     "contacts",
                     user.id,
@@ -47,7 +57,7 @@ export function normalizeImport(input: ImportInput) {
                             text(profile.name) ||
                             text(user.name) ||
                             `고객 ${user.id}`,
-                        externalId: text(user.memberId),
+                        externalId: isMember ? memberId : undefined,
                         email: text(profile.email),
                         phone: text(profile.mobileNumber),
                         attributes: profile,
@@ -61,25 +71,41 @@ export function normalizeImport(input: ImportInput) {
                 ),
                 managers = new Map(
                     array(bundle.managers).map((u) => [String(u.id), u]),
+                ),
+                bots = new Map(
+                    array(bundle.bots).map((u) => [String(u.id), u]),
                 );
             for (const chat of array(bundle.userChats)) {
                 const user = users.get(String(chat.userId)),
                     profile = object(user?.profile);
+                const state = text(chat.state);
+                let status: "open" | "closed" | "snoozed" = "closed";
+                if (state === "opened" || state === "open") status = "open";
+                else if (state === "snoozed") status = "snoozed";
+                else if (["queued", "initial", "missed"].includes(state || "")) {
+                    status = "open";
+                    warnings.push(
+                        `상담 ${chat.id}: 원본 상태 ${state}는 보관 화면의 open으로 표시합니다. 원본 상태는 보존하며 실제 상담을 재개하지 않습니다.`,
+                    );
+                } else if (state && state !== "closed")
+                    errors.push(
+                        `상담 ${chat.id}: 지원하지 않는 원본 상태 ${state}입니다. 상태 매핑을 확인해주세요.`,
+                    );
+                else if (!state)
+                    warnings.push(
+                        `상담 ${chat.id}: 원본 상태가 없어 보관 화면의 closed로 표시합니다.`,
+                    );
                 add(
                     "conversations",
                     chat.id,
                     {
                         contactId: text(chat.userId),
                         name:
+                            text(chat.title) ||
                             text(chat.name) ||
                             text(profile.name) ||
                             `상담 ${chat.id}`,
-                        status:
-                            chat.state === "opened" || chat.state === "open"
-                                ? "open"
-                                : chat.state === "snoozed"
-                                  ? "snoozed"
-                                  : "closed",
+                        status,
                         tags: chat.tags || [],
                         createdAt: date(chat.createdAt),
                     },
@@ -89,7 +115,24 @@ export function normalizeImport(input: ImportInput) {
             for (const message of array(bundle.messages)) {
                 const user = users.get(String(message.personId)),
                     manager = managers.get(String(message.personId)),
+                    bot = bots.get(String(message.personId)),
                     files = array(message.files);
+                const authorName =
+                    message.personType === "manager"
+                        ? text(manager?.name)
+                        : message.personType === "bot"
+                          ? text(bot?.name)
+                          : message.personType === "user"
+                            ? text(object(user?.profile).name) || text(user?.name)
+                            : undefined;
+                if (!authorName && ["manager", "bot"].includes(String(message.personType)))
+                    warnings.push(
+                        `메시지 ${message.chatId}/${message.id}: 작성자 이름이 없어 ${message.personType}로 표시합니다. 원본 작성자 ID는 보존합니다.`,
+                    );
+                if (!text(message.plainText) && array(message.blocks).length)
+                    warnings.push(
+                        `메시지 ${message.chatId}/${message.id}: 텍스트가 없는 블록 메시지는 원본 JSON에 보존합니다. 보관 화면에서 원본 레이아웃을 재현하지 않습니다.`,
+                    );
                 const kind =
                     Array.isArray(message.options) &&
                     message.options.includes("private")
@@ -113,8 +156,7 @@ export function normalizeImport(input: ImportInput) {
                                 : JSON.stringify(message.log || "시스템 기록")),
                         messageKind: kind,
                         authorName:
-                            text(manager?.name) ||
-                            text(object(user?.profile).name) ||
+                            authorName ||
                             text(message.personType) ||
                             "원본 상담",
                         createdAt: date(message.createdAt),
@@ -123,7 +165,7 @@ export function normalizeImport(input: ImportInput) {
                     message,
                 );
             }
-            if (bundle.next)
+            if (bundle.next || bundle.nextCursor || bundle.hasNext === true)
                 errors.push(
                     "채널톡 다음 페이지가 남아 있습니다. 모든 페이지를 모아 다시 입력해주세요.",
                 );
