@@ -38,7 +38,7 @@ export interface ResolvedSender {
  * preferredIds는 우선순위가 높은 순서다.
  *   수동 발송    [body.senderProfileId]
  *   AI 후속      [link.senderProfileId, parentLog.senderProfileId]
- *   템플릿 후속   [parentLog.senderProfileId]
+ *   템플릿 후속   [parentLog.senderProfileId, ...linkSenderPool(link)]
  *
  * null/undefined 원소와 candidates에 없는 id(삭제됐거나 타 org)는 건너뛴다.
  * 덕분에 org 격리·구 로그 하위호환·프로필 삭제가 분기문 없이 같은 경로로 처리된다.

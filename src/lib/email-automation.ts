@@ -11,6 +11,7 @@ import {
     activeBlock,
     purposeBlockKey,
     recordPurposeBlock,
+    templateClaimOptions,
     templateFirstKind,
     templateFirstKindsBlockedBy,
     templateFirstPurpose,
@@ -152,17 +153,11 @@ async function sendEmailSingle(
     if (replyStop) return { success: false, stopped: replyStop.reason };
     if (triggerType === "repeat" && await findVisitFollowupStop(orgId, workspaceId, email)) return { success: false, stopped: "site_visit" };
 
-    // 발신 주소 + 오늘 자리 (기본 프로필 → 레거시 fallback). 템플릿 규칙에는 발신 주소 칸이 없어 늘 기본 주소다.
+    // 연결의 발신 묶음 + 오늘 자리 (미선택이면 기본 프로필 → 레거시 fallback).
     // 보낼 게 확실해진 뒤(템플릿·주소·수신거부 확인 뒤)에 잡아서 헛예약을 만들지 않는다
     // 막히면 반복 대기열이 retryAt에 다시 본다 — 간격 미룸은 순번대로 펼친다
     // 문의 첫 메일은 그날 한도 전체를, 대량(반복·가져오기 명단의 첫 메일)은 15:00(KST) 전까지 문의 몫을 남긴 한도를 쓴다
-    const claim = await claimSender(orgId, {
-        mode: "fixed",
-        ids: [],
-        config,
-        spreadDeferrals: true,
-        purpose,
-    });
+    const claim = await claimSender(orgId, templateClaimOptions(link, purpose, config));
     if (!claim.ok) {
         return { success: false, deferred: { retryAt: claim.retryAt, reason: claim.reason } };
     }
@@ -546,7 +541,7 @@ export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
                 for (const item of items) {
                     if (isDeadlineExceeded(startedAt, Date.now(), DEADLINE_BUDGET_MS)) break;
                     lastId = item.id;
-                    // 이번 배치를 읽은 뒤 조직이 막혀 한꺼번에 옮긴 줄 — 이미 미뤘다
+                    // 이번 배치를 읽은 뒤 연결이 막혀 한꺼번에 옮긴 줄 — 이미 미뤘다
                     if (run.movedIds.has(item.id)) continue;
                     try {
                         await processRepeatItem(item, stats, run);
@@ -582,9 +577,9 @@ type RepeatQueueItem = typeof emailAutomationQueue.$inferSelect;
 interface RepeatRunState {
     /** 이 시각까지 기한이 된 줄만 본다 */
     runStart: Date;
-    /** 이번 회차에 조직의 기본 발신 주소가 막힌 시각 (purposeBlockKey(orgId, 목적) → 열리는 시각) */
+    /** 이번 회차에 연결의 발신 묶음이 막힌 시각 (purposeBlockKey(templateLinkId, 목적) → 열리는 시각) */
     blockedUntil: Map<string, Date>;
-    /** 조직이 막혀 한꺼번에 옮긴 줄 id — 이미 읽어 둔 배치에 있어도 다시 보지 않는다 */
+    /** 연결이 막혀 한꺼번에 옮긴 줄 id — 이미 읽어 둔 배치에 있어도 다시 보지 않는다 */
     movedIds: Set<number>;
 }
 
@@ -624,9 +619,9 @@ async function processRepeatItem(
             return;
         }
 
-        // 이번 회차에 이 조직의 기본 주소가 이 줄의 목적으로 이미 막혔다 — 조건·쿨다운·발송 준비 없이 열리는 시각으로 옮긴다
+        // 이번 회차에 이 연결의 발신 묶음이 이 줄의 목적으로 이미 막혔다 — 조건·쿨다운·발송 준비 없이 열리는 시각으로 옮긴다
         // (보낼 수 있을 때 sendTemplateFirst가 조건·쿨다운을 다시 본다)
-        const blocked = activeBlock(run.blockedUntil, purposeBlockKey(item.orgId, firstPurpose), now);
+        const blocked = activeBlock(run.blockedUntil, purposeBlockKey(link.id, firstPurpose), now);
         if (blocked) {
             await deferRepeatItem(item.id, blocked, now);
             stats.deferred++;
@@ -635,11 +630,11 @@ async function processRepeatItem(
 
         const outcome = await sendTemplateFirst(link, record, item.orgId, firstPurpose);
         if (outcome.kind === "deferred") {
-            // 아직 막혀 있다 — 다음 열리는 시각에 다시 본다. 같은 조직의 다른 첫 메일 줄도 같은 주소라 함께 옮긴다
+            // 아직 막혀 있다 — 다음 열리는 시각에 다시 본다. 같은 연결의 다른 첫 메일 줄도 같은 묶음이라 함께 옮긴다
             // (문의가 막혔으면 문의·대량 줄 모두, 대량만 막혔으면 대량 줄만 — templateFirstKindsBlockedBy)
             await deferRepeatItem(item.id, outcome.retryAt, now);
             stats.deferred++;
-            stats.deferred += await markOrgBlocked(run, item.orgId, outcome.retryAt, item.id, firstPurpose);
+            stats.deferred += await markLinkBlocked(run, { orgId: item.orgId, templateLinkId: link.id, retryAt: outcome.retryAt, exceptId: item.id, purpose: firstPurpose });
             return;
         }
 
@@ -686,8 +681,8 @@ async function processRepeatItem(
         return;
     }
 
-    // 이번 회차에 이 조직의 기본 주소가 대량으로 이미 막혔다 — 발송 준비 없이 열리는 시각으로 옮긴다 (반복 횟수를 쓰지 않는다)
-    const blocked = activeBlock(run.blockedUntil, purposeBlockKey(item.orgId, templatePurpose("repeat")), now);
+    // 이번 회차에 이 연결의 발신 묶음이 대량으로 이미 막혔다 — 발송 준비 없이 열리는 시각으로 옮긴다 (반복 횟수를 쓰지 않는다)
+    const blocked = activeBlock(run.blockedUntil, purposeBlockKey(link.id, templatePurpose("repeat")), now);
     if (blocked) {
         await deferRepeatItem(item.id, blocked, now);
         stats.deferred++;
@@ -717,7 +712,7 @@ async function processRepeatItem(
         // 'first_bulk' 줄은 다음에 꺼낼 때 이 기록(activeBlock)으로 발송 준비 없이 미뤄진다
         await deferRepeatItem(item.id, deferred.retryAt, now);
         stats.deferred++;
-        recordPurposeBlock(run.blockedUntil, item.orgId, templatePurpose("repeat"), deferred.retryAt);
+        recordPurposeBlock(run.blockedUntil, link.id, templatePurpose("repeat"), deferred.retryAt);
         return;
     }
 
@@ -757,26 +752,25 @@ async function deferRepeatItem(id: number, retryAt: Date, now: Date): Promise<vo
 }
 
 /**
- * 조직의 기본 발신 주소가 이 목적으로 retryAt까지 막혔다고 적고, 그 조직의 기한 된 첫 메일 줄 중 같은 이유로 막히는 줄
+ * 연결의 발신 묶음이 이 목적으로 retryAt까지 막혔다고 적고, 같은 연결의 기한 된 첫 메일 줄 중 같은 이유로 막히는 줄
  * (templateFirstKindsBlockedBy — 문의가 막혔으면 'first'·'first_bulk', 대량만 막혔으면 'first_bulk')을 한 문장으로 retryAt에 옮긴다.
- * 템플릿 메일은 늘 그 조직의 기본 주소로 나가므로 같은 이유로 막힌다 — 줄마다 조건·쿨다운·발송 준비 조회를
+ * 같은 연결의 첫 메일은 같은 발신 묶음을 쓰므로 같은 이유로 막힌다 — 줄마다 조건·쿨다운·발송 준비 조회를
  * 되풀이하지 않는다. 옮긴 줄 수를 돌려준다. 반복 줄은 중단 조건을 먼저 봐야 해서 여기서 옮기지 않는다 (activeBlock).
  * 문의가 막혔으면 대량(반복)도 막혔다고 함께 적는다 (recordPurposeBlock).
  */
-async function markOrgBlocked(
+async function markLinkBlocked(
     run: RepeatRunState,
-    orgId: string,
-    retryAt: Date,
-    exceptId: number,
-    purpose: SendPurpose
+    block: { orgId: string; templateLinkId: number; purpose: SendPurpose; retryAt: Date; exceptId: number },
 ): Promise<number> {
-    recordPurposeBlock(run.blockedUntil, orgId, purpose, retryAt);
+    const { orgId, templateLinkId, purpose, retryAt, exceptId } = block;
+    recordPurposeBlock(run.blockedUntil, templateLinkId, purpose, retryAt);
     const moved = await db
         .update(emailAutomationQueue)
         .set({ nextRunAt: retryAt, updatedAt: new Date() })
         .where(
             and(
                 eq(emailAutomationQueue.orgId, orgId),
+                eq(emailAutomationQueue.templateLinkId, templateLinkId),
                 inArray(emailAutomationQueue.kind, templateFirstKindsBlockedBy(purpose)),
                 eq(emailAutomationQueue.status, "pending"),
                 lte(emailAutomationQueue.nextRunAt, run.runStart),
@@ -786,7 +780,7 @@ async function markOrgBlocked(
         .returning({ id: emailAutomationQueue.id });
     for (const m of moved) run.movedIds.add(m.id);
     if (moved.length > 0) {
-        console.log(`[EmailRepeat] org ${orgId}: 기본 발신 주소가 막혀(${purpose}) 첫 메일 ${moved.length}줄을 함께 미룸`);
+        console.log(`[EmailRepeat] link ${templateLinkId} (org ${orgId}): 발신 주소가 막혀(${purpose}) 첫 메일 ${moved.length}줄을 함께 미룸`);
     }
     return moved.length;
 }

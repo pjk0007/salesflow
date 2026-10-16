@@ -80,6 +80,27 @@
       "realR2Configured": false,
       "productionChanged": false
     },
+    "latestMainIntegrationQa": {
+      "mainRef": "09311524c17b5145ef8284cd7e0612d705fe4d04",
+      "unitTestsPassed": 1335,
+      "typecheckPassed": true,
+      "isolatedProductionBuildPassed": true,
+      "runtimeMigrations": 117,
+      "runtimeJournalSha256": "7735f8e9bf42f51ec7678a4a61a66e071a3dea39b25bd61b25dd231f43cd768b",
+      "migrationCollisionResolved": "main sender 0088 preserved, inbox immediately after by 1ms, sender compatibility appended",
+      "oldSqlAndDatabaseLedgerUnchanged": true,
+      "nativeMainUpgrade": { "baselineMigrations": 89, "newMigrations": 28, "existingTablesPreserved": 100, "senderPoolPreserved": true },
+      "nativeDevUpgrade": { "baselineMigrations": 114, "newMigrations": 2, "existingTablesPreserved": 159 },
+      "nativeArchiveDevUpgrade": { "baselineMigrations": 115, "newMigrations": 1, "existingTablesPreserved": 159 },
+      "actualImportedLocalDbUpgrade": {
+        "publicTableCountsPreserved": 159,
+        "logicalDigestTablesPreserved": 12,
+        "existingRecordsPreserved": 348873,
+        "oldLedgerUnchanged": true,
+        "repeatNoChanges": true,
+        "productionChanged": false
+      }
+    },
     "remoteDevelopmentDatabaseChanged": false,
     "productionChanged": false,
     "websiteProviderSwitched": false,

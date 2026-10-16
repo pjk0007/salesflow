@@ -67,6 +67,16 @@ node scripts/migrate-private-archive-files.cjs --online --bundle /private/canoni
 
 실제 자료 복원본에서도 별도 자식 CLI와 읽기 전용 로컬 API 키로 같은 경로를 검수했다. 2,211개 전체·10,362,083,075바이트·최대 769,703,730바이트 파일의 보호 HTTP 다운로드 해시가 일치했다. GET 6,673회, POST 시도 0회, 새 첨부 0개이며 기존 records 348,873개·다른 사업·발송 큐를 보존했다. 자식에 유효한 DB URL이나 객체 자격증명을 주지 않았다. 이 검사는 완료된 원본의 재검증이며 실제 R2 업로드나 운영 자료 적용 증거로 확대하지 않는다.
 
+## 2026-10-16 운영·개발 DB 변경 순서 조정
+
+최신 운영 `0931152`의 `0088_template_link_sender_pool`과 기존 개발의 `0088_customer_inbox`가 모두 시각 `1775100000000`을 사용했다. Drizzle은 마지막 적용 시각보다 큰 변경만 실행하므로 단순 병합하면 운영 DB에서는 상담 기본 테이블이 빠지고, 상담 변경까지 적용한 개발 DB에서는 발신 주소 칸이 빠진다.
+
+기존 SQL 파일은 수정하지 않았다. 운영의 0088 시각을 보존하고 상담 기본 변경을 바로 다음 시각 `1775100000001`에 배치했다. journal의 idx는 순서에 맞게 다시 매겼지만 SQL 파일 이름·해시와 기존 DB 이력은 보존한다. 상담 변경까지 적용한 DB를 위해 마지막에 `0115_template_link_sender_compat`를 추가한다. 이 변경은 두 nullable 칸을 `IF NOT EXISTS`로 추가하며 기존 발신 주소 묶음·기본값·발송 큐를 변경하지 않는다. runtime journal에는 SQL 117개가 있다. 기존 개발 DB는 과거 운영 0088을 건너뛰므로 기록 행 수가 신규 DB와 다를 수 있다.
+
+`node --require tsx/cjs scripts/check-branch-migration-upgrade.cjs`는 소유한 loopback PostgreSQL에서 고정 Git 기준의 **실제 마이그레이션 전체**로 세 기준 DB를 만든다. 운영 기준 89개 → 28개 추가, 개발 기준 114개 → 2개 추가, 비공개 첨부까지 검수한 개발 기준 115개 → 1개 추가를 확인했다. 각각 기존 테이블 100개/159개의 데이터와 DB 이력을 보존하고, 기존 발신 주소 묶음 `[71,72]` 보존·개발 기본 NULL·재실행 무변경을 검증했다. 기준은 가상 자료이며 실제 운영 DB에 접속한 검사가 아니다. 배포 빌드도 번호 중복·시각 역전·동일 시각을 발견하면 실패하도록 보강했다.
+
+별도로 실제 채널톡 자료를 넣고 복원한 로컬 DB에서도 최신 변경을 적용했다. 159개 테이블의 건수, 고객 기록 348,873개 및 상담·첨부·기존 메일 설정·발송 큐/이력을 포함한 12개 테이블 내용 지문이 일치했다. 기존 DB 이력은 재작성하지 않았고 재실행 시 변경이 없었다. 최신 운영 코드 결합 후 단위 1,335개·타입·격리 운영 빌드와 runtime SQL 117개 포함이 통과했다. 실제 비공개 R2 연결과 운영 반영은 아직 수행하지 않았다.
+
 ## 원본 주소와 재이전
 
 - 채널톡 File의 `key`만 있는 내보내기는 새 서명 주소가 필요하다. 기존 [v5 UserChat 파일 주소 안내](https://developers.channel.io/en/articles/Get-a-file-url-in-a-UserChat-bff12f64)는 `/open/v5/.../messages/file?key=...`와15분 유효기간을 설명한다. 새 [내보내기 CLI](IMPORTS.md#채널톡-내보내기-cli)는 [현재 공식 계약](https://api-doc.channel.works/docs/openapi.en.yaml)의 `/open/user-chats/{userChatId}/messages/file?key=...`, `Channel-Version: 2026-06-01`, `{result: string}`을 사용하며 v5 유효기간을 최신 계약의 확정값으로 취급하지 않는다. 바이트 백업 뒤 기존 파일 보충/연결을 별도로 승인하며 [D1 일괄 보충 CLI](FILE-TRANSFER.md)에서도 원본 식별과 검증된 파일만 사용한다. 샌드비 서버가 원본 계정의 인증키를 저장하거나 상시 수집하는 기능은 추가하지 않았다.

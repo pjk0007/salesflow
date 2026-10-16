@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { resolveRuleSenderPool } from "@/lib/email-sender-resolver";
 import { checkLinkTemplatesOwned } from "@/lib/email-template-ownership";
 
 export async function PUT(
@@ -33,7 +34,7 @@ export async function PUT(
     }
 
     try {
-        const { name, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig, preventDuplicate } = await req.json();
+        const { name, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig, preventDuplicate, senderProfileId, senderProfileIds } = await req.json();
 
         // 후속 템플릿이 이 조직 것인지 — 남의 템플릿 id를 넣어 그 내용을 후속으로 받아 보지 못하게
         if (followupConfig !== undefined) {
@@ -43,7 +44,13 @@ export async function PUT(
             }
         }
 
+        const senderPool = await resolveRuleSenderPool(user.orgId, { senderProfileId, senderProfileIds });
+        if (!senderPool.ok) {
+            return NextResponse.json({ success: false, error: senderPool.error }, { status: 400 });
+        }
+
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
+        if (senderPool.value) Object.assign(updateData, senderPool.value);
         if (name !== undefined) updateData.name = name;
         if (recipientField !== undefined) updateData.recipientField = recipientField;
         if (variableMappings !== undefined) updateData.variableMappings = variableMappings;
