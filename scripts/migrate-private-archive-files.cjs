@@ -29,8 +29,9 @@ function parseArgs(argv) {
     const api = origin(values["api-base"], true), endpoint = origin(values["storage-endpoint"] ?? process.env.INBOX_ARCHIVE_S3_ENDPOINT, !!values["local-qa"]), bucket = values["storage-bucket"] ?? process.env.INBOX_ARCHIVE_S3_BUCKET;
     if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket ?? "")) throw new CliError("storage_bucket");
     if (values["local-qa"] && ![api, endpoint].every(v => ["127.0.0.1", "localhost", "[::1]"].includes(new URL(v).hostname))) throw new CliError("local_qa_scope");
+    const m = modules(), encryption = m.archiveEncryptionBinding(m.archiveEncryptionFromEnv());
     return { bundle: values.bundle, archiveDir: values["archive-dir"], out: values.out, execute: !!values.execute, resume: !!values.resume, approvedSha256: values["approve-sha256"], localQa: !!values["local-qa"],
-        identity: { workspaceId: Number(values["workspace-id"]), namespace: values.namespace, channelId: values["channel-id"], origin: api }, storage: { endpoint, bucket, region: values["storage-region"] ?? process.env.INBOX_ARCHIVE_S3_REGION ?? "auto" } };
+        identity: { workspaceId: Number(values["workspace-id"]), namespace: values.namespace, channelId: values["channel-id"], origin: api }, storage: { endpoint, bucket, region: values["storage-region"] ?? process.env.INBOX_ARCHIVE_S3_REGION ?? "auto", ...(encryption ? { encryption } : {}) } };
 }
 const HELP = `Private archive file migration through Sendb APIs (read-only review by default)
   node scripts/migrate-private-archive-files.cjs --online --bundle <canonical-channel-bundle.json> --archive-dir <closed-byte-archive> --out <new-plan-directory> --api-base <exact-origin> --workspace-id 8 --namespace <source-account> --channel-id <channel> --storage-endpoint <https-s3-origin> --storage-bucket <private-bucket>
@@ -38,6 +39,7 @@ Requires SENDB_FILE_TRANSFER_API_TOKEN in the process environment. It never load
 Review plan.json, exact API/storage destination, source limitations, relationships, blocked rows and SHA.
   same arguments --execute --approve-sha256 <reviewed-plan-sha256>
 Execution additionally requires INBOX_ARCHIVE_S3_ACCESS_KEY_ID and INBOX_ARCHIVE_S3_SECRET_ACCESS_KEY.
+Encrypted shared storage requires INBOX_ARCHIVE_STORAGE_MODE=encrypted_shared and INBOX_ARCHIVE_SSE_C_KEY (canonical base64, 32 bytes). Its fingerprint is frozen in the plan; back up the key separately.
 Resume with --resume and the same plan SHA. Ready files are verified by protected streaming downloads.
 No CRM import, file registry preparation, provider fetch, deployment, file deletion, identity matching or customer-history exposure.
 The canonical bundle and all-customer-attachment-originals manifest must agree. Source collection gaps remain visible; completion covers only reviewed bundle attachments.
@@ -45,6 +47,8 @@ The canonical bundle and all-customer-attachment-originals manifest must agree. 
 `;
 async function run(options, deps = {}) {
     const m = modules(), signal = deps.signal, token = deps.token ?? process.env.SENDB_FILE_TRANSFER_API_TOKEN;
+    const encryption = m.archiveEncryptionFromEnv();
+    if (m.fingerprint(m.archiveEncryptionBinding(encryption) ?? null) !== m.fingerprint(options.storage.encryption ?? null)) throw new CliError("storage_encryption_changed");
     if (!deps.client && !token) throw new CliError("api_credentials");
     const request = async (input, init = {}) => {
         const url = new URL(String(input)), method = init.method ?? "GET";
@@ -65,7 +69,7 @@ async function run(options, deps = {}) {
         const accessKeyId = process.env.INBOX_ARCHIVE_S3_ACCESS_KEY_ID, secretAccessKey = process.env.INBOX_ARCHIVE_S3_SECRET_ACCESS_KEY;
         if (!accessKeyId || !secretAccessKey) throw new CliError("storage_credentials");
         storageClient = new (require("@aws-sdk/client-s3").S3Client)({ endpoint: options.storage.endpoint, region: options.storage.region, forcePathStyle: options.localQa, credentials: { accessKeyId, secretAccessKey }, requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED" });
-        return storage = m.createArchiveStore(storageClient, options.storage.bucket);
+        return storage = m.createArchiveStore(storageClient, options.storage.bucket, encryption);
     };
     try {
         if (!options.execute) {

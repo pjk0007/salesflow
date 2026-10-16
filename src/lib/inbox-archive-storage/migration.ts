@@ -1,11 +1,11 @@
 import type { SendbClient, SendbImportFileDetail } from "../../../sdk/server";
 import { fingerprint } from "@/lib/customer-imports/rules";
-import { verifiedArchiveBytes, type ArchiveSource, type ArchiveStore } from "./store";
+import { verifiedArchiveBytes, type ArchiveSource, type ArchiveStore, type ArchiveEncryptionBinding } from "./store";
 import { ArchiveMigrationError, type ArchiveMigrationIdentity, type ArchiveMigrationSourceFile, loadArchiveMigrationSource } from "./migration-source";
 
 type Source = Awaited<ReturnType<typeof loadArchiveMigrationSource>>;
 export type ArchiveMigrationClient = Pick<SendbClient, "imports" | "importFiles" | "importFile" | "planArchiveImportFile" | "connectArchiveImportFile">;
-export type ArchiveStorageBinding = { endpoint: string; bucket: string; region: string };
+export type ArchiveStorageBinding = { endpoint: string; bucket: string; region: string; encryption?: ArchiveEncryptionBinding };
 export type ArchiveMigrationPlan = {
     version: 1; identity: ArchiveMigrationIdentity; storage: ArchiveStorageBinding; sourceSnapshot: Source["snapshot"]; coverage: Source["coverage"];
     limitations: string[]; items: { source: ArchiveMigrationSourceFile; target: SendbImportFileDetail; issues: string[] }[];

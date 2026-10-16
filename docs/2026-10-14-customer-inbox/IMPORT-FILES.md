@@ -23,7 +23,7 @@ D1 후속으로 [채널톡 보관 첨부 일괄 보충](FILE-TRANSFER.md)을 추
 
 관리자 서버 작업 `transferArchivedImportFile`은 파일당 1GiB까지 비공개 S3/R2 저장소에 스트리밍한다. 원본 크기/SHA-256을 검증하고, 저장소에서 다시 읽어 검증한 뒤에만 DB 첨부를 완료로 연결한다. 원문·시각·메모 구분·사업 권한·작업 버전과 임대를 확인한다. 저장소 다운로드 URL이나 키를 고객 응답에 넣지 않으며, 상담 다운로드 API에서 기존 직원/확인된 본인 권한을 검사한 뒤 서버가 스트리밍한다. 내부 메모 파일은 고객에게 제공하지 않는다. 무결성 실패는 다운로드를 중단한다.
 
-운영에는 기존 공개 파일 버킷과 분리한 **비공개 버킷**을 사용한다. R2의 `r2.dev` 공개 주소와 공개 사용자 도메인을 활성화하지 않는다. 버킷 범위가 제한된 읽기·쓰기 자격증명을 비공개 서버 환경변수에 보관한다.
+기본 모드는 기존 공개 파일 버킷과 분리한 **비공개 버킷**이다. R2의 `r2.dev` 공개 주소와 공개 사용자 도메인을 활성화하지 않는다. 버킷 범위가 제한된 읽기·쓰기 자격증명을 비공개 서버 환경변수에 보관한다. 새 버킷을 만들 권한이 없는 경우에는 아래의 검증된 SSE-C 암호화 모드를 사용할 수 있다.
 
 설정 근거는 Cloudflare의 [비공개/공개 버킷](https://developers.cloudflare.com/r2/buckets/public-buckets/)과 [버킷별 S3 자격증명](https://developers.cloudflare.com/r2/get-started/s3/) 문서를 따른다.
 
@@ -32,6 +32,16 @@ D1 후속으로 [채널톡 보관 첨부 일괄 보충](FILE-TRANSFER.md)을 추
 - `INBOX_ARCHIVE_S3_ACCESS_KEY_ID` / `INBOX_ARCHIVE_S3_SECRET_ACCESS_KEY`: 서버 전용 자격증명
 - `INBOX_ARCHIVE_S3_REGION`: 기본 `auto`
 - `INBOX_ARCHIVE_QUOTA_MB`: 사업별 객체 저장소 첨부 한도, 기본 102400MiB(100GiB)
+
+### 기존 R2의 암호화 객체를 사용하는 대안 (2026-10-17)
+
+`INBOX_ARCHIVE_STORAGE_MODE=encrypted_shared`와 `INBOX_ARCHIVE_SSE_C_KEY`를 함께 설정하면 모든 PUT/GET에 AES-256 SSE-C 키를 요구한다. 키는 임의의 32바이트를 정규 base64로 인코딩한 값이며 서버와 이전 도구에만 보관한다. 키가 없거나 잘못되면 작업을 중단하며 평문 저장으로 전환하지 않는다. 공급자의 응답에 같은 암호화 알고리즘과 키 MD5가 확인되지 않아도 중단한다. 기존 버킷 설정·일반 파일·공개 도메인은 변경하지 않는다.
+
+운영자 계획에는 키 자체 대신 SHA-256 지문을 고정한다. 실행/재개 때 모드나 키가 바뀌면 네트워크 요청 전에 중단한다. 비공개 버킷의 기본 `private` 모드는 기존 계획과 호환된다. 암호화 키를 URL·객체 이름·메타데이터·클라이언트 응답에 넣지 않는다. 키와 DB 및 객체의 복구 백업을 각각 보관해야 한다. 키가 사라지면 R2도 파일을 복호화할 수 없으므로 단순 환경변수 교체를 키 회전으로 간주하면 안 된다. [Cloudflare SSE-C 공식 계약](https://developers.cloudflare.com/r2/examples/ssec/)을 따른다.
+
+기존 샌드비 R2에 고객 정보가 없는 시험 객체로 실제 공급자 검수를 수행했다. 구현 드라이버로 21MiB 스트리밍 PUT/GET 및 SHA-256 대조, 조건부 쓰기 412, 키 누락·잘못된 키 차단, 설정된 기존 공개 주소에서 접근 차단을 확인했다. 서버/이전 도구에서 모두 SSE-C 헤더를 사용하는 모드이며 앱의 직원·사업·메모 접근 검사도 계속 적용한다. 이 결과는 시험 객체의 증거이며 실제 고객 파일 이전이나 운영 앱 배포 완료를 뜻하지 않는다.
+
+독립 가상 PostgreSQL과 실제 R2를 연결한 SDK/API 검수도 통과했다. 20MiB 초과 공개 대화/내부 메모 첨부를 암호화 업로드 → 서버 연결 → 보호 HTTP 다운로드하여 바이트 크기·SHA-256을 확인했다. 다른 사업·미인증 접근 차단, 같은 첨부 연결 재시도의 중복 방지, DB 바이트 미저장, 외부 작업/발송 0건을 확인했다. 운영 DB에 접속하지 않았고 시험 객체는 공유 버킷에서 삭제하지 않았다. 암호화 모드가 추가된 최종 단위 1,339개·타입·변경 파일 lint·운영 빌드 및 runtime SQL 117개 패키징이 통과했다. 전체 병렬 실행에서는 기존 40ms deadline 테스트 한 건이 실패했으며, 동시 실행 수를 2로 제한한 전체 검사에서 1,339개 모두 통과했다. 제품의 제한 시간을 바꾸지는 않았다.
 
 DB 파일 한도와 객체 파일 한도는 분리한다. 파일 이전 도구는 새 객체 이름을 사용하며 덮어쓰기·자동 삭제를 하지 않는다. 업로드 뒤 DB 충돌/쿼터 초과가 나면 연결되지 않은 객체가 남을 수 있다. 원본·재시도 증거를 보존하고, 운영자의 별도 정리 정책 없이 제거하지 않는다. 전체 파일 저장소와 DB의 백업·복구는 함께 인수한다.
 
@@ -49,7 +59,7 @@ DB 파일 한도와 객체 파일 한도는 분리한다. 파일 이전 도구�
 
 입력은 원본 관계를 보존한 canonical 채널톡 JSON과 검증한 바이트 보관 폴더다. 보관 manifest는 `version:1`, `scope:"all-customer-attachment-originals"`, `messageSourceComplete:true`이며 파일별 상담/메시지 ID·sourceKey·원본 정보 지문·이름·크기·공개/메모 구분·저장 SHA-256·`bytes/<hash>.bin` 경로를 포함한다. 원래 20MiB 한도로 계산한 대용량 descriptor 지문도 같은 원본에서 재계산해 대조한다. 원본 수집 전체 완료와 고객정보 복구 여부를 바꾸지 않으며 계획의 coverage/limitations에 그대로 남긴다. `complete`는 검토한 묶음의 첨부 범위만 뜻한다.
 
-먼저 읽기 전용으로 대상 관계·원본 바이트를 대조해 계획을 만든다. 프로세스 환경에 `SENDB_FILE_TRANSFER_API_TOKEN`을 제공하며 키를 인수/문서에 넣지 않는다. 저장소 주소와 버킷은 서버에 설정한 비공개 전용 저장소와 같아야 한다.
+먼저 읽기 전용으로 대상 관계·원본 바이트를 대조해 계획을 만든다. 프로세스 환경에 `SENDB_FILE_TRANSFER_API_TOKEN`을 제공하며 키를 인수/문서에 넣지 않는다. 저장소 주소·버킷·암호화 모드와 키는 서버 설정과 같아야 한다.
 
 ```sh
 node scripts/migrate-private-archive-files.cjs --online --bundle /private/canonical-channel-bundle.json --archive-dir /private/closed-byte-archive --out /private/new-file-review --api-base https://sendb.example.com --workspace-id 8 --namespace source-account --channel-id source-channel --storage-endpoint https://account.r2.cloudflarestorage.com --storage-bucket sendb-private-archive
