@@ -6,6 +6,7 @@ import { readFileUpload } from "@/lib/inbox/file-http";
 import { fileAction } from "./rules";
 import {
     importFilePage,
+    importFileDetail,
     prepareImportFiles,
     refreshImportFileSource,
     transferImportFile,
@@ -27,7 +28,8 @@ export function importFileHandlers(external: boolean) {
                         .int()
                         .min(0)
                         .parse(req.nextUrl.searchParams.get("offset") ?? 0);
-                return importFilePage(actor, id, offset);
+                const fileId = req.nextUrl.searchParams.get("fileId");
+                return fileId ? importFileDetail(actor, id, z.string().uuid().parse(fileId)) : importFilePage(actor, id, offset);
             }),
         POST: (req: NextRequest, c: Context) =>
             handleInbox(async () => {

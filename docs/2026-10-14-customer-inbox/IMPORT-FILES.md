@@ -43,6 +43,30 @@ DB 파일 한도와 객체 파일 한도는 분리한다. 파일 이전 도구�
 
 실제 원본 2,211개 전체(10,362,083,075바이트), 대용량 62개, 최대 769,703,730바이트 파일의 로컬 객체 이전·상담 권한 다운로드 SHA-256 대조를 통과했다. 이전된 DB를 별도 새 PostgreSQL에 복원해 159개 테이블 건수와 7개 중요 테이블 내용 지문이 일치함을 확인했다. 파일 저장소도 종료 후 다시 열어 최대 파일의 크기·해시를 대조했다. 이 검수는 로컬 복사본과 loopback 저장소이며 실제 R2/운영 반영 완료 증거는 아니다.
 
+### 비공개 보관 파일 실행 도구
+
+`scripts/migrate-private-archive-files.cjs`는 위 SDK 경로를 사용하는 운영자 도구다. CRM/메시지 가져오기와 파일 목록 준비를 먼저 마친 후 사용한다. 기존 D1 multipart 도구와 별도이며, 파일 전체를 Buffer에 담지 않고 1GiB까지 스트리밍한다. `.env`·DB URL·공급자 API 키를 읽거나 애플리케이션 워커를 시작하지 않는다.
+
+입력은 원본 관계를 보존한 canonical 채널톡 JSON과 검증한 바이트 보관 폴더다. 보관 manifest는 `version:1`, `scope:"all-customer-attachment-originals"`, `messageSourceComplete:true`이며 파일별 상담/메시지 ID·sourceKey·원본 정보 지문·이름·크기·공개/메모 구분·저장 SHA-256·`bytes/<hash>.bin` 경로를 포함한다. 원래 20MiB 한도로 계산한 대용량 descriptor 지문도 같은 원본에서 재계산해 대조한다. 원본 수집 전체 완료와 고객정보 복구 여부를 바꾸지 않으며 계획의 coverage/limitations에 그대로 남긴다. `complete`는 검토한 묶음의 첨부 범위만 뜻한다.
+
+먼저 읽기 전용으로 대상 관계·원본 바이트를 대조해 계획을 만든다. 프로세스 환경에 `SENDB_FILE_TRANSFER_API_TOKEN`을 제공하며 키를 인수/문서에 넣지 않는다. 저장소 주소와 버킷은 서버에 설정한 비공개 전용 저장소와 같아야 한다.
+
+```sh
+node scripts/migrate-private-archive-files.cjs --online --bundle /private/canonical-channel-bundle.json --archive-dir /private/closed-byte-archive --out /private/new-file-review --api-base https://sendb.example.com --workspace-id 8 --namespace source-account --channel-id source-channel --storage-endpoint https://account.r2.cloudflarestorage.com --storage-bucket sendb-private-archive
+```
+
+검토 계획에는 정확한 API origin·저장소 endpoint/bucket/region, 원본 파일 해시·수집 한계, 사업·계정, 메시지 원본 지문·공개 구분, 파일 관계·버전을 포함한다. `GET /api/v1/imports/:id/files?fileId=<id>`와 SDK `importFile`은 원문/서명 주소 없이 이 관계를 검증한다. 원본 메시지가 직접 바뀌었거나 부모 연결·권한이 달라지면 막는다. 큰 가져오기 JSON 전체를 파일마다 불러오지 않도록 인증은 작업의 사업 정보만 조회한다.
+
+이미 허가받은 이전 범위와 계획을 확인한 운영자는 같은 인수에 `--execute --approve-sha256 <plan.json의 sha256>`을 추가한다. 이 플래그는 다른 사업·저장소·원본으로 바뀐 계획을 그대로 실행하지 않도록 고정하는 장치다. 실행에는 `INBOX_ARCHIVE_S3_ACCESS_KEY_ID`·`INBOX_ARCHIVE_S3_SECRET_ACCESS_KEY`가 추가로 필요하다. 계정/환경 설정의 별도 승인을 대신하지 않는다.
+
+파일별 현재 원본 지문과 CAS 버전을 재확인하고, 기존 객체가 있으면 먼저 내용을 검증한다. 새 업로드에는 `If-None-Match: *`를 사용해 동시 실행이 기존 객체를 덮어쓰지 않게 한다([R2 조건부 쓰기](https://developers.cloudflare.com/r2/api/s3/api/)). 저장소 내용을 검증한 뒤 연결하고, 완료 응답 이후 보호 다운로드도 별도로 SHA/크기를 대조한다. 이미 완료한 파일에도 이 검증을 적용한다.
+
+중단 후에는 같은 계획·SHA에 `--resume`을 추가한다. 연결 후 응답 유실은 현재 ready와 실제 바이트로 확인하며 새 첨부를 중복 생성하지 않는다. 다른 작업이 파일/사업/원본/버전을 바꾸면 최신 버전을 임의 채택하지 않고 새 검토를 요구한다. 결과의 `newAttachmentsCreated`는 정확한 생성 주체를 추정하지 않고 `null`로 둔다. 경로 이탈·링크·열린 보관 잠금·해시 불일치는 전송 전에 막고, 원본 파일과 저장소 객체를 삭제하지 않는다. 작업 폴더 잠금과 원자 체크포인트는 기존 이전 도구와 같은 규칙을 따른다.
+
+가상 PostgreSQL·loopback S3에서 검토 중 원격 쓰기 0건, 20MiB 초과 공개/메모 파일, 대상 주소 변경 차단, 재개 중복 0건을 확인한다. 실제 자식 CLI 프로세스와 HTTP/SDK 보호 다운로드도 검수하며, 이 자식에는 잘못된 DB URL과 빈 객체 자격증명을 주어 ready 검증이 DB 직접 접속/재업로드 없이 작동함을 확인한다. `scripts/check-private-archive-migration-cli.cjs`를 사용한다. `--local-qa`는 API와 저장소가 모두 loopback일 때만 HTTP 저장소를 허용한다.
+
+실제 자료 복원본에서도 별도 자식 CLI와 읽기 전용 로컬 API 키로 같은 경로를 검수했다. 2,211개 전체·10,362,083,075바이트·최대 769,703,730바이트 파일의 보호 HTTP 다운로드 해시가 일치했다. GET 6,673회, POST 시도 0회, 새 첨부 0개이며 기존 records 348,873개·다른 사업·발송 큐를 보존했다. 자식에 유효한 DB URL이나 객체 자격증명을 주지 않았다. 이 검사는 완료된 원본의 재검증이며 실제 R2 업로드나 운영 자료 적용 증거로 확대하지 않는다.
+
 ## 원본 주소와 재이전
 
 - 채널톡 File의 `key`만 있는 내보내기는 새 서명 주소가 필요하다. 기존 [v5 UserChat 파일 주소 안내](https://developers.channel.io/en/articles/Get-a-file-url-in-a-UserChat-bff12f64)는 `/open/v5/.../messages/file?key=...`와15분 유효기간을 설명한다. 새 [내보내기 CLI](IMPORTS.md#채널톡-내보내기-cli)는 [현재 공식 계약](https://api-doc.channel.works/docs/openapi.en.yaml)의 `/open/user-chats/{userChatId}/messages/file?key=...`, `Channel-Version: 2026-06-01`, `{result: string}`을 사용하며 v5 유효기간을 최신 계약의 확정값으로 취급하지 않는다. 바이트 백업 뒤 기존 파일 보충/연결을 별도로 승인하며 [D1 일괄 보충 CLI](FILE-TRANSFER.md)에서도 원본 식별과 검증된 파일만 사용한다. 샌드비 서버가 원본 계정의 인증키를 저장하거나 상시 수집하는 기능은 추가하지 않았다.

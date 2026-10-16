@@ -49,6 +49,14 @@ export async function importOwned(
     await requireCustomerAccess(actor, job.workspaceId, "manage", exec);
     return job;
 }
+/** Authorization lookups do not need to load the original content and import plan. */
+export async function importWorkspaceOwned(actor: SalesActor, id: string, exec: DbExec = db) {
+    const [job] = await exec.select({ workspaceId: jobs.workspaceId }).from(jobs)
+        .where(and(eq(jobs.id, id), eq(jobs.orgId, actor.orgId)));
+    if (!job) throw new InboxError("이전 작업을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, job.workspaceId, "manage", exec);
+    return job.workspaceId;
+}
 export async function importPage(
     actor: SalesActor,
     workspaceId: number,

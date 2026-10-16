@@ -63,7 +63,8 @@ export const fileAction = z.discriminatedUnion("action", [
         })
         .strict(),
 ]);
-export function fileDescriptors(raw: unknown) {
+export function fileDescriptors(raw: unknown, maxBytes = MAX_ARCHIVE_FILE_BYTES) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_ARCHIVE_FILE_BYTES) throw new Error("잘못된 파일 크기 한도입니다.");
     const seen = new Map<string, number>();
     return (Array.isArray(raw) ? raw : []).map(
         (file: Record<string, unknown>, index) => {
@@ -86,7 +87,7 @@ export function fileDescriptors(raw: unknown) {
                         typeof sizeValue === "string") &&
                         Number.isSafeInteger(size) &&
                         size >= 1 &&
-                        size <= MAX_ARCHIVE_FILE_BYTES),
+                        size <= maxBytes),
                 validHash =
                     file.sha256 === undefined ||
                     file.sha256 === null ||

@@ -56,6 +56,30 @@
       "native600ConversationCursorScaleQa": true
     },
     "rawDataCredentialsAndDumpCommitted": false,
+    "archiveOperatorCliQa": {
+      "unitTestsPassed": 1310,
+      "typecheckLintAndIsolatedBuildPassed": true,
+      "nativePostgresS3CliAndRealChildHttpVerified": true,
+      "sourceArchiveAll2211FilesRehashed": true,
+      "actualSourceReadOnlyApiChildCli": {
+        "target": "restored actual-source local database and loopback services",
+        "files": 2211,
+        "bytes": 10362083075,
+        "largestFileBytes": 769703730,
+        "allProtectedDownloadHashesMatched": true,
+        "httpGets": 6673,
+        "postAttempts": 0,
+        "newAttachmentsCreated": 0,
+        "validDatabaseUrlInChild": false,
+        "objectCredentialsInChild": false,
+        "existingRecordsPreserved": 348873,
+        "otherBusinessesPreserved": true,
+        "externalJobsOrSendsAdded": 0
+      },
+      "sourceCollectionGapsPreserved": true,
+      "realR2Configured": false,
+      "productionChanged": false
+    },
     "remoteDevelopmentDatabaseChanged": false,
     "productionChanged": false,
     "websiteProviderSwitched": false,

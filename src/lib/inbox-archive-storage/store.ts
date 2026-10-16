@@ -35,18 +35,22 @@ export function createArchiveStore(client: S3Client, bucket: string): ArchiveSto
     return {
         async put(key, source) {
             assertArchiveSource(source);
-            await client.send(new PutObjectCommand({
+            const body = Readable.from(verifiedArchiveBytes(source));
+            try { await client.send(new PutObjectCommand({
                 Bucket: bucket, Key: key,
-                Body: Readable.from(verifiedArchiveBytes(source)),
+                Body: body,
                 ContentLength: source.size,
                 ContentType: "application/octet-stream",
+                IfNoneMatch: "*",
                 // Bucket policy must deny anonymous access; never set a public ACL.
-            }));
+            })); } finally { body.destroy(); }
         },
         async get(key) {
             const result = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-            if (!result.Body || !Number.isSafeInteger(result.ContentLength) || result.ContentLength! < 1)
+            if (!result.Body || !Number.isSafeInteger(result.ContentLength) || result.ContentLength! < 1) {
+                (result.Body as { destroy?: () => void } | undefined)?.destroy?.();
                 throw new Error("보관 파일을 읽을 수 없습니다.");
+            }
             return { size: result.ContentLength!, body: result.Body as AsyncIterable<Uint8Array> };
         },
     };

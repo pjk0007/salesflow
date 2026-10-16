@@ -39,7 +39,7 @@ type Task = typeof tasks.$inferSelect;
 async function fileJobOwned(actor: SalesActor, jobId: string, exec: DbExec, lock = false, plan = false) {
     if (plan) return importOwned(actor, jobId, exec, lock);
     // File operations need ownership and source scope, not the multi-megabyte original/plan.
-    const query = exec.select({ id: imports.id, workspaceId: imports.workspaceId, source: imports.source, namespace: imports.namespace })
+    const query = exec.select({ id: imports.id, workspaceId: imports.workspaceId, source: imports.source, namespace: imports.namespace, state: imports.state, version: imports.version, fingerprint: imports.fingerprint })
         .from(imports).where(and(eq(imports.id, jobId), eq(imports.orgId, actor.orgId)));
     const [job] = lock ? await query.for("update") : await query;
     if (!job) throw new InboxError("이전 작업을 찾을 수 없습니다.", 404);
@@ -78,8 +78,9 @@ async function taskOwned(
     jobId: string,
     id: string,
     tx: DbExec,
+    lock = true,
 ) {
-    const [task] = await tx
+    const query = tx
         .select()
         .from(tasks)
         .where(
@@ -88,8 +89,8 @@ async function taskOwned(
                 eq(tasks.jobId, jobId),
                 eq(tasks.orgId, actor.orgId),
             ),
-        )
-        .for("update");
+        );
+    const [task] = lock ? await query.for("update") : await query;
     if (!task) throw new InboxError("이전 파일을 찾을 수 없습니다.", 404);
     if (!task.active)
         throw new InboxError(
@@ -150,6 +151,24 @@ export async function importFilePage(
         total,
         offset,
         hasMore: offset + rows.length < total,
+    };
+}
+/** One bounded relationship lookup for streaming migration; excludes original bodies and signed URLs. */
+export async function importFileDetail(actor: SalesActor, jobId: string, id: string, exec: DbExec = db) {
+    const job = await fileJobOwned(actor, jobId, exec), task = await taskOwned(actor, jobId, id, exec, false);
+    const [relation] = await exec.select({ message: messages, chat: chats }).from(messages)
+        .innerJoin(chats, eq(chats.id, messages.conversationId)).innerJoin(channels, eq(channels.id, chats.channelId))
+        .where(and(eq(messages.id, task.messageId), eq(chats.orgId, actor.orgId), eq(channels.workspaceId, job.workspaceId), eq(chats.historyOnly, true)));
+    const mapping = async (kind: string, sourceId: string) => (await exec.select().from(keys).where(and(
+        eq(keys.orgId, actor.orgId), eq(keys.workspaceId, job.workspaceId), eq(keys.source, job.source), eq(keys.namespace, job.namespace), eq(keys.kind, kind), eq(keys.sourceId, sourceId),
+    )))[0];
+    const source = await mapping("messages", task.locator.messageSourceId), parent = await mapping("conversations", task.locator.conversationId);
+    if (!relation || !source || source.targetId !== String(task.messageId) || !parent || parent.targetId !== relation.chat.id || source.targetFingerprint !== fingerprint(relation.message))
+        throw new InboxError("원본 메시지 연결이나 내용이 바뀌었습니다. 이전 자료를 다시 확인해주세요.", 409);
+    return {
+        job: { id: job.id, workspaceId: job.workspaceId, source: job.source, namespace: job.namespace, state: job.state, version: job.version, fingerprint: job.fingerprint },
+        file: safe(task),
+        message: { sourceId: task.locator.messageSourceId, sourceFingerprint: source.sourceFingerprint, kind: relation.message.kind, conversationId: relation.chat.id },
     };
 }
 /** Backfill registry for already applied metadata, without reactivating superseded exports. */

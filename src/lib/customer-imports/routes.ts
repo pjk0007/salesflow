@@ -7,7 +7,7 @@ import {
     authorizeWorkspace,
 } from "@/lib/customer-platform/external-auth";
 import {
-    importOwned,
+    importWorkspaceOwned,
     importPage,
     importDetail,
     importSource,
@@ -40,8 +40,8 @@ export async function ownedActor(
     const preliminary = external
             ? (await authenticatePlatform(req)).actor
             : inboxActor(req),
-        job = await importOwned(preliminary, id);
-    return actorFor(req, external, job.workspaceId, permission);
+        workspaceId = await importWorkspaceOwned(preliminary, id);
+    return actorFor(req, external, workspaceId, permission);
 }
 export function importCollectionHandlers(external: boolean) {
     return {

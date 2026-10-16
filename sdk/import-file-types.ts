@@ -32,3 +32,8 @@ export interface SendbImportFilePage {
     offset: number;
     hasMore: boolean;
 }
+export interface SendbImportFileDetail {
+    job: { id: string; workspaceId: number; source: string; namespace: string; state: string; version: number; fingerprint: string };
+    file: SendbImportFile & { jobId: string; workspaceId: number; sourceKey: string; manifest: string };
+    message: { sourceId: string; sourceFingerprint: string; kind: string; conversationId: string };
+}
