@@ -690,6 +690,8 @@ export const emailTemplateLinks = pgTable("email_template_links", {
         onClicked?: { templateId: number };
         onNotClicked?: { templateId: number };
     } | null>(),
+    senderProfileId: integer("sender_profile_id"),
+    senderProfileIds: jsonb("sender_profile_ids").$type<number[]>(),
     preventDuplicate: integer("prevent_duplicate").default(0).notNull(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),

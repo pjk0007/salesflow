@@ -146,3 +146,13 @@ export interface SendErrorEntry {
     /** 레코드 통합 코드 (예: DH-0002) */
     code?: string | null;
 }
+
+export interface SavedSenderPool {
+    senderProfileId: number | null;
+    senderProfileIds: number[] | null;
+}
+
+export interface RuleSenderPool {
+    ids: number[];
+    setIds: (ids: number[]) => void;
+}

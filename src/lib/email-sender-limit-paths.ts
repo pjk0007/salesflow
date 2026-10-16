@@ -17,9 +17,9 @@ import type { LegacyEmailConfig, ResolvedSender, SenderCandidate } from "@/lib/e
  * 자리 잡기(claimSender)가 볼 후보 주소. 한도 판정·예약 전에 "어느 주소들을 볼지"만 정한다.
  * W1 — 한도를 하나도 켜지 않았으면 여기서 고른 주소가 예전 pickSender 결과와 같아야 한다.
  *
- *   pool   AI 첫 메일. ids 순서대로 이 조직 주소만 남긴다 (null·중복·없는 id는 뺀다 — 다른 조직·삭제된 id는
+ *   pool   AI·템플릿 첫 메일. ids 순서대로 이 조직 주소만 남긴다 (null·중복·없는 id는 뺀다 — 다른 조직·삭제된 id는
  *          profiles에 없어서 자연히 빠진다). 하나도 안 남으면 기본 주소 → 레거시 설정 (pickSender에 선호 id 없이)
- *   fixed  후속·템플릿·수동. pickSender 순서(선호 ids → 기본 → 레거시 설정)의 첫 주소 하나만
+ *   fixed  후속·수동. pickSender 순서(선호 ids → 기본 → 레거시 설정)의 첫 주소 하나만
  *
  * 프로필이 아닌 발신자(레거시 설정, profileId null)나 보낼 주소가 아예 없으면 ResolvedSender를 그대로 돌려준다 —
  * 카운터가 없으니 예약 없이 통과한다. 배열이면 후보 주소 목록이다.
@@ -55,8 +55,24 @@ export function pickSenderCandidates<T extends SenderCandidate>(
     return profile ? [profile] : resolved;
 }
 
+export interface TemplateClaimOptions {
+    mode: "pool";
+    ids: number[];
+    config: LegacyEmailConfig | null;
+    spreadDeferrals: true;
+    purpose: SendPurpose;
+}
+
+export function templateClaimOptions(
+    link: { senderProfileId: number | null; senderProfileIds: number[] | null },
+    purpose: SendPurpose,
+    config: LegacyEmailConfig | null,
+): TemplateClaimOptions {
+    return { mode: "pool", ids: linkSenderPool(link), config, spreadDeferrals: true, purpose };
+}
+
 /**
- * AI 후속 메일의 발신 주소 순서 (claimSender fixed 모드에 넘긴다).
+ * AI·템플릿 후속 메일의 발신 주소 순서 (claimSender fixed 모드에 넘긴다).
  *
  * 첫 메일을 보낸 주소가 먼저다 — 같은 주소로 보내야 받는 쪽에서 같은 대화로 이어진다.
  * 그 주소가 지워졌거나 구 로그라 null이면 pickSender가 건너뛰어 규칙 묶음 → 기본 주소 순으로 흐른다.
@@ -171,11 +187,11 @@ export function restartedWarmupStartedOn(
 }
 
 /**
- * 반복 대기열 회차의 "막힘" 기록 키 (조직 + 발송 목적). 템플릿 첫 메일(문의)과 반복(대량)은 쓸 수 있는 한도가 달라
+ * 반복 대기열 회차의 "막힘" 기록 키 (연결 + 발송 목적). 템플릿 첫 메일(문의)과 반복(대량)은 쓸 수 있는 한도가 달라
  * 따로 막힌다 — 대량이 문의 몫 앞에서 멈춰도 첫 메일은 나갈 수 있다 (DESIGN-2 2절).
  */
-export function purposeBlockKey(orgId: string, purpose: SendPurpose): string {
-    return `${orgId}|${purpose}`;
+export function purposeBlockKey(templateLinkId: number, purpose: SendPurpose): string {
+    return `link:${templateLinkId}|${purpose}`;
 }
 
 /**
@@ -202,7 +218,7 @@ export function templateFirstPurpose(kind: string | null | undefined): SendPurpo
 }
 
 /**
- * 기본 주소가 이 목적으로 막혔을 때 함께 미뤄도 되는 첫 메일 줄 kind. 문의가 막혔으면 대량도 막혔다 (recordPurposeBlock과 같은 까닭).
+ * 연결의 발신 묶음이 이 목적으로 막혔을 때 함께 미뤄도 되는 첫 메일 줄 kind. 문의가 막혔으면 대량도 막혔다 (recordPurposeBlock과 같은 까닭).
  * 대량만 막혔으면(문의 몫 앞에서 멈춤) 문의 첫 메일은 나갈 수 있으므로 옮기지 않는다.
  */
 export function templateFirstKindsBlockedBy(purpose: SendPurpose): TemplateFirstKind[] {
@@ -210,27 +226,27 @@ export function templateFirstKindsBlockedBy(purpose: SendPurpose): TemplateFirst
 }
 
 /**
- * 조직의 기본 발신 주소가 이 목적으로 retryAt까지 막혔다고 적는다 (activeBlock이 읽는다).
+ * 연결의 발신 묶음이 이 목적으로 retryAt까지 막혔다고 적는다 (activeBlock이 읽는다).
  * 문의가 막혔으면 대량도 막혔다 — 대량 한도는 문의 한도보다 작거나 같고, 정지·시간대·간격은 같다.
  * 대량이 막혔다고 문의가 막힌 것은 아니다 (문의 몫이 남아 있을 수 있다). 이미 더 늦게까지 막힌 기록은 당기지 않는다.
  */
 export function recordPurposeBlock(
     blockedUntil: Map<string, Date>,
-    orgId: string,
+    templateLinkId: number,
     purpose: SendPurpose,
     retryAt: Date,
 ): void {
     const purposes: SendPurpose[] = purpose === "inbound" ? ["inbound", "bulk"] : ["bulk"];
     for (const p of purposes) {
-        const key = purposeBlockKey(orgId, p);
+        const key = purposeBlockKey(templateLinkId, p);
         const prev = blockedUntil.get(key);
         if (!prev || prev.getTime() < retryAt.getTime()) blockedUntil.set(key, new Date(retryAt.getTime()));
     }
 }
 
 /**
- * 회차 안에서 "이 조직(키)의 발신 주소가 이 시각까지 막혔다"는 기록을 본다. 막혀 있으면 열리는 시각, 아니면 null.
- * 이미 열린 기록은 지운다. 반복 대기열이 같은 조직의 줄마다 조건·발송 준비 조회를 되풀이하지 않으려고 쓴다.
+ * 회차 안에서 "이 연결(키)의 발신 묶음이 이 시각까지 막혔다"는 기록을 본다. 막혀 있으면 열리는 시각, 아니면 null.
+ * 이미 열린 기록은 지운다. 반복 대기열이 같은 연결의 줄마다 조건·발송 준비 조회를 되풀이하지 않으려고 쓴다.
  */
 export function activeBlock(blockedUntil: Map<string, Date>, key: string, now: Date): Date | null {
     const until = blockedUntil.get(key);

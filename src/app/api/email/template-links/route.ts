@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { resolveRuleSenderPool } from "@/lib/email-sender-resolver";
 import { checkLinkTemplatesOwned } from "@/lib/email-template-ownership";
 
 export async function GET(req: NextRequest) {
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
             repeatConfig,
             followupConfig,
             preventDuplicate = 0,
+            senderProfileId,
+            senderProfileIds,
         } = await req.json();
 
         if (!partitionId || !name || !emailTemplateId || !recipientField) {
@@ -100,6 +103,11 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: templates.error }, { status: 400 });
         }
 
+        const senderPool = await resolveRuleSenderPool(user.orgId, { senderProfileId, senderProfileIds });
+        if (!senderPool.ok) {
+            return NextResponse.json({ success: false, error: senderPool.error }, { status: 400 });
+        }
+
         const [created] = await db
             .insert(emailTemplateLinks)
             .values({
@@ -114,6 +122,7 @@ export async function POST(req: NextRequest) {
                 followupConfig: followupConfig || null,
                 preventDuplicate: preventDuplicate ? 1 : 0,
                 createdBy: user.userId,
+                ...senderPool.value,
             })
             .returning();
 

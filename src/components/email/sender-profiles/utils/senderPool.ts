@@ -1,3 +1,6 @@
+import { linkSenderPool } from "@/lib/email-sender-limit-rules";
+import type { SavedSenderPool } from "../types";
+
 /**
  * AI 규칙의 발신 주소 묶음을 화면에서 다루는 도우미. 순수 함수만 — 시험이 이 파일만 불러도 되게 한다.
  */
@@ -19,4 +22,9 @@ export function splitKnownSenderIds(
         (known.has(id) ? kept : dropped).push(id);
     }
     return { kept, dropped };
+}
+
+/** 고친 빈 배열도 저장된 값보다 우선한다. */
+export function formSenderIds(edited: number[] | null, saved: SavedSenderPool | null | undefined): number[] {
+    return edited ?? (saved ? linkSenderPool(saved) : []);
 }
