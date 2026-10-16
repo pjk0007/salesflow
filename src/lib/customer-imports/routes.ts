@@ -16,6 +16,7 @@ import {
     stepImport,
 } from "./repository";
 import type { PlatformPermission } from "@/lib/customer-platform/rules";
+import { importStepInput } from "./rules";
 const ws = z.coerce.number().int().positive(),
     uuid = z.string().uuid();
 type Context = { params: Promise<{ id: string }> };
@@ -98,7 +99,8 @@ export function importItemHandlers(external: boolean) {
                 if (input.action === "step") {
                     const { action: _, ...step } = input;
                     void _;
-                    return stepImport(actor, id, step);
+                    const { cursor, batchSize } = importStepInput.parse(step);
+                    return stepImport(actor, id, { cursor }, undefined, batchSize);
                 }
                 return changeImport(actor, id, input);
             }),

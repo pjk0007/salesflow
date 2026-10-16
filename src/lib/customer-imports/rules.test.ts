@@ -7,7 +7,17 @@ import {
     fingerprint,
     pathValue,
     sourceUuid,
+    importStepInput,
 } from "./rules";
+test("이전 API 묶음은 기본 25행이며 명시된 1~250행만 허용한다", () => {
+    assert.deepEqual(importStepInput.parse({cursor:0}), {cursor:0,batchSize:25});
+    assert.deepEqual(importStepInput.parse({cursor:25,batchSize:250}), {cursor:25,batchSize:250});
+    for (const batchSize of [0,251,-1,1.5,"250",null]) {
+        assert.equal(importStepInput.safeParse({cursor:0,batchSize}).success,false);
+    }
+    assert.equal(importStepInput.safeParse({cursor:-1,batchSize:250}).success,false);
+    assert.equal(importStepInput.safeParse({cursor:0,batchSize:250,skipChecks:true}).success,false);
+});
 const input = (
     source: "channel" | "intercom" | "hubspot" | "portable",
     content: unknown,

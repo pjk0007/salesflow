@@ -437,11 +437,11 @@ export class SendbClient {
             input,
         );
     }
-    stepImport(id: string, cursor: number) {
+    stepImport(id: string, cursor: number, batchSize?: number) {
         return this.request<SendbImportJob>(
             `/api/v1/imports/${encodeURIComponent(id)}`,
             "POST",
-            { action: "step", cursor },
+            { action: "step", cursor, ...(batchSize === undefined ? {} : { batchSize }) },
         );
     }
     importFiles(jobId: string, offset = 0) {

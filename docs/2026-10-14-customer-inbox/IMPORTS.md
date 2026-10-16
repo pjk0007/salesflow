@@ -117,6 +117,8 @@ node scripts/check-channel-contacts-export.cjs
 
 서비스 토큰의 사업 범위와 발급자의 현재 관리자 역할을 확인한다. 읽기는 `read`, 미리보기는 `create`, 실행/단계/중지/재개는 `update` 권한이 필요하다. 직원 화면도 관리자 인증을 적용한다. 응답은 기존 `{success,data}` 계약이다.
 
+대량 이전 실행기는 `stepImport(jobId, cursor, 250)`으로 요청당 최대 250행을 처리할 수 있다. `batchSize` 생략 시 기존 25행을 유지한다. API는 정수 1~250만 허용하며 사업·관리자 권한, 커서, 원본 지문·관계와 묶음 전체 롤백 검사는 동일하다. 이미 처리한 커서의 재요청은 다시 저장하지 않는다. 250행 중 충돌이 생기면 그 묶음 전체를 취소하고 이전 커서를 유지한다.
+
 | API | 동작 |
 |---|---|
 | `GET /api/v1/imports?workspaceId=8&before=<jobId>` | 최근 50개와 커서 |
