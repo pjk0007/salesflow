@@ -10,8 +10,9 @@ import type {
 import {
     buildCopyPrompt,
     GENERATION_LEASE_MS,
-    MAX_PREPARATION_MS,
     MAX_TRANSIENT_RETRIES,
+    parseCopyOutput,
+    passedPreparationDeadline,
     validateCopy,
 } from "./rules";
 import { CopyProviderError, type CopyProviderResponse } from "./provider";
@@ -173,17 +174,6 @@ export async function recordAttemptUsage(
         }
     });
 }
-function parseOutput(content: string): unknown {
-    const text = content
-        .trim()
-        .replace(/^```(?:json)?\s*/, "")
-        .replace(/\s*```$/, "");
-    try {
-        return JSON.parse(text);
-    } catch {
-        throw new Error("JSON 출력 형식 오류");
-    }
-}
 async function policyBlocked(conn: CopyConnection, job: CopyJob) {
     const [versions] = await conn<
         { blocked: boolean }[]
@@ -232,10 +222,10 @@ export async function generateStoredCopy(
             (fresh.lease_until && new Date(fresh.lease_until) > now)
         )
             return null;
-        if (
-            now.getTime() - new Date(fresh.eligible_at).getTime() >= MAX_PREPARATION_MS ||
-            fresh.attempts >= MAX_TRANSIENT_RETRIES + 2
-        ) {
+        const [first] = await conn<
+            { at: Date | null }[]
+        >`SELECT min(started_at) AS at FROM ai_copy_generation_attempts WHERE job_id=${fresh.id} AND started_at>=${new Date(fresh.eligible_at).toISOString()}`;
+        if (passedPreparationDeadline({ attempts: fresh.attempts, firstAttemptAt: first?.at ?? null }, now)) {
             await conn`UPDATE ai_copy_generation_jobs SET state='held',reason='preparation_deadline',lease_until=NULL WHERE id=${fresh.id}`;
             return null;
         }
@@ -298,7 +288,7 @@ export async function generateStoredCopy(
         ]);
         try {
             if (response.truncated) throw new Error("출력 토큰 한도 초과");
-            output = validateCopy(job.policy_snapshot, job.context, parseOutput(response.content));
+            output = validateCopy(job.policy_snapshot, job.context, parseCopyOutput(response.content));
             result = "valid";
         } catch (error) {
             result = "validation_failed";
@@ -322,11 +312,14 @@ export async function generateStoredCopy(
     const [failures] = await conn<
         { count: number }[]
     >`SELECT count(*)::int AS count FROM ai_copy_generation_attempts WHERE job_id=${job.id} AND result IN ('provider_failed','timeout')`;
+    // 기한은 eligible_at 이후 첫 시도부터 — 보류를 풀 때 eligible_at을 새로 잡으면 기한도 새로 시작한다
+    const [windowStart] = await conn<
+        { at: Date | null }[]
+    >`SELECT min(started_at) AS at FROM ai_copy_generation_attempts WHERE job_id=${job.id} AND started_at>=${new Date(job.eligible_at).toISOString()}`;
     const canRetry =
         retryable &&
         failures.count <= MAX_TRANSIENT_RETRIES &&
-        job.attempts < MAX_TRANSIENT_RETRIES + 2 &&
-        finished.getTime() - new Date(job.eligible_at).getTime() < MAX_PREPARATION_MS;
+        !passedPreparationDeadline({ attempts: job.attempts, firstAttemptAt: windowStart?.at ?? null }, finished);
     const nextState = blocked ? "held" : output ? "ready" : canRetry ? "retry" : "held";
     const retryAt = new Date(
         finished.getTime() + Math.min(300_000, 10_000 * 2 ** (job.attempts - 1)),

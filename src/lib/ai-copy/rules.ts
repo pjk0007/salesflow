@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { AI_MODELS } from "../ai/models";
+import { extractJson } from "../ai/json-utils";
 import { renderVisitAckCopy } from "../email-visit-ack-copy";
 import type {
     CopyOutput,
@@ -16,6 +17,33 @@ export const COPY_VALIDATOR_VERSION = "copy-v1";
 export const MAX_PREPARATION_MS = 30 * 60_000;
 export const GENERATION_LEASE_MS = 60_000;
 export const MAX_TRANSIENT_RETRIES = 3;
+
+/**
+ * 모델 응답에서 JSON 객체를 꺼낸다. 프롬프트가 계산을 시키면 모델이 JSON 앞에 풀이를 먼저 쓰므로
+ * 기존 발송 경로와 같은 extractJson으로 본문 중간의 JSON·코드블록도 찾는다.
+ * @throws 찾지 못하면 "JSON 출력 형식 오류"
+ */
+export function parseCopyOutput(content: string): unknown {
+    try {
+        return extractJson(content, /\{[\s\S]*\}/);
+    } catch {
+        throw new Error("JSON 출력 형식 오류");
+    }
+}
+
+/**
+ * 준비 기한(MAX_PREPARATION_MS)을 넘겼는가. 기한은 **첫 시도 시각**부터 센다 — 동시 생성 제한으로 차례를
+ * 기다린 시간은 문구 품질과 상관없다. 대량 등록 때 수백 건이 호출 한 번 없이 보류되던 문제 (2026-10-16)
+ * @param firstAttemptAt 첫 시도 시작 시각. 한 번도 시도하지 않았으면 null → 기한 판정을 하지 않는다
+ */
+export function passedPreparationDeadline(
+    job: { attempts: number; firstAttemptAt: Date | string | null },
+    now: Date,
+): boolean {
+    if (job.attempts >= MAX_TRANSIENT_RETRIES + 2) return true;
+    if (!job.firstAttemptAt) return false;
+    return now.getTime() - new Date(job.firstAttemptAt).getTime() >= MAX_PREPARATION_MS;
+}
 const purposeSchema = z.enum(["initial_email", "visit_ack"]);
 export const knowledgeSchema = z.object({
     businessName: z.string().trim().min(1).max(100),
