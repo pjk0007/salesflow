@@ -28,7 +28,11 @@ import {
     importObject,
     type ImportScope,
 } from "./storage";
-import { applyImportRow } from "./writer";
+import {
+    applyImportRow,
+    refreshImportedConversations,
+    type ImportMessageBatch,
+} from "./writer";
 type Job = typeof jobs.$inferSelect;
 const scopeOf = (
     actor: SalesActor,
@@ -486,10 +490,14 @@ export async function stepImport(
                 return importDetail(actor, id, tx);
             const scope = scopeOf(actor, job.input);
             let cursor = job.cursor;
+            const messageBatch: ImportMessageBatch = new Map();
             for (const row of job.plan.slice(cursor, cursor + batchSize)) {
-                await applyImportRow(actor, scope, job, row, tx);
+                await applyImportRow(actor, scope, job, row, tx, messageBatch);
                 cursor++;
             }
+            // Derived chat fields are not part of the stable import fingerprint.
+            // Flush in this same transaction, before advancing the durable cursor.
+            await refreshImportedConversations(tx, messageBatch);
             const state = cursor === job.plan.length ? "completed" : "running";
             await tx
                 .update(jobs)
