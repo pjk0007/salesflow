@@ -1,5 +1,6 @@
 "use client";
 
+import {SupportAlertLink} from "@/components/inbox-operations/ui/SupportNotifications";
 import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import { useSession } from "@/contexts/SessionContext";
@@ -34,6 +35,7 @@ import {
 
 const BREADCRUMB_LABELS: Record<string, string> = {
     records: "레코드",
+    inbox: "고객 상담",
     email: "이메일",
     alimtalk: "알림톡",
     products: "제품",
@@ -156,6 +158,7 @@ export function Header() {
     const router = useRouter();
     const { user, logout } = useSession();
     const { theme, setTheme } = useTheme();
+    const currentPath=usePathname();
 
     return (
         <header className="flex h-14 items-center border-b bg-background px-4 gap-1 min-w-0">
@@ -164,6 +167,7 @@ export function Header() {
             <MobileTitle />
             <div className="flex-1" />
             <div className="flex items-center gap-2">
+                {user&&currentPath!=="/inbox"&&<SupportAlertLink/>}
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="gap-2">

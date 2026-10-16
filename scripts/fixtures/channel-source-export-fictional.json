@@ -1,0 +1,406 @@
+{
+  "fictional": true,
+  "channelId": "qa-fictional-channel-export",
+  "states": [
+    "opened",
+    "closed",
+    "snoozed",
+    "queued",
+    "initial",
+    "missed"
+  ],
+  "bundle": {
+    "users": [
+      {
+        "id": "qa-user-a",
+        "channelId": "qa-fictional-channel-export",
+        "type": "member",
+        "member": true,
+        "memberId": "qa-fictional-member-alpha",
+        "veilId": "qa-fictional-veil-alpha",
+        "profile": {
+          "name": "허구 알파 고객",
+          "email": "alpha@example.test",
+          "company": "허구 알파 회사",
+          "customTier": "fictional"
+        },
+        "createdAt": 1704067200000,
+        "sourceOnly": {
+          "arbitrary": true
+        }
+      },
+      {
+        "id": "qa-user-b",
+        "channelId": "qa-fictional-channel-export",
+        "type": "lead",
+        "member": false,
+        "memberId": "qa-fictional-member-beta",
+        "profile": {
+          "name": "허구 베타 고객",
+          "email": "beta@example.test"
+        },
+        "createdAt": 1704067201000
+      },
+      {
+        "id": "qa-user-c",
+        "channelId": "qa-fictional-channel-export",
+        "type": "veil",
+        "memberId": "qa-fictional-veil-gamma",
+        "veilId": "qa-fictional-veil-gamma",
+        "profile": {
+          "name": "허구 비회원 감마",
+          "email": "gamma@example.test"
+        },
+        "createdAt": 1704067202000
+      }
+    ],
+    "managers": [
+      {
+        "id": "qa-manager-a",
+        "channelId": "qa-fictional-channel-export",
+        "name": "허구 원본 상담원",
+        "email": "manager@example.test",
+        "sourceOnly": {
+          "team": "fictional"
+        }
+      }
+    ],
+    "bots": [
+      {
+        "id": "qa-manager-a",
+        "channelId": "qa-fictional-channel-export",
+        "name": "허구 원본 안내 봇",
+        "sourceOnly": {
+          "bot": true
+        }
+      }
+    ],
+    "userChats": [
+      {
+        "id": "qa-chat-open",
+        "channelId": "qa-fictional-channel-export",
+        "userId": "qa-user-a",
+        "title": "허구 도입 제목(원본)",
+        "name": "허구 도입 첫 상담",
+        "state": "opened",
+        "createdAt": 1704067200000,
+        "updatedAt": 1704070800000,
+        "tags": [
+          "fictional"
+        ],
+        "sourceOnly": {
+          "thread": "keep-open"
+        }
+      },
+      {
+        "id": "qa-chat-closed",
+        "channelId": "qa-fictional-channel-export",
+        "userId": "qa-user-a",
+        "name": "허구 완료한 상담",
+        "state": "closed",
+        "createdAt": 1704067300000,
+        "updatedAt": 1704070900000
+      },
+      {
+        "id": "qa-chat-snoozed",
+        "channelId": "qa-fictional-channel-export",
+        "userId": "qa-user-b",
+        "name": "허구 보류한 상담",
+        "state": "snoozed",
+        "createdAt": 1704067400000,
+        "updatedAt": 1704071000000
+      },
+      {
+        "id": "qa-chat-queued",
+        "channelId": "qa-fictional-channel-export",
+        "userId": "qa-user-b",
+        "name": "허구 대기 상담",
+        "state": "queued",
+        "createdAt": 1704067500000,
+        "updatedAt": 1704071100000
+      },
+      {
+        "id": "qa-chat-initial",
+        "channelId": "qa-fictional-channel-export",
+        "userId": "qa-user-c",
+        "name": "허구 초기 상담",
+        "state": "initial",
+        "createdAt": 1704067600000,
+        "updatedAt": 1704071200000
+      },
+      {
+        "id": "qa-chat-missed",
+        "channelId": "qa-fictional-channel-export",
+        "userId": "qa-user-c",
+        "name": "허구 놓친 상담",
+        "state": "missed",
+        "createdAt": 1704067700000,
+        "updatedAt": 1704071300000
+      }
+    ],
+    "messages": [
+      {
+        "id": "shared-source-message",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-open",
+        "chatType": "userChat",
+        "personType": "user",
+        "personId": "qa-user-a",
+        "plainText": "허구 알파 첫 문의",
+        "createdAt": 1704067201000,
+        "blocks": [
+          {
+            "type": "text",
+            "value": "허구 알파 첫 문의"
+          }
+        ],
+        "sourceOnly": {
+          "keep": true
+        }
+      },
+      {
+        "id": "qa-open-reply",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-open",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 공개 안내와 PDF",
+        "createdAt": 1704067202000,
+        "files": [
+          {
+            "id": "qa-pdf",
+            "key": "qa/fictional-proposal.pdf",
+            "name": "허구 샘플 제안서.pdf",
+            "size": 34,
+            "contentType": "application/pdf",
+            "sha256": "24ba11d9f332d1ffd0e5ad8dbb0f52070ce48cedf601cecf2a3f3620948c12e3",
+            "url": "https://files.example.test/fictional-proposal.pdf?signature=fictional-only",
+            "sourceOnly": {
+              "file": true
+            }
+          }
+        ],
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-open-private",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-open",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 내부 메모는 고객과 공개 활동에 보이면 안 됨",
+        "createdAt": 1704067203000,
+        "options": [
+          "private"
+        ],
+        "thread": {
+          "id": "qa-private-thread",
+          "rootId": "qa-open-reply"
+        },
+        "files": [
+          {
+            "id": "qa-private-png",
+            "key": "qa/fictional-note.png",
+            "name": "허구 내부 메모.png",
+            "size": 68,
+            "contentType": "image/png",
+            "sha256": "64e76c081449ba4cd78e153a6ae1a44cc6fa67f1d2ed2e6494a413c48986f467"
+          }
+        ],
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-open-bot",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-open",
+        "personType": "bot",
+        "personId": "qa-manager-a",
+        "plainText": "허구 봇 공개 안내",
+        "createdAt": 1704067204000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "shared-source-message",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-closed",
+        "personType": "user",
+        "personId": "qa-user-a",
+        "plainText": "허구 완료 상담 문의",
+        "createdAt": 1704067301000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-closed-reply",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-closed",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 완료 상담 답변",
+        "createdAt": 1704067302000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-closed-user2",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-closed",
+        "personType": "user",
+        "personId": "qa-user-a",
+        "plainText": "허구 완료 상담 감사",
+        "createdAt": 1704067303000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "shared-source-message",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-snoozed",
+        "personType": "user",
+        "personId": "qa-user-b",
+        "plainText": "허구 보류 상담 문의",
+        "createdAt": 1704067401000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-snoozed-reply",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-snoozed",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 보류 상담 답변",
+        "createdAt": 1704067402000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-snoozed-user2",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-snoozed",
+        "personType": "user",
+        "personId": "qa-user-b",
+        "plainText": "허구 보류 추가 문의",
+        "createdAt": 1704067403000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "shared-source-message",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-queued",
+        "personType": "user",
+        "personId": "qa-user-b",
+        "plainText": "허구 대기 상담 문의",
+        "createdAt": 1704067501000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-queued-reply",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-queued",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 대기 상담 답변",
+        "createdAt": 1704067502000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-queued-user2",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-queued",
+        "personType": "user",
+        "personId": "qa-user-b",
+        "plainText": "허구 대기 추가 문의",
+        "createdAt": 1704067503000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "shared-source-message",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-initial",
+        "personType": "user",
+        "personId": "qa-user-c",
+        "plainText": "허구 초기 상담 문의",
+        "createdAt": 1704067601000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-initial-reply",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-initial",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 초기 상담 답변",
+        "createdAt": 1704067602000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-initial-user2",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-initial",
+        "personType": "user",
+        "personId": "qa-user-c",
+        "plainText": "허구 초기 추가 문의",
+        "createdAt": 1704067603000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "shared-source-message",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-missed",
+        "personType": "user",
+        "personId": "qa-user-c",
+        "plainText": "허구 놓친 상담 문의",
+        "createdAt": 1704067701000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-missed-reply",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-missed",
+        "personType": "manager",
+        "personId": "qa-manager-a",
+        "plainText": "허구 놓친 상담 답변",
+        "createdAt": 1704067702000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-missed-user2",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-missed",
+        "personType": "user",
+        "personId": "qa-user-c",
+        "plainText": "허구 놓친 추가 문의",
+        "createdAt": 1704067703000,
+        "chatType": "userChat"
+      },
+      {
+        "id": "qa-missed-system",
+        "channelId": "qa-fictional-channel-export",
+        "chatId": "qa-chat-missed",
+        "personType": "system",
+        "plainText": "허구 시스템 이벤트",
+        "createdAt": 1704067704000,
+        "log": {
+          "action": "fictional-event",
+          "sourceOnly": true
+        },
+        "chatType": "userChat"
+      }
+    ],
+    "hasNext": false,
+    "nextCursor": null
+  },
+  "downloads": [
+    {
+      "fileId": "qa-pdf",
+      "fileName": "허구 샘플 제안서.pdf",
+      "base64": "JVBERi0xLjQKRklDVElPTkFMIGV4cG9ydCBRQQolJUVPRg=="
+    },
+    {
+      "fileId": "qa-private-png",
+      "fileName": "허구 내부 메모.png",
+      "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aPd8AAAAASUVORK5CYII="
+    }
+  ],
+  "limitations": [
+    "Every record and byte is fictional. No Channel account or API is accessed.",
+    "Conversation-related users do not establish complete Channel customer coverage.",
+    "File descriptors and downloaded bytes are separate migration stages."
+  ]
+}

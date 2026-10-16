@@ -16,6 +16,11 @@ export async function register() {
         // email_send_logs 색인은 마이그레이션 뒤 트랜잭션 밖에서 CONCURRENTLY로 (DESIGN-SND 8-3). 기다리지 않는다 — 서버가 뜨는 것을 늦추지 않게
         const { ensureSendLogIndexes } = await import("@/lib/db/send-log-indexes");
         void ensureSendLogIndexes();
+        const { isDevelopmentPreviewRuntime } = await import("@/lib/development-runtime");
+        if (isDevelopmentPreviewRuntime(process.env)) {
+            console.info("[instrumentation] sendb-dev 체험 서버 — 자동 발송·AI·외부 연동 워커를 시작하지 않습니다.");
+            return;
+        }
         const { startCustomerJourneyScheduler } = await import("@/lib/customer-journey-scheduler");
         startCustomerJourneyScheduler();
         const { startEmailSendScheduler } = await import("@/lib/email-send-scheduler");
@@ -24,5 +29,17 @@ export async function register() {
         startCopyEvaluationScheduler();
         const { startCopyAutomationScheduler } = await import("@/lib/ai-copy/automation-worker");
         startCopyAutomationScheduler();
+        const { startWebhookScheduler } = await import("@/lib/customer-platform/webhook-worker");
+        startWebhookScheduler();
+        const { startSupportAiScheduler } = await import("@/lib/customer-ai/worker");
+        startSupportAiScheduler();
+        const { startWorkflowScheduler } = await import("@/lib/customer-workflows/worker");
+        startWorkflowScheduler();
+        const { startGoogleMailScheduler } = await import("@/lib/inbox-email/google-worker");
+        startGoogleMailScheduler();
+        const {startOperationsScheduler}=await import("@/lib/inbox-operations/worker");
+        startOperationsScheduler();
+        const {startRoutingScheduler}=await import("@/lib/inbox-capacity/dispatcher");
+        startRoutingScheduler();
     }
 }

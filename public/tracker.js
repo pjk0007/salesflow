@@ -17,6 +17,14 @@
 
     var config = { apiKey: "", endpoint: "" };
     var heartbeatTimer = null;
+    function acceptCollectResponse(json) {
+        if (json && json.domains && !config.domains) config.domains = json.domains;
+        if (json && typeof json.journey_context === "string") {
+            config.journeyContext = json.journey_context;
+            // 휘발성 경로 증명만 상담 SDK에 전달한다. 고객 본인 인증값이 아니다.
+            window.dispatchEvent(new CustomEvent("sendb:journey-context", { detail: json.journey_context }));
+        }
+    }
 
     // ── Utilities ──
 
@@ -219,10 +227,7 @@
                         return res.json();
                     })
                     .then(function (json) {
-                        // 등록 도메인 목록 수신 → 크로스도메인 링킹에 사용
-                        if (json && json.domains && !config.domains) {
-                            config.domains = json.domains;
-                        }
+                        acceptCollectResponse(json);
                     })
                     .catch(function () {});
                 return;
@@ -234,6 +239,9 @@
             var xhr = new XMLHttpRequest();
             xhr.open("POST", url, true);
             xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.onload = function () {
+                try { acceptCollectResponse(JSON.parse(xhr.responseText)); } catch (e) {}
+            };
             xhr.send(payload);
         } catch (e) {}
     }
@@ -622,6 +630,9 @@
         },
         getClickId: function () {
             return config.clickId || null;
+        },
+        getJourneyContext: function () {
+            return config.journeyContext || null;
         },
         // ── 디버그용 (콘솔에서 호출) ──
         _debugSections: function () {

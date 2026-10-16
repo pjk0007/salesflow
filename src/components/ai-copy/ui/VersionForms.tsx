@@ -5,12 +5,14 @@ import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { targetsFor } from "@/lib/ai-copy/defaults";
 import type {
     CopyPurpose,
+    KnowledgePurpose,
     KnowledgeSnapshot,
     PerformanceTargets,
     PolicySnapshot,
 } from "@/lib/ai-copy/types";
 import { Field, controlClass, purposeLabel } from "./Fields";
-const today = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+const today = () =>
+    new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
 type Workspaces = { id: number; name: string }[];
 function BusinessField({
     value,
@@ -47,27 +49,38 @@ export function KnowledgeForm({
     initial,
     onSave,
     pending,
+    defaultPurposes = ["initial_email", "visit_ack"],
+    description = "제품 설명·FAQ·사례·가격 중 사용할 사실을 근거와 함께 등록합니다. 방문 감사만 작성할 때는 사실 항목 없이 사업명만 등록할 수 있습니다.",
 }: {
     workspaces: Workspaces;
     initial?: { workspaceId: number; snapshot: KnowledgeSnapshot };
     onSave: (body: unknown) => Promise<unknown>;
     pending: boolean;
+    defaultPurposes?: KnowledgePurpose[];
+    description?: string;
 }) {
     const [workspaceId, setWorkspaceId] = useState(initial?.workspaceId ?? 0),
         [name, setName] = useState("");
-    const [businessName, setBusinessName] = useState(initial?.snapshot.businessName ?? "");
+    const [businessName, setBusinessName] = useState(
+        initial?.snapshot.businessName ?? "",
+    );
     const [claims, setClaims] = useState(
-        initial?.snapshot.claims.map((c) => ({ ...c, checkedAt: c.checkedAt.slice(0, 10) })) ?? [
+        initial?.snapshot.claims.map((c) => ({
+            ...c,
+            checkedAt: c.checkedAt.slice(0, 10),
+        })) ?? [
             {
                 text: "",
                 sourceUrl: "",
                 checkedAt: today(),
-                purposes: ["initial_email", "visit_ack"] as CopyPurpose[],
+                purposes: defaultPurposes,
             },
         ],
     );
     const update = (index: number, value: Partial<(typeof claims)[number]>) =>
-        setClaims((items) => items.map((c, i) => (i === index ? { ...c, ...value } : c)));
+        setClaims((items) =>
+            items.map((c, i) => (i === index ? { ...c, ...value } : c)),
+        );
     return (
         <form
             className="space-y-4"
@@ -82,7 +95,9 @@ export function KnowledgeForm({
                             .filter((c) => c.text.trim())
                             .map((c) => ({
                                 ...c,
-                                checkedAt: new Date(`${c.checkedAt}T00:00:00+09:00`).toISOString(),
+                                checkedAt: new Date(
+                                    `${c.checkedAt}T00:00:00+09:00`,
+                                ).toISOString(),
                             })),
                     },
                 });
@@ -94,7 +109,9 @@ export function KnowledgeForm({
                     onChange={(n) => {
                         setWorkspaceId(n);
                         if (!businessName)
-                            setBusinessName(workspaces.find((w) => w.id === n)?.name ?? "");
+                            setBusinessName(
+                                workspaces.find((w) => w.id === n)?.name ?? "",
+                            );
                     }}
                     workspaces={workspaces}
                 />
@@ -122,20 +139,24 @@ export function KnowledgeForm({
                     />
                 )}
             </Field>
-            <p className="text-sm text-muted-foreground">
-                제품 설명·FAQ·사례·가격 중 사용할 사실을 근거와 함께 등록합니다. 방문 감사만 작성할
-                때는 사실 항목 없이 사업명만 등록할 수 있습니다.
-            </p>
+            <p className="text-sm text-muted-foreground">{description}</p>
             {claims.map((claim, index) => (
-                <fieldset key={index} className="space-y-3 rounded-md border p-4">
-                    <legend className="px-1 text-sm">안내할 사실 {index + 1}</legend>
+                <fieldset
+                    key={index}
+                    className="space-y-3 rounded-md border p-4"
+                >
+                    <legend className="px-1 text-sm">
+                        안내할 사실 {index + 1}
+                    </legend>
                     <Field label="확인한 사실">
                         {(id) => (
                             <textarea
                                 id={id}
                                 className={controlClass}
                                 value={claim.text}
-                                onChange={(e) => update(index, { text: e.target.value })}
+                                onChange={(e) =>
+                                    update(index, { text: e.target.value })
+                                }
                                 rows={2}
                             />
                         )}
@@ -149,7 +170,11 @@ export function KnowledgeForm({
                                     type="url"
                                     value={claim.sourceUrl}
                                     required={!!claim.text.trim()}
-                                    onChange={(e) => update(index, { sourceUrl: e.target.value })}
+                                    onChange={(e) =>
+                                        update(index, {
+                                            sourceUrl: e.target.value,
+                                        })
+                                    }
                                 />
                             )}
                         </Field>
@@ -161,13 +186,23 @@ export function KnowledgeForm({
                                     type="date"
                                     value={claim.checkedAt}
                                     required={!!claim.text.trim()}
-                                    onChange={(e) => update(index, { checkedAt: e.target.value })}
+                                    onChange={(e) =>
+                                        update(index, {
+                                            checkedAt: e.target.value,
+                                        })
+                                    }
                                 />
                             )}
                         </Field>
                     </div>
                     <div className="flex flex-wrap gap-4 text-sm">
-                        {(["initial_email", "visit_ack"] as CopyPurpose[]).map((p) => (
+                        {(
+                            [
+                                "initial_email",
+                                "visit_ack",
+                                "customer_chat",
+                            ] as KnowledgePurpose[]
+                        ).map((p) => (
                             <label key={p} className="flex items-center gap-2">
                                 <input
                                     type="checkbox"
@@ -176,7 +211,9 @@ export function KnowledgeForm({
                                         update(index, {
                                             purposes: e.target.checked
                                                 ? [...claim.purposes, p]
-                                                : claim.purposes.filter((x) => x !== p),
+                                                : claim.purposes.filter(
+                                                      (x) => x !== p,
+                                                  ),
                                         })
                                     }
                                 />
@@ -188,7 +225,9 @@ export function KnowledgeForm({
                             variant="ghost"
                             size="sm"
                             onClick={() =>
-                                setClaims((items) => items.filter((_, i) => i !== index))
+                                setClaims((items) =>
+                                    items.filter((_, i) => i !== index),
+                                )
                             }
                         >
                             항목 삭제
@@ -207,7 +246,7 @@ export function KnowledgeForm({
                                 text: "",
                                 sourceUrl: "",
                                 checkedAt: today(),
-                                purposes: ["initial_email"],
+                                purposes: defaultPurposes,
                             },
                         ])
                     }
@@ -229,7 +268,11 @@ const targetLabels: {
     { key: "p95Ms", label: "95% 생성 시간 이내 초", scale: 1000 },
     { key: "p99Ms", label: "99% 생성 시간 이내 초", scale: 1000 },
     { key: "firstAttemptSuccess", label: "첫 생성 성공률 최소 %", scale: 0.01 },
-    { key: "readyWithin30Minutes", label: "30분 내 준비 성공률 최소 %", scale: 0.01 },
+    {
+        key: "readyWithin30Minutes",
+        label: "30분 내 준비 성공률 최소 %",
+        scale: 0.01,
+    },
     { key: "queueP95Ms", label: "95% 준비 완료 시간 이내 초", scale: 1000 },
     { key: "duplicateRate", label: "본문 중복률 최대 %", scale: 0.01 },
     { key: "questionShare", label: "같은 질문 비율 최대 %", scale: 0.01 },
@@ -250,7 +293,9 @@ export function PolicyForm({
     const [workspaceId, setWorkspaceId] = useState(initial?.workspaceId ?? 0),
         [name, setName] = useState("");
     const [purpose, setPurpose] = useState<CopyPurpose>(startPurpose),
-        [model, setModel] = useState(initial?.snapshot.model ?? DEFAULT_MODEL_ID);
+        [model, setModel] = useState(
+            initial?.snapshot.model ?? DEFAULT_MODEL_ID,
+        );
     const [instructions, setInstructions] = useState(
         initial?.snapshot.instructions ??
             "정중한 실무자의 말투로, 부담을 주지 않는 짧은 문장을 자연스럽게 변주하세요.",
@@ -260,13 +305,21 @@ export function PolicyForm({
             "갑작스러운 메일에도 방문해 준 것에 대한 감사\n추가로 궁금한 점이 있는지 질문\n전화나 답장으로 문의하면 안내",
     );
     const [forbidden, setForbidden] = useState(
-        initial?.snapshot.forbiddenPhrases.join("\n") ?? "지금 바로\n마지막 기회",
+        initial?.snapshot.forbiddenPhrases.join("\n") ??
+            "지금 바로\n마지막 기회",
     );
-    const [maxCharacters, setMaxCharacters] = useState(initial?.snapshot.maxCharacters ?? 600),
+    const [maxCharacters, setMaxCharacters] = useState(
+            initial?.snapshot.maxCharacters ?? 600,
+        ),
         [parameters, setParameters] = useState(
-            initial?.snapshot.parameters ?? { maxOutputTokens: 2048, temperature: 0.8 },
+            initial?.snapshot.parameters ?? {
+                maxOutputTokens: 2048,
+                temperature: 0.8,
+            },
         );
-    const [targets, setTargets] = useState(initial?.snapshot.targets ?? targetsFor(startPurpose));
+    const [targets, setTargets] = useState(
+        initial?.snapshot.targets ?? targetsFor(startPurpose),
+    );
     return (
         <form
             className="space-y-4"
@@ -325,7 +378,9 @@ export function PolicyForm({
                                 const value = e.target.value as CopyPurpose;
                                 setPurpose(value);
                                 setTargets(targetsFor(value));
-                                setMaxCharacters(value === "visit_ack" ? 600 : 2000);
+                                setMaxCharacters(
+                                    value === "visit_ack" ? 600 : 2000,
+                                );
                                 setMeanings(
                                     value === "visit_ack"
                                         ? "갑작스러운 메일에도 방문해 준 것에 대한 감사\n추가로 궁금한 점이 있는지 질문\n전화나 답장으로 문의하면 안내"
@@ -375,7 +430,10 @@ export function PolicyForm({
                 )}
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="반드시 전달할 의미" help="한 줄에 한 항목씩 적습니다.">
+                <Field
+                    label="반드시 전달할 의미"
+                    help="한 줄에 한 항목씩 적습니다."
+                >
                     {(id) => (
                         <textarea
                             id={id}
@@ -408,7 +466,9 @@ export function PolicyForm({
                         min={100}
                         max={purpose === "visit_ack" ? 600 : 12000}
                         value={maxCharacters}
-                        onChange={(e) => setMaxCharacters(Number(e.target.value))}
+                        onChange={(e) =>
+                            setMaxCharacters(Number(e.target.value))
+                        }
                     />
                 )}
             </Field>
@@ -425,11 +485,15 @@ export function PolicyForm({
                                     className={controlClass}
                                     type="number"
                                     step="any"
-                                    value={Number((targets[t.key] / t.scale).toFixed(3))}
+                                    value={Number(
+                                        (targets[t.key] / t.scale).toFixed(3),
+                                    )}
                                     onChange={(e) =>
                                         setTargets((v) => ({
                                             ...v,
-                                            [t.key]: Number(e.target.value) * t.scale,
+                                            [t.key]:
+                                                Number(e.target.value) *
+                                                t.scale,
                                         }))
                                     }
                                     required
@@ -488,7 +552,8 @@ export function PolicyForm({
                                 onChange={(e) =>
                                     setTargets((v) => ({
                                         ...v,
-                                        overrideReason: e.target.value || undefined,
+                                        overrideReason:
+                                            e.target.value || undefined,
                                     }))
                                 }
                             />

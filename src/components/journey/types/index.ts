@@ -1,6 +1,6 @@
 // 고객 여정 — 통합 이벤트/요약 타입
 
-export type JourneySource = "business" | "tracker" | "email";
+export type JourneySource = "business" | "tracker" | "email" | "inbox";
 
 export interface JourneyEvent {
     at: string; // ISO 시각 (정렬 기준)

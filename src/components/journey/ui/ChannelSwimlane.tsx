@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Globe, Mail, UserPlus, GitBranch } from "lucide-react";
+import { Globe, Mail, UserPlus, GitBranch, MessageCircle } from "lucide-react";
 import type { JourneyEvent } from "../types";
 import { dedupStages } from "../utils/stage";
 
@@ -10,6 +10,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const LANES = [
     { key: "사이트", label: "사이트", sub: "방문 · 페이지", icon: Globe, color: "#f97316", ring: "ring-orange-400" },
     { key: "메일", label: "메일", sub: "발송 · 클릭", icon: Mail, color: "#2563eb", ring: "ring-blue-400" },
+    { key: "상담", label: "상담", sub: "문의 · 답변", icon: MessageCircle, color: "#10b981", ring: "ring-emerald-400" },
     { key: "가입", label: "가입", sub: "전환 포인트", icon: UserPlus, color: "#ef4444", ring: "ring-red-400" },
     { key: "단계", label: "단계 전환", sub: "퍼널 진입", icon: GitBranch, color: "#a855f7", ring: "ring-purple-400" },
 ] as const;
@@ -17,6 +18,7 @@ const LANES = [
 function laneOf(channel: string): string {
     if (channel === "사이트") return "사이트";
     if (channel === "메일") return "메일";
+    if (channel === "상담") return "상담";
     if (channel === "가입") return "가입";
     return "단계";
 }

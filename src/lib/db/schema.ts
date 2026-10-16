@@ -22,6 +22,24 @@ import type { FormulaConfig } from "@/types";
 export * from "./ai-copy-schema";
 export * from "./email-experiment-schema";
 export * from "./copy-automation-schema";
+export * from "./inbox-schema";
+export * from "./inbox-presence-schema";
+export * from "./inbox-reply-guard-schema";
+export * from "./inbox-customer-history-schema";
+export * from "./inbox-email-schema";
+export * from "./inbox-google-schema";
+export * from "./customer-platform-schema";
+export * from "./customer-sales-schema";
+export * from "./customer-activity-schema";
+export * from "./inbox-files-schema";
+export * from "./platform-webhook-schema";
+export * from "./customer-ai-schema";
+export * from "./customer-workflow-schema";
+export * from "./customer-import-schema";
+export * from "./customer-import-files-schema";
+export * from "./customer-access-schema";
+export * from "./customer-records-schema";
+export * from "./inbox-collaboration-schema";
 
 // timestamptz 헬퍼
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true });
@@ -2201,3 +2219,5 @@ export const chatWebhookStatus = pgTable("chat_webhook_status", {
 });
 
 export type ChatWebhookStatus = typeof chatWebhookStatus.$inferSelect;
+
+export * from "./inbox-operations-schema";

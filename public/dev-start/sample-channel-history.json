@@ -1,0 +1,54 @@
+{
+  "users": [
+    {
+      "id": "sendb-demo-source-customer-a",
+      "type": "lead",
+      "member": false,
+      "profile": {
+        "name": "체험용 가상 고객",
+        "email": "sendb-demo@example.test"
+      },
+      "createdAt": 1735776000000
+    }
+  ],
+  "managers": [{ "id": "sendb-demo-manager", "name": "체험용 가상 상담원" }],
+  "bots": [],
+  "userChats": [
+    {
+      "id": "sendb-demo-history-a",
+      "userId": "sendb-demo-source-customer-a",
+      "title": "가상 고객의 서비스 도입 상담 · 체험용",
+      "state": "closed",
+      "tags": ["체험용"],
+      "createdAt": 1735776000000
+    }
+  ],
+  "messages": [
+    {
+      "id": "sendb-demo-message-1",
+      "chatId": "sendb-demo-history-a",
+      "personType": "user",
+      "personId": "sendb-demo-source-customer-a",
+      "plainText": "안녕하세요. 서비스 도입 전에 상담받고 싶습니다. (가상 체험 자료)",
+      "createdAt": 1735776000000
+    },
+    {
+      "id": "sendb-demo-message-2",
+      "chatId": "sendb-demo-history-a",
+      "personType": "manager",
+      "personId": "sendb-demo-manager",
+      "plainText": "안녕하세요. 어떤 업무를 해결하고 싶은지 알려주시면 안내드리겠습니다. (가상 답변)",
+      "createdAt": 1735776060000
+    },
+    {
+      "id": "sendb-demo-note-1",
+      "chatId": "sendb-demo-history-a",
+      "personType": "manager",
+      "personId": "sendb-demo-manager",
+      "plainText": "직원에게만 보이는 가상 내부 메모입니다. 실제 연락 대상이 아닙니다.",
+      "options": ["private"],
+      "createdAt": 1735776120000
+    }
+  ],
+  "hasNext": false
+}

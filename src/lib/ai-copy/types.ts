@@ -1,4 +1,5 @@
 export type CopyPurpose = "initial_email" | "visit_ack";
+export type KnowledgePurpose = CopyPurpose | "customer_chat";
 export type VersionState =
     | "draft"
     | "evaluating"
@@ -11,7 +12,7 @@ export interface KnowledgeClaim {
     text: string;
     sourceUrl: string;
     checkedAt: string;
-    purposes: CopyPurpose[];
+    purposes: KnowledgePurpose[];
 }
 export interface KnowledgeSnapshot {
     businessName: string;

@@ -1,0 +1,337 @@
+{
+  "createdAt": "2026-10-15T10:19:24.649Z",
+  "artifact": "샌드비 직원 업무 UX 가이드",
+  "referenceHead": "055be37e437d4283ec643a957138506fbd9f6f0d",
+  "currentHead": "055be37e437d4283ec643a957138506fbd9f6f0d",
+  "branch": "codex/sendb-development-review",
+  "sourceRoot": "F:/Dev/sendb-development-review",
+  "scope": {
+    "developmentOnly": true,
+    "fictionalScreensOnly": true,
+    "productCodeChanged": false,
+    "liveDataAccess": false,
+    "serverDeployment": false,
+    "offlineOnly": true,
+    "realActions": false,
+    "fullReplacementComplete": false
+  },
+  "guide": {
+    "tasks": 6,
+    "steps": 28,
+    "businesses": [
+      "designer",
+      "backoffice"
+    ],
+    "productUiActionsNotExecuted": true
+  },
+  "structuralChecks": {
+    "javascriptSyntax": true,
+    "localHtmlLinks": true,
+    "sourceScreenshotHashes": true,
+    "copiedScreenshotHashes": true,
+    "remoteHtmlLinks": 0
+  },
+  "sourceReferences": {
+    "access": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/ACCESS.md",
+      "line": 7,
+      "sha256": "92ebd4ebd6fd6ef6350086073b35de5edb28b8e8ade745d03fbe71457c04476c",
+      "matchesReferenceHead": true
+    },
+    "reply": {
+      "path": "F:/Dev/sendb-development-review/src/components/inbox/ui/ConversationPane.tsx",
+      "line": 71,
+      "sha256": "97fc4444e5687ff7aec4e6e12ef0c4e8f867a7a25023dbfd46786201ff91f11c",
+      "matchesReferenceHead": true
+    },
+    "replySend": {
+      "path": "F:/Dev/sendb-development-review/src/components/inbox/ui/ConversationPane.tsx",
+      "line": 680,
+      "sha256": "97fc4444e5687ff7aec4e6e12ef0c4e8f867a7a25023dbfd46786201ff91f11c",
+      "matchesReferenceHead": true
+    },
+    "drafts": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/STAFF-DRAFTS.md",
+      "line": 5,
+      "sha256": "f0ca4d42c91bb048f7e9dee46ba3957efa386e41ccb05cc1a2d6a75610a1a00f",
+      "matchesReferenceHead": true
+    },
+    "guard": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/REPLY-GUARD.md",
+      "line": 7,
+      "sha256": "4744c8e37a52b2ca6b5dfebf616ec4cbf08973a9095d921cc621e86a413bf359",
+      "matchesReferenceHead": true
+    },
+    "crm": {
+      "path": "F:/Dev/sendb-development-review/src/components/customer-crm/ui/CustomerCrmPage.tsx",
+      "line": 31,
+      "sha256": "3a3a289f8cfd10ac7b279dcfdae2216721b4bd6c1bca2eeb4f0ad0ef882242bc",
+      "matchesReferenceHead": true
+    },
+    "sales": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/SALES.md",
+      "line": 9,
+      "sha256": "419db2ff6f619506e3afeba65b0f9bbeb56b3c8df1a1dcfa178a4cdfb9ffd668",
+      "matchesReferenceHead": false
+    },
+    "records": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/CUSTOMER-RECORDS.md",
+      "line": 5,
+      "sha256": "2bf2d5fca3ff62ba6336663c751c0932a324fc21367e08a7efa911577581838e",
+      "matchesReferenceHead": true
+    },
+    "team": {
+      "path": "F:/Dev/sendb-development-review/src/components/inbox-routing/ui/TeamAssignment.tsx",
+      "line": 44,
+      "sha256": "44ee18330d498547b68e0b1a519ad4923e23be3ce6500eb5e9465dcdd337b907",
+      "matchesReferenceHead": true
+    },
+    "routing": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/ROUTING.md",
+      "line": 7,
+      "sha256": "c6b10619f7c5a7eca32e0ac02e6b3f54a694e5cef1c24775d6c610028e912029",
+      "matchesReferenceHead": true
+    },
+    "mentions": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/MENTIONS.md",
+      "line": 7,
+      "sha256": "ec07adbc0828a63a51c30c0e3cb3d0cb81885823401dbb0327020a775116a801",
+      "matchesReferenceHead": true
+    },
+    "ai": {
+      "path": "F:/Dev/sendb-development-review/src/components/customer-ai/ui/SupportDraftPanel.tsx",
+      "line": 104,
+      "sha256": "e7793b9ca386df6e883b27a629f7b5038355f8bb8befa947f271edc2fc3de933",
+      "matchesReferenceHead": true
+    },
+    "aiContract": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/AI-SUPPORT.md",
+      "line": 9,
+      "sha256": "4d5b75e0bab9e8d427ead70e225827ce7e24ba007fcd187bf41ed2d46875482b",
+      "matchesReferenceHead": true
+    },
+    "oldAi": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/MERGED-AI-HISTORY.md",
+      "line": 7,
+      "sha256": "3ca4d715eba6a4355744117f7568f0a7f8d25fd7df3c60078d067ea008721500",
+      "matchesReferenceHead": true
+    },
+    "workflows": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/WORKFLOWS.md",
+      "line": 9,
+      "sha256": "35f958759fce9d769a7bf7b0fd487e0de07d6eb147a82a5bdc581d6894597c23",
+      "matchesReferenceHead": true
+    },
+    "workflowEditor": {
+      "path": "F:/Dev/sendb-development-review/src/components/customer-workflows/ui/WorkflowEditor.tsx",
+      "line": 391,
+      "sha256": "809fcbbc2a7e1927fbe9e6b355d88912869f6cd3a0886b757f46c126efa00c80",
+      "matchesReferenceHead": true
+    },
+    "workflowRuns": {
+      "path": "F:/Dev/sendb-development-review/src/components/customer-workflows/ui/WorkflowRuns.tsx",
+      "line": 206,
+      "sha256": "b39c24b90c867c3bfae655b35b4198fcf57678f333dcdbf6dcbb0c0b81d989be",
+      "matchesReferenceHead": true
+    },
+    "imports": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/IMPORTS.md",
+      "line": 16,
+      "sha256": "815aa551aa08915a3aad77795c6e3dbe6d386d0b8650960fb2362af4a6e9240d",
+      "matchesReferenceHead": true
+    },
+    "importUi": {
+      "path": "F:/Dev/sendb-development-review/src/components/customer-imports/ui/ImportsPage.tsx",
+      "line": 233,
+      "sha256": "c48cb52050bf1c9b94bcc6be42709f10e8384d1857391e9b23236809ee28f768",
+      "matchesReferenceHead": true
+    },
+    "importFiles": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/IMPORT-FILES.md",
+      "line": 12,
+      "sha256": "e8540e1b9a3e0ef536efb46f4a0747b4755e8804775c30cd66bfca83dda9cf21",
+      "matchesReferenceHead": true
+    },
+    "importFileUi": {
+      "path": "F:/Dev/sendb-development-review/src/components/customer-import-files/ui/ImportFilesPanel.tsx",
+      "line": 124,
+      "sha256": "1b5e935e1c449c2450ce78f8798884f117ad4d597eacb5d70ec9f03929bbf8cd",
+      "matchesReferenceHead": true
+    },
+    "fileTransfer": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/FILE-TRANSFER.md",
+      "line": 27,
+      "sha256": "667c4ce2f74ca4a280c3c55ca50017b8156abdae8dd0a007117fd6aba076c2f3",
+      "matchesReferenceHead": true
+    },
+    "operations": {
+      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/OPERATIONS.md",
+      "line": 9,
+      "sha256": "8419c7b99871c735537ea9c939baf194f782d6d34fee126b152749cae5caebf7",
+      "matchesReferenceHead": true
+    },
+    "operationSettings": {
+      "path": "F:/Dev/sendb-development-review/src/components/inbox-operations/ui/OperationsSettingsEditor.tsx",
+      "line": 67,
+      "sha256": "03a34703097b41be908055d43c67e9a5c9837975b1538648cd6841d71f6cacc3",
+      "matchesReferenceHead": true
+    },
+    "operationReports": {
+      "path": "F:/Dev/sendb-development-review/src/components/inbox-operations/ui/OperationsPanel.tsx",
+      "line": 344,
+      "sha256": "97211d630a9f048462a58b6254490efb7f88e2a714655cdf088898f297977038",
+      "matchesReferenceHead": true
+    }
+  },
+  "imageEvidence": [
+    {
+      "id": "staff",
+      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/v2-q1-a-roundtrip.png",
+      "copy": "assets/staff-draft.png",
+      "sha256": "1b557e86d0dcaa482e3f3c141a326082261645bf072aee57d859055fa2c2cda3",
+      "caption": "상담별로 답변과 첨부 초안을 준비하는 예시입니다.",
+      "scope": "당시 실제 InboxPage를 가상 고객으로 검수했습니다. 상단 로그인·권한 제어는 검수용이며 일반 제품 기능이 아닙니다."
+    },
+    {
+      "id": "crm",
+      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/inbox-crm-shared-timeline-qa.png",
+      "copy": "assets/crm-timeline.png",
+      "sha256": "e24ff538d1c2772436653f36757372a2abeaf75227fe036f6f3c4b2a29e9373d",
+      "caption": "고객 대화 옆에서 거래·후속 업무·활동 이력을 함께 확인합니다.",
+      "scope": "가상 회원·회사·금액으로 구성한 당시 화면입니다. 최신 화면 구성이나 실제 영업 데이터의 근거는 아닙니다."
+    },
+    {
+      "id": "customerList",
+      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/03-inquiry-list.png",
+      "copy": "assets/customer-list.png",
+      "sha256": "711351cc08e7622d603ce1172d9f96a081787f6cb68c4649fe7c5db8c3ab41e7",
+      "caption": "고객은 기존 문의를 다시 열거나 새 문의를 시작할 수 있습니다.",
+      "scope": "실제 React UI·API와 메모리 DB의 가상 회원 화면입니다. 실제 사이트 로그인이나 Firebase 연결의 증거는 아닙니다."
+    },
+    {
+      "id": "customerFiles",
+      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/05-sent-attachments.png",
+      "copy": "assets/customer-files.png",
+      "sha256": "c856d74be8af05e810f04281187a859d405a20ee7246c1ed7655beba80bd0c0d",
+      "caption": "문의 메시지에 PDF와 이미지를 함께 보내고 확인하는 예시입니다.",
+      "scope": "허구 PDF·PNG를 실제 첨부 전송 경로로 검수했습니다. 운영 저장소나 실제 고객 파일을 사용하지 않았습니다."
+    },
+    {
+      "id": "ai",
+      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-merged-ai-history-20261015/ui-dh-history.jpg",
+      "copy": "assets/merged-ai-history.jpg",
+      "sha256": "ec16a1c21ed755e1a688097f5bdd4886475ba05e2bbc6f74ca53aa98a6af4303",
+      "caption": "회원 이력에 연결된 과거 AI 기록은 확인용으로만 열람합니다.",
+      "scope": "실제 SupportDraftPanel·API와 메모리 DB를 사용한 별도 검수 호스트입니다. 전체 Inbox 화면은 아니며 상단 선택기와 아래 입력창은 검수용입니다. 가격·답변도 허구 예시입니다."
+    },
+    {
+      "id": "imports",
+      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/import-designerhire-completed-qa.png",
+      "copy": "assets/import-completed.png",
+      "sha256": "739db8c4b56993448d101bb064591e2ab62759a337fbfa0e66bdcb749b97095a",
+      "caption": "자료를 미리 검토한 뒤 항목별 처리 결과를 확인하는 예시입니다.",
+      "scope": "허구 묶음 10행의 당시 완료 화면입니다. 실제 채널톡 전체 추출·이전이나 첨부 원본 확보 완료를 뜻하지 않습니다. 화면의 외부 서비스 제한 안내는 당시 문구입니다."
+    }
+  ],
+  "sourceStatus": "M docs/2026-10-14-customer-inbox/SALES.md",
+  "sourceStatusExplanation": "SALES.md의 현재 구현 설명 수정은 마스터가 작성한 문서 변경이다. 가이드에서는 해당 수정과 최신 CUSTOMER-RECORDS/WORKFLOWS/OPERATIONS 계약을 대조했다. 제품 코드는 변경하지 않았다.",
+  "codeVerification": {
+    "testedHead": "d960683be8d4820a7912cf4420158692a589fe64",
+    "units": 1274,
+    "unitFailures": 0,
+    "types": "passed",
+    "webpackBuild": "passed",
+    "provenance": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/development-combination-independent.json",
+    "notRerunForThisGuide": true
+  },
+  "limitations": [
+    "실제 사이트 설치·회원 인증·채널톡 원본 추출·운영 이전·현업 인수는 이 가이드 검증에 포함하지 않는다.",
+    "그림은 기능별 과거 검수 캡처이며 최신 통합본 전체 UI 캡처가 아니다.",
+    "가이드는 동영상이나 TTS를 새로 생성한 결과가 아니다.",
+    "실제 필수 업무 범위·전체 전환 정책·고급 미구현 요구는 계속 미완료다."
+  ],
+  "browserQa": {
+    "status": "completed_with_recorded_observation",
+    "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-employee-ux-guide-20261015/browser-qa.json",
+    "sha256": "0417fa7999b17fcd11b5d359da6f4e8d4a48d19eef46c126df7c313bf1d45556",
+    "desktopSteps": 28,
+    "desktopTaskCount": 6,
+    "completionAndActionsPresent": true,
+    "keyboardEnterAndSpace": true,
+    "stepAndTaskFocusRetained": true,
+    "previousNext": true,
+    "modalOpenEscapeAndFocusReturn": true,
+    "customerScreenshotLoading": true,
+    "adminReferenceCount": 4,
+    "requestedMobileViewport": {
+      "width": 390,
+      "height": 844
+    },
+    "observedMobileContentWidth": 375,
+    "mobileTaskCount": 6,
+    "mobileHorizontalOverflow": 0,
+    "viewportReset": {
+      "scrollWidth": 1263,
+      "width": 1263
+    },
+    "ownedTabClosed": "1715090004",
+    "previewProcessStopped": true,
+    "previewListenerAbsent": true,
+    "evidenceLink": {
+      "navigationUrl": "http://127.0.0.1:3151/evidence.json",
+      "allowlistedBrowserGetObserved": true,
+      "nativeJsonTextSelectorMatched": false
+    },
+    "observation": "모바일 첫 순번 기반 클릭 검수에서 2번 선택 결과가 6번으로 보인 기록과 직후 캡처의 선택 불일치를 보존했다. 화면에 표시된 정확한 버튼 이름으로 다시 선택한 여섯 업무는 모두 해당 제목과 선택 상태가 맞았다. 제품/가이드 코드를 바꾸지 않았고 최초 불일치 원인은 확정하지 않았다.",
+    "localFileUrlBlocked": true,
+    "saferPreview": "브라우저의 로컬 파일 프로토콜 차단을 존중했다. 파일 접근 권한을 바꾸지 않고 127.0.0.1에 가이드 12경로만 허용하는 읽기 전용 HTTP 미리보기로 검수했다. CSP connect-src/form-action/default-src none, 제품 API/DB 연결 없음. 검수 후 종료했다.",
+    "fullProductChecksRerun": false
+  },
+  "files": [
+    {
+      "path": "index.html",
+      "sha256": "0d90485d288a13b13af99db7c9acb59ceaf9e018142e9f1267c96a49c7f67f76"
+    },
+    {
+      "path": "style.css",
+      "sha256": "49c9df4eb2f4e2d4cb487bb172ed7e103932cf4a17b80a3c378fc4eafc9d2200"
+    },
+    {
+      "path": "guide.js",
+      "sha256": "e6600846fda34a469c5e513b2ceae6192f098f5ebfae8512793fd84f8dcb5a94"
+    },
+    {
+      "path": "guide-data.js",
+      "sha256": "3800b399393267ae91c705dd30da780632c4f99039dc6b1ee86b1cdae3ed461d"
+    }
+  ],
+  "independentTextReview": {
+    "reviewer": "/root/customer_history_api",
+    "scope": "guide-data.js/index.html의 6업무·관리자 추가 안내와 055be37 문서/코드 계약의 읽기 검토",
+    "result": "확정된 계약 불일치 없음",
+    "noRuntimeOrDeploymentReview": true
+  },
+  "previewRequests": {
+    "count": 28,
+    "methods": [
+      "GET"
+    ],
+    "nonAllowlisted": 0,
+    "apiRequests": 0,
+    "sha256": "0dd269f667572d9da3c7288f3f80604f65540737cc9287af32d1499bcdd2fe6f"
+  },
+  "previewScreenshots": [
+    {
+      "path": "guide-desktop.jpg",
+      "sha256": "9b60f5a0230be564f8071890b4f46b077f19737884fa3777b41914c23d74f3b3",
+      "scope": "가이드 자체의 검수 캡처. 제품·운영 화면 캡처가 아니다."
+    },
+    {
+      "path": "guide-mobile.jpg",
+      "sha256": "44d4a15e4305f26291991e6f3926da83a6ab1f63e86fadbfef19321e6b0bcd87",
+      "scope": "가이드 자체의 검수 캡처. 제품·운영 화면 캡처가 아니다."
+    }
+  ],
+  "guideCheckedAt": "2026-10-15T10:25:48.468Z",
+  "repositoryCopy": "docs/2026-10-14-customer-inbox/employee-ux-guide"
+}

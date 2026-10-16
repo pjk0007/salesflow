@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="ko">
+    <meta charset="utf-8" /><meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+    />
+    <title>샌드비 고객 플랫폼 연동 예제</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            margin: 0;
+            background: #f6f7fb;
+            color: #172035;
+            font:
+                16px/1.6 system-ui,
+                sans-serif;
+        }
+        header,
+        main {
+            max-width: 1120px;
+            margin: auto;
+            padding: 28px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header strong {
+            font-size: 22px;
+        }
+        .pill {
+            border: 1px solid #dde2ed;
+            border-radius: 40px;
+            padding: 6px 14px;
+            font-size: 13px;
+            color: #62708b;
+        }
+        h1 {
+            font-size: 42px;
+            line-height: 1.25;
+            letter-spacing: -1.8px;
+            margin: 22px 0 16px;
+        }
+        h2 {
+            font-size: 20px;
+            margin: 0 0 14px;
+        }
+        p {
+            color: #62708b;
+        }
+        button {
+            border: 1px solid #d9deea;
+            background: white;
+            border-radius: 10px;
+            padding: 11px 16px;
+            cursor: pointer;
+            font: inherit;
+        }
+        button.primary {
+            background: var(--accent, #635bff);
+            color: white;
+            border-color: transparent;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: wait;
+        }
+        .hero {
+            max-width: 690px;
+            padding: 25px 0 35px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        .card {
+            border: 1px solid #e0e4ef;
+            border-radius: 20px;
+            padding: 26px;
+            background: white;
+        }
+        .row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .status {
+            font-size: 14px;
+            color: #41624e;
+            min-height: 25px;
+        }
+        .muted {
+            font-size: 13px;
+            color: #73809a;
+        }
+        .chat-log {
+            height: 230px;
+            overflow: auto;
+            border: 1px solid #e5e9f3;
+            border-radius: 12px;
+            padding: 15px;
+            background: #fafbfe;
+            margin-bottom: 14px;
+        }
+        .message {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            border-radius: 12px;
+            padding: 9px 12px;
+            margin-bottom: 8px;
+            background: #edf0f7;
+        }
+        .message.customer {
+            background: #eeebff;
+        }
+        .message small {
+            display: block;
+            color: #71809b;
+        }
+        textarea {
+            font: inherit;
+            width: 100%;
+            min-height: 76px;
+            border: 1px solid #d9dfed;
+            border-radius: 10px;
+            padding: 10px;
+        }
+        #headless {
+            display: none;
+        }
+        #headless.visible {
+            display: block;
+        }
+        #member {
+            font-weight: 600;
+            color: #172035;
+        }
+        @media (max-width: 760px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            h1 {
+                font-size: 32px;
+            }
+            header,
+            main {
+                padding: 20px;
+            }
+        }
+    </style>
+    <header>
+        <strong id="brand">샌드비 연동 예제</strong
+        ><span class="pill">로컬 QA · 가상 고객 데이터</span>
+    </header>
+    <main>
+        <div class="hero">
+            <div class="muted">API + 브라우저 SDK</div>
+            <h1>우리 사이트 안에서<br />이어지는 고객 상담</h1>
+            <p>
+                같은 로그인 회원의 상담을 복원하고, 행동 이벤트를 샌드비에
+                연결합니다. 오른쪽 아래 위젯 또는 직접 만든 상담 화면을 사용할
+                수 있습니다.
+            </p>
+        </div>
+        <div class="grid">
+            <section class="card">
+                <h2>사이트 로그인 연결</h2>
+                <p id="member"></p>
+                <div class="row">
+                    <button data-member="a">회원 A로 보기</button
+                    ><button data-member="b">회원 B로 보기</button
+                    ><button data-member="anonymous">비회원으로 보기</button>
+                </div>
+                <p class="muted">
+                    이 예제의 로그인은 가상입니다. 실제 사이트에서는 서버가
+                    검증한 로그인 세션으로 회원 인증을 발급합니다.
+                </p>
+                <div id="status" class="status" role="status">
+                    상담 연결 중…
+                </div>
+                <div class="row">
+                    <button class="primary" id="widget-open" disabled>
+                        상담 위젯 열기</button
+                    ><button id="track" disabled>요금제 관심 이벤트 기록</button
+                    ><button id="refresh-identity" disabled>
+                        회원 인증 새로 받기
+                    </button>
+                </div>
+                <div class="row" style="margin-top: 10px">
+                    <button id="widget-history" disabled>내 문의 목록</button>
+                    <button id="widget-new" disabled>새 문의 시작</button>
+                    <button id="widget-reconnect" disabled>
+                        상담 연결 다시 시도
+                    </button>
+                </div>
+                <p id="event-status" class="status" role="status"></p>
+                <button id="continue-login" hidden>
+                    비회원 상담 이어서 회원 A 로그인
+                </button>
+                <p id="link-status" class="status" role="status"></p>
+            </section>
+            <section class="card">
+                <h2>내 화면으로 직접 연결</h2>
+                <p>
+                    같은 API로 이 사이트의 디자인에 맞는 상담창을 만들 수
+                    있습니다. 위젯과 같은 상담 이력을 사용합니다.
+                </p>
+                <button id="headless-open">직접 만든 상담창 열기</button>
+                <div id="headless">
+                    <h3>API 상담</h3>
+                    <div
+                        id="messages"
+                        class="chat-log"
+                        role="log"
+                        aria-label="API 상담 이력"
+                    ></div>
+                    <form id="headless-form">
+                        <label for="body">API 상담 메시지</label
+                        ><textarea
+                            id="body"
+                            required
+                            maxlength="5000"
+                            placeholder="궁금한 점을 남겨주세요"
+                        ></textarea>
+                        <p>
+                            <button class="primary" id="send">
+                                API로 보내기
+                            </button>
+                        </p>
+                    </form>
+                    <p id="headless-status" class="status" role="status"></p>
+                </div>
+            </section>
+        </div>
+        <p class="muted">
+            실제 고객·메일·Google Chat 전송 없이 격리 DB에서 작동합니다. 사이트
+            서버의 서비스 API 토큰은 브라우저에 전달하지 않습니다.
+        </p>
+    </main>
+    <script>
+        (async function () {
+            const config = await (await fetch("/api/demo/config")).json();
+            document.title = config.title + " · 샌드비 연동 예제";
+            document.querySelector("#brand").textContent = config.title;
+            document.documentElement.style.setProperty(
+                "--accent",
+                config.accent,
+            );
+            document.querySelector("#member").textContent = config.profile
+                ? config.profile.name
+                : "가상 비회원";
+            let identity = "",
+                visitor = "",
+                opened = false,
+                widgetLinked = !!config.profile,
+                linking = false,
+                requestGeneration = 0;
+            const status = document.querySelector("#status"),
+                log = document.querySelector("#messages"),
+                headlessStatus = document.querySelector("#headless-status");
+            for (const [id, method] of [
+                ["widget-history", "showConversations"],
+                ["widget-new", "showNewConversation"],
+            ]) {
+                document.getElementById(id).onclick = () => {
+                    try {
+                        SendbChat[method]();
+                    } catch (error) {
+                        status.textContent = error.message;
+                    }
+                };
+            }
+            document.querySelector("#widget-reconnect").onclick = async () => {
+                const button = document.querySelector("#widget-reconnect");
+                button.disabled = true;
+                try {
+                    await SendbChat.reconnect();
+                    status.textContent =
+                        "상담 연결 복구 완료 · 작성 중인 내용 유지";
+                } catch (error) {
+                    status.textContent = error.message;
+                } finally {
+                    button.disabled = false;
+                }
+            };
+            async function getIdentityToken() {
+                const response = await fetch("/api/chat-identity", {
+                        method: "POST",
+                    }),
+                    result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                identity = result.data.identityToken;
+                return result.data;
+            }
+            async function api(method = "GET", body) {
+                const response = await fetch(
+                        config.apiBase + "/api/messenger/" + config.channelKey,
+                        {
+                            method,
+                            headers: {
+                                "Content-Type": "application/json",
+                                ...(identity || visitor
+                                    ? {
+                                          Authorization:
+                                              "Bearer " + (identity || visitor),
+                                      }
+                                    : {}),
+                            },
+                            ...(body ? { body: JSON.stringify(body) } : {}),
+                        },
+                    ),
+                    result = await response.json();
+                if (!response.ok || !result.success)
+                    throw new Error(result.error);
+                return result.data;
+            }
+            async function refresh() {
+                if (!opened || linking) return;
+                const generation = ++requestGeneration;
+                try {
+                    const data = await api();
+                    if (generation !== requestGeneration) return;
+                    log.replaceChildren();
+                    for (const message of data.messages || []) {
+                        const div = document.createElement("div"),
+                            label = document.createElement("small"),
+                            text = document.createElement("span");
+                        div.className = "message " + message.kind;
+                        label.textContent =
+                            message.kind === "customer"
+                                ? "고객"
+                                : "상담 담당자";
+                        text.textContent = message.body;
+                        div.append(label, text);
+                        log.append(div);
+                    }
+                    if (!log.childNodes.length)
+                        log.textContent =
+                            "아직 대화가 없습니다. 첫 문의를 남겨보세요.";
+                    log.scrollTop = log.scrollHeight;
+                    headlessStatus.textContent = "API 상담 연결 완료";
+                } catch (error) {
+                    headlessStatus.textContent = error.message;
+                }
+            }
+            document.querySelectorAll("[data-member]").forEach(
+                (button) =>
+                    (button.onclick = async () => {
+                        if (window.SendbChat) SendbChat.shutdown();
+                        await fetch("/api/demo/login", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                member: button.dataset.member,
+                            }),
+                        });
+                        location.reload();
+                    }),
+            );
+            const continueButton = document.querySelector("#continue-login");
+            continueButton.hidden = !!config.profile;
+            continueButton.onclick = async () => {
+                continueButton.disabled = true;
+                linking = true;
+                const linkStatus = document.querySelector("#link-status");
+                linkStatus.textContent =
+                    "로그인 후 상담 이력을 연결하고 있습니다…";
+                try {
+                    const login = await fetch("/api/demo/login", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ member: "a" }),
+                    });
+                    if (!login.ok)
+                        throw new Error("가상 로그인에 실패했습니다.");
+                    const next = await getIdentityToken();
+                    await SendbChat.identify(next.identityToken, {
+                        mergeAnonymous: !widgetLinked,
+                        getIdentityToken,
+                    });
+                    widgetLinked = true;
+                    document.querySelector("#widget-history").disabled = false;
+                    document.querySelector("#widget-new").disabled = false;
+                    // The custom UI has its own anonymous session; join it using the same public API.
+                    if (visitor) {
+                        await api("POST", {
+                            action: "identify",
+                            anonymousToken: visitor,
+                        });
+                        visitor = "";
+                    }
+                    const loggedIn = await (
+                        await fetch("/api/demo/config")
+                    ).json();
+                    document.querySelector("#member").textContent =
+                        loggedIn.profile.name;
+                    document.querySelector("#track").disabled = false;
+                    document.querySelector("#refresh-identity").disabled =
+                        false;
+                    continueButton.hidden = true;
+                    linkStatus.textContent =
+                        "회원 이력 연결 완료 · 로그인 전 문의도 이어집니다. 미전송 파일은 다시 선택해주세요.";
+                    linking = false;
+                    await refresh();
+                    SendbChat.show();
+                } catch (error) {
+                    linkStatus.textContent = error.message;
+                } finally {
+                    continueButton.disabled = false;
+                    linking = false;
+                }
+            };
+            document.querySelector("#headless-open").onclick = async () => {
+                opened = true;
+                document.querySelector("#headless").classList.add("visible");
+                await refresh();
+            };
+            document.querySelector("#headless-form").onsubmit = async (
+                event,
+            ) => {
+                event.preventDefault();
+                const button = document.querySelector("#send"),
+                    body = document.querySelector("#body");
+                button.disabled = true;
+                try {
+                    if (!identity && !visitor) {
+                        const session = await api("POST", {
+                            action: "session",
+                            name: "가상 비회원",
+                            pageUrl: location.origin + location.pathname,
+                        });
+                        visitor = session.token;
+                    }
+                    await api("POST", {
+                        clientId: crypto.randomUUID(),
+                        body: body.value,
+                    });
+                    body.value = "";
+                    await refresh();
+                } catch (error) {
+                    headlessStatus.textContent = error.message;
+                } finally {
+                    button.disabled = false;
+                }
+            };
+            document.querySelector("#track").onclick = async () => {
+                try {
+                    await SendbChat.trackEvent("plan_viewed", {
+                        business: config.title,
+                        plan: "pro",
+                    });
+                    document.querySelector("#event-status").textContent =
+                        "요금제 관심 이벤트 기록 완료";
+                } catch (error) {
+                    document.querySelector("#event-status").textContent =
+                        error.message;
+                }
+            };
+            document.querySelector("#widget-open").onclick = () =>
+                SendbChat.show();
+            document.querySelector("#refresh-identity").onclick = async () => {
+                try {
+                    const next = await getIdentityToken();
+                    await SendbChat.identify(next.identityToken);
+                    status.textContent = "회원 인증 갱신 완료";
+                } catch (error) {
+                    status.textContent = error.message;
+                }
+            };
+            const script = document.createElement("script");
+            script.src = config.apiBase + "/sendb-sdk.js?v=1.4.0";
+            script.onload = async () => {
+                try {
+                    SendbChat.on("error", (error) => {
+                        status.textContent = error.message;
+                    });
+                    await SendbChat.boot({
+                        apiBase: config.apiBase,
+                        channelKey: config.channelKey,
+                        ...(config.profile ? { getIdentityToken } : {}),
+                    });
+                    status.textContent = "상담 SDK 연결 완료";
+                    document.querySelector("#widget-open").disabled = false;
+                    document.querySelector("#widget-history").disabled =
+                        !config.profile;
+                    document.querySelector("#widget-new").disabled =
+                        !config.profile;
+                    document.querySelector("#widget-reconnect").disabled =
+                        false;
+                    document.querySelector("#track").disabled = !config.profile;
+                    document.querySelector("#refresh-identity").disabled =
+                        !config.profile;
+                } catch (error) {
+                    status.textContent = error.message;
+                }
+            };
+            document.head.append(script);
+            setInterval(refresh, 3000);
+        })();
+    </script>
+</html>

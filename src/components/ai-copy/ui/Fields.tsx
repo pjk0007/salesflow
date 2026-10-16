@@ -24,7 +24,11 @@ export function Field({
     );
 }
 export const purposeLabel = (value: string) =>
-    value === "visit_ack" ? "방문 감사 메일" : "첫 소개 메일";
+    value === "customer_chat"
+        ? "고객 상담"
+        : value === "visit_ack"
+          ? "방문 감사 메일"
+          : "첫 소개 메일";
 export const stateLabel = (value: string) =>
     ({
         draft: "초안",
