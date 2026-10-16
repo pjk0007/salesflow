@@ -28,3 +28,31 @@ export function splitKnownSenderIds(
 export function formSenderIds(edited: number[] | null, saved: SavedSenderPool | null | undefined): number[] {
     return edited ?? (saved ? linkSenderPool(saved) : []);
 }
+
+export function filterSenderProfiles<T extends { name: string; fromName: string; fromEmail: string }>(
+    profiles: readonly T[],
+    query: string,
+): T[] {
+    const normalized = query.trim().toLowerCase();
+    return profiles.filter(profile => [profile.name, profile.fromName, profile.fromEmail]
+        .some(field => field.toLowerCase().includes(normalized)));
+}
+
+/** 검색 해제는 검색에 맞는 선택만 제거하고, 빈 검색 해제는 기존처럼 전체 선택을 비운다. */
+export function senderPoolSearchSelection<T extends { id: number; name: string; fromName: string; fromEmail: string }>(
+    profiles: readonly T[],
+    value: readonly number[],
+    query: string,
+) {
+    const results = filterSenderProfiles(profiles, query);
+    const picked = new Set(value);
+    const resultIds = new Set(results.map(profile => profile.id));
+    const filteredRest = results.filter(profile => !picked.has(profile.id));
+    return {
+        filteredRest,
+        isAllSelected: results.length > 0 && filteredRest.length === 0,
+        isSearchEmpty: query.trim().length > 0 && results.length === 0,
+        selectAllIds: [...value, ...filteredRest.map(profile => profile.id)],
+        clearAllIds: query.trim() ? value.filter(id => !resultIds.has(id)) : [],
+    };
+}
