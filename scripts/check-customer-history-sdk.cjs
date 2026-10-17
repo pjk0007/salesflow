@@ -113,13 +113,13 @@ async function main() {
         console.log("PASS CUSTOMER HISTORY SDK " + ++checks + " " + title);
     }
     await check(
-        "실제 디하 loader·컨트롤러가 SDK1.4 비회원 연결·열기·숨김을 유지",
+        "실제 디하 loader·컨트롤러가 SDK1.6 비회원 연결·열기·숨김을 유지",
         async () => {
             const ctx = setup(),
                 { f, controller } = ctx;
             assert.equal(await ctx.loadSupportSdk("https://sendb.example.test"), f.sdk);
             await connect(ctx, null);
-            assert.equal(f.sdk.version, "1.5.0");
+            assert.equal(f.sdk.version, "1.6.0");
             assert.equal(f.sdk.getSessionType(), "anonymous");
             controller.setLauncherHidden("guide", true);
             await controller.open();
@@ -320,7 +320,7 @@ async function main() {
         controller.destroy();
     });
     console.log(
-        "실제 디하 adapter·실제 SDK1.4 교차 VM QA " + checks +
+        "실제 디하 adapter·실제 SDK1.6 교차 VM QA " + checks +
             "개 통과 · 가상 인증/HTTP만 사용 · 외부 접속 0건",
     );
 }
