@@ -75,3 +75,22 @@ test("upstream failures are retryable and never echo tokens or provider bodies",
         await assert.rejects(verifyFirebaseSiteMember(provider, jwt(), deps), (e: unknown) => status(502)(e) && !String(e).includes("secret-token"));
     }
 });
+test("social-login Base64 and other valid single-segment UIDs remain exact and cannot inject a Firestore path or query", async () => {
+    for (const uid of ["kakao-123456", "naver-a+b==", "person@example.com", "member?mask.fieldPaths=private", "literal%2Fsegment"]) {
+        let count = 0;
+        const transport: typeof fetch = async (url, init) => {
+            if (count++ === 0) {
+                assert.equal(JSON.parse(String(init?.body)).idToken, jwt({ sub: uid }));
+                return Response.json({ users: [{ localId: uid }] });
+            }
+            const parsed = new URL(String(url));
+            assert.equal(parsed.pathname, `/v1/projects/designerhire/databases/(default)/documents/users/${encodeURIComponent(uid)}`);
+            assert.deepEqual(parsed.searchParams.getAll("mask.fieldPaths"), ["name", "userType", "phone", "companyName", "isInternal"]);
+            return Response.json({ name: `projects/designerhire/databases/(default)/documents/users/${uid}`, fields: { userType: { stringValue: "client" } } });
+        };
+        const member = await verifyFirebaseSiteMember(provider, jwt({ sub: uid }), { fetch: transport, now });
+        assert.equal(member.externalId, uid);
+    }
+    for (const uid of ["..", ".", "other/path", " member", "member\n"])
+        await assert.rejects(verifyFirebaseSiteMember(provider, jwt({ sub: uid }), google()), status(401));
+});

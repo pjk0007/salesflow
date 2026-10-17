@@ -17,7 +17,9 @@ export function firebaseSiteProvider(key: string, raw = process.env.INBOX_FIREBA
         throw new InboxError("회원 상담 연결 설정이 필요합니다.", 503);
     }
 }
-const uidInput = z.string().min(1).max(128).regex(/^[A-Za-z0-9_-]+$/);
+// Social-login UIDs may contain Base64 punctuation; keep the full ID, but require one document segment.
+const uidInput = z.string().min(1).max(128).refine(value =>
+    value.trim() === value && value !== "." && value !== ".." && !/[\u0000-\u001f\u007f/]/.test(value));
 const claimsInput = z.object({
     sub: uidInput, aud: z.string(), iss: z.string(),
     exp: z.number().int(), iat: z.number().int(), auth_time: z.number().int(),
@@ -63,7 +65,8 @@ export async function verifyFirebaseSiteMember(provider: FirebaseSiteProvider, t
     const path = `projects/${provider.projectId}/databases/(default)/documents/users/${claims.sub}`;
     let values: Record<string, { stringValue?: string; booleanValue?: boolean }>;
     try {
-        const response = await transport(`https://firestore.googleapis.com/v1/${path}?${fields.map(f => `mask.fieldPaths=${f}`).join("&")}`, {
+        const documentUrl = `projects/${provider.projectId}/databases/(default)/documents/users/${encodeURIComponent(claims.sub)}`;
+        const response = await transport(`https://firestore.googleapis.com/v1/${documentUrl}?${fields.map(f => `mask.fieldPaths=${f}`).join("&")}`, {
             headers: { Authorization: `Bearer ${token}` }, redirect: "error", cache: "no-store", signal,
         });
         if ([401, 403, 404].includes(response.status)) throw loginError();
