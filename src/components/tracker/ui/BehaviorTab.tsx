@@ -10,13 +10,13 @@ import type { Range, SegmentFilters } from "../types/overview";
 
 function rangeFromSearchParams(sp: URLSearchParams): Range {
     const preset = sp.get("preset");
-    if (preset === "7d" || preset === "30d" || preset === "90d") return presetRange(preset);
+    if (preset === "1d" || preset === "7d" || preset === "30d" || preset === "90d") return presetRange(preset);
     const from = sp.get("from");
     const to = sp.get("to");
     if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
         return { preset: "custom", from, to };
     }
-    return presetRange("7d");
+    return presetRange("1d");
 }
 
 /**
