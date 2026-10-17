@@ -146,6 +146,19 @@ async function main() {
         await fn();
         console.log("PASS CHAT SDK " + ++checks + " " + title);
     }
+    await check("첫 프레임이 준비 시간 초과 뒤 로드되어도 같은 프레임에서 자동 연결하고 옛 프레임은 거절", async () => {
+        const f = fixture(), pending = f.sdk.boot({ channelKey: f.key }), frame = f.active("iframe");
+        const failed = assert.rejects(pending, /상담창을 연결하지 못/);
+        f.timeoutReady(); await failed;
+        f.dispatch("sendb:loaded");
+        assert.ok(frame.configurationId > 0);
+        f.ready(); await new Promise(resolve => setImmediate(resolve));
+        assert.equal(f.active("iframe"), frame);
+        assert.doesNotThrow(() => f.sdk.setDraft("늦게 연결된 문의 초안"));
+        f.sdk.shutdown(); const before = f.posts.length;
+        f.dispatch("sendb:loaded", {}, frame.contentWindow);
+        assert.equal(f.posts.length, before);
+    });
     await check("트래커의 경로 증명은 최초 설정과 늦은 수신 모두 iframe에 전달하며 회원으로 승격하지 않음", async () => {
         const f = fixture();
         f.journey("fictional-context-first");

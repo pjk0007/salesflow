@@ -300,6 +300,25 @@ async function main() {
             controller.destroy();
         },
     );
+    await check("첫 프레임의 늦은 로드가 오류 화면을 자동 해제하고 기존 비회원과 로그인 병합을 유지", async () => {
+        const ctx = setup(), { f, controller } = ctx;
+        const pending = controller.connect(session(null)); await tick();
+        const frame = f.active("iframe");
+        f.timeoutReady(); await pending;
+        assert.equal(controller.getSnapshot().state, "error");
+        f.dispatch("sendb:loaded"); f.ready(); await tick();
+        assert.equal(controller.getSnapshot().state, "ready");
+        assert.equal(f.active("iframe"), frame);
+        f.session("b".repeat(64)); f.sdk.setDraft("늦은 연결 후에도 보관할 초안");
+        const login = controller.connect(session("A")); await tick();
+        assert.equal(ctx.sdkRequests.length, 1);
+        assert.equal(ctx.sdkRequests[0].body.anonymousToken, "b".repeat(64));
+        f.ready(); await login;
+        assert.equal(f.active("iframe"), frame);
+        assert.equal(f.sdk.getSessionType(), "member");
+        assert.equal(controller.getSnapshot().state, "ready");
+        controller.destroy();
+    });
     console.log(
         "실제 디하 adapter·실제 SDK1.4 교차 VM QA " + checks +
             "개 통과 · 가상 인증/HTTP만 사용 · 외부 접속 0건",
