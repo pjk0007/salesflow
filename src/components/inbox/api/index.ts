@@ -1,3 +1,4 @@
+import { messengerApiUrl } from "@/components/customer-messenger/api-origin";
 export class InboxRequestError extends Error {
     constructor(
         message: string,
@@ -10,8 +11,10 @@ export async function inboxRequest<T>(
     url: string,
     options?: RequestInit,
 ): Promise<T> {
-    const response = await fetch(url, {
+    const target = messengerApiUrl(url);
+    const response = await fetch(target, {
         ...options,
+        ...(target !== url ? { credentials: "omit" as const, redirect: "error" as const } : {}),
         headers: {
             ...(options?.body instanceof FormData
                 ? {}

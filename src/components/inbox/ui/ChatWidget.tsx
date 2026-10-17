@@ -27,7 +27,8 @@ type VisitorDetail = SendbCustomerMessages;
 type CustomerMessage = VisitorDetail["messages"][number];
 const conversationUuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function ChatWidget({ channelKey }: { channelKey: string }) {
+export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: string; parentOrigin?: string; pageUrl?: string }) {
+    const ownerOrigin = useCallback(() => parentOrigin || new URLSearchParams(window.location.search).get("origin"), [parentOrigin]);
     const [token, setToken] = useState(""),
         [ready, setReady] = useState(false),
         [name, setName] = useState(""),
@@ -229,9 +230,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
     }, [storageKey, resetAttachments]);
     useEffect(() => {
         if (!config.data || window.parent === window) return;
-        const parent = new URLSearchParams(window.location.search).get(
-            "origin",
-        );
+        const parent = ownerOrigin();
         if (!parent || !config.data.allowedOrigins.includes(parent))
             setBlocked(true);
         if (!parent || !config.data.allowedOrigins.includes(parent)) return;
@@ -328,13 +327,11 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
             );
         }
         return () => window.removeEventListener("message", listener);
-    }, [config.data, channelKey, resetAttachments]);
+    }, [config.data, channelKey, resetAttachments, ownerOrigin]);
     const parentMessage = useCallback(
         (type: string, payload: Record<string, unknown> = {}) => {
             if (!managed || window.parent === window) return;
-            const parent = new URLSearchParams(window.location.search).get(
-                "origin",
-            );
+            const parent = ownerOrigin();
             if (parent && config.data?.allowedOrigins.includes(parent))
                 window.parent.postMessage(
                     {
@@ -346,7 +343,7 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                     parent,
                 );
         },
-        [managed, config.data, channelKey],
+        [managed, config.data, channelKey, ownerOrigin],
     );
     useEffect(() => {
         if (
@@ -617,10 +614,10 @@ export function ChatWidget({ channelKey }: { channelKey: string }) {
                             action: "session",
                             name: name.trim(),
                             email: email.trim(),
-                            pageUrl:
+                            pageUrl: pageUrl ||
                                 new URLSearchParams(window.location.search).get(
                                     "page",
-                                ) ?? undefined,
+                                ) || undefined,
                         }),
                         headers: { "Content-Type": "application/json" },
                     },

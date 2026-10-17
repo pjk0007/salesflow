@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Download, ImageIcon } from "lucide-react";
 import type { ChatAttachment } from "../types";
+import { messengerApiUrl } from "@/components/customer-messenger/api-origin";
 function Attachment({
     file,
     url,
@@ -24,7 +25,8 @@ function Attachment({
         setBusy(true);
         setError("");
         try {
-            const response = await fetch(url, { headers, cache: "no-store" });
+            const target = messengerApiUrl(url);
+            const response = await fetch(target, { headers, cache: "no-store", ...(target !== url ? { credentials: "omit", redirect: "error" } : {}) });
             if (!response.ok) {
                 const data = await response.json();
                 throw new Error(data.error ?? "파일을 불러오지 못했습니다.");
