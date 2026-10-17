@@ -1,4 +1,5 @@
 import {publicBusinessHours} from "@/lib/inbox-operations/repository";
+import { publicMessengerSettings } from "@/lib/customer-messenger/config";
 import { NextRequest } from "next/server";
 import { handleInbox, jsonBody, visitorToken } from "@/lib/inbox/http";
 import {
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest, ctx: Context) {
         return {
             name: channel.name,
             greeting: channel.greeting,
+            messengerSettings: await publicMessengerSettings(channel),
             businessHours:await publicBusinessHours(channel.id),
             color: channel.color,
             allowedOrigins: channel.allowedOrigins,

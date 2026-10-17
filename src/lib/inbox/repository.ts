@@ -1,3 +1,4 @@
+import { queueCustomerReplyNotice } from "@/lib/customer-messenger/queue";
 import {
     activeCustomerActor,
     customerStaffActor,
@@ -263,11 +264,13 @@ export async function saveChannel(
         for (const key of [
             "name",
             "greeting",
+            "messengerSettings",
             "color",
             "allowedOrigins",
             "enabled",
         ] as const)
             if (
+                (key !== "messengerSettings" || input.messengerSettings !== undefined) &&
                 JSON.stringify(before?.[key] ?? null) !==
                 JSON.stringify(input[key])
             )
@@ -1033,6 +1036,7 @@ export async function appendMessage(
             .insert(inboxMessages)
             .values({ ...value, conversationId: id })
             .returning();
+        await queueCustomerReplyNotice(tx, locked, inserted);
         if (message.aiDraftId)
             await tx
                 .update(customerAiJobs)
@@ -1390,7 +1394,7 @@ export async function authenticatedCustomer(
         throw new InboxError("회원 상담 고객을 찾을 수 없습니다.", 401);
     return { channel, contact };
 }
-async function visitorConversation(
+export async function visitorConversation(
     key: string,
     token: string,
     exec: DbExec,

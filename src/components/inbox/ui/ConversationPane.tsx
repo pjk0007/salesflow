@@ -19,6 +19,7 @@ import type { StaffDraftSession } from "../hooks/staff-draft-session";
 import { AttachmentDrafts } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { InboxAudit } from "./InboxAudit";
+import { StaffReplyContact } from "@/components/customer-messenger/ui/StaffReplyContact";
 import { CustomerCrmContext } from "./CustomerCrmContext";
 import { ConversationJourneyPanel } from "@/components/inbox-journey/ui/ConversationJourneyPanel";
 import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliveryStatus";
@@ -943,6 +944,7 @@ function CustomerInfo({
     }
     return (
         <div className="space-y-6 p-5 text-sm">
+            <StaffReplyContact id={chat.id} />
             <CustomerCrmContext
                 key={chat.id}
                 chat={chat}

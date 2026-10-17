@@ -23,6 +23,7 @@ export * from "./ai-copy-schema";
 export * from "./email-experiment-schema";
 export * from "./copy-automation-schema";
 export * from "./inbox-schema";
+export * from "./customer-messenger-schema";
 export * from "./inbox-presence-schema";
 export * from "./inbox-reply-guard-schema";
 export * from "./inbox-customer-history-schema";

@@ -99,7 +99,7 @@ export class NhnEmailClient {
     private appKey: string;
     private secretKey: string;
 
-    constructor(appKey: string, secretKey: string) {
+    constructor(appKey: string, secretKey: string, private options: { timeoutMs?: number } = {}) {
         this.appKey = appKey;
         this.secretKey = secretKey;
     }
@@ -112,6 +112,7 @@ export class NhnEmailClient {
         const url = `${this.baseUrl}${path.replace("{appKey}", this.appKey)}`;
         const res = await fetch(url, {
             method,
+            ...(this.options.timeoutMs ? { signal: AbortSignal.timeout(this.options.timeoutMs) } : {}),
             headers: {
                 "Content-Type": "application/json",
                 "X-Secret-Key": this.secretKey,

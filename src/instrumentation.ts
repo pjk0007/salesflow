@@ -33,6 +33,8 @@ export async function register() {
         startWebhookScheduler();
         const { startSupportAiScheduler } = await import("@/lib/customer-ai/worker");
         startSupportAiScheduler();
+        const { startCustomerReplyNotificationScheduler } = await import("@/lib/customer-messenger/worker");
+        startCustomerReplyNotificationScheduler();
         const { startWorkflowScheduler } = await import("@/lib/customer-workflows/worker");
         startWorkflowScheduler();
         const { startGoogleMailScheduler } = await import("@/lib/inbox-email/google-worker");

@@ -38,6 +38,7 @@ export const inboxChannels = pgTable(
         greeting: text("greeting")
             .notNull()
             .default("반갑습니다. 무엇을 도와드릴까요?"),
+        messengerSettings: jsonb("messenger_settings").$type<import("../customer-messenger/rules").MessengerSettings>().notNull().default({ enabled: false, tagline: "", consultationUrl: "", emailNotifications: false }),
         color: varchar("color", { length: 7 }).notNull().default("#635BFF"),
         allowedOrigins: jsonb("allowed_origins")
             .$type<string[]>()
