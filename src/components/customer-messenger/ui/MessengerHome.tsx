@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Bot, ChevronRight, MessageCircle } from "lucide-react";
+import { ArrowRight, ChevronRight, MessageCircle } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import { WelcomeProcess } from "./WelcomeProcess";
 import type { MessengerBrand, PublicMessengerSettings } from "../types";
@@ -145,17 +145,8 @@ export function MessengerHome({
                         />
                     </button>
                 )}
-                <p className="mt-6 text-center text-[10px] text-gray-400">
-                    Sendb 고객 상담
-                </p>
             </section>
             <div className="shrink-0 border-t border-gray-100 bg-white px-5 py-3">
-                {settings?.aiAvailable && (
-                    <p className="mb-3 flex items-center justify-center gap-2 text-xs text-gray-500">
-                        <Bot size={16} aria-hidden="true" />
-                        AI가 먼저 안내하고, 필요하면 담당자에게 연결해요.
-                    </p>
-                )}
                 <button
                     type="button"
                     disabled={busy || loading}
