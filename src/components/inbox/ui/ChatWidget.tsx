@@ -1,7 +1,15 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
-import { ArrowUp, MessageCircle, RotateCcw } from "lucide-react";
+import {
+    ArrowLeft,
+    ArrowUp,
+    Home,
+    MessageCircle,
+    Plus,
+    RotateCcw,
+} from "lucide-react";
+import { MessengerHome } from "@/components/customer-messenger/ui/MessengerHome";
 import { inboxRequest, InboxRequestError } from "../api";
 import type { SendbCustomerMessages } from "../../../../sdk/messenger";
 import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
@@ -27,8 +35,22 @@ type VisitorDetail = SendbCustomerMessages;
 type CustomerMessage = VisitorDetail["messages"][number];
 const conversationUuid =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: string; parentOrigin?: string; pageUrl?: string }) {
-    const ownerOrigin = useCallback(() => parentOrigin || new URLSearchParams(window.location.search).get("origin"), [parentOrigin]);
+export function ChatWidget({
+    channelKey,
+    parentOrigin,
+    pageUrl,
+}: {
+    channelKey: string;
+    parentOrigin?: string;
+    pageUrl?: string;
+}) {
+    const ownerOrigin = useCallback(
+        () =>
+            parentOrigin ||
+            new URLSearchParams(window.location.search).get("origin"),
+        [parentOrigin],
+    );
+    const [isHome, setIsHome] = useState(true);
     const [token, setToken] = useState(""),
         [ready, setReady] = useState(false),
         [name, setName] = useState(""),
@@ -126,7 +148,9 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
     const resetAttachments = attachments.reset;
     const uploadUrl = `${baseUrl}/attachments${isNew ? "?newConversation=1" : selectedId ? `?conversationId=${encodeURIComponent(selectedId)}` : ""}`;
     const configured = useRef<string | null>(null);
-    const [journeyToken, setJourneyToken] = useState<string | undefined>(undefined);
+    const [journeyToken, setJourneyToken] = useState<string | undefined>(
+        undefined,
+    );
     const pending = useRef<PendingMessage | null>(null),
         end = useRef<HTMLDivElement>(null),
         scroll = useRef<HTMLDivElement>(null),
@@ -183,27 +207,44 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
             (detailResolved && isReadOnlyCustomerConversation(data.data)));
     const detailPending = history.enabled && !isNew && !detailResolved;
     const canWrite = !readOnly && !detailPending && !data.error;
-    useJourneyAttachment({ channelKey, token, journeyToken,
+    useJourneyAttachment({
+        channelKey,
+        token,
+        journeyToken,
         conversationId: detailResolved ? data.data?.conversationId : undefined,
-        readOnly, ready: ready && !linking && !isNew && !isList && detailResolved,
+        readOnly,
+        ready: ready && !linking && !isNew && !isList && detailResolved,
     });
     const inquiryPending =
         history.enabled && history.view === "current" && !currentResolved;
     const navigationBusy = busy || linking || inquiryPending;
     incomingDraft.current = (message: string) => {
-        if (history.enabled && (readOnly || detailPending || linking || isList || busy)) {
+        setIsHome(false);
+        if (
+            history.enabled &&
+            (readOnly || detailPending || linking || isList || busy)
+        ) {
             deferredDraft.current = message;
             setHasDeferredDraft(true);
             return;
         }
-        const next = mergeCustomerDraftText(textRef.current, suggestedText, message);
+        const next = mergeCustomerDraftText(
+            textRef.current,
+            suggestedText,
+            message,
+        );
         setText(next.text);
         setSuggestedText(next.suggestion);
     };
     useEffect(() => {
         if (history.enabled && detailAccessDenied && selectedId)
             invalidateConversation(selectedId);
-    }, [history.enabled, detailAccessDenied, selectedId, invalidateConversation]);
+    }, [
+        history.enabled,
+        detailAccessDenied,
+        selectedId,
+        invalidateConversation,
+    ]);
     useEffect(() => {
         generation.current++;
         configured.current = null;
@@ -220,6 +261,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
         setCanLoad(true);
         setBusy(false);
         setManaged(false);
+        setIsHome(true);
         setConfiguration(null);
         try {
             setToken(localStorage.getItem(storageKey) ?? "");
@@ -242,7 +284,11 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
             )
                 return;
             if (event.data.type === "sendb:configure") {
-                setJourneyToken(typeof event.data.journeyToken === "string" ? event.data.journeyToken : undefined);
+                setJourneyToken(
+                    typeof event.data.journeyToken === "string"
+                        ? event.data.journeyToken
+                        : undefined,
+                );
                 if (
                     event.data.configurationId !== undefined &&
                     (!Number.isSafeInteger(event.data.configurationId) ||
@@ -268,6 +314,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
                 });
                 const session = draftSessionKey(next);
                 if (configured.current !== session) {
+                    setIsHome(true);
                     generation.current++;
                     setBusy(false);
                     resetAttachments();
@@ -287,10 +334,15 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
                     configured.current = session;
                 }
             }
-            if (event.data.type === "sendb:visibility")
+            if (event.data.type === "sendb:visibility") {
                 setOpened(!!event.data.opened);
+            }
             if (event.data.type === "sendb:journey-context")
-                setJourneyToken(typeof event.data.journeyToken === "string" ? event.data.journeyToken : undefined);
+                setJourneyToken(
+                    typeof event.data.journeyToken === "string"
+                        ? event.data.journeyToken
+                        : undefined,
+                );
             if (event.data.type === "sendb:linking")
                 setLinking(!!event.data.linking);
             if (
@@ -383,12 +435,13 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
     const latestId = data.data?.messages.at(-1)?.id ?? 0;
     useEffect(() => {
         if (!managed || !data.data || history.enabled || linking) return;
-        const unread = opened
+        const reading = opened && !isHome;
+        const unread = reading
             ? 0
             : data.data.messages.filter(
                   (m) => m.kind === "reply" && m.id > readId,
               ).length;
-        if (opened && latestId > readId) {
+        if (reading && latestId > readId) {
             setReadId(latestId);
             parentMessage("sendb:read", { readId: latestId });
         }
@@ -396,6 +449,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
     }, [
         managed,
         opened,
+        isHome,
         latestId,
         readId,
         data.data,
@@ -412,6 +466,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
         if (
             !history.enabled ||
             !opened ||
+            isHome ||
             linking ||
             isList ||
             isNew ||
@@ -440,6 +495,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
         history.enabled,
         markSeen,
         opened,
+        isHome,
         linking,
         isList,
         isNew,
@@ -451,8 +507,9 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
     ]);
     const lastMessageId = data.data?.messages.at(-1)?.id;
     useEffect(() => {
-        if (follow.current) end.current?.scrollIntoView({ block: "end" });
-    }, [lastMessageId, opened]);
+        if (!isHome && follow.current)
+            end.current?.scrollIntoView({ block: "end" });
+    }, [lastMessageId, opened, isHome]);
     function changeConversation(view: string, id?: string) {
         if (!history.enabled || navigationBusy) {
             parentMessage("sendb:error", {
@@ -464,6 +521,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
             return;
         }
         if (view === "list") {
+            setIsHome(false);
             history.showList();
             return;
         }
@@ -478,6 +536,7 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
             return;
         }
         let from = draftKey;
+        setIsHome(false);
         const target = view === "new" ? "new" : id!;
         try {
             if (from === "current" && currentResolved) {
@@ -491,9 +550,17 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
                 handoff: handoffPending.current,
             });
             const next = drafts.current.get(target);
-            const nextText = target === "new" && deferredDraft.current !== null
-                ? mergeCustomerDraftText(next?.text ?? "", next?.suggestion ?? "", deferredDraft.current)
-                : { text: next?.text ?? "", suggestion: next?.suggestion ?? "" };
+            const nextText =
+                target === "new" && deferredDraft.current !== null
+                    ? mergeCustomerDraftText(
+                          next?.text ?? "",
+                          next?.suggestion ?? "",
+                          deferredDraft.current,
+                      )
+                    : {
+                          text: next?.text ?? "",
+                          suggestion: next?.suggestion ?? "",
+                      };
             generation.current++;
             setDraftKey(target);
             setText(nextText.text);
@@ -612,12 +679,14 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
                         method: "POST",
                         body: JSON.stringify({
                             action: "session",
-                            name: name.trim(),
+                            name: name.trim() || "방문 고객",
                             email: email.trim(),
-                            pageUrl: pageUrl ||
+                            pageUrl:
+                                pageUrl ||
                                 new URLSearchParams(window.location.search).get(
                                     "page",
-                                ) || undefined,
+                                ) ||
+                                undefined,
                         }),
                         headers: { "Content-Type": "application/json" },
                     },
@@ -682,463 +751,577 @@ export function ChatWidget({ channelKey, parentOrigin, pageUrl }: { channelKey: 
                       (o) => !data.data?.messages.some((m) => m.id === o.id),
                   ),
                   ...(data.data?.messages ?? []),
-              ].filter((message) => message.kind === "customer" || message.kind === "reply");
+              ].filter(
+                  (message) =>
+                      message.kind === "customer" || message.kind === "reply",
+              );
+    const unreadCount = history.enabled
+        ? (history.unreadCount ?? 0)
+        : (data.data?.messages.filter(
+              (message) => message.kind === "reply" && message.id > readId,
+          ).length ?? 0);
+    function showConversations() {
+        if (navigationBusy) return;
+        if (history.enabled) changeConversation("list");
+        else setIsHome(false);
+    }
     return (
         <div className="flex h-dvh flex-col bg-white font-sans text-gray-900">
-            <header
-                className="shrink-0 px-6 py-6 text-white"
-                style={{ backgroundColor: color }}
-            >
-                <div className="mb-3 flex items-center gap-3">
-                    <div className="rounded-2xl bg-white/20 p-2.5">
-                        <MessageCircle size={23} />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-semibold">
-                            {config.data?.name ?? "고객 상담"}
-                        </h1>
-                        <p className="mt-1 text-xs text-white/75">
-                            {readOnly
-                                ? "이전 상담 기록을 확인하고 있습니다"
-                                : "문의 내용을 남겨주시면 순서대로 답변드려요"}
-                        </p>
-                    </div>
-                </div>
-                {!readOnly && (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/90">
-                        {config.data?.greeting}
-                    </p>
-                )}
-                {!readOnly && config.data?.businessHours && (
-                    <p className="mt-3 text-xs text-white/90">
-                        {config.data.businessHours.open
-                            ? "지금은 상담 업무시간입니다."
-                            : config.data.businessHours.awayMessage}
-                        {!config.data.businessHours.open &&
-                            config.data.businessHours.nextOpenAt && (
-                                <>
-                                    {" "}
-                                    다음 업무 시작:{" "}
-                                    {new Date(
-                                        config.data.businessHours.nextOpenAt,
-                                    ).toLocaleString("ko-KR", {
-                                        timeZone:
-                                            config.data.businessHours.timezone,
-                                    })}{" "}
-                                    ({config.data.businessHours.timezone})
-                                </>
-                            )}
-                    </p>
-                )}
-                {history.enabled && (
-                    <div className="mt-3 flex items-center gap-2 text-xs">
-                        <button
-                            type="button"
-                            disabled={navigationBusy}
-                            onClick={() => changeConversation("list")}
-                            className="rounded-lg bg-white/15 px-3 py-2 disabled:opacity-50"
-                        >
-                            내 문의 목록
-                            {history.unreadCount
-                                ? ` · 안 읽은 답변 ${history.unreadCount}개`
-                                : ""}
-                        </button>
-                        {!isList && (
-                            <button
-                                type="button"
-                                disabled={navigationBusy}
-                                onClick={() => changeConversation("new")}
-                                className="rounded-lg bg-white/15 px-3 py-2 disabled:opacity-50"
-                            >
-                                새 문의
-                            </button>
-                        )}
-                    </div>
-                )}
-            </header>
-            {hasDeferredDraft && (
-                <div role="status" className="shrink-0 border-b bg-blue-50 px-4 py-3 text-xs text-blue-900">
-                    <p>사이트에서 전달한 문구를 새 문의 초안으로 보관했습니다. 새 문의를 열어 내용을 확인한 뒤 직접 보내주세요.</p>
-                    <button type="button" disabled={navigationBusy || !history.enabled} onClick={() => changeConversation("new")} className="mt-2 underline disabled:opacity-50">새 문의 초안 열기</button>
-                </div>
-            )}
-            {isList ? (
-                <CustomerConversationList
-                    history={history}
+            {isHome ? (
+                <MessengerHome
+                    name={config.data?.name ?? "고객 상담"}
+                    greeting={config.data?.greeting ?? ""}
+                    color={color}
+                    businessHours={config.data?.businessHours}
                     busy={navigationBusy}
-                    onOpen={(id) => changeConversation("thread", id)}
-                    onNew={() => changeConversation("new")}
-                    onBack={() => {
-                        if (draftKey === "new") history.newInquiry();
-                        else if (conversationUuid.test(draftKey))
-                            history.open(draftKey);
-                        else history.reset();
+                    loading={!config.data}
+                    returning={
+                        !history.enabled &&
+                        !!token &&
+                        detailResolved &&
+                        messages.length > 0
+                    }
+                    unread={unreadCount}
+                    hasConversations={
+                        history.enabled
+                            ? history.rows.length > 0
+                            : !!token && detailResolved && messages.length > 0
+                    }
+                    onStart={() => {
+                        if (navigationBusy) return;
+                        if (history.enabled) changeConversation("new");
+                        else setIsHome(false);
                     }}
+                    onConversations={showConversations}
                 />
             ) : (
                 <>
-                    <div
-                        ref={scroll}
-                        onScroll={() => {
-                            const el = scroll.current;
-                            if (el)
-                                follow.current =
-                                    el.scrollHeight -
-                                        el.scrollTop -
-                                        el.clientHeight <
-                                    80;
-                        }}
-                        className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
-                        role="log"
-                        aria-label="고객 상담 대화"
-                    >
-                        {detailPending && !data.error && (
-                            <p role="status" className="text-xs text-gray-500">
-                                문의를 확인하고 있습니다. 작성 중인 내용은
-                                보관됩니다.
-                            </p>
-                        )}
-                        {readOnly && (
-                            <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600" role="status" aria-label="이전 상담 안내">
-                                <h2 className="font-semibold text-gray-900">이전 상담 · 읽기 전용</h2>
-                                <p className="mt-1">이전에 나눈 공개 대화와 첨부파일을 확인할 수 있습니다. 이 기록에는 메시지를 보내거나 상담원을 요청할 수 없습니다. 추가로 궁금한 점은 새 문의로 남겨주세요.</p>
-                            </div>
-                        )}
-                        {data.error && (
-                            <div
-                                role="alert"
-                                className="space-y-2 rounded-xl bg-red-50 p-3 text-xs text-red-700"
-                            >
-                                <p>{data.error.message}</p>
-                                <button
-                                    onClick={() => {
-                                        void data.mutate();
-                                    }}
-                                >
-                                    다시 불러오기
-                                </button>
-                                <button
-                                    className="ml-4"
-                                    onClick={() => {
-                                        if (managed && token.includes(".")) {
-                                            parentMessage("sendb:refresh");
-                                            return;
-                                        }
-                                        generation.current++;
-                                        attachments.reset();
-                                        drafts.current.clear();
-                                        deferredDraft.current = null;
-                                        setHasDeferredDraft(false);
-                                        setDraftKey("current");
-                                        pending.current = null;
-                                        handoffPending.current = null;
-                                        setText("");
-                                        setSuggestedText("");
-                                        setToken("");
-                                        setOlder([]);
-                                        setCanLoad(true);
-                                        try {
-                                            localStorage.removeItem(storageKey);
-                                        } catch {}
-                                    }}
-                                >
-                                    {managed && token.includes(".")
-                                        ? "회원 다시 연결"
-                                        : "새 문의 시작"}
-                                </button>
-                            </div>
-                        )}
-                        {!isNew && detailResolved && data.data?.hasOlder && canLoad && (
-                            <button
-                                className="w-full text-xs text-gray-500"
-                                onClick={async () => {
-                                    const currentGeneration =
-                                        generation.current;
-                                    try {
-                                        const result = await inboxRequest<{
-                                            messages: CustomerMessage[];
-                                            hasOlder: boolean;
-                                        }>(
-                                            `${selectedUrl}${selectedId ? "&" : "?"}before=${messages[0]?.id}`,
-                                            {
-                                                headers: {
-                                                    Authorization: `Bearer ${token}`,
-                                                },
-                                            },
-                                        );
-                                        if (
-                                            currentGeneration !==
-                                            generation.current
-                                        )
-                                            return;
-                                        follow.current = false;
-                                        setOlder((o) => [
-                                            ...result.messages,
-                                            ...o,
-                                        ]);
-                                        setCanLoad(result.hasOlder);
-                                    } catch (e) {
-                                        if (
-                                            currentGeneration ===
-                                            generation.current
-                                        )
-                                            setError((e as Error).message);
-                                    }
-                                }}
-                            >
-                                이전 메시지 보기
-                            </button>
-                        )}
-                        {isNew && (
-                            <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600">
-                                <h2 className="font-semibold text-gray-900">
-                                    새 문의
-                                </h2>
-                                <p className="mt-1">
-                                    첫 메시지를 보내면 새로운 문의가 시작됩니다.
-                                    기존 문의는 내 문의 목록에서 이어갈 수
-                                    있어요.
-                                </p>
-                            </div>
-                        )}
-                        {!token && (
-                            <div className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
-                                <h2 className="text-sm font-semibold">
-                                    어떻게 불러드릴까요?
-                                </h2>
-                                <label className="block text-xs text-gray-500">
-                                    이름
-                                    <input
-                                        aria-label="방문자 이름"
-                                        value={name}
-                                        maxLength={100}
-                                        onChange={(e) =>
-                                            setName(e.target.value)
-                                        }
-                                        className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                                        placeholder="이름 또는 닉네임"
-                                    />
-                                </label>
-                                <label className="block text-xs text-gray-500">
-                                    이메일 (선택)
-                                    <input
-                                        aria-label="방문자 이메일"
-                                        type="email"
-                                        value={email}
-                                        maxLength={254}
-                                        onChange={(e) =>
-                                            setEmail(e.target.value)
-                                        }
-                                        className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                                        placeholder="이메일 주소 (선택)"
-                                    />
-                                </label>
-                                <p className="text-[10px] leading-relaxed text-gray-400">
-                                    이름과 연락처는 이 문의의 상담·응대를 위해
-                                    저장됩니다. 답변은 이 상담창에서
-                                    확인해주세요.
-                                </p>
-                            </div>
-                        )}
-                        {messages.map((m) => (
-                            <div
-                                className={`flex ${m.kind === "customer" ? "justify-end" : "justify-start"}`}
-                                key={m.id}
-                            >
-                                <div className="max-w-[85%]">
-                                    <p
-                                        className={`mb-1.5 text-[10px] text-gray-400 ${m.kind === "customer" ? "text-right" : ""}`}
-                                    >
-                                        {m.authorName} ·{" "}
-                                        <time dateTime={m.createdAt}>
-                                            {readOnly
-                                                ? customerConversationTimestamp(m.createdAt)
-                                                : new Date(m.createdAt).toLocaleTimeString("ko-KR", {
-                                                      hour: "2-digit",
-                                                      minute: "2-digit",
-                                                  })}
-                                        </time>
-                                    </p>
-                                    {m.body && (
-                                        <p
-                                            className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
-                                            style={
-                                                m.kind === "customer"
-                                                    ? { backgroundColor: color }
-                                                    : {}
-                                            }
-                                        >
-                                            {m.body}
-                                        </p>
-                                    )}
-                                    <AttachmentList
-                                        files={m.attachments}
-                                        url={(id) =>
-                                            `${baseUrl}/attachments/${id}${selectedId ? `?conversationId=${encodeURIComponent(selectedId)}` : ""}`
-                                        }
-                                        headers={{
-                                            Authorization: `Bearer ${token}`,
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        ))}
-                        <div ref={end} />
-                    </div>
-                    {!isNew && !readOnly && detailResolved && data.data?.status === "closed" && (
-                        <p className="bg-gray-50 px-5 py-2 text-center text-xs text-gray-500">
-                            상담이 종료되었습니다. 메시지를 보내면 다시
-                            연결됩니다.
-                        </p>
-                    )}
-                    {error && (
-                        <p
-                            role="alert"
-                            className="px-5 pb-2 text-xs text-red-600"
-                        >
-                            {error}
-                        </p>
-                    )}
-                    {linking && (
-                        <p role="status" className="px-4 text-sm text-gray-500">
-                            회원 상담 이력을 연결하고 있습니다…
-                        </p>
-                    )}
-                    {token && !readOnly && (
+                    <header className="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-white px-4 py-4">
                         <button
                             type="button"
-                            disabled={
-                                busy ||
-                                linking ||
-                                inquiryPending ||
-                                !canWrite ||
-                                (!isNew && data.data?.aiState === "human") ||
-                                !!data.error
-                            }
-                            onClick={() => void requestHuman()}
-                            className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
+                            aria-label="상담 홈으로"
+                            onClick={() => setIsHome(true)}
+                            className="rounded-xl p-2 text-gray-500 hover:bg-gray-50"
                         >
-                            {!isNew && data.data?.aiState === "human"
-                                ? "상담원이 이어서 안내드립니다"
-                                : "상담원 연결 요청"}
+                            <ArrowLeft size={20} aria-hidden="true" />
                         </button>
-                    )}
-                    {readOnly ? (
-                        <div className="shrink-0 border-t border-gray-100 p-4">
+                        <div className="min-w-0 flex-1">
+                            <h1 className="truncate text-sm font-semibold">
+                                {config.data?.name ?? "고객 상담"}
+                            </h1>
+                            <p className="mt-1 text-xs text-gray-400">
+                                {isList
+                                    ? "남긴 문의와 답변"
+                                    : readOnly
+                                      ? "이전 상담 · 읽기 전용"
+                                      : "무엇을 도와드릴까요?"}
+                            </p>
+                        </div>
+                        {history.enabled && (
                             <button
                                 type="button"
+                                aria-label="새 문의"
                                 disabled={navigationBusy}
                                 onClick={() => changeConversation("new")}
-                                className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
-                                style={{ backgroundColor: color }}
+                                className="rounded-xl p-2 disabled:opacity-50"
+                                style={{ color }}
                             >
-                                새 문의로 상담 시작하기
+                                <Plus size={20} aria-hidden="true" />
+                            </button>
+                        )}
+                    </header>
+                    {hasDeferredDraft && (
+                        <div
+                            role="status"
+                            className="shrink-0 border-b bg-blue-50 px-4 py-3 text-xs text-blue-900"
+                        >
+                            <p>
+                                사이트에서 전달한 문구를 새 문의 초안으로
+                                보관했습니다. 새 문의를 열어 내용을 확인한 뒤
+                                직접 보내주세요.
+                            </p>
+                            <button
+                                type="button"
+                                disabled={navigationBusy || !history.enabled}
+                                onClick={() => changeConversation("new")}
+                                className="mt-2 underline disabled:opacity-50"
+                            >
+                                새 문의 초안 열기
                             </button>
                         </div>
+                    )}
+                    {isList ? (
+                        <CustomerConversationList
+                            embedded
+                            history={history}
+                            busy={navigationBusy}
+                            onOpen={(id) => changeConversation("thread", id)}
+                            onNew={() => changeConversation("new")}
+                            onBack={() => {
+                                if (draftKey === "new") history.newInquiry();
+                                else if (conversationUuid.test(draftKey))
+                                    history.open(draftKey);
+                                else history.reset();
+                            }}
+                        />
                     ) : (
-                    <form
-                        className="shrink-0 border-t border-gray-100 p-4"
-                        onSubmit={(e) => {
-                            e.preventDefault();
-                            void send();
-                        }}
-                    >
-                        {suggestedText && (
+                        <>
                             <div
-                                role="status"
-                                className="mb-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-900"
+                                ref={scroll}
+                                onScroll={() => {
+                                    const el = scroll.current;
+                                    if (el)
+                                        follow.current =
+                                            el.scrollHeight -
+                                                el.scrollTop -
+                                                el.clientHeight <
+                                            80;
+                                }}
+                                className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5"
+                                role="log"
+                                aria-label="고객 상담 대화"
                             >
-                                <p>
-                                    작성 중인 문장을 보관했습니다. 신청 내용으로
-                                    바꿀까요?
-                                </p>
-                                <button
-                                    type="button"
-                                    className="mr-4 mt-2 underline"
-                                    onClick={() => {
-                                        setText(suggestedText);
-                                        setSuggestedText("");
-                                    }}
-                                >
-                                    신청 내용으로 바꾸기
-                                </button>
-                                <button
-                                    type="button"
-                                    className="underline"
-                                    onClick={() => setSuggestedText("")}
-                                >
-                                    작성 중인 문장 유지
-                                </button>
+                                {detailPending && !data.error && (
+                                    <p
+                                        role="status"
+                                        className="text-xs text-gray-500"
+                                    >
+                                        문의를 확인하고 있습니다. 작성 중인
+                                        내용은 보관됩니다.
+                                    </p>
+                                )}
+                                {readOnly && (
+                                    <div
+                                        className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600"
+                                        role="status"
+                                        aria-label="이전 상담 안내"
+                                    >
+                                        <h2 className="font-semibold text-gray-900">
+                                            이전 상담 · 읽기 전용
+                                        </h2>
+                                        <p className="mt-1">
+                                            이전에 나눈 공개 대화와 첨부파일을
+                                            확인할 수 있습니다. 이 기록에는
+                                            메시지를 보내거나 상담원을 요청할 수
+                                            없습니다. 추가로 궁금한 점은 새
+                                            문의로 남겨주세요.
+                                        </p>
+                                    </div>
+                                )}
+                                {data.error && (
+                                    <div
+                                        role="alert"
+                                        className="space-y-2 rounded-xl bg-red-50 p-3 text-xs text-red-700"
+                                    >
+                                        <p>{data.error.message}</p>
+                                        <button
+                                            onClick={() => {
+                                                void data.mutate();
+                                            }}
+                                        >
+                                            다시 불러오기
+                                        </button>
+                                        <button
+                                            className="ml-4"
+                                            onClick={() => {
+                                                if (
+                                                    managed &&
+                                                    token.includes(".")
+                                                ) {
+                                                    parentMessage(
+                                                        "sendb:refresh",
+                                                    );
+                                                    return;
+                                                }
+                                                generation.current++;
+                                                attachments.reset();
+                                                drafts.current.clear();
+                                                deferredDraft.current = null;
+                                                setHasDeferredDraft(false);
+                                                setDraftKey("current");
+                                                pending.current = null;
+                                                handoffPending.current = null;
+                                                setText("");
+                                                setSuggestedText("");
+                                                setToken("");
+                                                setOlder([]);
+                                                setCanLoad(true);
+                                                try {
+                                                    localStorage.removeItem(
+                                                        storageKey,
+                                                    );
+                                                } catch {}
+                                            }}
+                                        >
+                                            {managed && token.includes(".")
+                                                ? "회원 다시 연결"
+                                                : "새 문의 시작"}
+                                        </button>
+                                    </div>
+                                )}
+                                {!isNew &&
+                                    detailResolved &&
+                                    data.data?.hasOlder &&
+                                    canLoad && (
+                                        <button
+                                            className="w-full text-xs text-gray-500"
+                                            onClick={async () => {
+                                                const currentGeneration =
+                                                    generation.current;
+                                                try {
+                                                    const result =
+                                                        await inboxRequest<{
+                                                            messages: CustomerMessage[];
+                                                            hasOlder: boolean;
+                                                        }>(
+                                                            `${selectedUrl}${selectedId ? "&" : "?"}before=${messages[0]?.id}`,
+                                                            {
+                                                                headers: {
+                                                                    Authorization: `Bearer ${token}`,
+                                                                },
+                                                            },
+                                                        );
+                                                    if (
+                                                        currentGeneration !==
+                                                        generation.current
+                                                    )
+                                                        return;
+                                                    follow.current = false;
+                                                    setOlder((o) => [
+                                                        ...result.messages,
+                                                        ...o,
+                                                    ]);
+                                                    setCanLoad(result.hasOlder);
+                                                } catch (e) {
+                                                    if (
+                                                        currentGeneration ===
+                                                        generation.current
+                                                    )
+                                                        setError(
+                                                            (e as Error)
+                                                                .message,
+                                                        );
+                                                }
+                                            }}
+                                        >
+                                            이전 메시지 보기
+                                        </button>
+                                    )}
+                                {(isNew || (!token && !messages.length)) && (
+                                    <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600">
+                                        <h2 className="font-semibold text-gray-900">
+                                            무엇이 궁금하신가요?
+                                        </h2>
+                                        <p className="mt-1">
+                                            편하게 질문을 남겨주세요. 이
+                                            대화에서 답변드릴게요.
+                                        </p>
+                                    </div>
+                                )}
+                                {!token && (
+                                    <details className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+                                        <summary className="cursor-pointer text-xs font-medium text-gray-500">
+                                            이름·이메일 남기기 (선택)
+                                        </summary>
+                                        <label className="block text-xs text-gray-500">
+                                            이름 (선택)
+                                            <input
+                                                aria-label="방문자 이름"
+                                                value={name}
+                                                maxLength={100}
+                                                onChange={(e) =>
+                                                    setName(e.target.value)
+                                                }
+                                                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                                                placeholder="이름 또는 닉네임"
+                                            />
+                                        </label>
+                                        <label className="block text-xs text-gray-500">
+                                            이메일 (선택)
+                                            <input
+                                                aria-label="방문자 이메일"
+                                                type="email"
+                                                value={email}
+                                                maxLength={254}
+                                                onChange={(e) =>
+                                                    setEmail(e.target.value)
+                                                }
+                                                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                                                placeholder="이메일 주소 (선택)"
+                                            />
+                                        </label>
+                                        <p className="text-[10px] leading-relaxed text-gray-400">
+                                            이름과 연락처는 이 문의의
+                                            상담·응대를 위해 저장됩니다. 답변은
+                                            이 상담창에서 확인해주세요.
+                                        </p>
+                                    </details>
+                                )}
+                                {messages.map((m) => (
+                                    <div
+                                        className={`flex ${m.kind === "customer" ? "justify-end" : "justify-start"}`}
+                                        key={m.id}
+                                    >
+                                        <div className="max-w-[85%]">
+                                            <p
+                                                className={`mb-1.5 text-[10px] text-gray-400 ${m.kind === "customer" ? "text-right" : ""}`}
+                                            >
+                                                {m.authorName} ·{" "}
+                                                <time dateTime={m.createdAt}>
+                                                    {readOnly
+                                                        ? customerConversationTimestamp(
+                                                              m.createdAt,
+                                                          )
+                                                        : new Date(
+                                                              m.createdAt,
+                                                          ).toLocaleTimeString(
+                                                              "ko-KR",
+                                                              {
+                                                                  hour: "2-digit",
+                                                                  minute: "2-digit",
+                                                              },
+                                                          )}
+                                                </time>
+                                            </p>
+                                            {m.body && (
+                                                <p
+                                                    className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
+                                                    style={
+                                                        m.kind === "customer"
+                                                            ? {
+                                                                  backgroundColor:
+                                                                      color,
+                                                              }
+                                                            : {}
+                                                    }
+                                                >
+                                                    {m.body}
+                                                </p>
+                                            )}
+                                            <AttachmentList
+                                                files={m.attachments}
+                                                url={(id) =>
+                                                    `${baseUrl}/attachments/${id}${selectedId ? `?conversationId=${encodeURIComponent(selectedId)}` : ""}`
+                                                }
+                                                headers={{
+                                                    Authorization: `Bearer ${token}`,
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                                <div ref={end} />
                             </div>
-                        )}
-                        <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
-                            <textarea
-                                aria-label="문의 메시지"
-                                disabled={busy || linking || !canWrite}
-                                value={text}
-                                maxLength={5000}
-                                onChange={(e) => setText(e.target.value)}
-                                placeholder="메시지를 입력해주세요"
-                                rows={2}
-                                onKeyDown={(e) => {
-                                    if (
-                                        e.key === "Enter" &&
-                                        (e.ctrlKey || e.metaKey) &&
-                                        !e.nativeEvent.isComposing
-                                    ) {
+                            {!isNew &&
+                                !readOnly &&
+                                detailResolved &&
+                                data.data?.status === "closed" && (
+                                    <p className="bg-gray-50 px-5 py-2 text-center text-xs text-gray-500">
+                                        상담이 종료되었습니다. 메시지를 보내면
+                                        다시 연결됩니다.
+                                    </p>
+                                )}
+                            {error && (
+                                <p
+                                    role="alert"
+                                    className="px-5 pb-2 text-xs text-red-600"
+                                >
+                                    {error}
+                                </p>
+                            )}
+                            {linking && (
+                                <p
+                                    role="status"
+                                    className="px-4 text-sm text-gray-500"
+                                >
+                                    회원 상담 이력을 연결하고 있습니다…
+                                </p>
+                            )}
+                            {token && !readOnly && (
+                                <button
+                                    type="button"
+                                    disabled={
+                                        busy ||
+                                        linking ||
+                                        inquiryPending ||
+                                        !canWrite ||
+                                        (!isNew &&
+                                            data.data?.aiState === "human") ||
+                                        !!data.error
+                                    }
+                                    onClick={() => void requestHuman()}
+                                    className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
+                                >
+                                    {!isNew && data.data?.aiState === "human"
+                                        ? "상담원이 이어서 안내드립니다"
+                                        : "상담원 연결 요청"}
+                                </button>
+                            )}
+                            {readOnly ? (
+                                <div className="shrink-0 border-t border-gray-100 p-4">
+                                    <button
+                                        type="button"
+                                        disabled={navigationBusy}
+                                        onClick={() =>
+                                            changeConversation("new")
+                                        }
+                                        className="w-full rounded-xl px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+                                        style={{ backgroundColor: color }}
+                                    >
+                                        새 문의로 상담 시작하기
+                                    </button>
+                                </div>
+                            ) : (
+                                <form
+                                    className="shrink-0 border-t border-gray-100 p-4"
+                                    onSubmit={(e) => {
                                         e.preventDefault();
                                         void send();
-                                    }
-                                }}
-                                className="min-w-0 flex-1 resize-none text-sm outline-none"
-                            />
-                            <button
-                                aria-label="문의 보내기"
-                                disabled={
-                                    busy ||
-                                    linking ||
-                                    inquiryPending ||
-                                    !canWrite ||
-                                    (!text.trim() &&
-                                        !attachments.files.length) ||
-                                    (!token && !name.trim()) ||
-                                    !config.data ||
-                                    !!data.error
-                                }
-                                className="rounded-xl p-2.5 text-white disabled:opacity-40"
-                                style={{ backgroundColor: color }}
-                            >
-                                {busy ? (
-                                    <RotateCcw
-                                        size={17}
-                                        className="animate-spin"
+                                    }}
+                                >
+                                    {suggestedText && (
+                                        <div
+                                            role="status"
+                                            className="mb-3 rounded-xl bg-blue-50 p-3 text-xs text-blue-900"
+                                        >
+                                            <p>
+                                                작성 중인 문장을 보관했습니다.
+                                                신청 내용으로 바꿀까요?
+                                            </p>
+                                            <button
+                                                type="button"
+                                                className="mr-4 mt-2 underline"
+                                                onClick={() => {
+                                                    setText(suggestedText);
+                                                    setSuggestedText("");
+                                                }}
+                                            >
+                                                신청 내용으로 바꾸기
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="underline"
+                                                onClick={() =>
+                                                    setSuggestedText("")
+                                                }
+                                            >
+                                                작성 중인 문장 유지
+                                            </button>
+                                        </div>
+                                    )}
+                                    <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
+                                        <textarea
+                                            aria-label="문의 메시지"
+                                            disabled={
+                                                busy || linking || !canWrite
+                                            }
+                                            value={text}
+                                            maxLength={5000}
+                                            onChange={(e) =>
+                                                setText(e.target.value)
+                                            }
+                                            placeholder="메시지를 입력해주세요"
+                                            rows={2}
+                                            onKeyDown={(e) => {
+                                                if (
+                                                    e.key === "Enter" &&
+                                                    (e.ctrlKey || e.metaKey) &&
+                                                    !e.nativeEvent.isComposing
+                                                ) {
+                                                    e.preventDefault();
+                                                    void send();
+                                                }
+                                            }}
+                                            className="min-w-0 flex-1 resize-none text-sm outline-none"
+                                        />
+                                        <button
+                                            aria-label="문의 보내기"
+                                            disabled={
+                                                busy ||
+                                                linking ||
+                                                inquiryPending ||
+                                                !canWrite ||
+                                                (!text.trim() &&
+                                                    !attachments.files
+                                                        .length) ||
+                                                !config.data ||
+                                                !!data.error
+                                            }
+                                            className="rounded-xl p-2.5 text-white disabled:opacity-40"
+                                            style={{ backgroundColor: color }}
+                                        >
+                                            {busy ? (
+                                                <RotateCcw
+                                                    size={17}
+                                                    className="animate-spin"
+                                                />
+                                            ) : (
+                                                <ArrowUp size={17} />
+                                            )}
+                                        </button>
+                                    </div>
+                                    <AttachmentDrafts
+                                        files={attachments.files}
+                                        busy={
+                                            busy ||
+                                            linking ||
+                                            !canWrite ||
+                                            !config.data
+                                        }
+                                        progress={attachments.progress}
+                                        onSelect={attachments.select}
+                                        onRemove={(id) =>
+                                            attachments.remove(id, uploadUrl, {
+                                                Authorization: `Bearer ${token}`,
+                                            })
+                                        }
+                                        onError={setError}
                                     />
-                                ) : (
-                                    <ArrowUp size={17} />
-                                )}
-                            </button>
-                        </div>
-                        <AttachmentDrafts
-                            files={attachments.files}
-                            busy={
-                                busy || linking || !canWrite || !config.data
-                            }
-                            progress={attachments.progress}
-                            onSelect={attachments.select}
-                            onRemove={(id) =>
-                                attachments.remove(id, uploadUrl, {
-                                    Authorization: `Bearer ${token}`,
-                                })
-                            }
-                            onError={setError}
-                        />
-                        <p className="mt-3 text-center text-[10px] text-gray-400">
-                            Sendb 고객 상담
-                        </p>
-                    </form>
+                                    <p className="mt-3 text-center text-[10px] text-gray-400">
+                                        Sendb 고객 상담
+                                    </p>
+                                </form>
+                            )}
+                        </>
                     )}
                 </>
             )}
+            <nav
+                aria-label="상담창 메뉴"
+                className="grid shrink-0 grid-cols-2 border-t border-gray-100 bg-white p-2"
+            >
+                <button
+                    type="button"
+                    aria-pressed={isHome}
+                    onClick={() => setIsHome(true)}
+                    className="flex flex-col items-center gap-1 rounded-xl py-2 text-[11px]"
+                    style={{ color: isHome ? color : "#9ca3af" }}
+                >
+                    <Home size={20} aria-hidden="true" />홈
+                </button>
+                <button
+                    type="button"
+                    aria-pressed={!isHome}
+                    disabled={navigationBusy || !config.data}
+                    onClick={showConversations}
+                    className="relative flex flex-col items-center gap-1 rounded-xl py-2 text-[11px] disabled:opacity-50"
+                    style={{ color: !isHome ? color : "#9ca3af" }}
+                >
+                    <span className="relative">
+                        <MessageCircle size={20} aria-hidden="true" />
+                        {unreadCount > 0 && (
+                            <span
+                                className="absolute -right-3 -top-1 rounded-full px-1 text-[9px] text-white"
+                                style={{ backgroundColor: color }}
+                                aria-label={`안 읽은 답변 ${unreadCount}개`}
+                            >
+                                {unreadCount > 99 ? "99+" : unreadCount}
+                            </span>
+                        )}
+                    </span>
+                    대화
+                </button>
+            </nav>
         </div>
     );
 }

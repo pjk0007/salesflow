@@ -316,7 +316,7 @@
         state.button.setAttribute("aria-label", "고객 상담 열기");
         state.button.setAttribute("aria-expanded", "false");
         state.button.style.cssText =
-            "position:fixed;right:24px;bottom:24px;z-index:2147483000;border:0;border-radius:22px;padding:18px 22px;background:#635BFF;color:white;font:600 15px system-ui;box-shadow:0 6px 24px #0002;cursor:pointer";
+            "position:fixed;right:24px;bottom:24px;z-index:2147483000;width:56px;height:56px;border:0;border-radius:50%;padding:0;background:#635BFF;color:white;font:600 14px system-ui;box-shadow:0 6px 24px #0002;cursor:pointer";
         state.button.hidden = !!options.hideLauncher;
         if (options.hideLauncher) state.button.style.display = "none";
         state.frame = document.createElement("iframe");
