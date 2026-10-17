@@ -11,7 +11,7 @@ runPostgresPlatformCheck(async ctx=>{
     bundle.messages=bundle.messages.filter(m=>wanted.has(m.chatId));
     const namespace='fictional-message-batch',client=ctx.clients.dh;
     const input=content=>({workspaceId:8,source:'channel',namespace,format:'json',content:JSON.stringify(content)});
-    const start=async content=>{let job=await client.previewImport(input(content));assert.deepEqual(job.errors,[]);return client.changeImport(job.id,{action:'start',version:job.version,fingerprint:job.fingerprint,acknowledge:true});};
+    const start=async content=>{let job=await client.previewImport(input(content));assert.deepEqual(job.errors,[]);job=await client.changeImport(job.id,{action:'start',version:job.version,fingerprint:job.fingerprint,acknowledge:true});assert.deepEqual(job,await client.import(job.id));return job;};
     const aggregate=async()=>{
         const chats=await ctx.db.select().from(s.inboxConversations).where(eq(s.inboxConversations.channelId,ctx.channels.dh.id));
         let checked=0;
@@ -26,7 +26,7 @@ runPostgresPlatformCheck(async ctx=>{
         return checked;
     };
     let job=await start(bundle),steps=0;
-    while(job.state==='running'&&steps++<10){job=await client.stepImport(job.id,job.cursor,250);assert.notEqual(job.state,'failed',job.reason);await aggregate();}
+    while(job.state==='running'&&steps++<10){job=await client.stepImport(job.id,job.cursor,250);assert.notEqual(job.state,'failed',job.reason);assert.deepEqual(job,await client.import(job.id));await aggregate();}
     assert.equal(job.state,'completed');assert.equal(steps,2);assert.equal(await aggregate(),4);
     const completedPlan=await require('../src/lib/customer-imports/repository.ts').importOwned(ctx.actor,job.id,ctx.db);
     const messageKeys=await ctx.db.select().from(s.customerImportObjects).where(and(eq(s.customerImportObjects.namespace,namespace),eq(s.customerImportObjects.kind,'messages')));
@@ -43,7 +43,7 @@ runPostgresPlatformCheck(async ctx=>{
     const changed=full.plan.find(r=>r.kind==='messages'&&r.operation==='reuse');assert(changed);assert(changed.index<250);
     await ctx.db.update(s.inboxMessages).set({body:'허구 직원이 실행 직전에 편집'}).where(eq(s.inboxMessages.id,Number(changed.targetId)));
     const statsBefore=await ctx.db.select({id:s.inboxConversations.id,preview:s.inboxConversations.preview,lastMessageAt:s.inboxConversations.lastMessageAt,customerSeq:s.inboxConversations.customerSeq}).from(s.inboxConversations).where(eq(s.inboxConversations.channelId,ctx.channels.dh.id));
-    rollback=await client.stepImport(rollback.id,0,250);assert.equal(rollback.state,'failed');assert.equal(rollback.cursor,0);
+    rollback=await client.stepImport(rollback.id,0,250);assert.equal(rollback.state,'failed');assert.equal(rollback.cursor,0);assert.deepEqual(rollback,await client.import(rollback.id));
     assert.equal((await ctx.db.select({n:sql`count(*)`.mapWith(Number)}).from(s.inboxMessages))[0].n,beforeCount);
     assert.equal((await ctx.db.select().from(s.customerImportObjects).where(and(eq(s.customerImportObjects.namespace,namespace),sql`${s.customerImportObjects.sourceId} like '%rollback-%'`))).length,0);
     assert.deepEqual(await ctx.db.select({id:s.inboxConversations.id,preview:s.inboxConversations.preview,lastMessageAt:s.inboxConversations.lastMessageAt,customerSeq:s.inboxConversations.customerSeq}).from(s.inboxConversations).where(eq(s.inboxConversations.channelId,ctx.channels.dh.id)),statsBefore);
@@ -53,6 +53,7 @@ runPostgresPlatformCheck(async ctx=>{
     const conflictSource='history-a-000/rollback-10';
     await ctx.db.insert(s.customerImportObjects).values({orgId:ctx.actor.orgId,workspaceId:8,source:'channel',namespace,kind:'messages',sourceId:conflictSource,targetId:changed.targetId,sourceFingerprint:'f'.repeat(64),targetFingerprint:'f'.repeat(64),owned:false,jobId:parallelConflict.id});
     const failedParallel=await client.stepImport(parallelConflict.id,0,250);
+    assert.deepEqual(failedParallel,await client.import(failedParallel.id));
     assert.equal(failedParallel.state,'failed');assert.equal(failedParallel.cursor,0);
     assert.equal((await ctx.db.select({n:sql`count(*)`.mapWith(Number)}).from(s.inboxMessages))[0].n,beforeCount);
     const afterKeys=await ctx.db.select().from(s.customerImportObjects).where(and(eq(s.customerImportObjects.namespace,namespace),sql`${s.customerImportObjects.sourceId} like '%rollback-%'`));

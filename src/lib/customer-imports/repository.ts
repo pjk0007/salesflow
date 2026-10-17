@@ -117,6 +117,19 @@ export async function importDetail(
     before?: number,
 ) {
     const job = await importOwned(actor, id, exec);
+    return importDetailFromOwned(actor, job, exec, before);
+}
+/** Reuse the locked plan; keep the final current-role check and fresh result/audit reads. */
+async function importDetailFromOwned(
+    actor: SalesActor,
+    job: Job,
+    exec: DbExec,
+    before?: number,
+) {
+    if (job.orgId !== actor.orgId)
+        throw new InboxError("이전 작업을 찾을 수 없습니다.", 404);
+    await requireCustomerAccess(actor, job.workspaceId, "manage", exec);
+    const id = job.id;
     const page = job.plan.slice(before ?? 0, (before ?? 0) + 100);
     const saved = await exec
         .select()
@@ -381,9 +394,9 @@ export async function changeImport(
         })
         .strict()
         .parse(raw);
-    const hint = await importOwned(actor, id, exec);
+    const workspaceId = await importWorkspaceOwned(actor, id, exec);
     return exec.transaction(async (tx) => {
-        await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
+        await lockWorkflowWorkspace(actor.orgId, workspaceId, tx);
         const job = await importOwned(actor, id, tx, true);
         if (job.version !== input.version)
             throw new InboxError(
@@ -449,13 +462,14 @@ export async function changeImport(
                 throw new InboxError("이미 종료한 이전 작업입니다.", 409);
             state = "cancelled";
         }
+        const updatedAt = new Date();
         await tx
             .update(jobs)
             .set({
                 state,
                 reason: null,
                 version: job.version + 1,
-                updatedAt: new Date(),
+                updatedAt,
             })
             .where(eq(jobs.id, id));
         await tx.insert(audit).values({
@@ -464,7 +478,9 @@ export async function changeImport(
             action: input.action,
             detail: { cursor: job.cursor, total: job.plan.length },
         });
-        return importDetail(actor, id, tx);
+        return importDetailFromOwned(actor, {
+            ...job, state, reason: null, version: job.version + 1, updatedAt,
+        }, tx);
     });
 }
 export async function stepImport(
@@ -481,13 +497,13 @@ export async function stepImport(
             .object({ cursor: z.number().int().min(0) })
             .strict()
             .parse(raw),
-        hint = await importOwned(actor, id, exec);
+        workspaceId = await importWorkspaceOwned(actor, id, exec);
     try {
         return await exec.transaction(async (tx) => {
-            await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
+            await lockWorkflowWorkspace(actor.orgId, workspaceId, tx);
             const job = await importOwned(actor, id, tx, true);
             if (job.state !== "running" || job.cursor !== input.cursor)
-                return importDetail(actor, id, tx);
+                return importDetailFromOwned(actor, job, tx);
             const scope = scopeOf(actor, job.input);
             let cursor = job.cursor;
             const messageBatch: ImportMessageBatch = new Map();
@@ -498,6 +514,7 @@ export async function stepImport(
             // Flush in this same transaction, before advancing the durable cursor.
             await refreshImportedConversations(tx, messageBatch);
             const state = cursor === job.plan.length ? "completed" : "running";
+            const updatedAt = new Date();
             await tx
                 .update(jobs)
                 .set({
@@ -505,7 +522,7 @@ export async function stepImport(
                     state,
                     version: job.version + 1,
                     reason: null,
-                    updatedAt: new Date(),
+                    updatedAt,
                 })
                 .where(eq(jobs.id, id));
             if (state === "completed")
@@ -515,12 +532,14 @@ export async function stepImport(
                     action: "completed",
                     detail: { total: cursor },
                 });
-            return importDetail(actor, id, tx);
+            return importDetailFromOwned(actor, {
+                ...job, cursor, state, version: job.version + 1, reason: null, updatedAt,
+            }, tx);
         });
     } catch (error) {
         return exec.transaction(async (tx) => {
-            await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
-            const current = await importOwned(actor, id, tx, true);
+            await lockWorkflowWorkspace(actor.orgId, workspaceId, tx);
+            let current = await importOwned(actor, id, tx, true);
             if (
                 current.state === "running" &&
                 current.cursor === input.cursor
@@ -529,13 +548,14 @@ export async function stepImport(
                     error instanceof InboxError
                         ? error.message
                         : "자료 저장에 실패했습니다. 이번 묶음은 적용하지 않았습니다. 원인을 확인한 뒤 재개해주세요.";
+                const updatedAt = new Date();
                 await tx
                     .update(jobs)
                     .set({
                         state: "failed",
                         reason,
                         version: current.version + 1,
-                        updatedAt: new Date(),
+                        updatedAt,
                     })
                     .where(eq(jobs.id, id));
                 await tx.insert(audit).values({
@@ -544,8 +564,11 @@ export async function stepImport(
                     action: "failed",
                     detail: { cursor: current.cursor, reason },
                 });
+                current = {
+                    ...current, state: "failed", reason, version: current.version + 1, updatedAt,
+                };
             }
-            return importDetail(actor, id, tx);
+            return importDetailFromOwned(actor, current, tx);
         });
     }
 }
