@@ -10,7 +10,7 @@ const code = fs.readFileSync(
 function fixture(options = {}) {
     const messages = {},
         nodes = [],
-        store = new Map(),
+        store = options.storage ?? new Map(),
         timers = new Map(),
         delays = new Map(),
         posts = [],
@@ -117,6 +117,7 @@ function fixture(options = {}) {
     const session = (token) => dispatch("sendb:session", { token });
     return {
         sdk: window.SendbChat,
+        store,
         journey: (value) => {
             window.sendb = { getJourneyContext: () => value };
             messages["sendb:journey-context"]?.();
@@ -246,7 +247,7 @@ async function main() {
         "시작 전과 종료 후 세션 상태·버튼 제어는 인증 정보를 노출하지 않음",
         async () => {
             const f = fixture();
-            assert.equal(f.sdk.version, "1.6.0");
+            assert.equal(f.sdk.version, "1.6.1");
             assert.equal(f.sdk.getSessionType(), "uninitialized");
             f.sdk.hideLauncher();
             f.sdk.showLauncher();
@@ -990,8 +991,29 @@ async function main() {
             f.sdk.shutdown();
         },
     );
+    await check("비회원 읽음은 재방문·같은 세션 재부팅에서 유지하고 새 세션에는 넘기지 않음", async () => {
+        const storage = new Map(), first = fixture({ storage });
+        const firstBoot = first.sdk.boot({ channelKey: first.key });
+        first.ready(); await firstBoot;
+        first.session("b".repeat(64));
+        first.dispatch("sendb:read", { readId: 123 });
+        const revisited = fixture({ storage });
+        const revisitBoot = revisited.sdk.boot({ channelKey: revisited.key });
+        revisited.ready(); await revisitBoot;
+        assert.equal(revisited.posts.findLast((p) => p.type === "sendb:configure").readId, 123);
+        const sameSession = revisited.sdk.boot({ channelKey: revisited.key });
+        revisited.ready(); await sameSession;
+        assert.equal(revisited.posts.findLast((p) => p.type === "sendb:configure").readId, 123);
+        revisited.session("c".repeat(64));
+        const reconnect = revisited.sdk.reconnect(); revisited.ready(); await reconnect;
+        assert.equal(revisited.posts.findLast((p) => p.type === "sendb:configure").readId, 0);
+        revisited.dispatch("sendb:read", { readId: 321 });
+        const identify = revisited.sdk.identify("fictional-member-token"); revisited.ready(); await identify;
+        assert.equal(storage.has("sendb-chat-read:" + revisited.key), false);
+        revisited.sdk.shutdown(); first.sdk.shutdown();
+    });
     console.log(
-        "Chat SDK 1.6.0 가상 DOM/실제 배포 JS QA " +
+        "Chat SDK 1.6.1 가상 DOM/실제 배포 JS QA " +
             checks +
             "개 통과 · 외부 전송 0건",
     );

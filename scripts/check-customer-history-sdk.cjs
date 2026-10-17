@@ -119,7 +119,7 @@ async function main() {
                 { f, controller } = ctx;
             assert.equal(await ctx.loadSupportSdk("https://sendb.example.test"), f.sdk);
             await connect(ctx, null);
-            assert.equal(f.sdk.version, "1.6.0");
+            assert.equal(f.sdk.version, "1.6.1");
             assert.equal(f.sdk.getSessionType(), "anonymous");
             controller.setLauncherHidden("guide", true);
             await controller.open();

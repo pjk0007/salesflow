@@ -123,6 +123,7 @@
         clearTimeout(previous.timer);
         clearTimeout(previous.refreshTimer);
         store(previous.storageKey, null);
+        store(previous.readStorageKey, null);
         if (previous.frame) previous.frame.remove();
         if (previous.button) previous.button.remove();
         if (!previous.ready && previous.reject)
@@ -227,6 +228,7 @@
             !options.getIdentityToken
                 ? store(current.storageKey)
                 : null;
+        var retainedRead = retained ? store(current.readStorageKey) : null;
         var messenger;
         if (options.messengerPath) {
             if (typeof options.messengerPath !== "string" || !/^\/(?!\/)[A-Za-z0-9/_.-]+\.html$/.test(options.messengerPath) || options.messengerPath.split("/").includes(".."))
@@ -238,6 +240,9 @@
         shutdown();
         if (retained)
             store("sendb-chat-session:" + options.channelKey, retained);
+        if (retainedRead !== null)
+            store("sendb-chat-read:" + options.channelKey, retainedRead);
+        var savedRead = Number(store("sendb-chat-read:" + options.channelKey));
         var state = {
             options: options,
             base: base.origin,
@@ -250,8 +255,9 @@
             awaitingReady: false,
             configurationId: 0,
             refreshing: false,
-            readId: 0,
+            readId: !options.identityToken && store("sendb-chat-session:" + options.channelKey) && Number.isSafeInteger(savedRead) && savedRead >= 0 ? savedRead : 0,
             storageKey: "sendb-chat-session:" + options.channelKey,
+            readStorageKey: "sendb-chat-read:" + options.channelKey,
             generation: sequence,
         };
         current = state;
@@ -387,10 +393,18 @@
                 data.type === "sendb:session" &&
                 !state.identityToken &&
                 /^[a-f0-9]{64}$/.test(data.token || "")
-            )
+            ) {
+                if (store(state.storageKey) !== data.token) {
+                    state.readId = 0;
+                    store(state.readStorageKey, null);
+                }
                 store(state.storageKey, data.token);
-            if (data.type === "sendb:read")
-                state.readId = Number(data.readId) || 0;
+            }
+            if (data.type === "sendb:read" && Number.isSafeInteger(data.readId) && data.readId >= 0) {
+                state.readId = data.readId;
+                if (!state.identityToken && store(state.storageKey))
+                    store(state.readStorageKey, String(data.readId));
+            }
             if (data.type === "sendb:unread")
                 emit("unreadCountChange", Math.max(0, Number(data.count) || 0));
             if (data.type === "sendb:refresh") refresh(state);
@@ -399,6 +413,7 @@
                 if (data.status === 401 && state.identityToken) refresh(state);
                 else if (data.status === 401) {
                     store(state.storageKey, null);
+                    store(state.readStorageKey, null);
                     state.readId = 0;
                     if (state.waiting) configure(state);
                     else reconnect().catch(function () {});
@@ -472,7 +487,7 @@
         visibility(true);
     }
     window.SendbChat = {
-        version: "1.6.0",
+        version: "1.6.1",
         supportsFirstPartyMessenger: true,
         boot: boot,
         reconnect: reconnect,
@@ -622,6 +637,7 @@
             if (current !== state)
                 throw new Error("상담 연결이 변경되었습니다.");
             store(state.storageKey, null);
+            store(state.readStorageKey, null);
             state.continueAnonymous = !!options.mergeAnonymous;
             if (typeof options.getIdentityToken === "function")
                 state.options.getIdentityToken = options.getIdentityToken;
