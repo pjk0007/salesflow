@@ -319,7 +319,6 @@
             if (data.type === "sendb:loaded") {
                 if (state.waiting) configure(state);
                 else if (
-                    state.hasConnected &&
                     !state.identifying &&
                     !state.refreshing
                 )
