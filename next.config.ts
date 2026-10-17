@@ -16,6 +16,16 @@ const nextConfig: NextConfig = {
     async headers() {
         return [
             {
+                source: "/sign/:token*",
+                headers: [
+                    { key: "Referrer-Policy", value: "no-referrer" },
+                    { key: "X-Robots-Tag", value: "noindex, nofollow" },
+                    { key: "Cache-Control", value: "no-store" },
+                    { key: "X-Frame-Options", value: "DENY" },
+                    { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
+                ],
+            },
+            {
                 source: "/forms/:slug*",
                 headers: [
                     {

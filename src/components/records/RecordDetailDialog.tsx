@@ -9,7 +9,7 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Mail, Route } from "lucide-react";
+import { MessageSquare, Mail, Route, FileSignature } from "lucide-react";
 import CellRenderer from "./CellRenderer";
 import CompanyResearchSection from "./CompanyResearchSection";
 import MemoSection from "./ui/MemoSection";
@@ -27,6 +27,7 @@ interface RecordDetailDialogProps {
     record: DbRecord | null;
     fields: FieldDefinition[];
     partitionId: number;
+    workspaceId?: number | null;
     onRecordUpdated?: () => void;
 }
 
@@ -36,6 +37,7 @@ export default function RecordDetailDialog({
     record,
     fields,
     partitionId,
+    workspaceId,
     onRecordUpdated,
 }: RecordDetailDialogProps) {
     const [alimtalkOpen, setAlimtalkOpen] = useState(false);
@@ -63,6 +65,9 @@ export default function RecordDetailDialog({
                             <Route className="mr-1 h-4 w-4" />
                             고객 여정 보기
                         </Button>
+                        {workspaceId && <Button variant="outline" size="sm" className="mt-2 w-fit" onClick={() => router.push(`/esign?workspaceId=${workspaceId}&recordId=${record.id}`)}>
+                            <FileSignature className="mr-1 h-4 w-4" />서명 요청
+                        </Button>}
                     </SheetHeader>
 
                     <div className="space-y-6 px-4">

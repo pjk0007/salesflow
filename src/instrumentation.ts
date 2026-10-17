@@ -21,6 +21,10 @@ export async function register() {
             console.info("[instrumentation] sendb-dev 체험 서버 — 자동 발송·AI·외부 연동 워커를 시작하지 않습니다.");
             return;
         }
+        if (process.env.ESIGN_ENABLED === "on" && process.env.ESIGN_WORKER === "on") {
+            const { startEsignScheduler } = await import("@/lib/esign/runtime");
+            startEsignScheduler();
+        }
         const { startCustomerJourneyScheduler } = await import("@/lib/customer-journey-scheduler");
         startCustomerJourneyScheduler();
         const { startEmailSendScheduler } = await import("@/lib/email-send-scheduler");

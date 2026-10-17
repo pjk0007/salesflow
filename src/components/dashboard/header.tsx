@@ -37,6 +37,7 @@ const BREADCRUMB_LABELS: Record<string, string> = {
     records: "레코드",
     inbox: "고객 상담",
     email: "이메일",
+    esign: "전자서명",
     alimtalk: "알림톡",
     products: "제품",
     "web-forms": "웹 폼",
