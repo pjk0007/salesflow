@@ -1497,9 +1497,6 @@ export function ChatWidget({
                                         }
                                         onError={setError}
                                     />
-                                    <p className="mt-3 text-center text-[10px] text-gray-400">
-                                        Sendb 고객 상담
-                                    </p>
                                 </form>
                             )}
                         </>
