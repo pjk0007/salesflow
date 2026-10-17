@@ -29,10 +29,10 @@ import {
     type ImportScope,
 } from "./storage";
 import {
-    applyImportRow,
     refreshImportedConversations,
     type ImportMessageBatch,
 } from "./writer";
+import { applyImportBatch } from "./batch-writer";
 type Job = typeof jobs.$inferSelect;
 const scopeOf = (
     actor: SalesActor,
@@ -491,10 +491,9 @@ export async function stepImport(
             const scope = scopeOf(actor, job.input);
             let cursor = job.cursor;
             const messageBatch: ImportMessageBatch = new Map();
-            for (const row of job.plan.slice(cursor, cursor + batchSize)) {
-                await applyImportRow(actor, scope, job, row, tx, messageBatch);
-                cursor++;
-            }
+            const rows = job.plan.slice(cursor, cursor + batchSize);
+            await applyImportBatch(actor, scope, job, rows, tx, messageBatch, batchSize > 25);
+            cursor += rows.length;
             // Derived chat fields are not part of the stable import fingerprint.
             // Flush in this same transaction, before advancing the durable cursor.
             await refreshImportedConversations(tx, messageBatch);

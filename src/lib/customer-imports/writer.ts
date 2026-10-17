@@ -84,7 +84,12 @@ export async function applyImportRow(
     row: ImportPlanRow,
     tx: DbExec,
     messageBatch?: ImportMessageBatch,
+    reservedMessageId?: number,
 ) {
+    if (reservedMessageId !== undefined && (
+        row.kind !== "messages" || row.operation !== "create" ||
+        !Number.isSafeInteger(reservedMessageId) || reservedMessageId < 1
+    )) throw new InboxError("새 이전 메시지의 식별자를 확인하지 못했습니다.");
     const state = await lockImportTargets(scope, row, tx);
     if (row.operation === "error" || row.expected !== state.expected)
         throw new InboxError(
@@ -409,7 +414,7 @@ export async function applyImportRow(
             if (row.operation === "create") {
                 const [saved] = await tx
                     .insert(messages)
-                    .values(values)
+                    .values({ ...values, ...(reservedMessageId === undefined ? {} : { id: reservedMessageId }) })
                     .returning();
                 targetId = String(saved.id);
             } else
