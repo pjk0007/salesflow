@@ -93,6 +93,12 @@ test("모르는 근거 ID·꾸며낸 인용·미승인 URL·낮은 확신은 거
 });
 test("모델 JSON 파싱·멱등 요청 번호·비신뢰 입력 경계", () => {
     assert.deepEqual(parseAiJson('```json\n{"ok":true}\n```'), { ok: true });
+    assert.throws(() =>
+        parseAiJson('```json\n{"supported":true,"confidence":0.95,"unsupportedClaims":[]}\n```\n분석 결과: 모든 내용이 확인되었습니다.'),
+    );
+    assert.throws(() =>
+        parseAiJson('{"supported":true,"confidence":0.95,"unsupportedClaims":[]}\n{"supported":false}'),
+    );
     assert.equal(requestUuid("a"), requestUuid("a"));
     assert.notEqual(requestUuid("a"), requestUuid("b"));
     const prompt = buildSupportPrompt(
