@@ -31,9 +31,9 @@ import {
     type AiSettingsSnapshot,
     type AiSource,
 } from "./rules";
-export const aiWorkerEnabled = () =>
-    process.env.NODE_ENV === "production" &&
-    process.env.CUSTOMER_AI_WORKER === "on";
+import { supportWorkerEnabled } from "./worker-policy";
+export const aiWorkerEnabled = (workspaceId?: number) =>
+    supportWorkerEnabled(process.env, workspaceId);
 export async function getSupportSettings(
     orgId: string,
     workspaceId: number,
@@ -169,7 +169,7 @@ export async function supportCatalog(
             ...m,
             configured: !!getAiClient(m.id),
         })),
-        workerEnabled: aiWorkerEnabled(),
+        workerEnabled: aiWorkerEnabled(workspaceId),
     };
 }
 export async function saveSupportSettings(

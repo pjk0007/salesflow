@@ -48,7 +48,10 @@ export function CustomerCrmContext({
         [expanded, setExpanded] = useState(false),
         [pending, setPending] = useState<string | null>(null);
     const data = context.data;
-    const canRespond = workspaceAbilities(bootstrap, data?.workspaceId).respond;
+    const { respond: canRespond, manage: canManage } = workspaceAbilities(
+        bootstrap,
+        data?.workspaceId,
+    );
     if (!chat.contactId) return null;
     async function refresh() {
         await Promise.all([
@@ -63,6 +66,7 @@ export function CustomerCrmContext({
     }
     async function save(body: unknown) {
         if (!editor) return;
+        const continueToDeal = editor.resource === "pipelines";
         const edit = !!editor.item;
         await inboxWrite(
             `/api/customer-crm/${editor.resource}${edit ? "/" + editor.item!.id : ""}`,
@@ -71,6 +75,15 @@ export function CustomerCrmContext({
         );
         setEditor(null);
         await refresh();
+        if (continueToDeal && data?.contact)
+            setEditor({
+                resource: "deals",
+                defaults: {
+                    contactId: data.contact.id,
+                    companyId: data.companies[0]?.id ?? null,
+                    ownerId: chat.assigneeId,
+                },
+            });
         toast.success("고객 타임라인에 기록했습니다.");
     }
     async function complete(task: Task) {
@@ -94,8 +107,24 @@ export function CustomerCrmContext({
         }
     }
     return (
-        <section className="space-y-5 border-t pt-5" aria-label="상담 고객 CRM">
-            <h3 className="font-semibold">고객과 영업</h3>
+        <section className="space-y-5" aria-label="상담 고객 CRM">
+            <div className="flex items-center justify-between gap-2">
+                <h3 className="font-semibold">고객 프로필</h3>
+                {data?.contact && (
+                    <button
+                        className="text-xs text-[#635BFF]"
+                        disabled={!canRespond || !!data.contact.archivedAt}
+                        onClick={() =>
+                            setEditor({
+                                resource: "contacts",
+                                item: data.contact!,
+                            })
+                        }
+                    >
+                        고객 정보 수정
+                    </button>
+                )}
+            </div>
             {context.error ? (
                 <p role="alert" className="text-xs text-red-600">
                     {context.error.message}
@@ -112,6 +141,17 @@ export function CustomerCrmContext({
                 </p>
             ) : data.contact ? (
                 <>
+                    <div className="space-y-1 text-xs">
+                        <p className="text-sm font-semibold">
+                            {data.contact.name}
+                        </p>
+                        <p className="break-all text-muted-foreground">
+                            {data.contact.email || "이메일 미입력"}
+                        </p>
+                        <p className="text-muted-foreground">
+                            {data.contact.phone || "전화번호 미입력"}
+                        </p>
+                    </div>
                     {data.contact.archivedAt && (
                         <p className="rounded border p-2 text-xs">
                             보관된 고객입니다. 기존 상담·거래 이력으로 응대할 수
@@ -171,12 +211,27 @@ export function CustomerCrmContext({
                             </button>
                         </div>
                         {!data.pipelines.length && (
-                            <a
-                                className="text-xs text-[#635BFF]"
-                                href={`/customer-crm?workspaceId=${data.workspaceId}`}
-                            >
-                                파이프라인 먼저 준비하기 ↗
-                            </a>
+                            <div className="rounded-lg bg-muted/50 p-3 text-xs">
+                                <p className="mb-2 text-muted-foreground">
+                                    거래 단계는 처음 한 번만 준비하면 됩니다.
+                                </p>
+                                {canManage ? (
+                                    <button
+                                        className="text-[#635BFF]"
+                                        onClick={() =>
+                                            setEditor({ resource: "pipelines" })
+                                        }
+                                    >
+                                        이 화면에서 거래 단계 만들기
+                                    </button>
+                                ) : (
+                                    <p>
+                                        관리자에게 거래 단계 설정을
+                                        요청해주세요. 후속 업무는 바로 추가할 수
+                                        있습니다.
+                                    </p>
+                                )}
+                            </div>
                         )}
                         {!data.deals.length ? (
                             <p className="text-xs text-muted-foreground">
@@ -344,7 +399,12 @@ export function CustomerCrmContext({
                                   const id = editor.item!.id;
                                   try {
                                       const value = await inboxRequest<{
-                                          item: Deal | Task;
+                                          item:
+                                              | Deal
+                                              | Task
+                                              | Contact
+                                              | Company
+                                              | Pipeline;
                                       }>(
                                           `/api/customer-crm/${editor.resource}/${id}?workspaceId=${data.workspaceId}`,
                                       );
