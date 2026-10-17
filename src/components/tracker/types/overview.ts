@@ -1,6 +1,6 @@
 // 트래커 개요 탭 응답 타입 — /api/tracker/analytics/overview
 
-export type RangePreset = "7d" | "30d" | "90d" | "custom";
+export type RangePreset = "1d" | "7d" | "30d" | "90d" | "custom";
 
 export interface Range {
     from: string; // YYYY-MM-DD (KST 자정 기준)

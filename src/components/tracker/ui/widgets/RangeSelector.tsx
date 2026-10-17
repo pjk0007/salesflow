@@ -14,10 +14,11 @@ function ymd(d: Date): string {
 
 export function presetRange(preset: RangePreset): Range {
     const today = new Date();
+    if (preset === "1d") return { preset, from: ymd(today), to: ymd(today) };
     if (preset === "7d") return { preset, from: ymd(new Date(today.getTime() - 6 * DAY_MS)), to: ymd(today) };
     if (preset === "30d") return { preset, from: ymd(new Date(today.getTime() - 29 * DAY_MS)), to: ymd(today) };
     if (preset === "90d") return { preset, from: ymd(new Date(today.getTime() - 89 * DAY_MS)), to: ymd(today) };
-    return { preset: "7d", from: ymd(new Date(today.getTime() - 6 * DAY_MS)), to: ymd(today) };
+    return { preset: "1d", from: ymd(today), to: ymd(today) };
 }
 
 interface Props {
@@ -26,6 +27,7 @@ interface Props {
 }
 
 const PRESETS: Array<{ key: RangePreset; label: string }> = [
+    { key: "1d", label: "1일" },
     { key: "7d", label: "7일" },
     { key: "30d", label: "30일" },
     { key: "90d", label: "90일" },
