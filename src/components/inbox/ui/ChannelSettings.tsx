@@ -1,4 +1,6 @@
 "use client";
+import { MessengerSettingsFields } from "@/components/customer-messenger/ui/MessengerSettingsFields";
+import { defaultMessengerSettings } from "@/lib/customer-messenger/rules";
 import { InboxAudit } from "./InboxAudit";
 import { useState } from "react";
 import { Copy, ExternalLink, X } from "lucide-react";
@@ -30,6 +32,9 @@ export function ChannelSettings({
     const [greeting, setGreeting] = useState(
         channel?.greeting ??
             "반갑습니다. 무엇을 도와드릴까요?\n궁금한 점을 남겨주시면 안내드리겠습니다.",
+    );
+    const [messengerSettings, setMessengerSettings] = useState(
+        channel?.messengerSettings ?? defaultMessengerSettings,
     );
     const [color, setColor] = useState(channel?.color ?? "#635BFF");
     const [origins, setOrigins] = useState(
@@ -102,6 +107,7 @@ export function ChannelSettings({
                                     workspaceId,
                                     name,
                                     greeting,
+                                    messengerSettings,
                                     color,
                                     allowedOrigins: origins
                                         .split(/\n|,/)
@@ -165,6 +171,10 @@ export function ChannelSettings({
                             maxLength={1000}
                         />
                     </label>
+                    <MessengerSettingsFields
+                        value={messengerSettings}
+                        onChange={setMessengerSettings}
+                    />
                     <label className="flex items-center justify-between text-sm">
                         브랜드 색상
                         <input

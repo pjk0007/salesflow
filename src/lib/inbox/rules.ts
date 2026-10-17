@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { messengerSettingsSchema } from "@/lib/customer-messenger/rules";
 import { emailReplySelection } from "@/lib/inbox-email/recipients";
 import { mentionIdsInput } from "@/lib/inbox-collaboration/rules";
 import { replyGuardContext } from "@/lib/inbox-reply-guard/rules";
@@ -122,6 +123,7 @@ export function normalizeOrigins(raw: string[]): string[] {
 }
 export const channelInput = z
     .object({
+        messengerSettings: messengerSettingsSchema.optional(),
         workspaceId: z.number().int().positive(),
         name: z.string().trim().min(1).max(100),
         greeting: z.string().trim().min(1).max(1000),

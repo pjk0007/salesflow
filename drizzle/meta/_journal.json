@@ -820,6 +820,13 @@
       "tag": "0115_template_link_sender_compat",
       "breakpoints": true,
       "idx": 116
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1792263600000,
+      "tag": "0116_customer_messenger_contact",
+      "breakpoints": true
     }
   ]
 }

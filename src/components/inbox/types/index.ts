@@ -12,6 +12,7 @@ export interface InboxChannel {
     allowedOrigins: string[];
     enabled: boolean;
     replyGuardEnabled?: boolean;
+    messengerSettings?: import("@/lib/customer-messenger/rules").MessengerSettings;
 }
 export interface Conversation {
     teamId?: string | null;

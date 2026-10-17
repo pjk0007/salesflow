@@ -69,6 +69,8 @@ async function fixture(testRuntime) {
         schema.aiUsageQuotas,
         schema.aiCopyGenerationJobs,
         schema.emailSendLogs,
+        schema.emailConfigs,
+        schema.emailSenderProfiles,
         schema.emailCopyExperiments,
         schema.emailCopyAssignments,
         schema.trackerSites,
@@ -112,6 +114,7 @@ async function fixture(testRuntime) {
         "0112_inbox_customer_history.sql",
         "0113_inbox_lead_journey.sql",
         "0114_inbox_private_archive.sql",
+        "0116_customer_messenger_contact.sql",
     ])
         for (const statement of fs
             .readFileSync(

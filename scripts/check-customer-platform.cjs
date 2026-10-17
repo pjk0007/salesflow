@@ -82,6 +82,8 @@ async function runPlatformCheck(extra, testRuntime) {
         )
             delete require.cache[name];
     const routeDefinitions = [
+        [/^\/api\/messenger\/([a-f0-9]+)\/contact$/, () => "messenger/[key]/contact"],
+        [/^\/api\/inbox\/conversations\/([a-f0-9-]+)\/reply-contact$/, () => "inbox/conversations/[id]/reply-contact"],
         [/^\/api\/messenger\/([a-f0-9]+)\/site-identity$/, () => "messenger/[key]/site-identity"],
         [
             /^\/api\/messenger\/([a-f0-9]+)\/conversations$/,
@@ -400,6 +402,8 @@ async function runPlatformCheck(extra, testRuntime) {
         "v1/inbox/conversations",
         "v1/inbox/conversations/[id]",
         "messenger/[key]",
+        "messenger/[key]/contact",
+        "inbox/conversations/[id]/reply-contact",
         "messenger/[key]/site-identity",
         "messenger/[key]/conversations",
         "messenger/[key]/conversations/[id]/read",

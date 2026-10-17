@@ -9,6 +9,10 @@ import {
     Plus,
     RotateCcw,
 } from "lucide-react";
+import { WelcomeProcess } from "@/components/customer-messenger/ui/WelcomeProcess";
+import { ReplyContactForm } from "@/components/customer-messenger/ui/ReplyContactForm";
+import type { PublicMessengerSettings } from "@/components/customer-messenger/types";
+import type { ReplyContactDraft } from "@/lib/customer-messenger/rules";
 import { MessengerHome } from "@/components/customer-messenger/ui/MessengerHome";
 import { inboxRequest, InboxRequestError } from "../api";
 import type { SendbCustomerMessages } from "../../../../sdk/messenger";
@@ -99,8 +103,70 @@ export function ChatWidget({
         ? `${baseUrl}?conversationId=${encodeURIComponent(selectedId)}`
         : baseUrl;
     const handoffPending = useRef<string | null>(null);
+    const replyContactDraft = useRef<{
+        token: string;
+        key: string;
+        draft: ReplyContactDraft;
+    } | null>(null);
+    const [contactSeed, setContactSeed] = useState<{
+        id: string;
+        draft: ReplyContactDraft;
+    } | null>(null);
+    async function ensureSession(currentGeneration: number) {
+        if (token) return token;
+        const result = await inboxRequest<{ token: string }>(baseUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                action: "session",
+                name: name.trim() || "방문 고객",
+                email: email.trim(),
+                pageUrl: pageUrl || undefined,
+            }),
+        });
+        if (currentGeneration !== generation.current) return "";
+        configured.current = draftSessionKey(result.token);
+        setToken(result.token);
+        if (managed) parentMessage("sendb:session", { token: result.token });
+        else
+            try {
+                localStorage.setItem(storageKey, result.token);
+            } catch {}
+        return result.token;
+    }
+    function contactSnapshot() {
+        const c = replyContactDraft.current;
+        return c?.token === token && c.key === draftKey ? c.draft : null;
+    }
+    async function savePendingContact(
+        session: string,
+        id: string | undefined,
+        snapshot: ReplyContactDraft | null,
+    ) {
+        if (!snapshot) return;
+        try {
+            await inboxRequest(
+                `${baseUrl}/contact${id ? `?conversationId=${encodeURIComponent(id)}` : ""}`,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${session}`,
+                    },
+                    body: JSON.stringify(snapshot),
+                },
+            );
+            setContactSeed(null);
+            replyContactDraft.current = null;
+        } catch {
+            if (id) setContactSeed({ id, draft: snapshot });
+            setError(
+                "문의는 접수됐지만 연락처 저장을 확인하지 못했습니다. 연락처를 확인하고 다시 저장해주세요.",
+            );
+        }
+    }
     async function requestHuman() {
-        if (!token || busy || linking || inquiryPending || !canWrite) return;
+        if (busy || linking || inquiryPending || !canWrite) return;
         if (isNew && pending.current) {
             setError(
                 "먼저 작성한 메시지를 다시 보내 결과를 확인해주세요. 작성 내용은 보관되어 있습니다.",
@@ -111,14 +177,17 @@ export function ChatWidget({
         setBusy(true);
         setError("");
         handoffPending.current ??= crypto.randomUUID();
+        const snapshot = contactSnapshot();
         try {
+            const session = await ensureSession(currentGeneration);
+            if (!session || currentGeneration !== generation.current) return;
             const result = await inboxRequest<{ conversationId?: string }>(
                 isNew ? `${baseUrl}/conversations` : selectedUrl,
                 {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
+                        Authorization: `Bearer ${session}`,
                     },
                     body: JSON.stringify({
                         clientId: handoffPending.current,
@@ -127,6 +196,11 @@ export function ChatWidget({
                 },
             );
             if (currentGeneration !== generation.current) return;
+            await savePendingContact(
+                session,
+                result.conversationId ?? selectedId,
+                snapshot,
+            );
             handoffPending.current = null;
             if (isNew && result.conversationId) {
                 attachments.moveTo(`${channelKey}:${result.conversationId}`);
@@ -159,6 +233,7 @@ export function ChatWidget({
     const config = useSWR<{
         name: string;
         greeting: string;
+        messengerSettings?: PublicMessengerSettings;
         color: string;
         allowedOrigins: string[];
         businessHours?: {
@@ -505,11 +580,61 @@ export function ChatWidget({
         data.data?.conversationId,
         data.data?.readRevision,
     ]);
+    useEffect(() => {
+        if (
+            !config.data?.messengerSettings?.enabled ||
+            !opened ||
+            isHome ||
+            isList ||
+            isNew ||
+            readOnly ||
+            linking ||
+            !detailResolved ||
+            !data.data?.conversationId ||
+            !latestId ||
+            !token
+        )
+            return;
+        const id = data.data.conversationId;
+        const seen = () => {
+            if (document.visibilityState === "visible")
+                void inboxRequest(
+                    `${baseUrl}/contact?conversationId=${encodeURIComponent(id)}`,
+                    {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify({
+                            action: "seen",
+                            messageId: latestId,
+                        }),
+                    },
+                ).catch(() => {});
+        };
+        seen();
+        document.addEventListener("visibilitychange", seen);
+        return () => document.removeEventListener("visibilitychange", seen);
+    }, [
+        config.data?.messengerSettings?.enabled,
+        opened,
+        isHome,
+        isList,
+        isNew,
+        readOnly,
+        linking,
+        detailResolved,
+        data.data?.conversationId,
+        latestId,
+        token,
+        baseUrl,
+    ]);
     const lastMessageId = data.data?.messages.at(-1)?.id;
     useEffect(() => {
-        if (!isHome && follow.current)
+        if (!isHome && !isNew && lastMessageId && follow.current)
             end.current?.scrollIntoView({ block: "end" });
-    }, [lastMessageId, opened, isHome]);
+    }, [lastMessageId, opened, isHome, isNew]);
     function changeConversation(view: string, id?: string) {
         if (!history.enabled || navigationBusy) {
             parentMessage("sendb:error", {
@@ -658,6 +783,7 @@ export function ChatWidget({
             return;
         }
         const body = text.trim();
+        const snapshot = contactSnapshot();
         setBusy(true);
         setError("");
         const currentGeneration = generation.current;
@@ -726,6 +852,11 @@ export function ChatWidget({
                 },
             );
             if (currentGeneration !== generation.current) return;
+            await savePendingContact(
+                session,
+                result.conversationId ?? selectedId,
+                snapshot,
+            );
             setText("");
             attachments.clear();
             pending.current = null;
@@ -771,6 +902,8 @@ export function ChatWidget({
                 <MessengerHome
                     name={config.data?.name ?? "고객 상담"}
                     greeting={config.data?.greeting ?? ""}
+                    settings={config.data?.messengerSettings}
+                    customerName={data.data?.profile.name}
                     color={color}
                     businessHours={config.data?.businessHours}
                     busy={navigationBusy}
@@ -881,6 +1014,64 @@ export function ChatWidget({
                                 role="log"
                                 aria-label="고객 상담 대화"
                             >
+                                {config.data?.messengerSettings?.enabled &&
+                                    !readOnly &&
+                                    (!detailPending || isNew) && (
+                                        <>
+                                            {messages.length === 0 && (
+                                                <WelcomeProcess
+                                                    settings={
+                                                        config.data
+                                                            .messengerSettings
+                                                    }
+                                                    customerName={
+                                                        data.data?.profile.name
+                                                    }
+                                                    greeting={
+                                                        config.data.greeting
+                                                    }
+                                                    compact
+                                                />
+                                            )}
+                                            <ReplyContactForm
+                                                key={`${draftSessionKey(token)}:${draftKey}`}
+                                                channelKey={channelKey}
+                                                token={token}
+                                                conversationId={
+                                                    isNew
+                                                        ? undefined
+                                                        : detailResolved
+                                                          ? data.data
+                                                                ?.conversationId
+                                                          : undefined
+                                                }
+                                                profile={data.data?.profile}
+                                                emailAvailable={
+                                                    config.data
+                                                        .messengerSettings
+                                                        .emailNotifications
+                                                }
+                                                initialDraft={
+                                                    contactSeed &&
+                                                    contactSeed.id ===
+                                                        data.data
+                                                            ?.conversationId
+                                                        ? contactSeed.draft
+                                                        : null
+                                                }
+                                                onDraft={(draft) => {
+                                                    replyContactDraft.current =
+                                                        draft
+                                                            ? {
+                                                                  token,
+                                                                  key: draftKey,
+                                                                  draft,
+                                                              }
+                                                            : null;
+                                                }}
+                                            />
+                                        </>
+                                    )}
                                 {detailPending && !data.error && (
                                     <p
                                         role="status"
@@ -1018,45 +1209,48 @@ export function ChatWidget({
                                         </p>
                                     </div>
                                 )}
-                                {!token && (
-                                    <details className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
-                                        <summary className="cursor-pointer text-xs font-medium text-gray-500">
-                                            이름·이메일 남기기 (선택)
-                                        </summary>
-                                        <label className="block text-xs text-gray-500">
-                                            이름 (선택)
-                                            <input
-                                                aria-label="방문자 이름"
-                                                value={name}
-                                                maxLength={100}
-                                                onChange={(e) =>
-                                                    setName(e.target.value)
-                                                }
-                                                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                                                placeholder="이름 또는 닉네임"
-                                            />
-                                        </label>
-                                        <label className="block text-xs text-gray-500">
-                                            이메일 (선택)
-                                            <input
-                                                aria-label="방문자 이메일"
-                                                type="email"
-                                                value={email}
-                                                maxLength={254}
-                                                onChange={(e) =>
-                                                    setEmail(e.target.value)
-                                                }
-                                                className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
-                                                placeholder="이메일 주소 (선택)"
-                                            />
-                                        </label>
-                                        <p className="text-[10px] leading-relaxed text-gray-400">
-                                            이름과 연락처는 이 문의의
-                                            상담·응대를 위해 저장됩니다. 답변은
-                                            이 상담창에서 확인해주세요.
-                                        </p>
-                                    </details>
-                                )}
+                                {!token &&
+                                    !config.data?.messengerSettings
+                                        ?.enabled && (
+                                        <details className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4">
+                                            <summary className="cursor-pointer text-xs font-medium text-gray-500">
+                                                이름·이메일 남기기 (선택)
+                                            </summary>
+                                            <label className="block text-xs text-gray-500">
+                                                이름 (선택)
+                                                <input
+                                                    aria-label="방문자 이름"
+                                                    value={name}
+                                                    maxLength={100}
+                                                    onChange={(e) =>
+                                                        setName(e.target.value)
+                                                    }
+                                                    className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                                                    placeholder="이름 또는 닉네임"
+                                                />
+                                            </label>
+                                            <label className="block text-xs text-gray-500">
+                                                이메일 (선택)
+                                                <input
+                                                    aria-label="방문자 이메일"
+                                                    type="email"
+                                                    value={email}
+                                                    maxLength={254}
+                                                    onChange={(e) =>
+                                                        setEmail(e.target.value)
+                                                    }
+                                                    className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900"
+                                                    placeholder="이메일 주소 (선택)"
+                                                />
+                                            </label>
+                                            <p className="text-[10px] leading-relaxed text-gray-400">
+                                                이름과 연락처는 이 문의의
+                                                상담·응대를 위해 저장됩니다.
+                                                답변은 이 상담창에서
+                                                확인해주세요.
+                                            </p>
+                                        </details>
+                                    )}
                                 {messages.map((m) => (
                                     <div
                                         className={`flex ${m.kind === "customer" ? "justify-end" : "justify-start"}`}
@@ -1137,26 +1331,43 @@ export function ChatWidget({
                                     회원 상담 이력을 연결하고 있습니다…
                                 </p>
                             )}
-                            {token && !readOnly && (
-                                <button
-                                    type="button"
-                                    disabled={
-                                        busy ||
-                                        linking ||
-                                        inquiryPending ||
-                                        !canWrite ||
-                                        (!isNew &&
-                                            data.data?.aiState === "human") ||
-                                        !!data.error
-                                    }
-                                    onClick={() => void requestHuman()}
-                                    className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
-                                >
-                                    {!isNew && data.data?.aiState === "human"
-                                        ? "상담원이 이어서 안내드립니다"
-                                        : "상담원 연결 요청"}
-                                </button>
-                            )}
+                            {config.data?.messengerSettings?.enabled &&
+                                data.data?.aiState === "human" &&
+                                !readOnly &&
+                                !isNew && (
+                                    <p
+                                        role="status"
+                                        className="border-t bg-violet-50 px-4 py-3 text-xs leading-5 text-violet-900"
+                                    >
+                                        {config.data.businessHours?.open
+                                            ? "상담원 연결 요청을 접수했습니다 🙂 궁금하신 점을 미리 남겨주시면 더 빠른 상담이 가능해요."
+                                            : "현재는 고객센터 운영시간 밖입니다. 문의를 미리 남겨주시면 다음 운영시간에 담당자가 이어서 안내드립니다."}
+                                    </p>
+                                )}
+                            {(token ||
+                                config.data?.messengerSettings?.enabled) &&
+                                !readOnly && (
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            busy ||
+                                            linking ||
+                                            inquiryPending ||
+                                            !canWrite ||
+                                            (!isNew &&
+                                                data.data?.aiState ===
+                                                    "human") ||
+                                            !!data.error
+                                        }
+                                        onClick={() => void requestHuman()}
+                                        className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
+                                    >
+                                        {!isNew &&
+                                        data.data?.aiState === "human"
+                                            ? "상담원이 이어서 안내드립니다"
+                                            : "상담원 연결 요청"}
+                                    </button>
+                                )}
                             {readOnly ? (
                                 <div className="shrink-0 border-t border-gray-100 p-4">
                                     <button
