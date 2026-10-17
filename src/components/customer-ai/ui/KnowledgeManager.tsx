@@ -21,7 +21,8 @@ export function KnowledgeManager({
         [editing, setEditing] = useState<SupportKnowledge | "new" | null>(null),
         [busy, setBusy] = useState(false),
         [block, setBlock] = useState<SupportKnowledge | null>(null),
-        [reason, setReason] = useState("");
+        [reason, setReason] = useState(""),
+        [showOtherKnowledge, setShowOtherKnowledge] = useState(false);
     const data = useSWR<{ rows: SupportKnowledge[]; hasMore: boolean }>(
         `/api/customer-ai/knowledge?workspaceId=${workspaceId}${before ? `&before=${before}` : ""}`,
         supportRequest,
@@ -71,87 +72,119 @@ export function KnowledgeManager({
                     {data.error.message}
                 </p>
             )}
-            {data.data?.rows.map((version) => (
-                <article
-                    key={version.id}
-                    className="space-y-3 rounded-xl border p-4 text-sm"
-                >
-                    <div className="flex flex-wrap justify-between gap-2">
-                        <strong>
-                            {version.name} · #{version.id}
-                        </strong>
-                        <span>{stateLabel(version.state)}</span>
-                    </div>
-                    <details>
-                        <summary className="cursor-pointer">
-                            근거 확인 · 상담 항목{" "}
-                            {
-                                version.snapshot.claims.filter((c) =>
-                                    c.purposes.includes("customer_chat"),
-                                ).length
-                            }
-                            개
-                        </summary>
-                        {version.snapshot.claims.map((claim, i) => (
-                            <div
-                                key={i}
-                                className="my-3 space-y-1 border-l-2 pl-3 text-xs"
-                            >
-                                <p className="whitespace-pre-wrap">
-                                    {claim.text}
-                                </p>
-                                <a
-                                    href={claim.sourceUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="break-all text-[#635BFF]"
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                    type="checkbox"
+                    checked={showOtherKnowledge}
+                    onChange={(e) => setShowOtherKnowledge(e.target.checked)}
+                />
+                메일 전용 지식도 표시
+            </label>
+            {data.data?.rows.length &&
+            !showOtherKnowledge &&
+            !data.data.rows.some((version) =>
+                version.snapshot.claims.some((claim) =>
+                    claim.purposes.includes("customer_chat"),
+                ),
+            ) ? (
+                <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+                    상담용 안내 자료가 없습니다. 새 지식 버전에서 고객 상담에
+                    사용할 내용을 등록해주세요.
+                </p>
+            ) : null}
+            {data.data?.rows
+                .filter(
+                    (version) =>
+                        showOtherKnowledge ||
+                        version.snapshot.claims.some((claim) =>
+                            claim.purposes.includes("customer_chat"),
+                        ),
+                )
+                .map((version) => (
+                    <article
+                        key={version.id}
+                        className="space-y-3 rounded-xl border p-4 text-sm"
+                    >
+                        <div className="flex flex-wrap justify-between gap-2">
+                            <strong>
+                                {version.name} · #{version.id}
+                            </strong>
+                            <span>{stateLabel(version.state)}</span>
+                        </div>
+                        <details>
+                            <summary className="cursor-pointer">
+                                근거 확인 · 상담 항목{" "}
+                                {
+                                    version.snapshot.claims.filter((c) =>
+                                        c.purposes.includes("customer_chat"),
+                                    ).length
+                                }
+                                개
+                            </summary>
+                            {version.snapshot.claims.map((claim, i) => (
+                                <div
+                                    key={i}
+                                    className="my-3 space-y-1 border-l-2 pl-3 text-xs"
                                 >
-                                    {claim.sourceUrl}
-                                </a>
-                                <p className="text-muted-foreground">
-                                    {claim.checkedAt.slice(0, 10)} 확인 ·{" "}
-                                    {claim.purposes.includes("customer_chat")
-                                        ? "상담에 사용 가능"
-                                        : "메일용 · 상담에서 제외"}
-                                </p>
-                            </div>
-                        ))}
-                    </details>
-                    {canManage && (
-                        <div className="flex gap-3 text-xs">
-                            <button
-                                disabled={busy}
-                                className="text-[#635BFF]"
-                                onClick={() => setEditing(version)}
-                            >
-                                이 버전 복사해 수정
-                            </button>
-                            {["draft", "evaluated"].includes(version.state) && (
+                                    <p className="whitespace-pre-wrap">
+                                        {claim.text}
+                                    </p>
+                                    <a
+                                        href={claim.sourceUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="break-all text-[#635BFF]"
+                                    >
+                                        {claim.sourceUrl}
+                                    </a>
+                                    <p className="text-muted-foreground">
+                                        {claim.checkedAt.slice(0, 10)} 확인 ·{" "}
+                                        {claim.purposes.includes(
+                                            "customer_chat",
+                                        )
+                                            ? "상담에 사용 가능"
+                                            : "메일용 · 상담에서 제외"}
+                                    </p>
+                                </div>
+                            ))}
+                        </details>
+                        {canManage && (
+                            <div className="flex gap-3 text-xs">
                                 <button
                                     disabled={busy}
                                     className="text-[#635BFF]"
-                                    onClick={() =>
-                                        void change(version.id, "approve")
-                                    }
+                                    onClick={() => setEditing(version)}
                                 >
-                                    근거 확인 후 승인
+                                    이 버전 복사해 수정
                                 </button>
-                            )}
-                            {version.state !== "blocked" && (
-                                <button
-                                    className="text-red-600"
-                                    onClick={() => {
-                                        setBlock(version);
-                                        setReason("");
-                                    }}
-                                >
-                                    사용 차단
-                                </button>
-                            )}
-                        </div>
-                    )}
-                </article>
-            ))}
+                                {["draft", "evaluated"].includes(
+                                    version.state,
+                                ) && (
+                                    <button
+                                        disabled={busy}
+                                        className="text-[#635BFF]"
+                                        onClick={() =>
+                                            void change(version.id, "approve")
+                                        }
+                                    >
+                                        근거 확인 후 승인
+                                    </button>
+                                )}
+                                {version.state !== "blocked" && (
+                                    <button
+                                        className="text-red-600"
+                                        onClick={() => {
+                                            setBlock(version);
+                                            setReason("");
+                                        }}
+                                    >
+                                        사용 차단
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </article>
+                ))}
             {data.data && !data.data.rows.length && (
                 <p className="rounded-xl bg-muted p-5 text-sm text-muted-foreground">
                     등록한 지식이 없습니다. 서비스 안내·FAQ·요금 등의 사실과

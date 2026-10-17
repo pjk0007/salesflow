@@ -325,10 +325,13 @@ export function EntityEditor({
                         {item &&
                             (resource === "contacts" ||
                                 resource === "companies") && (
-                                <p className="break-all text-xs text-muted-foreground">
+                                <details className="break-all text-xs text-muted-foreground">
+                                    <summary className="cursor-pointer">
+                                        외부 시스템 연결 정보
+                                    </summary>
                                     외부 번호:{" "}
                                     {(item as Contact | Company).externalId}
-                                </p>
+                                </details>
                             )}
                         {!item && (
                             <details className="rounded-lg border p-3">
@@ -354,7 +357,10 @@ export function EntityEditor({
                                     className={inputClass}
                                     defaultValue={
                                         (item as Pipeline | Contact | Company)
-                                            ?.name ?? ""
+                                            ?.name ??
+                                        (resource === "pipelines"
+                                            ? "상담 진행 단계"
+                                            : "")
                                     }
                                     required
                                     maxLength={

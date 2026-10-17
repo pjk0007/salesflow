@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, lte, or, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
     db,
@@ -16,6 +16,7 @@ import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { supportConversation, freshSupportJob, handoffSupport } from "./queue";
 import { recordSupportUsage } from "./usage";
 import { aiWorkerEnabled } from "./catalog";
+import { supportWorkerWorkspaces } from "./worker-policy";
 import { supportDeps } from "./runtime";
 import {
     humanIntent,
@@ -398,6 +399,8 @@ export async function processSupportQueue(
     const exec = options.exec ?? db,
         deps = options.deps ?? supportDeps(),
         now = deps.now();
+    const scope = supportWorkerWorkspaces(process.env.CUSTOMER_AI_WORKSPACES);
+    if (scope !== null && !scope.length) return { processed: 0 };
     const rows = await exec
         .select({ id: jobs.id })
         .from(jobs)
@@ -411,6 +414,7 @@ export async function processSupportQueue(
                     ),
                 ),
                 lte(jobs.eligibleAt, now),
+                scope === null ? undefined : inArray(jobs.workspaceId, scope),
             ),
         )
         .orderBy(asc(jobs.eligibleAt), asc(jobs.id))

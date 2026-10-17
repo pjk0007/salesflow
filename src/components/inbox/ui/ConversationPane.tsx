@@ -3,7 +3,13 @@ import { ConversationServiceStatus } from "@/components/inbox-operations/ui/Conv
 import { IncomingEmailFiles } from "@/components/inbox-email/ui/IncomingEmailFiles";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+    Fragment,
+    useEffect,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
@@ -67,8 +73,14 @@ export function ConversationPane({
     const workspaceId = bootstrap.channels.find(
         (c) => c.id === chat.channelId,
     )?.workspaceId;
-    const sharedDrafts = useSyncExternalStore(draftSession.subscribe, draftSession.getSnapshot, draftSession.getSnapshot);
-    const canRespond = workspaceAbilities(bootstrap, workspaceId).respond && sharedDrafts.active;
+    const sharedDrafts = useSyncExternalStore(
+        draftSession.subscribe,
+        draftSession.getSnapshot,
+        draftSession.getSnapshot,
+    );
+    const canRespond =
+        workspaceAbilities(bootstrap, workspaceId).respond &&
+        sharedDrafts.active;
     const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
     const emailReply = useEmailReply(chat.emailContext, draftStorageKey);
     const noteMentions = useNoteMentions(
@@ -88,7 +100,12 @@ export function ConversationPane({
         });
     const drafts = { ...savedDrafts, ...sharedDrafts.text };
     const mounted = useRef(false);
-    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
     const [older, setOlder] = useState<ChatMessage[]>([]),
         [canLoad, setCanLoad] = useState(hasOlder),
         [loading, setLoading] = useState(false);
@@ -175,8 +192,13 @@ export function ConversationPane({
     }
     function persistDraft(value: string, key = draftKey) {
         try {
-            const current = JSON.parse(localStorage.getItem(draftStorageKey) ?? "{}");
-            localStorage.setItem(draftStorageKey, JSON.stringify({ ...current, [key]: value }));
+            const current = JSON.parse(
+                localStorage.getItem(draftStorageKey) ?? "{}",
+            );
+            localStorage.setItem(
+                draftStorageKey,
+                JSON.stringify({ ...current, [key]: value }),
+            );
         } catch {}
     }
     function updateDraft(value: string, key = draftKey) {
@@ -228,13 +250,25 @@ export function ConversationPane({
         const emailSignature = JSON.stringify(emailSelection ?? null);
         const mentionIds = kind === "note" ? noteMentions.ids : [],
             mentionSignature = JSON.stringify([...mentionIds].sort());
-        const operation = draftSession.begin(draftKey, JSON.stringify({
-            body, kind, files: attachments.signature, aiDraftId: source,
-            emailReply: emailSignature, mentions: mentionSignature,
-        }));
+        const operation = draftSession.begin(
+            draftKey,
+            JSON.stringify({
+                body,
+                kind,
+                files: attachments.signature,
+                aiDraftId: source,
+                emailReply: emailSignature,
+                mentions: mentionSignature,
+            }),
+        );
         if (!operation) return;
         try {
-            const attachmentIds = await attachments.prepare(uploadUrl, kind, undefined, operation);
+            const attachmentIds = await attachments.prepare(
+                uploadUrl,
+                kind,
+                undefined,
+                operation,
+            );
             operation.assertCurrent();
             await inboxRequest(`/api/inbox/conversations/${chat.id}`, {
                 method: "POST",
@@ -246,7 +280,9 @@ export function ConversationPane({
                     kind,
                     ...(source ? { aiDraftId: source } : {}),
                     ...(emailSelection ? { emailReply: emailSelection } : {}),
-                    ...(mentionIds.length ? { mentionedUserIds: mentionIds } : {}),
+                    ...(mentionIds.length
+                        ? { mentionedUserIds: mentionIds }
+                        : {}),
                     ...(replyGuard ? { replyGuard } : {}),
                 }),
             });
@@ -255,15 +291,19 @@ export function ConversationPane({
             try {
                 if (kind === "reply") {
                     localStorage.removeItem(aiStorageKey);
-                    localStorage.removeItem(draftStorageKey + ":email-recipients");
-                } else localStorage.removeItem(draftStorageKey + ":note-mentions");
+                    localStorage.removeItem(
+                        draftStorageKey + ":email-recipients",
+                    );
+                } else
+                    localStorage.removeItem(draftStorageKey + ":note-mentions");
             } catch {}
             operation.complete();
             if (mounted.current) {
                 onActivity(null);
                 follow.current = true;
                 await refresh();
-                if (operation.isCurrent() && mounted.current) void guard.refresh();
+                if (operation.isCurrent() && mounted.current)
+                    void guard.refresh();
             }
         } catch (e) {
             if (operation.isCurrent()) {
@@ -646,8 +686,14 @@ export function ConversationPane({
                                 }
                                 hasDraft={!!drafts[`${chat.id}:reply`]?.trim()}
                                 onUse={(answer, id) => {
-                                    if (draftSession.getSnapshot().pending[`${chat.id}:reply`]?.busy) {
-                                        toast.info("답변 전송이 끝난 뒤 AI 초안을 추가해주세요.");
+                                    if (
+                                        draftSession.getSnapshot().pending[
+                                            `${chat.id}:reply`
+                                        ]?.busy
+                                    ) {
+                                        toast.info(
+                                            "답변 전송이 끝난 뒤 AI 초안을 추가해주세요.",
+                                        );
                                         return;
                                     }
                                     const old =
@@ -787,7 +833,9 @@ export function ConversationPane({
                             />
                             {attachments.files.length > 0 && (
                                 <p className="mt-1 text-[10px] text-muted-foreground">
-                                    첨부 초안은 문의를 오가며 유지됩니다. 사업·조직·계정 변경이나 상담함 이탈 시 초기화됩니다.
+                                    첨부 초안은 문의를 오가며 유지됩니다.
+                                    사업·조직·계정 변경이나 상담함 이탈 시
+                                    초기화됩니다.
                                 </p>
                             )}
                             <div className="flex items-center justify-between">
@@ -831,9 +879,9 @@ export function ConversationPane({
                     />
                 </details>
             </section>
-            <aside className="hidden w-[270px] shrink-0 overflow-y-auto border-l bg-muted/10 lg:block">
+            <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l bg-muted/10 lg:block">
                 <div className="flex h-[76px] items-center border-b px-5 text-sm font-semibold">
-                    상세 정보
+                    고객 정보
                 </div>
                 <CustomerInfo
                     chat={chat}
@@ -895,11 +943,29 @@ function CustomerInfo({
     }
     return (
         <div className="space-y-6 p-5 text-sm">
-            <ConversationJourneyPanel key={chat.id} id={chat.id} recordId={chat.recordId} version={chat.version} canConfirm={canRespond && !chat.historyOnly} change={change} />
+            <CustomerCrmContext
+                key={chat.id}
+                chat={chat}
+                bootstrap={bootstrap}
+            />
             <ConversationServiceStatus id={chat.id} />
+            <details className="rounded-lg border p-3">
+                <summary className="cursor-pointer text-xs font-medium">
+                    메일 · 사이트 방문 여정
+                </summary>
+                <div className="mt-3">
+                    <ConversationJourneyPanel
+                        key={chat.id}
+                        id={chat.id}
+                        recordId={chat.recordId}
+                        version={chat.version}
+                        canConfirm={canRespond && !chat.historyOnly}
+                        change={change}
+                    />
+                </div>
+            </details>
             {chat.historyOnly ? (
                 <>
-                    <CustomerCrmContext chat={chat} bootstrap={bootstrap} />
                     <section className="space-y-2 text-xs">
                         <h3 className="font-semibold">과거 상담 원본 정보</h3>
                         <p>
@@ -929,7 +995,6 @@ function CustomerInfo({
                         canRespond={canRespond}
                         change={change}
                     />
-                    <CustomerCrmContext chat={chat} bootstrap={bootstrap} />
                     <section className="space-y-3 border-t pt-5">
                         <h3 className="font-semibold">고객 정보</h3>
                         <div>

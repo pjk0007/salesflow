@@ -33,8 +33,7 @@ export function CustomerAiPage({ role }: { role: string }) {
                         상담 AI와 승인 지식
                     </h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        메일과 상담의 지식을 함께 관리하고, 자동 응대는 사람이
-                        적용합니다.
+                        고객에게 답할 방식과 안내 자료를 이곳에서 관리하세요.
                     </p>
                 </div>
                 <label className="text-sm">
@@ -47,7 +46,9 @@ export function CustomerAiPage({ role }: { role: string }) {
                             setChosen(Number(e.target.value));
                             router.replace(
                                 `${pathname}?workspaceId=${e.target.value}`,
-                                { scroll: false },
+                                {
+                                    scroll: false,
+                                },
                             );
                         }}
                     >
@@ -75,27 +76,26 @@ export function CustomerAiPage({ role }: { role: string }) {
             )}
             {catalog.data && !catalog.data.workerEnabled && (
                 <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">
-                    자동 응대 워커가 꺼져 있습니다. 수동 초안은 지금 생성할 수
-                    있고, 자동 초안·답변은 서버 설정을 켜면 새 문의부터
+                    이 사업의 자동 응대가 꺼져 있습니다. 수동 초안은 지금 생성할
+                    수 있고, 자동 초안·답변은 서버 설정을 켜면 새 문의부터
                     처리합니다.
+                </p>
+            )}
+            {catalog.data?.workerEnabled && (
+                <p
+                    className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800"
+                    role="status"
+                >
+                    {catalog.data.settings.mode === "reply"
+                        ? "AI 자동 응대 중 · 안내 자료로 확인한 내용만 답하고, 확인이 필요한 문의는 상담원에게 넘깁니다."
+                        : catalog.data.settings.mode === "draft"
+                          ? "자동 초안 준비 중 · 상담원이 확인하고 전송합니다."
+                          : "자동 처리기 연결됨 · 현재는 상담원이 필요할 때 초안을 생성합니다."}
                 </p>
             )}
             {workspaceId && catalog.data && bootstrap.data ? (
                 <>
                     <div className="grid items-start gap-6 lg:grid-cols-[1.2fr_1fr]">
-                        <div className="rounded-xl border p-5">
-                            <KnowledgeManager
-                                key={`kb:${workspaceId}`}
-                                workspaceId={workspaceId}
-                                name={
-                                    bootstrap.data.workspaces.find(
-                                        (w) => w.id === workspaceId,
-                                    )?.name ?? ""
-                                }
-                                canManage={canManage}
-                                onChanged={() => catalog.mutate()}
-                            />
-                        </div>
                         <div className="rounded-xl border p-5">
                             <SupportSettingsForm
                                 key={`settings:${workspaceId}`}
@@ -116,6 +116,19 @@ export function CustomerAiPage({ role }: { role: string }) {
                                         throw error;
                                     }
                                 }}
+                            />
+                        </div>
+                        <div className="rounded-xl border p-5">
+                            <KnowledgeManager
+                                key={`kb:${workspaceId}`}
+                                workspaceId={workspaceId}
+                                name={
+                                    bootstrap.data.workspaces.find(
+                                        (w) => w.id === workspaceId,
+                                    )?.name ?? ""
+                                }
+                                canManage={canManage}
+                                onChanged={() => catalog.mutate()}
                             />
                         </div>
                     </div>

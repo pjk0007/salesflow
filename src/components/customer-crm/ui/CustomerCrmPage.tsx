@@ -47,9 +47,7 @@ export function CustomerCrmPage({ role }: { role: string }) {
                 params.get("resource") ?? "",
             )
                 ? (params.get("resource") as Resource)
-                : params.get("q")
-                  ? "contacts"
-                  : "deals",
+                : "contacts",
         ),
         [query, setQuery] = useState(params.get("q") ?? ""),
         [archived, setArchived] = useState(false),
@@ -142,10 +140,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
         }
     }
     const menus = [
-        { id: "deals" as const, icon: BriefcaseBusiness },
-        { id: "tasks" as const, icon: ListTodo },
         { id: "contacts" as const, icon: UserRound },
         { id: "companies" as const, icon: Building2 },
+        { id: "deals" as const, icon: BriefcaseBusiness },
+        { id: "tasks" as const, icon: ListTodo },
         { id: "pipelines" as const, icon: Settings2 },
     ];
     return (
@@ -154,28 +152,42 @@ export function CustomerCrmPage({ role }: { role: string }) {
                 <div>
                     <h1 className="text-xl font-semibold">고객 관리</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
-                        상담에서 다음 행동과 계약까지 이어가세요.
+                        고객을 찾아 정보를 확인하고 상담과 후속 업무를
+                        이어가세요.
                     </p>
                     <a
-                        href={`/customer-webhooks?workspaceId=${workspaceId ?? ""}`}
+                        href={`/inbox?channelId=${bootstrap.data?.channels.find((c) => c.workspaceId === workspaceId)?.id ?? ""}`}
                         className="mt-2 inline-block text-xs text-[#635BFF]"
                     >
-                        고객 플랫폼 외부 연동 ↗
+                        상담 수신함 ↗
                     </a>
-                    <a
-                        href={`/customer-workflows?workspaceId=${workspaceId ?? ""}`}
-                        className="ml-4 text-xs text-[#635BFF]"
-                    >
-                        고객 자동화 ↗
-                    </a>
-                    {canManage && (
-                        <a
-                            className="rounded-lg border px-3 py-2 text-xs"
-                            href={`/customer-imports?workspaceId=${workspaceId ?? ""}`}
-                        >
-                            기존 자료 이전
-                        </a>
-                    )}
+                    <details className="relative ml-4 inline-block text-xs">
+                        <summary className="cursor-pointer rounded-lg border px-3 py-2">
+                            고객 관리 설정
+                        </summary>
+                        <div className="absolute left-0 top-full z-20 mt-2 flex w-56 flex-col gap-3 rounded-xl border bg-background p-4 shadow-lg">
+                            <a
+                                href={`/customer-webhooks?workspaceId=${workspaceId ?? ""}`}
+                                className="mt-2 inline-block text-xs text-[#635BFF]"
+                            >
+                                고객 플랫폼 외부 연동 ↗
+                            </a>
+                            <a
+                                href={`/customer-workflows?workspaceId=${workspaceId ?? ""}`}
+                                className="ml-4 text-xs text-[#635BFF]"
+                            >
+                                고객 자동화 ↗
+                            </a>
+                            {canManage && (
+                                <a
+                                    className="rounded-lg border px-3 py-2 text-xs"
+                                    href={`/customer-imports?workspaceId=${workspaceId ?? ""}`}
+                                >
+                                    기존 자료 이전
+                                </a>
+                            )}
+                        </div>
+                    </details>
                 </div>
                 <label className="text-xs">
                     사업

@@ -24,14 +24,27 @@ import {
     CheckCheck,
 } from "lucide-react";
 import { useInbox } from "../hooks/useInbox";
-import { useStaffDraftSession, type SubscribeSessionInvalidation } from "../hooks/useStaffDraftSession";
+import {
+    useStaffDraftSession,
+    type SubscribeSessionInvalidation,
+} from "../hooks/useStaffDraftSession";
 import { EmailMailboxSettings } from "@/components/inbox-email/ui/EmailMailboxSettings";
 import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
-export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
+export function InboxPage({
+    userId,
+    orgId = "",
+    role,
+    subscribeSessionInvalidation,
+}: {
+    userId: string;
+    orgId?: string;
+    role: string;
+    subscribeSessionInvalidation?: SubscribeSessionInvalidation;
+}) {
     const params = useSearchParams();
     const [emailSettings, setEmailSettings] = useState(() =>
         params.has("emailConnection"),
@@ -93,8 +106,16 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
-    const accessDenied = [initial.bootstrap.error, list.error, detail.error].some((error) => error?.status === 401 || error?.status === 403);
-    const draftSession = useStaffDraftSession(`${orgId}:${userId}:${channelId}`, !!channel && abilities.respond && !accessDenied, subscribeSessionInvalidation);
+    const accessDenied = [
+        initial.bootstrap.error,
+        list.error,
+        detail.error,
+    ].some((error) => error?.status === 401 || error?.status === 403);
+    const draftSession = useStaffDraftSession(
+        `${orgId}:${userId}:${channelId}`,
+        !!channel && abilities.respond && !accessDenied,
+        subscribeSessionInvalidation,
+    );
     const setChannel = (next: number) => {
         if (next !== channelId) draftSession.invalidate();
         setChosenChannel(next);
@@ -161,54 +182,83 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                         운영·성과
                     </button>
                 )}
-                {abilities.manage && channel && (
-                    <button
+                {channel && (
+                    <a
                         className="rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setCapacityOpen(true)}
+                        href={`/customer-crm?workspaceId=${channel.workspaceId}`}
                     >
-                        배정 수용량
-                    </button>
+                        고객 연락처
+                    </a>
                 )}
-                {abilities.manage && channel && (
-                    <button
+                {channel && (
+                    <a
                         className="rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setReplyGuardOpen(true)}
+                        href={`/customer-ai?workspaceId=${channel.workspaceId}`}
                     >
-                        답변 충돌 방지
-                    </button>
+                        AI 응대
+                    </a>
                 )}
-                {abilities.manage && channel && (
-                    <button
-                        className="rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setTeamsOpen(true)}
-                    >
-                        상담팀
-                    </button>
-                )}
-                {abilities.manage && channel && (
-                    <button
-                        className="ml-auto rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setEmailSettings(true)}
-                    >
-                        이메일 연결
-                    </button>
-                )}
-                {canSetChannel && (
-                    <button
-                        className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setSettings(channel ? "current" : "new")}
-                    >
-                        <Settings2 size={14} />
-                        사이트 상담창
-                    </button>
-                )}
-                {bootstrap?.canManageAccess && (
-                    <button
-                        className="rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setAccessOpen(true)}
-                    >
-                        직원 권한
-                    </button>
+                {(abilities.manage ||
+                    canSetChannel ||
+                    bootstrap?.canManageAccess) && (
+                    <details className="relative ml-auto">
+                        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border px-3 py-2 text-xs">
+                            <Settings2 size={14} /> 상담 설정
+                        </summary>
+                        <div className="absolute right-0 top-full z-30 mt-2 flex w-56 flex-col gap-2 rounded-xl border bg-background p-3 shadow-lg">
+                            {abilities.manage && channel && (
+                                <button
+                                    className="rounded-xl border px-3 py-2 text-xs"
+                                    onClick={() => setCapacityOpen(true)}
+                                >
+                                    배정 수용량
+                                </button>
+                            )}
+                            {abilities.manage && channel && (
+                                <button
+                                    className="rounded-xl border px-3 py-2 text-xs"
+                                    onClick={() => setReplyGuardOpen(true)}
+                                >
+                                    답변 충돌 방지
+                                </button>
+                            )}
+                            {abilities.manage && channel && (
+                                <button
+                                    className="rounded-xl border px-3 py-2 text-xs"
+                                    onClick={() => setTeamsOpen(true)}
+                                >
+                                    상담팀
+                                </button>
+                            )}
+                            {abilities.manage && channel && (
+                                <button
+                                    className="ml-auto rounded-xl border px-3 py-2 text-xs"
+                                    onClick={() => setEmailSettings(true)}
+                                >
+                                    이메일 연결
+                                </button>
+                            )}
+                            {canSetChannel && (
+                                <button
+                                    className="flex items-center gap-2 rounded-xl border px-3 py-2 text-xs"
+                                    onClick={() =>
+                                        setSettings(channel ? "current" : "new")
+                                    }
+                                >
+                                    <Settings2 size={14} />
+                                    사이트 상담창
+                                </button>
+                            )}
+                            {bootstrap?.canManageAccess && (
+                                <button
+                                    className="rounded-xl border px-3 py-2 text-xs"
+                                    onClick={() => setAccessOpen(true)}
+                                >
+                                    직원 권한
+                                </button>
+                            )}
+                        </div>
+                    </details>
                 )}
             </header>
             {error && (
@@ -552,7 +602,10 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                             · 모든 상담과 대화에서 검색
                         </p>
                     </section>
-                    {selected && detail.data && detail.data.conversation.channelId === channelId && !detail.error ? (
+                    {selected &&
+                    detail.data &&
+                    detail.data.conversation.channelId === channelId &&
+                    !detail.error ? (
                         <ConversationPane
                             draftSession={draftSession}
                             userId={userId}
