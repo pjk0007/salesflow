@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowRight, ChevronRight, MessageCircle } from "lucide-react";
+import { ArrowRight, Bot, ChevronRight, MessageCircle } from "lucide-react";
+import { BrandMark } from "./BrandMark";
 import { WelcomeProcess } from "./WelcomeProcess";
-import type { PublicMessengerSettings } from "../types";
+import type { MessengerBrand, PublicMessengerSettings } from "../types";
 
 export type MessengerBusinessHours = {
     open: boolean;
@@ -13,6 +14,7 @@ export type MessengerBusinessHours = {
 
 export function MessengerHome({
     name,
+    brand,
     greeting,
     settings,
     customerName,
@@ -27,6 +29,7 @@ export function MessengerHome({
     onConversations,
 }: {
     name: string;
+    brand?: MessengerBrand;
     greeting: string;
     settings?: PublicMessengerSettings;
     customerName?: string;
@@ -47,14 +50,16 @@ export function MessengerHome({
                 className="min-h-0 flex-1 overflow-y-auto bg-[#f7f7f9] px-5 pb-5 pt-5"
             >
                 <header className="mb-4 px-1">
+                    {!brand && (
                     <div
                         className="mb-3 flex h-10 w-10 items-center justify-center rounded-2xl text-white shadow-sm"
                         style={{ backgroundColor: color }}
                     >
                         <MessageCircle size={26} aria-hidden="true" />
                     </div>
+                    )}
                     <h1 className="break-words text-2xl font-bold tracking-tight">
-                        {name}
+                        <BrandMark brand={brand} name={name} />
                     </h1>
                     <p className="mt-2 text-sm text-gray-500">
                         {settings?.tagline || "궁금한 점을 편하게 물어보세요."}
@@ -66,12 +71,11 @@ export function MessengerHome({
                         <div
                             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-sm font-bold"
                             style={{ backgroundColor: `${color}12`, color }}
-                            aria-hidden="true"
                         >
-                            {name.slice(0, 1)}
+                            <BrandMark brand={brand} name={name} icon />
                         </div>
                         <div className="min-w-0">
-                            <h2 className="text-sm font-semibold">{name}</h2>
+                            <h2 className="text-sm font-semibold">{settings?.aiAvailable ? "AI 상담원" : name}</h2>
                             <WelcomeProcess
                                 settings={settings}
                                 customerName={customerName}
@@ -146,6 +150,12 @@ export function MessengerHome({
                 </p>
             </section>
             <div className="shrink-0 border-t border-gray-100 bg-white px-5 py-3">
+                {settings?.aiAvailable && (
+                    <p className="mb-3 flex items-center justify-center gap-2 text-xs text-gray-500">
+                        <Bot size={16} aria-hidden="true" />
+                        AI가 먼저 안내하고, 필요하면 담당자에게 연결해요.
+                    </p>
+                )}
                 <button
                     type="button"
                     disabled={busy || loading}
@@ -157,7 +167,9 @@ export function MessengerHome({
                         ? "상담을 준비하고 있어요…"
                         : returning
                           ? "상담 이어가기"
-                          : "문의하기"}
+                          : settings?.aiAvailable
+                            ? "AI 상담원과 대화하기"
+                            : "문의하기"}
                     <ArrowRight size={17} aria-hidden="true" />
                 </button>
                 <p className="mt-3 text-center text-xs leading-5 text-gray-400">

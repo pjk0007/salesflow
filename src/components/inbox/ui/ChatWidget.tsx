@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { WelcomeProcess } from "@/components/customer-messenger/ui/WelcomeProcess";
 import { ReplyContactForm } from "@/components/customer-messenger/ui/ReplyContactForm";
-import type { PublicMessengerSettings } from "@/components/customer-messenger/types";
+import type { MessengerBrand, PublicMessengerSettings } from "@/components/customer-messenger/types";
+import { BrandMark } from "@/components/customer-messenger/ui/BrandMark";
 import type { ReplyContactDraft } from "@/lib/customer-messenger/rules";
 import { MessengerHome } from "@/components/customer-messenger/ui/MessengerHome";
 import { inboxRequest, InboxRequestError } from "../api";
@@ -43,10 +44,12 @@ export function ChatWidget({
     channelKey,
     parentOrigin,
     pageUrl,
+    brand,
 }: {
     channelKey: string;
     parentOrigin?: string;
     pageUrl?: string;
+    brand?: MessengerBrand;
 }) {
     const ownerOrigin = useCallback(
         () =>
@@ -900,6 +903,7 @@ export function ChatWidget({
         <div className="flex h-dvh flex-col bg-white font-sans text-gray-900">
             {isHome ? (
                 <MessengerHome
+                    brand={brand}
                     name={config.data?.name ?? "고객 상담"}
                     greeting={config.data?.greeting ?? ""}
                     settings={config.data?.messengerSettings}
@@ -940,14 +944,18 @@ export function ChatWidget({
                         </button>
                         <div className="min-w-0 flex-1">
                             <h1 className="truncate text-sm font-semibold">
-                                {config.data?.name ?? "고객 상담"}
+                                <BrandMark brand={brand} name={config.data?.name ?? "고객 상담"} />
                             </h1>
                             <p className="mt-1 text-xs text-gray-400">
                                 {isList
                                     ? "남긴 문의와 답변"
                                     : readOnly
                                       ? "이전 상담 · 읽기 전용"
-                                      : "무엇을 도와드릴까요?"}
+                                      : !isNew && detailResolved && data.data?.aiState === "human"
+                                        ? "담당자 상담 · 연결 요청 접수"
+                                        : config.data?.messengerSettings?.aiAvailable
+                                          ? "AI 상담원 · 24시간 안내"
+                                          : "담당자에게 문의를 남겨주세요"}
                             </p>
                         </div>
                         {history.enabled && (
@@ -1201,11 +1209,12 @@ export function ChatWidget({
                                 {(isNew || (!token && !messages.length)) && (
                                     <div className="rounded-2xl bg-gray-50 p-4 text-sm text-gray-600">
                                         <h2 className="font-semibold text-gray-900">
-                                            무엇이 궁금하신가요?
+                                            {config.data?.messengerSettings?.aiAvailable ? "안녕하세요, AI 상담원입니다 🙂" : "무엇이 궁금하신가요?"}
                                         </h2>
                                         <p className="mt-1">
-                                            편하게 질문을 남겨주세요. 이
-                                            대화에서 답변드릴게요.
+                                            {config.data?.messengerSettings?.aiAvailable
+                                                ? "궁금한 점을 남겨주시면 바로 안내할게요. 담당자 상담이 필요하면 아래에서 연결을 요청해주세요."
+                                                : "편하게 질문을 남겨주세요. 이 대화에서 답변드릴게요."}
                                         </p>
                                     </div>
                                 )}
