@@ -3,12 +3,14 @@
 import { useId } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toLimitSettings } from "@/lib/email-sender-limit-rules";
 import { useSenderProfiles } from "../hooks/useSenderProfiles";
+import { useSenderPoolSearch } from "../hooks/useSenderPoolSearch";
 import { useSenderUsage } from "../hooks/useSenderUsage";
 import { usePoolCapacity } from "../hooks/usePoolCapacity";
 import type { SenderProfile, SenderUsageView } from "../types";
@@ -25,6 +27,7 @@ interface SenderPoolFieldProps {
     /** 고른 발신 프로필 id (고른 순서로 저장한다 — 발송 순서가 아니다). 빈 배열 = 기본 발신 프로필 */
     value: number[];
     onChange: (ids: number[]) => void;
+    showBulkScheduleNotice?: boolean;
 }
 
 function ProfileLabel({ profile, usage }: { profile: SenderProfile; usage?: SenderUsageView }) {
@@ -64,16 +67,14 @@ function RemainingToday({ today }: { today?: MemberToday }) {
  * (순서는 쉰 시간이 같을 때만 쓰인다). 대신 주소마다 오늘 남은 수와 묶음 합계를 보인다.
  * 규칙 폼(new/[id]) 두 곳이 공용으로 쓴다. 모양은 AssetPickerField와 같다 ({value, onChange}).
  */
-export default function SenderPoolField({ value, onChange }: SenderPoolFieldProps) {
+export default function SenderPoolField({ value, onChange, showBulkScheduleNotice = true }: SenderPoolFieldProps) {
     const selectAllId = useId();
     const { profiles, isLoading, loadFailed } = useSenderProfiles();
     const { usageById } = useSenderUsage();
     const { capacity, todayById } = usePoolCapacity(value);
 
     const byId = new Map(profiles.map((p) => [p.id, p]));
-    const picked = new Set(value);
-    const rest = profiles.filter((p) => !picked.has(p.id));
-    const allSelected = profiles.length > 0 && rest.length === 0;
+    const search = useSenderPoolSearch(profiles, value, onChange);
     // 서버(pickSender)는 기본 표시가 있는 프로필만 기본으로 쓴다 — 목록 첫 줄로 대신하지 않는다
     const defaultProfile = profiles.find((p) => p.isDefault) ?? null;
     const hasMissing = !isLoading && !loadFailed && value.some((id) => !byId.has(id));
@@ -82,7 +83,6 @@ export default function SenderPoolField({ value, onChange }: SenderPoolFieldProp
 
     const add = (id: number) => onChange([...value, id]);
     const remove = (id: number) => onChange(value.filter((x) => x !== id));
-    const toggleAll = (checked: boolean) => onChange(checked ? [...value, ...rest.map((p) => p.id)] : []);
 
     if (isLoading) {
         return (
@@ -107,27 +107,32 @@ export default function SenderPoolField({ value, onChange }: SenderPoolFieldProp
                     <p className="text-xs text-muted-foreground">
                         메일 한 통은 선택한 주소 중 하나로 나가며, 주소마다 설정한 하루 한도와 웜업을 지킵니다.
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                        하루 한도가 있는 주소는 대량 명단의 메일을 미리 작성한 뒤, 주소별 시간대 안에서 매일 다른 예약 시각에 나눠 보냅니다. 시간대 미지정 시 한국 시간 09~18시를 사용합니다. 한도가 없는 주소는 기존 방식으로 발송합니다.
-                    </p>
+                    {showBulkScheduleNotice && (
+                        <p className="text-xs text-muted-foreground">
+                            하루 한도가 있는 주소는 대량 명단의 메일을 미리 작성한 뒤, 주소별 시간대 안에서 매일 다른 예약 시각에 나눠 보냅니다. 시간대 미지정 시 한국 시간 09~18시를 사용합니다. 한도가 없는 주소는 기존 방식으로 발송합니다.
+                        </p>
+                    )}
+                    {search.isSearchVisible && (
+                        <Input value={search.query} onChange={search.handleQueryChange} placeholder="이름이나 이메일로 검색" aria-label="이름이나 이메일로 검색" />
+                    )}
                     {profiles.length > 0 && (
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
                                 <Switch
                                     id={selectAllId}
-                                    checked={allSelected}
-                                    onCheckedChange={toggleAll}
+                                    checked={search.isAllSelected}
+                                    onCheckedChange={search.handleToggleAll}
                                     disabled={loadFailed}
-                                    aria-label="발신 프로필 전체 선택"
+                                    aria-label={search.selectAllAriaLabel}
                                 />
-                                <Label htmlFor={selectAllId} className="cursor-pointer">전체 선택</Label>
+                                <Label htmlFor={selectAllId} className="cursor-pointer">{search.selectAllLabel}</Label>
                             </div>
                             <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
-                                {profiles.length - rest.length} / {profiles.length}개 선택
+                                {search.selectedCount} / {profiles.length}개 선택
                             </span>
                         </div>
                     )}
-                    <div className="rounded-md border divide-y">
+                    <div className="rounded-md border divide-y max-h-96 overflow-y-auto">
                         {value.map((id) => {
                             const p = byId.get(id);
                             return (
@@ -147,7 +152,7 @@ export default function SenderPoolField({ value, onChange }: SenderPoolFieldProp
                                 </label>
                             );
                         })}
-                        {rest.map((p) => (
+                        {search.filteredRest.map((p) => (
                             <label key={p.id} className="flex cursor-pointer items-center gap-3 px-3 py-2">
                                 <Checkbox checked={false} onCheckedChange={() => add(p.id)} />
                                 <div className="flex-1 min-w-0">
@@ -156,6 +161,7 @@ export default function SenderPoolField({ value, onChange }: SenderPoolFieldProp
                                 <RemainingToday today={todayById.get(p.id)} />
                             </label>
                         ))}
+                        {search.isSearchEmpty && <p className="px-3 py-2 text-sm text-muted-foreground">검색 결과가 없습니다</p>}
                     </div>
                 </>
             )}

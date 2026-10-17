@@ -7,7 +7,17 @@ import {
     fingerprint,
     pathValue,
     sourceUuid,
+    importStepInput,
 } from "./rules";
+test("이전 API 묶음은 기본 25행이며 명시된 1~250행만 허용한다", () => {
+    assert.deepEqual(importStepInput.parse({cursor:0}), {cursor:0,batchSize:25});
+    assert.deepEqual(importStepInput.parse({cursor:25,batchSize:250}), {cursor:25,batchSize:250});
+    for (const batchSize of [0,251,-1,1.5,"250",null]) {
+        assert.equal(importStepInput.safeParse({cursor:0,batchSize}).success,false);
+    }
+    assert.equal(importStepInput.safeParse({cursor:-1,batchSize:250}).success,false);
+    assert.equal(importStepInput.safeParse({cursor:0,batchSize:250,skipChecks:true}).success,false);
+});
 const input = (
     source: "channel" | "intercom" | "hubspot" | "portable",
     content: unknown,
@@ -132,6 +142,21 @@ test("채널톡 작성자 종류별 ID를 분리하고 봇 이름·내부 메모
     assert.equal(byId.get("v/private-bot")!.data.messageKind, "note");
     for (const original of messages)
         assert.deepEqual(byId.get(`v/${original.id}`)!.original, original);
+});
+test("404/410 고객 원본은 비활성으로 보관하며 과거 회원 ID로 다른 고객과 합치지 않음", () => {
+    const user = { id: "missing-customer", type: "member", member: true, memberId: "historical-id", profile: { name: "원본 고객 정보 조회 불가", email: "historical@example.test" }, sourceProfileUnavailable: { status: 404, sourceId: "missing-customer" } };
+    const result = normalizeImport(input("channel", { users: [user] }));
+    assert.equal(result.rows[0].data.lifecycleStage, "inactive");
+    assert.equal(result.rows[0].data.externalId, undefined);
+    assert.equal(result.rows[0].data.email, "historical@example.test");
+    assert.deepEqual(result.rows[0].data.attributes, { ...user.profile, sourceProfileUnavailable: user.sourceProfileUnavailable });
+    assert.deepEqual(result.rows[0].original, user);
+    assert.ok(result.warnings.some(warning => warning.includes("원본 고객 정보 조회 불가")));
+    for (const sourceProfileUnavailable of [{ status: 403, sourceId: user.id }, { status: 404, sourceId: "other-customer" }]) {
+        const ordinary = normalizeImport(input("channel", { users: [{ ...user, sourceProfileUnavailable }] }));
+        assert.equal(ordinary.rows[0].data.lifecycleStage, "lead");
+        assert.equal(ordinary.rows[0].data.externalId, "historical-id");
+    }
 });
 test("채널톡 텍스트 없는 rich block은 원본 보존과 표시 한계를 안내", () => {
     const original = {

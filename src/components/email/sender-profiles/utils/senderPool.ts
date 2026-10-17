@@ -1,3 +1,6 @@
+import { linkSenderPool } from "@/lib/email-sender-limit-rules";
+import type { SavedSenderPool } from "../types";
+
 /**
  * AI 규칙의 발신 주소 묶음을 화면에서 다루는 도우미. 순수 함수만 — 시험이 이 파일만 불러도 되게 한다.
  */
@@ -19,4 +22,37 @@ export function splitKnownSenderIds(
         (known.has(id) ? kept : dropped).push(id);
     }
     return { kept, dropped };
+}
+
+/** 고친 빈 배열도 저장된 값보다 우선한다. */
+export function formSenderIds(edited: number[] | null, saved: SavedSenderPool | null | undefined): number[] {
+    return edited ?? (saved ? linkSenderPool(saved) : []);
+}
+
+export function filterSenderProfiles<T extends { name: string; fromName: string; fromEmail: string }>(
+    profiles: readonly T[],
+    query: string,
+): T[] {
+    const normalized = query.trim().toLowerCase();
+    return profiles.filter(profile => [profile.name, profile.fromName, profile.fromEmail]
+        .some(field => field.toLowerCase().includes(normalized)));
+}
+
+/** 검색 해제는 검색에 맞는 선택만 제거하고, 빈 검색 해제는 기존처럼 전체 선택을 비운다. */
+export function senderPoolSearchSelection<T extends { id: number; name: string; fromName: string; fromEmail: string }>(
+    profiles: readonly T[],
+    value: readonly number[],
+    query: string,
+) {
+    const results = filterSenderProfiles(profiles, query);
+    const picked = new Set(value);
+    const resultIds = new Set(results.map(profile => profile.id));
+    const filteredRest = results.filter(profile => !picked.has(profile.id));
+    return {
+        filteredRest,
+        isAllSelected: results.length > 0 && filteredRest.length === 0,
+        isSearchEmpty: query.trim().length > 0 && results.length === 0,
+        selectAllIds: [...value, ...filteredRest.map(profile => profile.id)],
+        clearAllIds: query.trim() ? value.filter(id => !resultIds.has(id)) : [],
+    };
 }

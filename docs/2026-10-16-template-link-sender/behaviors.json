@@ -1,0 +1,384 @@
+{
+  "version": 1,
+  "cycleId": "2026-10-16-template-link-sender",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "0088이 두 칸(NULL 허용)을 더하고 저널에 idx 88로 등록된다. 다시 돌려도 오류가 없고, 기존 연결은 두 칸 모두 NULL이다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-db",
+        "ref": "C1 terminal output",
+        "cmd": "psql postgresql://jaehun@localhost:5432/salesflow -X -v ON_ERROR_STOP=1 -1 -f drizzle/0088_template_link_sender_pool.sql -c \"\\d email_template_links\" -c \"SELECT count(*) AS non_null_sender_rows FROM email_template_links WHERE sender_profile_id IS NOT NULL OR sender_profile_ids IS NOT NULL;\"",
+        "output": "SET\npsql:drizzle/0088_template_link_sender_pool.sql:8: NOTICE:  column \"sender_profile_id\" of relation \"email_template_links\" already exists, skipping\nALTER TABLE\npsql:drizzle/0088_template_link_sender_pool.sql:10: NOTICE:  column \"sender_profile_ids\" of relation \"email_template_links\" already exists, skipping\nALTER TABLE\n non_null_sender_rows \n----------------------\n                    0\n(1 row)",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "스키마와 `EmailTemplateLink` 타입에 두 칸이 있어 `linkSenderPool(link)`에 형 변환 없이 넘긴다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "typecheck",
+        "ref": "C1 terminal output",
+        "cmd": "npx tsc --noEmit && echo 'tsc: exit 0'",
+        "output": "tsc: exit 0",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "POST에 이 조직 프로필 id 배열을 보내면 고른 순서(중복 제거)로 저장되고, `sender_profile_id`는 첫 원소이며, 응답에 두 칸이 있다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B3 PASS: POST 201, ordered deduplication and first id",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "POST·PUT에 다른 조직이거나 없는 id가 하나라도 있으면 400 \"선택한 발신 주소를 찾을 수 없습니다.\"를 돌려주고, 연결은 만들어지지도 바뀌지도 않는다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B4 PASS: foreign/missing id rejected, POST/PUT rows unchanged",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "빈 배열이나 null을 보내면 두 칸이 NULL로 저장된다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B5 PASS: empty/null POST and PUT clear both fields",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "PUT에 두 값이 모두 없으면(켜기/끄기 등) 저장된 묶음이 그대로다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B6 PASS: omitted sender fields preserved",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "형식이 틀린 값이나 50개를 넘는 묶음은 400이다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B7 PASS: malformed/over-50 pools return 400 for POST and PUT",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "`senderProfileId` 하나만 보내도 `[id]` 묶음으로 저장된다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B8 PASS: legacy single id becomes pool",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "GET 응답에 두 칸이 들어 있다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "local-api",
+        "ref": "evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "output": "B9 PASS: GET exposes both fields",
+        "at": "2026-10-16T07:35:55.587419+00:00"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "템플릿 첫 메일의 주소 선택이 `claimSender(orgId, { mode: \"pool\", ids: linkSenderPool(link), ... })`이고, 목적(inbound/bulk)은 지금과 같다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "unit-test-and-wiring",
+        "ref": "src/lib/email-sender-limit-paths.test.ts; src/lib/email-automation.ts:160",
+        "cmd": "pnpm test",
+        "output": "ℹ tests 1042\nℹ suites 0\nℹ pass 1042\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0",
+        "at": "2026-10-16T07:37:39.363571+00:00"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "묶음이 NULL이거나 빈 연결은 기본 프로필 → 레거시 설정으로 나간다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "cmd": "tsx sender-test.ts setup|send|queue|requeue",
+        "output": "연결 B(묶음 NULL) → profile 5 cs@pixlnlogic.com, NHN success, Gmail INBOX 수신",
+        "at": "2026-10-16T08:15Z"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "묶음 id가 모두 지워졌거나 다른 조직 것이면 기본 프로필로 나가고, 다른 조직 주소로는 나가지 않는다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "unit-test-and-wiring",
+        "ref": "src/lib/email-sender-limit-paths.test.ts; src/lib/email-automation.ts:160",
+        "cmd": "pnpm test",
+        "output": "ℹ tests 1042\nℹ suites 0\nℹ pass 1042\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0",
+        "at": "2026-10-16T07:37:39.363680+00:00"
+      }
+    },
+    {
+      "id": "B13",
+      "desc": "주소가 둘 이상이면 보낼 수 있는 주소 중 가장 오래 쉰 주소로 나가고, 모두 막히면 반복 대기열에 미룬다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "cmd": "tsx sender-test.ts setup|send|queue|requeue",
+        "output": "연결 C([6,7]) 2건 → profile 7 cs@100office.store, profile 6 cs@dihi.kr로 갈림. 반복 대기열: 6 정지 시 A 줄 미룸(pending, next_run_at=10/17 09:00 KST)",
+        "at": "2026-10-16T08:15Z"
+      }
+    },
+    {
+      "id": "B14",
+      "desc": "미뤄 둔 첫 메일은 처리 시점의 연결 묶음으로 나간다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "cmd": "tsx sender-test.ts setup|send|queue|requeue",
+        "output": "미뤄진 A 줄 2개를 둔 채 연결 A 묶음을 [7]로 변경 → 재처리 시 둘 다 profile 7 cs@100office.store로 발송",
+        "at": "2026-10-16T08:15Z"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "반복 메일은 회차마다 묶음에서 주소를 고른다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "unit-test-and-wiring",
+        "ref": "src/lib/email-sender-limit-paths.test.ts; src/lib/email-automation.ts:160",
+        "cmd": "pnpm test",
+        "output": "ℹ tests 1042\nℹ suites 0\nℹ pass 1042\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0",
+        "at": "2026-10-16T07:37:39.363683+00:00"
+      }
+    },
+    {
+      "id": "B16",
+      "desc": "발송 로그의 `sender_profile_id`·`sender_email`이 실제로 보낸 주소다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "cmd": "tsx sender-test.ts setup|send|queue|requeue",
+        "output": "로그 7건 sender_profile_id·sender_email이 실제 Gmail 수신 메일의 From과 일치(dihi.kr·pixlnlogic.com·100office.store)",
+        "at": "2026-10-16T08:15Z"
+      }
+    },
+    {
+      "id": "B17",
+      "desc": "한 연결의 묶음이 막혀도, 다른 묶음을 쓰는 연결의 기한 된 줄은 그 회차에 발송을 시도한다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "cmd": "tsx sender-test.ts setup|send|queue|requeue",
+        "output": "A([6], 6 정지) first 2줄 + B(묶음 NULL) first 1줄 → processEmailRepeatQueue: completed 1, deferred 2. B 줄은 그 회차에 발송",
+        "at": "2026-10-16T08:15Z"
+      }
+    },
+    {
+      "id": "B18",
+      "desc": "같은 연결의 기한 된 첫 메일 줄은 지금처럼 함께 미뤄진다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "cmd": "tsx sender-test.ts setup|send|queue|requeue",
+        "output": "A의 기한 된 first 2줄이 같은 next_run_at(2026-10-17T00:00Z)로 함께 미뤄짐",
+        "at": "2026-10-16T08:15Z"
+      }
+    },
+    {
+      "id": "B19",
+      "desc": "템플릿 후속은 첫 메일 주소를 먼저 쓰고, 그 주소가 없을 때만 묶음 → 기본 순으로 고른다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "unit-test-and-code",
+        "ref": "src/lib/email-sender-limit-paths.test.ts; src/lib/email-followup.ts:655. 기존 함수 테스트는 Claude 승인에 따라 수정 전 2/2 통과 후 호출부 변경.",
+        "cmd": "pnpm exec tsx --test --test-name-pattern='template followup' src/lib/email-sender-limit-paths.test.ts",
+        "output": "✔ template followup: parent first, deleted parent uses pool, empty pool uses default (B19) (0.758ms)\n✔ template followup: old link without a pool retains parent-only order (B19) (0.383709ms)\nℹ tests 2\nℹ pass 2\nℹ fail 0",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B20",
+      "desc": "수동 발송은 지금처럼 요청의 `senderProfileId`가 우선이다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "code-diff",
+        "ref": "수동 발송 요청의 senderProfileId 처리 유지",
+        "cmd": "git diff --exit-code -- src/app/api/email/send src/components/records/SendEmailDialog.tsx && echo 'B20 manual send files: unchanged'",
+        "output": "B20 manual send files: unchanged",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B21",
+      "desc": "새 연결 화면 \"발신 설정\" 카드에서 프로필을 여러 개 고를 수 있고, POST 본문에 실린다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "ego-browser",
+        "ref": "TaskSpace 70 /email/links/new?partitionId=52; 두 프로필 선택 후 연결 클릭, GET 확인",
+        "cmd": "ego-browser nodejs",
+        "output": "{ selected: 2, hasSender: true, hasCapacity: true, hasReply: true, hasQueue: false, hasBulkSchedule: false }\n{ links: [ { id: 12, senderProfileId: 13, senderProfileIds: [ 13, 12 ] } ] }",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B22",
+      "desc": "편집 화면이 저장된 묶음으로 체크를 채우고, 바꾸면 PUT 본문에 실린다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "ego-browser",
+        "ref": "TaskSpace 70 /email/links/12?partitionId=52; 체크 복원 → A 해제 → 수정 클릭 → PUT 본문/GET 확인",
+        "cmd": "ego-browser nodejs",
+        "output": "{ checked: 2 }\n{ put: { name: 'Sender UI link', emailTemplateId: 2954, recipientField: 'email', triggerType: 'on_create', triggerCondition: null, repeatConfig: null, followupConfig: null, preventDuplicate: 0, senderProfileIds: [ 13 ] }, saved: [ { id: 12, senderProfileIds: [ 13 ] } ] }",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B23",
+      "desc": "요약 칸에 발신·오늘 용량·답장 줄이 보이고, AI 대기열 줄은 보이지 않는다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "ego-browser",
+        "ref": "TaskSpace 70 템플릿 연결 요약 DOM 확인",
+        "cmd": "ego-browser nodejs",
+        "output": "{ selected: 2, hasSender: true, hasCapacity: true, hasReply: true, hasQueue: false, hasBulkSchedule: false }",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B24",
+      "desc": "템플릿 화면에는 AI 예약 안내가 보이지 않고, AI 화면에는 그대로 보인다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "ego-browser",
+        "ref": "TaskSpace 70 템플릿 자동 연결과 /email/ai-auto/new?partitionId=52 비교",
+        "cmd": "ego-browser nodejs",
+        "output": "{ selected: 2, hasSender: true, hasCapacity: true, hasReply: true, hasQueue: false, hasBulkSchedule: false }\n{ aiBulkScheduleNotice: true }",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B25",
+      "desc": "지운 프로필이 묶음에 남아 있으면 경고가 보이고, 그대로 저장하면 서버가 거절한다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "ego-browser",
+        "ref": "TaskSpace 70 가상 연결에 [999999] 설정 후 편집 경고와 수정 클릭 토스트 확인",
+        "cmd": "ego-browser nodejs",
+        "output": "{ missingWarning: true }\n{ errorToast: true, stayedOnEdit: true }",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B26",
+      "desc": "새 상태·초기화 로직은 `.ts` 훅에 있고, page.tsx는 훅 호출과 props 전달만 한다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "code-diff-and-typecheck",
+        "ref": "두 page는 useRuleSenderPool 호출, props 전달, DESIGN 11절 예외인 저장 본문 펼치기와 앵커만 추가. 상태·초기화는 .ts 훅/유틸.",
+        "cmd": "git diff -- src/app/email/links/new/page.tsx 'src/app/email/links/[id]/page.tsx'; npx tsc --noEmit && echo 'Final tsc: exit 0'",
+        "output": "+    const sender = useRuleSenderPool(link);\n+    const sender = useRuleSenderPool();\n+                ...templateLinkSenderBody(triggerType, sender.ids),\nFinal tsc: exit 0",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B27",
+      "desc": "발송 방식이 '수동'인 연결 화면에는 발신 설정 칸 대신 \"수동 발송은 발송 창에서 고른 발신자로 나갑니다\" 안내가 보인다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "ego-browser",
+        "ref": "TaskSpace 70 수동 전환 → 수정 클릭 → PUT/GET 확인. 순수 함수 테스트 15~16도 통과.",
+        "cmd": "ego-browser nodejs",
+        "output": "{ manualNotice: true, checkboxes: 0, summary: true }\n{ manualPutOmitsSender: true, saved: [ { triggerType: 'manual', senderProfileIds: [ 999999 ] } ] }",
+        "at": "2026-10-16T08:00:14.830Z"
+      }
+    }
+  ]
+}

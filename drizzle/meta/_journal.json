@@ -622,183 +622,204 @@
       "idx": 88,
       "version": "7",
       "when": 1775100000000,
-      "tag": "0088_customer_inbox",
+      "tag": "0088_template_link_sender_pool",
       "breakpoints": true
     },
     {
       "idx": 89,
+      "version": "7",
+      "when": 1775100000001,
+      "tag": "0088_customer_inbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
       "version": "7",
       "when": 1775200000000,
       "tag": "0089_customer_platform",
       "breakpoints": true
     },
     {
-      "idx": 90,
+      "idx": 91,
       "version": "7",
       "when": 1775300000000,
       "tag": "0090_customer_sales",
       "breakpoints": true
     },
     {
-      "idx": 91,
+      "idx": 92,
       "version": "7",
       "when": 1775400000000,
       "tag": "0091_customer_activities",
       "breakpoints": true
     },
     {
-      "idx": 92,
+      "idx": 93,
       "version": "7",
       "when": 1775500000000,
       "tag": "0092_inbox_files_audit",
       "breakpoints": true
     },
     {
-      "idx": 93,
+      "idx": 94,
       "version": "7",
       "when": 1775600000000,
       "tag": "0093_platform_webhooks",
       "breakpoints": true
     },
     {
-      "idx": 94,
+      "idx": 95,
       "version": "7",
       "when": 1775700000000,
       "tag": "0094_customer_ai_support",
       "breakpoints": true
     },
     {
-      "idx": 95,
+      "idx": 96,
       "version": "7",
       "when": 1775800000000,
       "tag": "0095_customer_workflows",
       "breakpoints": true
     },
     {
-      "idx": 96,
+      "idx": 97,
       "version": "7",
       "when": 1775900000000,
       "tag": "0096_inbox_identity_link",
       "breakpoints": true
     },
     {
-      "idx": 97,
+      "idx": 98,
       "version": "7",
       "when": 1776000000000,
       "tag": "0097_customer_imports",
       "breakpoints": true
     },
     {
-      "idx": 98,
+      "idx": 99,
       "version": "7",
       "when": 1776100000000,
       "tag": "0098_inbox_email",
       "breakpoints": true
     },
     {
-      "idx": 99,
+      "idx": 100,
       "version": "7",
       "when": 1776200000000,
       "tag": "0099_inbox_email_files",
       "breakpoints": true
     },
     {
-      "idx": 100,
+      "idx": 101,
       "version": "7",
       "when": 1776300000000,
       "tag": "0100_inbox_google_connection",
       "breakpoints": true
     },
     {
-      "idx": 101,
+      "idx": 102,
       "version": "7",
       "when": 1776400000000,
       "tag": "0101_inbox_operations",
       "breakpoints": true
     },
     {
-      "idx": 102,
+      "idx": 103,
       "version": "7",
       "when": 1792022400000,
       "tag": "0102_customer_workspace_access",
       "breakpoints": true
     },
     {
-      "idx": 103,
+      "idx": 104,
       "version": "7",
       "when": 1792026000000,
       "tag": "0103_crm_object_lifecycle",
       "breakpoints": true
     },
     {
-      "idx": 104,
+      "idx": 105,
       "version": "7",
       "when": 1792029600000,
       "tag": "0104_email_reply_recipients",
       "breakpoints": true
     },
     {
-      "idx": 105,
+      "idx": 106,
       "version": "7",
       "when": 1792033200000,
       "tag": "0105_inbox_mentions",
       "breakpoints": true
     },
     {
-      "idx": 106,
+      "idx": 107,
       "version": "7",
       "when": 1792036800000,
       "tag": "0106_inbox_teams",
       "breakpoints": true
     },
     {
-      "idx": 107,
+      "idx": 108,
       "version": "7",
       "when": 1792040400000,
       "tag": "0107_inbox_agent_presence",
       "breakpoints": true
     },
     {
-      "idx": 108,
+      "idx": 109,
       "version": "7",
       "when": 1792044000000,
       "tag": "0108_inbox_agent_capacity",
       "breakpoints": true
     },
     {
-      "idx": 109,
+      "idx": 110,
       "version": "7",
       "when": 1792047600000,
       "tag": "0109_inbox_team_business_hours",
       "breakpoints": true
     },
     {
-      "idx": 110,
+      "idx": 111,
       "version": "7",
       "when": 1792051200000,
       "tag": "0110_inbox_reply_guard",
       "breakpoints": true
     },
     {
-      "idx": 111,
+      "idx": 112,
       "version": "7",
       "when": 1792054800000,
       "tag": "0111_customer_import_files",
       "breakpoints": true
     },
     {
-      "idx": 112,
+      "idx": 113,
       "version": "7",
       "when": 1792058400000,
       "tag": "0112_inbox_customer_history",
       "breakpoints": true
     },
     {
-      "idx": 113,
+      "idx": 114,
       "version": "7",
       "when": 1792062000000,
       "tag": "0113_inbox_lead_journey",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1792148400000,
+      "tag": "0114_inbox_private_archive",
+      "breakpoints": true
+    },
+    {
+      "version": "7",
+      "when": 1792234800000,
+      "tag": "0115_template_link_sender_compat",
+      "breakpoints": true,
+      "idx": 116
     }
   ]
 }

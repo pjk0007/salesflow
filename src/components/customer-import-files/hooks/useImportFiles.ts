@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { fileRequest, fileWrite, supplementFile } from "../api";
 import type { ImportFile, ImportFilePage } from "../types";
+import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 export function useImportFiles(jobId: string) {
     const [offset, setOffset] = useState(0),
         [busy, setBusy] = useState(false),
@@ -95,7 +96,7 @@ export function useImportFiles(jobId: string) {
             run(async () => {
                 const rows =
                     page.data?.rows.filter(
-                        (r) => r.active && r.state === "pending",
+                        (r) => r.active && r.state === "pending" && (r.expectedSize === null || r.expectedSize <= MAX_FILE_BYTES),
                     ) ?? [];
                 let done = 0,
                     failed = 0;

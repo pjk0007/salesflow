@@ -2,7 +2,7 @@ import { isIP } from "node:net";
 import { z } from "zod";
 import { fingerprint } from "@/lib/customer-imports/rules";
 import { fileName } from "@/lib/inbox/file-metadata";
-import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
+import { MAX_ARCHIVE_FILE_BYTES } from "@/lib/inbox-archive-storage/store";
 
 export function sourceFileUrl(value: string) {
     const url = new URL(value);
@@ -20,7 +20,14 @@ export function sourceFileUrl(value: string) {
         throw new Error("공개 HTTPS 파일 주소를 입력해주세요.");
     return url.href;
 }
+const archiveIdentity = {
+    id: z.string().uuid(), version: z.number().int().positive(),
+    size: z.number().int().positive().max(MAX_ARCHIVE_FILE_BYTES),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/),
+};
 export const fileAction = z.discriminatedUnion("action", [
+    z.object({ action: z.literal("archive_plan"), ...archiveIdentity }).strict(),
+    z.object({ action: z.literal("archive_attach"), ...archiveIdentity }).strict(),
     z
         .object({
             action: z.literal("prepare"),
@@ -56,7 +63,8 @@ export const fileAction = z.discriminatedUnion("action", [
         })
         .strict(),
 ]);
-export function fileDescriptors(raw: unknown) {
+export function fileDescriptors(raw: unknown, maxBytes = MAX_ARCHIVE_FILE_BYTES) {
+    if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_ARCHIVE_FILE_BYTES) throw new Error("잘못된 파일 크기 한도입니다.");
     const seen = new Map<string, number>();
     return (Array.isArray(raw) ? raw : []).map(
         (file: Record<string, unknown>, index) => {
@@ -79,7 +87,7 @@ export function fileDescriptors(raw: unknown) {
                         typeof sizeValue === "string") &&
                         Number.isSafeInteger(size) &&
                         size >= 1 &&
-                        size <= MAX_FILE_BYTES),
+                        size <= maxBytes),
                 validHash =
                     file.sha256 === undefined ||
                     file.sha256 === null ||

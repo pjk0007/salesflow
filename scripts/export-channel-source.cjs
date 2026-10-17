@@ -108,7 +108,7 @@ function createFixtureDownload(fixture) {
 }
 function parseArgs(argv) {
     const values = {}, flags = new Set(["resume", "recover-stale-lock", "include-files", "run", "help"]);
-    const names = new Set(["fixture", "out", "channel-id", "namespace", "workspace-id", "page-size", "max-requests"]);
+    const names = new Set(["fixture", "out", "channel-id", "namespace", "workspace-id", "page-size", "max-requests", "checkpoint-every"]);
     for (let i = 0; i < argv.length; i++) {
         const argument = argv[i];
         if (!argument.startsWith("--")) throw new ChannelExportCliError("arguments");
@@ -125,12 +125,13 @@ function parseArgs(argv) {
         if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value)) || Number(value) < min || Number(value) > max) throw new ChannelExportCliError("arguments");
         return Number(value);
     };
-    return { fixture: values.fixture, out: values.out, channelId: values["channel-id"], namespace: values.namespace, workspaceId: integer("workspace-id", 8, 1, Number.MAX_SAFE_INTEGER), pageSize: integer("page-size", 100, 1, 500), maxRequests: integer("max-requests", 50000, 1, 100000), resume: !!values.resume, recoverStaleLock: !!values["recover-stale-lock"], includeFiles: !!values["include-files"], run: !!values.run };
+    return { fixture: values.fixture, out: values.out, channelId: values["channel-id"], namespace: values.namespace, workspaceId: integer("workspace-id", 8, 1, Number.MAX_SAFE_INTEGER), pageSize: integer("page-size", 100, 1, 500), maxRequests: integer("max-requests", 50000, 1, 100000), checkpointEveryRequests: integer("checkpoint-every", 1, 1, 100), resume: !!values.resume, recoverStaleLock: !!values["recover-stale-lock"], includeFiles: !!values["include-files"], run: !!values.run };
 }
 const HELP = `Channel source export (read-only; no CRM import or deployment)
 Offline:
   node scripts/export-channel-source.cjs --fixture scripts/fixtures/channel-source-export-fictional.json --out .testenv/channel-export-demo --channel-id qa-fictional-channel-export --namespace fictional-demo
-Options: --workspace-id 8 --page-size 100 --max-requests 50000 --resume --recover-stale-lock --include-files
+Options: --workspace-id 8 --page-size 100 --max-requests 50000 --checkpoint-every 1 --resume --recover-stale-lock --include-files
+--checkpoint-every N (1..100) reduces whole-snapshot writes. Every successful raw page is still saved; interruption may re-read up to N-1 requests. Completion/failure always saves the final snapshot.
 Actual account access requires --run instead of --fixture, explicit --workspace-id, and environment variables CHANNEL_SOURCE_ACCESS_KEY / CHANNEL_SOURCE_ACCESS_SECRET. No .env files are loaded.
 Bundle fixtures must declare fictional:true. Response fixtures use {channelId,responses:[{path,query,status,headers?,body}],downloads?:[{chatId,key,url,base64}]}.
 Output: full successful source pages, raw bundle, checkpoint, dependency-ordered importer chunks and manifest. Complete means selected endpoint cursor coverage; it does not prove all-customer coverage. Attachments need --include-files and a separate complete byte manifest.\n`;
@@ -163,7 +164,7 @@ async function runExport(options, dependencies = {}) {
     const sleep = options.run ? (ms, currentSignal) => delay(ms, undefined, { signal: currentSignal }) : async (ms, currentSignal) => { currentSignal?.throwIfAborted(); virtualNow += ms; };
     try {
         const request = modules.createChannelCollectorRequest(httpRequest, { savePage: output.saveSourcePage, expectedChannelId: identity.channelId });
-        const exported = await modules.exportChannelData({ channelId: identity.channelId, request, sleep, checkpoint: output.writeCheckpoint, resume: output.checkpoint, limits: { pageSize: identity.pageSize, maxRequests: options.maxRequests }, signal, ...(!options.run ? { now: () => virtualNow } : {}) });
+        const exported = await modules.exportChannelData({ channelId: identity.channelId, request, sleep, checkpoint: output.writeCheckpoint, checkpointEveryRequests: options.checkpointEveryRequests, resume: output.checkpoint, limits: { pageSize: identity.pageSize, maxRequests: options.maxRequests }, signal, ...(!options.run ? { now: () => virtualNow } : {}) });
         let plan, issue, files;
         if (exported.status === "complete") {
             try { plan = modules.splitChannelBundle(exported.bundle, identity); }

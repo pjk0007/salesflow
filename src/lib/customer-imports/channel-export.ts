@@ -71,6 +71,8 @@ export type ChannelExportOptions = {
     sleep: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
     /** Atomically persist the whole snapshot; failure stops collection. */
     checkpoint?: (state: ChannelExportCheckpoint) => Promise<void>;
+    /** Default 1. Raw pages must be durably archived separately before increasing this. */
+    checkpointEveryRequests?: number;
     resume?: ChannelExportCheckpoint;
     limits?: Partial<ChannelExportLimits>;
     signal?: AbortSignal;
@@ -247,11 +249,15 @@ export async function exportChannelData(options: ChannelExportOptions): Promise<
         if (!Number.isSafeInteger(limits[key]) || limits[key] < minimum || limits[key] > ceilings[key]) throw new TypeError(`Invalid export limit: ${key}`);
     }
     if (limits.retryBaseMs > limits.retryMaxMs) throw new TypeError("retryBaseMs exceeds retryMaxMs");
+    const checkpointEvery = options.checkpointEveryRequests ?? 1;
+    if (!Number.isSafeInteger(checkpointEvery) || checkpointEvery < 1 || checkpointEvery > 100) throw new TypeError("Invalid checkpoint interval");
     const state = restore(options, limits), entityIndex = indexBundle(state.bundle);
+    let lastSavedRequest = -Infinity;
     let currentTask: Task | undefined;
     const abort = () => { if (options.signal?.aborted) throw new Stop("aborted"); };
-    async function save() {
-        try { await options.checkpoint?.(clone(state)); }
+    async function save(force = false) {
+        if (checkpointEvery > 1 && !force && state.requestCount - lastSavedRequest < checkpointEvery) return;
+        try { await options.checkpoint?.(clone(state)); lastSavedRequest = state.requestCount; }
         catch { throw new Stop("checkpoint_failed"); }
     }
     async function sleep(ms: number) {
@@ -340,7 +346,7 @@ export async function exportChannelData(options: ChannelExportOptions): Promise<
         if (channel.id !== options.channelId) throw new Stop("channel_mismatch");
         state.ledger.channel = { ...initialLedger(channelTask), status: "complete", pages: 1, seenCursors: [null] };
         for (const task of baseTasks(limits.pageSize)) state.ledger[task.key] ??= initialLedger(task);
-        await save();
+        await save(true);
         for (const task of baseTasks(limits.pageSize)) await collect(task);
         for (const task of messageTasks(state.bundle, limits.pageSize)) state.ledger[task.key] ??= initialLedger(task);
         await save();
@@ -353,7 +359,7 @@ export async function exportChannelData(options: ChannelExportOptions): Promise<
         abort();
         state.status = "complete";
         state.bundle.hasNext = false;
-        await save();
+        await save(true);
     } catch (error) {
         const failure: ChannelExportFailure = { code: error instanceof Stop ? error.code : "collection_failed", endpoint: currentTask?.key ?? "checkpoint", ...(error instanceof Stop && error.httpStatus !== undefined ? { status: error.httpStatus } : {}) };
         state.status = failure.code === "aborted" ? "aborted" : ["request_limit", "entity_limit", "page_limit"].includes(failure.code) ? "incomplete" : "failed";
@@ -364,7 +370,7 @@ export async function exportChannelData(options: ChannelExportOptions): Promise<
             state.ledger[currentTask.key].failure = failure;
         }
         if (failure.code !== "checkpoint_failed") {
-            try { await save(); }
+            try { await save(true); }
             catch { state.failure = { code: "checkpoint_failed", endpoint: "checkpoint" }; state.status = "failed"; }
         }
     }
@@ -372,6 +378,6 @@ export async function exportChannelData(options: ChannelExportOptions): Promise<
     return {
         status: result.status, bundle: result.bundle, checkpoint: result,
         counts: { users: result.bundle.users.length, managers: result.bundle.managers.length, userChats: result.bundle.userChats.length, messages: result.bundle.messages.length, bots: result.bundle.bots.length, attachments: result.bundle.messages.reduce((count, message) => count + (Array.isArray(message.files) ? message.files.length : 0), 0) },
-        limitations,
+        limitations: checkpointEvery > 1 ? [...limitations, `Whole snapshots are saved every ${checkpointEvery} requests; interruption may re-read up to ${checkpointEvery - 1} requests. Raw-page archival must remain enabled.`] : limitations,
     };
 }

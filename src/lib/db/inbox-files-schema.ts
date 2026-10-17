@@ -48,6 +48,7 @@ export const inboxAttachments = pgTable(
         contentType: varchar("content_type", { length: 120 }).notNull(),
         size: integer("size").notNull(),
         sha256: varchar("sha256", { length: 64 }).notNull(),
+        storageObjectKey: varchar("storage_object_key", { length: 512 }),
         importMetadata: jsonb("import_metadata").$type<{
             taskId: string;
             source: string;
@@ -73,7 +74,7 @@ export const inboxAttachments = pgTable(
         ),
         check(
             "inbox_attachment_size",
-            sql`${t.size} > 0 AND ${t.size} <= 20971520`,
+            sql`${t.size} > 0 AND ${t.size} <= 1073741824 AND (${t.size} <= 20971520 OR ${t.storageObjectKey} IS NOT NULL)`,
         ),
     ],
 );

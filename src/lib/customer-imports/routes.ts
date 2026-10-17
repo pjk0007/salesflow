@@ -7,7 +7,7 @@ import {
     authorizeWorkspace,
 } from "@/lib/customer-platform/external-auth";
 import {
-    importOwned,
+    importWorkspaceOwned,
     importPage,
     importDetail,
     importSource,
@@ -16,6 +16,7 @@ import {
     stepImport,
 } from "./repository";
 import type { PlatformPermission } from "@/lib/customer-platform/rules";
+import { importStepInput } from "./rules";
 const ws = z.coerce.number().int().positive(),
     uuid = z.string().uuid();
 type Context = { params: Promise<{ id: string }> };
@@ -40,8 +41,8 @@ export async function ownedActor(
     const preliminary = external
             ? (await authenticatePlatform(req)).actor
             : inboxActor(req),
-        job = await importOwned(preliminary, id);
-    return actorFor(req, external, job.workspaceId, permission);
+        workspaceId = await importWorkspaceOwned(preliminary, id);
+    return actorFor(req, external, workspaceId, permission);
 }
 export function importCollectionHandlers(external: boolean) {
     return {
@@ -98,7 +99,8 @@ export function importItemHandlers(external: boolean) {
                 if (input.action === "step") {
                     const { action: _, ...step } = input;
                     void _;
-                    return stepImport(actor, id, step);
+                    const { cursor, batchSize } = importStepInput.parse(step);
+                    return stepImport(actor, id, { cursor }, undefined, batchSize);
                 }
                 return changeImport(actor, id, input);
             }),

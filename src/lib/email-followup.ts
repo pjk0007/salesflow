@@ -648,10 +648,10 @@ async function handleTemplateFollowup(
     // 8-1. 발신 주소 + 오늘 자리 — 원본 메일을 보낸 주소로만 보낸다 (같은 대화로 이어지게).
     // 막히면 다른 주소로 넘기지 않고 그 주소가 열릴 때로 미룬다.
     // parentLog.senderProfileId가 null(구 로그)이거나 그 프로필이 삭제됐으면
-    // 후보에 없으므로 자동으로 현재 기본 프로필로 흐른다.
+    // 후보에 없으므로 연결의 발신 묶음 → 현재 기본 프로필 순으로 흐른다.
     const claim = await claimSender(item.orgId, {
         mode: "fixed",
-        ids: [parentLog.senderProfileId],
+        ids: followupSenderOrder(parentLog.senderProfileId, link),
         config: emailConfig,
         // 막히면 check_at을 retryAt으로 옮긴다 — 간격 미룸은 순번대로 펼쳐 한꺼번에 깨어나지 않게 한다
         spreadDeferrals: true,

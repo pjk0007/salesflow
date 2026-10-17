@@ -13,6 +13,10 @@ export const kinds = [
     "messages",
 ] as const;
 export type ImportKind = (typeof kinds)[number];
+export const importStepInput = z.object({
+    cursor: z.number().int().min(0),
+    batchSize: z.number().int().min(1).max(250).default(25),
+}).strict();
 export type ImportRow = {
     kind: ImportKind;
     sourceId: string;

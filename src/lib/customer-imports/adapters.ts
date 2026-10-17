@@ -39,12 +39,18 @@ export function normalizeImport(input: ImportInput) {
         } else if (input.source === "channel") {
             for (const user of array(bundle.users)) {
                 const profile = object(user.profile);
+                const unavailable = object(user.sourceProfileUnavailable);
+                const profileUnavailable =
+                    [404, 410].includes(Number(unavailable.status)) &&
+                    unavailable.sourceId === String(user.id);
                 const memberId = text(user.memberId),
                     isMember =
                         user.member !== false &&
                         (user.type === "member" ||
                             (!user.type && user.member === true)) &&
                         memberId !== text(user.veilId);
+                if (profileUnavailable)
+                    warnings.push(`고객 ${user.id}: 원본 고객 정보 조회 불가(${unavailable.status})로 비활성 고객으로 보관하며 사이트 회원 ID를 연결하지 않습니다.`);
                 if (memberId && !isMember)
                     warnings.push(
                         `고객 ${user.id}: 회원 여부가 확인되지 않은 memberId는 외부 회원 ID로 사용하지 않습니다. 원본은 보존합니다.`,
@@ -57,10 +63,11 @@ export function normalizeImport(input: ImportInput) {
                             text(profile.name) ||
                             text(user.name) ||
                             `고객 ${user.id}`,
-                        externalId: isMember ? memberId : undefined,
+                        externalId: isMember && !profileUnavailable ? memberId : undefined,
                         email: text(profile.email),
                         phone: text(profile.mobileNumber),
-                        attributes: profile,
+                        attributes: profileUnavailable ? { ...profile, sourceProfileUnavailable: unavailable } : profile,
+                        lifecycleStage: profileUnavailable ? "inactive" : "lead",
                         createdAt: date(user.createdAt),
                     },
                     user,

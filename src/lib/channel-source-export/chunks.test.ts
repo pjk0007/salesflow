@@ -89,6 +89,19 @@ test("실제 importer 행 검증 실패와 중복 ID의 상충 원본을 명시�
     assert.equal(plan.manifest.uniqueCounts.contacts, 1);
     assert.equal(plan.manifest.duplicateRawCounts.users, 1);
 });
+test("조회 불가능한 상담원·봇 프로필만 명시적으로 허용하며 고객 관계와 비공개 원문은 유지", () => {
+    const source = bundle(); source.managers = []; source.bots = [];
+    assert.throws(() => splitChannelBundle(source, options), error => error instanceof ChannelChunkError && error.code === "missing_dependency");
+    const plan = splitChannelBundle(source, { ...options, allowUnavailableAuthorProfiles: true });
+    assert.deepEqual(plan.manifest.unavailableAuthorProfiles, [{ kind: "managers", sourceId: "manager" }, { kind: "bots", sourceId: "bot" }]);
+    assert.equal(plan.manifest.uniqueCounts.messages, 3);
+    const rows = plan.chunks.flatMap(chunk => normalizeImport(chunk.input).rows).filter(row => row.kind === "messages");
+    assert.equal(rows.find(row => row.sourceId === "chat/message-2")?.data.messageKind, "note");
+    assert.deepEqual(rows.find(row => row.sourceId === "chat/message-2")?.original, source.messages[1]);
+    assert.ok(plan.manifest.warnings.some(warning => warning.includes("작성자 이름이 없어")));
+    const missingCustomer = bundle(); missingCustomer.users = [];
+    assert.throws(() => splitChannelBundle(missingCustomer, { ...options, allowUnavailableAuthorProfiles: true }), error => error instanceof ChannelChunkError && error.code === "missing_dependency");
+});
 test("정렬이 달라도 안정적인 chunk 내용과 source ID를 만들고 빈 원본도 누락 없이 표현", () => {
     const source = bundle(), shuffled = structuredClone(source); shuffled.messages.reverse();
     assert.deepEqual(splitChannelBundle(source, options).chunks.map(chunk => chunk.sha256), splitChannelBundle(shuffled, options).chunks.map(chunk => chunk.sha256));

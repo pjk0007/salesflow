@@ -71,7 +71,7 @@ function sourcePath(path: string) {
     // IDs must remain single path segments; file keys belong in the query only.
     if (
         typeof path !== "string" ||
-        !/^\/open\/(?:channel|managers(?:\/[^/?#\\]+)?|users\/[^/?#\\]+(?:\/user-chats)?|user-chats(?:\/[^/?#\\]+(?:\/messages(?:\/file)?)?)?)$/.test(
+        !/^\/open\/(?:channel|bots|managers(?:\/[^/?#\\]+)?|users\/[^/?#\\]+(?:\/user-chats)?|user-chats(?:\/[^/?#\\]+(?:\/messages(?:\/file)?)?)?)$/.test(
             path,
         )
     )

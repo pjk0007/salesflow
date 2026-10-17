@@ -5,7 +5,7 @@ import { InboxError } from "./errors";
 import {
     uploadAttachment,
     cancelAttachment,
-    downloadAttachment,
+    downloadAttachmentStream,
     MAX_FILE_BYTES,
     type FileScope,
 } from "./files";
@@ -79,11 +79,11 @@ export async function attachmentGet(
     id: () => Promise<string>,
 ) {
     try {
-        const file = await downloadAttachment(await scope(), await id());
-        return new NextResponse(new Uint8Array(file.bytes), {
+        const file = await downloadAttachmentStream(await scope(), await id());
+        return new NextResponse(file.body, {
             headers: {
                 "Content-Type": file.contentType,
-                "Content-Length": String(file.bytes.length),
+                "Content-Length": String(file.size),
                 "Content-Disposition": `attachment; filename="file"; filename*=UTF-8''${encodeURIComponent(file.fileName).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16)}`)}`,
                 "Cache-Control": "no-store",
                 "X-Content-Type-Options": "nosniff",

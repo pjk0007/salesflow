@@ -44,13 +44,52 @@ import {
 import type { ImportJob } from "./repository";
 import { registerImportFiles } from "@/lib/customer-import-files/registry";
 
+export type ImportMessageBatch = Map<string, Date>;
+async function refreshImportedConversation(
+    tx: DbExec,
+    conversationId: string,
+    createdAt: Date,
+) {
+    const [latest] = await tx
+        .select()
+        .from(messages)
+        .where(and(eq(messages.conversationId, conversationId), sql`${messages.kind}<>'note'`))
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(1);
+    const [count] = await tx
+        .select({ value: sql<number>`count(*)`.mapWith(Number) })
+        .from(messages)
+        .where(and(eq(messages.conversationId, conversationId), eq(messages.kind, "customer")));
+    await tx
+        .update(chats)
+        .set({
+            preview: latest?.body.slice(0, 200) || "",
+            lastMessageAt: latest?.createdAt ?? createdAt,
+            customerSeq: count.value,
+        })
+        .where(eq(chats.id, conversationId));
+}
+export async function refreshImportedConversations(
+    tx: DbExec,
+    batch: ImportMessageBatch,
+) {
+    for (const [id, createdAt] of batch)
+        await refreshImportedConversation(tx, id, createdAt);
+}
+
 export async function applyImportRow(
     actor: SalesActor,
     scope: ImportScope,
     job: ImportJob,
     row: ImportPlanRow,
     tx: DbExec,
+    messageBatch?: ImportMessageBatch,
+    reservedMessageId?: number,
 ) {
+    if (reservedMessageId !== undefined && (
+        row.kind !== "messages" || row.operation !== "create" ||
+        !Number.isSafeInteger(reservedMessageId) || reservedMessageId < 1
+    )) throw new InboxError("새 이전 메시지의 식별자를 확인하지 못했습니다.");
     const state = await lockImportTargets(scope, row, tx);
     if (row.operation === "error" || row.expected !== state.expected)
         throw new InboxError(
@@ -375,7 +414,7 @@ export async function applyImportRow(
             if (row.operation === "create") {
                 const [saved] = await tx
                     .insert(messages)
-                    .values(values)
+                    .values({ ...values, ...(reservedMessageId === undefined ? {} : { id: reservedMessageId }) })
                     .returning();
                 targetId = String(saved.id);
             } else
@@ -383,34 +422,9 @@ export async function applyImportRow(
                     .update(messages)
                     .set(values)
                     .where(eq(messages.id, Number(targetId)));
-            const [latest] = await tx
-                .select()
-                .from(messages)
-                .where(
-                    and(
-                        eq(messages.conversationId, conversationId),
-                        sql`${messages.kind}<>'note'`,
-                    ),
-                )
-                .orderBy(desc(messages.createdAt), desc(messages.id))
-                .limit(1);
-            const [count] = await tx
-                .select({ value: sql<number>`count(*)`.mapWith(Number) })
-                .from(messages)
-                .where(
-                    and(
-                        eq(messages.conversationId, conversationId),
-                        eq(messages.kind, "customer"),
-                    ),
-                );
-            await tx
-                .update(chats)
-                .set({
-                    preview: latest?.body.slice(0, 200) || "",
-                    lastMessageAt: latest?.createdAt ?? chat.createdAt,
-                    customerSeq: count.value,
-                })
-                .where(eq(chats.id, conversationId));
+            if (messageBatch) messageBatch.set(conversationId, chat.createdAt);
+            else
+                await refreshImportedConversation(tx, conversationId, chat.createdAt);
             const eventKey = `import-message:${rowExternalId(scope, row)}`;
             if (chat.contactId && d.messageKind !== "note") {
                 await tx

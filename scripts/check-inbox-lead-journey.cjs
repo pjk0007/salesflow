@@ -1,9 +1,12 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- 실제 고객 없이 메모리 DB·실제 API 검사 */
+/* eslint-disable @typescript-eslint/no-require-imports -- 가상 고객의 격리 DB·실제 API 검사 */
 const assert = require("node:assert/strict");
 const { randomUUID } = require("node:crypto");
 const { eq } = require("drizzle-orm");
 const { runPlatformCheck } = require("./check-customer-platform.cjs");
-runPlatformCheck(async ctx => {
+const runJourneyCheck = process.argv.includes("--postgres")
+    ? require("./customer-platform-test-postgres.cjs").runPostgresPlatformCheck
+    : runPlatformCheck;
+runJourneyCheck(async ctx => {
     const { db, pg, actor, otherActor, channels, contacts, repo, dispatch } = ctx;
     const s = require("../src/lib/db/schema.ts");
     const journey = require("../src/lib/inbox-journey/repository.ts");

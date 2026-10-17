@@ -103,7 +103,7 @@ export type RuleSenderPoolResult =
     | { ok: false; error: string };
 
 /**
- * AI 규칙 API 입력의 발신 주소 묶음을 검사해 저장할 두 칸을 만든다 (DESIGN 7절).
+ * AI 규칙·템플릿 연결 API 입력의 발신 주소 묶음을 검사해 저장할 두 칸을 만든다 (DESIGN 7절).
  *   senderProfileIds가 오면   → 그것을 쓰고 senderProfileId = ids[0] ?? null
  *   senderProfileId만 오면    → senderProfileIds = id ? [id] : null (예전 화면·MCP)
  *   둘 다 없으면              → value: null (두 칸을 건드리지 않는다)

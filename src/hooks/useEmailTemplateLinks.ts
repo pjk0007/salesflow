@@ -29,6 +29,8 @@ export function useEmailTemplateLinks(partitionId: number | null | "all") {
         repeatConfig?: Record<string, unknown> | null;
         followupConfig?: Record<string, unknown> | null;
         preventDuplicate?: number;
+        senderProfileId?: number | null;
+        senderProfileIds?: number[] | null;
     }) => {
         const res = await fetch("/api/email/template-links", {
             method: "POST",
@@ -53,6 +55,8 @@ export function useEmailTemplateLinks(partitionId: number | null | "all") {
             repeatConfig?: Record<string, unknown> | null;
             followupConfig?: Record<string, unknown> | null;
             preventDuplicate?: number;
+            senderProfileId?: number | null;
+            senderProfileIds?: number[] | null;
         }
     ) => {
         const res = await fetch(`/api/email/template-links/${id}`, {

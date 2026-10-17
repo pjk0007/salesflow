@@ -37,6 +37,7 @@ async function runPlatformCheck(extra, testRuntime) {
         });
     }
     ctx.aiTest = { configured: false, deps: null };
+    ctx.archiveTest = { store: null };
     const originalLoad = Module._load;
     Module._load = function (name, parent, isMain) {
         const resolved = Module._resolveFilename(
@@ -57,6 +58,10 @@ async function runPlatformCheck(extra, testRuntime) {
                         },
                     },
             };
+        if (resolved.endsWith("/src/lib/inbox-archive-storage/store.ts")) {
+            const actual = originalLoad.apply(this, arguments);
+            return { ...actual, archiveStore: () => ctx.archiveTest.store ?? actual.archiveStore() };
+        }
         if (resolved.endsWith("/src/lib/ai/client.ts")) {
             const actual = originalLoad.apply(this, arguments);
             return {

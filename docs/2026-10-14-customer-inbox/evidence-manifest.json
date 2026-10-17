@@ -1,4 +1,111 @@
 {
+  "actualChannelMigration20261016": {
+    "source": "designerhire ChannelTalk official contact export and read-only API",
+    "currentContacts": 2634,
+    "contactExportColumns": 59,
+    "historicalCustomerIdsWithUnavailableProfile": 1625,
+    "importedCustomerObjects": 4259,
+    "unavailableAuthorProfiles": { "managers": 3, "bots": 2 },
+    "conversations": 3779,
+    "messages": 88139,
+    "privateNotes": 20588,
+    "files": 2211,
+    "sourceAttachmentBytes": 10362083075,
+    "largeFilesAbove20MiB": 62,
+    "largestFileBytes": 769703730,
+    "sourceStreamArchiveAndDiskHashesVerified": true,
+    "sourceCollectorOriginalFailurePreserved": true,
+    "sourceProfilesInventedOrMatchedByEmail": false,
+    "customerHistoryPublic": false,
+    "actualDatabaseQa": {
+      "target": "isolated loopback PostgreSQL restored from approved sendb-dev-db dump",
+      "existingRecordsPreserved": 348873,
+      "otherBusinessesPreserved": true,
+      "rawMessageBodyAuthorTimeAndFilesCompared": true,
+      "allSourceFingerprintsCompared": true,
+      "representativeReimportPreview": "reuse only",
+      "externalJobsOrSendsAdded": 0
+    },
+    "actualStorageQa": {
+      "target": "additional isolated database clone and loopback S3-compatible storage",
+      "all2211ProtectedDownloadHashesVerified": true,
+      "newFileBytesWrittenToDatabase": 0,
+      "previousLocalDatabaseFileQaBlobsRetained": 2149,
+      "realR2Configured": false,
+      "realBucketPrivacyVerified": false
+    },
+    "fullRestoreQa": {
+      "publicTableCountsMatched": 159,
+      "logicalDigestTables": ["records", "crm_contacts", "inbox_conversations", "inbox_messages", "customer_import_objects", "customer_import_files", "inbox_attachments"],
+      "linkedObjectFilesRestored": 2211,
+      "largestObjectVerifiedAfterStorageRestart": true,
+      "dumpBytes": 2230541096,
+      "dumpSha256": "b17b7d8767771c4b49f6d93ccf5f072905a83120bfc3d080de8335fb18f3d6bd"
+    },
+    "regressionQa": {
+      "unitTestsPassed": 1302,
+      "typecheckAndChangedSourceLintPassed": true,
+      "productionBuildPassedWithIsolatedDummyEnvironment": true,
+      "runtimeMigrations": 115,
+      "runtimeMigrationJournalSha256": "5d66e7ad07e87954bbf18a466228b8c95e33dee7d7437813a194fee7440524a9",
+      "nativePostgresFileCases": 23,
+      "nativePlatformCases": 11,
+      "nativeArchiveStreamingAndSdkCases": true,
+      "verifiedMemberPublicFilesAndPrivateNoteDenial": true,
+      "native250RowAtomicBatchAndConflictRollback": true,
+      "native600ConversationCursorScaleQa": true
+    },
+    "rawDataCredentialsAndDumpCommitted": false,
+    "archiveOperatorCliQa": {
+      "unitTestsPassed": 1310,
+      "typecheckLintAndIsolatedBuildPassed": true,
+      "nativePostgresS3CliAndRealChildHttpVerified": true,
+      "sourceArchiveAll2211FilesRehashed": true,
+      "actualSourceReadOnlyApiChildCli": {
+        "target": "restored actual-source local database and loopback services",
+        "files": 2211,
+        "bytes": 10362083075,
+        "largestFileBytes": 769703730,
+        "allProtectedDownloadHashesMatched": true,
+        "httpGets": 6673,
+        "postAttempts": 0,
+        "newAttachmentsCreated": 0,
+        "validDatabaseUrlInChild": false,
+        "objectCredentialsInChild": false,
+        "existingRecordsPreserved": 348873,
+        "otherBusinessesPreserved": true,
+        "externalJobsOrSendsAdded": 0
+      },
+      "sourceCollectionGapsPreserved": true,
+      "realR2Configured": false,
+      "productionChanged": false
+    },
+    "latestMainIntegrationQa": {
+      "mainRef": "09311524c17b5145ef8284cd7e0612d705fe4d04",
+      "unitTestsPassed": 1335,
+      "typecheckPassed": true,
+      "isolatedProductionBuildPassed": true,
+      "runtimeMigrations": 117,
+      "runtimeJournalSha256": "7735f8e9bf42f51ec7678a4a61a66e071a3dea39b25bd61b25dd231f43cd768b",
+      "migrationCollisionResolved": "main sender 0088 preserved, inbox immediately after by 1ms, sender compatibility appended",
+      "oldSqlAndDatabaseLedgerUnchanged": true,
+      "nativeMainUpgrade": { "baselineMigrations": 89, "newMigrations": 28, "existingTablesPreserved": 100, "senderPoolPreserved": true },
+      "nativeDevUpgrade": { "baselineMigrations": 114, "newMigrations": 2, "existingTablesPreserved": 159 },
+      "nativeArchiveDevUpgrade": { "baselineMigrations": 115, "newMigrations": 1, "existingTablesPreserved": 159 },
+      "actualImportedLocalDbUpgrade": {
+        "publicTableCountsPreserved": 159,
+        "logicalDigestTablesPreserved": 12,
+        "existingRecordsPreserved": 348873,
+        "oldLedgerUnchanged": true,
+        "repeatNoChanges": true,
+        "productionChanged": false
+      }
+    },
+    "remoteDevelopmentDatabaseChanged": false,
+    "productionChanged": false,
+    "websiteProviderSwitched": false,
+    "remaining": ["real private bucket and scoped credentials", "production schema preflight and rollout", "approved source migration in production", "staff acceptance and source delta before website cutover", "verified site identity mapping before customer history exposure"]
+  },
   "capturedAt": "2026-10-14",
   "sdkFiles": [
     {

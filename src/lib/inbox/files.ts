@@ -15,6 +15,7 @@ import { InboxError } from "./errors";
 import { MAX_FILE_BYTES } from "./file-rules";
 import { fileName, safeContentType } from "./file-metadata";
 import { readableCustomerConversation } from "@/lib/inbox-customer-history/visibility";
+import { archiveStore, verifiedArchiveBytes, type ArchiveStore } from "@/lib/inbox-archive-storage/store";
 export { fileName, safeContentType } from "./file-metadata";
 export { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "./file-rules";
 export type FileScope = {
@@ -41,7 +42,7 @@ function publicAttachedFile() {
     const attachmentId = sql.raw('"inbox_attachments"."id"');
     const messageId = sql.raw('"inbox_attachments"."message_id"');
     return sql`${files.kind} in ('customer','reply')
-        and exists(select 1 from inbox_attachment_blobs b where b.attachment_id=${attachmentId})
+        and ("inbox_attachments"."storage_object_key" is not null or exists(select 1 from inbox_attachment_blobs b where b.attachment_id=${attachmentId}))
         and exists(
             select 1 from inbox_messages m
             join inbox_conversations c on c.id=m.conversation_id
@@ -198,6 +199,7 @@ export async function uploadAttachment(
                 and(
                     eq(files.channelId, scope.channelId),
                     isNull(files.cancelledAt),
+                    isNull(files.storageObjectKey),
                 ),
             );
         const quota = attachmentQuotaBytes();
@@ -274,7 +276,7 @@ export async function cancelAttachment(
         return { cancelled: true };
     });
 }
-export async function downloadAttachment(
+async function readableAttachment(
     scope: FileScope,
     id: string,
     exec: DbExec = db,
@@ -299,7 +301,7 @@ export async function downloadAttachment(
             chat: inboxConversations,
         })
         .from(files)
-        .innerJoin(blobs, eq(blobs.attachmentId, files.id))
+        .leftJoin(blobs, eq(blobs.attachmentId, files.id))
         .leftJoin(inboxMessages, eq(inboxMessages.id, files.messageId))
         .leftJoin(
             inboxConversations,
@@ -322,7 +324,7 @@ export async function downloadAttachment(
             ),
         );
     if (
-        !row ||
+        !row || (!row.bytes && !row.file.storageObjectKey) ||
         (scope.publicOnly &&
             scope.conversationId &&
             (!row.chat ||
@@ -346,11 +348,35 @@ export async function downloadAttachment(
               !!(row.file.expiresAt && row.file.expiresAt <= new Date()))
     )
         throw new InboxError("첨부 파일을 찾을 수 없습니다.", 404);
-    return {
-        fileName: row.file.fileName,
-        contentType: row.file.contentType,
-        bytes: row.bytes,
+    return row;
+}
+/** Existing small-file callers keep their Buffer contract. HTTP uses the streaming path below. */
+export async function downloadAttachment(scope: FileScope, id: string, exec: DbExec = db) {
+    const row = await readableAttachment(scope, id, exec);
+    if (!row.bytes)
+        throw new InboxError("보관 파일은 상담의 다운로드 링크를 이용해주세요.", 409);
+    return { fileName: row.file.fileName, contentType: row.file.contentType, bytes: row.bytes };
+}
+export async function downloadAttachmentStream(
+    scope: FileScope, id: string, exec: DbExec = db, store?: ArchiveStore,
+) {
+    // Authenticate and scope-check before touching object storage.
+    const row = await readableAttachment(scope, id, exec);
+    if (!row.file.storageObjectKey) return {
+        fileName: row.file.fileName, contentType: row.file.contentType,
+        size: row.file.size, body: new Uint8Array(row.bytes!),
     };
+    const saved = await (store ?? archiveStore()).get(row.file.storageObjectKey);
+    if (saved.size !== row.file.size) throw new InboxError("보관 파일의 크기가 다릅니다.", 502);
+    const iterator = verifiedArchiveBytes({ size: row.file.size, sha256: row.file.sha256, open: () => saved.body })[Symbol.asyncIterator]();
+    const body = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+            try { const next = await iterator.next(); if (next.done) controller.close(); else controller.enqueue(new Uint8Array(next.value)); }
+            catch { controller.error(new Error("보관 파일을 읽는 중 검증에 실패했습니다.")); await iterator.return?.(); }
+        },
+        async cancel() { await iterator.return?.(); },
+    });
+    return { fileName: row.file.fileName, contentType: row.file.contentType, size: row.file.size, body };
 }
 // Called inside the message transaction, after the conversation lock.
 export async function bindAttachments(

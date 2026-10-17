@@ -113,6 +113,26 @@ test("checkpoint resume after every request boundary matches independent full ID
         assert(!next.calls.slice(1).some(call => completed.has(call.path) && call.path !== "/open/user-chats"));
     }
 });
+test("batched snapshots reduce writes and resume every persisted boundary without missing source IDs", async () => {
+    const every = fixture(); await exportChannelData(every.options);
+    const batched = fixture();
+    const result = await exportChannelData({ ...batched.options, checkpointEveryRequests: 7 });
+    assertOracle(result);
+    assert.ok(batched.saved.length < every.saved.length);
+    assert.deepEqual(batched.saved.at(-1), result.checkpoint);
+    assert.ok(result.limitations.some(v => v.includes("up to 6 requests")));
+    for (const checkpoint of batched.saved.filter(s => s.status === "incomplete")) {
+        const resumed = fixture();
+        assertOracle(await exportChannelData({ ...resumed.options, resume: checkpoint, checkpointEveryRequests: 7 }));
+    }
+    const limited = fixture();
+    const partial = await exportChannelData({ ...limited.options, limits: { ...limited.options.limits, maxRequests: 13 }, checkpointEveryRequests: 7 });
+    assert.equal(partial.status, "incomplete");
+    assert.equal(partial.checkpoint.failure?.code, "request_limit");
+    assert.deepEqual(limited.saved.at(-1), partial.checkpoint, "Stopping between periodic snapshots must persist the actual final state");
+    const resumed = fixture(); assertOracle(await exportChannelData({ ...resumed.options, resume: partial.checkpoint }));
+    for (const checkpointEveryRequests of [0, 101, 1.5]) await assert.rejects(exportChannelData({ ...fixture().options, checkpointEveryRequests }), TypeError);
+});
 test("every run verifies credential channel, including a completed checkpoint resumed with another key", async () => {
     const original = fixture(), finished = await exportChannelData(original.options);
     assertOracle(finished);

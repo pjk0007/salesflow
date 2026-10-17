@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { ImportFile } from "../types";
+import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { useImportFiles } from "../hooks/useImportFiles";
 const button = "rounded-lg border px-3 py-2 text-xs disabled:opacity-40";
 const labels = {
@@ -19,7 +20,9 @@ function FileRow({
 }) {
     const [url, setUrl] = useState(""),
         [expanded, setExpanded] = useState(false);
+    const oversized = row.expectedSize !== null && row.expectedSize > MAX_FILE_BYTES;
     const locked =
+        oversized ||
         actions.busy ||
         !row.active ||
         row.state === "ready" ||
@@ -46,6 +49,9 @@ function FileRow({
             </p>
             {row.error && row.active && (
                 <p className="mt-2 text-amber-800">{row.error}</p>
+            )}
+            {oversized && row.active && row.state !== "ready" && (
+                <p className="mt-2 text-amber-800">20MB를 넘는 이전 첨부입니다. 관리자가 비공개 파일 저장소로 이전해야 합니다.</p>
             )}
             {row.active && row.state !== "ready" && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -124,9 +130,9 @@ export function ImportFilesPanel({ jobId }: { jobId: string }) {
             <h2 className="font-semibold">3. 과거 상담 첨부파일 원본</h2>
             <p className="text-sm text-muted-foreground">
                 상담 정보 저장 후 파일을 따로 가져옵니다. 완료한 파일은 과거
-                상담에서 미리보기·다운로드할 수 있습니다. 파일당 20MB까지이며,
+                상담에서 미리보기·다운로드할 수 있습니다. 화면에서는 파일당 20MB까지이며,
                 원본 주소가 만료되면 주소를 갱신하거나 같은 이름의 보관 파일로
-                보충하세요.
+                보충하세요. 더 큰 이전 첨부는 관리자의 비공개 파일 저장소 이전을 사용합니다.
             </p>
             <div className="flex flex-wrap gap-2">
                 <button
@@ -141,7 +147,7 @@ export function ImportFilesPanel({ jobId }: { jobId: string }) {
                     disabled={
                         busy ||
                         !page.data?.rows.some(
-                            (r) => r.active && r.state === "pending",
+                            (r) => r.active && r.state === "pending" && (r.expectedSize === null || r.expectedSize <= MAX_FILE_BYTES),
                         )
                     }
                     onClick={() => void actions.batch()}

@@ -1,5 +1,5 @@
 import type { SendbInboxTeam } from "./routing-types";
-import type { SendbImportFile, SendbImportFilePage } from "./import-file-types";
+import type { SendbImportFile, SendbImportFilePage, SendbImportFileDetail } from "./import-file-types";
 export type * from "./import-file-types";
 import type {
     SendbReplyGuardPage,
@@ -437,17 +437,20 @@ export class SendbClient {
             input,
         );
     }
-    stepImport(id: string, cursor: number) {
+    stepImport(id: string, cursor: number, batchSize?: number) {
         return this.request<SendbImportJob>(
             `/api/v1/imports/${encodeURIComponent(id)}`,
             "POST",
-            { action: "step", cursor },
+            { action: "step", cursor, ...(batchSize === undefined ? {} : { batchSize }) },
         );
     }
     importFiles(jobId: string, offset = 0) {
         return this.request<SendbImportFilePage>(
             `/api/v1/imports/${encodeURIComponent(jobId)}/files?offset=${offset}`,
         );
+    }
+    importFile(jobId: string, fileId: string) {
+        return this.request<SendbImportFileDetail>(`/api/v1/imports/${encodeURIComponent(jobId)}/files?fileId=${encodeURIComponent(fileId)}`);
     }
     prepareImportFiles(jobId: string, offset = 0) {
         return this.request<{
@@ -465,6 +468,18 @@ export class SendbClient {
             `/api/v1/imports/${encodeURIComponent(jobId)}/files`,
             "POST",
             { action: "fetch", id, version },
+        );
+    }
+    planArchiveImportFile(jobId: string, id: string, version: number, identity: { size: number; sha256: string }) {
+        return this.request<{ objectKey: string; fileName: string; size: number; sha256: string }>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files`, "POST",
+            { action: "archive_plan", id, version, size: identity.size, sha256: identity.sha256 },
+        );
+    }
+    connectArchiveImportFile(jobId: string, id: string, version: number, identity: { size: number; sha256: string }) {
+        return this.request<SendbImportFile>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files`, "POST",
+            { action: "archive_attach", id, version, size: identity.size, sha256: identity.sha256 },
         );
     }
     refreshImportFileSource(

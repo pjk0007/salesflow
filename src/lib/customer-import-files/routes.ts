@@ -6,9 +6,12 @@ import { readFileUpload } from "@/lib/inbox/file-http";
 import { fileAction } from "./rules";
 import {
     importFilePage,
+    importFileDetail,
     prepareImportFiles,
     refreshImportFileSource,
     transferImportFile,
+    archiveImportTarget,
+    connectArchivedImportObject,
 } from "./repository";
 type Context = { params: Promise<{ id: string }> };
 export function importFileHandlers(external: boolean) {
@@ -25,7 +28,8 @@ export function importFileHandlers(external: boolean) {
                         .int()
                         .min(0)
                         .parse(req.nextUrl.searchParams.get("offset") ?? 0);
-                return importFilePage(actor, id, offset);
+                const fileId = req.nextUrl.searchParams.get("fileId");
+                return fileId ? importFileDetail(actor, id, z.string().uuid().parse(fileId)) : importFilePage(actor, id, offset);
             }),
         POST: (req: NextRequest, c: Context) =>
             handleInbox(async () => {
@@ -49,6 +53,10 @@ export function importFileHandlers(external: boolean) {
                     return transferImportFile(actor, jobId, id, version, file);
                 }
                 const input = fileAction.parse(await jsonBody(req));
+                if (input.action === "archive_plan" || input.action === "archive_attach")
+                    return (input.action === "archive_plan" ? archiveImportTarget : connectArchivedImportObject)(
+                        actor, jobId, input.id, input.version, { size: input.size, sha256: input.sha256 },
+                    );
                 if (input.action === "prepare")
                     return prepareImportFiles(actor, jobId, input.offset);
                 if (input.action === "source")

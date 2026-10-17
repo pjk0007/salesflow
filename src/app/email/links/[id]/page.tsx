@@ -39,6 +39,10 @@ import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import useSWR from "swr";
+import { useRuleSenderPool } from "@/components/email/sender-profiles/hooks/useRuleSenderPool";
+import { templateLinkSenderBody } from "@/components/email/template-links/utils/templateLinkSender";
+import TemplateLinkSenderCard from "@/components/email/template-links/ui/TemplateLinkSenderCard";
+import TemplateLinkSenderSummary from "@/components/email/template-links/ui/TemplateLinkSenderSummary";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -74,6 +78,8 @@ function EditLinkPageContent() {
     const { templateLinks, isLoading, updateLink } = useEmailTemplateLinks(partitionId || null);
     const { fields } = useResolvedFields(partitionId || null);
     const link = templateLinks.find((l) => l.id === linkId);
+
+    const sender = useRuleSenderPool(link);
 
     const [saving, setSaving] = useState(false);
     const [loaded, setLoaded] = useState(false);
@@ -131,6 +137,7 @@ function EditLinkPageContent() {
                 repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
                 followupConfig: followupConfig || null,
                 preventDuplicate,
+                ...templateLinkSenderBody(triggerType, sender.ids),
             });
             if (result.success) {
                 toast.success("연결이 수정되었습니다.");
@@ -186,6 +193,7 @@ function EditLinkPageContent() {
                     <div className="flex gap-6">
                         {/* Left: Form */}
                         <div className="flex-1 min-w-0 space-y-6">
+                            <TemplateLinkSenderCard triggerType={triggerType} value={sender.ids} onChange={sender.setIds} />
                             {/* Card 1: 기본 정보 */}
                             <Card id="section-basic">
                                 <CardHeader>
@@ -379,6 +387,8 @@ function EditLinkPageContent() {
                             <div className="sticky top-6 space-y-4">
                                 {/* Section Anchors */}
                                 <div className="flex gap-2 text-sm">
+                                    <button onClick={() => document.getElementById("section-sender")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">발신 설정</button>
+                                    <span className="text-muted-foreground">/</span>
                                     <button onClick={() => document.getElementById("section-basic")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">기본 정보</button>
                                     <span className="text-muted-foreground">/</span>
                                     <button onClick={() => document.getElementById("section-trigger")?.scrollIntoView({ behavior: "smooth" })} className="text-muted-foreground hover:text-foreground transition-colors">자동 발송</button>
@@ -391,6 +401,7 @@ function EditLinkPageContent() {
                                         <CardTitle className="text-sm">요약</CardTitle>
                                     </CardHeader>
                                     <CardContent className="space-y-3 text-sm">
+                                        <TemplateLinkSenderSummary triggerType={triggerType} ids={sender.ids} />
                                         <div className="flex justify-between">
                                             <span className="text-muted-foreground">연결 이름</span>
                                             <span className="font-medium truncate ml-2 max-w-40">{name || "—"}</span>

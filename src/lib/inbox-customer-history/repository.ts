@@ -74,9 +74,10 @@ export async function customerConversationPage(
                 sql`exists(select 1 from inbox_messages m where m.conversation_id=${threadId} and m.kind in ('customer','reply'))`,
                 cursor
                     ? or(
-                          lt(publicLastMessageAt, cursor.at),
+                          // SQL 식에는 칼럼의 Date 인코더가 없어 native postgres-js에 ISO 문자열을 넘긴다.
+                          lt(publicLastMessageAt, sql`${cursor.at.toISOString()}::timestamptz`),
                           and(
-                              eq(publicLastMessageAt, cursor.at),
+                              eq(publicLastMessageAt, sql`${cursor.at.toISOString()}::timestamptz`),
                               lt(chats.id, cursor.id),
                           ),
                       )

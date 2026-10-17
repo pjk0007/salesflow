@@ -6,6 +6,8 @@ import {
     fingerprint,
     knowledgeSchema,
     normalizedBody,
+    parseCopyOutput,
+    passedPreparationDeadline,
     percentile,
     policySchema,
     targetsFor,
@@ -189,4 +191,23 @@ test("한 문단에 인사와 본문이 함께 있어도 본문을 버리지 않
             { subject: "안내", htmlBody: first },
         ),
     );
+});
+
+test("parseCopyOutput은 앞에 설명 문장이 붙은 JSON 코드블록도 읽는다", () => {
+    const content = '패턴 선택 계산: **회사명: "너의반찬"** - 글자 수 4글자\n```json\n{ "subject": "제목", "htmlBody": "<p>본문</p>" }\n```';
+    assert.deepEqual(parseCopyOutput(content), { subject: "제목", htmlBody: "<p>본문</p>" });
+});
+test("parseCopyOutput은 순수 JSON과 펜스만 있는 JSON을 그대로 읽는다", () => {
+    assert.deepEqual(parseCopyOutput('{"a":1}'), { a: 1 });
+    assert.deepEqual(parseCopyOutput('```json\n{"a":1}\n```'), { a: 1 });
+});
+test("parseCopyOutput은 JSON이 없으면 JSON 출력 형식 오류를 던진다", () => {
+    assert.throws(() => parseCopyOutput("죄송합니다. 작성할 수 없습니다."), /JSON 출력 형식 오류/);
+});
+test("passedPreparationDeadline은 차례 대기 시간을 빼고 첫 시도부터 기한을 센다", () => {
+    const now = new Date("2026-10-16T03:00:00Z");
+    assert.equal(passedPreparationDeadline({ attempts: 0, firstAttemptAt: null }, now), false);
+    assert.equal(passedPreparationDeadline({ attempts: 1, firstAttemptAt: "2026-10-16T02:50:00Z" }, now), false);
+    assert.equal(passedPreparationDeadline({ attempts: 1, firstAttemptAt: "2026-10-16T02:30:00Z" }, now), true);
+    assert.equal(passedPreparationDeadline({ attempts: 5, firstAttemptAt: "2026-10-16T02:59:00Z" }, now), true);
 });

@@ -45,7 +45,7 @@ test("공식 고정 origin·GET·버전·서버 인증 헤더만 사용하고 �
     assert.equal(sent?.init?.body, undefined);
 });
 test("자료 수집에 쓰는 channel/managers/사용자 detail/문의 detail·messages·file 경로 허용", async () => {
-    const paths = ["/open/channel", "/open/managers", "/open/managers/manager-1", "/open/users/user-1", "/open/users/user-1/user-chats", "/open/user-chats", "/open/user-chats/chat-1", "/open/user-chats/chat-1/messages", "/open/user-chats/chat-1/messages/file"];
+    const paths = ["/open/channel", "/open/bots", "/open/managers", "/open/managers/manager-1", "/open/users/user-1", "/open/users/user-1/user-chats", "/open/user-chats", "/open/user-chats/chat-1", "/open/user-chats/chat-1/messages", "/open/user-chats/chat-1/messages/file"];
     let count = 0;
     const request = createChannelSourceRequest({ ...credentials, fetch: async () => { count++; return json(); } });
     for (const path of paths) await request(input({ path }));

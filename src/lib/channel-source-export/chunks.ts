@@ -43,6 +43,7 @@ export type ChannelChunkPlan = {
         rawOccurrences: ChannelRawCounts;
         limitations: string[];
         warnings: string[];
+        unavailableAuthorProfiles: { kind: "managers" | "bots"; sourceId: string }[];
     };
 };
 export class ChannelChunkError extends Error {
@@ -73,7 +74,7 @@ type RecordItem = { kind: Collection; id: string; raw: Entity; serialized: strin
 /** importer에 실제로 들어갈 행과 JSON 크기를 기준으로 의존 관계를 보존해 분할한다. */
 export function splitChannelBundle(
     raw: unknown,
-    options: { workspaceId: number; namespace: string; maxRows?: number; maxCharacters?: number; maxBytes?: number },
+    options: { workspaceId: number; namespace: string; maxRows?: number; maxCharacters?: number; maxBytes?: number; allowUnavailableAuthorProfiles?: boolean },
 ): ChannelChunkPlan {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new ChannelChunkError("source_invalid");
     const source = raw as Record<string, unknown>;
@@ -109,6 +110,7 @@ export function splitChannelBundle(
         if (!found) throw new ChannelChunkError("missing_dependency", { kind: owner.kind, sourceId: owner.id, dependencyKind: kind, dependencyId: typeof id === "string" ? id : undefined });
         return found;
     };
+    const unavailableAuthors = new Map<string, { kind: "managers" | "bots"; sourceId: string }>();
     const dependencies = (item: RecordItem): RecordItem[] => {
         if (item.kind === "users") return [item];
         const chat = item.kind === "userChats" ? item : requireRecord("userChats", item.raw.chatId, item);
@@ -116,7 +118,12 @@ export function splitChannelBundle(
         if (item.kind === "userChats") return [user, chat];
         const result = [user, chat];
         const actorKind = item.raw.personType === "user" ? "users" : item.raw.personType === "manager" ? "managers" : item.raw.personType === "bot" ? "bots" : undefined;
-        if (actorKind) result.push(requireRecord(actorKind, item.raw.personId, item));
+        if (actorKind) {
+            const author = typeof item.raw.personId === "string" ? records[actorKind].get(item.raw.personId) : undefined;
+            if (author) result.push(author);
+            else if (options.allowUnavailableAuthorProfiles === true && actorKind !== "users" && typeof item.raw.personId === "string" && item.raw.personId) unavailableAuthors.set(`${actorKind}/${item.raw.personId}`, { kind: actorKind, sourceId: item.raw.personId });
+            else result.push(requireRecord(actorKind, item.raw.personId, item));
+        }
         return [...result, item];
     };
     const phases = [
@@ -178,5 +185,5 @@ export function splitChannelBundle(
         }
         flush();
     }
-    return { chunks, manifest: { formatVersion: 1, source: "channel", namespace: baseInput.namespace, workspaceId: baseInput.workspaceId, limits, uniqueCounts, importedCounts, dependencyCounts, rawUniqueCounts: Object.fromEntries(collections.map(kind => [kind, records[kind].size])) as ChannelRawCounts, duplicateRawCounts, rawOccurrences, warnings: [...new Set(chunks.flatMap(chunk => chunk.warnings))], limitations: ["각 파일을 순서대로 같은 원본 계정 이름(namespace)으로 가져오세요. 고객·상담 의존 행과 작성자 자료가 반복됩니다.", "첨부는 원본 정보만 포함합니다. 파일 원본 백업/연결 완료와 고객 공개 여부는 별도입니다.", "수집한 상담에 연결된 고객만 포함할 수 있으며 전체 고객·계정·권한·보존 범위의 완전성을 증명하지 않습니다."] } };
+    return { chunks, manifest: { formatVersion: 1, source: "channel", namespace: baseInput.namespace, workspaceId: baseInput.workspaceId, limits, uniqueCounts, importedCounts, dependencyCounts, rawUniqueCounts: Object.fromEntries(collections.map(kind => [kind, records[kind].size])) as ChannelRawCounts, duplicateRawCounts, rawOccurrences, unavailableAuthorProfiles: [...unavailableAuthors.values()], warnings: [...new Set(chunks.flatMap(chunk => chunk.warnings))], limitations: ["각 파일을 순서대로 같은 원본 계정 이름(namespace)으로 가져오세요. 고객·상담 의존 행과 작성자 자료가 반복됩니다.", "첨부는 원본 정보만 포함합니다. 파일 원본 백업/연결 완료와 고객 공개 여부는 별도입니다.", "수집한 상담에 연결된 고객만 포함할 수 있으며 전체 고객·계정·권한·보존 범위의 완전성을 증명하지 않습니다.", ...(unavailableAuthors.size ? [`조회할 수 없는 상담원·봇 프로필 ${unavailableAuthors.size}개는 이름을 추정하지 않습니다. 메시지의 원본 작성자 ID·종류·시각·내용·비공개 구분을 보존하고 일반 종류명으로 표시합니다.`] : [])] } };
 }

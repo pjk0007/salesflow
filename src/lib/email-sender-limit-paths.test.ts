@@ -13,6 +13,7 @@ import {
     restartedWarmupStartedOn,
     senderProfileChangeNeedsAdmin,
     senderProfileDeleteNeedsAdmin,
+    templateClaimOptions,
     templateFirstKind,
     templateFirstKindsBlockedBy,
     templateFirstPurpose,
@@ -263,19 +264,19 @@ test("recordPurposeBlock: 문의(첫 메일)가 막히면 대량(반복)도 막�
     const blocked = new Map<string, Date>();
     const now = kstToDate("2026-10-05", 10);
     const until = kstToDate("2026-10-06", 9);
-    recordPurposeBlock(blocked, "o1", "inbound", until);
-    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "inbound"), now), until);
-    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "bulk"), now), until);
-    // 다른 조직은 그대로
-    assert.equal(activeBlock(blocked, purposeBlockKey("o2", "inbound"), now), null);
+    recordPurposeBlock(blocked, 15, "inbound", until);
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey(15, "inbound"), now), until);
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey(15, "bulk"), now), until);
+    // 다른 연결은 그대로
+    assert.equal(activeBlock(blocked, purposeBlockKey(16, "inbound"), now), null);
 });
 
 test("recordPurposeBlock: 대량(반복)이 막혀도 문의(첫 메일)는 열려 있다 — 문의 몫", () => {
     const blocked = new Map<string, Date>();
     const now = kstToDate("2026-10-05", 10);
-    recordPurposeBlock(blocked, "o1", "bulk", kstToDate("2026-10-05", 15));
-    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "bulk"), now), kstToDate("2026-10-05", 15));
-    assert.equal(activeBlock(blocked, purposeBlockKey("o1", "inbound"), now), null);
+    recordPurposeBlock(blocked, 15, "bulk", kstToDate("2026-10-05", 15));
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey(15, "bulk"), now), kstToDate("2026-10-05", 15));
+    assert.equal(activeBlock(blocked, purposeBlockKey(15, "inbound"), now), null);
 });
 
 test("recordPurposeBlock: 더 늦게까지 막힌 기록은 당기지 않는다", () => {
@@ -283,10 +284,10 @@ test("recordPurposeBlock: 더 늦게까지 막힌 기록은 당기지 않는다"
     const now = kstToDate("2026-10-05", 10);
     const tomorrow = kstToDate("2026-10-06", 9);
     // 대량은 내일까지, 그 뒤 문의가 간격으로 10:05까지 막힘 → 대량은 내일 그대로
-    recordPurposeBlock(blocked, "o1", "bulk", tomorrow);
-    recordPurposeBlock(blocked, "o1", "inbound", kstToDate("2026-10-05", 10, 5));
-    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "bulk"), now), tomorrow);
-    assert.deepEqual(activeBlock(blocked, purposeBlockKey("o1", "inbound"), now), kstToDate("2026-10-05", 10, 5));
+    recordPurposeBlock(blocked, 15, "bulk", tomorrow);
+    recordPurposeBlock(blocked, 15, "inbound", kstToDate("2026-10-05", 10, 5));
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey(15, "bulk"), now), tomorrow);
+    assert.deepEqual(activeBlock(blocked, purposeBlockKey(15, "inbound"), now), kstToDate("2026-10-05", 10, 5));
 });
 
 // ── REVIEW-2 안전 F4: 가져오기·예약 등록 명단의 템플릿 첫 메일은 대량 (kind='first_bulk') ──
@@ -340,4 +341,59 @@ test("R8: 같은 시각에 열린 줄 — 먼저 들어온 'first_bulk'가 있�
         orderRepeatQueueItems([{ id: 3, kind: "repeat" }, { id: 1, kind: "first_bulk" }, { id: 2, kind: "repeat" }]).map((r) => r.id),
         [1, 2, 3]
     );
+});
+
+
+test("template pool: block keys separate links and purposes (B17)", () => {
+    assert.equal(purposeBlockKey(15, "inbound"), "link:15|inbound");
+    assert.notEqual(purposeBlockKey(15, "inbound"), purposeBlockKey(16, "inbound"));
+    assert.notEqual(purposeBlockKey(15, "inbound"), purposeBlockKey(15, "bulk"));
+});
+
+test("templateClaimOptions: pool, purpose and legacy single id (B10/B15)", () => {
+    for (const purpose of ["inbound", "bulk"] as const) {
+        assert.deepEqual(templateClaimOptions({ senderProfileId: 8, senderProfileIds: [8, 7] }, purpose, LEGACY), {
+            mode: "pool", ids: [8, 7], config: LEGACY, spreadDeferrals: true, purpose,
+        });
+    }
+    assert.deepEqual(templateClaimOptions({ senderProfileId: 7, senderProfileIds: null }, "inbound", null).ids, [7]);
+});
+
+test("templateClaimOptions: empty pools match fixed default and legacy fallback (B11)", () => {
+    for (const senderProfileIds of [null, []]) {
+        const options = templateClaimOptions({ senderProfileId: null, senderProfileIds }, "inbound", LEGACY);
+        for (const profiles of [ORG, [profile(7), profile(8)]]) {
+            const selected = pickSenderCandidates(profiles, options);
+            assert.deepEqual(selected, pickSenderCandidates(profiles, { mode: "fixed", ids: [], config: LEGACY }));
+            assert.equal(firstPick(selected), profiles === ORG ? 5 : "legacy@example.com");
+        }
+    }
+});
+
+test("templateClaimOptions: deleted or foreign ids fall back within the organization (B12)", () => {
+    const options = templateClaimOptions({ senderProfileId: 99, senderProfileIds: [99, 100] }, "inbound", LEGACY);
+    assert.equal(firstPick(pickSenderCandidates(ORG, options)), 5);
+});
+
+test("templateClaimOptions: valid pool candidates retain chosen order (B12/B13)", () => {
+    const options = templateClaimOptions({ senderProfileId: 99, senderProfileIds: [99, 8, 7] }, "bulk", LEGACY);
+    const candidates = pickSenderCandidates(ORG, options);
+    assert.ok(Array.isArray(candidates));
+    assert.deepEqual(candidates.map(p => p.id), [8, 7]);
+});
+
+test("template followup: parent first, deleted parent uses pool, empty pool uses default (B19)", () => {
+    const link = { senderProfileId: 8, senderProfileIds: [8, 7] };
+    for (const [parent, expected] of [[7, 7], [99, 8]] as const) {
+        assert.equal(firstPick(pickSenderCandidates(ORG, {
+            mode: "fixed", ids: followupSenderOrder(parent, link), config: LEGACY,
+        })), expected);
+    }
+    assert.equal(firstPick(pickSenderCandidates(ORG, {
+        mode: "fixed", ids: followupSenderOrder(null, { senderProfileId: null, senderProfileIds: [] }), config: LEGACY,
+    })), 5);
+});
+
+test("template followup: old link without a pool retains parent-only order (B19)", () => {
+    assert.deepEqual(followupSenderOrder(7, { senderProfileId: null, senderProfileIds: null }), [7]);
 });

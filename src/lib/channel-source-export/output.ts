@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { hostname } from "node:os";
+import { setTimeout as pause } from "node:timers/promises";
 import { createImportInput } from "@/lib/customer-imports/rules";
 import type { ChannelChunkPlan } from "./chunks";
 
@@ -27,6 +28,23 @@ const json = (value: unknown) => {
     catch { throw new ChannelOutputError("checkpoint"); }
 };
 const hash = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
+/** Windows의 파일 검사/읽기와 겹친 교체만 짧게 재시도한다. 기존 파일은 삭제하지 않는다. */
+export async function renameArchiveFile(
+    temporary: string,
+    target: string,
+    recheck: () => Promise<void>,
+    io: { rename: typeof fs.rename; wait: (ms: number) => Promise<unknown> } = { rename: fs.rename, wait: pause },
+) {
+    const delays = [20, 60, 150, 300, 600];
+    for (let attempt = 0; ; attempt++) {
+        await recheck();
+        try { await io.rename(temporary, target); return; }
+        catch (error) {
+            if (!["EPERM", "EACCES", "EBUSY"].includes((error as NodeJS.ErrnoException).code ?? "") || attempt >= delays.length) throw error;
+            await io.wait(delays[attempt]);
+        }
+    }
+}
 const object = (value: unknown): Record<string, unknown> => {
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new ChannelOutputError("checkpoint");
     return value as Record<string, unknown>;
@@ -164,7 +182,7 @@ export async function openChannelOutput(
         try {
             const handle = await fs.open(temporary, "wx", 0o600);
             try { await handle.writeFile(content); await handle.sync(); } finally { await handle.close(); }
-            await assertLock(); await fs.rename(temporary, target);
+            await renameArchiveFile(temporary, target, assertLock);
         }
         finally { try { await fs.unlink(temporary); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; } }
     };

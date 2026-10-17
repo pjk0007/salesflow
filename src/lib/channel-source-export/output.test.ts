@@ -6,11 +6,32 @@ import { tmpdir, hostname } from "node:os";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { splitChannelBundle, type ChannelChunkBundle } from "./chunks";
-import { channelOutputIdentity, ChannelOutputError, openChannelOutput } from "./output";
+import { channelOutputIdentity, ChannelOutputError, openChannelOutput, renameArchiveFile } from "./output";
 import { exportChannelData } from "@/lib/customer-imports/channel-export";
 import { createChannelCollectorRequest } from "./collector-request";
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 const identity = channelOutputIdentity({ channelId: "fictional", namespace: "fictional-export", workspaceId: 8 });
+test("Windows 일시 파일 잠금은 기존 체크포인트를 지우지 않고 원자 교체 재시도", async () => {
+    const root = await fs.mkdtemp(path.join(tmpdir(), "sendb-rename-fictional-"));
+    const old = path.join(root, "checkpoint.json"), temporary = path.join(root, "temporary");
+    try {
+        await fs.writeFile(old, "previous"); await fs.writeFile(temporary, "next");
+        let attempts = 0, checks = 0; const delays: number[] = [];
+        await renameArchiveFile(temporary, old, async () => { checks++; }, {
+            rename: async (from, to) => { if (++attempts < 3) { assert.equal(await fs.readFile(old, "utf8"), "previous"); throw Object.assign(new Error("fictional busy"), { code: "EPERM" }); } await fs.rename(from, to); },
+            wait: async ms => { delays.push(ms); },
+        });
+        assert.equal(await fs.readFile(old, "utf8"), "next"); assert.equal(checks, 3); assert.deepEqual(delays, [20, 60]);
+        await fs.writeFile(temporary, "pending"); attempts = 0;
+        await assert.rejects(renameArchiveFile(temporary, old, async () => {}, { rename: async () => { attempts++; throw Object.assign(new Error("fictional busy"), { code: "EPERM" }); }, wait: async () => {} }));
+        assert.equal(attempts, 6); assert.equal(await fs.readFile(old, "utf8"), "next");
+        attempts = 0;
+        await assert.rejects(renameArchiveFile(temporary, old, async () => {}, { rename: async () => { attempts++; throw Object.assign(new Error("fictional I/O failure"), { code: "EIO" }); }, wait: async () => assert.fail("Non-transient errors must not retry") }));
+        assert.equal(attempts, 1);
+        await assert.rejects(renameArchiveFile(temporary, old, async () => { throw new ChannelOutputError("locked"); }, { rename: async () => assert.fail("Lost lock must prevent replacement"), wait: async () => {} }), (error: unknown) => error instanceof ChannelOutputError && error.code === "locked");
+        assert.equal(await fs.readFile(old, "utf8"), "next");
+    } finally { assert.equal(path.dirname(path.resolve(root)), path.resolve(tmpdir())); assert.ok(path.basename(root).startsWith("sendb-rename-fictional-")); await fs.rm(root, { recursive: true, force: true }); }
+});
 const bundle = (): ChannelChunkBundle => ({ users: [{ id: "u", profile: { name: "허구" } }], managers: [], bots: [], userChats: [{ id: "c", userId: "u", state: "opened" }], messages: [{ id: "m", chatId: "c", personType: "user", personId: "u", plainText: "허구", createdAt: 1704067200000 }], hasNext: false });
 const result = (raw = bundle(), phase: "complete" | "incomplete" = "complete") => {
     raw.hasNext = phase !== "complete";
