@@ -1,0 +1,29 @@
+# 디자이너하이어 사이트 상담 전환
+
+디하 홈페이지의 상담 버튼과 하단 상담창을 샌드비 수신함에 연결한다. 비회원은 이름을 입력해 문의하고, 로그인한 기업 고객과 디자이너는 자신의 회원 상담으로 연결된다. 사이트 내 기업·디자이너 업무 채팅은 기존 기능을 유지한다.
+
+## 회원 연결
+
+사이트는 Firebase ID 토큰을 `POST /api/messenger/<channelKey>/site-identity`로 전달한다. 샌드비는 설정된 Firebase 프로젝트의 Google Auth REST `accounts:lookup`으로 동일 토큰을 검증한 뒤, **같은 고객 토큰**으로 Firestore `users/<확인된 UID>`의 필요한 필드만 조회한다. Firestore Security Rules가 적용되며 관리자 키·서비스 토큰·운영 DB 직접 접속은 사용하지 않는다.
+
+이름·이메일·고객 ID를 요청 본문으로 받아 본인으로 인정하지 않는다. 현재 UID를 해당 상담 채널의 워크스페이스에만 연결하며, 만료·비활성·철회·다른 프로젝트 토큰과 관리자 역할은 거절한다. 기존 직원 전용 속성은 해제하지 않는다. 기존 리드는 명시된 회원 식별 필드가 하나만 일치할 때 연결한다.
+
+새 상담과 본인이 인증한 샌드비 상담은 이어 볼 수 있다. 이전 채널톡에서 가져온 상담은 검증되지 않은 고객에게 자동 공개하지 않으며 직원의 ‘이전 상담 기록’에서 확인한다. 내부 메모는 고객 화면에 표시하지 않는다.
+
+## 설정
+
+- 샌드비: `INBOX_FIREBASE_SITE_PROVIDERS`는 `channelKey`, `projectId`, Firebase 공개 웹 `apiKey`를 가진 배열이다. 중복·누락·잘못된 설정은 회원 연결을 차단한다. 비밀 관리자 키를 넣지 않는다.
+- 디하: `NEXT_PUBLIC_SUPPORT_PROVIDER=sendb`, `NEXT_PUBLIC_SENDB_SUPPORT_API_BASE`, `NEXT_PUBLIC_SENDB_SUPPORT_CHANNEL_KEY`, `NEXT_PUBLIC_SENDB_SUPPORT_IDENTITY_URL`을 빌드에 지정한다. 회원 인증 URL은 위 샌드비 경로다.
+- 상담 채널에 설치 도메인을 정확한 origin으로 등록하고 사용을 켠다. 임의 도메인 와일드카드는 사용하지 않는다.
+
+## 검수
+
+단위 테스트는 Google 검증 실패, 다른 프로젝트, 철회, UID 불일치, Firestore 권한 거절, 역할, 비공개 필드 제외를 확인한다. `node --import tsx scripts/check-firebase-site-identity.cjs`는 소유한 loopback PostgreSQL의 가상 DB에서 실제 인증 API·CORS·반복 로그인·계정 및 채널 분리를 검수한다. Google 및 실제 고객에게 테스트 요청을 보내지 않는다.
+
+사이트 SDK 검수는 비회원 문의, 로그인 병합, 같은 화면 재시도와 초안 보존, 늦게 도착한 계정 A 응답의 계정 B 적용 방지, 로그아웃 시 상담 분리를 포함한다. 실제 배포 검수 결과와 Hosting 이전 버전은 로컬 비공개 배포 기록에 보관한다.
+
+## 운영 사용과 복구
+
+고객은 디하 사이트 하단 상담 버튼을 누른다. 직원은 샌드비 → 고객 상담 → 디자이너하이어 → 전체 상담에서 새 문의를 확인하고 답한다. 과거 채널톡 상담은 이전 상담 기록에 있다. AI 자동 답변 여부는 기존 상담 AI 설정을 따르며 이번 연결 작업에서 자동 응답을 켜지 않는다.
+
+사이트 장애 시 저장한 Firebase Hosting 이전 버전을 복구하면 기존 채널톡 설치 버전으로 돌아갈 수 있다. 새 샌드비 상담 자료는 삭제하지 않는다. 제공자 설정을 수정하려면 공개 환경 설정을 바꿔 다시 빌드한다. Firebase Functions·결제 API·Firestore 스키마는 이 배포에 포함하지 않는다.
