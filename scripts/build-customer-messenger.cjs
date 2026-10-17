@@ -3,6 +3,14 @@ const fs = require("node:fs"), path = require("node:path"), { createHash } = req
 const repo = path.resolve(__dirname, ".."), args = new Map();
 for (let i = 2; i < process.argv.length; i++) if (process.argv[i].startsWith("--") && process.argv[i] !== "--") args.set(process.argv[i].slice(2), process.argv[++i]);
 const output = args.get("outdir"), channel = args.get("channel"), origin = new URL(args.get("api-base") || "https://sendb.kr");
+const imageAttribute = key => {
+    const value = args.get(key);
+    if (!value) return "";
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) throw new Error("HTTPS brand image required");
+    return ` data-${key}="${url.href.replaceAll("&", "&amp;").replaceAll('"', "&quot;")}"`;
+};
+const branding = imageAttribute("brand-logo") + imageAttribute("brand-icon");
 if (!output || !path.isAbsolute(output) || !/^[a-f0-9]{48}$/.test(channel || "") || origin.protocol !== "https:" || origin.username || origin.password || origin.pathname !== "/" || origin.search || origin.hash) throw new Error("absolute --outdir, public --channel and HTTPS origin --api-base required");
 const esbuild = require(require.resolve("esbuild", { paths: [repo, path.dirname(require.resolve("tsx/package.json"))] }));
 const hash = bytes => createHash("sha256").update(bytes).digest("hex"), text = file => fs.readFileSync(file, "utf8").replaceAll("\r\n", "\n");
@@ -16,7 +24,7 @@ const hash = bytes => createHash("sha256").update(bytes).digest("hex"), text = f
     const files = { js: `sendb-messenger.${hash(values.js).slice(0, 16)}.js`, css: `sendb-messenger.${hash(values.css).slice(0, 16)}.css`, sdk: `sendb-sdk.${hash(values.sdk).slice(0, 16)}.js` };
     fs.mkdirSync(output, { recursive: true });
     for (const kind of Object.keys(files)) fs.writeFileSync(path.join(output, files[kind]), values[kind]);
-    const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>고객 상담</title><link rel="stylesheet" href="/${files.css}"></head><body><div id="sendb-messenger-root"><p role="status">상담을 연결하고 있습니다…</p></div><script src="/${files.js}" data-api-base="${origin.origin}" data-channel="${channel}" defer></script></body></html>`;
+    const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>고객 상담</title><link rel="stylesheet" href="/${files.css}"></head><body><div id="sendb-messenger-root"><p role="status">상담을 연결하고 있습니다…</p></div><script src="/${files.js}" data-api-base="${origin.origin}" data-channel="${channel}"${branding} defer></script></body></html>`;
     fs.writeFileSync(path.join(output, "sendb-messenger.html"), html);
     const sourceHashes = Object.fromEntries(inputs.filter(p => p.startsWith("src/") || p.startsWith("sdk/")).map(p => [p, hash(Buffer.from(text(path.resolve(repo, p))))]));
     let revision = "unknown", modified = true;
