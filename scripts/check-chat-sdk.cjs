@@ -65,6 +65,7 @@ function fixture(options = {}) {
         location: { origin: "https://site.example.test", pathname: "/" },
         URL,
         AbortSignal,
+        DOMParser: options.DOMParser,
         fetch:
             options.fetch ??
             (() => {
@@ -146,6 +147,76 @@ async function main() {
         await fn();
         console.log("PASS CHAT SDK " + ++checks + " " + title);
     }
+    // Stub only inert HTML serialization; native Chrome covers the real DOMParser/UI.
+    class Parser {
+        parseFromString(html) {
+            const dataset = {}, bases = [], root = {
+                dataset,
+                get outerHTML() { return JSON.stringify({ html, dataset, bases }); },
+            };
+            return {
+                documentElement: root,
+                getElementById: () => html.includes('sendb-messenger-root') ? {} : null,
+                querySelectorAll: () => [],
+                createElement: () => ({}),
+                head: { prepend: node => bases.push(node.href) },
+            };
+        }
+    }
+    const html = '<html><div id="sendb-messenger-root"></div></html>';
+    const htmlResponse = () => new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+    await check('사이트 내부 프레임은 공개 설정만 srcdoc에 넣고 메시지 origin과 API 목적지를 분리', async () => {
+        const requests = [], f = fixture({ DOMParser: Parser, fetch: async (url, options) => { requests.push({url, options}); return htmlResponse(); } });
+        assert.equal(f.sdk.supportsFirstPartyMessenger, true);
+        const boot = f.sdk.boot({ apiBase: 'https://sendb.example.test', channelKey: f.key, messengerPath: '/sendb-messenger.html', identityToken: 'private-test-jwt' });
+        await settle();
+        assert.equal(requests[0].url, 'https://site.example.test/sendb-messenger.html');
+        assert.equal(requests[0].options.credentials, 'omit');
+        assert.equal(requests[0].options.redirect, 'error');
+        assert.equal(requests[0].options.cache, 'no-store');
+        const frame = f.active('iframe');
+        assert.equal(frame.src, undefined);
+        assert.ok(frame.srcdoc.includes('https://sendb.example.test'));
+        assert.ok(!frame.srcdoc.includes('private-test-jwt'));
+        f.ready(); assert.equal(frame.configurationId, undefined);
+        f.ready(frame.contentWindow, 'https://site.example.test'); await boot;
+        assert.equal(f.destinations.at(-1), 'https://site.example.test');
+        assert.equal(f.posts.findLast(p => p.type === 'sendb:configure').identityToken, 'private-test-jwt');
+        f.sdk.shutdown();
+    });
+    await check('외부 URL·상대 경로·HTML 외 파일·쿼리를 시작 전에 거절', async () => {
+        for (const messengerPath of ['https://evil.test/a.html', '//evil.test/a.html', '/../../a.html', '/a.html?token=x', '/a.html#x', '/a.js', '/%2e%2e/a.html']) {
+            const f = fixture();
+            await assert.rejects(f.sdk.boot({channelKey:f.key, messengerPath}));
+            assert.equal(f.active('iframe'), undefined);
+        }
+    });
+    await check('HTML 실패 후 시작 상태를 해제하고 같은 고객이 재시도 가능', async () => {
+        for (const response of [new Response('missing', {status:404}), new Response('{}', {headers:{'content-type':'application/json'}}), new Response('<html></html>', {headers:{'content-type':'text/html'}})]) {
+            let attempt = 0;
+            const f = fixture({DOMParser:Parser, fetch: async () => ++attempt === 1 ? response : htmlResponse()});
+            await assert.rejects(f.sdk.boot({channelKey:f.key,messengerPath:'/sendb-messenger.html'}));
+            assert.equal(f.sdk.getSessionType(),'uninitialized');
+            const boot = f.sdk.boot({channelKey:f.key,messengerPath:'/sendb-messenger.html'}); await settle();
+            f.ready(f.active('iframe').contentWindow, 'https://site.example.test'); await boot;
+            assert.equal(f.sdk.getSessionType(),'anonymous'); f.sdk.shutdown();
+        }
+    });
+    await check('늦게 도착한 이전 HTML이 새 회원 프레임과 설정을 교체하지 않음', async () => {
+        let release;
+        const delayed = new Promise(resolve => {release = resolve;});
+        let count = 0;
+        const f = fixture({DOMParser:Parser, fetch: async () => ++count === 1 ? delayed : htmlResponse()});
+        const old = f.sdk.boot({channelKey:f.key,messengerPath:'/sendb-messenger.html',identityToken:'old-member'});
+        const current = f.sdk.boot({channelKey:f.key,messengerPath:'/sendb-messenger.html',identityToken:'new-member'});
+        await settle(); const frame = f.active('iframe');
+        f.ready(frame.contentWindow,'https://site.example.test'); await current;
+        release(htmlResponse()); await old;
+        assert.equal(f.active('iframe'),frame);
+        assert.equal(f.posts.findLast(p=>p.type==='sendb:configure').identityToken,'new-member');
+        f.sdk.shutdown();
+    });
     await check("첫 프레임이 준비 시간 초과 뒤 로드되어도 같은 프레임에서 자동 연결하고 옛 프레임은 거절", async () => {
         const f = fixture(), pending = f.sdk.boot({ channelKey: f.key }), frame = f.active("iframe");
         const failed = assert.rejects(pending, /상담창을 연결하지 못/);
@@ -175,7 +246,7 @@ async function main() {
         "시작 전과 종료 후 세션 상태·버튼 제어는 인증 정보를 노출하지 않음",
         async () => {
             const f = fixture();
-            assert.equal(f.sdk.version, "1.5.0");
+            assert.equal(f.sdk.version, "1.6.0");
             assert.equal(f.sdk.getSessionType(), "uninitialized");
             f.sdk.hideLauncher();
             f.sdk.showLauncher();
@@ -920,7 +991,7 @@ async function main() {
         },
     );
     console.log(
-        "Chat SDK 1.5.0 가상 DOM/실제 배포 JS QA " +
+        "Chat SDK 1.6.0 가상 DOM/실제 배포 JS QA " +
             checks +
             "개 통과 · 외부 전송 0건",
     );

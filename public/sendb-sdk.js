@@ -39,7 +39,7 @@
                     { type: type, key: state.options.channelKey },
                     extra || {},
                 ),
-                state.base,
+                state.frameOrigin,
             );
     }
     function configure(state) {
@@ -227,12 +227,21 @@
             !options.getIdentityToken
                 ? store(current.storageKey)
                 : null;
+        var messenger;
+        if (options.messengerPath) {
+            if (typeof options.messengerPath !== "string" || !/^\/(?!\/)[A-Za-z0-9/_.-]+\.html$/.test(options.messengerPath) || options.messengerPath.split("/").includes(".."))
+                throw new Error("상담 화면 경로를 확인해주세요.");
+            messenger = new URL(options.messengerPath, location.origin);
+            if (messenger.origin !== location.origin)
+                throw new Error("상담 화면은 이 사이트 안에 설치해주세요.");
+        }
         shutdown();
         if (retained)
             store("sendb-chat-session:" + options.channelKey, retained);
         var state = {
             options: options,
             base: base.origin,
+            frameOrigin: messenger ? messenger.origin : base.origin,
             opened: false,
             identityToken: options.identityToken || "",
             ready: false,
@@ -266,6 +275,41 @@
             }
         }
         if (current !== state) return;
+        var messengerHtml;
+        if (messenger) {
+            try {
+                var htmlResponse = await fetch(messenger.href, {
+                    credentials: "omit",
+                    redirect: "error",
+                    cache: "no-store",
+                    signal: AbortSignal.timeout(10000),
+                });
+                if (!htmlResponse.ok || !(htmlResponse.headers.get("content-type") || "").startsWith("text/html"))
+                    throw new Error("상담 화면을 불러오지 못했습니다.");
+                var html = await htmlResponse.text();
+                if (current !== state) return;
+                if (html.length > 1000000) throw new Error("상담 화면 설정을 확인해주세요.");
+                var parsed = new DOMParser().parseFromString(html, "text/html");
+                if (!parsed.getElementById("sendb-messenger-root"))
+                    throw new Error("상담 화면 설정을 확인해주세요.");
+                parsed.documentElement.dataset.sendbParentOrigin = location.origin;
+                parsed.documentElement.dataset.sendbApiBase = state.base;
+                parsed.documentElement.dataset.sendbChannel = options.channelKey;
+                parsed.documentElement.dataset.sendbPage = location.origin + location.pathname;
+                Array.from(parsed.querySelectorAll("base")).forEach(function (node) { node.remove(); });
+                var assetBase = parsed.createElement("base");
+                assetBase.href = location.origin + "/";
+                parsed.head.prepend(assetBase);
+                messengerHtml = "<!doctype html>" + parsed.documentElement.outerHTML;
+            } catch (error) {
+                if (current === state) {
+                    current = null;
+                    emit("error", { code: "messenger_load_failed", message: "상담 화면을 불러오지 못했습니다. 다시 연결해주세요." });
+                }
+                throw error;
+            }
+        }
+        if (current !== state) return;
         state.button = document.createElement("button");
         state.button.id = "sendb-chat-launcher";
         state.button.textContent = "상담";
@@ -284,14 +328,14 @@
             "allow-scripts allow-same-origin allow-forms allow-downloads",
         );
         state.frame.setAttribute("referrerpolicy", "no-referrer");
-        state.frame.src =
-            state.base +
-            "/chat/" +
-            options.channelKey +
+        if (messengerHtml) state.frame.srcdoc = messengerHtml;
+        else state.frame.src =
+            (messenger ? messenger.href : state.base + "/chat/" + options.channelKey) +
             "?origin=" +
             encodeURIComponent(location.origin) +
             "&page=" +
-            encodeURIComponent(location.origin + location.pathname);
+            encodeURIComponent(location.origin + location.pathname) +
+            (messenger ? "&channel=" + options.channelKey : "");
         state.button.addEventListener("click", function () {
             if (current === state) visibility(!state.opened);
         });
@@ -303,7 +347,7 @@
         state.listener = function (event) {
             if (
                 current !== state ||
-                event.origin !== state.base ||
+                event.origin !== state.frameOrigin ||
                 event.source !== state.frame.contentWindow ||
                 !event.data ||
                 event.data.key !== options.channelKey
@@ -428,7 +472,8 @@
         visibility(true);
     }
     window.SendbChat = {
-        version: "1.5.0",
+        version: "1.6.0",
+        supportsFirstPartyMessenger: true,
         boot: boot,
         reconnect: reconnect,
         show: function () {
