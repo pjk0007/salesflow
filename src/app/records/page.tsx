@@ -666,6 +666,7 @@ export default function RecordsPage() {
                 fields={fields}
                 partitionId={partitionId!}
                 onRecordUpdated={handleRecordUpdated}
+                workspaceId={workspaceId}
             />
 
             {/* 파티션/폴더 관리 다이얼로그 */}

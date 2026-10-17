@@ -57,3 +57,7 @@ ml/
 
 # devkit 로컬 실행 로그·상태 (PDCA 문서는 docs/에 남긴다)
 .devkit/
+
+# Generated isolated electronic signature worker
+/.esign-runtime/
+/.playwright-cli/
