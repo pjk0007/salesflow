@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createEsignQaFixture, QA_ORG, QA_USER } from "./esign-qa-fixture";
 import { handleEsignRequest } from "../src/lib/esign/http";
+import { handleEsignPreviewRequest } from "../src/lib/esign/preview";
 
 async function main() {
     if (process.env.NODE_ENV === "production" || process.env.ESIGN_QA_ALLOW_FAKE !== "yes") throw Error("Run only explicitly opted-in local isolated QA");
@@ -21,7 +22,9 @@ async function main() {
                 for await (const bytes of req) { size += bytes.length; if (size > 12 * 1024 * 1024) { res.writeHead(413); res.end(); return; } chunks.push(Buffer.from(bytes)); }
                 const headers = new Headers(); for (const [key, value] of Object.entries(req.headers)) if (value) headers.set(key, Array.isArray(value) ? value.join(",") : value);
                 const request = new Request(`http://127.0.0.1:${port}${req.url}`, { method: req.method, headers, ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) });
-                const response = await handleEsignRequest(request, fixture.dependencies);
+                const response = pathname.startsWith("/api/esign-preview/")
+                    ? await handleEsignPreviewRequest(request, { enabled: true, actor: async () => ({ orgId: QA_ORG, userId: QA_USER, name: "가상 검수 담당자" }) })
+                    : await handleEsignRequest(request, fixture.dependencies);
                 res.writeHead(response.status, Object.fromEntries(response.headers)); res.end(Buffer.from(await response.arrayBuffer())); return;
             }
             if (pathname.startsWith("/api/")) return json({ success: true, data: [] });

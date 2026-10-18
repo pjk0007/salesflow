@@ -12,16 +12,21 @@ import { esignApi, EsignApiError, downloadFile, verificationHeaders, type Signin
 import { displayDate, fieldLabels } from "../utils/presentation";
 import { PdfViewer } from "./PdfViewer";
 import { SignatureDialog } from "./SignatureDialog";
+import { EsignPreviewNotice } from "./EsignPreview";
 
-export function PublicSigningPage({ token }: { token: string }) {
+export function PublicSigningPage({ token, preview = false }: { token: string; preview?: boolean }) {
+    return <>{preview && <div className="bg-slate-50 px-4 pt-4"><div className="mx-auto max-w-6xl"><EsignPreviewNotice /></div></div>}<PublicSigningContents token={token} preview={preview} /></>;
+}
+function PublicSigningContents({ token, preview }: { token: string; preview: boolean }) {
     const [verificationToken, setVerificationToken] = useState("");
-    const session = useSWR(["/esign/public", token, verificationToken], () => esignApi.session(token, verificationToken || undefined), { refreshInterval: data => data?.waiting || data?.envelope.state === "finalizing" ? 8000 : 0, shouldRetryOnError: false });
+    const session = useSWR([preview ? "/esign-preview/public" : "/esign/public", token, verificationToken], () => esignApi.session(token, verificationToken || undefined), { refreshInterval: data => data?.waiting || data?.envelope.state === "finalizing" ? 8000 : 0, shouldRetryOnError: false });
     return <main className="min-h-screen bg-slate-50 text-slate-900"><header className="border-b bg-white"><div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-4"><FileSignature className="size-5 text-blue-600" /><span className="font-semibold">샌드비 전자서명</span><span className="ml-auto text-xs text-slate-500">문서를 읽고 직접 서명하세요</span></div></header><div className="mx-auto max-w-6xl space-y-5 px-4 py-6 sm:py-10">{session.isLoading ? <div className="rounded-xl border bg-white p-10 text-center text-sm text-slate-500">서명 요청을 확인하고 있습니다.</div> : session.error ? <div className="mx-auto max-w-lg space-y-4 rounded-xl border bg-white p-6"><h1 className="text-xl font-semibold">서명 요청을 열 수 없습니다</h1><p role="alert" className="text-sm text-red-700">{session.error.message}</p><p className="text-sm text-slate-500">링크의 만료·취소 여부를 요청자에게 확인해 주세요.</p><Button variant="outline" onClick={() => void session.mutate()}><RefreshCw />다시 확인</Button></div> : session.data ? <SigningSession key={`${session.data.envelope.id}-${session.data.recipient.id}-${session.data.verified}`} token={token} session={session.data} verificationToken={verificationToken} onVerified={setVerificationToken} onRefresh={() => session.mutate()} /> : null}<footer className="pt-3 text-center text-xs leading-relaxed text-slate-500">서명 요청의 내용이나 연락처가 다르면 요청자에게 문의해 주세요.<br />이 페이지에서는 본인의 서명만 입력할 수 있습니다.</footer></div></main>;
 }
 
 function SigningSession({ token, session, verificationToken, onVerified, onRefresh }: { token: string; session: PublicEsignSession; verificationToken: string; onVerified: (value: string) => void; onRefresh: () => Promise<PublicEsignSession | undefined> }) {
     const [channel, setChannel] = useState<EsignChannel>(session.recipient.channels[0] || "email");
     const [code, setCode] = useState("");
+    const [previewCode, setPreviewCode] = useState("");
     const [otpSent, setOtpSent] = useState(false);
     const [otpRetryAt, setOtpRetryAt] = useState("");
     const [clock, setClock] = useState(0);
@@ -53,7 +58,7 @@ function SigningSession({ token, session, verificationToken, onVerified, onRefre
 
     async function sendOtp() {
         setBusy(true); setError(""); setNotice("");
-        try { const result = await esignApi.otp(token, channel); setClock(Date.now()); setOtpSent(true); setOtpRetryAt(result.retryAt || ""); setNotice(result.message || "확인 코드 발송을 요청했습니다. 도착한 코드를 입력해 주세요."); }
+        try { const result = await esignApi.otp(token, channel); setPreviewCode(result.previewCode || ""); setClock(Date.now()); setOtpSent(true); setOtpRetryAt(result.retryAt || ""); setNotice(result.message || "확인 코드 발송을 요청했습니다. 도착한 코드를 입력해 주세요."); }
         catch (cause) {
             if (cause instanceof EsignApiError && cause.status < 500 && cause.status !== 408) setError(cause.message);
             else { setClock(Date.now()); setOtpSent(true); setOtpRetryAt(new Date(Date.now() + 60000).toISOString()); setError("코드 발송 결과를 확인하지 못했습니다. 코드가 도착하면 아래에 입력해 주세요. 다시 요청하려면 잠시 기다려 주세요."); }
@@ -84,7 +89,7 @@ function SigningSession({ token, session, verificationToken, onVerified, onRefre
     async function downloadAudit() {
         setError(""); try { await downloadFile(esignApi.publicAuditUrl(token), `${session.envelope.title}-확인기록.json`, verificationToken); } catch (cause) { setError(cause instanceof Error ? cause.message : "확인 기록을 내려받지 못했습니다."); }
     }
-    const header = <div className="space-y-2"><p className="text-sm text-blue-700">{session.recipient.name} 님에게 온 서명 요청</p><h1 className="break-words text-2xl font-semibold">{session.envelope.title}</h1><p className="text-xs text-slate-500">만료: {displayDate(session.envelope.expiresAt)}</p></div>;
+    const header = <div className="space-y-2"><p className="text-sm text-blue-700">{session.recipient.name} 님에게 온 서명 요청</p><h1 className="break-words text-2xl font-semibold">{session.envelope.title}</h1><p className="text-xs text-slate-500">만료: {displayDate(session.envelope.expiresAt)}</p>{previewCode && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900">실제 발송 없는 체험용 확인 코드: <strong className="tracking-widest">{previewCode}</strong></p>}</div>;
 
     if (inactive) return <div className="mx-auto max-w-xl space-y-5 rounded-xl border bg-white p-6">{header}<div className="rounded-lg bg-slate-100 p-4"><h2 className="font-semibold">{session.envelope.state === "cancelled" ? "요청이 취소되었습니다" : session.envelope.state === "expired" ? "서명 기간이 만료되었습니다" : "서명 요청이 거절되었습니다"}</h2><p className="mt-2 text-sm text-slate-600">이 링크에서는 서명을 진행할 수 없습니다. 요청자에게 문의해 주세요.</p></div></div>;
     if (session.waiting) return <div className="mx-auto max-w-xl space-y-5 rounded-xl border bg-white p-6">{header}<p className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">앞선 서명자의 서명이 끝나면 진행할 수 있습니다. 순서가 되면 안내를 보내 드립니다.</p><Button variant="outline" onClick={() => void onRefresh()}><RefreshCw />순서 다시 확인</Button></div>;

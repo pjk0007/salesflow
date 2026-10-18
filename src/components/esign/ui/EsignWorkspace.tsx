@@ -12,8 +12,18 @@ import { esignApi } from "../api/client";
 import { displayDate, envelopeLabels } from "../utils/presentation";
 import { EsignComposer } from "./EsignComposer";
 import { EnvelopeDetail } from "./EnvelopeDetail";
+import { EsignPreviewNotice, EsignPreviewOutbox } from "./EsignPreview";
 
 export function EsignWorkspace() {
+    const params = useSearchParams();
+    if (params.get("preview") === "1") return <PreviewWorkspace />;
+    return <><StandardWorkspace />{process.env.NEXT_PUBLIC_APP_URL === "https://port-next-sendb-dev-1ru12mlw8nvyar.sel5.cloudtype.app" && <a className="mt-4 inline-flex rounded-md border px-4 py-2 text-sm text-blue-700" href="/esign?preview=1">가상 계약서로 전자서명 체험하기</a>}</>;
+}
+function PreviewWorkspace() {
+    const [workspaceId, setWorkspaceId] = useState(101);
+    return <div className="space-y-5"><PageHeader title="전자서명 체험" description="가상 계약서로 직원 화면과 고객 화면을 모두 확인하세요." /><EsignPreviewNotice /><label className="flex items-center gap-3 text-sm">가상 사업<select aria-label="전자서명 체험 사업" className="h-10 rounded-md border bg-background px-3" value={workspaceId} onChange={event => setWorkspaceId(Number(event.target.value))}><option value={101}>디하 체험</option><option value={102}>백오랩 체험</option></select></label><EsignPreviewOutbox workspaceId={workspaceId} /><WorkspaceContent key={workspaceId} workspaceId={workspaceId} preview /></div>;
+}
+function StandardWorkspace() {
     const params = useSearchParams();
     const { workspaces, isLoading: workspaceLoading } = useWorkspaces();
     const [selection, setSelection] = useState(Number(params.get("workspaceId")) || 0);
@@ -21,16 +31,17 @@ export function EsignWorkspace() {
     return <div className="space-y-6"><PageHeader title="전자서명" description="계약서를 준비하고 이메일·SMS로 서명을 요청하세요." />{workspaceLoading ? <p className="py-10 text-sm text-muted-foreground">워크스페이스를 불러오고 있습니다.</p> : !workspaceId ? <p className="rounded-xl border p-8 text-sm text-muted-foreground">사용할 수 있는 워크스페이스가 없습니다.</p> : <><label className="inline-flex items-center gap-3 text-sm"><span className="sr-only">워크스페이스</span><select aria-label="전자서명 워크스페이스" className="h-10 min-w-56 rounded-md border bg-background px-3" value={workspaceId} onChange={event => setSelection(Number(event.target.value))}>{workspaces.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label><WorkspaceContent key={workspaceId} workspaceId={workspaceId} recordId={Number(params.get("recordId")) || undefined} contactId={params.get("contactId") || undefined} /></>}</div>;
 }
 
-function WorkspaceContent({ workspaceId, recordId, contactId }: { workspaceId: number; recordId?: number; contactId?: string }) {
-    const status = useSWR("/esign/status", esignApi.status);
+function WorkspaceContent({ workspaceId, recordId, contactId, preview = false }: { workspaceId: number; recordId?: number; contactId?: string; preview?: boolean }) {
+    const scope = preview ? "/esign-preview" : "/esign";
+    const status = useSWR([scope, "status"], esignApi.status);
     const enabled = status.data?.enabled && status.data.storageReady && status.data.databaseReady;
-    const documents = useSWR(enabled ? ["/esign/documents", workspaceId] : null, () => esignApi.documents(workspaceId));
-    const envelopes = useSWR(enabled ? ["/esign/envelopes", workspaceId] : null, () => esignApi.envelopes(workspaceId), { refreshInterval: data => data?.some(item => item.envelope.state === "pending" || item.envelope.state === "finalizing") ? 10000 : 0 });
-    const prefill = useSWR(enabled && (recordId || contactId) ? ["/esign/prefill", workspaceId, recordId, contactId] : null, () => esignApi.prefill(workspaceId, { recordId, contactId }));
+    const documents = useSWR(enabled ? [scope, "documents", workspaceId] : null, () => esignApi.documents(workspaceId));
+    const envelopes = useSWR(enabled ? [scope, "envelopes", workspaceId] : null, () => esignApi.envelopes(workspaceId), { refreshInterval: data => data?.some(item => item.envelope.state === "pending" || item.envelope.state === "finalizing") ? 10000 : 0 });
+    const prefill = useSWR(enabled && (recordId || contactId) ? [scope, "prefill", workspaceId, recordId, contactId] : null, () => esignApi.prefill(workspaceId, { recordId, contactId }));
     const [composing, setComposing] = useState(!!(recordId || contactId));
     const [selectedId, setSelectedId] = useState("");
     const [search, setSearch] = useState("");
-    const detail = useSWR(enabled && selectedId ? ["/esign/detail", workspaceId, selectedId] : null, () => esignApi.detail(workspaceId, selectedId), { refreshInterval: data => data?.envelope.state === "pending" || data?.envelope.state === "finalizing" ? 8000 : 0 });
+    const detail = useSWR(enabled && selectedId ? [scope, "detail", workspaceId, selectedId] : null, () => esignApi.detail(workspaceId, selectedId), { refreshInterval: data => data?.envelope.state === "pending" || data?.envelope.state === "finalizing" ? 8000 : 0 });
     const [notice, setNotice] = useState("");
 
     if (status.isLoading) return <p className="rounded-xl border p-10 text-sm text-muted-foreground">전자서명 사용 상태를 확인하고 있습니다.</p>;
