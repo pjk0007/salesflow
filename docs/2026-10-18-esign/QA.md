@@ -72,3 +72,11 @@ PDF 업로드 → 5종 입력란 배치 → 템플릿 저장 → 원본 보존 �
 최종 전역 이미지 예산 수정 후 격리 API를 재시작하고 새 한글 계약서로 전체 흐름을 다시 통과했다. `final-backend-raster-metadata.json`에 실제 5종 입력 합계 391,019픽셀·65,190bytes와 개별 한도 통과를 보존했다. `15-final-backend-quality-top.png`, `16-final-backend-quality-bottom.png`, `17-final-backend-completed.png`, `completed-final-backend-browser.pdf`와 개인 확인 기록이 결과물이다. root가 이미지 축소 후 서명·도장·한글의 읽힘과 최종 완료 화면을 직접 확인했다.
 
 사용자 체험: `http://127.0.0.1:3158/esign` → **서명 요청 → 한글 계약서 체험 (가상 자료)**. 이 로컬 체험은 실제 발송을 하지 않는다.
+
+## dev 가상 체험 추가 검수
+
+사용자가 dev에서 직접 예시를 확인하도록 요청해 `/esign?preview=1`과 개발 전용 API를 추가했다. `dev-preview-tests.log`에서 기존 검사와 신규 체험 검사 **79개 통과, 실패·건너뜀 0개**를 확인했다. 지정된 개발 origin과 명시적 opt-in이 함께 있을 때만 활성화되며, 비활성·미인증 요청은 메모리 런타임을 생성하지 않는다. 실제 주소·번호를 거부하고 가상 요청·OTP·서명·완료 PDF를 기존 HTTP handler와 worker로 처리했다. 다른 조직의 가상 발송함은 분리된다. 실제 DB나 전송 공급자를 쓰지 않는다. 새 코드·관련 화면·로컬 검수 스크립트 린트도 통과했다.
+
+`dev-preview-build.log`에서 Node.js 24.19.0 최종 webpack 빌드·타입 검사·224개 페이지 생성·standalone 자원 복사 성공을 확인했다. 새 체험 API도 배포 대상 route에 포함된다.
+
+Chrome에서 체험 안내·디하 가상 사업·발송함·예시 서명 진행 중 목록이 표시되는 것을 직접 확인했다. 고객 페이지의 새 빈 탭을 관찰하려던 도구 요청은 URL 정책에 막혀 로컬 브라우저 전체 서명 통과로 기록하지 않는다. 고객 흐름은 위 HTTP/worker 검사와 이전 가상 자료 전체 화면 검수로 구분한다. 개발 배포 후 접근 결과는 별도로 확인한다.

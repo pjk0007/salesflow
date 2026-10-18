@@ -2,11 +2,13 @@ import type { EsignDocument, EsignEnvelopeInput, EsignField, EsignChannel, Esign
 
 export type EsignStatus = { enabled: boolean; emailReady: boolean; smsReady: boolean; storageReady: boolean; databaseReady: boolean; issues: string[] };
 export type SigningValue = { fieldId: string; text?: string; pngDataUrl: string };
-export type OtpResult = { retryAt?: string; expiresAt?: string; delivery?: { state: string }; message?: string };
+export type OtpResult = { retryAt?: string; expiresAt?: string; delivery?: { state: string }; message?: string; previewCode?: string };
 export class EsignApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = "EsignApiError"; } }
 
+export const isEsignPreviewPage = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
+const apiBase = () => isEsignPreviewPage() ? "/api/esign-preview" : "/api/esign";
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`/api/esign${path}`, { cache: "no-store", ...init });
+    const response = await fetch(`${apiBase()}${path}`, { cache: "no-store", ...init });
     const result = await response.json().catch(() => null) as { success?: boolean; data?: T; error?: string } | null;
     if (!response.ok || !result?.success) throw new EsignApiError(result?.error || "요청을 처리하지 못했습니다. 잠시 후 다시 확인해 주세요.", response.status);
     return result.data as T;
@@ -30,16 +32,17 @@ export const esignApi = {
     createEnvelope: (workspaceId: number, input: EsignEnvelopeInput) => request<StaffEsignDetail>(scoped("/envelopes", workspaceId), json(input)),
     detail: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}`, workspaceId)),
     cancel: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}/action`, workspaceId), json({ action: "cancel" })),
-    documentUrl: (workspaceId: number, id: string) => `/api/esign${scoped(`/documents/${id}/file`, workspaceId)}`,
-    envelopeUrl: (workspaceId: number, id: string, final = false) => `/api/esign${scoped(`/envelopes/${id}/file${final ? "?final=1" : ""}`, workspaceId)}`,
-    auditUrl: (workspaceId: number, id: string) => `/api/esign${scoped(`/envelopes/${id}/audit`, workspaceId)}`,
+    documentUrl: (workspaceId: number, id: string) => `${apiBase()}${scoped(`/documents/${id}/file`, workspaceId)}`,
+    envelopeUrl: (workspaceId: number, id: string, final = false) => `${apiBase()}${scoped(`/envelopes/${id}/file${final ? "?final=1" : ""}`, workspaceId)}`,
+    auditUrl: (workspaceId: number, id: string) => `${apiBase()}${scoped(`/envelopes/${id}/audit`, workspaceId)}`,
     session: (token: string, verificationToken?: string) => request<PublicEsignSession>(publicPath(token), { headers: verificationHeaders(verificationToken) }),
     otp: (token: string, channel: EsignChannel) => request<OtpResult>(publicPath(token, "/otp"), json({ channel })),
     verify: (token: string, code: string) => request<{ verificationToken: string }>(publicPath(token, "/verify"), json({ code })),
     sign: (token: string, verificationToken: string, values: SigningValue[], idempotencyKey: string) => request<PublicEsignSession>(publicPath(token, "/sign"), json({ verificationToken, consent: true, values, idempotencyKey })),
     reject: (token: string, verificationToken: string, reason: string) => request<PublicEsignSession>(publicPath(token, "/sign"), json({ action: "reject", verificationToken, reason })),
-    publicDocumentUrl: (token: string, final = false) => `/api/esign${publicPath(token, `/document${final ? "?final=1" : ""}`)}`,
-    publicAuditUrl: (token: string) => `/api/esign${publicPath(token, "/audit")}`,
+    publicDocumentUrl: (token: string, final = false) => `${apiBase()}${publicPath(token, `/document${final ? "?final=1" : ""}`)}`,
+    publicAuditUrl: (token: string) => `${apiBase()}${publicPath(token, "/audit")}`,
+    previewOutbox: (workspaceId: number) => request<import("@/lib/esign/preview").PreviewMessage[]>(scoped("/outbox", workspaceId)),
 };
 
 /** Authenticated downloads cannot use a query string to carry the verification secret. */
