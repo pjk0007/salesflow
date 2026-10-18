@@ -25,4 +25,13 @@ DB·발송·서버 저장·완료 PDF 처리에는 변경이 없다. 모든 글�
 - 가상 코드 인증 → 새 회사 직인과 한자 직함·서명·이름·날짜 → 제출 → 완료 PDF 실제 다운로드를 통과했다. PDF **67,485bytes·1페이지**, SHA-256 `db4785d7f7c87f67c7c41360d1e8e7bfbea613d297d50a6351a35d8cf5a1459f`가 확인 기록과 일치한다. 원본 해시와 최종 PNG 4개의 픽셀 보존·이미지 예산·Poppler 시각 검수를 통과했다.
 - 근거: `F:/Dev/.work/esign-reference-seals-20261018/`의 `font-checks.json`, `renderer-checks.json`, `full-build-result.json`, `pdf-checks.json`과 시안/완료 PDF. 새 실제 고객 발송은 수행하지 않았다.
 
-개발/운영 배포 상태는 적용을 확인한 뒤 별도로 기록한다. 위 로컬 검수를 배포 완료로 해석하지 않는다.
+## 개발·운영 반영 완료
+
+2026-10-18 22:20 KST에 CloudType의 새 아티팩트가 **적용됨·실행 중(1/1)**인 것을 확인했다. 운영 `sendb/main`은 `5edd288c9b2b2063a8a77c0c297f818700ffc9dc`, 개발 `sendb-dev/dev`는 `21d7a3c7581f218f3ecf5287d2a33e6e2e31a6d2`이며 도장 코드·글꼴 자산은 동일하다. 이후 검수 기록 커밋은 문서만 바꾼다.
+
+- 두 서버에서 새 한글 WOFF2 3개와 `代表理事`용 한자 묶음 3개의 HTTP 200·SHA-256 일치, OFL 2개 제공, 기존 명조 WOFF2 2개의 404를 확인했다.
+- 개발의 가상 코드 인증 → 새 서체 3종 표시 → 회사명 `가상검수회사`·한자 직함 `代表理事`·길상 도안체·별 표시 선택 → 문서 삽입을 통과했다. 외부 메시지는 발송하지 않았다.
+- 운영의 인증된 준비 상태는 `enabled/emailReady/databaseReady/storageReady=true`, `issues=[]`다. 미인증 상태 API는 401을 유지하고 운영 가상 체험 API는 404다. 알림톡/SMS 설정은 변경하지 않았다.
+- 배포 근거: 위 검수 폴더의 `deployed-asset-checks.json`, `deployed-browser-checks.json`, `development-picker.png`, `production-applied.png`, `development-applied.png`.
+
+운영 화면: https://sendb.kr/esign · 가상 체험: https://port-next-sendb-dev-1ru12mlw8nvyar.sel5.cloudtype.app/esign?preview=1
