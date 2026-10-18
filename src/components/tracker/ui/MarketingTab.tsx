@@ -9,21 +9,10 @@ import { InflowChannels } from "./widgets/InflowChannels";
 import { AdContentTop } from "./widgets/AdContentTop";
 import { AdPerformanceCard } from "./widgets/AdPerformanceCard";
 import { DeviceBreakdown } from "./widgets/DeviceBreakdown";
-import { presetRange } from "./widgets/RangeSelector";
+import { rangeFromSearchParams, rangeSearchParams } from "../utils/range";
 import { ControlBar } from "./OverviewTab";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Range, SegmentFilters } from "../types/overview";
-
-function rangeFromSearchParams(sp: URLSearchParams): Range {
-    const preset = sp.get("preset");
-    if (preset === "1d" || preset === "7d" || preset === "30d" || preset === "90d") return presetRange(preset);
-    const from = sp.get("from");
-    const to = sp.get("to");
-    if (from && to && /^\d{4}-\d{2}-\d{2}$/.test(from) && /^\d{4}-\d{2}-\d{2}$/.test(to)) {
-        return { preset: "custom", from, to };
-    }
-    return presetRange("1d");
-}
 
 /**
  * 마케팅 탭 — 인기/이탈 페이지, 유입 채널, 광고 소재, 디바이스 분포.
@@ -38,17 +27,10 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
     const [filters, setFilters] = useState<SegmentFilters>({ device: null, channel: null, channelMode: "all" });
 
     useEffect(() => {
-        const next = new URLSearchParams(sp.toString());
-        if (range.preset === "custom") {
-            next.delete("preset");
-            next.set("from", range.from);
-            next.set("to", range.to);
-        } else {
-            next.set("preset", range.preset);
-            next.delete("from");
-            next.delete("to");
+        const next = rangeSearchParams(range, new URLSearchParams(sp.toString()));
+        if (next.toString() !== sp.toString()) {
+            router.replace(`${pathname}?${next.toString()}`, { scroll: false });
         }
-        router.replace(`${pathname}?${next.toString()}`, { scroll: false });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [range.preset, range.from, range.to]);
 
