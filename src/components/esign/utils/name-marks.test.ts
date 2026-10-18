@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeCompanySealName, normalizeMarkName, normalizeSealCenter, sealCells } from "./name-marks";
-import { engravedSyllable, hasEngravedJamo } from "./seal-lettering";
+import { requireSealCharacters, sealCharacterScript } from "./seal-font-coverage";
 
 test("names normalize decomposed Hangul, preserve signature spaces and remove seal spaces", () => {
     assert.equal(normalizeMarkName("  김  이삭  ", "seal"), "김이삭");
@@ -20,15 +20,15 @@ test("company names and titles accept real business punctuation without silently
     for (const title of ["", "가".repeat(9), "&"]) assert.throws(() => normalizeSealCenter(title));
 });
 
-test("original seal lettering covers all 11172 modern Hangul syllables, including complex vowels and final clusters", () => {
+test("seal coverage accepts all modern Hangul and verifies real Hanja coverage before rendering", () => {
     for (let code = 0xac00; code <= 0xd7a3; code++) {
-        const syllable = engravedSyllable(String.fromCodePoint(code))!;
-        assert.ok(syllable && syllable.parts.length >= 2);
-        assert.ok(syllable.parts.every(part => hasEngravedJamo(part.letter)), String.fromCodePoint(code));
-        assert.ok(syllable.parts.every(part => part.x >= 0 && part.y >= 0 && part.width > 0 && part.height > 0 && part.x + part.width <= 1 && part.y + part.height <= 1));
+        assert.equal(sealCharacterScript(String.fromCodePoint(code)), "design");
     }
-    assert.deepEqual([engravedSyllable("홍")!.initial, engravedSyllable("홍")!.vowel, engravedSyllable("홍")!.final], ["ㅎ", "ㅗ", "ㅇ"]);
-    assert.equal(engravedSyllable("A"), undefined);
+    requireSealCharacters("(주)매치스플랜代表理事A&B");
+    for (const character of "代表理事印金李國株式會社") assert.equal(sealCharacterScript(character), "hanja");
+    for (const character of ["韓", "é", "サ", "😀", ""]) assert.equal(sealCharacterScript(character), undefined);
+    assert.throws(() => requireSealCharacters("韓國"), /지원하지 않는 글자\(韓\)/);
+    assert.throws(() => requireSealCharacters("Élodie"), /지원하지 않는 글자/);
 });
 
 test("seal lettering follows traditional columns and never loses a character for 2–8 letter names", () => {

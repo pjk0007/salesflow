@@ -14,7 +14,7 @@ export function NameMarkPicker({ kind, signerName, aspect, busy, onUse }: { kind
     const [category, setCategory] = useState<SealCategory>("personal");
     const [companyName, setCompanyName] = useState("");
     const [centerText, setCenterText] = useState("대표이사");
-    const [font, setFont] = useState<SealFont>("engraved");
+    const [font, setFont] = useState<SealFont>("doan");
     const [selected, setSelected] = useState("");
     const [saving, setSaving] = useState(false);
     const [saveError, setSaveError] = useState("");
@@ -32,9 +32,10 @@ export function NameMarkPicker({ kind, signerName, aspect, busy, onUse }: { kind
         {kind === "seal" && <div className="grid grid-cols-2 gap-2" role="group" aria-label="도장 종류"><Button type="button" variant={category === "personal" ? "secondary" : "outline"} aria-pressed={category === "personal"} disabled={locked} onClick={() => { setCategory("personal"); reset(); }}>개인 도장</Button><Button type="button" variant={category === "company" ? "secondary" : "outline"} aria-pressed={category === "company"} disabled={locked} onClick={() => { setCategory("company"); reset(); }}>회사 직인</Button></div>}
         <label className="block space-y-2 text-sm"><span>{company ? "직인에 넣을 회사명" : `${label}에 넣을 본인 이름`}</span><Input autoFocus value={markName} maxLength={company ? 40 : kind === "seal" ? 16 : 30} disabled={locked} placeholder={company ? "예: 매치스플랜" : kind === "seal" ? "예: 김이삭" : "예: 김이삭 / Isaac Kim"} onChange={event => { if (company) setCompanyName(event.target.value); else setName(event.target.value); reset(); }} /></label>
         {kind === "seal" && <div className={`grid gap-3 ${company ? "sm:grid-cols-2" : ""}`}>
-            {company && <label className="block space-y-2 text-sm"><span>가운데 글자·직함</span><Input value={centerText} maxLength={12} disabled={locked} placeholder="대표이사 / 사용인" onChange={event => { setCenterText(event.target.value); reset(); }} /></label>}
+            {company && <div className="space-y-2"><label className="block space-y-2 text-sm"><span>가운데 글자·직함</span><Input value={centerText} maxLength={12} disabled={locked} placeholder="대표이사 / 代表理事" onChange={event => { setCenterText(event.target.value); reset(); }} /></label><div className="flex flex-wrap gap-1.5" role="group" aria-label="직함 예시"><Button type="button" size="sm" variant="outline" disabled={locked} onClick={() => { setCenterText("대표이사"); reset(); }}>대표이사</Button><Button type="button" size="sm" variant="outline" disabled={locked} onClick={() => { setCenterText("代表理事"); reset(); }}>한자 대표이사</Button></div></div>}
             <label className="block space-y-2 text-sm"><span>도장 서체</span><select aria-label="도장 서체" className="h-9 w-full rounded-md border bg-background px-3 text-sm" value={font} disabled={locked} onChange={event => { setFont(event.target.value as SealFont); reset(); }}>{SEAL_FONTS.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
         </div>}
+        {kind === "seal" && <p className="text-xs text-muted-foreground">예시를 참고한 한글 도안 3종입니다. 한자는 전서체로 만듭니다.</p>}
         <p className="text-xs text-muted-foreground">{kind === "seal" ? company ? "회사명은 2~24자, 가운데 글자는 1~8자까지 가능합니다. 원하는 직인 모양을 선택해 주세요." : "이름은 공백을 빼고 2~8자까지 가능합니다. 서체와 인장 모양을 함께 비교해 보세요." : "입력한 이름으로 만든 손글씨 중 마음에 드는 서명을 선택해 주세요."}</p>
         {loading && <div role="status" className="flex h-36 items-center justify-center rounded-lg bg-muted/40 text-sm text-muted-foreground">{label} 미리보기를 만드는 중…</div>}
         {error && <div className="space-y-2"><p role="alert" className="text-sm text-red-700">{error}</p>{canRetry && <Button type="button" size="sm" variant="outline" disabled={locked} onClick={retry}>다시 만들기</Button>}</div>}
