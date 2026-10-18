@@ -9,13 +9,14 @@
 - main의 트래커 비교/화살표/1일 기본, 고객 답장 알림 scheduler, `build:messenger`, esbuild `0.27.3`, 마이그레이션 journal 검증을 유지한다. 별도 전자서명 스키마 SQL은 기존 자동 마이그레이션 journal에 끼워 넣지 않는다.
 - 운영 준비본의 lockfile은 변경된 전자서명 의존성 그래프와 직접 esbuild `0.27.3`을 포함하며 frozen install을 통과했다. 배포 파일 복사기의 중복 journal 선언을 제거하고 기존 journal 검증과 전자서명 자원 복사를 함께 유지했다.
 - 새 이름 선택 UX의 dev 원본은 `1974527b00b9d9cccb915354b0c7797584d4468b`, 운영 준비본의 대응 커밋은 `1103eab`이다.
+- 전통 인장·회사 직인 12종과 서체 3종 개선의 dev 원본은 `3b5c816eb0e70aa959b676f1e53b476ee0016049`, 운영 준비본의 대응 커밋은 `c0c04c7`이다. 충돌 없이 가져왔으며 기존 main 기능은 유지한다.
 
 ## 검수
 
-- 격리 Node.js 24.19.0 환경, 외부 발송 차단: **121개 테스트 파일, 1,478개 통과·실패/취소/건너뜀 0개**.
+- 격리 Node.js 24.19.0 환경, 외부 발송 차단: **121개 테스트 파일, 1,480개 통과·실패/취소/건너뜀 0개**.
 - webpack 배포 빌드·타입 검사·224개 페이지 생성 통과. 기존 main의 마이그레이션 118개와 journal 검증을 유지한 standalone 복사도 통과했다.
-- standalone 실제 실행에서 전자서명 off와 가상 요청 → OTP → 제출 → 완료 PDF를 확인했다. 글씨체 4종의 HTTP 200·SHA-256·라이선스 배포 포함을 확인했다.
-- 근거: `F:/Dev/.work/esign-live-setup-20261018/production-name-marks-qa/`의 전체 테스트/빌드 결과와 standalone 로그. 사용한 DB는 loopback 가상 검수 DB다. 운영 고객 DB나 실제 발송을 사용하지 않았다.
+- standalone 실제 실행에서 전자서명 off와 가상 요청 → OTP → 제출 → 완료 PDF를 확인했다. 새 도장 서체를 포함한 글씨체 6종의 HTTP 200·SHA-256·라이선스 배포 포함을 확인했다.
+- 최신 근거: `F:/Dev/.work/esign-live-setup-20261018/production-seal-v2-qa/`의 전체 테스트/빌드 결과와 standalone 로그. 사용한 DB는 loopback 가상 검수 DB다. 운영 고객 DB나 실제 발송을 사용하지 않았다. 이전 이름 선택 버전의 1,478개 검사 근거는 `production-name-marks-qa/`에 별도로 보존했다.
 
 ## 남은 순서
 
