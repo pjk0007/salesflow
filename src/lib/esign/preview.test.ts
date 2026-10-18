@@ -31,7 +31,8 @@ test("dev preview uses real handler/worker for seeded invitation, inline OTP, si
     const messages = await api<PreviewMessage[]>("/outbox?workspaceId=101");
     assert.equal(messages.length, 2); assert.equal(messages[0].signUrl, messages[1].signUrl);
     const token = new URL(messages[0].signUrl!, "http://localhost").pathname.split("/").at(-1)!;
-    const code = await api<{ previewCode: string }>(`/public/${token}/otp`, { channel: "sms" }); assert.match(code.previewCode, /^\d{6}$/);
+    assert.deepEqual(messages.map(m => m.channel).sort(), ["alimtalk", "email"]);
+    const code = await api<{ previewCode: string }>(`/public/${token}/otp`, { channel: "alimtalk" }); assert.match(code.previewCode, /^\d{6}$/);
     const verification = await api<{ verificationToken: string }>(`/public/${token}/verify`, { code: code.previewCode });
     await api(`/public/${token}/sign`, { verificationToken: verification.verificationToken, idempotencyKey: "preview-full-flow", consent: true, values: documents[0].fields.map(f => ({ fieldId: f.id, pngDataUrl: png, ...(f.type === "name" ? { text: "가상 고객" } : f.type === "date" ? { text: "2026-10-18" } : {}) })) });
     await app.engine.kick();

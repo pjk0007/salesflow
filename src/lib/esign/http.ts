@@ -7,12 +7,13 @@ import { artifactHash } from "./storage";
 import { inspectPdfInWorker } from "./pdf-worker";
 import { readEsignRendererAsset } from "./assets";
 import { EsignError, type EsignActor, type EsignRecipientInput, type EsignValue } from "./types";
+import type { EsignAlimtalkStatus } from "./alimtalk";
 
 export type EsignEngine = { service: EsignService; storage: EsignStorage; delivery: EsignDelivery; kick(): Promise<void> };
 export type EsignHttpDependencies = {
     engine(): Promise<EsignEngine>;
     authorize(request: Request, workspaceId: number, capability: "read" | "respond"): Promise<EsignActor>;
-    status(request: Request): Promise<{ enabled: boolean; emailReady: boolean; smsReady: boolean; databaseReady: boolean; storageReady: boolean; issues: string[] }>;
+    status(request: Request): Promise<{ enabled: boolean; emailReady: boolean; smsReady: boolean; alimtalkReady?: boolean; alimtalk?: EsignAlimtalkStatus; databaseReady: boolean; storageReady: boolean; issues: string[] }>;
     prefill(request: Request, actor: EsignActor, params: URLSearchParams): Promise<EsignRecipientInput>;
 };
 const HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
@@ -77,9 +78,9 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
             if (method !== "POST") throw new EsignError("요청 경로를 찾을 수 없습니다.", 404);
             const body = await jsonBody(request);
             if (action === "otp") {
-                const channel = z.enum(["email", "sms"]).parse(body.channel), session = await service.publicSession(token);
+                const channel = z.enum(["email", "alimtalk", "sms"]).parse(body.channel), session = await service.publicSession(token);
                 const aggregate = await service.repository.read(session.envelope.id);
-                if (!aggregate || !await delivery.ready(channel, aggregate.envelope.orgId)) throw new EsignError(`${channel === "sms" ? "SMS" : "이메일"} 발송 설정이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
+                if (!aggregate || !await delivery.ready(channel, aggregate.envelope.orgId)) throw new EsignError(`${channel === "alimtalk" ? "알림톡 템플릿 승인과 연결" : channel === "sms" ? "SMS 발송 설정" : "이메일 발송 설정"}이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
                 const queued = await service.requestOtp(token, channel); kick(engine);
                 return result(queued);
             }
@@ -150,8 +151,8 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
             if (!id && method === "GET") return result(await service.listEnvelopes(actor));
             if (!id && method === "POST") {
                 const input = body as unknown as Parameters<EsignService["createEnvelope"]>[1];
-                const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);
-                for (const channel of new Set(recipients.flatMap(r => r.channels))) if (!await delivery.ready(channel, actor.orgId)) throw new EsignError(`${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
+                const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "alimtalk", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);
+                for (const channel of new Set(recipients.flatMap(r => r.channels))) if (!await delivery.ready(channel, actor.orgId)) throw new EsignError(channel === "alimtalk" ? "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : `${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
                 const created = await service.createEnvelope(actor, input);
                 const detail = await service.dispatchEnvelope(actor, created.envelope.id); kick(engine); return result(detail, 201);
             }

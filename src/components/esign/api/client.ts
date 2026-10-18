@@ -1,6 +1,7 @@
 import type { EsignDocument, EsignEnvelopeInput, EsignField, EsignChannel, EsignRecipientInput, PublicEsignSession, StaffEsignDetail } from "@/lib/esign/types";
+import type { EsignAlimtalkStatus } from "@/lib/esign/alimtalk";
 
-export type EsignStatus = { enabled: boolean; emailReady: boolean; smsReady: boolean; storageReady: boolean; databaseReady: boolean; issues: string[] };
+export type EsignStatus = { enabled: boolean; emailReady: boolean; smsReady: boolean; alimtalkReady?: boolean; alimtalk?: EsignAlimtalkStatus; storageReady: boolean; databaseReady: boolean; issues: string[] };
 export type SigningValue = { fieldId: string; text?: string; pngDataUrl: string };
 export type OtpResult = { retryAt?: string; expiresAt?: string; delivery?: { state: string }; message?: string; previewCode?: string };
 export class EsignApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = "EsignApiError"; } }

@@ -7,7 +7,7 @@ import type { EsignDocument, EsignField, PublicEsignSession, StaffEsignDetail } 
 
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAJklEQVR4nGP8z8Dwn4GBgYFxC4hkYGCCUAjAyMDwH6xCUlIKuwoA8JQFBIK0JaYAAAAASUVORK5CYII=";
 
-for (const contentAddressedStorage of [false, true]) test(`real HTTP handler (${contentAddressedStorage ? "content addressed" : "conditional"}): template → two-channel invitation → sequential OTP/signing → stored final PDF/audit`, async () => {
+for (const contentAddressedStorage of [false, true]) for (const phoneChannel of ["sms", "alimtalk"] as const) test(`real HTTP handler (${contentAddressedStorage ? "content addressed" : "conditional"}, ${phoneChannel}): template → two-channel invitation → sequential OTP/signing → stored final PDF/audit`, async () => {
     const fixture = await createEsignQaFixture({ contentAddressedStorage });
     try {
         async function api<T>(route: string, body?: unknown, options: { method?: string; expected?: number; headers?: Record<string, string> } = {}) {
@@ -29,7 +29,7 @@ for (const contentAddressedStorage of [false, true]) test(`real HTTP handler (${
         assert.equal(clone.artifact.sha256, template.artifact.sha256); assert.notEqual(clone.id, template.id);
         const detail = await api<StaffEsignDetail>("/envelopes?workspaceId=101", {
             documentId: clone.id, title: "가상 순차 계약", order: "sequential", expiresAt: new Date(Date.now() + 86400000).toISOString(),
-            recipients: [0, 1].map(i => ({ name: `가상 서명자 ${i}`, email: `fake-${i}@isolated.example.test`, phone: `0100000000${i}`, channels: ["email", "sms"] })),
+            recipients: [0, 1].map(i => ({ name: `가상 서명자 ${i}`, email: `fake-${i}@isolated.example.test`, phone: `0100000000${i}`, channels: ["email", phoneChannel] })),
         }, { expected: 201 });
         const id = detail.envelope.id;
         await fixture.flush();
@@ -43,7 +43,7 @@ for (const contentAddressedStorage of [false, true]) test(`real HTTP handler (${
         for (let i = 0; i < 2; i++) {
             const token = fixture.outbox.find(j => j.kind === "invitation" && j.recipientId === detail.recipients[i].id)!.payload.token!;
             tokens.push(token);
-            await api(`/public/${token}/otp`, { channel: i === 0 ? "sms" : "email" }); await fixture.flush();
+            await api(`/public/${token}/otp`, { channel: i === 0 ? phoneChannel : "email" }); await fixture.flush();
             await api(`/public/${token}/otp`, { channel: "email" }, { expected: 429 });
             const code = fixture.outbox.filter(j => j.kind === "otp" && j.recipientId === detail.recipients[i].id).at(-1)!.payload.code!;
             const verified = await api<{ verificationToken: string }>(`/public/${token}/verify`, { code }); verifications.push(verified.verificationToken);

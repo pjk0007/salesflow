@@ -1,6 +1,6 @@
 import type { PdfPage } from "./pdf-types";
 /** All dates cross the API boundary as ISO strings; PDF coordinates use the visible rotated page. */
-export type EsignChannel = "email" | "sms";
+export type EsignChannel = "email" | "alimtalk" | "sms";
 export type EnvelopeState = "draft" | "pending" | "finalizing" | "completed" | "cancelled" | "rejected" | "expired";
 export type RecipientState = "pending" | "signed" | "rejected";
 export type JobState = "blocked" | "pending" | "processing" | "accepted" | "failed" | "unknown" | "cancelled";

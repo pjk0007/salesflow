@@ -6,6 +6,7 @@ import { createPostgresEsignSql, PostgresEsignRepository } from "./postgres-repo
 import { createEsignStorage, localEsignBlobStore, s3EsignBlobStore } from "./storage";
 import { createEsignDelivery } from "./delivery";
 import { selectEsignEmailSender } from "./sender";
+import { createEsignAlimtalk, type EsignAlimtalkStatus } from "./alimtalk";
 import { createEsignJobRunner } from "./worker";
 import { EsignError, type EsignActor, type EsignRecipientInput } from "./types";
 import type { EsignEngine, EsignHttpDependencies } from "./http";
@@ -48,6 +49,16 @@ function runtime(): Runtime {
     const storage = createEsignStorage(raw, cfg.secret), service = new EsignService({ repository, secret: cfg.secret });
     const delivery = createEsignDelivery({
         publicOrigin: process.env.ESIGN_PUBLIC_ORIGIN || "https://sendb.kr",
+        alimtalk: createEsignAlimtalk({
+            enabled: process.env.ESIGN_ALIMTALK === "on",
+            publicOrigin: process.env.ESIGN_PUBLIC_ORIGIN || "https://sendb.kr",
+            async config(orgId) {
+                const [{ db, alimtalkConfigs }, { and, eq }] = await Promise.all([import("@/lib/db"), import("drizzle-orm")]);
+                const [config] = await db.select().from(alimtalkConfigs).where(and(eq(alimtalkConfigs.orgId, orgId), eq(alimtalkConfigs.isActive, 1))).limit(1);
+                const senderKey = process.env.ESIGN_ALIMTALK_SENDER_KEY || config?.defaultSenderKey;
+                return config && senderKey ? { appKey: config.appKey, secretKey: config.secretKey, senderKey } : null;
+            },
+        }),
         sms: { appKey: process.env.ESIGN_SMS_APP_KEY || "", secretKey: process.env.ESIGN_SMS_SECRET_KEY || "", sender: process.env.ESIGN_SMS_SENDER || "" },
         async emailSender(orgId) {
             const [{ getEmailConfig, NhnEmailClient }, { loadOrgSenderProfiles }] = await Promise.all([import("@/lib/nhn-email"), import("@/lib/email-sender-resolver")]);
@@ -92,16 +103,17 @@ export const esignHttpDependencies: EsignHttpDependencies = {
     async status(request) {
         const user = userFrom(request), cfg = config();
         let databaseReady = false, emailReady = false, smsReady = false;
+        let alimtalk: EsignAlimtalkStatus = { ready: false, templates: [], reason: "전자서명 연결을 먼저 준비해주세요." };
         const issues = [...cfg.issues];
         if (cfg.enabled && !cfg.issues.length) {
             try {
                 const app = runtime();
-                [databaseReady, emailReady, smsReady] = await Promise.all([app.databaseReady(), app.delivery.ready("email", user.orgId), app.delivery.ready("sms", user.orgId)]);
+                [databaseReady, emailReady, smsReady, alimtalk] = await Promise.all([app.databaseReady(), app.delivery.ready("email", user.orgId), app.delivery.ready("sms", user.orgId), app.delivery.alimtalkStatus!(user.orgId)]);
                 if (!databaseReady) issues.push("전자서명 메타데이터 테이블 준비가 필요합니다.");
             } catch { issues.push("전자서명 연결 상태를 확인해주세요."); }
             if (process.env.ESIGN_WORKER !== "on") issues.push("지속적인 발송 처리를 위해 전자서명 작업 실행을 설정해주세요.");
         }
-        return { enabled: cfg.enabled, emailReady, smsReady, databaseReady, storageReady: cfg.storageReady && cfg.secret.length >= 32, issues };
+        return { enabled: cfg.enabled, emailReady, smsReady, alimtalkReady: alimtalk.ready, alimtalk, databaseReady, storageReady: cfg.storageReady && cfg.secret.length >= 32, issues };
     },
     async prefill(request, actor: EsignActor, params) {
         const user = userFrom(request);

@@ -25,6 +25,14 @@ test("two-channel recipients use one normalized domestic mobile snapshot", () =>
     assert.deepEqual(parsed.recipients[0].channels, ["email", "sms"]);
     assert.equal(parsed.recipients[0].phone, "01012345678");
 });
+test("email and Alimtalk share a normalized recipient, reject missing/foreign phones and duplicate channels", () => {
+    const parsed = parseEnvelope(request("+82 10 1234 5678", ["email", "alimtalk"]), now);
+    assert.equal(parsed.recipients[0].phone, "01012345678");
+    assert.deepEqual(parsed.recipients[0].channels, ["email", "alimtalk"]);
+    for (const phone of [undefined, "+12025550123", "0212345678"])
+        assert.throws(() => parseEnvelope(request(phone, ["alimtalk"]), now), /국내 휴대폰/);
+    assert.throws(() => parseEnvelope(request("01012345678", ["alimtalk", "alimtalk"]), now), /중복/);
+});
 test("email-only auxiliary numbers keep their international prefix and are not treated as SMS destinations", () => {
     assert.equal(parseEnvelope(request("+44 20-7946-0018", ["email"]), now).recipients[0].phone, "+442079460018");
     assert.equal(parseEnvelope(request("+82 10-1234-5678", ["email"]), now).recipients[0].phone, "+821012345678");

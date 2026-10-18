@@ -1,11 +1,13 @@
 import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignChannel, type EsignJob } from "./types";
 import { OTP_TTL_MS } from "./rules";
+import type { EsignAlimtalkStatus } from "./alimtalk";
 
 export type MailSubmission = { senderAddress: string; senderName?: string; title: string; body: string; receiverList: { receiveMailAddr: string; receiveType: "MRT0" }[] };
 export type EmailSender = { address: string; name?: string; submit(request: MailSubmission): Promise<{ header: { isSuccessful: boolean; resultCode: number }; data: { requestId?: string; results?: { resultCode: number }[] } | null }> };
 export type SmsConfig = { appKey: string; secretKey: string; sender: string };
 export interface EsignDelivery {
     ready(channel: EsignChannel, orgId: string): Promise<boolean>;
+    alimtalkStatus?(orgId: string): Promise<EsignAlimtalkStatus>;
     send(job: EsignJob, orgId: string, payload: DeliveryPayload): Promise<DeliveryOutcome>;
 }
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -26,13 +28,15 @@ export function esignMessage(job: Pick<EsignJob, "kind">, payload: DeliveryPaylo
 }
 
 /** Transport never retries a timeout: the provider might already have accepted it. */
-export function createEsignDelivery(options: { publicOrigin: string; emailSender(orgId: string): Promise<EmailSender | null>; sms?: SmsConfig; fetcher?: typeof fetch; timeoutMs?: number }): EsignDelivery {
+export function createEsignDelivery(options: { publicOrigin: string; emailSender(orgId: string): Promise<EmailSender | null>; sms?: SmsConfig; alimtalk?: { status(orgId: string): Promise<EsignAlimtalkStatus>; send(job: EsignJob, orgId: string, payload: DeliveryPayload): Promise<DeliveryOutcome> }; fetcher?: typeof fetch; timeoutMs?: number }): EsignDelivery {
     const fetcher = options.fetcher ?? fetch, timeoutMs = options.timeoutMs ?? 10_000;
     const smsReady = () => Boolean(options.sms?.appKey && options.sms.secretKey && /^0\d{7,11}$/.test(options.sms.sender));
     return {
-        async ready(channel, orgId) { return channel === "sms" ? smsReady() : Boolean(await options.emailSender(orgId)); },
+        async ready(channel, orgId) { return channel === "alimtalk" ? Boolean((await options.alimtalk?.status(orgId))?.ready) : channel === "sms" ? smsReady() : Boolean(await options.emailSender(orgId)); },
+        alimtalkStatus: orgId => options.alimtalk?.status(orgId) ?? Promise.resolve({ ready: false, reason: "전자서명 알림톡 연결이 필요합니다.", templates: [] }),
         async send(job, orgId, payload) {
             if (!job.channel) return { state: "failed", error: "발송 채널이 없습니다." };
+            if (job.channel === "alimtalk") return options.alimtalk?.send(job, orgId, payload) ?? { state: "failed", error: "전자서명 알림톡 연결이 필요합니다." };
             const message = esignMessage(job, payload, options.publicOrigin);
             if (job.channel === "email") {
                 const sender = await options.emailSender(orgId);

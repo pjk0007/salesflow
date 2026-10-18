@@ -178,8 +178,8 @@ export class EsignService {
             return { envelope: { id, title, state, order, expiresAt, completedAt }, recipient: { id: r.id, index: r.index, name: r.name, state: r.state, channels: r.channels, signedAt: r.signedAt, maskedEmail: maskEmail(r.email), maskedPhone: maskPhone(r.phone) }, waiting: recipientWaiting(value.envelope, value.recipients, r), verified: accessible,
                 ...(accessible ? { document: structuredClone(value.envelope.document), values: structuredClone(r.values), ...(state === "completed" ? { finalArtifact: value.envelope.finalArtifact } : {}) } : {}) };
     }
-    async requestOtp(token: string, channel: "email" | "sms") {
-        z.enum(["email", "sms"]).parse(channel);
+    async requestOtp(token: string, channel: "email" | "alimtalk" | "sms") {
+        z.enum(["email", "alimtalk", "sms"]).parse(channel);
         const found = await this.locate(token), now = this.clock();
         return this.repository.mutate(found.envelopeId, (value) => {
             const r = value.recipients.find((r) => r.id === found.recipientId)!;
