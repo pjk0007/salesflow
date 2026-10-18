@@ -11,10 +11,12 @@ import { DailyConversions } from "./widgets/DailyConversions";
 import { ChannelConversion } from "./widgets/ChannelConversion";
 import { FunnelPreview } from "./widgets/FunnelPreview";
 import { RangeSelector } from "./widgets/RangeSelector";
+import { ComparisonSelector } from "./widgets/ComparisonSelector";
+import { comparisonFromSearchParams, comparisonSearchParams } from "../utils/comparison";
 import { rangeFromSearchParams, rangeSearchParams } from "../utils/range";
 import { SegmentFilter } from "./widgets/SegmentFilter";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Range, SegmentFilters } from "../types/overview";
+import type { ComparisonSelection, Range, SegmentFilters } from "../types/overview";
 
 /**
  * 개요(요약) 탭 — 핵심 KPI + 일별 차트 + 최근 활성 방문자.
@@ -26,20 +28,23 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
     const sp = useSearchParams();
 
     const [range, setRange] = useState<Range>(() => rangeFromSearchParams(new URLSearchParams(sp.toString())));
+    const [comparison, setComparison] = useState<ComparisonSelection>(() => comparisonFromSearchParams(new URLSearchParams(sp.toString()), range));
     const [filters, setFilters] = useState<SegmentFilters>({ device: null, channel: null, channelMode: "all" });
 
     useEffect(() => {
-        const next = rangeSearchParams(range, new URLSearchParams(sp.toString()));
+        const next = comparisonSearchParams(comparison, rangeSearchParams(range, new URLSearchParams(sp.toString())));
         if (next.toString() !== sp.toString()) {
             router.replace(`${pathname}?${next.toString()}`, { scroll: false });
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [range.preset, range.from, range.to]);
+    }, [range.preset, range.from, range.to, comparison]);
 
     const { data, isLoading, error } = useTrackerOverview({
         siteId,
         from: range.from,
         to: range.to,
+        compareFrom: comparison?.from,
+        compareTo: comparison?.to,
         device: filters.device,
         channel: filters.channel,
         channelMode: filters.channelMode,
@@ -75,6 +80,8 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
                 isFilterActive={isFilterActive}
             />
 
+            <ComparisonSelector range={range} value={comparison} onChange={setComparison} />
+
             {isLoading && !data && (
                 <div className="space-y-3">
                     <Skeleton className="h-24 w-full" />
@@ -90,7 +97,7 @@ export function OverviewTab({ siteId }: { siteId: number | null }) {
 
             {data && (
                 <>
-                    <KpiCards kpi={data.kpi} />
+                    <KpiCards kpi={data.kpi} comparison={data.comparison} />
                     <FunnelPreview data={funnelData} showSetupHint={!hasFunnelDefined} />
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                         <DailyPageviewChart data={data.dailyPageviews} />
