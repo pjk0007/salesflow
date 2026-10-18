@@ -13,7 +13,7 @@ import { EsignError, type EsignActor, type EsignJob, type DeliveryPayload } from
 
 export const QA_ORG = "11111111-1111-4111-8111-111111111111";
 export const QA_USER = "22222222-2222-4222-8222-222222222222";
-export async function createEsignQaFixture() {
+export async function createEsignQaFixture(options: { contentAddressedStorage?: boolean } = {}) {
     const database = new PGlite(); await database.exec(await readFile(path.join(process.cwd(), "drizzle/esign/0001.sql"), "utf8"));
     function wrap(db: Pick<PGlite, "query" | "transaction">): EsignSql {
         return { query: (sql, params) => db.query(sql, params), transaction: fn => db.transaction(tx => fn(wrap(tx as unknown as Pick<PGlite, "query" | "transaction">))) };
@@ -21,7 +21,7 @@ export async function createEsignQaFixture() {
     const repository = new PostgresEsignRepository(wrap(database));
     const service = new EsignService({ repository, secret: "isolated-esign-qa-only-secret-do-not-use-in-production" });
     const directory = await mkdtemp(path.join(os.tmpdir(), "sendb-esign-qa-"));
-    const storage = createEsignStorage(localEsignBlobStore(directory), "isolated-esign-qa-only-secret-do-not-use-in-production");
+    const storage = createEsignStorage({ ...localEsignBlobStore(directory), contentAddressed: options.contentAddressedStorage }, "isolated-esign-qa-only-secret-do-not-use-in-production");
     const outbox: { id: string; envelopeId: string; recipientId?: string; channel?: string; kind: string; payload: DeliveryPayload }[] = [];
     const actor: EsignActor = { orgId: QA_ORG, userId: QA_USER, workspaceId: 101, name: "가상 검수 담당자" };
     const delivery = {

@@ -15,12 +15,15 @@ function config() {
     const local = process.env.NODE_ENV !== "production" ? process.env.ESIGN_STORAGE_DIR : undefined;
     const storageReady = Boolean(local || (process.env.ESIGN_S3_ENDPOINT && process.env.ESIGN_S3_BUCKET && process.env.ESIGN_S3_ACCESS_KEY_ID && process.env.ESIGN_S3_SECRET_ACCESS_KEY));
     const issues: string[] = [];
+    const configuredWriteMode = process.env.ESIGN_S3_WRITE_MODE || "conditional";
+    const writeMode: "conditional" | "content-addressed" = configuredWriteMode === "content-addressed" ? "content-addressed" : "conditional";
+    if (configuredWriteMode !== "conditional" && configuredWriteMode !== "content-addressed") issues.push("계약 파일 저장 방식을 확인해주세요.");
     if (!enabled) issues.push("전자서명 기능을 아직 활성화하지 않았습니다.");
     if (secret.length < 32) issues.push("전자서명 전용 암호화 키가 필요합니다.");
     if (!databaseUrl) issues.push("전자서명 메타데이터 DB 연결이 필요합니다.");
     if (!storageReady) issues.push("계약 전용 파일 저장소가 필요합니다.");
     if (enabled && process.env.ESIGN_WORKER !== "on") issues.push("전자서명 작업 실행을 활성화해야 합니다.");
-    return { enabled, secret, databaseUrl, local, storageReady, issues };
+    return { enabled, secret, databaseUrl, local, storageReady, issues, writeMode };
 }
 function userFrom(request: Request) {
     const user = getUserFromNextRequest(request as NextRequest);
@@ -40,7 +43,7 @@ function runtime(): Runtime {
         const endpoint = new URL(process.env.ESIGN_S3_ENDPOINT!);
         if (endpoint.protocol !== "https:" || endpoint.username || endpoint.password || endpoint.search || endpoint.hash)
             throw new EsignError("계약 파일 저장소 주소를 확인해주세요.", 503);
-        raw = s3EsignBlobStore(new S3Client({ endpoint: endpoint.toString(), region: process.env.ESIGN_S3_REGION || "auto", credentials: { accessKeyId: process.env.ESIGN_S3_ACCESS_KEY_ID!, secretAccessKey: process.env.ESIGN_S3_SECRET_ACCESS_KEY! } }), process.env.ESIGN_S3_BUCKET!);
+        raw = s3EsignBlobStore(new S3Client({ endpoint: endpoint.toString(), region: process.env.ESIGN_S3_REGION || "auto", credentials: { accessKeyId: process.env.ESIGN_S3_ACCESS_KEY_ID!, secretAccessKey: process.env.ESIGN_S3_SECRET_ACCESS_KEY! } }), process.env.ESIGN_S3_BUCKET!, cfg.writeMode);
     }
     const storage = createEsignStorage(raw, cfg.secret), service = new EsignService({ repository, secret: cfg.secret });
     const delivery = createEsignDelivery({
