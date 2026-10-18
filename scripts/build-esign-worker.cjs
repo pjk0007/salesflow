@@ -68,6 +68,22 @@ async function main() {
     logLevel: "warning",
   });
 
+  // Standalone images do not include the development scripts or postgres package.
+  // Ship the explicit, opt-in database command with its driver bundled.
+  await build({
+    entryPoints: [path.join(__dirname, "migrate-esign.cjs")],
+    outfile: path.join(runtime, "migrate-esign.cjs"),
+    bundle: true, platform: "node", target: "node22", format: "cjs",
+    minify: true, sourcemap: false, legalComments: "inline", logLevel: "warning",
+  });
+  const postgresRoot = resolvedPackageRoot("postgres", __dirname);
+  const postgresMetadata = JSON.parse(fs.readFileSync(path.join(postgresRoot, "package.json"), "utf8"));
+  const postgresLicensePath = path.join(__dirname, "licenses", `postgres-${postgresMetadata.version}-UNLICENSE`);
+  const postgresLicense = fs.readFileSync(postgresLicensePath, "utf8");
+  if (!postgresLicense.trim()) throw new Error("DB 준비 명령의 postgres 라이선스가 비어 있습니다.");
+  fs.writeFileSync(path.join(runtime, "migrate-esign-LICENSES.txt"),
+    `Third-party license for the bundled Sendb electronic-signature database setup command.\nPackage: postgres\nVersion: ${postgresMetadata.version}\nSource: https://github.com/porsager/postgres/blob/v${postgresMetadata.version}/UNLICENSE\n\n${postgresLicense}`);
+
   const packageRoot = path.dirname(require.resolve("pdfjs-dist/package.json"));
   const metadata = JSON.parse(fs.readFileSync(path.join(packageRoot, "package.json"), "utf8"));
   if (metadata.name !== "pdfjs-dist" || !/^\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/.test(metadata.version)) {

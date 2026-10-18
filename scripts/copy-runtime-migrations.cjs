@@ -48,6 +48,13 @@ function copyRuntimeMigrations(root = process.cwd()) {
     const deployedNotices = path.join(standalone, ".esign-runtime", "pdf-worker-LICENSES.txt");
     fs.copyFileSync(workerNotices, deployedNotices);
     if (digest(workerNotices) !== digest(deployedNotices)) throw new Error("전자서명 PDF 라이선스 배포 파일 검증 실패");
+    for (const filename of ["migrate-esign.cjs", "migrate-esign-LICENSES.txt"]) {
+        const commandSource = path.join(root, ".esign-runtime", filename);
+        const commandDestination = path.join(standalone, ".esign-runtime", filename);
+        fs.copyFileSync(commandSource, commandDestination);
+        if (digest(commandSource) !== digest(commandDestination))
+            throw new Error("전자서명 DB 준비 명령 배포 파일 검증 실패");
+    }
     const assetSource = path.join(root, ".esign-runtime", "pdfjs-assets");
     if (!fs.existsSync(assetSource)) throw new Error("전자서명 PDF 표시 자료 빌드가 필요합니다.");
     const assetDestination = path.join(standalone, ".esign-runtime", "pdfjs-assets");

@@ -4,6 +4,18 @@
 
 ## 최신 저장소 전체 검수
 
+### 실제 발송 준비 변경 검수
+
+전자서명 전용 발신 주소와 standalone DB 준비 명령을 추가한 코드에서 Node.js 24.19.0 전체 테스트 파일 **107개·1,370개 통과, 실패·건너뜀 0개**를 확인했다. 전용 주소는 해당 조직의 프로필/기존 설정과 일치할 때만 사용하며, 잘못된 주소를 다른 브랜드로 대체하지 않는다. 조직 기본 발신자 보존·조직에 없는 주소 거부·이메일 단독 transport 접수도 검사했다.
+
+배포용 빌드·타입 검사·224개 페이지 생성·배포 자료 복사를 통과했다. 전자서명 코드와 배포 스크립트 52개 파일 린트는 오류·경고 0이다. 이번 standalone 서버의 화면/인증 경계와 가상 요청·OTP·서명·완료 PDF 흐름도 다시 통과했다. 추가한 DB 준비 명령과 postgres 라이선스의 원본/배포 해시도 일치한다.
+
+postgres 패키지가 없는 임시 standalone 구조에서 DB 준비 명령을 실행했다. 명시적인 `ESIGN_DATABASE_URL`이 없으면 `DATABASE_URL`이 있어도 연결하지 않고 실패하며, 별도 새 loopback DB에 두 번 실행해 전자서명 테이블 5개만 준비되고 public 테이블은 생성되지 않는 것을 확인했다.
+
+기존 dev 이메일 계정으로 승인된 내부 주소 `ceo@matchesplan.com`에 **[Sendb] 발신자 이메일 확인** 1건을 보냈다. NHN 접수와 해당 Gmail 받은편지함 도착을 확인했고 dev에 전자서명용 발신 프로필을 저장했다. 이는 연결 테스트이며 실제 계약 요청·OTP·완료 알림 전체 실수신 검수는 비공개 저장소 연결 후 진행한다.
+
+근거는 `F:/Dev/.work/esign-live-setup-20261018/`의 `full-suite-result.json`, `full-build-result.json`, `esign-lint.json`, `migration-cli-qa.json`, `standalone-http-qa.json`, `dev-preview-standalone-qa.json`, `email-live-receipt.json`에 보존했다. 아래 1,366개 결과는 전용 발신 주소를 추가하기 전의 검수 기록이다.
+
 2026-10-18 코드 `c5a5478` 기준으로 저장소의 테스트 파일 106개를 모두 실행했다. Node.js 24.19.0에서 **1,366개 통과, 실패·취소·건너뜀 0개**다. 전자서명 검사와 실제 PostgreSQL의 동시 연결 검사도 포함한다. 실행 환경은 새 loopback 검수 DB와 가상 값만 사용하고 외부 네트워크를 차단했으며 실제 고객·공급자 자격증명은 불러오지 않았다.
 
 - 배포용 webpack 빌드: 컴파일·타입 검사·224개 페이지 생성·standalone 자원/SQL/worker 복사 성공.
