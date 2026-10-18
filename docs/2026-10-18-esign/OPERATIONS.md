@@ -2,6 +2,12 @@
 
 구현 계획과 범위는 [PLAN.md](./PLAN.md), 검수 결과는 [QA.md](./QA.md)를 참고한다. 모두싸인 계정이나 유료 API를 연결하지 않는다. 문서·도장·서명·완료 PDF는 샌드비가 처리하고, 발송에는 기존 이메일·알림톡 공급자를 사용한다. 기존 SMS 구현은 선택 사항이다.
 
+## 현재 운영 상태 (2026-10-18)
+
+사용자 승인 후 https://sendb.kr/esign 에 이메일 전자서명을 활성화했다. CloudType **sendb / main**, Node **v24.3.0**, `ESIGN_ENABLED=on`, `ESIGN_WORKER=on`, `ESIGN_PREVIEW=off`다. 운영 전용 NHN 비공개 버킷과 명시적인 `salesflow-db` 전자서명 연결, 계약 발신 `ceo@matchesplan.com`을 사용한다. 실제 내부 요청·OTP·완료 메일과 완료 PDF 검수를 통과했다.
+
+운영 `ESIGN_ALIMTALK=off`이며 전자서명 템플릿 3종은 심사 중이다. 기존 조직 알림톡 자동화는 유지한다. 중지할 때는 전자서명 기능/worker를 off로 배포하고 기존 비밀값·파일·DB를 보존한다. 상세 근거와 재시작 확인은 [PRODUCTION_ROLLOUT.md](./PRODUCTION_ROLLOUT.md)를 따른다. 아래 개발 전용·미완료 문구는 단계별 과거 이력이다.
+
 ## 최신 발송 구성: 이메일 + 기존 알림톡
 
 사용자가 이메일과 기존 알림톡 이용을 요청했다. **SMS 명의 인증·발신번호 등록은 이 조합의 필수 조건이 아니다.** 아래 과거 SMS 준비 이력과 구분한다.

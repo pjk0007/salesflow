@@ -1,6 +1,29 @@
-# 전자서명 운영 연결 계획 — 2026-10-18
+# 전자서명 운영 반영과 실제 검수 — 2026-10-18
 
-실제 내부 이메일의 요청·코드·완료 수신과 PDF 검수를 마쳤다. 운영 반영은 아래 설정에만 한정한다.
+개발 실제 이메일 검수 후 사용자의 운영 배포 요청과 운영 저장소 연결 승인을 받아 CloudType **sendb / main**에 반영했다. 기능 코드 `a02095291949f63a9c78c083191edddecae3a62c`는 적용됨·실행 중(1/1)이며, 운영에서도 실제 이메일 전 과정을 통과했다. 이 기록 커밋은 문서만 변경한다.
+
+## 현재 운영 상태
+
+- 접속: https://sendb.kr/esign. `ESIGN_ENABLED=on`, `ESIGN_WORKER=on`, `ESIGN_PREVIEW=off`, `ESIGN_ALIMTALK=off`.
+- 인증된 상태 응답: enabled / emailReady / databaseReady / storageReady **true**, issues **빈 배열**. SMS·알림톡은 false다.
+- Node.js는 기존 22.4.1에서 검수한 24 계열로 맞췄으며 실제 컨테이너는 **v24.3.0**이다. 기존 메일·상담 worker 설정은 유지했다.
+- 운영 DB 호스트 `salesflow-db`, 명시적인 전자서명 연결과 기존 DB 연결의 일치를 확인했다. 배포 SQL SHA-256 `68ca79b0143c3a608b3ea9f57e7e9c515cd3027868380c09236bed214cdac910`과 사전 조건을 검사한 뒤 전용 스키마 준비가 exit 0으로 완료됐다.
+- 계약 발신 프로필 `전자서명 · 김이삭` / `ceo@matchesplan.com`을 추가하고 실제 확인 메일 수신을 확인했다. 기존 조직 기본 발신자는 유지했다.
+
+## 운영 실제 이메일 검수
+
+- 운영 `테스트 DB` 워크스페이스의 `QA-PROD-20261018-01`만 사용했다. PDF에 법적·금전적 효력이 없는 가상 내부 시험이라고 명시했다. 실제 고객이나 작성 중인 문서는 사용하지 않았다.
+- 발신·수신 `ceo@matchesplan.com`: 요청 **21:21:20**, 인증코드 **21:22:05**, 완료 **21:23:20 KST**의 실제 받은편지함 도착을 확인했다. 요청·완료 링크의 origin은 모두 `https://sendb.kr`이며 SPF/DKIM/DMARC pass다.
+- 실제 수신 코드로 인증 → 손글씨 선택 → 가상 회사 매화문 직인·고전 명조 선택 → 이름·날짜 입력 → 최종 확인·제출을 완료했다.
+- 서명자 확인 기록과 직원 완료 PDF를 각각 실제 내려받았다. PDF **53,882bytes·1페이지**, SHA-256 `b672de71e11b5c05fae6e71fec7f7a029a3699489b660dd06b7bde7f6601c5b1`이 기록과 일치한다. 원본 해시·최종 입력 PNG 4개 픽셀 보존·이미지 예산을 검사하고 Poppler 렌더링도 시각 검수했다.
+- 완료 후 동일 활성 빌드의 재배포 요청은 새로운 컨테이너 교체로 이어지지 않았다. 문서만 추가한 최종 배포를 통해 실제 컨테이너 교체 후 보존과 중복 발송을 확인할 예정이다. 아직 이 재시작 검수는 완료로 기록하지 않는다.
+- 근거: `F:/Dev/.work/esign-live-setup-20261018/production-live-qa/production-email-result.json`, `audit.json`, `completed.pdf`, 최종 입력 이미지·화면. OTP 값, 서명 URL, 비밀키는 Git 문서에 넣지 않는다.
+
+## 남은 채널
+
+전자서명용 `SB_ESIGN_REQ_V1`, `SB_ESIGN_OTP_V1`, `SB_ESIGN_DONE_V1`은 최신 조회에서도 모두 **심사 중**이다. 이번 실제 검수는 이메일로 진행했으며 알림톡·SMS는 보내지 않았다. 알림톡 승인 후 내부 수신 검수와 운영 opt-in을 별도로 진행해야 한다.
+
+## 운영 구성과 중지 방법
 
 - 대상: CloudType **sendb**, 내부 서비스 식별자 **salesflow**, Git **main**. 기존 운영 코드 `f87de560`의 트래커·상담·메일 기능을 유지한다.
 - 코드: 전자서명 관련 변경만 결합한 운영 준비본. 격리 테스트 **1,480개**, 빌드·타입·224개 페이지·standalone 검수 통과.
@@ -11,4 +34,4 @@
 - 배포: 기능·worker off → 배포 파일/Node 버전/SQL 해시/DB 대상 확인 → 전자서명 SQL 적용 → 준비 상태 확인 → 기능·worker on → 운영 화면·파일 보존 확인.
 - 중지: `ESIGN_ENABLED=off`, `ESIGN_WORKER=off`로 새 전자서명 처리를 멈춘다. 완료 파일·원본·기존 고객 데이터는 보존한다.
 
-실제 검수 근거와 아직 남은 운영 순서는 [RELEASE_PREP.md](./RELEASE_PREP.md)를 따른다.
+격리·개발 검수 근거는 [RELEASE_PREP.md](./RELEASE_PREP.md)를 따른다. 저장소/SQL/배포 근거는 `F:/Dev/.work/esign-live-setup-20261018/actual-email-qa/`에 보존했다.
