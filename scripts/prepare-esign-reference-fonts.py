@@ -104,7 +104,7 @@ def parts(code):
 def main():
  cli=argparse.ArgumentParser();cli.add_argument('--cns-font',type=Path,required=True);cli.add_argument('--reuse-cns',action='store_true');args=cli.parse_args()
  brush=TTFont(OUT/'SendbBrush-Regular.woff2',recalcTimestamp=False);brush_set=brush.getGlyphSet();brush_cmap=brush.getBestCmap();upem=brush['head'].unitsPerEm
- license_base=(OUT/'nanumbrushscript-OFL.txt').read_text(encoding='utf-8')
+ license_base='\n'.join(line.rstrip() for line in (OUT/'nanumbrushscript-OFL.txt').read_text(encoding='utf-8').splitlines())+'\n'
  license_text='Copyright (c) 2026 Sendb contributors (original Hangul seal designs).\nASCII source: Nanum Brush Script; original notices follow.\n\n'+license_base
  (OUT/'SendbSealDesigns-OFL.txt').write_text(license_text,encoding='utf-8')
  manifest={'description':'Original Sendb Hangul seal designs inspired by supplied reference styles, not the same unidentified source fonts. ASCII from licensed Nanum Brush Script.','fonts':[]}
