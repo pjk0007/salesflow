@@ -62,6 +62,7 @@ export async function createEsignPreviewRuntime(pdfBytes: Uint8Array) {
             const document = await service.createDocument(actor, { title: "한글 계약서 체험 (가상 자료)", kind: "template", artifact, pages,
                 fields: [
                     { id: "preview-seal", recipientIndex: 0, type: "seal", pageIndex: 0, x: .68, y: .77, width: .17, height: .12, required: true, label: "가상 도장" },
+                    { id: "preview-signature", recipientIndex: 0, type: "signature", pageIndex: 0, x: .46, y: .81, width: .19, height: .05, required: true, label: "가상 서명" },
                     { id: "preview-name", recipientIndex: 0, type: "name", pageIndex: 0, x: .2, y: .81, width: .24, height: .04, required: true, label: "가상 이름" },
                     { id: "preview-date", recipientIndex: 0, type: "date", pageIndex: 0, x: .2, y: .86, width: .24, height: .04, required: true, label: "체험 날짜" },
                 ],

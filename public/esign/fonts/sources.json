@@ -1,0 +1,39 @@
+{
+  "repository": "https://github.com/google/fonts",
+  "revision": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+  "modifications": "Renamed families and lossless WOFF2 conversion with fonttools 4.60.1. No glyphs removed.",
+  "fonts": [
+    {
+      "family": "Sendb Pen",
+      "original": "NanumPenScript-Regular.ttf",
+      "sourceSha256": "6f0d1ab29c7894010dc88831fb7a0a51edb79136e450344183de5b1a8b52bd43",
+      "file": "SendbPen-Regular.woff2",
+      "sha256": "8f884a10e9abf6586dbdac7f80e97ba5c07a06752a8ff4ad46b609b15b943ffa",
+      "licenseFile": "nanumpenscript-OFL.txt"
+    },
+    {
+      "family": "Sendb Brush",
+      "original": "NanumBrushScript-Regular.ttf",
+      "sourceSha256": "27ceaf578c96f594cdf07fe0181b251790acbb746a164e45c1f6473f89911a31",
+      "file": "SendbBrush-Regular.woff2",
+      "sha256": "91a6bee309cc123e8a3c6267fd48233e127c2497df8878ede45d96fe8a08bd7a",
+      "licenseFile": "nanumbrushscript-OFL.txt"
+    },
+    {
+      "family": "Sendb Classic",
+      "original": "YeonSung-Regular.ttf",
+      "sourceSha256": "49ac2a11009f5f58307d377911eb45d210cf4c1d379d9eca38fb4cdad5491ef6",
+      "file": "SendbClassic-Regular.woff2",
+      "sha256": "4a2bb46c76da4225075f3a4d8e6db4655bca71dd97edd3e30a3dbabed6176f61",
+      "licenseFile": "yeonsung-OFL.txt"
+    },
+    {
+      "family": "Sendb Light",
+      "original": "HiMelody-Regular.ttf",
+      "sourceSha256": "360d2c0a880918aa48328d1d9219f5390788d09a1c9353e12b471de018673ae6",
+      "file": "SendbLight-Regular.woff2",
+      "sha256": "bb0f7b12e1d04a68002c5d1ef375171c98c12112898d86ed257f1688def7f7d8",
+      "licenseFile": "himelody-OFL.txt"
+    }
+  ]
+}
