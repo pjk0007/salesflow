@@ -7,8 +7,8 @@ import type { EsignDocument, EsignField, PublicEsignSession, StaffEsignDetail } 
 
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAJklEQVR4nGP8z8Dwn4GBgYFxC4hkYGCCUAjAyMDwH6xCUlIKuwoA8JQFBIK0JaYAAAAASUVORK5CYII=";
 
-test("real HTTP handler: template → two-channel invitation → sequential OTP/signing → stored final PDF/audit", async () => {
-    const fixture = await createEsignQaFixture();
+for (const contentAddressedStorage of [false, true]) test(`real HTTP handler (${contentAddressedStorage ? "content addressed" : "conditional"}): template → two-channel invitation → sequential OTP/signing → stored final PDF/audit`, async () => {
+    const fixture = await createEsignQaFixture({ contentAddressedStorage });
     try {
         async function api<T>(route: string, body?: unknown, options: { method?: string; expected?: number; headers?: Record<string, string> } = {}) {
             const response = await handleEsignRequest(new Request(`http://127.0.0.1/api/esign${route}`, {

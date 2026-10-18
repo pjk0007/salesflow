@@ -7,6 +7,8 @@ import { EsignError, type EsignArtifact } from "./types";
 const MAX_BYTES = 25 * 1024 * 1024;
 const MAGIC = Buffer.from("SBE1");
 export interface EsignBlobStore {
+    /** The object name contains its encrypted bytes' SHA256, so an existing reference cannot change. */
+    readonly contentAddressed?: boolean;
     putOnce(key: string, bytes: Uint8Array): Promise<boolean>;
     read(key: string): Promise<Uint8Array>;
 }
@@ -20,6 +22,14 @@ function checkedKey(key: string) {
     return key;
 }
 export const artifactHash = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
+const CONTENT_SUFFIX = /\.sbe1-([a-f0-9]{64})$/;
+
+function contentAddress(key: string, bytes: Uint8Array) {
+    const match = CONTENT_SUFFIX.exec(checkedKey(key));
+    if (!match || match[1] !== artifactHash(bytes))
+        throw new EsignError("계약 파일의 저장 경로와 내용이 다릅니다.", 409, "immutable_artifact");
+    return key.slice(0, match.index);
+}
 
 /** Encryption is mandatory even when a bucket is later misconfigured as public. */
 export function createEsignStorage(raw: EsignBlobStore, secret: string): EsignStorage {
@@ -29,9 +39,10 @@ export function createEsignStorage(raw: EsignBlobStore, secret: string): EsignSt
         const encrypted = Buffer.from(await raw.read(checkedKey(objectKey)));
         if (encrypted.length < 33 || encrypted.length > MAX_BYTES + 32 || !encrypted.subarray(0, 4).equals(MAGIC))
             throw new EsignError("계약 파일을 확인할 수 없습니다.", 500, "artifact_invalid");
+        const authenticatedKey = raw.contentAddressed ? contentAddress(objectKey, encrypted) : objectKey;
         try {
             const decipher = createDecipheriv("aes-256-gcm", key, encrypted.subarray(4, 16));
-            decipher.setAAD(Buffer.from(objectKey));
+            decipher.setAAD(Buffer.from(authenticatedKey));
             decipher.setAuthTag(encrypted.subarray(16, 32));
             return Buffer.concat([decipher.update(encrypted.subarray(32)), decipher.final()]);
         } catch { throw new EsignError("계약 파일의 무결성을 확인할 수 없습니다.", 500, "artifact_invalid"); }
@@ -40,13 +51,16 @@ export function createEsignStorage(raw: EsignBlobStore, secret: string): EsignSt
         async put(objectKey, bytes, contentType) {
             checkedKey(objectKey);
             if (!bytes.byteLength || bytes.byteLength > MAX_BYTES) throw new EsignError("계약 파일 크기를 확인해주세요.");
-            const artifact: EsignArtifact = { key: objectKey, sha256: artifactHash(bytes), size: bytes.byteLength, contentType };
             const nonce = randomBytes(12), cipher = createCipheriv("aes-256-gcm", key, nonce);
             cipher.setAAD(Buffer.from(objectKey));
             const body = Buffer.concat([cipher.update(bytes), cipher.final()]);
             const sealed = Buffer.concat([MAGIC, nonce, cipher.getAuthTag(), body]);
-            if (!await raw.putOnce(objectKey, sealed)) {
-                const existing = await open(objectKey);
+            // Conditional PUT is unavailable on some S3 providers. Each encrypted version then gets
+            // a content address; writes to the same address can only contain the same sealed bytes.
+            const storedKey = raw.contentAddressed ? checkedKey(`${objectKey}.sbe1-${artifactHash(sealed)}`) : objectKey;
+            const artifact: EsignArtifact = { key: storedKey, sha256: artifactHash(bytes), size: bytes.byteLength, contentType };
+            if (!await raw.putOnce(storedKey, sealed)) {
+                const existing = await open(storedKey);
                 if (existing.length !== artifact.size || artifactHash(existing) !== artifact.sha256)
                     throw new EsignError("이미 저장된 계약 파일을 덮어쓸 수 없습니다.", 409, "immutable_artifact");
             }
@@ -83,15 +97,17 @@ export function localEsignBlobStore(directory: string): EsignBlobStore {
     };
 }
 
-export function s3EsignBlobStore(client: S3Client, bucket: string): EsignBlobStore {
+export function s3EsignBlobStore(client: S3Client, bucket: string, writeMode: "conditional" | "content-addressed" = "conditional"): EsignBlobStore {
     if (!bucket) throw new EsignError("계약 파일 저장소를 설정해주세요.", 503);
     return {
+        contentAddressed: writeMode === "content-addressed",
         async putOnce(key, bytes) {
+            if (writeMode === "content-addressed") contentAddress(key, bytes);
             try {
-                await client.send(new PutObjectCommand({ Bucket: bucket, Key: checkedKey(key), Body: bytes, ContentType: "application/octet-stream", CacheControl: "no-store", IfNoneMatch: "*" }));
+                await client.send(new PutObjectCommand({ Bucket: bucket, Key: checkedKey(key), Body: bytes, ContentType: "application/octet-stream", CacheControl: "no-store", ...(writeMode === "conditional" ? { IfNoneMatch: "*" } : {}) }));
                 return true;
             } catch (error) {
-                if ((error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
+                if (writeMode === "conditional" && (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) return false;
                 throw error;
             }
         },
