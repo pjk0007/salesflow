@@ -5,6 +5,7 @@ import { EsignService } from "./core";
 import { createPostgresEsignSql, PostgresEsignRepository } from "./postgres-repository";
 import { createEsignStorage, localEsignBlobStore, s3EsignBlobStore } from "./storage";
 import { createEsignDelivery } from "./delivery";
+import { selectEsignEmailSender } from "./sender";
 import { createEsignJobRunner } from "./worker";
 import { EsignError, type EsignActor, type EsignRecipientInput } from "./types";
 import type { EsignEngine, EsignHttpDependencies } from "./http";
@@ -46,10 +47,10 @@ function runtime(): Runtime {
         publicOrigin: process.env.ESIGN_PUBLIC_ORIGIN || "https://sendb.kr",
         sms: { appKey: process.env.ESIGN_SMS_APP_KEY || "", secretKey: process.env.ESIGN_SMS_SECRET_KEY || "", sender: process.env.ESIGN_SMS_SENDER || "" },
         async emailSender(orgId) {
-            const [{ getEmailConfig, NhnEmailClient }, { resolveSender }] = await Promise.all([import("@/lib/nhn-email"), import("@/lib/email-sender-resolver")]);
+            const [{ getEmailConfig, NhnEmailClient }, { loadOrgSenderProfiles }] = await Promise.all([import("@/lib/nhn-email"), import("@/lib/email-sender-resolver")]);
             const email = await getEmailConfig(orgId);
             if (!email) return null;
-            const sender = await resolveSender(orgId, { config: email });
+            const sender = selectEsignEmailSender(process.env.ESIGN_EMAIL_SENDER, await loadOrgSenderProfiles(orgId), email);
             if (!sender.fromEmail) return null;
             const client = new NhnEmailClient(email.appKey, email.secretKey);
             return { address: sender.fromEmail, name: sender.fromName, submit: request => client.sendEachMail(request) };

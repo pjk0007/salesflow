@@ -6,6 +6,20 @@ import { OTP_TTL_MS } from "./rules";
 const invitation = { id: "fake-job", kind: "invitation", channel: "sms" } as EsignJob;
 const payload = { name: "가상 고객", phone: "01000000000", email: "fake@example.test", title: "가상 계약서", token: "a".repeat(43) };
 const sms = { appKey: "fake-key", secretKey: "fake-secret", sender: "0200000000" };
+test("이메일 단독 요청은 지정 발신자와 수신자 한 명으로 접수하고 SMS를 호출하지 않는다", async () => {
+    const requests: unknown[] = [];
+    const delivery = createEsignDelivery({ publicOrigin: "https://example.test", emailSender: async orgId => {
+        assert.equal(orgId, "fake-org");
+        return { address: "contract@example.test", name: "계약 담당자", submit: async request => {
+            requests.push(request);
+            return { header: { isSuccessful: true, resultCode: 0 }, data: { requestId: "fake-email-request", results: [{ resultCode: 0 }] } };
+        } };
+    }, fetcher: (async () => { throw new Error("이메일 단독 요청에서 SMS를 호출하면 안 됩니다."); }) as typeof fetch });
+    assert.equal(await delivery.ready("email", "fake-org"), true);
+    assert.deepEqual(await delivery.send({ ...invitation, channel: "email" }, "fake-org", payload), { state: "accepted", providerId: "fake-email-request" });
+    assert.equal(requests.length, 1);
+    assert.deepEqual(requests[0], { senderAddress: "contract@example.test", senderName: "계약 담당자", title: "[샌드비] 서명을 요청드립니다", body: esignMessage(invitation, payload, "https://example.test").html, receiverList: [{ receiveMailAddr: payload.email, receiveType: "MRT0" }] });
+});
 test("확인 코드 안내 시간은 실제 서버 유효시간과 일치한다", () => {
     const message = esignMessage({ kind: "otp" }, { code: "123456" }, "https://example.test");
     assert.ok(message.text.includes(`${Math.floor(OTP_TTL_MS / 60_000)}분`));
