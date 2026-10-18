@@ -37,7 +37,7 @@ export async function createEsignQaFixture(options: { contentAddressedStorage?: 
     const dependencies: EsignHttpDependencies = {
         async engine() { return engine; },
         async authorize(request, workspaceId) { if (request.headers.get("X-Qa-Deny") || ![101, 102].includes(workspaceId)) throw new EsignError("가상 사업의 접근 권한이 없습니다.", 403); return { ...actor, workspaceId }; },
-        async status() { return { enabled: true, emailReady: true, smsReady: true, storageReady: true, databaseReady: true, issues: [] }; },
+        async status() { return { enabled: true, emailReady: true, smsReady: true, alimtalkReady: true, storageReady: true, databaseReady: true, issues: [] }; },
         async prefill(_request, scoped) { return { name: "가상 고객", email: "customer@isolated.example.test", phone: "01000000001", channels: ["email"], recordId: 901, ...(scoped.workspaceId === 102 ? { name: "가상 백오랩 고객" } : {}) }; },
     };
     const pdf = await PDFDocument.create(), font = await pdf.embedFont(StandardFonts.Helvetica), page = pdf.addPage([595, 842]);

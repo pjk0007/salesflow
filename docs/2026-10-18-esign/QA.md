@@ -4,6 +4,18 @@
 
 ## 최신 저장소 전체 검수
 
+### 이메일 + 기존 알림톡 연결 (2026-10-18)
+
+- Node.js 24.19.0, 격리 PostgreSQL/PGlite·가상 수신자·외부 네트워크 차단 환경에서 테스트 파일 **109개, 1,405개 통과·실패/취소/건너뜀 0개**다.
+- `email + alimtalk` 및 기존 `email + sms` 각각을 조건부/암호문 주소 저장 방식으로 검사했다. PDF 업로드 → 템플릿 저장·복사 → 두 명 순차 요청 → OTP → 서명 → 완료 PDF·확인 기록까지 실제 HTTP handler/DB/worker로 통과했다.
+- 알림톡 심사 요청/심사 중/반려/미확인, 차단·휴면, 본문/버튼 변경, 발신 채널 비정상은 발송 전에 차단한다. 정상/수신자 거절/누락/다른 수신자/서버 오류/타임아웃을 구분하고 자동 재시도·SMS 전환이 없음을 확인했다. OTP 인증 전용 API와 공급자 idempotency key도 검사했다.
+- 신규 코드로 실제 NHN 상태를 **읽기 전용** 조회해 `@디자이너하이어`, 템플릿 3종 `심사 중`, `ready=false`를 확인했다. 실제 API와 콘솔에서 신청 내용이 일치했다. 카카오·SMS 실제 메시지는 보내지 않았다.
+- 변경 TypeScript 파일 린트는 오류·경고 0개다. webpack 운영 형식 빌드·타입 검사·224개 페이지 생성과 standalone 자원 복사를 통과했다. 실제 standalone 서버의 가상 요청·OTP·서명·완료 PDF 전체 검수도 통과했다.
+- 통합 전에 새로 올라온 트래커 비교 변경 `f26d938`를 보존했고 해당 추가 테스트 7개도 별도로 통과했다. 위 1,405개와 별도 검사 기록이다.
+- 로그는 Git 밖 `F:/Dev/.work/esign-live-setup-20261018/alimtalk-qa/`의 `full-suite-result.json`, `tracker-comparison-result.json`, `full-build-result.json`, `live-provider-status.json`, `template-submissions.json`, `nhn-template-review-pending.png`에 보존한다. 자격증명은 기록하지 않았다.
+
+승인 전 카카오 실수신 검수는 수행할 수 없다. 실제 계약 이메일 요청·OTP·완료 수신 전체 검수도 기존 Chrome 파일 선택 권한 대기 상태로 남아 있다. 이전에 확인한 메일은 발신자 확인 메일이며 계약 전체 수신 성공으로 해석하지 않는다.
+
 ### 개발 서버 실제 연결 준비 결과
 
 코드 `399e914`의 CloudType `sendb-dev / dev` 적용됨·실행 중(1/1)을 확인했다. NHN 비공개 저장소 키와 새 저장 방식을 반영하고 개발 기능·worker를 켰다. Chrome의 인증된 상태 API는 `enabled=true`, `emailReady=true`, `smsReady=false`, `databaseReady=true`, `storageReady=true`, `issues=[]`다. 재배포 전 저장한 암호화 시험 객체를 같은 참조로 다시 읽어 내용 일치도 확인했다. `dev-live-esign-status.json`, `dev-email-enabled.png`, `nhn-storage-after-redeploy.json`에 보존했다.

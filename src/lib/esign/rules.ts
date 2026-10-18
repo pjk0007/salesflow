@@ -18,7 +18,7 @@ const page = z.object({ pageIndex: z.number().int().min(0).max(29), width: z.num
 export const documentInput = z.object({ title: z.string().trim().min(1).max(200), kind: z.enum(["document", "template"]), artifact, pages: z.array(page).min(1).max(30), fields: z.array(field).max(100) }).strict();
 export const envelopeInput = z.object({
     documentId: z.string().uuid(), title: z.string().trim().min(1).max(200), order: z.enum(["parallel", "sequential"]), expiresAt: z.string().datetime({ offset: true }),
-    recipients: z.array(z.object({ name: z.string().trim().min(1).max(100), email: z.string().trim().email().max(254).optional(), phone: z.string().trim().regex(/^\+?[0-9 -]{8,25}$/).optional(), channels: z.array(z.enum(["email", "sms"])).min(1).max(2), contactId: z.string().uuid().optional(), recordId: z.number().int().positive().optional() }).strict()).min(1).max(5),
+    recipients: z.array(z.object({ name: z.string().trim().min(1).max(100), email: z.string().trim().email().max(254).optional(), phone: z.string().trim().regex(/^\+?[0-9 -]{8,25}$/).optional(), channels: z.array(z.enum(["email", "alimtalk", "sms"])).min(1).max(3), contactId: z.string().uuid().optional(), recordId: z.number().int().positive().optional() }).strict()).min(1).max(5),
 }).strict();
 export function parseDocument(raw: EsignDocumentInput) {
     const input = documentInput.parse(raw);
@@ -34,11 +34,11 @@ export function parseEnvelope(raw: EsignEnvelopeInput, now: Date) {
         if (new Set(r.channels).size !== r.channels.length) throw new EsignError("발송 채널이 중복되었습니다.");
         if (r.channels.includes("email") && !r.email) throw new EsignError("이메일 수신자의 주소를 입력해주세요.");
         if (r.phone) r.phone = r.phone.replace(/[ -]/g, "");
-        if (r.channels.includes("sms")) {
-            // NHN domestic SMS expects a national number, not an E.164 +82 prefix.
+        if (r.channels.includes("sms") || r.channels.includes("alimtalk")) {
+            // Both NHN domestic transports expect a national number, not an E.164 +82 prefix.
             if (r.phone) r.phone = r.phone.replace(/^\+820?/, "0");
             if (!r.phone || !/^01[016789]\d{7,8}$/.test(r.phone))
-                throw new EsignError("SMS는 국내 휴대폰 번호만 지원합니다. 010 형식의 번호를 입력해주세요.");
+                throw new EsignError("알림톡·SMS는 국내 휴대폰 번호만 지원합니다. 010 형식의 번호를 입력해주세요.");
         }
     }
     return input;

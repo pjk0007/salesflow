@@ -7,9 +7,9 @@ import { createEsignStorage, artifactHash } from "./storage";
 import { inspectPdfInWorker } from "./pdf-worker";
 import { createEsignJobRunner } from "./worker";
 import { handleEsignRequest, type EsignHttpDependencies } from "./http";
-import { EsignError, type DeliveryPayload, type EsignActor, type EsignDocumentInput, type EsignEnvelopeInput, type EsignJob } from "./types";
+import { EsignError, type DeliveryPayload, type EsignActor, type EsignDocumentInput, type EsignEnvelopeInput, type EsignJob, type EsignChannel } from "./types";
 
-export type PreviewMessage = { id: string; envelopeId: string; kind: string; channel?: string; name?: string; title?: string; signUrl?: string; code?: string; createdAt: string };
+export type PreviewMessage = { id: string; envelopeId: string; kind: string; channel?: EsignChannel; name?: string; title?: string; signUrl?: string; code?: string; createdAt: string };
 const fakeRecipient = (input: { email?: string; phone?: string }) =>
     (!input.email || /^[^@]+@[^@]+\.example\.test$/.test(input.email)) && (!input.phone || /^01000000\d{3}$/.test(input.phone));
 
@@ -66,7 +66,7 @@ export async function createEsignPreviewRuntime(pdfBytes: Uint8Array) {
                     { id: "preview-date", recipientIndex: 0, type: "date", pageIndex: 0, x: .2, y: .86, width: .24, height: .04, required: true, label: "체험 날짜" },
                 ],
             });
-            const detail = await service.createEnvelope(actor, { documentId: document.id, title: `${actor.workspaceId === 101 ? "디하" : "백오랩"} · 가상 계약서 서명 체험`, order: "parallel", expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), recipients: [{ name: "가상 고객", email: "customer@isolated.example.test", phone: "01000000001", channels: ["email", "sms"] }] });
+            const detail = await service.createEnvelope(actor, { documentId: document.id, title: `${actor.workspaceId === 101 ? "디하" : "백오랩"} · 가상 계약서 서명 체험`, order: "parallel", expiresAt: new Date(Date.now() + 7 * 86400000).toISOString(), recipients: [{ name: "가상 고객", email: "customer@isolated.example.test", phone: "01000000001", channels: ["email", "alimtalk"] }] });
             await service.dispatchEnvelope(actor, detail.envelope.id); await engine.kick();
         })();
         seeds.set(key, task); try { await task; } catch (error) { seeds.delete(key); throw error; }
@@ -103,8 +103,8 @@ export async function handleEsignPreviewRequest(request: Request, options: { ena
         const forwarded = new Request(url, request);
         const response = await handleEsignRequest(forwarded, {
             engine: async () => app.engine, authorize,
-            status: async () => ({ enabled: true, emailReady: true, smsReady: true, storageReady: true, databaseReady: true, issues: [] }),
-            prefill: async () => ({ name: "가상 고객", email: "customer@isolated.example.test", phone: "01000000001", channels: ["email", "sms"] }),
+            status: async () => ({ enabled: true, emailReady: true, smsReady: true, alimtalkReady: true, alimtalk: { ready: true, channelName: "가상 체험 채널", templates: [] }, storageReady: true, databaseReady: true, issues: [] }),
+            prefill: async () => ({ name: "가상 고객", email: "customer@isolated.example.test", phone: "01000000001", channels: ["email", "alimtalk"] }),
         });
         if (response.ok && request.method === "POST") {
             await app.engine.kick();

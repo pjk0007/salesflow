@@ -1,0 +1,35 @@
+[
+  {
+    "kind": "invitation",
+    "templateCode": "SB_ESIGN_REQ_V1",
+    "templateName": "전자서명 요청 안내 v1",
+    "templateContent": "[전자서명 요청]\n\n#{이름}님, 서명 요청이 도착했습니다.\n\n문서: #{문서명}\n\n아래 버튼에서 문서를 확인하고 서명해주세요.\n요청 내용이 다르거나 예상하지 못한 요청이면 서명하지 말고 요청자에게 문의해주세요.",
+    "templateMessageType": "BA",
+    "templateEmphasizeType": "NONE",
+    "securityFlag": true,
+    "categoryCode": "005003",
+    "buttons": [{ "ordering": 1, "type": "WL", "name": "문서 확인 및 서명", "linkMo": "https://#{서명주소}", "linkPc": "https://#{서명주소}" }]
+  },
+  {
+    "kind": "otp",
+    "templateCode": "SB_ESIGN_OTP_V1",
+    "templateName": "전자서명 인증 코드 v1",
+    "templateContent": "[전자서명 인증]\n\n인증 코드: #{인증코드}\n\n서명 페이지에 5분 이내 입력해주세요.\n인증 코드는 다른 사람에게 알려주지 마세요.\n직접 요청하지 않았다면 입력하지 마세요.",
+    "templateMessageType": "BA",
+    "templateEmphasizeType": "NONE",
+    "securityFlag": true,
+    "categoryCode": "001002",
+    "buttons": []
+  },
+  {
+    "kind": "completed",
+    "templateCode": "SB_ESIGN_DONE_V1",
+    "templateName": "전자서명 완료 안내 v1",
+    "templateContent": "[전자서명 완료]\n\n#{이름}님, 모든 서명자의 서명이 완료되었습니다.\n\n문서: #{문서명}\n\n아래 버튼에서 본인 확인 후 완료 문서를 확인하고 내려받을 수 있습니다.",
+    "templateMessageType": "BA",
+    "templateEmphasizeType": "NONE",
+    "securityFlag": true,
+    "categoryCode": "005003",
+    "buttons": [{ "ordering": 1, "type": "WL", "name": "완료 문서 확인", "linkMo": "https://#{서명주소}", "linkPc": "https://#{서명주소}" }]
+  }
+]
