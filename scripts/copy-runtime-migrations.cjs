@@ -33,7 +33,6 @@ function copyRuntimeMigrations(root = process.cwd()) {
     }
     fs.cpSync(source, destination, { recursive: true });
     const digest = (file) => crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
-    const journal = JSON.parse(fs.readFileSync(path.join(source, "meta", "_journal.json"), "utf8"));
     for (const relative of ["meta/_journal.json", "esign/0001.sql", ...journal.entries.map((entry) => entry.tag + ".sql")]) {
         if (digest(path.join(source, relative)) !== digest(path.join(destination, relative)))
             throw new Error("배포 마이그레이션 파일 검증 실패: " + relative);
