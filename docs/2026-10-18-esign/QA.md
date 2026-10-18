@@ -8,7 +8,7 @@
 
 `bfc9b0a`의 CloudType `sendb-dev / dev` 적용됨·실행 중(1/1)을 확인했다. 서버에서 비밀 값 자체를 출력하지 않고 명시적인 전자서명 DB의 개발 호스트·기존 dev 연결과의 일치·개발 origin·기능/worker off를 검사했다. `/app/standalone/drizzle/esign/0001.sql`의 SHA256 `68ca79b0143c3a608b3ea9f57e7e9c515cd3027868380c09236bed214cdac910` 일치 후 portable DB 준비 명령을 실행해 전자서명 스키마 준비 완료를 확인했다. 고객 테이블 조회·변경과 운영 DB 접근은 없다. 경로와 결과를 `dev-db-ready.json`, `dev-db-ready.png`에 보존했다.
 
-사용자는 새 계약 저장소에 Cloudflare를 사용하지 않도록 지시했다. 기존 R2 키로 새 버킷 생성을 시도한 결과는 403이며 생성된 버킷이나 삭제된 객체는 없다. 이후 R2 작업을 중단하고 기존 NHN 프로젝트에서 Object Storage 활성화와 접근 키 발급 화면 준비까지만 진행했다. 아직 계약 전용 컨테이너·키 등록·실제 읽기/쓰기·재시작 후 보존을 통과로 기록하지 않는다.
+사용자는 새 계약 저장소에 Cloudflare를 사용하지 않도록 지시했다. 기존 R2 키로 새 버킷 생성을 시도한 결과는 403이며 생성된 버킷이나 삭제된 객체는 없다. 이후 R2 작업을 중단하고 기존 NHN 프로젝트에 계약 전용 컨테이너 `sendb-esign-dev-20261018-21ba51`을 생성했다. 콘솔의 성공 메시지와 `PRIVATE`·Standard·0개 객체 상태를 확인하고 `nhn-private-bucket.json`, `nhn-private-bucket.png`에 보존했다. 접근 키 발급은 사용자 확인 대기이며 키 등록·실제 읽기/쓰기·재시작 후 보존을 통과로 기록하지 않는다.
 
 NHN SMS 공식 발신번호 조회는 HTTP 200·성공 응답이지만 지정한 번호가 없었다. 계정/키 유효성과 발신번호 승인은 구분한다. 콘솔 내부 등록 화면을 직접 열어 개인정보 수집 동의·본인 인증/명의 증빙 절차를 확인했으며 동의·등록 제출과 실제 SMS 발송은 하지 않았다. `sms-sender-readiness.json`, `sms-registration-consent.png`에 근거를 보존했다. 위 연결 준비는 자동 테스트 통과나 실제 계약 전체 수신 검수와 별개다.
 
