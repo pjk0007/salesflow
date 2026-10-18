@@ -16,6 +16,12 @@
 
 승인 전 카카오 실수신 검수는 수행할 수 없다. 실제 계약 이메일 요청·OTP·완료 수신 전체 검수도 기존 Chrome 파일 선택 권한 대기 상태로 남아 있다. 이전에 확인한 메일은 발신자 확인 메일이며 계약 전체 수신 성공으로 해석하지 않는다.
 
+개발 서비스의 기능 코드 `9c6fc5b` 적용됨·실행 중(1/1)을 확인했다. 인증된 실제 상태 API는 `emailReady=true`, `alimtalkReady=false`, `smsReady=false`, `databaseReady=true`, `storageReady=true`, `issues=[]`이며, 발신 채널과 3종 심사 중 상태도 화면과 일치했다. 기존 서버 계정·키를 사용하고 전자서명 알림톡 opt-in과 발신 채널 고정 값만 추가했다.
+
+이후 화면 안내 문구만 다듬은 `f225436`도 개발 서비스 적용됨·실행 중(1/1)으로 확인했다. 변경 화면 3개 파일의 린트도 오류·경고 0개다. 배포 후 로그인·익명 API 차단·가상 PDF·한글 PDF 표시 자원 상태를 재확인했다. 발송·DB·서명 로직 변경은 없다.
+
+배포 후 Chrome에서 가상 요청의 **알림톡 인증 선택 → 체험 코드 확인 → 이름 도장·이름·날짜 → 동의·제출 → 완료 PDF·확인 기록 다운로드**를 직접 수행했다. 내려받은 1페이지 PDF는 29,360바이트이며 SHA256 `103fa4b6f9be57ae3574ac7bebee4def801e0d48cdb4def0d0fad97bcf67cb76`이 확인 기록의 완료 파일 해시와 일치했다. `dev-live-status.json`, `dev-live-delivery-status.png`, `dev-preview-ui-qa.json`, `dev-preview-alimtalk-completed.png`, `dev-preview-completed.pdf`로 보존했다. 이 과정은 가상 자료·메모리 저장·캡처 발송만 사용했다.
+
 ### 개발 서버 실제 연결 준비 결과
 
 코드 `399e914`의 CloudType `sendb-dev / dev` 적용됨·실행 중(1/1)을 확인했다. NHN 비공개 저장소 키와 새 저장 방식을 반영하고 개발 기능·worker를 켰다. Chrome의 인증된 상태 API는 `enabled=true`, `emailReady=true`, `smsReady=false`, `databaseReady=true`, `storageReady=true`, `issues=[]`다. 재배포 전 저장한 암호화 시험 객체를 같은 참조로 다시 읽어 내용 일치도 확인했다. `dev-live-esign-status.json`, `dev-email-enabled.png`, `nhn-storage-after-redeploy.json`에 보존했다.
