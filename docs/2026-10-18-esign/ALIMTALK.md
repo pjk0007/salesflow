@@ -4,7 +4,7 @@
 
 ## 신청 결과
 
-발신 채널은 **@디자이너하이어**다. NHN KakaoTalk Bizmessage의 기존 프로젝트에서 아래 3종을 새로 등록했다. 등록 요청이 심사 신청을 시작하며, 실제 API 조회와 콘솔에서 세 건 모두 **TSC02 / 검수 중**임을 확인했다. 별도 재심사 댓글을 추가하거나 기존 승인 템플릿을 수정하지 않았다.
+발신 채널은 **@디자이너하이어**다. NHN KakaoTalk Bizmessage의 기존 프로젝트에서 아래 3종을 새로 등록했다. 등록 요청이 심사 신청을 시작하며, 실제 API 조회와 콘솔에서 세 건 모두 **TSC02 / 검수 중**임을 확인했다. 심사 담당자에게 정보성 계약 안내·직접 요청한 인증·완료 파일 안내라는 용도와 실제/개발 링크 차이를 보충 설명했고 각 댓글의 저장을 확인했다. 기존 승인 템플릿은 수정하지 않았다.
 
 | 용도 | 코드 | 분류 | 현재 상태 |
 | --- | --- | --- | --- |
@@ -38,4 +38,4 @@
 
 공급자 접수와 고객 실제 수신은 다르다. 승인 후 사용자가 지정한 내부 휴대폰으로 요청·코드·완료 수신을 확인해야 한다. 이번 작업에서는 실제 카카오/SMS 메시지를 보내지 않았다. 계약 전체 실제 이메일 수신 검수도 아직 완료로 기록하지 않는다.
 
-공식 기준: [NHN API v2.3](https://docs.nhncloud.com/ko/Notification/KakaoTalk%20Bizmessage/ko/alimtalk-api-guide/), [NHN 템플릿 검수 안내](https://docs.nhncloud.com/ko/Notification/KakaoTalk%20Bizmessage/ko/alimtalk-console-guide/#_13).
+공식 기준: [NHN API v2.3](https://docs.nhncloud.com/ko/Notification/KakaoTalk%20Bizmessage/ko/alimtalk-api-guide/), [NHN 템플릿 검수 안내](https://docs.nhncloud.com/ko/Notification/KakaoTalk%20Bizmessage/ko/alimtalk-console-guide/).
