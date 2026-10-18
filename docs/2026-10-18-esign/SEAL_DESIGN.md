@@ -30,3 +30,4 @@
 - 375×812 화면에서 가로 넘침, 서체/직함 변경 후 선택 해제, 기존 손글씨 서명 4종을 확인했다.
 - 전각풍 음각과 매화문 회사 직인을 선택해 가상 계약서를 완료했다. 완료 PDF 42,369bytes, SHA-256 `9ea310d11ef5110bb64b62c32dfef98c5a0d056346bc640a0e5fcb3469e52492`가 확인 기록과 일치한다. 최종 확인 PNG 4개의 픽셀이 PDF에 보존되며 개별 80,000px/83,886bytes 한도를 지킨다.
 - 자료 위치: `F:/Dev/.work/esign-live-setup-20261018/seal-v2-qa/`. 실제 계약 메일 수신이나 운영 배포 성공을 의미하지 않는다.
+- 개발 배포: `sendb-dev / dev`, 소스 `3b5c816eb0e70aa959b676f1e53b476ee0016049` 적용됨·실행 중(1/1)을 확인했다. 실제 개발 주소에서 새 가상 인증과 두 종류의 시안 표시, 회사 직인의 선택·문서 삽입을 확인했다. 사용자 체험은 [/esign?preview=1](https://port-next-sendb-dev-1ru12mlw8nvyar.sel5.cloudtype.app/esign?preview=1)에서 시작한다.
