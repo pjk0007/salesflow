@@ -3,18 +3,30 @@ const fontFiles = {
     brush: ["Sendb Brush", "SendbBrush-Regular.woff2"],
     classic: ["Sendb Classic", "SendbClassic-Regular.woff2"],
     light: ["Sendb Light", "SendbLight-Regular.woff2"],
-    sealSerif: ["Sendb Seal Serif", "SendbSealSerif-Regular.woff2"],
-    sealFormal: ["Sendb Seal Formal", "SendbSealFormal-Regular.woff2"],
+    doan: ["Sendb Seal Doan", "SendbSealDoan-Regular.woff2"],
+    jeonseo: ["Sendb Seal Jeonseo", "SendbSealJeonseo-Regular.woff2"],
+    gilsang: ["Sendb Seal Gilsang", "SendbSealGilsang-Regular.woff2"],
 } as const;
 const loadedFonts = new Map<string, Promise<string>>();
 
 /** Same-origin, lazy, shared between mark styles; failed loads can be retried. */
 export async function loadMarkFont(key: keyof typeof fontFiles): Promise<string> {
     const [family, file] = fontFiles[key];
+    return loadLocalFont(key, family, file);
+}
+
+/** CNS chunks contain at most 128 code points; load only the entered characters. */
+export async function loadHanjaSealFont(text: string): Promise<string> {
+    const family = "Sendb Seal CNS", blocks = new Set([...text].filter(char => (char.codePointAt(0) ?? 0) >= 0x3400).map(char => Math.floor(char.codePointAt(0)! / 128) * 128));
+    await Promise.all([...blocks].map(block => loadLocalFont(`cns-${block}`, family, `SendbSealCNS-${block.toString(16)}.woff2`, `U+${block.toString(16)}-${(block + 127).toString(16)}`)));
+    return family;
+}
+
+async function loadLocalFont(key: string, family: string, file: string, unicodeRange?: string): Promise<string> {
     let pending = loadedFonts.get(key);
     if (!pending) {
         pending = (async () => {
-            const face = new FontFace(family, `url("/esign/fonts/${file}")`, { style: "normal", weight: "400" });
+            const face = new FontFace(family, `url("/esign/fonts/${file}")`, { style: "normal", weight: "400", ...(unicodeRange ? { unicodeRange } : {}) });
             let timer: ReturnType<typeof setTimeout> | undefined;
             try {
                 await Promise.race([face.load(), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("font timeout")), 15_000); })]);
@@ -33,7 +45,7 @@ export function canvasContext(width: number, height: number) {
     return { canvas, context };
 }
 
-export function fitText(context: CanvasRenderingContext2D, text: string, family: string, cx: number, cy: number, width: number, height: number, fillBox = false) {
+export function fitText(context: CanvasRenderingContext2D, text: string, family: string, cx: number, cy: number, width: number, height: number, fillBox = false, strokeWidth = 0) {
     context.font = `100px "${family}"`; context.textAlign = "left"; context.textBaseline = "alphabetic";
     const metric = context.measureText(text);
     const left = metric.actualBoundingBoxLeft, right = metric.actualBoundingBoxRight;
@@ -41,6 +53,7 @@ export function fitText(context: CanvasRenderingContext2D, text: string, family:
     const sx = width / Math.max(1, left + right), sy = height / Math.max(1, ascent + descent), scale = Math.min(sx, sy);
     context.save(); context.translate(cx, cy); context.scale(fillBox ? sx : scale, fillBox ? sy : scale);
     context.fillText(text, (left - right) / 2, (ascent - descent) / 2);
+    if (strokeWidth > 0) { context.lineWidth = strokeWidth; context.lineJoin = "round"; context.strokeText(text, (left - right) / 2, (ascent - descent) / 2); }
     context.restore();
 }
 

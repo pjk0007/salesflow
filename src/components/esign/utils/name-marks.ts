@@ -1,6 +1,6 @@
 export type NameMarkKind = "signature" | "seal";
 export type SealCategory = "personal" | "company";
-export type SealFont = "engraved" | "serif" | "formal";
+export type SealFont = "doan" | "jeonseo" | "gilsang";
 export type SealOptions = { category: SealCategory; font: SealFont; centerText: string };
 export type NameMarkStyle = { id: string; label: string };
 export const SIGNATURE_STYLES: readonly NameMarkStyle[] = [
@@ -14,22 +14,22 @@ export const PERSONAL_SEAL_STYLES: readonly NameMarkStyle[] = [
     { id: "intaglio-square", label: "전통 사각 · 음각" },
     { id: "classic-round", label: "이중 원형 낙관" },
     { id: "slender-oval", label: "세로 타원 인장" },
-    { id: "plum-blossom", label: "매화문 낙관" },
-    { id: "cloud-border", label: "운문 테두리" },
+    { id: "solid-round", label: "원형 · 음각" },
+    { id: "single-round", label: "원형 · 양각" },
 ];
 export const COMPANY_SEAL_STYLES: readonly NameMarkStyle[] = [
-    { id: "company-round", label: "정통 원형 직인" },
-    { id: "company-beaded", label: "구슬문 원형 직인" },
-    { id: "company-floral", label: "매화문 원형 직인" },
+    { id: "company-round", label: "원형 직인 · 원" },
+    { id: "company-star", label: "원형 직인 · 별" },
+    { id: "company-diamond", label: "원형 직인 · 마름모" },
+    { id: "company-triangle", label: "원형 직인 · 삼각" },
     { id: "company-square", label: "사각 회사 직인" },
-    { id: "company-meander", label: "회문 사각 직인" },
     { id: "company-inverse", label: "음각 회사 직인" },
 ];
 export const SEAL_STYLES = [...PERSONAL_SEAL_STYLES, ...COMPANY_SEAL_STYLES];
 export const SEAL_FONTS = [
-    { id: "engraved", label: "전각풍 선각" },
-    { id: "serif", label: "고전 명조" },
-    { id: "formal", label: "단정한 명조" },
+    { id: "doan", label: "둥근 도안체" },
+    { id: "jeonseo", label: "전서 도안체" },
+    { id: "gilsang", label: "길상 도안체" },
 ] as const;
 
 export function normalizeMarkName(value: string, kind: NameMarkKind): string {

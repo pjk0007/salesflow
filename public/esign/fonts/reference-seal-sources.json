@@ -1,0 +1,1026 @@
+{
+  "description": "Original Sendb Hangul seal designs inspired by supplied reference styles, not the same unidentified source fonts. ASCII from licensed Nanum Brush Script.",
+  "fonts": [
+    {
+      "family": "Sendb Seal Doan",
+      "file": "SendbSealDoan-Regular.woff2",
+      "sha256": "9ee5b14fe6770c70719c4dcabe1b390e9bb52ca6936dd65fae1d703288e6a0d4",
+      "bytes": 36260,
+      "hangulSyllables": 11172,
+      "ascii": 95,
+      "licenseFile": "SendbSealDesigns-OFL.txt"
+    },
+    {
+      "family": "Sendb Seal Jeonseo",
+      "file": "SendbSealJeonseo-Regular.woff2",
+      "sha256": "10fd531a96b5962f59a909678566916c2cac6440b45156cf4661276f756af481",
+      "bytes": 42108,
+      "hangulSyllables": 11172,
+      "ascii": 95,
+      "licenseFile": "SendbSealDesigns-OFL.txt"
+    },
+    {
+      "family": "Sendb Seal Gilsang",
+      "file": "SendbSealGilsang-Regular.woff2",
+      "sha256": "f3cc33b6342b4af4ca8e7f8242db74364f9f1b6540fa2499aa0c2640ddf642c3",
+      "bytes": 40928,
+      "hangulSyllables": 11172,
+      "ascii": 95,
+      "licenseFile": "SendbSealDesigns-OFL.txt"
+    },
+    {
+      "family": "Sendb Seal CNS",
+      "source": "https://www.cns11643.gov.tw/downloadList.jsp?ID=2&ID2=20",
+      "sourceSha256": "e8501dc9747190936a222576c9b0b6f918ff335afa5696c3fda3acba1a9574e2",
+      "bytes": 7129204,
+      "supportedIdeographs": 6729,
+      "chunks": [
+        {
+          "block": 19968,
+          "file": "SendbSealCNS-4e00.woff2",
+          "bytes": 20660,
+          "sha256": "814817f6d3e69b0fdb2998d621e7b0eb0a2e301bbca3a64af94c3cfab43f4c53"
+        },
+        {
+          "block": 20096,
+          "file": "SendbSealCNS-4e80.woff2",
+          "bytes": 30692,
+          "sha256": "7b2142c8c7d890edfcc42f9a8c2613ecfd9d2f7674974ea622043e8d89c10969"
+        },
+        {
+          "block": 20224,
+          "file": "SendbSealCNS-4f00.woff2",
+          "bytes": 34100,
+          "sha256": "fd607e3a6495e78def3e2ce27d4083bffe13afb59fd50922c19135b38ca1eb9b"
+        },
+        {
+          "block": 20352,
+          "file": "SendbSealCNS-4f80.woff2",
+          "bytes": 47864,
+          "sha256": "52005242ef93c67a00cba5abcb0b00c22fe1d329d50d65f1790a2df7b732bc7d"
+        },
+        {
+          "block": 20480,
+          "file": "SendbSealCNS-5000.woff2",
+          "bytes": 38720,
+          "sha256": "ee0d3d97ef9dfffe3d7ec9fb1a385f4ebb301ed4be07603f5fd7c18f58026108"
+        },
+        {
+          "block": 20608,
+          "file": "SendbSealCNS-5080.woff2",
+          "bytes": 46968,
+          "sha256": "d54a23a527e7be174142fb9326ea41e57c6f8a56071698d9dd60054ab6f42834"
+        },
+        {
+          "block": 20736,
+          "file": "SendbSealCNS-5100.woff2",
+          "bytes": 52544,
+          "sha256": "e66c6174343d032a3822df60560f6049e3d5b67cf5a945813938405dc39f12a8"
+        },
+        {
+          "block": 20864,
+          "file": "SendbSealCNS-5180.woff2",
+          "bytes": 26724,
+          "sha256": "1c4e2e1c3deae775090803469f4dc2d6e1d4bd1b8b568c37bc06b57991198d8a"
+        },
+        {
+          "block": 20992,
+          "file": "SendbSealCNS-5200.woff2",
+          "bytes": 37768,
+          "sha256": "86d411133cadb98cd084ba16f6042f857062604e16d5bd0971e46175579bf68a"
+        },
+        {
+          "block": 21120,
+          "file": "SendbSealCNS-5280.woff2",
+          "bytes": 46024,
+          "sha256": "98007f73c919cec2a0a40ca2a93da3db284480affb1ace7c792071874afb0378"
+        },
+        {
+          "block": 21248,
+          "file": "SendbSealCNS-5300.woff2",
+          "bytes": 45008,
+          "sha256": "a33a159a24eeb6089488e969d2dda1cc7dc0dcfcf16a209f6c16293755e4418d"
+        },
+        {
+          "block": 21376,
+          "file": "SendbSealCNS-5380.woff2",
+          "bytes": 27924,
+          "sha256": "95b1cfc160fae558e3dbda9a4cbca84b5bc327eb02601c9dff77d35fb6ddac50"
+        },
+        {
+          "block": 21504,
+          "file": "SendbSealCNS-5400.woff2",
+          "bytes": 28920,
+          "sha256": "c6a05a4156c00c8d1879485efec1363916869735c9263fd2a509e3ccccd6cf41"
+        },
+        {
+          "block": 21632,
+          "file": "SendbSealCNS-5480.woff2",
+          "bytes": 25688,
+          "sha256": "30c0140e31a59e2c6218f21e72d3381dd0386d6639a141cd96fe5ee714b7618b"
+        },
+        {
+          "block": 21760,
+          "file": "SendbSealCNS-5500.woff2",
+          "bytes": 26512,
+          "sha256": "44fc4fc739787e5d9a6ad8f5fa90e4af5c432a35b0bbd23221d0f9cc0c86af63"
+        },
+        {
+          "block": 21888,
+          "file": "SendbSealCNS-5580.woff2",
+          "bytes": 31516,
+          "sha256": "42e10b7da92ba74499fce12cef13a4b1979958e91b047bd0c720f7f2e68736ac"
+        },
+        {
+          "block": 22016,
+          "file": "SendbSealCNS-5600.woff2",
+          "bytes": 32512,
+          "sha256": "23be6ca8f118aaed8c61bcd5e3bb80f0d3c42d288a80640847e3dd1b2f88de72"
+        },
+        {
+          "block": 22144,
+          "file": "SendbSealCNS-5680.woff2",
+          "bytes": 23636,
+          "sha256": "5ac062a18add62f1b5bdba5d13e677cb160dea007def728213e7680591f55ac4"
+        },
+        {
+          "block": 22272,
+          "file": "SendbSealCNS-5700.woff2",
+          "bytes": 33744,
+          "sha256": "56aa0fb76030f86a4026d916855443a07318a06d2d2974bf4b50b3448a96a627"
+        },
+        {
+          "block": 22400,
+          "file": "SendbSealCNS-5780.woff2",
+          "bytes": 29000,
+          "sha256": "fedb6753aa9052bba5d54e481867dd694fbca8673279fb2e740d2a7ba88d9ffa"
+        },
+        {
+          "block": 22528,
+          "file": "SendbSealCNS-5800.woff2",
+          "bytes": 25844,
+          "sha256": "8444ee43d9399e9ca242ac7c051231654e2dee4faf5561ebcdd29c6e5efca17a"
+        },
+        {
+          "block": 22656,
+          "file": "SendbSealCNS-5880.woff2",
+          "bytes": 35624,
+          "sha256": "ad033c58b474eee70e3796164178c4f583a4f26d33db29d6d813540c73af3746"
+        },
+        {
+          "block": 22784,
+          "file": "SendbSealCNS-5900.woff2",
+          "bytes": 45524,
+          "sha256": "934b72fa9a54a88dc8f0983f04d7da257bb9d0f5519cca65308815d34d218376"
+        },
+        {
+          "block": 22912,
+          "file": "SendbSealCNS-5980.woff2",
+          "bytes": 46144,
+          "sha256": "89d7b8f931f9d20717757dbfd69a893cd59a9ef89b0db0088037e33368635c6f"
+        },
+        {
+          "block": 23040,
+          "file": "SendbSealCNS-5a00.woff2",
+          "bytes": 40240,
+          "sha256": "b56a5f986603a5bf4954d82671f05b097d298949176bd645a9dd2e04ce3c1394"
+        },
+        {
+          "block": 23168,
+          "file": "SendbSealCNS-5a80.woff2",
+          "bytes": 55500,
+          "sha256": "77dfe5e1a6520b40feb67f1c7e930cbb778ed09d7a5b1889786b4000a197b673"
+        },
+        {
+          "block": 23296,
+          "file": "SendbSealCNS-5b00.woff2",
+          "bytes": 44268,
+          "sha256": "03721010462ba5ebd8d60ffd15f46a4552c9f4900e33c89916e9ad2899e33e26"
+        },
+        {
+          "block": 23424,
+          "file": "SendbSealCNS-5b80.woff2",
+          "bytes": 62080,
+          "sha256": "15fb6d9fc7cd86d8109a014cf79dd406b2a7fb125b10da999db88f8336b4db42"
+        },
+        {
+          "block": 23552,
+          "file": "SendbSealCNS-5c00.woff2",
+          "bytes": 45900,
+          "sha256": "fb74e8b7eff86d96159afb16b99cceebc6493881ab5e4a65da534ffdb05483da"
+        },
+        {
+          "block": 23680,
+          "file": "SendbSealCNS-5c80.woff2",
+          "bytes": 10828,
+          "sha256": "e137f79265c9274552a754fd36c1b39a1be3aea5403d6774cf60b6b285884e33"
+        },
+        {
+          "block": 23808,
+          "file": "SendbSealCNS-5d00.woff2",
+          "bytes": 17036,
+          "sha256": "e889a19eab236d71b1793cf665d419fb233f5ad3d7e7a364f59c48c722ab4b1f"
+        },
+        {
+          "block": 23936,
+          "file": "SendbSealCNS-5d80.woff2",
+          "bytes": 28624,
+          "sha256": "7ed844fb2107b41906787119e5768e2bb6fd06947b029ccd124fca0e07a380fa"
+        },
+        {
+          "block": 24064,
+          "file": "SendbSealCNS-5e00.woff2",
+          "bytes": 46228,
+          "sha256": "10beea5a3792f92e50cf65d225898c30673b0f1fbfcbf38a8af03a243459b81c"
+        },
+        {
+          "block": 24192,
+          "file": "SendbSealCNS-5e80.woff2",
+          "bytes": 44532,
+          "sha256": "c6cc538de84a07090728159c87ed7782027bb712b6d8980e19e76404cf095b41"
+        },
+        {
+          "block": 24320,
+          "file": "SendbSealCNS-5f00.woff2",
+          "bytes": 47200,
+          "sha256": "7752c2af05647235d8c36226be0dd63f1a3e1a2957e051c1f1b3a298b7dfb7c2"
+        },
+        {
+          "block": 24448,
+          "file": "SendbSealCNS-5f80.woff2",
+          "bytes": 41816,
+          "sha256": "b57c1477d67d0c4dbfafa461e4fb192504bdf1a8968ff2809f0242e8c8378112"
+        },
+        {
+          "block": 24576,
+          "file": "SendbSealCNS-6000.woff2",
+          "bytes": 44220,
+          "sha256": "fc59fe12e8aa5f9024743fbe1a479533b2a25ea4c499843f21338729171225bd"
+        },
+        {
+          "block": 24704,
+          "file": "SendbSealCNS-6080.woff2",
+          "bytes": 50980,
+          "sha256": "29ad1a4e077ef2413571342d60ff8da071d847c305a9c7c9648f963e1f531e78"
+        },
+        {
+          "block": 24832,
+          "file": "SendbSealCNS-6100.woff2",
+          "bytes": 54912,
+          "sha256": "088b0c2cac18ca63cf224c8e95b712d8a20847ac6930107214228b7ea616e6dc"
+        },
+        {
+          "block": 24960,
+          "file": "SendbSealCNS-6180.woff2",
+          "bytes": 49112,
+          "sha256": "8034169ff56b592e4ff669222549e7b6e6bd764a9073c4e31a9fa03d51638a7a"
+        },
+        {
+          "block": 25088,
+          "file": "SendbSealCNS-6200.woff2",
+          "bytes": 46520,
+          "sha256": "46f095edfc6206b4c70b4120966617dfc9ea2e692bd0ba9ae121b3e0648a9b43"
+        },
+        {
+          "block": 25216,
+          "file": "SendbSealCNS-6280.woff2",
+          "bytes": 37064,
+          "sha256": "ee68e922978519eb8732a042a4783005d6927d8c0c180b3d4f592e6b217df4b4"
+        },
+        {
+          "block": 25344,
+          "file": "SendbSealCNS-6300.woff2",
+          "bytes": 39544,
+          "sha256": "fec40090784f25dae6ea710318f323f4f840c1ee00a417c1aba7871c59034173"
+        },
+        {
+          "block": 25472,
+          "file": "SendbSealCNS-6380.woff2",
+          "bytes": 49776,
+          "sha256": "92a2cc46775a95efbf3a5c865205d7f401e9907bfff8ef87cdd9c9203e708d75"
+        },
+        {
+          "block": 25600,
+          "file": "SendbSealCNS-6400.woff2",
+          "bytes": 38108,
+          "sha256": "e352eaa190ba079512b9ddfa6862a7a04c3d3acfd84962ae7a4a1ee69a218d36"
+        },
+        {
+          "block": 25728,
+          "file": "SendbSealCNS-6480.woff2",
+          "bytes": 41456,
+          "sha256": "5bcd18de07d624942131f21524521a38a321036e046e478b177219310147e83c"
+        },
+        {
+          "block": 25856,
+          "file": "SendbSealCNS-6500.woff2",
+          "bytes": 48480,
+          "sha256": "96642f922f4fd0aef1d279b8ac33352abb8cad10285e68c170717dfb6de09c25"
+        },
+        {
+          "block": 25984,
+          "file": "SendbSealCNS-6580.woff2",
+          "bytes": 50428,
+          "sha256": "b6cf3e002b3372a5614204a66ac58fdb6ee663fa3b5b153db875b958bb1e056f"
+        },
+        {
+          "block": 26112,
+          "file": "SendbSealCNS-6600.woff2",
+          "bytes": 31572,
+          "sha256": "20cc44456a293fcb2fecb35d4e937392dde4bb76c88406d55d738d18e3d3381c"
+        },
+        {
+          "block": 26240,
+          "file": "SendbSealCNS-6680.woff2",
+          "bytes": 33028,
+          "sha256": "f2cf18d5427ac500a71e6538a7d8209241d539d2ffc3453914e744af605407b1"
+        },
+        {
+          "block": 26368,
+          "file": "SendbSealCNS-6700.woff2",
+          "bytes": 50640,
+          "sha256": "379921353b2a097cd296e0eb2ad2532baa451eacc2e011eddeb2d96fc27669d0"
+        },
+        {
+          "block": 26496,
+          "file": "SendbSealCNS-6780.woff2",
+          "bytes": 49260,
+          "sha256": "6086fa2de357a9893daee50ade97626bf203b26026b1083518f356564df62d6e"
+        },
+        {
+          "block": 26624,
+          "file": "SendbSealCNS-6800.woff2",
+          "bytes": 34844,
+          "sha256": "c1a6442dbc3ba5741191dc0e533e35e6f8a9d4eeb32660662a30cba2e62accdc"
+        },
+        {
+          "block": 26752,
+          "file": "SendbSealCNS-6880.woff2",
+          "bytes": 51504,
+          "sha256": "2bbde9f8b56cf45a2ea932f82eac9a2fa9f5713d784a3f323c6c1c9bc0d89704"
+        },
+        {
+          "block": 26880,
+          "file": "SendbSealCNS-6900.woff2",
+          "bytes": 46860,
+          "sha256": "06c53308d037f3201f578728916fb22d5a542cf596656c6f65d9fa06a6c16cc3"
+        },
+        {
+          "block": 27008,
+          "file": "SendbSealCNS-6980.woff2",
+          "bytes": 40064,
+          "sha256": "c298fd4e803964b9ea9d81ac56e1d620c0ca2fbe4bb12a012aca02a243797195"
+        },
+        {
+          "block": 27136,
+          "file": "SendbSealCNS-6a00.woff2",
+          "bytes": 51444,
+          "sha256": "c0f8d622807332ed4455946c184417f42c44e365d128bca94f98d562b0612e55"
+        },
+        {
+          "block": 27264,
+          "file": "SendbSealCNS-6a80.woff2",
+          "bytes": 42932,
+          "sha256": "83a1e0902c2ce409f8169481f8fe9c95425a0e8356e960b9917cdc66e74bf5fc"
+        },
+        {
+          "block": 27392,
+          "file": "SendbSealCNS-6b00.woff2",
+          "bytes": 67240,
+          "sha256": "2524a77eab0df0d73d9f7ead1e0a19ecf05aa0467fde67c740a8dbf99d9d9309"
+        },
+        {
+          "block": 27520,
+          "file": "SendbSealCNS-6b80.woff2",
+          "bytes": 47016,
+          "sha256": "e2f1cc3fcd4dc7154c9579187367d01e4f847c97c700b83e346e78a1289c8bfe"
+        },
+        {
+          "block": 27648,
+          "file": "SendbSealCNS-6c00.woff2",
+          "bytes": 37200,
+          "sha256": "1249d71098cbf4d9903e8067782e3c6c6f48432a3e567523be91ca2a600c5350"
+        },
+        {
+          "block": 27776,
+          "file": "SendbSealCNS-6c80.woff2",
+          "bytes": 63352,
+          "sha256": "7d61e1e9bc605d526ae6905bd4bf723d08a2afc9f97dd940b1124b3ab34bc2e5"
+        },
+        {
+          "block": 27904,
+          "file": "SendbSealCNS-6d00.woff2",
+          "bytes": 52532,
+          "sha256": "8be6f0545a47ebd0a4770d72a9008a33f8963b6ec016adc07fd98f859bea5f9a"
+        },
+        {
+          "block": 28032,
+          "file": "SendbSealCNS-6d80.woff2",
+          "bytes": 61956,
+          "sha256": "3950aa3966e95757df46c1e5ed85835de6c8936957e59efb3a1826a74adff7fa"
+        },
+        {
+          "block": 28160,
+          "file": "SendbSealCNS-6e00.woff2",
+          "bytes": 57836,
+          "sha256": "3ea3a082fd4434b1368a8b39f4939d072637d7c0a990e0bdef9b371aaa08ade9"
+        },
+        {
+          "block": 28288,
+          "file": "SendbSealCNS-6e80.woff2",
+          "bytes": 53544,
+          "sha256": "4e3f09ab399aefcb3883877312b93b8d4c2a0f574547ae36f4b42065ec73a79c"
+        },
+        {
+          "block": 28416,
+          "file": "SendbSealCNS-6f00.woff2",
+          "bytes": 64172,
+          "sha256": "70d1cc2a22dd9087c0a15c0f162e08fcdc920dace4474645af7e0b1c44d3bbd9"
+        },
+        {
+          "block": 28544,
+          "file": "SendbSealCNS-6f80.woff2",
+          "bytes": 58864,
+          "sha256": "9d52d2f87f321bee7192970ae35faea04692b8f1c3c2b5781469e84b0b62a9d6"
+        },
+        {
+          "block": 28672,
+          "file": "SendbSealCNS-7000.woff2",
+          "bytes": 48796,
+          "sha256": "6317bc5e931152a0efd17c2ee684c9f02972cdf7b48fa6ec402ffc1fdb0f70b6"
+        },
+        {
+          "block": 28800,
+          "file": "SendbSealCNS-7080.woff2",
+          "bytes": 18308,
+          "sha256": "5db7e28bf1af3c1c0739dfa3e1f39b724829660b633408f1f0546fb9420142cc"
+        },
+        {
+          "block": 28928,
+          "file": "SendbSealCNS-7100.woff2",
+          "bytes": 30628,
+          "sha256": "d7e1bc1c87c368604e449bf5bf517ee9bb91422f30f1be3533566060c7fce58f"
+        },
+        {
+          "block": 29056,
+          "file": "SendbSealCNS-7180.woff2",
+          "bytes": 41716,
+          "sha256": "e5642a3454ee7bc154e9ed1e5c3edbbd60f33a945314dda4694450d7a6c66515"
+        },
+        {
+          "block": 29184,
+          "file": "SendbSealCNS-7200.woff2",
+          "bytes": 40036,
+          "sha256": "0a3a9e7c7b7d506ef07440416032c4d230c7518f363878ca0cfa47a59b0f157e"
+        },
+        {
+          "block": 29312,
+          "file": "SendbSealCNS-7280.woff2",
+          "bytes": 32476,
+          "sha256": "e63f88e535f921a3fd6498d26fc18f3ca8b0c58c57f7cb7ce8a2bd289515d9f0"
+        },
+        {
+          "block": 29440,
+          "file": "SendbSealCNS-7300.woff2",
+          "bytes": 38660,
+          "sha256": "463a7c66f98b638ae953be7b6164e22b5a2242b076abd2bd09e75551c4f21bb5"
+        },
+        {
+          "block": 29568,
+          "file": "SendbSealCNS-7380.woff2",
+          "bytes": 26528,
+          "sha256": "77a4d45e41ff57722e45312e8b91a6379203b12d81861699f9238a11fbefae68"
+        },
+        {
+          "block": 29696,
+          "file": "SendbSealCNS-7400.woff2",
+          "bytes": 38112,
+          "sha256": "d7556bcdb78faf441f08e6aea22b2e34a69742d98bdffef0399c214c0647855a"
+        },
+        {
+          "block": 29824,
+          "file": "SendbSealCNS-7480.woff2",
+          "bytes": 45676,
+          "sha256": "10ff5ccf63b8163df9de310858e025da3ccccb60f47d3926240ffe856396a634"
+        },
+        {
+          "block": 29952,
+          "file": "SendbSealCNS-7500.woff2",
+          "bytes": 50220,
+          "sha256": "52bf42628c14c0a9f68389da55d58797894555b23cf5928a50af3c1f612f5118"
+        },
+        {
+          "block": 30080,
+          "file": "SendbSealCNS-7580.woff2",
+          "bytes": 46496,
+          "sha256": "dbd9fc14e3f9b7e478ce97ed735c8c4a7ec195326834ca9087228e18ef1dc9ba"
+        },
+        {
+          "block": 30208,
+          "file": "SendbSealCNS-7600.woff2",
+          "bytes": 48772,
+          "sha256": "aff49364a9d012f42c970a3c41c8aacefbcb57cb1d2af95ee19ee59799749a4c"
+        },
+        {
+          "block": 30336,
+          "file": "SendbSealCNS-7680.woff2",
+          "bytes": 40680,
+          "sha256": "96ec6c28855a8aa85cd12e2b1b6fb0b2118d496b273add3e4cd6e6780224ff5c"
+        },
+        {
+          "block": 30464,
+          "file": "SendbSealCNS-7700.woff2",
+          "bytes": 40356,
+          "sha256": "603177269c37a96617d64d1933f8d0a9ede49bc3bf35d722aadf1f2c8b0cdb62"
+        },
+        {
+          "block": 30592,
+          "file": "SendbSealCNS-7780.woff2",
+          "bytes": 36724,
+          "sha256": "b05e330f74e933d793d2833f5706ef9af8c2af75c6f62bbb4f788d779968018a"
+        },
+        {
+          "block": 30720,
+          "file": "SendbSealCNS-7800.woff2",
+          "bytes": 13104,
+          "sha256": "765e9dbb1b7f0d260f4d29db0d1cc3d6e397dbcc644c88234154f6797f4bcff0"
+        },
+        {
+          "block": 30848,
+          "file": "SendbSealCNS-7880.woff2",
+          "bytes": 23312,
+          "sha256": "624743e9299444875e13190e8dadcd2220d62766c7cc69134da7cf02e9abcb80"
+        },
+        {
+          "block": 30976,
+          "file": "SendbSealCNS-7900.woff2",
+          "bytes": 40256,
+          "sha256": "bd73cd19f577347142a5bfb4b432f7e8f0c3d1506061fcc3069aad46723951c8"
+        },
+        {
+          "block": 31104,
+          "file": "SendbSealCNS-7980.woff2",
+          "bytes": 51244,
+          "sha256": "c549b3d130795e5b8adc8dd5e57b4e0fda8aef311980792af7cbb9df8c58ad8d"
+        },
+        {
+          "block": 31232,
+          "file": "SendbSealCNS-7a00.woff2",
+          "bytes": 54784,
+          "sha256": "d0a0523e8d72c6420f65b8ca31829b1ce3aad6a1e5da03b9195a1301d8895b7e"
+        },
+        {
+          "block": 31360,
+          "file": "SendbSealCNS-7a80.woff2",
+          "bytes": 50236,
+          "sha256": "f52fc0eae124a444ff28411c4404894796edfa93723e50747b0182839fde2c48"
+        },
+        {
+          "block": 31488,
+          "file": "SendbSealCNS-7b00.woff2",
+          "bytes": 34096,
+          "sha256": "cd80b4c4331903ef2a4a56b44bc62d0b59388d84ccc27b100de56ad5de22ed81"
+        },
+        {
+          "block": 31616,
+          "file": "SendbSealCNS-7b80.woff2",
+          "bytes": 42536,
+          "sha256": "34c1dd1adc37e98b3fee7cf25ace05e798fa56e8127123e40960c322efb2cc49"
+        },
+        {
+          "block": 31744,
+          "file": "SendbSealCNS-7c00.woff2",
+          "bytes": 47012,
+          "sha256": "fca281b695f7a225f24229a21dd5bc1d61e54e44e91b129157f40979dde28048"
+        },
+        {
+          "block": 31872,
+          "file": "SendbSealCNS-7c80.woff2",
+          "bytes": 31832,
+          "sha256": "0fb109d4ee7e13aaefe061c6e51cf08be38f52ba891ca08bfd0844fc1dca2ee7"
+        },
+        {
+          "block": 32000,
+          "file": "SendbSealCNS-7d00.woff2",
+          "bytes": 71940,
+          "sha256": "7eea2a8412f885b6d56f3f3b603d31c2b43cdc23fe9fa2c943cac8d75ca6cb70"
+        },
+        {
+          "block": 32128,
+          "file": "SendbSealCNS-7d80.woff2",
+          "bytes": 66932,
+          "sha256": "792a16d6da868081135cd47a2ff1d91e47efe288fa4392959b749631fe1a8417"
+        },
+        {
+          "block": 32256,
+          "file": "SendbSealCNS-7e00.woff2",
+          "bytes": 80424,
+          "sha256": "23c0770e7769d1c17f81b30a2ca222aaa0e03d7b02b0019a1356029980644603"
+        },
+        {
+          "block": 32384,
+          "file": "SendbSealCNS-7e80.woff2",
+          "bytes": 24156,
+          "sha256": "56ddcc8a34961ecf5d53e903b6736f7e35958affb2a0997459b1be2eef39275b"
+        },
+        {
+          "block": 32512,
+          "file": "SendbSealCNS-7f00.woff2",
+          "bytes": 37588,
+          "sha256": "76c7d7faeb62f98c3329659c5c5d23a00ccb337c855a479946785821342cb8ac"
+        },
+        {
+          "block": 32640,
+          "file": "SendbSealCNS-7f80.woff2",
+          "bytes": 64676,
+          "sha256": "14ba0e79bfd2a742fede46bdfc7ab1df798d50d893f46104f826bb8afcfd1a3e"
+        },
+        {
+          "block": 32768,
+          "file": "SendbSealCNS-8000.woff2",
+          "bytes": 38792,
+          "sha256": "ba1e6f18b922e746ea9254c0f35b53449fb2e8d3972ef3a7dee906da3ed9f259"
+        },
+        {
+          "block": 32896,
+          "file": "SendbSealCNS-8080.woff2",
+          "bytes": 40100,
+          "sha256": "533cf50e4ec6d7462c21253e17cd8803e43494518cef704829aff9df6802055c"
+        },
+        {
+          "block": 33024,
+          "file": "SendbSealCNS-8100.woff2",
+          "bytes": 34776,
+          "sha256": "896d8d5990bec2f455af9b275fe05cbd68397927af719cf537e7f7789fa7fb45"
+        },
+        {
+          "block": 33152,
+          "file": "SendbSealCNS-8180.woff2",
+          "bytes": 56916,
+          "sha256": "a5cfee8d61fcf1d996619092262114d9f319e9cf417cd66182445e8c819a3bc9"
+        },
+        {
+          "block": 33280,
+          "file": "SendbSealCNS-8200.woff2",
+          "bytes": 31396,
+          "sha256": "ac90459d967bf1aa93a512151995942b5d10dd8f9531c63b8ef7d94b7c8236d5"
+        },
+        {
+          "block": 33408,
+          "file": "SendbSealCNS-8280.woff2",
+          "bytes": 40620,
+          "sha256": "bd7a8d56232a721d45ee89c5b077b26e8a7aa6ed28c21a3d9c21b62b36893329"
+        },
+        {
+          "block": 33536,
+          "file": "SendbSealCNS-8300.woff2",
+          "bytes": 40332,
+          "sha256": "872496aa9210f95158d9c6c42aff7783bcf722570f8e37a08133cb62f783daee"
+        },
+        {
+          "block": 33664,
+          "file": "SendbSealCNS-8380.woff2",
+          "bytes": 46920,
+          "sha256": "3a2d2f4485c35ed70012131629dc28133027c829c7993b1a4b3dc53833c33082"
+        },
+        {
+          "block": 33792,
+          "file": "SendbSealCNS-8400.woff2",
+          "bytes": 43056,
+          "sha256": "6d10b84bc38adcf9dd3bfc7d097abe10fb066a1830009c8a924374b361180c1e"
+        },
+        {
+          "block": 33920,
+          "file": "SendbSealCNS-8480.woff2",
+          "bytes": 40844,
+          "sha256": "162313f70b9cdbc5d7ee227a1cd43e42150f5768e7ff93b43d99eff0fb5d340e"
+        },
+        {
+          "block": 34048,
+          "file": "SendbSealCNS-8500.woff2",
+          "bytes": 46860,
+          "sha256": "57d29ef6b6f5e468566a2d46cee0e7977d789debed6fb7eae19b3d7047efa647"
+        },
+        {
+          "block": 34176,
+          "file": "SendbSealCNS-8580.woff2",
+          "bytes": 61168,
+          "sha256": "dce03af24caed328eab9ba74b59431e318ce27590b6f3b220278db83dcfca164"
+        },
+        {
+          "block": 34304,
+          "file": "SendbSealCNS-8600.woff2",
+          "bytes": 51348,
+          "sha256": "17a8dbd233bd9ec560a684338e7fbd8aafac2a5cfe711bdf9e64e3dab7e4529e"
+        },
+        {
+          "block": 34432,
+          "file": "SendbSealCNS-8680.woff2",
+          "bytes": 30020,
+          "sha256": "16ce7d0f908fd474c37bc838445a896a2c5cbc4562cd0cd8fcc29e1d3e0f011d"
+        },
+        {
+          "block": 34560,
+          "file": "SendbSealCNS-8700.woff2",
+          "bytes": 47420,
+          "sha256": "4578669fd1d278067ad36634b02582f5f6ac2a069dd5740870f65a6f7a70599c"
+        },
+        {
+          "block": 34688,
+          "file": "SendbSealCNS-8780.woff2",
+          "bytes": 39744,
+          "sha256": "79dbecf7f9a6427eb36eb4affae524d6920f5a62dd49e4b3da2e197e851756fb"
+        },
+        {
+          "block": 34816,
+          "file": "SendbSealCNS-8800.woff2",
+          "bytes": 52820,
+          "sha256": "bec3057c6074c78d1acfaf5c1cd33608fd48c3e5c180f03be69dcc14232f65f1"
+        },
+        {
+          "block": 34944,
+          "file": "SendbSealCNS-8880.woff2",
+          "bytes": 42396,
+          "sha256": "978130c47b8b5ef25364d5fb59cce0c85ff5a469db587abbbed35a968c4a51d5"
+        },
+        {
+          "block": 35072,
+          "file": "SendbSealCNS-8900.woff2",
+          "bytes": 54720,
+          "sha256": "4341db6816bf13a648337003b43275a95a0b7456a309ba36666c6cd3a029b5d6"
+        },
+        {
+          "block": 35200,
+          "file": "SendbSealCNS-8980.woff2",
+          "bytes": 58336,
+          "sha256": "d10fdb8c343fcbb79ad0a008a3cce3673b07ed9dab3cc6625556b653222f90e3"
+        },
+        {
+          "block": 35328,
+          "file": "SendbSealCNS-8a00.woff2",
+          "bytes": 62748,
+          "sha256": "7ae1fe9bc14c38cfdc500c410b697b82b391f975960c2f0c51d214e3d8e1f704"
+        },
+        {
+          "block": 35456,
+          "file": "SendbSealCNS-8a80.woff2",
+          "bytes": 76116,
+          "sha256": "1e7132f9a22dfddf28f2c167431ad16b867aec48a1c02285e346e4f0bf7516fb"
+        },
+        {
+          "block": 35584,
+          "file": "SendbSealCNS-8b00.woff2",
+          "bytes": 81936,
+          "sha256": "103b7ef0820ec823cf435a4a11f69b43fa1d5a2880e1650f1f10c27891ddc0e7"
+        },
+        {
+          "block": 35712,
+          "file": "SendbSealCNS-8b80.woff2",
+          "bytes": 19440,
+          "sha256": "e2717c7b9ee3d789455664e3e165258668fec60183a2666adbe9e3d8bd79b1f7"
+        },
+        {
+          "block": 35840,
+          "file": "SendbSealCNS-8c00.woff2",
+          "bytes": 41492,
+          "sha256": "5a227fd7cf0427a6698ef882e2e796c512153b6f03b5ea90c16102764cd438e1"
+        },
+        {
+          "block": 35968,
+          "file": "SendbSealCNS-8c80.woff2",
+          "bytes": 58640,
+          "sha256": "c54b10dc115239923a1d860df3a4accdd3ad024b493d1121ebf62ef325483d6c"
+        },
+        {
+          "block": 36096,
+          "file": "SendbSealCNS-8d00.woff2",
+          "bytes": 22196,
+          "sha256": "a8852d848b6fef9a271f1f9d659503580efe17ab7260c52a5f9a0da25d5f9ddc"
+        },
+        {
+          "block": 36224,
+          "file": "SendbSealCNS-8d80.woff2",
+          "bytes": 45756,
+          "sha256": "7b332eb98de286747360dfff4f9ae61c3bcff64273b227452af7f43223b8158d"
+        },
+        {
+          "block": 36352,
+          "file": "SendbSealCNS-8e00.woff2",
+          "bytes": 38520,
+          "sha256": "1f9818dc289234e61d14ada268cdb3d644749a4f83c2d146b4e8f331cbdc00ca"
+        },
+        {
+          "block": 36480,
+          "file": "SendbSealCNS-8e80.woff2",
+          "bytes": 41072,
+          "sha256": "5ae784929cc4b2b537f1fb4f85629f3de8626a0b9252dba53f690bf13f925f05"
+        },
+        {
+          "block": 36608,
+          "file": "SendbSealCNS-8f00.woff2",
+          "bytes": 57308,
+          "sha256": "c55fe7defcd692061c12425b7245846a20a9d6828584df837c586c4b2da90e37"
+        },
+        {
+          "block": 36736,
+          "file": "SendbSealCNS-8f80.woff2",
+          "bytes": 32120,
+          "sha256": "6e23f63d246cfef79f0ac8b508d44ae6b840dcfc73695138233d5c29378c100d"
+        },
+        {
+          "block": 36864,
+          "file": "SendbSealCNS-9000.woff2",
+          "bytes": 69056,
+          "sha256": "d8d73bf1c85a03390e06c6b768a9e316ec5260aac8d2ecaec8afcc4005c98a24"
+        },
+        {
+          "block": 36992,
+          "file": "SendbSealCNS-9080.woff2",
+          "bytes": 69472,
+          "sha256": "6ad2b0ce3e58bbc64d0cb9d1ed6286bd53c4807bb0a837d61734aa8efa844294"
+        },
+        {
+          "block": 37120,
+          "file": "SendbSealCNS-9100.woff2",
+          "bytes": 77912,
+          "sha256": "5fd3b87aabb3e946b93ca4a04624c51881258584328af80aff859d104df15150"
+        },
+        {
+          "block": 37248,
+          "file": "SendbSealCNS-9180.woff2",
+          "bytes": 54132,
+          "sha256": "75fbd70472389b2c5c863c69c71659f54f3e624ed4dcbc71b1789879d73d3191"
+        },
+        {
+          "block": 37376,
+          "file": "SendbSealCNS-9200.woff2",
+          "bytes": 33892,
+          "sha256": "f1c649946a17706b54d8828658b821337387b5ac72481506c4618c6ae6b209fd"
+        },
+        {
+          "block": 37504,
+          "file": "SendbSealCNS-9280.woff2",
+          "bytes": 33800,
+          "sha256": "c025dab33cc310dd1d3741f1cf948595cf5887afe50ec20d7c59fad850092e16"
+        },
+        {
+          "block": 37632,
+          "file": "SendbSealCNS-9300.woff2",
+          "bytes": 41836,
+          "sha256": "f914c2bb2b5e018dc371f8572ff8c0ea251175a15e63d6da36abe661ca99295c"
+        },
+        {
+          "block": 37760,
+          "file": "SendbSealCNS-9380.woff2",
+          "bytes": 37212,
+          "sha256": "57a7e75748bc9527ccf3b9b99406a9ae84283ccb3ef4e1eb3413811763e7af22"
+        },
+        {
+          "block": 37888,
+          "file": "SendbSealCNS-9400.woff2",
+          "bytes": 54540,
+          "sha256": "22c808e88740981f256feb4418a42571efc5c3ab7f1bb22d3e0d06d4cc6a591d"
+        },
+        {
+          "block": 38016,
+          "file": "SendbSealCNS-9480.woff2",
+          "bytes": 3824,
+          "sha256": "8f4b1023e03cca716ce1df18451eb94f57c9015594043b106ce3219478a31e9c"
+        },
+        {
+          "block": 38144,
+          "file": "SendbSealCNS-9500.woff2",
+          "bytes": 2952,
+          "sha256": "11af5d49785ee57c9c7adf3096e9c5ae089218dcf8e3df3af4c82264c495f4a4"
+        },
+        {
+          "block": 38272,
+          "file": "SendbSealCNS-9580.woff2",
+          "bytes": 59312,
+          "sha256": "f50f1086041bc87d3bd8e900f55fa531a71a266bfc8d356090ec59f7c5b299c1"
+        },
+        {
+          "block": 38400,
+          "file": "SendbSealCNS-9600.woff2",
+          "bytes": 53232,
+          "sha256": "fee4335bab1c46aa253e4405515504df9d8794d9573b7e7ab6930ba553185165"
+        },
+        {
+          "block": 38528,
+          "file": "SendbSealCNS-9680.woff2",
+          "bytes": 76696,
+          "sha256": "e332334b8213fd5866efed4aef7e7736650ac93df5474a243323ab764d8f1668"
+        },
+        {
+          "block": 38656,
+          "file": "SendbSealCNS-9700.woff2",
+          "bytes": 52536,
+          "sha256": "430673a16d81176b45a37aed55539b3ffdfd88a599d8dbad67cb22b72e45eb1e"
+        },
+        {
+          "block": 38784,
+          "file": "SendbSealCNS-9780.woff2",
+          "bytes": 48472,
+          "sha256": "b4e62ffcbf0973b2f7e7943e1a20fca669331ae195f3bf4433ba3670c6d32dbe"
+        },
+        {
+          "block": 38912,
+          "file": "SendbSealCNS-9800.woff2",
+          "bytes": 66360,
+          "sha256": "bb4344103c7f6e74a8ebc6f57648d31410be70155dad011a35d1479312d415ce"
+        },
+        {
+          "block": 39040,
+          "file": "SendbSealCNS-9880.woff2",
+          "bytes": 23004,
+          "sha256": "421a3d9cf5004296a91487cf07e478f4adfc91608548256ac422a66ba2c55935"
+        },
+        {
+          "block": 39168,
+          "file": "SendbSealCNS-9900.woff2",
+          "bytes": 46348,
+          "sha256": "bc0d9b50c3b56bbe98104e0ca514bb8f3270982fffc685c6c8798789ac15099a"
+        },
+        {
+          "block": 39296,
+          "file": "SendbSealCNS-9980.woff2",
+          "bytes": 41512,
+          "sha256": "d0df7ce62838ff18e0749fb3725c0f78a963efb7bf10babab257572c432dbc8e"
+        },
+        {
+          "block": 39424,
+          "file": "SendbSealCNS-9a00.woff2",
+          "bytes": 63104,
+          "sha256": "eb310f95fa3679bdd4cb06d3d0a74bd008059f0549e19e696d253e0dd8ccbb28"
+        },
+        {
+          "block": 39552,
+          "file": "SendbSealCNS-9a80.woff2",
+          "bytes": 36548,
+          "sha256": "0cece01286d677712df65a635c2e619d9ecdc04c48f7fd8a14d04686239b608d"
+        },
+        {
+          "block": 39680,
+          "file": "SendbSealCNS-9b00.woff2",
+          "bytes": 48044,
+          "sha256": "d6abe86e53192688d18372217b37db34c838c363318e0977b6319d84810d6492"
+        },
+        {
+          "block": 39808,
+          "file": "SendbSealCNS-9b80.woff2",
+          "bytes": 34488,
+          "sha256": "4b22e59cc6092b7ce8739ca06cff1e30b224dbf52ff45ebc6a2be3e7685e3c82"
+        },
+        {
+          "block": 39936,
+          "file": "SendbSealCNS-9c00.woff2",
+          "bytes": 32196,
+          "sha256": "dcdce0445f61ebc4698b9722f4ed1fec4ad0afee5334e589f5db6c8631b301b6"
+        },
+        {
+          "block": 40064,
+          "file": "SendbSealCNS-9c80.woff2",
+          "bytes": 6696,
+          "sha256": "899e4197668c4b4014794f75ed6a0abc1c7aaad1b2d1f1961dbf8a7890d7642d"
+        },
+        {
+          "block": 40192,
+          "file": "SendbSealCNS-9d00.woff2",
+          "bytes": 35880,
+          "sha256": "9d4e34d1712fcd389355281c74dbd130e8867cabdd281605f2da191012380b78"
+        },
+        {
+          "block": 40320,
+          "file": "SendbSealCNS-9d80.woff2",
+          "bytes": 50388,
+          "sha256": "9b39cdea911774b3869540030b7c4c80e58f627f23d3e5e74a6089ba713faa3e"
+        },
+        {
+          "block": 40448,
+          "file": "SendbSealCNS-9e00.woff2",
+          "bytes": 24484,
+          "sha256": "919d9e7d7ce3ab39f584434b17a64cc893e078707e2216769cf348c10cebb43c"
+        },
+        {
+          "block": 40576,
+          "file": "SendbSealCNS-9e80.woff2",
+          "bytes": 71920,
+          "sha256": "d1cc1a42e1879139adc08645244145296d7938e69e56865071ab1b8e96463ef9"
+        },
+        {
+          "block": 40704,
+          "file": "SendbSealCNS-9f00.woff2",
+          "bytes": 63028,
+          "sha256": "a065b35911e859c06d63f58b07bcef2113dd851fd4ff759994e7dc762d39f610"
+        },
+        {
+          "block": 40832,
+          "file": "SendbSealCNS-9f80.woff2",
+          "bytes": 11716,
+          "sha256": "af08dba6185558c614a1f0b4182c0b909aa3595c87c50fdaf012eb67c621ed02"
+        }
+      ],
+      "licenseFile": "SendbSealCNS-OFL.txt"
+    }
+  ]
+}

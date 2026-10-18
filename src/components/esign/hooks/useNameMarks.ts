@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { normalizeCompanySealName, normalizeMarkName, normalizeSealCenter, COMPANY_SEAL_STYLES, PERSONAL_SEAL_STYLES, SIGNATURE_STYLES, type NameMarkKind, type SealOptions } from "../utils/name-marks";
 import { renderNameMark } from "../utils/render-name-mark";
+import { requireSealCharacters } from "../utils/seal-font-coverage";
 
 export function useNameMarks(name: string, kind: NameMarkKind, options: SealOptions) {
     const [retry, setRetry] = useState(0);
@@ -12,6 +13,7 @@ export function useNameMarks(name: string, kind: NameMarkKind, options: SealOpti
     try {
         normalized = kind === "seal" && category === "company" ? normalizeCompanySealName(name) : normalizeMarkName(name, kind);
         if (kind === "seal" && category === "company") centerText = normalizeSealCenter(options.centerText);
+        if (kind === "seal") requireSealCharacters(normalized + centerText);
     } catch (cause) { validationError = (cause as Error).message; }
     const key = JSON.stringify([kind, normalized, category, font, centerText, retry]);
     useEffect(() => {
