@@ -1,25 +1,10 @@
 "use client";
 
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Range, RangePreset } from "../../types/overview";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-// 로컬 타임존 기준 YYYY-MM-DD. toISOString()은 UTC라 KST 새벽에 날짜가 하루 밀림.
-function ymd(d: Date): string {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${y}-${m}-${day}`;
-}
-
-export function presetRange(preset: RangePreset): Range {
-    const today = new Date();
-    if (preset === "1d") return { preset, from: ymd(today), to: ymd(today) };
-    if (preset === "7d") return { preset, from: ymd(new Date(today.getTime() - 6 * DAY_MS)), to: ymd(today) };
-    if (preset === "30d") return { preset, from: ymd(new Date(today.getTime() - 29 * DAY_MS)), to: ymd(today) };
-    if (preset === "90d") return { preset, from: ymd(new Date(today.getTime() - 89 * DAY_MS)), to: ymd(today) };
-    return { preset: "1d", from: ymd(today), to: ymd(today) };
-}
+import { presetRange, rangeDays, shiftRange, ymd } from "../../utils/range";
 
 interface Props {
     value: Range;
@@ -34,8 +19,20 @@ const PRESETS: Array<{ key: RangePreset; label: string }> = [
 ];
 
 export function RangeSelector({ value, onChange }: Props) {
+    const days = rangeDays(value);
+    const nextDisabled = value.to >= ymd(new Date());
     return (
-        <div className="inline-flex items-center gap-2">
+        <div className="inline-flex flex-wrap items-center gap-2">
+            <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={`이전 ${days}일 보기`}
+                title={`이전 ${days}일 보기`}
+                onClick={() => onChange(shiftRange(value, -1))}
+            >
+                <ChevronLeft className="h-4 w-4" />
+            </Button>
             <div className="inline-flex items-center gap-1 rounded-md border p-0.5">
                 {PRESETS.map((p) => {
                     const active = value.preset === p.key;
@@ -43,6 +40,7 @@ export function RangeSelector({ value, onChange }: Props) {
                         <button
                             key={p.key}
                             type="button"
+                            aria-pressed={active}
                             onClick={() => onChange(presetRange(p.key))}
                             className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${
                                 active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"
@@ -53,6 +51,17 @@ export function RangeSelector({ value, onChange }: Props) {
                     );
                 })}
             </div>
+            <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                aria-label={`다음 ${days}일 보기`}
+                title={nextDisabled ? "오늘까지의 기간입니다" : `다음 ${days}일 보기`}
+                disabled={nextDisabled}
+                onClick={() => onChange(shiftRange(value, 1))}
+            >
+                <ChevronRight className="h-4 w-4" />
+            </Button>
             <DateRangePicker
                 from={value.preset === "custom" ? new Date(`${value.from}T00:00:00`) : undefined}
                 to={value.preset === "custom" ? new Date(`${value.to}T00:00:00`) : undefined}
