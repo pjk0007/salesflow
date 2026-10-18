@@ -12,6 +12,7 @@
 - 한글 가상 계약서에 이중 원형 도장과 붓글씨 서명을 골라 이름·날짜와 함께 최종 제출했다. 완료 PDF **53,881bytes**, SHA-256 `eb8b055ada2aaffb2ea2e4345795674edd0d00db2053c72e3a8ad6d00a70d832`가 확인 기록과 일치한다. 최종 확인 화면의 PNG 4개와 PDF 내 이미지를 비교해 픽셀 보존·개별 80,000px/83,886bytes 한도를 확인했고 Poppler 렌더링을 시각 검수했다.
 - 새 글씨체는 Google Fonts의 고정 revision 원본을 검증해 이름을 바꾸고 WOFF2로 변환했다. 글리프를 제거하지 않았고 OFL/저작권 고지를 포함한다. 총 약 2.6MB이며 전역 로딩·외부 폰트 서버 전송 없이 선택 화면에서만 불러온다.
 - 최종 변경의 ESLint·webpack 배포 빌드·타입 검사·224개 페이지 생성과 standalone 가상 전체 흐름을 통과했다. standalone의 글씨체 4개가 HTTP 200·원본과 같은 SHA-256으로 제공되고 라이선스도 배포 산출물에 포함되는지 확인했다.
+- CloudType `sendb-dev / dev`의 적용 소스 `1974527b00b9d9cccb915354b0c7797584d4468b`와 실행 중(1/1)을 확인했다. 실제 개발 주소에서 새 가상 OTP 인증 → 이름 도장 6종 생성 → 사각 인장 선택·문서 삽입 → 손글씨 4종 생성·선택을 확인했다. 기호만 있는 이름도 거절된다. `dev-live-ux.json`, `dev-seal-gallery.png`, `dev-signature-gallery.png`에 근거를 남겼다.
 - 검수 자료: 로컬 `F:/Dev/.work/esign-live-setup-20261018/name-marks-qa/`의 전체 검사/빌드 로그, `browser-checks.json`, `pixel-checks.json`, 데스크톱·모바일 화면, 완료 PDF와 확인 기록. 실제 내부 메일 수신 검수나 운영 배포 완료 근거로 사용하지 않는다.
 
 ### 이메일 + 기존 알림톡 연결 (2026-10-18)
