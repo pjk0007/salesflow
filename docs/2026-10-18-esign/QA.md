@@ -6,6 +6,10 @@
 
 ### 개발 서버 실제 연결 준비 결과
 
+코드 `399e914`의 CloudType `sendb-dev / dev` 적용됨·실행 중(1/1)을 확인했다. NHN 비공개 저장소 키와 새 저장 방식을 반영하고 개발 기능·worker를 켰다. Chrome의 인증된 상태 API는 `enabled=true`, `emailReady=true`, `smsReady=false`, `databaseReady=true`, `storageReady=true`, `issues=[]`다. 재배포 전 저장한 암호화 시험 객체를 같은 참조로 다시 읽어 내용 일치도 확인했다. `dev-live-esign-status.json`, `dev-email-enabled.png`, `nhn-storage-after-redeploy.json`에 보존했다.
+
+실제 이메일 전체 흐름 검수는 법적 효력 없는 시험 PDF 선택 단계에서 대기 중이다. Chrome 확장프로그램의 파일 URL 접근 권한이 꺼져 `fileChooser.setFiles`가 거절됐으며, 설정 화면 `chrome://extensions`도 브라우저 URL 정책으로 거절됐다. 우회하지 않고 사용자 설정 완료를 요청했다. 실제 계약 요청·OTP·완료 알림은 아직 보내거나 수신 검수하지 않았다. 처음의 발신 확인 메일 수신과 구분한다.
+
 NHN 연결 보완 후 최신 전체 검수는 Node.js 24.19.0에서 테스트 파일 **108개·1,380개 통과, 실패·건너뜀 0개**다. 조건부 PUT을 지원하지 않는 공급자의 501을 재현하고, 새 객체 주소에서 동시 저장·서명 재제출·완료 PDF/확인 기록까지 검사했다. 변경 파일 5개 린트도 오류·경고 0이다. 아래 1,370개는 NHN 저장 방식 보완 전 기록이다.
 
 사용자가 키 발급·개발 서버 연결을 승인해 NHN S3 키 1개를 발급했다. 기존 방식은 실제 API에서 `501 Conditional object PUTs are not supported`로 실패했다. 이를 무조건 덮어쓰기로 재시도하지 않고 암호문 해시를 포함한 별도 버전 주소를 추가했다. 새 코드로 실제 NHN 암호화 저장·읽기·서로 다른 버전·기존 암호문 보존·잘못된 내용의 쓰기 차단을 통과했다. SDK 기본 체크섬 설정도 유지했다. `nhn-storage-content-live-qa.json`에 결과를 보존했으며 고객 문서를 사용하거나 객체를 삭제하지 않았다.
