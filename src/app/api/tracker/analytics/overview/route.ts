@@ -4,9 +4,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { classifyInflow } from "@/components/journey/utils/referrer";
 import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
-import { aggregateRange, notExcludedExpr, pct } from "@/lib/tracker/analytics-queries";
+import { aggregateRange, notExcludedExpr } from "@/lib/tracker/analytics-queries";
 import { deviceFilterSql, sessionInFilterSql } from "@/lib/tracker/sql-filters";
-import { previousRange, rangeBounds, resolveRange } from "@/lib/tracker/date-range";
+import { rangeBounds, resolveRange } from "@/lib/tracker/date-range";
+import { buildComparisonKpi, resolveComparisonPeriod } from "@/lib/tracker/comparison";
 import type { OverviewData } from "@/components/tracker/types/overview";
 
 // url에서 host 제거 + ? 이전 경로
@@ -40,11 +41,14 @@ export async function GET(req: NextRequest) {
 
     // 기간 (기본 30일)
     const { fromYmd, toYmd } = resolveRange(sp.get("from"), sp.get("to"));
+    let comparison: OverviewData["comparison"];
+    try {
+        comparison = resolveComparisonPeriod({ from: fromYmd, to: toYmd }, sp.get("compareFrom"), sp.get("compareTo"));
+    } catch (error) {
+        return NextResponse.json({ success: false, error: (error as Error).message }, { status: 400 });
+    }
     const { fromIso, toIso } = rangeBounds(fromYmd, toYmd);
-
-    // 직전 동일 길이 기간
-    const prev = previousRange(fromYmd, toYmd);
-    const { fromIso: prevFromIso, toIso: prevToIso } = rangeBounds(prev.fromYmd, prev.toYmd);
+    const { fromIso: prevFromIso, toIso: prevToIso } = rangeBounds(comparison.from, comparison.to);
 
     const excludes = (site.excludePaths ?? []) as string[];
     const dailyNotExcluded = notExcludedExpr(excludes);
@@ -384,33 +388,8 @@ export async function GET(req: NextRequest) {
 
         const data: OverviewData = {
             range: { from: fromYmd, to: toYmd },
-            kpi: {
-                visitors: { value: curr.visitors, deltaPct: pct(curr.visitors, prev.visitors) },
-                sessions: { value: curr.sessions, deltaPct: pct(curr.sessions, prev.sessions) },
-                pageviews: { value: curr.pageviews, deltaPct: pct(curr.pageviews, prev.pageviews) },
-                avgDwellSec: { value: curr.avgDwell, deltaPct: pct(curr.avgDwell, prev.avgDwell) },
-                bounceRate: {
-                    value: curr.sessions > 0 ? Number((curr.bounces / curr.sessions).toFixed(3)) : 0,
-                    deltaPct: pct(
-                        curr.sessions ? curr.bounces / curr.sessions : 0,
-                        prev.sessions ? prev.bounces / prev.sessions : 0,
-                    ),
-                },
-                leadRate: {
-                    value: curr.visitors > 0 ? Number((curr.leads / curr.visitors).toFixed(3)) : 0,
-                    deltaPct: pct(
-                        curr.visitors ? curr.leads / curr.visitors : 0,
-                        prev.visitors ? prev.leads / prev.visitors : 0,
-                    ),
-                },
-                signupRate: {
-                    value: curr.visitors > 0 ? Number((curr.signups / curr.visitors).toFixed(3)) : 0,
-                    deltaPct: pct(
-                        curr.visitors ? curr.signups / curr.visitors : 0,
-                        prev.visitors ? prev.signups / prev.visitors : 0,
-                    ),
-                },
-            },
+            comparison,
+            kpi: buildComparisonKpi(curr, prev, comparison),
             dailyPageviews: (daily as Array<{ date: string; count: number }>),
             popularPages: (popular as Array<{ path: string; title: string | null; views: number }>),
             exitPages: (exitsRows as Array<{ path: string; title: string | null; exits: number }>),
