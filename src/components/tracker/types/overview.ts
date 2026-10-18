@@ -10,7 +10,20 @@ export interface Range {
 
 export interface KpiMetric {
     value: number;
-    deltaPct: number | null; // 직전 동일 기간 대비 ±%, prev=0이면 null
+    comparisonValue: number;
+    deltaPct: number | null; // 선택한 비교 기간 대비 ±%, 비교 값=0이면 null
+    dailyAverage?: { current: number; comparison: number };
+}
+
+export type ComparisonSelection = { from: string; to: string } | null;
+
+export interface ComparisonPeriod {
+    from: string;
+    to: string;
+    mode: "previous" | "custom";
+    currentDays: number;
+    days: number;
+    countBasis: "total" | "dailyAverage";
 }
 
 export type DeviceFilter = "desktop" | "mobile" | "tablet" | null;
@@ -30,6 +43,7 @@ export interface SegmentFilters {
 
 export interface OverviewData {
     range: { from: string; to: string };
+    comparison: ComparisonPeriod;
     kpi: {
         visitors: KpiMetric;
         sessions: KpiMetric;

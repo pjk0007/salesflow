@@ -8,6 +8,8 @@ export function useTrackerOverview(args: {
     siteId: number | null;
     from: string;
     to: string;
+    compareFrom?: string;
+    compareTo?: string;
     device?: string | null;
     channel?: string | null;
     channelMode?: "all" | "paid" | "organic";
@@ -17,6 +19,7 @@ export function useTrackerOverview(args: {
             siteId: String(args.siteId),
             from: args.from,
             to: args.to,
+            ...(args.compareFrom && args.compareTo ? { compareFrom: args.compareFrom, compareTo: args.compareTo } : {}),
             ...(args.device ? { device: args.device } : {}),
             ...(args.channel ? { channel: args.channel } : {}),
             ...(args.channelMode && args.channelMode !== "all" ? { channelMode: args.channelMode } : {}),
