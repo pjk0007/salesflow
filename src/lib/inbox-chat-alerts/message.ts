@@ -19,7 +19,8 @@ export function splitMessage(body: string, budget = 7000): string[] {
 }
 export function conversationLink(message: Pick<ChatAlertMessage, "conversationId" | "channelId" | "id" | "status">, baseUrl: string) {
     const url = new URL("/inbox", baseUrl);
-    url.search = new URLSearchParams({ channelId: String(message.channelId), conversation: message.conversationId, message: String(message.id), status: message.status }).toString();
+    // message 쿼리는 기존 내부 메모 알림 전용이다. 고객 메시지에는 상담 경로만 전달한다.
+    url.search = new URLSearchParams({ channelId: String(message.channelId), conversation: message.conversationId, status: message.status }).toString();
     return url.href;
 }
 export function chatAlertMessages(message: ChatAlertMessage, baseUrl: string) {
