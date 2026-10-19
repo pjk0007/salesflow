@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatAlertMessages, splitMessage, alertRequestId, conversationLink } from "./message";
+import { chatAlertMessages, splitMessage, alertMessageId, conversationLink } from "./message";
 import { chatAlertRoutes, routeFingerprint } from "./config";
 
 const route = { orgId: "00000000-0000-4000-8000-000000000001", workspaceId: 8, channelId: 1, webhook: "https://chat.googleapis.com/v1/spaces/fake/messages?key=fake&token=fake" };
@@ -26,9 +26,10 @@ test("닫힌 상담도 정확한 채널·메시지·상태로 열고 부분 재�
     assert.equal(url.searchParams.get("status"), "closed");
     assert.equal(url.searchParams.get("message"), "52");
     const fingerprint = routeFingerprint(route);
-    assert.equal(alertRequestId(fingerprint, 52, 0), alertRequestId(fingerprint, 52, 0));
-    assert.notEqual(alertRequestId(fingerprint, 52, 0), alertRequestId(fingerprint, 52, 1));
-    assert.notEqual(alertRequestId(fingerprint, 52, 0), alertRequestId(routeFingerprint({ ...route, channelId: 3 }), 52, 0));
+    assert.match(alertMessageId(fingerprint, 52, 0), /^client-[a-z0-9-]{1,56}$/);
+    assert.equal(alertMessageId(fingerprint, 52, 0), alertMessageId(fingerprint, 52, 0));
+    assert.notEqual(alertMessageId(fingerprint, 52, 0), alertMessageId(fingerprint, 52, 1));
+    assert.notEqual(alertMessageId(fingerprint, 52, 0), alertMessageId(routeFingerprint({ ...route, channelId: 3 }), 52, 0));
 });
 test("명시된 조직·사업·채널만 연결하며 잘못된 설정·개발 서버는 발송하지 않는다", () => {
     const env = { INBOX_CHAT_ALERTS: "on", INBOX_CHAT_ALERT_ROUTES: JSON.stringify([route]) };

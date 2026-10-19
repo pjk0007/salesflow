@@ -45,7 +45,6 @@ export function CustomerCrmContext({
         ),
         { mutate } = useSWRConfig();
     const [editor, setEditor] = useState<Editor | null>(null),
-        [expanded, setExpanded] = useState(false),
         [pending, setPending] = useState<string | null>(null);
     const data = context.data;
     const { respond: canRespond, manage: canManage } = workspaceAbilities(
@@ -59,8 +58,8 @@ export function CustomerCrmContext({
             mutate(
                 (key) =>
                     typeof key === "string" &&
-                    !!data?.contact &&
-                    key.includes(`/contacts/${data.contact.id}/activity`),
+                    (key.includes(`/conversations/${chat.id}/journey`) ||
+                        (!!data?.contact && key.includes(`/contacts/${data.contact.id}/activity`))),
             ),
         ]);
     }
@@ -351,22 +350,6 @@ export function CustomerCrmContext({
                             </a>
                         )}
                     </div>
-                    <details
-                        onToggle={(event) =>
-                            setExpanded(event.currentTarget.open)
-                        }
-                    >
-                        <summary className="cursor-pointer text-xs font-semibold">
-                            고객 타임라인
-                        </summary>
-                        {expanded && (
-                            <ActivityTimeline
-                                workspaceId={data.workspaceId}
-                                id={data.contact.id}
-                                kind="contacts"
-                            />
-                        )}
-                    </details>
                 </>
             ) : (
                 <p className="text-xs text-muted-foreground">

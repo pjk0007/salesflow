@@ -4,7 +4,7 @@ import { db, inboxChatAlertDeliveries as deliveries, inboxMessages as messages, 
 import type { DbExec } from "@/lib/db/tx";
 import { postGoogleChatMessage } from "@/lib/google-chat";
 import { chatAlertRoutes, chatAlertWorkerEnabled, routeFingerprint } from "./config";
-import { alertRequestId, chatAlertMessages } from "./message";
+import { alertMessageId, chatAlertMessages } from "./message";
 
 type Delivery = typeof deliveries.$inferSelect;
 async function claim(exec: DbExec, now: Date) {
@@ -59,7 +59,7 @@ export async function processInboxChatAlerts(options: {
                 const [lease] = await exec.select({ id: deliveries.messageId }).from(deliveries).where(owned(row));
                 if (!stillConfigured || !lease) { if (lease) await finish(exec, row, "cancelled", "연결 설정이 변경되었습니다.", null, clock()); failed = true; break; }
                 const result = await send(route.webhook, payloads[part], fetch, {
-                    requestId: alertRequestId(row.routeHash, row.messageId, part),
+                    messageId: alertMessageId(row.routeHash, row.messageId, part),
                     threadKey: `inbox:${source.chat.id}`,
                 });
                 if (!result.ok) {

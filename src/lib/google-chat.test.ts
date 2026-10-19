@@ -44,6 +44,23 @@ function assertNoSecret(error: string) {
 
 const NO_WAIT = { retryDelayMs: 0, spaceIntervalMs: 0 };
 
+test("웹훅 고정 messageId는 requestId 없이 전송하고 같은 ID의 409를 성공으로 처리한다", async () => {
+    const { fetchImpl, calls } = fakeFetch([{ status: 409 }]);
+    assert.deepEqual(await postGoogleChatText(WEBHOOK, "글", fetchImpl, { ...NO_WAIT, messageId: "client-inbox-abc123", threadKey: "inbox:fake" }), { ok: true });
+    const url = new URL(calls[0].url);
+    assert.equal(url.searchParams.get("messageId"), "client-inbox-abc123");
+    assert.equal(url.searchParams.has("requestId"), false);
+    assert.equal(url.searchParams.get("messageReplyOption"), "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD");
+});
+
+test("잘못된 고정 messageId는 외부 호출 전에 거절한다", async () => {
+    const { fetchImpl, calls } = fakeFetch([{ status: 200 }]);
+    for (const messageId of ["abc", "client-UPPER", "client-", `client-${"a".repeat(57)}`]) {
+        assert.equal((await postGoogleChatText(WEBHOOK, "글", fetchImpl, { ...NO_WAIT, messageId })).ok, false);
+    }
+    assert.equal(calls.length, 0);
+});
+
 function failed(r: GoogleChatResult) {
     assert.equal(r.ok, false);
     if (r.ok) throw new Error("unreachable");

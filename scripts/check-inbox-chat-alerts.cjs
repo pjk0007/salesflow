@@ -69,7 +69,7 @@ async function main() {
         });
         await check('긴 원문 부분 실패 후 성공한 부분을 반복하지 않음', async () => {
             const long = await make({ body: '한글🙂<&\n'.repeat(2200) }); let now = new Date(), calls = [];
-            const send = async (_url, _payload, _fetch, opts) => { calls.push(opts.requestId); return calls.length === 2 ? { ok: false, status: 503, error: '가상 일시 오류', retryable: true } : { ok: true }; };
+            const send = async (_url, _payload, _fetch, opts) => { calls.push(opts.messageId); return calls.length === 2 ? { ok: false, status: 503, error: '가상 일시 오류', retryable: true } : { ok: true }; };
             await processInboxChatAlerts({ exec: db, send, now: () => now, limit: 1 });
             const [pending] = await db.select().from(schema.inboxChatAlertDeliveries).where(eq(schema.inboxChatAlertDeliveries.messageId, long.message.id));
             assert.equal(pending.state, 'retry'); assert.equal(pending.sentParts, 1);

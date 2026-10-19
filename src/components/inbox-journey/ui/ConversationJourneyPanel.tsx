@@ -1,28 +1,17 @@
 "use client";
 import { useState } from "react";
 import { useConversationJourney } from "../hooks/useConversationJourney";
-import type { JourneyEvent } from "@/components/journey/types";
-function EventRow({ event }: { event: JourneyEvent }) {
-    return <li className="border-l-2 border-violet-100 pl-3 py-2">
-        <div className="text-[11px] text-muted-foreground">{new Date(event.at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })} · {event.channel}</div>
-        <p className="mt-1 break-words text-xs">{event.label}</p>
-        {typeof event.meta.duration === "number" && <span className="text-[11px] text-muted-foreground">관측 체류 {Math.max(0, Math.round(event.meta.duration))}초</span>}
-        {typeof event.meta.status === "string" && <span className="text-[11px] text-muted-foreground">처리 상태: {event.meta.status}</span>}
-        {!!event.children?.length && <details className="mt-1 text-xs"><summary className="cursor-pointer text-violet-700">방문 페이지·행동 {event.children.length}개</summary>
-            <ol className="mt-2">{event.children.map((row, index) => <EventRow key={`${row.at}:${index}`} event={row} />)}</ol>
-        </details>}
-    </li>;
-}
+import { JourneyTimeline } from "./JourneyTimeline";
 export function ConversationJourneyPanel({ id, recordId, version, canConfirm, change }: {
     id: string; recordId: number | null; version: number; canConfirm: boolean;
     change: (value: unknown) => Promise<unknown>;
 }) {
     const { data, error, isLoading, mutate } = useConversationJourney(id, version);
-    const [count, setCount] = useState(20);
     const [busy, setBusy] = useState(false);
     const [saveError, setSaveError] = useState("");
-    return <section className="space-y-3 rounded-xl border border-violet-100 bg-violet-50/30 p-3" aria-label="발송·방문·상담 경로">
-        <h3 className="font-semibold">발송·방문·상담 경로</h3>
+    return <section className="space-y-3 rounded-xl border border-violet-100 bg-violet-50/30 p-3" aria-label="고객 타임라인">
+        <h3 className="font-semibold">고객 타임라인</h3>
+        <p className="text-xs text-muted-foreground">메일·알림톡·방문 페이지·CRM 활동·상담 경로</p>
         {isLoading && <p className="text-xs">이전 경로를 불러오고 있습니다…</p>}
         {error && <div className="text-xs"><p>경로를 불러오지 못했습니다.</p><button className="mt-1 underline" onClick={() => void mutate()}>다시 불러오기</button></div>}
         {data && <>
@@ -39,11 +28,7 @@ export function ConversationJourneyPanel({ id, recordId, version, canConfirm, ch
                 finally { setBusy(false); }
             }}>{busy ? "연결 중…" : "고객 확인 후 이 리드에 연결"}</button>}
             {saveError && <p className="text-xs text-red-700" role="alert">{saveError}</p>}
-            <details open><summary className="cursor-pointer text-xs">전체 경로 {data.total}건</summary>
-                <ol className="mt-2">{data.events.slice(-count).map((event, index) => <EventRow key={`${event.at}:${index}`} event={event} />)}</ol>
-                {data.events.length > count && <button className="mt-2 text-xs underline" onClick={() => setCount(count + 20)}>이전 경로 20건 더 보기</button>}
-                {!data.total && <p className="mt-2 text-xs text-muted-foreground">아직 기록된 경로가 없습니다.</p>}
-            </details>
+            <JourneyTimeline events={data.events} />
         </>}
     </section>;
 }
