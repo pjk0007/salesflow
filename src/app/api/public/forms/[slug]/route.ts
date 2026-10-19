@@ -37,6 +37,8 @@ export async function GET(
                 completionMessage: form.completionMessage,
                 completionButtonText: form.completionButtonText,
                 completionButtonUrl: form.completionButtonUrl,
+                coverImageUrl: form.coverImageUrl,
+                coverColor: form.coverColor,
                 fields: fields.map((f) => ({
                     id: f.id,
                     label: f.label,

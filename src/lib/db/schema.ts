@@ -1170,6 +1170,8 @@ export const webForms = pgTable("web_forms", {
     completionMessage: text("completion_message"),
     completionButtonText: varchar("completion_button_text", { length: 100 }),
     completionButtonUrl: text("completion_button_url"),
+    coverImageUrl: text("cover_image_url"),
+    coverColor: varchar("cover_color", { length: 20 }),
     defaultValues: jsonb("default_values").$type<{ field: string; value: string }[]>(),
     isActive: integer("is_active").default(1).notNull(),
     createdBy: uuid("created_by").references(() => users.id),

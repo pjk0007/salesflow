@@ -44,6 +44,8 @@ export default function EditWebFormPage() {
     const [completionMessage, setCompletionMessage] = useState("");
     const [completionButtonText, setCompletionButtonText] = useState("");
     const [completionButtonUrl, setCompletionButtonUrl] = useState("");
+    const [coverImageUrl, setCoverImageUrl] = useState("");
+    const [coverColor, setCoverColor] = useState("");
     const [defaultValues, setDefaultValues] = useState<{ field: string; value: string }[]>([]);
     const [formFields, setFormFields] = useState<FormFieldItem[]>([]);
     const [slug, setSlug] = useState("");
@@ -77,6 +79,8 @@ export default function EditWebFormPage() {
                     setCompletionMessage(form.completionMessage || "");
                     setCompletionButtonText(form.completionButtonText || "");
                     setCompletionButtonUrl(form.completionButtonUrl || "");
+                    setCoverImageUrl(form.coverImageUrl || "");
+                    setCoverColor(form.coverColor || "");
                     setDefaultValues(form.defaultValues || []);
                     setSlug(form.slug);
                     setFormFields(
@@ -114,6 +118,8 @@ export default function EditWebFormPage() {
             completionMessage,
             completionButtonText,
             completionButtonUrl,
+            coverImageUrl,
+            coverColor,
             defaultValues,
             fields: formFields.map((f) => ({
                 label: f.label,
@@ -134,7 +140,7 @@ export default function EditWebFormPage() {
     }, [
         formId, formName, formTitle, formDescription,
         completionTitle, completionMessage, completionButtonText, completionButtonUrl,
-        defaultValues, formFields, updateForm,
+        coverImageUrl, coverColor, defaultValues, formFields, updateForm,
     ]);
 
     const handleAiGenerate = useCallback(async () => {
@@ -281,6 +287,10 @@ export default function EditWebFormPage() {
                             onCompletionButtonTextChange={setCompletionButtonText}
                             completionButtonUrl={completionButtonUrl}
                             onCompletionButtonUrlChange={setCompletionButtonUrl}
+                            coverImageUrl={coverImageUrl}
+                            onCoverImageUrlChange={setCoverImageUrl}
+                            coverColor={coverColor}
+                            onCoverColorChange={setCoverColor}
                             defaultValues={defaultValues}
                             onDefaultValuesChange={setDefaultValues}
                             fields={formFields}

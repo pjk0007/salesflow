@@ -32,6 +32,8 @@ interface PublicFormData {
     completionMessage: string | null;
     completionButtonText: string | null;
     completionButtonUrl: string | null;
+    coverImageUrl: string | null;
+    coverColor: string | null;
     fields: PublicField[];
 }
 
@@ -186,15 +188,32 @@ export default function PublicFormPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 py-10 px-4">
+        <div className="min-h-screen bg-gray-100 [&_input]:shadow-none [&_textarea]:shadow-none [&_[data-slot=select-trigger]]:shadow-none">
+            {/* 커버 */}
+            <div
+                className="relative w-full h-40 md:h-52 overflow-hidden"
+                style={!form.coverImageUrl ? { backgroundColor: form.coverColor || "#1e293b" } : undefined}
+            >
+                {form.coverImageUrl && (
+                    <>
+                        <img
+                            src={form.coverImageUrl}
+                            alt=""
+                            className="w-full h-full object-cover object-center"
+                        />
+                        <div className="absolute inset-0 bg-black/30" />
+                    </>
+                )}
+            </div>
+
             <form
                 onSubmit={handleSubmit}
-                className="max-w-md mx-auto bg-white rounded-xl shadow-sm border p-8"
+                className="relative max-w-xl mx-auto bg-white rounded-t-2xl px-8 pt-8 pb-14 -mt-20"
             >
                 <div className="mb-6">
                     <h1 className="text-xl font-bold">{form.title}</h1>
                     {form.description && (
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-xs text-gray-500 mt-1 whitespace-pre-line">
                             {form.description}
                         </p>
                     )}
@@ -210,7 +229,7 @@ export default function PublicFormPage() {
                                 ) : null}
                             </label>
                             {field.description && (
-                                <p className="text-xs text-gray-400">
+                                <p className="text-xs text-gray-400 whitespace-pre-line">
                                     {field.description}
                                 </p>
                             )}
@@ -225,7 +244,7 @@ export default function PublicFormPage() {
 
                 <Button
                     type="submit"
-                    className="w-full mt-6"
+                    className="w-full mt-6 bg-gray-900 hover:bg-black text-white"
                     disabled={submitting}
                 >
                     {submitting ? "제출 중..." : "제출"}
