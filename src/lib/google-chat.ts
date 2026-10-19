@@ -40,6 +40,8 @@ export interface ChatPostOptions {
     threadKey?: string;
     /** 같은 요청을 한 번만 만들게 하는 값 (GOOGLE_CHAT_REQUEST_ID=on일 때만 부른 쪽이 넘긴다) */
     requestId?: string;
+    /** 웹훅에서도 지원하는 client- 접두사의 고정 메시지 ID (최대 63자). */
+    messageId?: string;
     /** 서버가 지정한 담당자 한 명. 본문에서 읽지 않는다. 숫자 Google Chat 사용자 ID만 허용한다. */
     mentionUserId?: string;
 }
@@ -204,7 +206,7 @@ async function postOnce(
     // 본문을 읽어 연결을 돌려준다. 실패 응답이면 구글이 준 이유를 짧게 남긴다
     const text = await res.text().catch(() => "");
     if (res.ok) return { ok: true };
-    // requestId를 넘긴 요청이 이미 있으면 같은 글이 이미 올라간 것이다
+    // 고정 ID를 넘긴 요청이 이미 있으면 같은 글이 이미 올라간 것이다
     if (res.status === 409 && idempotent) return { ok: true };
 
     let detail = text;
@@ -316,11 +318,15 @@ export async function postGoogleChatMessage(
         return { ok: false, status: null, error: chatWebhookProblemText(problem), retryable: false };
     }
     const parsed = new URL(webhookUrl);
+    if (opts.messageId !== undefined && !/^client-[a-z0-9-]{1,56}$/.test(opts.messageId)) {
+        return { ok: false, status: null, error: "구글 챗 메시지 ID 형식이 올바르지 않습니다.", retryable: false };
+    }
     let url = webhookUrl;
-    if (opts.threadKey || opts.requestId) {
+    if (opts.threadKey || opts.requestId || opts.messageId) {
         const u = new URL(webhookUrl);
         if (opts.threadKey) u.searchParams.set("messageReplyOption", "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD");
         if (opts.requestId) u.searchParams.set("requestId", opts.requestId);
+        if (opts.messageId) u.searchParams.set("messageId", opts.messageId);
         url = u.toString();
     }
     if (opts.mentionUserId !== undefined && !/^[1-9]\d{5,24}$/.test(opts.mentionUserId)) {
@@ -342,7 +348,7 @@ export async function postGoogleChatMessage(
     let retries = 0;
     for (;;) {
         await waitSpaceTurn(key, interval, sleep);
-        const r = await postOnce(url, body, fetchImpl, Boolean(opts.requestId));
+        const r = await postOnce(url, body, fetchImpl, Boolean(opts.requestId || opts.messageId));
         if (r.ok) return { ok: true };
         const { retryAfterMs, ...result } = r;
         if (!result.retryable || result.uncertain) return result;

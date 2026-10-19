@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
     db, inboxChannels, inboxConversations, crmContacts, records, trackerSites,
     trackerVisitors, trackerSessions, trackerEvents, visitorRecordLinks,
-    emailSendLogs, emailClickLogs, alimtalkSendLogs, recordEvents,
+    emailSendLogs, emailClickLogs, alimtalkSendLogs, recordEvents, crmActivities,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -107,7 +107,7 @@ export async function conversationJourney(actor: Pick<JWTPayload, "orgId" | "use
             eq(records.orgId, actor.orgId), eq(records.workspaceId, channel.workspaceId),
         )).limit(2) : [];
     const candidateId = link?.recordId ?? (browserLinks.length === 1 ? browserLinks[0].recordId : null);
-    const [mappedContact] = chat.contactId ? await exec.select({ recordId: crmContacts.recordId }).from(crmContacts).where(and(
+    const [mappedContact] = chat.contactId ? await exec.select({ id: crmContacts.id, recordId: crmContacts.recordId }).from(crmContacts).where(and(
         eq(crmContacts.id, chat.contactId), eq(crmContacts.orgId, actor.orgId), eq(crmContacts.workspaceId, channel.workspaceId),
     )) : [];
     const verifiedRecordId = chat.recordId ?? mappedContact?.recordId ?? null;
@@ -116,6 +116,7 @@ export async function conversationJourney(actor: Pick<JWTPayload, "orgId" | "use
         .where(and(eq(records.id, recordId), eq(records.orgId, actor.orgId), eq(records.workspaceId, channel.workspaceId))) : [];
     const status = record ? (verifiedRecordId ? "confirmed" : "attributed") : currentSession ? "visitor" : "unlinked";
     const events: JourneyEvent[] = [];
+    const contactIds = new Set<string>(mappedContact ? [mappedContact.id] : []);
     let sessionRows: (typeof trackerSessions.$inferSelect)[] = [];
     if (record) {
         const [emails, clicks, talks, business, direct, links] = await Promise.all([
@@ -138,10 +139,29 @@ export async function conversationJourney(actor: Pick<JWTPayload, "orgId" | "use
         const mappedContacts = await exec.select({ id: crmContacts.id }).from(crmContacts).where(and(
             eq(crmContacts.orgId, actor.orgId), eq(crmContacts.workspaceId, channel.workspaceId), eq(crmContacts.recordId, record.id),
         ));
-        events.push(...await loadInboxJourney(actor.orgId, [record.id], exec, mappedContacts.map(row => row.id)));
+        for (const contact of mappedContacts) contactIds.add(contact.id);
+        events.push(...await loadInboxJourney(actor.orgId, [record.id], exec, [...contactIds]));
         const visitorIds = [...new Set([...direct, ...links].map(row => row.id))];
         if (visitorIds.length) sessionRows = await exec.select().from(trackerSessions)
             .where(inArray(trackerSessions.visitorId, visitorIds));
+    }
+    if (contactIds.size) {
+        if (!record) events.push(...await loadInboxJourney(actor.orgId, [], exec, [...contactIds]));
+        const activities = await exec.select().from(crmActivities).where(and(
+            eq(crmActivities.orgId, actor.orgId), eq(crmActivities.workspaceId, channel.workspaceId),
+            inArray(crmActivities.contactId, [...contactIds]),
+        ));
+        const actions: Record<string, string> = { created: "생성", updated: "변경", archived: "보관", restored: "복원", done: "완료", open: "재개", cancelled: "취소", snapshot: "기존 상태", unlinked: "고객 연결 해제", "contacts.created": "고객 등록", "contacts.updated": "고객 정보 변경", "contacts.archived": "고객 보관", "contacts.restored": "고객 복구" };
+        const sources: Record<string, string> = { deal: "딜", task: "업무", profile: "고객 정보", event: "고객 이벤트" };
+        for (const row of activities) {
+            // 상담 원문은 아래 UI에서 상담 단위로 요약하므로 활동 로그의 복사본은 중복 표시하지 않는다.
+            if (row.source === "conversation") continue;
+            const stage = row.metadata.stage;
+            events.push({ at: row.occurredAt.toISOString(), source: "business", channel: sources[row.source] ?? "CRM",
+                type: `crm_${row.source}_${row.action}`, label: row.source === "event" ? row.summary : `${actions[row.action] ?? row.action} · ${row.summary}`,
+                meta: { activityId: row.id, actorName: row.actorName, ...(stage && typeof stage === "object" && "name" in stage && typeof stage.name === "string" ? { stageName: stage.name } : {}) },
+            });
+        }
     }
     if (currentSession && !sessionRows.some(row => row.id === currentSession.id)) sessionRows.push(currentSession);
     if (sessionRows.length) {
@@ -151,11 +171,11 @@ export async function conversationJourney(actor: Pick<JWTPayload, "orgId" | "use
             pages.map(row => ({ ...row, pageUrl: cleanUrl(row.pageUrl), properties: null })), buildTrackerLabelMaps([], []))
             .map(event => event.type === "session" ? { ...event, label: `사이트 방문 · 페이지·행동 ${event.children?.length ?? 0}개` } : event));
     }
-    if (!verifiedRecordId) {
+    if (!verifiedRecordId && !mappedContact) {
         // 유입 후보는 기존 고객을 변경하지 않는다. 현재 상담은 별도로 합쳐 보여준다.
         const { inboxMessages } = await import("@/lib/db");
         const messages = await exec.select().from(inboxMessages).where(and(eq(inboxMessages.conversationId, chat.id), sql`${inboxMessages.kind} <> 'note'`));
-        for (const m of messages) events.push({ at: m.createdAt.toISOString(), source: "inbox", channel: "상담", type: `chat_${m.kind}`, label: `${m.kind === "customer" ? "고객 문의" : "상담 답변"}: ${m.body.slice(0, 80)}`, meta: {} });
+        for (const m of messages) events.push({ at: m.createdAt.toISOString(), source: "inbox", channel: "상담", type: `chat_${m.kind}`, label: `${m.kind === "customer" ? "고객 문의" : "상담 답변"}: ${m.body.slice(0, 80)}`, meta: { conversationId: chat.id } });
     }
     events.sort((a, b) => a.at.localeCompare(b.at));
     return { status, record: record ? { id: record.id, name: String(record.data?.name || record.data?.company || `리드 #${record.id}`) } : null,

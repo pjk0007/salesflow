@@ -97,6 +97,29 @@ runPlatformCheck(async ctx => {
         const result = await journey.conversationJourney(actor, anonymous.id, db);
         assert.equal(result.status, "confirmed"); assert.ok(!JSON.stringify(result).includes("PRIVATE_JOURNEY_NOTE"));
     });
+    await check("확인된 CRM 고객의 딜·업무·이벤트가 전체 경로에 포함되고 다른 사업 활동과 상담 복제 로그는 제외", async () => {
+        for (const [source, action, summary] of [["deal", "updated", "가상 계약 검토"], ["task", "done", "가상 견적 전달"], ["event", "form.submitted", "가상 신청 완료"], ["conversation", "customer", "DUPLICATE_CHAT_ACTIVITY"]]) {
+            await db.insert(s.crmActivities).values({ orgId: actor.orgId, workspaceId: 8, contactId: member.id, source, action, summary, entityId: member.id, eventKey: randomUUID(), metadata: { stage: { name: "가상 협의 단계" } } });
+        }
+        await db.insert(s.crmActivities).values({ orgId: actor.orgId, workspaceId: 9, contactId: member.id, source: "event", action: "event", summary: "OTHER_WORKSPACE_ACTIVITY", entityId: member.id, eventKey: randomUUID() });
+        const result = await journey.conversationJourney(actor, anonymous.id, db);
+        for (const type of ["crm_deal_updated", "crm_task_done", "crm_event_form.submitted"]) assert.ok(result.events.some(e => e.type === type), type);
+        assert.equal(result.events.find(e => e.type === "crm_deal_updated").meta.stageName, "가상 협의 단계");
+        assert.ok(!JSON.stringify(result).includes("OTHER_WORKSPACE_ACTIVITY"));
+        assert.ok(!JSON.stringify(result).includes("DUPLICATE_CHAT_ACTIVITY"));
+    });
+    await check("리드 번호가 없는 확인된 CRM 고객도 과거 상담과 CRM 활동을 볼 수 있음", async () => {
+        const { issueCustomerIdentity } = require("../src/lib/customer-platform/identity.ts");
+        const known = await repo.startVisitorSession(channels.dh.publicKey, { name: "가상 CRM 전용" }, db);
+        const standalone = await ctx.clients.dh.upsertContact({ workspaceId: 8, externalId: "crm-only-timeline", name: "가상 CRM 전용" });
+        const { linkVisitorIdentity } = require("../src/lib/inbox/link-identity.ts");
+        await linkVisitorIdentity(channels.dh.publicKey, issueCustomerIdentity(standalone.id, channels.dh.publicKey).identityToken, { action: "identify", anonymousToken: known.token }, db);
+        await db.insert(s.crmActivities).values({ orgId: actor.orgId, workspaceId: 8, contactId: standalone.id, source: "event", action: "signup", summary: "CRM_ONLY_SIGNUP", entityId: standalone.id, eventKey: randomUUID() });
+        const result = await journey.conversationJourney(actor, known.id, db);
+        assert.equal(result.record, null);
+        assert.ok(result.events.some(e => e.label === "CRM_ONLY_SIGNUP"));
+        assert.ok(!JSON.stringify(result).includes("가상 계약 검토"));
+    });
     await check("실제 tracker 수집 API가 경로 증명을 반환", async () => {
         const collect = ctx.modules["tracker/collect"];
         const { NextRequest } = require("next/server");

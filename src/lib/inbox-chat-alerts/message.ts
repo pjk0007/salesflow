@@ -1,4 +1,4 @@
-import { chatRequestIdFor } from "@/lib/google-chat";
+import { createHash } from "node:crypto";
 
 export interface ChatAlertMessage {
     id: number; conversationId: string; channelId: number;
@@ -37,5 +37,5 @@ export function chatAlertMessages(message: ChatAlertMessage, baseUrl: string) {
         } }],
     }));
 }
-export const alertRequestId = (fingerprint: string, messageId: number, part: number) =>
-    chatRequestIdFor({ GOOGLE_CHAT_REQUEST_ID: "on", NEXT_PUBLIC_BASE_URL: "https://sendb.kr" }, "inbox-chat", `${fingerprint}:${messageId}:${part}`)!;
+export const alertMessageId = (fingerprint: string, messageId: number, part: number) =>
+    `client-inbox-${createHash("sha256").update(`${fingerprint}:${messageId}:${part}`).digest("hex").slice(0, 48)}`;
