@@ -132,6 +132,8 @@ export const workspaces = pgTable("workspaces", {
     // 답장 받을 주소 (DESIGN-3, 마이그레이션 0073). 발송에 쓰지 않는다 — NHN이 Reply-To 사용자 지정 헤더를 거절해(2026-10-04)
     // 발송 경로·설정 화면에서 뺐다. 칸은 남겨 둔다 (지우는 마이그레이션 없음). 답장은 보낸 주소로 간다
     replyToEmail: varchar("reply_to_email", { length: 200 }),
+    // 숨긴 시각 (마이그레이션 0118). 값이 있으면 워크스페이스 선택 목록에서만 빠진다 — 데이터·자동화·연동은 그대로
+    hiddenAt: timestamptz("hidden_at"),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });

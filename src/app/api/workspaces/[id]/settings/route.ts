@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ne, isNull, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
 import { normalizeReplyToInput } from "@/lib/reply-to-rules";
@@ -19,6 +19,7 @@ const workspaceSettingsColumns = {
     defaultFieldTypeId: workspaces.defaultFieldTypeId,
     settings: workspaces.settings,
     replyToEmail: workspaces.replyToEmail,
+    hiddenAt: workspaces.hiddenAt,
 };
 
 /** MX가 없는 답장 주소를 저장했을 때 함께 돌려주는 안내 (저장은 막지 않는다 — DNS 일시 오류일 수 있다) */
@@ -86,7 +87,7 @@ export async function PATCH(
     }
 
     try {
-        const { name, description, icon, codePrefix, defaultFieldTypeId, replyToEmail } = await req.json();
+        const { name, description, icon, codePrefix, defaultFieldTypeId, replyToEmail, hidden } = await req.json();
 
         if (name !== undefined && !name.trim()) {
             return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
@@ -134,6 +135,24 @@ export async function PATCH(
         }
         if (nextReplyTo !== undefined) {
             updateData.replyToEmail = nextReplyTo;
+        }
+        // 숨김은 선택 목록에서만 빼는 표시 설정이다. 보이는 워크스페이스가 하나도 남지 않게는 못 한다
+        if (hidden !== undefined) {
+            if (typeof hidden !== "boolean") {
+                return NextResponse.json({ success: false, error: "숨김 값이 올바르지 않습니다." }, { status: 400 });
+            }
+            if (hidden && !existing.hiddenAt) {
+                const [visible] = await db
+                    .select({ count: count() })
+                    .from(workspaces)
+                    .where(and(eq(workspaces.orgId, user.orgId), isNull(workspaces.hiddenAt), ne(workspaces.id, workspaceId)));
+                if (visible.count === 0) {
+                    return NextResponse.json({ success: false, error: "마지막으로 보이는 워크스페이스는 숨길 수 없습니다." }, { status: 400 });
+                }
+                updateData.hiddenAt = new Date();
+            } else if (!hidden) {
+                updateData.hiddenAt = null;
+            }
         }
 
         // MX 조회는 저장과 함께 시작한다 — 저장을 기다리게 하거나 막지 않는다 (조회 실패는 "unknown")

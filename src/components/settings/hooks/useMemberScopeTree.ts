@@ -108,7 +108,7 @@ function findRedundantScopes(
 
 export function useMemberScopeTree({ open, userId }: { open: boolean; userId: string }) {
     const { scopes, isLoading, grantScopes, updateScope, revokeScope } = useMemberScopes(userId);
-    const { workspaces } = useWorkspaces();
+    const { allWorkspaces: workspaces } = useWorkspaces();
     const [busyKey, setBusyKey] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
 

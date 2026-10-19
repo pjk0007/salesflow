@@ -246,6 +246,7 @@ export interface WorkspaceDetail {
     codePrefix: string | null;
     defaultFieldTypeId: number | null;
     settings: WorkspaceSettings | null;
+    hiddenAt: string | null;
 }
 
 // 워크스페이스 수정 입력
@@ -254,6 +255,7 @@ export interface UpdateWorkspaceInput {
     description?: string;
     icon?: string;
     codePrefix?: string;
+    hidden?: boolean;
 }
 
 // 워크스페이스 생성 입력

@@ -70,7 +70,7 @@ export default function ApiTokenCreateDialog({
     token,
     onSubmit,
 }: ApiTokenCreateDialogProps) {
-    const { workspaces } = useWorkspaces();
+    const { allWorkspaces: workspaces } = useWorkspaces();
 
     const [name, setName] = useState("");
     const [expiresIn, setExpiresIn] = useState<string>("none");

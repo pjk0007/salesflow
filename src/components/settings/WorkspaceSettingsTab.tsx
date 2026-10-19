@@ -12,7 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus } from "lucide-react";
+import { Plus, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
@@ -23,9 +23,9 @@ import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 
 export default function WorkspaceSettingsTab() {
-    const { workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList } = useWorkspaces();
+    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList } = useWorkspaces();
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { workspace, isLoading } = useWorkspaceSettings(selectedId);
+    const { workspace, isLoading, updateWorkspace } = useWorkspaceSettings(selectedId);
     const { fieldTypes: types } = useFieldTypes();
 
     const [name, setName] = useState("");
@@ -34,6 +34,8 @@ export default function WorkspaceSettingsTab() {
     const [codePrefix, setCodePrefix] = useState("");
     const [defaultFieldTypeId, setDefaultFieldTypeId] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isTogglingHidden, setIsTogglingHidden] = useState(false);
+    const [showHidden, setShowHidden] = useState(false);
 
     const [createOpen, setCreateOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
@@ -90,6 +92,26 @@ export default function WorkspaceSettingsTab() {
         }
     };
 
+    const handleToggleHidden = async () => {
+        if (!workspace) return;
+        const hidden = !workspace.hiddenAt;
+        setIsTogglingHidden(true);
+        try {
+            const result = await updateWorkspace({ hidden });
+            if (result.success) {
+                toast.success(hidden ? "워크스페이스를 숨겼습니다. 데이터는 그대로 남아 있습니다." : "워크스페이스를 다시 표시합니다.");
+                if (hidden) setShowHidden(true);
+                mutateList();
+            } else {
+                toast.error(result.error || "변경에 실패했습니다.");
+            }
+        } catch {
+            toast.error("서버에 연결할 수 없습니다.");
+        } finally {
+            setIsTogglingHidden(false);
+        }
+    };
+
     const handleCreate = async (input: Parameters<typeof createWorkspace>[0]) => {
         const result = await createWorkspace(input);
         if (result.success && result.data) {
@@ -111,6 +133,34 @@ export default function WorkspaceSettingsTab() {
     };
 
     const selectedWorkspace = workspaces.find((ws) => ws.id === selectedId) ?? null;
+    const visibleWorkspaces = workspaces.filter((ws) => !ws.hiddenAt);
+    const hiddenWorkspaces = workspaces.filter((ws) => ws.hiddenAt);
+
+    const renderCard = (ws: (typeof workspaces)[number]) => (
+        <Card
+            key={ws.id}
+            className={cn(
+                "cursor-pointer hover:border-primary/50 transition-colors",
+                ws.hiddenAt && "bg-muted/40",
+                selectedId === ws.id && "border-primary ring-1 ring-primary"
+            )}
+            onClick={() => setSelectedId(ws.id)}
+        >
+            <CardContent className="p-4">
+                <div className="flex items-center gap-2">
+                    {ws.icon && (() => {
+                        const Icon = getIconComponent(ws.icon);
+                        return Icon ? <Icon className="h-4 w-4 text-muted-foreground shrink-0" /> : null;
+                    })()}
+                    <div className={cn("font-medium truncate", ws.hiddenAt && "text-muted-foreground")}>{ws.name}</div>
+                    {ws.hiddenAt && <EyeOff className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-auto" />}
+                </div>
+                <div className="text-sm text-muted-foreground truncate mt-1">
+                    {ws.description || "설명 없음"}
+                </div>
+            </CardContent>
+        </Card>
+    );
 
     if (wsListLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;
@@ -122,29 +172,7 @@ export default function WorkspaceSettingsTab() {
             <div>
                 <Label className="mb-3 block">워크스페이스 목록</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {workspaces.map((ws) => (
-                        <Card
-                            key={ws.id}
-                            className={cn(
-                                "cursor-pointer hover:border-primary/50 transition-colors",
-                                selectedId === ws.id && "border-primary ring-1 ring-primary"
-                            )}
-                            onClick={() => setSelectedId(ws.id)}
-                        >
-                            <CardContent className="p-4">
-                                <div className="flex items-center gap-2">
-                                    {ws.icon && (() => {
-                                        const Icon = getIconComponent(ws.icon);
-                                        return Icon ? <Icon className="h-4 w-4 text-muted-foreground shrink-0" /> : null;
-                                    })()}
-                                    <div className="font-medium truncate">{ws.name}</div>
-                                </div>
-                                <div className="text-sm text-muted-foreground truncate mt-1">
-                                    {ws.description || "설명 없음"}
-                                </div>
-                            </CardContent>
-                        </Card>
-                    ))}
+                    {visibleWorkspaces.map(renderCard)}
                     <Card
                         className="cursor-pointer hover:border-primary/50 transition-colors border-dashed"
                         onClick={() => setCreateOpen(true)}
@@ -155,6 +183,22 @@ export default function WorkspaceSettingsTab() {
                         </CardContent>
                     </Card>
                 </div>
+                {hiddenWorkspaces.length > 0 && (
+                    <div className="mt-4">
+                        <button
+                            type="button"
+                            className="text-sm text-muted-foreground hover:text-foreground"
+                            onClick={() => setShowHidden((v) => !v)}
+                        >
+                            숨긴 워크스페이스 {hiddenWorkspaces.length}개 {showHidden ? "접기" : "보기"}
+                        </button>
+                        {showHidden && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
+                                {hiddenWorkspaces.map(renderCard)}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* 선택된 워크스페이스 편집 폼 */}
@@ -222,10 +266,29 @@ export default function WorkspaceSettingsTab() {
                                 </p>
                             </div>
 
+                            {workspace?.hiddenAt && (
+                                <p className="text-sm text-muted-foreground">
+                                    숨긴 워크스페이스입니다. 레코드·웹폼 등 선택 목록에서만 빠지고, 데이터와 자동 발송·트래커·연동은 그대로 동작합니다.
+                                </p>
+                            )}
+
                             <div className="flex gap-2">
                                 <Button onClick={handleSave} disabled={isSubmitting}>
                                     {isSubmitting ? "저장 중..." : "저장"}
                                 </Button>
+                                {workspace && (
+                                    <Button
+                                        variant="outline"
+                                        onClick={handleToggleHidden}
+                                        disabled={isTogglingHidden}
+                                    >
+                                        {workspace.hiddenAt ? (
+                                            <><Eye className="h-4 w-4 mr-1" />다시 표시</>
+                                        ) : (
+                                            <><EyeOff className="h-4 w-4 mr-1" />숨기기</>
+                                        )}
+                                    </Button>
+                                )}
                                 {workspaces.length > 1 && (
                                     <Button
                                         variant="destructive"

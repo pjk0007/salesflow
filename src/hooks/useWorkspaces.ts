@@ -8,6 +8,7 @@ interface WorkspaceItem {
     description: string | null;
     icon: string | null;
     defaultFieldTypeId: number | null;
+    hiddenAt: string | null;
 }
 
 
@@ -37,8 +38,12 @@ export function useWorkspaces() {
         return result;
     };
 
+    const allWorkspaces = data?.data ?? [];
+
     return {
-        workspaces: data?.data ?? [],
+        // 선택 목록용 — 숨긴 워크스페이스는 뺀다. 설정 화면처럼 전부 다뤄야 하면 allWorkspaces
+        workspaces: allWorkspaces.filter((w) => !w.hiddenAt),
+        allWorkspaces,
         isLoading,
         error,
         mutate,
