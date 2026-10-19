@@ -954,7 +954,7 @@ function CustomerInfo({
                 change={change}
             />
             <CustomerCrmContext
-                key={chat.id}
+                key={`crm-${chat.id}`}
                 chat={chat}
                 bootstrap={bootstrap}
             />
