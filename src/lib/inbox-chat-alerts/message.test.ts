@@ -24,7 +24,8 @@ test("닫힌 상담도 정확한 채널·메시지·상태로 열고 부분 재�
     const url = new URL(conversationLink(message, "https://sendb.kr"));
     assert.equal(url.origin, "https://sendb.kr"); assert.equal(url.pathname, "/inbox");
     assert.equal(url.searchParams.get("status"), "closed");
-    assert.equal(url.searchParams.get("message"), "52");
+    assert.equal(url.searchParams.get("message"), null, "고객 상담 링크에서 내부 메모 전용 팝업을 열지 않는다");
+    assert.equal(url.searchParams.get("conversation"), message.conversationId);
     const fingerprint = routeFingerprint(route);
     assert.match(alertMessageId(fingerprint, 52, 0), /^client-[a-z0-9-]{1,56}$/);
     assert.equal(alertMessageId(fingerprint, 52, 0), alertMessageId(fingerprint, 52, 0));
