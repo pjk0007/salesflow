@@ -945,27 +945,20 @@ function CustomerInfo({
     return (
         <div className="space-y-6 p-5 text-sm">
             <StaffReplyContact id={chat.id} />
+            <ConversationJourneyPanel
+                key={chat.id}
+                id={chat.id}
+                recordId={chat.recordId}
+                version={chat.version}
+                canConfirm={canRespond && !chat.historyOnly}
+                change={change}
+            />
             <CustomerCrmContext
                 key={chat.id}
                 chat={chat}
                 bootstrap={bootstrap}
             />
             <ConversationServiceStatus id={chat.id} />
-            <details className="rounded-lg border p-3">
-                <summary className="cursor-pointer text-xs font-medium">
-                    메일 · 사이트 방문 여정
-                </summary>
-                <div className="mt-3">
-                    <ConversationJourneyPanel
-                        key={chat.id}
-                        id={chat.id}
-                        recordId={chat.recordId}
-                        version={chat.version}
-                        canConfirm={canRespond && !chat.historyOnly}
-                        change={change}
-                    />
-                </div>
-            </details>
             {chat.historyOnly ? (
                 <>
                     <section className="space-y-2 text-xs">
