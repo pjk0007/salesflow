@@ -1,4 +1,5 @@
 import {onOperationsEvent} from "@/lib/inbox-operations/enqueue";
+import { enqueueInboxChatAlert } from "@/lib/inbox-chat-alerts/enqueue";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import {
@@ -84,6 +85,7 @@ export async function enqueuePlatformEvent(
             )
             .onConflictDoNothing();
     await onOperationsEvent(exec,event);
+    await enqueueInboxChatAlert(exec, event);
     await enqueueWorkflowRuns(exec, event);
     return event;
 }
