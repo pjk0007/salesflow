@@ -19,11 +19,11 @@ interface FormPreviewProps {
 
 export default function FormPreview({ title, description, fields }: FormPreviewProps) {
     return (
-        <div className="border rounded-lg p-6 bg-background max-w-md mx-auto">
+        <div className="border rounded-lg p-6 bg-background max-w-2xl mx-auto">
             <div className="mb-6">
                 <h2 className="text-xl font-bold">{title || "폼 제목"}</h2>
                 {description && (
-                    <p className="text-sm text-muted-foreground mt-1">{description}</p>
+                    <p className="text-xs text-muted-foreground mt-1 whitespace-pre-line">{description}</p>
                 )}
             </div>
 
@@ -42,7 +42,7 @@ export default function FormPreview({ title, description, fields }: FormPreviewP
                             )}
                         </label>
                         {field.description && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground whitespace-pre-line">
                                 {field.description}
                             </p>
                         )}

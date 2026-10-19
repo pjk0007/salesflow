@@ -29,8 +29,17 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GripVertical, Plus, X, Trash2 } from "lucide-react";
+import { GripVertical, Plus, X, Trash2, ImagePlus } from "lucide-react";
 import type { FieldDefinition } from "@/types";
+
+const COVER_COLORS = [
+    { value: "#1e293b", label: "다크" },
+    { value: "#1e40af", label: "블루" },
+    { value: "#065f46", label: "그린" },
+    { value: "#7c2d12", label: "브라운" },
+    { value: "#581c87", label: "퍼플" },
+    { value: "#be123c", label: "레드" },
+];
 
 export interface FormFieldItem {
     tempId: string;
@@ -58,6 +67,10 @@ interface FormBuilderProps {
     onCompletionButtonTextChange: (text: string) => void;
     completionButtonUrl: string;
     onCompletionButtonUrlChange: (url: string) => void;
+    coverImageUrl: string;
+    onCoverImageUrlChange: (url: string) => void;
+    coverColor: string;
+    onCoverColorChange: (color: string) => void;
     defaultValues: { field: string; value: string }[];
     onDefaultValuesChange: (dv: { field: string; value: string }[]) => void;
     fields: FormFieldItem[];
@@ -255,6 +268,10 @@ export default function FormBuilder({
     onCompletionButtonTextChange,
     completionButtonUrl,
     onCompletionButtonUrlChange,
+    coverImageUrl,
+    onCoverImageUrlChange,
+    coverColor,
+    onCoverColorChange,
     defaultValues,
     onDefaultValuesChange,
     fields,
@@ -351,6 +368,83 @@ export default function FormBuilder({
             </TabsContent>
 
             <TabsContent value="settings" className="space-y-4 mt-4">
+                <div className="space-y-2">
+                    <Label>커버 이미지</Label>
+                    <div className="space-y-3">
+                        {coverImageUrl ? (
+                            <div className="relative w-full h-32 rounded-lg overflow-hidden">
+                                <img src={coverImageUrl} alt="커버" className="w-full h-full object-cover" />
+                                <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-2 right-2 h-7 w-7"
+                                    onClick={() => onCoverImageUrlChange("")}
+                                >
+                                    <X className="h-3 w-3" />
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <Input
+                                        placeholder="이미지 URL 입력"
+                                        value={coverImageUrl}
+                                        onChange={(e) => onCoverImageUrlChange(e.target.value)}
+                                    />
+                                    <label className="cursor-pointer">
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                                const file = e.target.files?.[0];
+                                                if (!file) return;
+                                                const formData = new FormData();
+                                                formData.append("file", file);
+                                                try {
+                                                    const res = await fetch("/api/upload", { method: "POST", body: formData });
+                                                    const data = await res.json();
+                                                    if (data.success) onCoverImageUrlChange(data.url);
+                                                } catch {}
+                                            }}
+                                        />
+                                        <div className="flex items-center gap-1 px-3 py-2 border rounded-md text-sm hover:bg-accent">
+                                            <ImagePlus className="h-4 w-4" />
+                                            업로드
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+                        <div>
+                            <Label className="text-xs text-muted-foreground">이미지 없을 때 배경 색상</Label>
+                            <div className="flex gap-2 mt-1.5">
+                                {COVER_COLORS.map((c) => (
+                                    <button
+                                        key={c.value}
+                                        type="button"
+                                        className={`w-8 h-8 rounded-full border-2 transition-all ${
+                                            coverColor === c.value ? "border-foreground scale-110" : "border-transparent"
+                                        }`}
+                                        style={{ backgroundColor: c.value }}
+                                        title={c.label}
+                                        onClick={() => onCoverColorChange(c.value)}
+                                    />
+                                ))}
+                                <button
+                                    type="button"
+                                    className={`w-8 h-8 rounded-full border-2 transition-all ${
+                                        !coverColor ? "border-foreground scale-110" : "border-transparent"
+                                    }`}
+                                    style={{ background: "linear-gradient(135deg, #ddd 50%, #eee 50%)" }}
+                                    title="없음"
+                                    onClick={() => onCoverColorChange("")}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div className="space-y-2">
                     <Label>폼 이름 (관리용)</Label>
                     <Input value={name} onChange={(e) => onNameChange(e.target.value)} />

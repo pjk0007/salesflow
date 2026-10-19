@@ -60,6 +60,7 @@ export async function PUT(
         name, title, description,
         completionTitle, completionMessage,
         completionButtonText, completionButtonUrl,
+        coverImageUrl, coverColor,
         defaultValues, isActive,
         fields,
     } = await req.json();
@@ -85,6 +86,8 @@ export async function PUT(
                 ...(completionMessage !== undefined && { completionMessage }),
                 ...(completionButtonText !== undefined && { completionButtonText }),
                 ...(completionButtonUrl !== undefined && { completionButtonUrl }),
+                ...(coverImageUrl !== undefined && { coverImageUrl }),
+                ...(coverColor !== undefined && { coverColor }),
                 ...(defaultValues !== undefined && { defaultValues }),
                 ...(isActive !== undefined && { isActive }),
                 updatedAt: new Date(),
