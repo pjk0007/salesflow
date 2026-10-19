@@ -18,6 +18,11 @@ async function main() {
     let checks = 0;
     const check = async (name, action) => { await action(); checks++; console.log('PASS ' + name); };
     try {
+        // The shared inbox fixture predates these independently deployed main-only columns.
+        for (const migration of ['0114_inbox_private_archive.sql', '0116_customer_messenger_contact.sql']) {
+            const file = 'drizzle/' + migration;
+            if (fs.existsSync(file)) await pg.exec(fs.readFileSync(file, 'utf8').replaceAll('--> statement-breakpoint', ''));
+        }
         await pg.exec(fs.readFileSync('drizzle/0117_inbox_chat_alerts.sql', 'utf8').replaceAll('--> statement-breakpoint', ''));
         // Applying the additive migration twice must be safe.
         await pg.exec(fs.readFileSync('drizzle/0117_inbox_chat_alerts.sql', 'utf8').replaceAll('--> statement-breakpoint', ''));
