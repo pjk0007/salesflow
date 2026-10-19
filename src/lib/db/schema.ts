@@ -2221,3 +2221,4 @@ export const chatWebhookStatus = pgTable("chat_webhook_status", {
 export type ChatWebhookStatus = typeof chatWebhookStatus.$inferSelect;
 
 export * from "./inbox-operations-schema";
+export * from "./inbox-chat-alerts-schema";

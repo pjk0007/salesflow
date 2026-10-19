@@ -51,7 +51,10 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         setSelectedState(id);
         setFocusMessageId(null);
     };
-    const [status, setStatus] = useState<ConversationStatus>("open"),
+    const [status, setStatus] = useState<ConversationStatus>(() => {
+            const value = params.get("status");
+            return value === "closed" || value === "snoozed" ? value : "open";
+        }),
         [filter, setFilter] = useState<ConversationFilter>(
             params.get("filter") === "history"
                 ? "history"
