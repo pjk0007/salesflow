@@ -49,3 +49,12 @@
 - 운영 고객 정보의 타임라인은 클릭 없이 표시되며 대화 원문 대신 상담별 시작/최근 진행과 문의/답변 수를 표시했다. 상세 메일·방문·딜·업무 경로는 격리 DB와 실제 표시 컴포넌트의 가상 자료로 검수했다.
 - 실제 고객에게 테스트 메시지는 보내지 않았다. 테스트는 새 가상 상담과 승인된 직원 주소 4개만 사용했다. 운영 DB에 직접 접속하지 않았다. 웹훅 진단용 임시 파일은 삭제했다.
 - 근거: `F:/Dev/.work/inbox-chat-alerts-20261019/final-qa.json`, `sender-profiles-complete.png`, `google-chat-live-final.png`, `crm-timeline-production-final.png`, `production-deployment-complete.png`.
+
+## 백오피스랩 상담 알림 확장 (2026-10-19)
+
+- 사용자 요청에 따라 비공개 스페이스 [2-백오피스랩-고객상담알림](https://chat.google.com/app/chat/AAQAjlxOXkg)을 만들었다. 사용자의 실행 직전 승인 후 `백오피스랩 고객상담 알림 봇` 웹훅을 생성해 기존 `sendb` 운영 서버에 연결했다.
+- 운영 API에서 확인한 백오피스랩은 사업 **9**, 상담 채널 **3**이다. `INBOX_CHAT_ALERT_ROUTES`의 기존 디하(사업 8·채널 1) 항목을 그대로 보존하고 새 항목만 추가했다. 운영 컨테이너에서 두 사업과 각각 다른 스페이스 연결, `INBOX_CHAT_ALERTS=on`, 운영 주소를 확인했다. 비밀 웹훅은 코드·문서에 저장하지 않았다.
+- 기능 코드·DB 변경은 없다. 기존 배포 코드 `5073d63`에 설정만 반영했으며 CloudType `sendb` / Git `main`의 적용 및 실행 중 1/1을 확인했다. 이후 기록 커밋은 문서만 변경한다.
+- **14:57:49 KST** 가상 문의의 원문·줄바꿈·`<표시 확인> & 🙂`가 해당 스페이스에 도착했다. 카드 버튼을 직접 눌러 백오피스랩 채널 3의 동일 상담이 내부 메모 팝업 오류 없이 열리는 것을 확인했다. 가상 상담은 검수 후 종료했다. 실제 고객에게 시험 메시지는 보내지 않았다.
+- 새 고객 메시지부터 처리하며 과거 문의를 일괄 발송하지 않는다. 현재 계정의 스페이스 알림은 전체로 설정했다. 직원 초대는 이번 요청에 포함하지 않았다.
+- 근거: `F:/Dev/.work/backoffice-inbox-chat-alerts-20261019/`의 `google-chat-live.png`, `opened-conversation.png`, `production-deployment.png`, `final-qa.json`.
