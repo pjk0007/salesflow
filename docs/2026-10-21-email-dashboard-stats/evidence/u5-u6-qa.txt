@@ -1,0 +1,107 @@
+[migrate] 마이그레이션 시작...
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+[migrate] 마이그레이션 완료!
+▶ B2~B6: QA 귀속·집계·멱등·취소·리드·records 대조
+  ✔ D1: 범위 밖 부모를 보충하고 원본 사슬과 귀속이 같다 (17.084584ms)
+  ✔ D2: 원본과 모든 grain·날짜·25칸 일치하고 합계 불변식 (63.179083ms)
+  ✔ D3: 같은 범위는 귀속 삽입·변경·삭제 모두 0 (8.049792ms)
+  ✔ D6: 취소된 후속만 있던 campaign 단계는 삭제 (8.284875ms)
+  ✔ D9: 리드 고객 키 중복은 합쳐지고 urgent 우선, skipped 제외 (0.655333ms)
+✔ B2~B6: QA 귀속·집계·멱등·취소·리드·records 대조 (780.470916ms)
+[migrate] 마이그레이션 시작...
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+[migrate] 마이그레이션 완료!
+[email-stats] orgs=3 recent=63/0 nightly=0 backfill=0 ms=34
+▶ B7~B10: QA 워커 최근·야간·워터마크·백필·잠금·records 준비
+  ✔ records 미준비: 이메일 최근만 계산하고 공통 커서·워터마크를 보존 (38.146834ms)
+[email-stats] orgs=3 recent=2/0 nightly=0 backfill=2 ms=31
+[email-stats] orgs=3 recent=0/0 nightly=2 backfill=220 ms=36675
+  ✔ D7: 예산0은 한 조각 후 멈추고 다음 회차에서 이어 완료 (36716.345708ms)
+[email-stats] orgs=3 recent=5/0 nightly=0 backfill=0 ms=38
+[email-stats] orgs=3 recent=0/0 nightly=81 backfill=0 ms=171
+  ✔ D4: 최근 변경은 다음 회차, 20일 전은 다음 야간에 반영 (261.154875ms)
+[email-stats] orgs=3 recent=0/0 nightly=81 backfill=0 ms=189
+  ✔ D5: 50일 전 늦은 이벤트는 그 날짜만 다시 쓴다 (200.160334ms)
+[email-stats] orgs=0 recent=0/0 nightly=0 backfill=0 ms=7
+[email-stats] orgs=3 recent=0/0 nightly=0 backfill=0 ms=29
+  ✔ D8: 동시 회차 중 하나만 잠금을 얻는다 (29.058375ms)
+  ✔ B26: 이메일 설정 없는 조직의 records도 날짜별 집계 (20.37575ms)
+✔ B7~B10: QA 워커 최근·야간·워터마크·백필·잠금·records 준비 (38535.619667ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 39081.57175

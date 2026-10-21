@@ -1,0 +1,25 @@
+== 토큰 없음
+401 0.660924s | {"success":false,"error":"인증이 필요합니다."}
+== from>to
+400 0.008951s | {"success":false,"error":"조회 기간의 시작일과 종료일을 확인해 주세요."}
+== 다른 조직 workspaceId
+400 0.024842s | {"success":false,"error":"워크스페이스를 확인해 주세요."}
+== D kpi 30일 (2회)
+200 0.049022s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+200 0.011371s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+== D trend 30일 (2회)
+200 0.028890s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+200 0.010166s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+== D compare&axis=campaign 30일 (2회)
+200 0.037997s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+200 0.017504s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+== D kpi 90일
+200 0.012993s | {"success":true,"data":{"range":{"from":"2026-07-24","to":"2026-10-21","days":90},"comparison":{"from":"2026-04-25","to":"2026-07-23"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+== D kpi 워크스페이스 9101
+200 0.007902s | {"success":true,"data":{"range":{"from":"2026-09-22","to":"2026-10-21","days":30},"comparison":{"from":"2026-08-23","to":"2026-09-21"},"asOf":"2026-10-21T10:30:00.000Z","coverage":{"from":null,"to":"2026-10-21"},"connections":{"reply":false,"site":false,"journ
+== 홈 summary/trends/templates 30일
+200 0.234235s | {"success":true,"data":{"alimtalk":{"total":0,"sent":0,"failed":0,"pending":0},"email":{"total":11004,"sent":10452,"failed":452,"pending":100,"clicked":298,"clickRate":2.9,"opened":1838,"openBase":10452,"openRate":17.6},"triggerBreakdown":[{"triggerType":"ai_a
+200 0.125085s | {"success":true,"data":[{"date":"2026-09-22","alimtalkSent":0,"alimtalkFailed":0,"emailSent":361,"emailFailed":19,"emailClicked":8,"emailOpened":61},{"date":"2026-09-23","alimtalkSent":0,"alimtalkFailed":0,"emailSent":348,"emailFailed":18,"emailClicked":13,"em
+200 0.153552s | {"success":true,"data":[{"total":3993,"sent":3993,"failed":0,"clicked":100,"clickRate":2.5,"opened":695,"openBase":3993,"openRate":17.4,"name":"AI: [오피오] 재택근무 채용 기업","channel":"email","type":"ai_auto","successRate":100},{"total":2749,"sen
+== 옛 email-daily (삭제 확인)
+404 2.979230s | <!DOCTYPE html><html lang="ko"><head><meta charSet="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><link rel="stylesheet" href="/_next/static/chunks/src_styles_785d7806._.css" data-precedence="next_static/chunks/src_styles_785d780

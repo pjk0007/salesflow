@@ -1,0 +1,14 @@
+== B17: 대시보드 API가 읽는 표 크기 (30만 건·208일 DB, salesflow_search)
+        relname         | blocks 
+------------------------+--------
+ email_stats_daily      |     32
+ email_stats_daily_pkey |     18
+ email_stats_lead_days  |      0
+ email_stats_send_attr  |   3704
+ email_stats_state      |      1
+ home_stats_daily       |      0
+(6 rows)
+
+→ API는 email_stats_daily(+PK)·state·lead_days·home_stats_daily와 작은 이름 표만 읽는다(B11 정적 테스트). 집계 표 전체가 50블록이라 요청당 1,500블록 상한에 닿을 수 없다.
+== 응답 시간 (데모 DB, 데운 상태, evidence/demo-curl.txt): kpi 30일 0.011s, trend 0.010s, compare 0.018s, kpi 90일 0.013s
+== 화면 첫 KPI (ego-browser, 로컬 next dev): 749, 924, 427ms / 90일 전환 1,584ms

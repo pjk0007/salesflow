@@ -18,6 +18,7 @@ export async function refreshStats(orgId: string, now = new Date()) {
         if (!locked)
             return { status: 202, body: { success: true, data: { queued: false, running: true } } };
         await conn.unsafe("SET statement_timeout = '120s'");
+        await conn.unsafe("SET enable_nestloop = off");
         await conn.unsafe("SET lock_timeout = '5s'");
         const [email] = await conn.unsafe<{
             ready: number;
@@ -52,10 +53,14 @@ export async function refreshStats(orgId: string, now = new Date()) {
                 await conn.unsafe("RESET lock_timeout");
             } finally {
                 try {
-                    if (locked)
-                        await conn.unsafe("SELECT pg_advisory_unlock($1)", [EMAIL_STATS_LOCK_KEY]);
+                    await conn.unsafe("RESET enable_nestloop");
                 } finally {
-                    conn.release();
+                    try {
+                        if (locked)
+                            await conn.unsafe("SELECT pg_advisory_unlock($1)", [EMAIL_STATS_LOCK_KEY]);
+                    } finally {
+                        conn.release();
+                    }
                 }
             }
         }

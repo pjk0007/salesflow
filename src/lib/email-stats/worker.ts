@@ -34,6 +34,7 @@ export async function runEmailStats(opts: EmailStatsOptions = {}): Promise<Email
         if (!locked)
             return { ...stats, skipped: "locked" };
         await conn.unsafe("SET statement_timeout='120s'");
+        await conn.unsafe("SET enable_nestloop = off");
         await conn.unsafe("SET lock_timeout='5s'");
         const ready = await conn.unsafe<{
             ready: number;
@@ -103,17 +104,21 @@ export async function runEmailStats(opts: EmailStatsOptions = {}): Promise<Email
                 await conn.unsafe("RESET lock_timeout");
             } finally {
                 try {
-                    if (locked)
-                        await conn.unsafe("SELECT pg_advisory_unlock($1)", [EMAIL_STATS_LOCK_KEY]);
+                    await conn.unsafe("RESET enable_nestloop");
                 } finally {
-                    conn.release();
-                    stats.durationMs = Date.now() - started;
-                    console.info(
-                        `[email-stats] orgs=${stats.orgs}` +
-                        ` recent=${stats.recent.written}/${stats.recent.deleted}` +
-                        ` nightly=${stats.nightly.days} backfill=${stats.backfill.days}` +
-                        ` ms=${stats.durationMs}`
-                    );
+                    try {
+                        if (locked)
+                            await conn.unsafe("SELECT pg_advisory_unlock($1)", [EMAIL_STATS_LOCK_KEY]);
+                    } finally {
+                        conn.release();
+                        stats.durationMs = Date.now() - started;
+                        console.info(
+                            `[email-stats] orgs=${stats.orgs}` +
+                            ` recent=${stats.recent.written}/${stats.recent.deleted}` +
+                            ` nightly=${stats.nightly.days} backfill=${stats.backfill.days}` +
+                            ` ms=${stats.durationMs}`
+                        );
+                    }
                 }
             }
         }

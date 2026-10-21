@@ -2,6 +2,7 @@ import type postgres from "postgres";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { referenceSql } from "./reference-sql";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { fixture, openQa, qaUrl, NOW, ALL_DAYS, addEvents } from "./db-fixture.test-helper";
 import { SEND_LOG_INDEXES } from "../db/send-log-indexes";
@@ -71,4 +72,14 @@ test("B7~B10: QA 워커 최근·야간·워터마크·백필·잠금·records �
             for (const o of orgs) await recomputeRange(c, o.orgId, ALL_DAYS);
         });
     } finally { const { queryClient } = await import("../db"); await queryClient.end(); await c.end(); }
+});
+
+test("워커 예약 연결은 nested loop를 끄고 RESET 실패에도 잠금을 해제한다", () => {
+    const source = readFileSync(new URL("./worker.ts", import.meta.url), "utf8");
+    assert.match(source, /await conn\.unsafe\("SET enable_nestloop = off"\)/);
+    assert.match(source, /try\s*\{\s*await conn\.unsafe\("RESET enable_nestloop"\);\s*\} finally\s*\{/);
+    const reset = source.indexOf('"RESET enable_nestloop"');
+    const unlock = source.indexOf('"SELECT pg_advisory_unlock($1)"');
+    assert.ok(reset < unlock);
+    assert.match(source.slice(unlock), /finally\s*\{\s*conn\.release\(\)/);
 });

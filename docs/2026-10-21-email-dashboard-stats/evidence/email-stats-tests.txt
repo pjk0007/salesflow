@@ -1,0 +1,246 @@
+✔ T8: 8개 KPI 순서·증감·연동·이전 기간 준비 (13.562167ms)
+✔ T8: 비교 정렬 null은 양방향 끝, 축별 열과 회신 기준 (0.801667ms)
+✔ T8: 준비 안 된 추세는 선을 끊고 최근 3일 성숙 구간을 보인다 (0.207666ms)
+✔ T8: 신선도 30분 경계와 전체 집계 (6.748625ms)
+✔ T8: KST 오늘 포함 프리셋과 달력 날짜 (0.378459ms)
+✔ coverage 부분 구간은 빠진 날짜를 안내한다 (0.189625ms)
+✔ B25: 대시보드 TSX는 렌더만 하고 새 파일은 200줄 이하 (7.987375ms)
+✔ B29: 이전 대시보드와 email-daily 경로를 제거한다 (0.123708ms)
+✔ B2: 후속은 자기 링크보다 부모 캠페인을 우선하고 누락·다른 조직 부모는 자기 귀속 (0.913083ms)
+✔ B2: 순서를 섞어도 같은 귀속이며 입력을 변경하지 않는다 (0.216875ms)
+✔ B2: null 차원은 기본값이고 기존 차원은 보존된다 (0.088584ms)
+✔ B3: 시험 접두·데모·취소만 제외하고 실패·미확정은 포함 (0.10075ms)
+✔ fixture는 실제 접속 DB를 확인한 뒤에만 쓰기를 시작한다 (0.853834ms)
+✔ B26: 홈 summary·trigger 응답 키와 기존 반올림을 보존 (0.784708ms)
+✔ B26: 홈 규칙은 manual을 빼고 AI 이름·삭제·성공률을 보존 (0.108583ms)
+✔ B26: 날짜별 이메일과 알림톡을 같은 응답 모양으로 합친다 (8.36875ms)
+✔ B31: 수동 갱신은 마지막 시각부터 5분 쿨다운 (0.715083ms)
+✔ B13: 25개 수의 빈 값과 합계는 입력을 바꾸지 않는다 (0.927292ms)
+✔ B13: 도달·회신·오픈·방문 분모와 백분율 반올림 (0.714667ms)
+✔ B12: 증감은 반올림 전 비율로 계산하고 0 분모와 null을 보존한다 (0.113042ms)
+✔ B12: 채운 날짜가 요청 구간을 모두 덮을 때만 full (0.110875ms)
+✔ B22: 오늘 포함 최근 3일은 반응이 쌓이는 중 (1.149291ms)
+✔ B1: 0121은 다섯 새 집계 표와 작은 조직 FK만 만든다 (1.257709ms)
+✔ B1: 0121 journal은 유일하고 앞 번호보다 늦다 (1.37ms)
+✔ B26: records 색인은 마이그레이션 밖에서 CONCURRENTLY 생성 (1.123042ms)
+✔ B12: 잘못된 검색 조건 {"from":"2026-10-21","to":"2026-10-20"} (2.077708ms)
+✔ B12: 잘못된 검색 조건 {"to":"2026-10-22"} (0.138042ms)
+✔ B12: 잘못된 검색 조건 {"from":"2025-10-20"} (0.0565ms)
+✔ B12: 잘못된 검색 조건 {"from":"2026-02-30"} (0.0475ms)
+✔ B12: 잘못된 검색 조건 {"view":"x"} (0.0755ms)
+✔ B12: 잘못된 검색 조건 {"axis":"x"} (0.056709ms)
+✔ B12: 잘못된 검색 조건 {"workspaceId":"abc"} (0.079166ms)
+✔ B12: 잘못된 검색 조건 {"workspaceId":"0"} (0.074334ms)
+✔ B12: 잘못된 검색 조건 {"workspaceId":"-1"} (0.056959ms)
+✔ B12: 잘못된 검색 조건 {"workspaceId":"1.5"} (0.083958ms)
+✔ B12: 성공 union의 기본 축, 빈 workspace, 포함 일수 (0.106125ms)
+[migrate] 마이그레이션 시작...
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+[migrate] 마이그레이션 완료!
+▶ B11·B12·B15·B31: QA 읽기 API와 수동 갱신
+  ✔ records 미준비 최초 state도 모든 워터마크를 max(id)로 시드 (4.808708ms)
+  ✔ B31: 색인 미준비 503은 쿨다운을 기록하지 않는다 (10.815042ms)
+  ✔ B31: 성공 후 429, 잠금 중에는 202 (39.020666ms)
+  ✔ B12: KPI·추세·비교 합계 일치와 7개 축 (72.899459ms)
+  ✔ B26: 홈 집계가 KPI·일별 원천 합과 일치한다 (17.565834ms)
+✔ B11·B12·B15·B31: QA 읽기 API와 수동 갱신 (1139.627542ms)
+[migrate] 마이그레이션 시작...
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+[migrate] 마이그레이션 완료!
+▶ B2~B6: QA 귀속·집계·멱등·취소·리드·records 대조
+  ✔ D1: 범위 밖 부모를 보충하고 원본 사슬과 귀속이 같다 (17.846333ms)
+  ✔ D2: 원본과 모든 grain·날짜·25칸 일치하고 합계 불변식 (52.322833ms)
+  ✔ D3: 같은 범위는 귀속 삽입·변경·삭제 모두 0 (6.298458ms)
+  ✔ D6: 취소된 후속만 있던 campaign 단계는 삭제 (7.524834ms)
+  ✔ D9: 리드 고객 키 중복은 합쳐지고 urgent 우선, skipped 제외 (0.493792ms)
+✔ B2~B6: QA 귀속·집계·멱등·취소·리드·records 대조 (525.569208ms)
+[migrate] 마이그레이션 시작...
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+[migrate] 마이그레이션 완료!
+▶ 통계 라우트의 인증·권한·조직 격리
+  ✔ refresh POST 토큰 없음 401 (2.676708ms)
+  ✔ refresh POST member 403 (0.987333ms)
+  ✔ GET 다른 조직 workspaceId 400 (18.296875ms)
+✔ 통계 라우트의 인증·권한·조직 격리 (652.610709ms)
+✔ B5: KST 자정 경계와 연말의 배타적 끝 (1.963083ms)
+✔ B24: 오늘 포함 프리셋과 같은 길이 직전 기간 (0.18625ms)
+✔ B7: 최근·야간·늦은 이벤트·우선 백필 경계 (0.1595ms)
+✔ B7: 야간 재계산은 01시 이후 발송 창 밖에서 하루 한 번 (0.138292ms)
+✔ B9: 백필 단계와 발송 창 제한 (0.127959ms)
+✔ B9: 백필 두 날짜와 야간 세 날짜 조각은 채운 경계까지 (0.240042ms)
+✔ B8: 날짜를 정렬하고 중복을 없애 연속 구간으로 합친다 (0.109459ms)
+✔ B10: 간격·첫 지연·실패 문구 선택 옵션을 적용한다 (1.680958ms)
+✔ B10: 이메일 통계 실행 조건과 기본 15분 간격 (0.139458ms)
+✔ 실패 콜백은 원래 오류를 받는다 (0.136208ms)
+✔ B4·B13: 집계 SQL은 기존 판정과 매개변수, 다섯 묶음 및 diff를 사용 (2.509166ms)
+✔ B4: 참조 SQL은 집계·귀속 표 없이 원본 사슬을 읽는다 (0.428667ms)
+✔ B10: 예약 연결·잠금·시간 제한·반납과 체험 서버 이전 등록 (1.02275ms)
+✔ B11: 집계 GET은 원본 발송·클릭·오픈 표를 읽지 않는다 (1.5635ms)
+✔ B27: 홈과 대시보드는 15분 주기이며 포커스로 재요청하지 않는다 (0.26125ms)
+[migrate] 마이그레이션 시작...
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P06',
+  message: 'schema "drizzle" already exists, skipping',
+  file: 'schemacmds.c',
+  line: '135',
+  routine: 'CreateSchemaCommand'
+}
+{
+  severity_local: 'NOTICE',
+  severity: 'NOTICE',
+  code: '42P07',
+  message: 'relation "__drizzle_migrations" already exists, skipping',
+  file: 'parse_utilcmd.c',
+  line: '210',
+  routine: 'transformCreateStmt'
+}
+[migrate] 마이그레이션 완료!
+[email-stats] orgs=3 recent=63/0 nightly=0 backfill=0 ms=43
+▶ B7~B10: QA 워커 최근·야간·워터마크·백필·잠금·records 준비
+  ✔ records 미준비: 이메일 최근만 계산하고 공통 커서·워터마크를 보존 (46.30775ms)
+[email-stats] orgs=3 recent=2/0 nightly=0 backfill=2 ms=37
+[email-stats] orgs=3 recent=0/0 nightly=2 backfill=220 ms=36729
+  ✔ D7: 예산0은 한 조각 후 멈추고 다음 회차에서 이어 완료 (36786.13925ms)
+[email-stats] orgs=3 recent=5/0 nightly=0 backfill=0 ms=98
+[email-stats] orgs=3 recent=0/0 nightly=81 backfill=0 ms=373
+  ✔ D4: 최근 변경은 다음 회차, 20일 전은 다음 야간에 반영 (577.886875ms)
+[email-stats] orgs=3 recent=0/0 nightly=81 backfill=0 ms=291
+  ✔ D5: 50일 전 늦은 이벤트는 그 날짜만 다시 쓴다 (319.350084ms)
+[email-stats] orgs=0 recent=0/0 nightly=0 backfill=0 ms=17
+[email-stats] orgs=3 recent=0/0 nightly=0 backfill=0 ms=93
+  ✔ D8: 동시 회차 중 하나만 잠금을 얻는다 (94.041083ms)
+  ✔ B26: 이메일 설정 없는 조직의 records도 날짜별 집계 (21.342333ms)
+✔ B7~B10: QA 워커 최근·야간·워터마크·백필·잠금·records 준비 (38346.90475ms)
+ℹ tests 74
+ℹ suites 0
+ℹ pass 74
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44390.815625

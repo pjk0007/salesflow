@@ -1,0 +1,181 @@
+== 카탈로그
+         relname         | n_live_tup |  heap   
+-------------------------+------------+---------
+ alimtalk_send_logs      |          8 | 2224 kB
+ customer_journey_alerts |        373 | 776 kB
+ email_send_logs         |       4344 | 751 MB
+ records                 |       5127 | 243 MB
+(4 rows)
+
+           indexrelname           
+----------------------------------
+ alimtalk_send_logs_pkey
+ cja_cohort_idx
+ cja_org_session_unique
+ cja_status_next_idx
+ customer_journey_alerts_pkey
+ records_company_research_key_idx
+ records_org_idx
+ records_partition_idx
+ records_pkey
+ records_workspace_idx
+(10 rows)
+
+ shared_buffers 
+----------------
+ 128MB
+(1 row)
+
+ effective_cache_size 
+----------------------
+ 4GB
+(1 row)
+
+ work_mem 
+----------
+ 4MB
+(1 row)
+
+                                         version                                          
+------------------------------------------------------------------------------------------
+ PostgreSQL 16.15 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+(1 row)
+
+== 1 알림톡 summary 상태별 90일
+                                                        QUERY PLAN                                                        
+--------------------------------------------------------------------------------------------------------------------------
+ HashAggregate (actual time=199.925..199.928 rows=2 loops=1)
+   Group Key: status
+   Batches: 1  Memory Usage: 24kB
+   Buffers: shared read=278
+   ->  Seq Scan on alimtalk_send_logs (actual time=109.923..196.587 rows=1791 loops=1)
+         Filter: ((org_id = 'd3adb8d3-db1d-4fab-aac0-61c7f8644f13'::uuid) AND (sent_at >= (now() - '90 days'::interval)))
+         Rows Removed by Filter: 1440
+         Buffers: shared read=278
+ Planning:
+   Buffers: shared hit=57 read=7
+ Planning Time: 67.579 ms
+ Execution Time: 200.055 ms
+(12 rows)
+
+== 2 알림톡 trends 일별 90일
+                                                           QUERY PLAN                                                           
+--------------------------------------------------------------------------------------------------------------------------------
+ Sort (actual time=8.206..8.212 rows=67 loops=1)
+   Sort Key: ((date_trunc('day'::text, sent_at))::date)
+   Sort Method: quicksort  Memory: 28kB
+   Buffers: shared hit=256 read=25
+   ->  HashAggregate (actual time=8.074..8.098 rows=67 loops=1)
+         Group Key: (date_trunc('day'::text, sent_at))::date
+         Batches: 1  Memory Usage: 49kB
+         Buffers: shared hit=253 read=25
+         ->  Seq Scan on alimtalk_send_logs (actual time=0.922..5.074 rows=1791 loops=1)
+               Filter: ((org_id = 'd3adb8d3-db1d-4fab-aac0-61c7f8644f13'::uuid) AND (sent_at >= (now() - '90 days'::interval)))
+               Rows Removed by Filter: 1440
+               Buffers: shared hit=253 read=25
+ Planning:
+   Buffers: shared hit=10 read=1
+ Planning Time: 0.618 ms
+ Execution Time: 8.448 ms
+(16 rows)
+
+== 3 알림톡 templates 이름별 90일
+                                                              QUERY PLAN                                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=5.179..5.183 rows=7 loops=1)
+   Buffers: shared hit=278 read=3
+   ->  Sort (actual time=5.177..5.179 rows=7 loops=1)
+         Sort Key: (count(*)) DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=278 read=3
+         ->  HashAggregate (actual time=5.082..5.085 rows=7 loops=1)
+               Group Key: template_name
+               Batches: 1  Memory Usage: 24kB
+               Buffers: shared hit=275 read=3
+               ->  Seq Scan on alimtalk_send_logs (actual time=0.343..4.251 rows=1791 loops=1)
+                     Filter: ((org_id = 'd3adb8d3-db1d-4fab-aac0-61c7f8644f13'::uuid) AND (sent_at >= (now() - '90 days'::interval)))
+                     Rows Removed by Filter: 1440
+                     Buffers: shared hit=275 read=3
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.746 ms
+ Execution Time: 5.316 ms
+(18 rows)
+
+== 4 신규 레코드 90일
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate (actual time=5717.682..5717.856 rows=1 loops=1)
+   Buffers: shared hit=2645 read=28451
+   ->  Gather (actual time=5717.670..5717.845 rows=1 loops=1)
+         Workers Planned: 2
+         Workers Launched: 0
+         Buffers: shared hit=2645 read=28451
+         ->  Partial Aggregate (actual time=5715.701..5715.702 rows=1 loops=1)
+               Buffers: shared hit=2645 read=28451
+               ->  Parallel Seq Scan on records (actual time=4.365..5700.286 rows=163108 loops=1)
+                     Filter: ((org_id = 'd3adb8d3-db1d-4fab-aac0-61c7f8644f13'::uuid) AND (created_at >= (now() - '90 days'::interval)))
+                     Rows Removed by Filter: 228575
+                     Buffers: shared hit=2645 read=28451
+ Planning:
+   Buffers: shared hit=93 read=15
+ Planning Time: 54.985 ms
+ Execution Time: 5718.476 ms
+(16 rows)
+
+== 5 핵심 리드 알림 건수
+ count 
+-------
+   373
+(1 row)
+
+== 6 이메일 90일 행·블록 (현행 원인 규모)
+                                                              QUERY PLAN                                                              
+--------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate (actual time=7828.716..7869.369 rows=1 loops=1)
+   Buffers: shared hit=11980 read=84192 dirtied=1
+   ->  Gather (actual time=7824.508..7869.304 rows=3 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=11980 read=84192 dirtied=1
+         ->  Partial Aggregate (actual time=7746.240..7746.242 rows=1 loops=3)
+               Buffers: shared hit=11980 read=84192 dirtied=1
+               ->  Parallel Seq Scan on email_send_logs (actual time=44.364..7734.933 rows=53240 loops=3)
+                     Filter: ((org_id = 'd3adb8d3-db1d-4fab-aac0-61c7f8644f13'::uuid) AND (sent_at >= (now() - '90 days'::interval)))
+                     Rows Removed by Filter: 80066
+                     Buffers: shared hit=11980 read=84192 dirtied=1
+ Planning:
+   Buffers: shared hit=73 read=12
+ Planning Time: 30.320 ms
+ Execution Time: 7996.919 ms
+(16 rows)
+
+      relname       | reltuples | n_live_tup | n_mod_since_analyze | last_analyze |       last_autoanalyze        | last_autovacuum | autoanalyze_count 
+--------------------+-----------+------------+---------------------+--------------+-------------------------------+-----------------+-------------------
+ alimtalk_send_logs |      3056 |          8 |                   8 |              |                               |                 |                 0
+ email_click_logs   |     35902 |        273 |                 356 |              |                               |                 |                 0
+ email_open_logs    |       230 |        302 |                  72 |              | 2026-10-21 06:43:08.968413+00 |                 |                 4
+ email_send_logs    |    399907 |       4350 |               10214 |              |                               |                 |                 0
+ records            |    377266 |       5127 |                7401 |              |                               |                 |                 0
+(5 rows)
+
+ stats_reset 
+-------------
+ 
+(1 row)
+
+ autovacuum 
+------------
+ on
+(1 row)
+
+   pg_postmaster_start_time   
+------------------------------
+ 2026-10-20 03:03:27.88539+00
+(1 row)
+
+ split_part 
+------------
+ 16.15
+(1 row)
+

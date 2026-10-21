@@ -1,0 +1,22 @@
+== 집계 표(total grain, 워크스페이스 합) vs 원본, 2026-09-22~2026-10-21 KST
+  src  | total | sent  | failed | opened | open_base | clicked | unsub 
+-------+-------+-------+--------+--------+-----------+---------+-------
+ daily |       |       |        |        |           |         |      
+ raw   | 11004 | 10452 |    452 |   1838 |     10452 |     298 |    32
+(2 rows)
+
+== grain별 줄 수
+   grain   | count 
+-----------+-------
+ campaign  |   940
+ partition |   480
+ sender    |   480
+ total     |   240
+ trigger   |   830
+(5 rows)
+
+ total | sent  | failed | opened | open_base | clicked | unsub 
+-------+-------+--------+--------+-----------+---------+-------
+ 11004 | 10452 |    452 |   1838 |     10452 |     298 |    32
+(1 row)
+

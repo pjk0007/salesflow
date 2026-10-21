@@ -1,0 +1,8 @@
+== 최근 8일 회차 (30만 건 DB, 데운 상태) x3
+run 0 {"orgs":2,"errors":0,"durationMs":325,"recent":{"attrInserted":0,"written":0,"deleted":0},"nightly":{"orgs":0,"days":0,"lateDays":0},"backfill":{"days":0,"doneOrgs":0}}
+run 1 {"orgs":2,"errors":0,"durationMs":79,"recent":{"attrInserted":0,"written":0,"deleted":0},"nightly":{"orgs":0,"days":0,"lateDays":0},"backfill":{"days":0,"doneOrgs":0}}
+run 2 {"orgs":2,"errors":0,"durationMs":72,"recent":{"attrInserted":0,"written":0,"deleted":0},"nightly":{"orgs":0,"days":0,"lateDays":0},"backfill":{"days":0,"doneOrgs":0}}
+== 야간(9~35일) 강제 x3
+run 0 {"orgs":2,"errors":0,"durationMs":777,"recent":{"attrInserted":0,"written":0,"deleted":0},"nightly":{"orgs":2,"days":28,"lateDays":0},"backfill":{"days":0,"doneOrgs":0}}
+run 1 {"orgs":2,"errors":0,"durationMs":460,"recent":{"attrInserted":0,"written":0,"deleted":0},"nightly":{"orgs":2,"days":28,"lateDays":0},"backfill":{"days":0,"doneOrgs":0}}
+run 2 {"orgs":2,"errors":0,"durationMs":475,"recent":{"attrInserted":0,"written":0,"deleted":0},"nightly":{"orgs":2,"days":28,"lateDays":0},"backfill":{"days":0,"doneOrgs":0}}

@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Settings, Mail } from "lucide-react";
-import EmailDashboard from "@/components/email/EmailDashboard";
+import EmailDashboard from "@/components/email/dashboard/ui/EmailDashboard";
 import EmailTemplateList from "@/components/email/EmailTemplateList";
 import EmailTemplateLinkList from "@/components/email/EmailTemplateLinkList";
 import EmailSendLogTable from "@/components/email/EmailSendLogTable";

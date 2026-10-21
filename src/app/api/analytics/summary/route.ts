@@ -1,155 +1,35 @@
-import { openBaseSql, openedSendSql } from "@/lib/email-open-sql";
-import { openRatePercent } from "@/components/email/opens/utils/openRate";
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, alimtalkSendLogs, emailSendLogs, emailClickLogs } from "@/lib/db";
-import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
-
-function aggregateStats(rows: Array<{ status: string; count: number }>, clicked: number) {
-    let total = 0, sent = 0, failed = 0, pending = 0;
-    for (const row of rows) {
-        total += row.count;
-        if (row.status === "sent") sent = row.count;
-        else if (row.status === "failed" || row.status === "rejected") failed += row.count;
-        else if (row.status === "pending") pending = row.count;
-    }
-    // 클릭률 = 발송 대비 사람 링크 클릭 (봇 클릭 제외, 0080)
-    const clickRate = sent > 0 ? Math.round((clicked / sent) * 1000) / 10 : 0;
-    return { total, sent, failed, pending, clicked, clickRate };
-}
-
-function aggregateAlimtalkStats(rows: Array<{ status: string; count: number }>) {
-    let total = 0, sent = 0, failed = 0, pending = 0;
-    for (const row of rows) {
-        total += row.count;
-        if (row.status === "sent") sent = row.count;
-        else if (row.status === "failed" || row.status === "rejected") failed += row.count;
-        else if (row.status === "pending") pending = row.count;
-    }
-    return { total, sent, failed, pending };
-}
+import { queryClient } from "@/lib/db";
+import { kstDayBounds } from "@/lib/email-stats/rules";
+import { describeReplyError } from "@/lib/email-reply-rules";
+import { homeRange, homeSummary } from "@/lib/email-stats/home";
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
-    }
-
+    if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const from = req.nextUrl.searchParams.get("startDate");
+    const to = req.nextUrl.searchParams.get("endDate");
+    if (!from || !to) return NextResponse.json({ success: false, error: "startDate, endDate는 필수입니다." }, { status: 400 });
+    const range = homeRange(from, to);
+    if (!range) return NextResponse.json({ success: false, error: "startDate, endDate는 YYYY-MM-DD 형식이어야 합니다." }, { status: 400 });
+    const { fromIso, toIso } = kstDayBounds(range.from, range.to);
+    const orgId = user.orgId;
     try {
-        const startDate = req.nextUrl.searchParams.get("startDate");
-        const endDate = req.nextUrl.searchParams.get("endDate");
-
-        if (!startDate || !endDate) {
-            return NextResponse.json({ success: false, error: "startDate, endDate는 필수입니다." }, { status: 400 });
-        }
-
-        const { orgId } = user;
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-
-        const emailWhere = and(
-            eq(emailSendLogs.orgId, orgId),
-            gte(emailSendLogs.sentAt, start),
-            lte(emailSendLogs.sentAt, end),
-        );
-
-        const [alimtalkStats, emailStats, newRecordsCount, triggerBreakdown, clicksByTrigger, totalClicked] = await Promise.all([
-            // 알림톡 상태별 카운트
-            db.select({
-                status: alimtalkSendLogs.status,
-                count: sql<number>`count(*)::int`,
-            })
-                .from(alimtalkSendLogs)
-                .where(and(
-                    eq(alimtalkSendLogs.orgId, orgId),
-                    gte(alimtalkSendLogs.sentAt, start),
-                    lte(alimtalkSendLogs.sentAt, end),
-                ))
-                .groupBy(alimtalkSendLogs.status),
-
-            // 이메일 상태별 카운트
-            db.select({
-                status: emailSendLogs.status,
-                count: sql<number>`count(*)::int`,
-            })
-                .from(emailSendLogs)
-                .where(emailWhere)
-                .groupBy(emailSendLogs.status),
-
-            // 기간 내 신규 레코드 수
-            db.select({ count: sql<number>`count(*)::int` })
-                .from(records)
-                .where(and(
-                    eq(records.orgId, orgId),
-                    gte(records.createdAt, start),
-                    lte(records.createdAt, end),
-                )),
-
-            // triggerType별 breakdown
-            db.select({
-                triggerType: emailSendLogs.triggerType,
-                openBase: sql<number>`count(*) filter (where ${openBaseSql("email_send_logs")})::int`,
-                opened: sql<number>`count(*) filter (where ${openedSendSql("email_send_logs", { orgId, since: start })})::int`,
-                total: sql<number>`count(*)::int`,
-                sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`,
-                failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`,
-            })
-                .from(emailSendLogs)
-                .where(emailWhere)
-                .groupBy(emailSendLogs.triggerType),
-
-            // triggerType별 클릭된 이메일 수 (별도 쿼리)
-            db.select({
-                triggerType: emailSendLogs.triggerType,
-                clicked: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`,
-            })
-                .from(emailClickLogs)
-                .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
-                .where(and(emailWhere, eq(emailClickLogs.isBot, false)))
-                .groupBy(emailSendLogs.triggerType),
-
-            // 전체 클릭된 이메일 수 (읽음 대비 클릭률 계산용)
-            db.select({
-                count: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`,
-            })
-                .from(emailClickLogs)
-                .innerJoin(emailSendLogs, eq(emailClickLogs.sendLogId, emailSendLogs.id))
-                .where(and(emailWhere, eq(emailClickLogs.isBot, false))),
+        const [email, rows] = await Promise.all([
+            homeSummary(orgId, range),
+            queryClient<{ status: string; count: number }[]>`SELECT status,count(*)::int count FROM alimtalk_send_logs WHERE org_id=${orgId} AND sent_at>=${fromIso} AND sent_at<${toIso} GROUP BY status`,
         ]);
-
-        const clickMap = new Map(clicksByTrigger.map(c => [c.triggerType, c.clicked]));
-
-        const triggerData = triggerBreakdown.map((t) => {
-            const clicked = clickMap.get(t.triggerType) ?? 0;
-            return {
-                triggerType: t.triggerType || "unknown",
-                opened: t.opened,
-                openBase: t.openBase,
-                openRate: openRatePercent(t.opened, t.openBase),
-                total: t.total,
-                sent: t.sent,
-                failed: t.failed,
-                clicked,
-                successRate: t.total > 0 ? Math.round((t.sent / t.total) * 1000) / 10 : 0,
-                clickRate: t.sent > 0 ? Math.round((clicked / t.sent) * 1000) / 10 : 0,
-            };
-        });
-
-        const opened = triggerData.reduce((sum, t) => sum + t.opened, 0);
-        const openBase = triggerData.reduce((sum, t) => sum + t.openBase, 0);
-
-        return NextResponse.json({
-            success: true,
-            data: {
-                alimtalk: aggregateAlimtalkStats(alimtalkStats),
-                email: { ...aggregateStats(emailStats, totalClicked[0]?.count ?? 0), opened, openBase, openRate: openRatePercent(opened, openBase) },
-                newRecordsInPeriod: newRecordsCount[0]?.count ?? 0,
-                triggerBreakdown: triggerData,
-            },
-        });
+        const alimtalk = { total: 0, sent: 0, failed: 0, pending: 0 };
+        for (const row of rows) {
+            alimtalk.total += row.count;
+            if (row.status === "sent") alimtalk.sent += row.count;
+            else if (row.status === "failed" || row.status === "rejected") alimtalk.failed += row.count;
+            else if (row.status === "pending") alimtalk.pending += row.count;
+        }
+        return NextResponse.json({ success: true, data: { alimtalk, ...email } });
     } catch (error) {
-        console.error("Analytics summary error:", error);
+        console.error("Analytics error:", describeReplyError(error));
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }

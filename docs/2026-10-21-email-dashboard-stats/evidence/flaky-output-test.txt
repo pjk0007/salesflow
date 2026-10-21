@@ -1,0 +1,20 @@
+✔ Windows 일시 파일 잠금은 기존 체크포인트를 지우지 않고 원자 교체 재시도 (13.193291ms)
+✔ 완성 원본·실제 importer chunk·manifest를 원자 저장하고 같은 identity로 재개 (83.90725ms)
+✔ 미완료·chunk 거절·빈 원본도 raw를 남기며 가져오기 준비 완료를 주장하지 않음 (68.305708ms)
+✔ 경로 충돌·동시 실행·identity 및 checkpoint version/hash 불일치를 거절 (23.27175ms)
+✔ immutable chunk와 기존 metadata의 충돌을 조용히 덮어쓰지 않음 (51.487542ms)
+✔ full raw response의 sidecar·범위 metadata를 보존하고 변경된 같은 페이지는 새 version으로 보존 (71.208208ms)
+✔ 동시 raw page callback을 호출 순서대로 저장하고 close 후 늦은 쓰기를 거절 (290.075333ms)
+✔ commit된 cursor의 full raw page 증거가 없거나 재개 중 사라지면 거절 (33.951ms)
+✔ 실제 collector deadline 후 늦은 archive callback은 닫힌 output을 변경하지 않음 (201.397125ms)
+✔ 파일 bytes는 내용 hash로 저장·검증하고 손상·경로 우회·잘못된 receipt를 거절 (11.380833ms)
+✔ 명시한 재개에서 종료된 프로세스 lock만 복구 (48.119875ms)
+✔ symlink output·bytes 디렉터리를 따라 쓰지 않음 (9.221333ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1262.846958

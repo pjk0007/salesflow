@@ -1,5 +1,6 @@
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
+import { presetRange } from "@/lib/email-stats/rules";
 
 export interface TrendItem {
     date: string;
@@ -42,14 +43,9 @@ export interface TemplatePerformance {
 export type Period = "7d" | "30d" | "90d";
 
 function getDateRange(period: Period): { startDate: string; endDate: string } {
-    const end = new Date();
-    const start = new Date();
     const days = period === "7d" ? 7 : period === "30d" ? 30 : 90;
-    start.setDate(start.getDate() - days);
-    return {
-        startDate: start.toISOString().split("T")[0],
-        endDate: end.toISOString().split("T")[0],
-    };
+    const { from, to } = presetRange(days, new Date());
+    return { startDate: from, endDate: to };
 }
 
 
@@ -69,17 +65,17 @@ export function useAnalytics(period: Period = "30d", channel: string = "all") {
     const { data: trendsData, isLoading: trendsLoading } = useSWR<{
         success: boolean;
         data?: TrendItem[];
-    }>(trendsKey, defaultFetcher, { refreshInterval: 60000 });
+    }>(trendsKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     const { data: summaryData, isLoading: summaryLoading } = useSWR<{
         success: boolean;
         data?: AnalyticsSummary;
-    }>(summaryKey, defaultFetcher, { refreshInterval: 60000 });
+    }>(summaryKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     const { data: templatesData, isLoading: templatesLoading } = useSWR<{
         success: boolean;
         data?: TemplatePerformance[];
-    }>(templatesKey, defaultFetcher, { refreshInterval: 60000 });
+    }>(templatesKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     return {
         trends: trendsData?.data ?? [],

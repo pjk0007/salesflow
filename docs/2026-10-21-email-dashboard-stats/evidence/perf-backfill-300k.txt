@@ -1,0 +1,4 @@
+[indexes] email_send_logs 색인 준비됨 (0초)
+[email-stats] orgs=2 recent=45/0 nightly=0 backfill=201 ms=46011
+round 0 46012ms {"orgs":2,"errors":0,"durationMs":46011,"recent":{"attrInserted":11048,"written":45,"deleted":0},"nightly":{"orgs":2,"days":0,"lateDays":0},"backfill":{"days":201,"doneOrgs":2}}
+backfill done {"backfill_done_at":"2026-10-21 19:30:00+09","filled_from":"2026-03-27","recent_done_at":"2026-10-21 19:30:00+09"}
