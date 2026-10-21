@@ -207,9 +207,9 @@ export async function deliverVisitAcknowledgement(
                 RETURNING a.id
             )
             INSERT INTO email_send_logs
-                (org_id,partition_id,record_id,recipient_email,subject,body,status,trigger_type,parent_log_id,sent_at,unsubscribe_token,sender_profile_id,sender_email)
+                (org_id,partition_id,record_id,recipient_email,subject,body,status,trigger_type,parent_log_id,sent_at,unsubscribe_token,sender_profile_id,sender_email,open_tracked)
             SELECT ${parent.org_id},${parent.partition_id},${parent.record_id},${parent.recipient_email},${VISIT_ACK_SUBJECT},${ready.body},'uncertain','visit_ack',
-                ${parent.source_log_id},${deps.now().toISOString()},${ready.unsubscribeToken},${ready.senderProfileId},${ready.senderEmail} FROM owned RETURNING id`;
+                ${parent.source_log_id},${deps.now().toISOString()},${ready.unsubscribeToken},${ready.senderProfileId},${ready.senderEmail},true FROM owned RETURNING id`;
         if (!claimed) {
             await release();
             return { kind: "skipped" };
@@ -473,7 +473,7 @@ export async function handleVisitAcknowledgement(item: {
                                 senderAddress: fromEmail,
                                 senderName: slot.sender.fromName,
                                 title: VISIT_ACK_SUBJECT,
-                                body: clicks.wrapTrackingUrls(body, logId),
+                                body: clicks.applyEmailTracking(body, logId),
                                 receiverList: [
                                     {
                                         receiveMailAddr: p.recipient_email,

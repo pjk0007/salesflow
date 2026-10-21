@@ -15,7 +15,7 @@ import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import type { SendPurpose } from "@/lib/email-sender-limit-rules";
 import type { ClaimTurn } from "@/lib/email-send-queue-rules";
 import { enqueueFollowup } from "@/lib/email-followup";
-import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { applyEmailTracking } from "@/lib/email-click-tracking";
 import {
     isUnsubscribed,
     resolveWorkspaceId,
@@ -479,6 +479,7 @@ export async function processAutoPersonalizedEmail(
 
             // 10. 로그 먼저 insert → 트래킹 URL 삽입 → 발송 → status 업데이트
             const logValues = {
+                openTracked: true,
                 orgId,
                 partitionId,
                 recordId: record.id,
@@ -516,7 +517,7 @@ export async function processAutoPersonalizedEmail(
                 break;
             }
 
-            const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
+            const trackedBody = applyEmailTracking(finalBody, inserted.id);
 
             sendAttempted = true;
             const nhnResult = await emailClient.sendEachMail({

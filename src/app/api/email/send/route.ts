@@ -7,7 +7,7 @@ import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
 import { claimSender, releaseSenderSlot } from "@/lib/email-sender-limit";
 import type { SenderSlot } from "@/lib/email-sender-limit";
 import { blocksRestOfBatch, describeLimitedSend } from "@/lib/email-sender-limit-paths";
-import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { applyEmailTracking } from "@/lib/email-click-tracking";
 import {
     isUnsubscribed,
     generateUnsubscribeToken,
@@ -201,6 +201,7 @@ export async function POST(req: NextRequest) {
 
                 // 로그 먼저 insert → logId 획득 → 트래킹 URL 삽입 → 발송 → status 업데이트
                 const [logEntry] = await db.insert(emailSendLogs).values({
+                    openTracked: true,
                     orgId: user.orgId,
                     templateLinkId: templateLink.id,
                     // 레코드의 명단으로 적는다 — 그 실패가 실제 명단의 실패율에 쌓이게 (DESIGN-SND 6-2, SND-16)
@@ -219,7 +220,7 @@ export async function POST(req: NextRequest) {
                     senderEmail: slotFromEmail,
                 }).returning({ id: emailSendLogs.id });
 
-                const trackedBody = wrapTrackingUrls(finalBody, logEntry.id);
+                const trackedBody = applyEmailTracking(finalBody, logEntry.id);
 
                 sendAttempted = true;
                 const nhnResult = await client.sendEachMail({

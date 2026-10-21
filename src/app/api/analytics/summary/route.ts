@@ -1,3 +1,5 @@
+import { openBaseSql, openedSendSql } from "@/lib/email-open-sql";
+import { openRatePercent } from "@/components/email/opens/utils/openRate";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, alimtalkSendLogs, emailSendLogs, emailClickLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
@@ -87,6 +89,8 @@ export async function GET(req: NextRequest) {
             // triggerType별 breakdown
             db.select({
                 triggerType: emailSendLogs.triggerType,
+                openBase: sql<number>`count(*) filter (where ${openBaseSql("email_send_logs")})::int`,
+                opened: sql<number>`count(*) filter (where ${openedSendSql("email_send_logs", { orgId, since: start })})::int`,
                 total: sql<number>`count(*)::int`,
                 sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`,
                 failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`,
@@ -120,6 +124,9 @@ export async function GET(req: NextRequest) {
             const clicked = clickMap.get(t.triggerType) ?? 0;
             return {
                 triggerType: t.triggerType || "unknown",
+                opened: t.opened,
+                openBase: t.openBase,
+                openRate: openRatePercent(t.opened, t.openBase),
                 total: t.total,
                 sent: t.sent,
                 failed: t.failed,
@@ -129,11 +136,14 @@ export async function GET(req: NextRequest) {
             };
         });
 
+        const opened = triggerData.reduce((sum, t) => sum + t.opened, 0);
+        const openBase = triggerData.reduce((sum, t) => sum + t.openBase, 0);
+
         return NextResponse.json({
             success: true,
             data: {
                 alimtalk: aggregateAlimtalkStats(alimtalkStats),
-                email: aggregateStats(emailStats, totalClicked[0]?.count ?? 0),
+                email: { ...aggregateStats(emailStats, totalClicked[0]?.count ?? 0), opened, openBase, openRate: openRatePercent(opened, openBase) },
                 newRecordsInPeriod: newRecordsCount[0]?.count ?? 0,
                 triggerBreakdown: triggerData,
             },

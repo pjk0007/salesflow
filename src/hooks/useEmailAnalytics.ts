@@ -8,6 +8,9 @@ interface EmailStats {
     pending: number;
     clicked: number;
     clickRate: number;
+    opened: number;
+    openBase: number;
+    openRate: number | null;
 }
 
 interface AlimtalkStats {
@@ -25,6 +28,9 @@ interface TriggerBreakdownItem {
     clicked: number;
     successRate: number;
     clickRate: number;
+    opened: number;
+    openBase: number;
+    openRate: number | null;
 }
 
 interface SummaryData {
@@ -39,6 +45,7 @@ interface TrendItem {
     emailSent: number;
     emailFailed: number;
     emailClicked: number;
+    emailOpened: number;
     alimtalkSent: number;
     alimtalkFailed: number;
 }

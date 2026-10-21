@@ -1,0 +1,10 @@
+summary      before     84.4ms  after    376.1ms  diff  +291.7ms  OK
+trends       before    211.3ms  after    593.6ms  diff  +382.2ms  OVER
+templates    before    239.0ms  after    191.8ms  diff   -47.1ms  OK
+email-daily  before   3923.4ms  after   3774.3ms  diff  -149.1ms  OK
+== F1B(조직·기간 IN) + 색인 (org_id, opened_at)·(org_id, clicked_at), 3회 중앙값
+summary after: 50.329 ms
+trends after: 146.571 ms
+templates after: 70.106 ms
+email-daily: EXISTS 방식에서 이미 기준 안(-149ms, 재귀 CTE가 대부분). F1B 재측정은 Codex 반영 뒤 실제 코드로 한다.
+email-daily after(F1B): 1852.802 ms (before 3923.4ms)

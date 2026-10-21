@@ -1,3 +1,4 @@
+import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -78,13 +79,14 @@ export async function GET(req: NextRequest) {
         type UnifiedRow = Record<string, unknown> & { id: number; channel: "alimtalk" | "email" };
         const logs = (await db.execute(dataQuery)) as unknown as UnifiedRow[];
         // 정렬 전 모든 줄을 집계하지 않도록 현재 페이지의 이메일에만 신호를 붙인다.
-        const signals = await clickSignalsForSendLogs(
-            user.orgId,
-            logs.filter((log) => log.channel === "email").map((log) => log.id),
-        );
+        const logIds = logs.filter((log) => log.channel === "email").map((log) => log.id);
+        const [signals, openSignals] = await Promise.all([
+            clickSignalsForSendLogs(user.orgId, logIds),
+            openSignalsForSendLogs(user.orgId, logIds),
+        ]);
         const data = logs.map((log) =>
             log.channel === "email"
-                ? { ...log, ...(signals.get(log.id) ?? EMPTY_CLICK_SIGNAL) }
+                ? { ...log, ...(signals.get(log.id) ?? EMPTY_CLICK_SIGNAL), ...(openSignals.get(log.id) ?? EMPTY_OPEN_SIGNAL) }
                 : { ...log, clickCount: 0 },
         );
 

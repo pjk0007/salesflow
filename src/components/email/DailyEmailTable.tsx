@@ -7,6 +7,8 @@ import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { useEmailDaily, type EmailDailyGroup } from "@/hooks/useEmailDaily";
+import { OpenColumnHead } from "./opens/ui/OpenColumnHead";
+import { openCountText, openRateText, openRatePercent } from "./opens/utils/openRate";
 
 const TRIGGER_LABELS: Record<string, string> = {
     manual: "수동 발송",
@@ -22,7 +24,7 @@ function rate(clicked: number, sent: number): string {
 }
 
 /**
- * 날짜별 발송·클릭 — 날짜 행을 펼치면 발송 유형 + 캠페인(템플릿/AI규칙)별로 쪼개 보여준다.
+ * 날짜별 발송·클릭·오픈 — 날짜 행을 펼치면 발송 유형 + 캠페인(템플릿/AI규칙)별로 쪼개 보여준다.
  * 같은 날 한 줄로 뭉치면 "무슨 발송이 나갔나"를 알 수 없어서 드릴다운 제공.
  */
 export function DailyEmailTable({ startDate, endDate }: { startDate: string; endDate: string }) {
@@ -43,7 +45,7 @@ export function DailyEmailTable({ startDate, endDate }: { startDate: string; end
     if (isLoading && days.length === 0) {
         return (
             <Card>
-                <CardHeader><CardTitle className="text-base">날짜별 발송·클릭</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-base">날짜별 발송·클릭·오픈</CardTitle></CardHeader>
                 <CardContent><p className="text-sm text-muted-foreground">불러오는 중…</p></CardContent>
             </Card>
         );
@@ -53,7 +55,7 @@ export function DailyEmailTable({ startDate, endDate }: { startDate: string; end
     return (
         <Card>
             <CardHeader>
-                <CardTitle className="text-base">날짜별 발송·클릭</CardTitle>
+                <CardTitle className="text-base">날짜별 발송·클릭·오픈</CardTitle>
                 <p className="text-xs text-muted-foreground">날짜를 클릭하면 발송 유형·캠페인별로 펼쳐집니다.</p>
             </CardHeader>
             <CardContent>
@@ -64,6 +66,8 @@ export function DailyEmailTable({ startDate, endDate }: { startDate: string; end
                             <TableHead className="text-right">발송</TableHead>
                             <TableHead className="text-right">클릭</TableHead>
                             <TableHead className="text-right">클릭률</TableHead>
+                            <TableHead className="text-right"><OpenColumnHead /></TableHead>
+                            <TableHead className="text-right"><OpenColumnHead label="오픈율" /></TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -98,6 +102,8 @@ function DayRows({ day, isOpen, onToggle }: { day: EmailDailyGroup; isOpen: bool
                 <TableCell className="text-right tabular-nums font-medium text-blue-500">
                     {rate(day.totalClicked, day.totalSent)}
                 </TableCell>
+                <TableCell className="text-right tabular-nums">{openCountText(day.totalOpened, day.totalOpenBase)}</TableCell>
+                <TableCell className="text-right tabular-nums">{openRateText(openRatePercent(day.totalOpened, day.totalOpenBase))}</TableCell>
             </TableRow>
             {isOpen && day.breakdown.map((b, i) => (
                 <TableRow key={`${day.date}-${i}`} className="bg-muted/20 text-sm">
@@ -115,6 +121,8 @@ function DayRows({ day, isOpen, onToggle }: { day: EmailDailyGroup; isOpen: bool
                     <TableCell className="text-right tabular-nums text-muted-foreground">{b.sent.toLocaleString()}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{b.clicked.toLocaleString()}</TableCell>
                     <TableCell className="text-right tabular-nums">{rate(b.clicked, b.sent)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{openCountText(b.opened, b.openBase)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{openRateText(openRatePercent(b.opened, b.openBase))}</TableCell>
                 </TableRow>
             ))}
         </>

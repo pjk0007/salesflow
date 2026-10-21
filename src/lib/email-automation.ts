@@ -18,7 +18,7 @@ import {
     TEMPLATE_FIRST_KINDS,
     REPEAT_QUEUE_PHASES,
 } from "@/lib/email-sender-limit-paths";
-import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { applyEmailTracking } from "@/lib/email-click-tracking";
 import {
     isUnsubscribed,
     resolveWorkspaceId,
@@ -191,6 +191,7 @@ async function sendEmailSingle(
         }
 
         const [inserted] = await db.insert(emailSendLogs).values({
+            openTracked: true,
             orgId,
             templateLinkId: link.id,
             partitionId: link.partitionId,
@@ -209,7 +210,7 @@ async function sendEmailSingle(
             senderEmail: senderFromEmail,
         }).returning({ id: emailSendLogs.id });
 
-        const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
+        const trackedBody = applyEmailTracking(finalBody, inserted.id);
 
         if (triggerType === "repeat" && await findVisitFollowupStop(orgId, workspaceId, email)) {
             await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 반복 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));

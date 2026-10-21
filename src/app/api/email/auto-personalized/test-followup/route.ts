@@ -6,7 +6,7 @@ import { generateAiFollowupPreview } from "@/lib/email-followup";
 import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
 import { resolveSender } from "@/lib/email-sender-resolver";
 import { followupSenderOrder } from "@/lib/email-sender-limit-paths";
-import { wrapTrackingUrls } from "@/lib/email-click-tracking";
+import { applyEmailTracking } from "@/lib/email-click-tracking";
 
 /**
  * GET /api/email/auto-personalized/test-followup?linkId=...
@@ -205,6 +205,7 @@ export async function POST(req: NextRequest) {
     const [inserted] = await db
         .insert(emailSendLogs)
         .values({
+            openTracked: true,
             orgId: user.orgId,
             autoPersonalizedLinkId: linkId,
             recipientEmail: testEmail!,
@@ -218,7 +219,7 @@ export async function POST(req: NextRequest) {
         })
         .returning();
 
-    const trackedBody = wrapTrackingUrls(result.htmlBody, inserted.id);
+    const trackedBody = applyEmailTracking(result.htmlBody, inserted.id);
 
     const nhnResult = await client.sendEachMail({
         senderAddress: sender.fromEmail,

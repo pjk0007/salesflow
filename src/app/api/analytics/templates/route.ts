@@ -1,3 +1,5 @@
+import { openBaseSql, openedSendSql } from "@/lib/email-open-sql";
+import { openRatePercent } from "@/components/email/opens/utils/openRate";
 import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkSendLogs, emailSendLogs, emailTemplateLinks, emailClickLogs, partitions } from "@/lib/db";
 import { eq, and, gte, lte, sql, isNotNull } from "drizzle-orm";
@@ -51,6 +53,8 @@ export async function GET(req: NextRequest) {
                     total: sql<number>`count(distinct ${emailSendLogs.id})::int`.as("total"),
                     sent: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    openBase: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${openBaseSql("email_send_logs")})::int`.as("openBase"),
+                    opened: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${openedSendSql("email_send_logs", { orgId, since: start })})::int`.as("opened"),
                     clicked: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
@@ -75,6 +79,8 @@ export async function GET(req: NextRequest) {
                     total: sql<number>`count(distinct ${emailSendLogs.id})::int`.as("total"),
                     sent: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    openBase: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${openBaseSql("email_send_logs")})::int`.as("openBase"),
+                    opened: sql<number>`count(distinct ${emailSendLogs.id}) filter (where ${openedSendSql("email_send_logs", { orgId, since: start })})::int`.as("opened"),
                     clicked: sql<number>`count(distinct ${emailClickLogs.sendLogId})::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
@@ -101,6 +107,7 @@ export async function GET(req: NextRequest) {
                 sent: t.sent,
                 failed: t.failed,
                 clicked: 0,
+                opened: 0, openBase: 0, openRate: null,
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
                 clickRate: 0,
             })),
@@ -112,6 +119,7 @@ export async function GET(req: NextRequest) {
                 sent: t.sent,
                 failed: t.failed,
                 clicked: t.clicked,
+                opened: t.opened, openBase: t.openBase, openRate: openRatePercent(t.opened, t.openBase),
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
                 clickRate: t.sent > 0 ? Math.round((t.clicked / t.sent) * 1000) / 10 : 0,
             })),
@@ -123,6 +131,7 @@ export async function GET(req: NextRequest) {
                 sent: t.sent,
                 failed: t.failed,
                 clicked: t.clicked,
+                opened: t.opened, openBase: t.openBase, openRate: openRatePercent(t.opened, t.openBase),
                 successRate: t.total > 0 ? Math.round((t.sent / t.total) * 100) : 0,
                 clickRate: t.sent > 0 ? Math.round((t.clicked / t.sent) * 1000) / 10 : 0,
             })),

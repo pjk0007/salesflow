@@ -1,3 +1,4 @@
+import { appendOpenPixel } from "@/lib/email-open-pixel";
 import { db, emailClickLogs, emailSendLogs } from "@/lib/db";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -136,4 +137,9 @@ export function appendSendbCid(targetUrl: string, clickId: string): string {
         // 잘못된 URL이면 원본 그대로 반환
         return targetUrl;
     }
+}
+
+/** DB body는 추적 전 본문을 저장하며, 발송 로그 insert 뒤 NHN 직전에 호출한다. */
+export function applyEmailTracking(html: string, sendLogId: number): string {
+    return appendOpenPixel(wrapTrackingUrls(html, sendLogId), sendLogId);
 }

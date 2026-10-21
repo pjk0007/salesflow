@@ -418,6 +418,12 @@ export interface UnifiedLog {
     botClickCount?: number;
     /** 같은 조직 사이트에서 CLICK·CUSTOM이 이어진 발송 (이메일 줄만) */
     hasSiteAction?: boolean;
+    /** 사람 오픈 추정 수 (이메일 줄만) */
+    openCount?: number;
+    /** 기계 오픈 수 (이메일 줄만) */
+    machineOpenCount?: number;
+    /** 픽셀을 넣어 보낸 발송 여부 (이메일 줄만) */
+    openTracked?: boolean;
 }
 
 // ============================================

@@ -1,3 +1,5 @@
+import { OpenColumnHead } from "@/components/email/opens/ui/OpenColumnHead";
+import { openRateText } from "@/components/email/opens/utils/openRate";
 import {
     Table,
     TableBody,
@@ -36,6 +38,7 @@ export default function TemplateRanking({ data }: TemplateRankingProps) {
                     <TableHead className="w-[70px] text-right">클릭</TableHead>
                     <TableHead className="w-[80px] text-right">성공률</TableHead>
                     <TableHead className="w-[80px] text-right">클릭률</TableHead>
+                    <TableHead className="w-[80px] text-right"><OpenColumnHead label="오픈율" /></TableHead>
                 </TableRow>
             </TableHeader>
             <TableBody>
@@ -68,6 +71,7 @@ export default function TemplateRanking({ data }: TemplateRankingProps) {
                         <TableCell className="text-right text-blue-500">
                             {item.channel === "email" ? `${item.clickRate}%` : "-"}
                         </TableCell>
+                        <TableCell className="text-right">{item.channel === "email" ? openRateText(item.openRate) : "-"}</TableCell>
                     </TableRow>
                 ))}
             </TableBody>

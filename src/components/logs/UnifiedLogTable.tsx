@@ -1,3 +1,5 @@
+import { OpenColumnHead } from "@/components/email/opens/ui/OpenColumnHead";
+import { OpenCountCell } from "@/components/email/opens/ui/OpenCountCell";
 import { ClickCountCell } from "@/components/email/clicks/ui/ClickCountCell";
 import { useState } from "react";
 import { useUnifiedLogs } from "@/hooks/useUnifiedLogs";
@@ -175,6 +177,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                     <TableHead>제목</TableHead>
                                     <TableHead>상태</TableHead>
                                     <TableHead>클릭</TableHead>
+                                    <TableHead><OpenColumnHead /></TableHead>
                                     {!compact && <TableHead>방식</TableHead>}
                                     <TableHead>발송일시</TableHead>
                                     {!compact && <TableHead>결과</TableHead>}
@@ -205,6 +208,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                                 </Badge>
                                             </TableCell>
                                             <TableCell><ClickCountCell log={log} /></TableCell>
+                                            <TableCell><OpenCountCell log={log} /></TableCell>
                                             {!compact && (
                                                 <TableCell>
                                                     <Badge variant={triggerInfo.variant} className="text-xs">

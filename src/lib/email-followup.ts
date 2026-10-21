@@ -16,7 +16,7 @@ import { resolveSignature } from "@/lib/email-sender-resolver";
 import { claimSender, releaseSenderSlot } from "@/lib/email-sender-limit";
 import { followupSenderOrder, isDeferralOnlyBatch } from "@/lib/email-sender-limit-paths";
 import { DEADLINE_BUDGET_MS, isDeadlineExceeded } from "@/lib/email-send-queue-rules";
-import { wrapTrackingUrls, hasClicked } from "@/lib/email-click-tracking";
+import { applyEmailTracking, hasClicked } from "@/lib/email-click-tracking";
 import {
     isUnsubscribed,
     resolveWorkspaceId,
@@ -676,6 +676,7 @@ async function handleTemplateFollowup(
     try {
         // 9. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
         const [inserted] = await db.insert(emailSendLogs).values({
+            openTracked: true,
             orgId: item.orgId,
             templateLinkId: link.id,
             partitionId: link.partitionId,
@@ -694,7 +695,7 @@ async function handleTemplateFollowup(
             senderEmail: senderFromEmail,
         }).returning({ id: emailSendLogs.id });
 
-        const trackedBody = wrapTrackingUrls(body, inserted.id);
+        const trackedBody = applyEmailTracking(body, inserted.id);
 
         if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) {
             await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 일반 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));
@@ -911,6 +912,7 @@ async function handleAiFollowup(
 
         // 10. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
         const [inserted] = await db.insert(emailSendLogs).values({
+            openTracked: true,
             orgId: item.orgId,
             partitionId: parentLog.partitionId,
             recordId: parentLog.recordId,
@@ -927,7 +929,7 @@ async function handleAiFollowup(
             senderEmail: senderFromEmail,
         }).returning({ id: emailSendLogs.id });
 
-        const trackedBody = wrapTrackingUrls(finalBody, inserted.id);
+        const trackedBody = applyEmailTracking(finalBody, inserted.id);
 
         if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) {
             await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: `${VISIT_ACK_MIN_SECONDS}초 이상 사이트 방문으로 일반 후속 중단` }).where(eq(emailSendLogs.id, inserted.id));

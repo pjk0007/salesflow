@@ -1,3 +1,6 @@
+import type { OpenSignal } from "@/components/email/opens/types";
+import { OpenColumnHead } from "@/components/email/opens/ui/OpenColumnHead";
+import { OpenCountCell } from "@/components/email/opens/ui/OpenCountCell";
 import type { ClickSignal } from "@/components/email/clicks/types";
 import { ClickCountCell } from "@/components/email/clicks/ui/ClickCountCell";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -47,7 +50,7 @@ import { ReplyKindBadge } from "@/components/email/replies/ui/ReplyKindBadge";
  * 담은 이력 한 줄
  */
 type EmailSendLogRow = EmailSendLog &
-    LogSenderSource & Partial<ClickSignal> & { reply?: { id: number; kind: string; receivedAt: string } | null };
+    LogSenderSource & Partial<OpenSignal> & Partial<ClickSignal> & { reply?: { id: number; kind: string; receivedAt: string } | null };
 
 /** 표의 "보낸 주소" 칸. 보낼 때 주소가 없는 옛 이력은 프로필의 지금 주소 아래에 "(현재 프로필)"을 붙인다 */
 function LogSenderCell({ log }: { log: LogSenderSource }) {
@@ -435,6 +438,7 @@ export default function EmailSendLogTable() {
                                 <TableHead>제목</TableHead>
                                 <TableHead>상태</TableHead>
                                 <TableHead>클릭</TableHead>
+                                <TableHead><OpenColumnHead /></TableHead>
                                 <TableHead>방식</TableHead>
                                 <TableHead>발송일</TableHead>
                             </TableRow>
@@ -467,6 +471,7 @@ export default function EmailSendLogTable() {
                                             </div>
                                         </TableCell>
                                         <TableCell><ClickCountCell log={log} /></TableCell>
+                                        <TableCell><OpenCountCell log={log} /></TableCell>
                                         <TableCell>
                                             <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
                                         </TableCell>

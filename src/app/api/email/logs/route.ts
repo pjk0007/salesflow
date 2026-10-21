@@ -1,3 +1,4 @@
+import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs, emailSenderProfiles } from "@/lib/db";
@@ -109,7 +110,10 @@ export async function GET(req: NextRequest) {
         }));
 
         const logIds = logs.map((log) => log.id);
-        const signals = await clickSignalsForSendLogs(user.orgId, logIds);
+        const [signals, openSignals] = await Promise.all([
+            clickSignalsForSendLogs(user.orgId, logIds),
+            openSignalsForSendLogs(user.orgId, logIds),
+        ]);
 
         // 회신 붙이기 (클릭 수와 같은 방식, 사람 회신 먼저) — 표가 없으면(마이그레이션 전) 회신 없이
         let replies = new Map<number, { id: number; kind: string; receivedAt: Date }>();
@@ -122,6 +126,7 @@ export async function GET(req: NextRequest) {
         const logsWithClicks = logs.map(log => ({
             ...log,
             ...(signals.get(log.id) ?? EMPTY_CLICK_SIGNAL),
+            ...(openSignals.get(log.id) ?? EMPTY_OPEN_SIGNAL),
             reply: replies.get(log.id) ?? null,
         }));
 

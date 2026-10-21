@@ -848,6 +848,13 @@
       "when": 1792519200000,
       "tag": "0119_web_form_cover",
       "breakpoints": true
+    },
+    {
+      "idx": 121,
+      "version": "7",
+      "when": 1792605600000,
+      "tag": "0120_email_open_tracking",
+      "breakpoints": true
     }
   ]
 }

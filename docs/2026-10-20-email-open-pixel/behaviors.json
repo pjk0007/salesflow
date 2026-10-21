@@ -1,0 +1,468 @@
+{
+  "version": 1,
+  "cycleId": "2026-10-20-email-open-pixel",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "`appendOpenPixel(html, id)`는 오픈 URL을 src로 하는 1x1 `<img>`를 정확히 1개, DESIGN이 정한 자리에 넣고 나머지 HTML은 그대로 둔다",
+      "priority": "P1",
+      "target": "src/lib/email-open-pixel.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-pixel.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B1: 본문 앞 또는 머리말 뒤에 하나만 삽입하고 원문 보존 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "`applyEmailTracking(html, id)`의 링크 결과는 `wrapTrackingUrls`와 같고 픽셀이 1개 더 있으며, 픽셀 `<img>`는 클릭 래핑 대상이 아니다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-pixel.test.ts, src/lib/email-open-static.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B2: 기존 클릭 링크 보존 / ✔ B2: 링크 래핑 뒤 픽셀 삽입 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "오픈 URL은 `${BASE_URL}/api/track/open?id=<id>&s=<서명>`이고, 서명은 같은 id에서만 통과하며 다른 id·바뀐 서명·빈 서명·숫자가 아닌 id는 실패한다(상수 시간 비교)",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-pixel.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B3: id는 정규 십진 int4 양수만 허용 / ✔ B3: 서명은 id·키에 귀속되고 변조·누락은 거부 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "발송 로그를 남기는 7개 경로가 모두 `applyEmailTracking`을 거친 본문을 NHN에 보내고, 추적 모듈 밖에서 `wrapTrackingUrls(`를 직접 부르는 곳이 없다",
+      "priority": "P1",
+      "target": "src/lib/email-click-tracking.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-static.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B4: 7개 발송 경로는 공통 추적만 호출 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "`email_send_logs.body`에는 픽셀이 들어가지 않아, 발송 이력에서 본문을 미리 봐도 오픈이 남지 않는다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-static.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B5: insert 뒤에만 픽셀을 입힌다 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "`GET /api/track/open`은 정상·id 없음·서명 불일치·없는 발송·DB 오류·레이트 초과 모두 200 + 43바이트 투명 GIF + 캐시 금지 헤더로 응답하고 쿠키를 쓰지 않는다",
+      "priority": "P1",
+      "target": "src/app/api/track/open/route.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-2-curl.txt",
+        "cmd": "curl 17-2 R1~R16·R21",
+        "output": "정상·서명 변조·잘못된 입력·없는 id·미추적 발송·표 없음 모두 200 43B image/gif, no-store, Set-Cookie 없음",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "서명이 맞고 발송이 있으면 `email_open_logs`에 1행(org_id, send_log_id, opened_at, ip, user_agent, is_machine, machine_reason)이 생기고, 아니면 생기지 않는다",
+      "priority": "P1",
+      "target": "src/lib/email-open-tracking.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-2-curl.txt",
+        "cmd": "curl 2차 R1~R6 (데운 서버, 1초 간격) + SQL",
+        "output": "다른 조직 e1의 1시간 전 발송 id 9: Macintosh Chrome·GoogleImageProxy·Outlook MSIE·Mozilla/5.0 → is_machine f 4행, curl/8.7.1·빈 UA → t/ua 2행. 각 행 org_id e1, opened_at−sent_at 01:00:00.99~01:00:06.99, ip ::1",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "`HEAD /api/track/open`은 B6과 같은 헤더로 응답하고 기록하지 않는다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-2-curl.txt",
+        "cmd": "curl -I",
+        "output": "HEAD 200, content-length 43, image/gif, 행 늘지 않음",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "오픈 기록은 트랜잭션·advisory 잠금을 쓰지 않고, 픽셀 응답은 기록이 끝나길 기다리지 않는다(`after()`)",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-static.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B3·B6·B9: 상수 시간 서명, 쿠키·대기 없는 응답, 잠금 없는 기록 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "같은 발송의 반복 요청은 발송당 저장 상한까지만 기록하고, 인메모리 레이트를 넘은 요청도 기록하지 않는다(응답은 B6과 같다)",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-2-curl.txt",
+        "cmd": "R18 xargs -P50 200회, R19, R20",
+        "output": "200회 모두 200 43, 저장 4행(≤10); 사람 20행 뒤 human=20 유지; 기계 10행 뒤 machine=10 유지",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "오픈 시각과 발송 시각의 차이가 60초 미만이면(0초·음수 포함) 기계(`early`)이고, 60초 이상이면 이 규칙으로는 기계가 아니다",
+      "priority": "P1",
+      "target": "src/lib/email-open-rules.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-rules.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B11: 60초 미만과 음수만 early / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "UA가 null·빈 문자열·공백뿐이면 기계(`ua`)다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-rules.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B12: 비어 있는 UA는 기계 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B13",
+      "desc": "UA가 오픈용 기계 토큰(DESIGN 표)을 대소문자 구분 없이 포함하면 기계(`ua`)다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-rules.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B13: 22종 기계 UA와 CUBOT은 대소문자 무관 ua / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B14",
+      "desc": "Gmail 이미지 프록시·Yahoo 프록시·Outlook 데스크톱(`MSIE 7.0 … Microsoft Outlook`)·Apple 메일·일반 브라우저 UA는 UA 규칙으로 기계가 아니고 60초 규칙만 적용된다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-rules.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B14: 프록시·Outlook·Apple·브라우저는 시간 규칙만 적용 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "두 규칙이 모두 맞으면 사유는 `ua` 하나다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-rules.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B15: ua가 early보다 우선 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B16",
+      "desc": "오픈 판정 규칙 파일에는 import가 없고, NHN `isOpened`·`openedDate`를 읽는 코드가 새로 생기지 않는다",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-static.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B16: 판정은 import와 NHN 오픈 값에 의존하지 않는다 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B17",
+      "desc": "0089를 적용하면 `email_open_logs`(send_log_id FK ON DELETE CASCADE, is_machine, machine_reason)와 사람 오픈 조회 색인이 생기고, `lock_timeout` 5초로 시작하며, 재부팅해도 다시 돌지 않는다",
+      "priority": "P1",
+      "target": "drizzle/0089_email_open_tracking.sql",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-1-migration.md",
+        "cmd": "빈 DB next dev 부팅 2회 + psql",
+        "output": "1차 [migrate] 새 DB 감지, 전체 마이그레이션 실행 → 완료, __drizzle_migrations 1775200000000 1행, 색인 3개(send_log_machine·org_opened·click org_clicked). 재부팅 [migrate] 완료, 1행 그대로. BEGIN/ROLLBACK로 칸·FK cascade 확인",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B18",
+      "desc": "(Q1=A) 0089 뒤 기존 발송 행은 `open_tracked=false`, 새 발송 행은 `true`이고 표를 다시 쓰지 않는다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-1-migration.md",
+        "cmd": "psql + src/lib/email-open-static.test.ts",
+        "output": "filenode 1066899 그대로, atthasmissing t / {f}, 기존 213221행 tracked 0; 7경로 openTracked: true 정적 테스트 통과",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B19",
+      "desc": "정적 테스트가 0089 SQL과 journal을 읽어 B17·B18 문구를 확인한다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/email-open-migration.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B19: journal idx 89와 실행 시각은 고정되고 유일 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B20",
+      "desc": "\"오픈한 발송\"은 오픈율 대상 발송 중 사람 오픈이나 사람 클릭이 1건 이상인 발송이다(기계 오픈만 있으면 오픈이 아니고, 픽셀 없이 사람 클릭만 있으면 오픈이다)",
+      "priority": "P1",
+      "target": "src/lib/email-open-sql.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-3-api.txt",
+        "cmd": "17-3 fixture S1~S8 + summary",
+        "output": "opened 3 (S3 사람 오픈·S4 사람 클릭·S8), S2 기계만·S5 봇 클릭은 제외",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B21",
+      "desc": "summary가 `email.opened`·`openRate`와 유형별 `opened`·`openRate`를 주고, 대상이 0이면 openRate는 null이며, 기존 칸은 그대로다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-3-api.txt",
+        "cmd": "GET /api/analytics/summary",
+        "output": "email opened 3 openBase 6 openRate 50, 유형 auto 동일; 기존 total 8 sent 7 failed 1 clicked 3 clickRate 42.9",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B22",
+      "desc": "trends가 날짜별 `emailOpened`를 주고 기존 칸은 그대로다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-3-api.txt",
+        "cmd": "GET /api/analytics/trends",
+        "output": "2026-10-21 emailOpened 3, emailSent 7 emailFailed 1 emailClicked 3",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B23",
+      "desc": "templates가 연결별·AI 파티션별 `opened`·`openRate`를 주고, total·sent·failed·clicked는 오픈 때문에 바뀌지 않는다(행 곱 없음)",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-3-api.txt",
+        "cmd": "GET /api/analytics/templates + 비교 SQL",
+        "output": "연결 1개: total 8 sent 7 failed 1 clicked 3 (오픈 없는 SQL과 같음), opened 3 openBase 6 openRate 50",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B24",
+      "desc": "email-daily가 날짜 합계와 breakdown에 오픈 수와 오픈율 분모를 주고, 기존 sent·clicked는 그대로다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-3-api.txt",
+        "cmd": "GET /api/analytics/email-daily",
+        "output": "totalSent 8 totalClicked 3 totalOpened 3 totalOpenBase 6, breakdown 동일",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B25",
+      "desc": "픽셀이 없던 발송(도입 전)은 오픈율의 분자·분모에 들어가지 않고, 클릭률 정의는 바뀌지 않는다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-3-api.txt",
+        "cmd": "17-3 fixture",
+        "output": "S6(open_tracked=false, 사람 클릭)은 openBase·opened에서 빠지고 clicked에는 남음, clickRate 42.9 그대로",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B26",
+      "desc": "발송 이력 API와 통합 로그 API의 이메일 줄에 `openCount`·`machineOpenCount`·`openTracked`가 붙고, 알림톡 줄·정렬·페이지·총건수는 그대로다",
+      "priority": "P1",
+      "target": "src/lib/email-open-signals.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-5-rows.txt",
+        "cmd": "GET /api/email/logs·/api/logs/unified pageSize=3 page=1~3 (조직 e2 토큰, 같은 DB에 조직 e1 발송 id 9 + 오픈 6행)",
+        "output": "email/logs [8,7,6][5,4,3][2,1] totalCount 8; unified [2,3,1][4,5,6][7,8] total 8 totalPages 3; id 9 없음; S1~S8 (openCount, machineOpenCount, openTracked) 설계 기대와 같음",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B27",
+      "desc": "MCP `list_email_logs` 줄에 `openCount`·`machineOpenCount`가 붙고 도구 설명에 추정치라고 적힌다(트래커 툴은 그대로)",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-5-mcp.txt",
+        "cmd": "DATABASE_URL=<시험 DB> pnpm exec tsx --env-file=.env.local evidence/mcp-call.ts <조직 e2>",
+        "output": "list_email_logs 8행: 8 open 2 machine 0 tracked true / 2 open 0 machine 1 / 6 tracked false … description에 '오픈은 추정치입니다' 포함",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B28",
+      "desc": "`openCellView`가 정하는 표시: 알림톡·미발송·픽셀 없는 발송은 빈칸, 오픈·클릭 없음은 \"-\", 사람 오픈은 `N회`, 기계 오픈만 있으면 흐린 기계 아이콘, 사람 오픈 없이 사람 클릭만 있으면 클릭으로 오픈 표시, 툴팁에 사람·기계 수",
+      "priority": "P1",
+      "target": "src/components/email/opens/utils/openCell.ts",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/components/email/opens/utils/openCell.test.ts, docs/2026-10-20-email-open-pixel/evidence/open-tests.txt",
+        "cmd": "pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts",
+        "output": "✔ B28: 오픈 칸 계약 1 / ✔ B28: 오픈 칸 계약 2 / ✔ B28: 오픈 칸 계약 3 / ℹ pass 43 / ℹ fail 0",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B29",
+      "desc": "/email 발송 이력과 /logs·레코드 상세 표가 클릭 칸 옆에 같은 `OpenCountCell`로 \"오픈\" 칸을 두고, 두 .tsx에 판정 로직이 없다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-6-email-logs.png, docs/2026-10-20-email-open-pixel/evidence/17-6-unified-logs.png",
+        "cmd": "ego-browser /email 발송 이력, /logs + email-open-static.test.ts",
+        "output": "S1~S8: -, 기계 아이콘, 1회, 클릭 아이콘, -, 빈칸, 빈칸, 2회 — 두 화면 같음; 정적 테스트 통과",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B30",
+      "desc": "대시보드(오픈율 카드, 유형별 오픈율, 추세 오픈 선, 날짜별 오픈·오픈율)와 홈 발송 분석(규칙별 오픈율, 이메일 오픈 계열)에 오픈 지표가 보이고, 대상이 0이면 \"—\"다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-6-dashboard.png, docs/2026-10-20-email-open-pixel/evidence/17-6-email-daily-trend.png, docs/2026-10-20-email-open-pixel/evidence/17-6-home.png",
+        "cmd": "ego-browser /email 대시보드, 홈",
+        "output": "오픈율 카드 50% 3/6, 유형별 50%, 추세 오픈 선 3, 날짜별 오픈 3·오픈율 50%, 홈 추세 이메일 오픈 3건·규칙별 오픈율 50%",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B31",
+      "desc": "오픈율 카드 근처와 오픈 칸 머리에 4줄 이내 안내(추정치, 60초·검사기 제외, 클릭은 오픈으로 셈, 이미지 차단 시 빠짐, Apple MPP 한계)가 보인다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/17-6-dashboard.png",
+        "cmd": "ego-browser /email 대시보드 + openRate.test.ts",
+        "output": "카드 아래 안내 4줄(추정치·60초·검사기·이미지 차단·클릭·Apple·도입 뒤 발송), 칸 머리 ⓘ",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B32",
+      "desc": "후속 분기(`hasClicked`), 클릭 기록, 봇 판정, 클릭률은 바뀌지 않고 기존 테스트가 통과한다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/pnpm-test.txt",
+        "cmd": "pnpm test + git diff --quiet HEAD -- click route, bot rules",
+        "output": "기존 클릭 테스트 포함 ℹ pass 1103, 클릭 라우트·봇 규칙 무변경, hasClicked 호출은 import만 바뀜",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "B33",
+      "desc": "`pnpm test`, `tsc --noEmit`, 변경 파일 eslint가 통과한다",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-20-email-open-pixel/evidence/pnpm-test.txt, docs/2026-10-20-email-open-pixel/evidence/tsc.txt, docs/2026-10-20-email-open-pixel/evidence/eslint.txt",
+        "cmd": "pnpm test; pnpm exec tsc --noEmit; eslint 변경 46파일",
+        "output": "ℹ tests 1103 / ℹ pass 1103 / ℹ fail 0; tsc exit 0; eslint 변경 파일 exit 0",
+        "at": "2026-10-21"
+      }
+    }
+  ]
+}

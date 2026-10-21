@@ -1,0 +1,25 @@
+(기간 2026-10-20~2026-10-21 — 발송 시각이 UTC 전날이라 하루 앞부터. 기존 날짜 처리 방식)
+== summary
+.email {'total': 8, 'sent': 7, 'failed': 1, 'clicked': 3, 'clickRate': 42.9, 'opened': 3, 'openBase': 6, 'openRate': 50}
+.triggerBreakdown[0] {'triggerType': 'auto', 'opened': 3, 'openBase': 6, 'openRate': 50, 'total': 8, 'sent': 7, 'failed': 1, 'clicked': 3, 'clickRate': 42.9}
+== trends
+[0] {'date': '2026-10-21', 'alimtalkSent': 0, 'alimtalkFailed': 0, 'emailSent': 7, 'emailFailed': 1, 'emailClicked': 3, 'emailOpened': 3}
+== templates
+== email-daily
+[0] {'date': '2026-10-21', 'totalSent': 8, 'totalClicked': 3, 'totalOpened': 3, 'totalOpenBase': 6}
+[0].breakdown[0] {'triggerType': 'auto', 'sent': 8, 'clicked': 3, 'opened': 3, 'openBase': 6}
+== templates (연결 1개에 S1~S8)
+[{'name': '시험 연결', 'channel': 'email', 'type': 'link', 'total': 8, 'sent': 7, 'failed': 1, 'clicked': 3, 'opened': 3, 'openBase': 6, 'openRate': 50, 'successRate': 88, 'clickRate': 42.9}]
+== 비교: 같은 연결의 기존 칸 SQL (오픈 없이)
+     8 |    7 |      1 |       3
+
+
+== 2차(F1B 쿼리 반영 뒤) 기간 2026-10-20~2026-10-21
+-- summary
+.email {'total': 8, 'sent': 7, 'failed': 1, 'clicked': 3, 'clickRate': 42.9, 'opened': 3, 'openBase': 6, 'openRate': 50}
+.triggerBreakdown[0] {'triggerType': 'auto', 'opened': 3, 'openBase': 6, 'openRate': 50, 'total': 8, 'sent': 7, 'failed': 1, 'clicked': 3, 'clickRate': 42.9}
+-- trends
+[0] {'date': '2026-10-21', 'alimtalkSent': 0, 'alimtalkFailed': 0, 'emailSent': 7, 'emailFailed': 1, 'emailClicked': 3, 'emailOpened': 3}
+-- email-daily
+[0] {'date': '2026-10-21', 'totalSent': 8, 'totalClicked': 3, 'totalOpened': 3, 'totalOpenBase': 6}
+[0].breakdown[0] {'triggerType': 'auto', 'sent': 8, 'clicked': 3, 'opened': 3, 'openBase': 6}

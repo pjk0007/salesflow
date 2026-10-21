@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/table";
 import {
     Mail,
+    MailOpen,
     CheckCircle2,
     XCircle,
     Clock,
@@ -36,6 +37,9 @@ import { KeyLeadsCard } from "./KeyLeadsCard";
 import SendQueueOverviewCard from "./sender-profiles/ui/SendQueueOverviewCard";
 import SendHealthBanner from "./send-health/ui/SendHealthBanner";
 import SendHealthCard from "./send-health/ui/SendHealthCard";
+import { OpenColumnHead } from "./opens/ui/OpenColumnHead";
+import { OpenRateNotice } from "./opens/ui/OpenRateNotice";
+import { openRateText, openRatioText } from "./opens/utils/openRate";
 
 interface EmailDashboardProps {
     onTabChange?: (tab: string) => void;
@@ -124,6 +128,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
             icon: MousePointerClick,
             color: "text-blue-500",
         },
+        { label: "오픈율", value: openRateText(email?.openRate ?? null), sub: email ? openRatioText(email.opened, email.openBase) : undefined, icon: MailOpen, color: "text-teal-600" },
     ];
 
     return (
@@ -165,6 +170,8 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                 ))}
             </div>
 
+            <OpenRateNotice />
+
             {/* 발송 대기열 — 대기 합계와 3일치 넘은 규칙 (대기가 없으면 보이지 않는다) */}
             <SendQueueOverviewCard />
 
@@ -187,6 +194,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                     <TableHead className="text-right">실패</TableHead>
                                     <TableHead className="text-right">성공률</TableHead>
                                     <TableHead className="text-right">클릭률</TableHead>
+                                    <TableHead className="text-right"><OpenColumnHead label="오픈율" /></TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -200,6 +208,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                         <TableCell className="text-right">{row.failed}</TableCell>
                                         <TableCell className="text-right">{row.successRate}%</TableCell>
                                         <TableCell className="text-right">{row.clickRate}%</TableCell>
+                                        <TableCell className="text-right">{openRateText(row.openRate)}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -249,6 +258,7 @@ export default function EmailDashboard({ onTabChange }: EmailDashboardProps) {
                                     strokeWidth={2}
                                     dot={false}
                                 />
+                                <Line type="monotone" dataKey="emailOpened" name="오픈" stroke="#0d9488" strokeWidth={2} dot={false} />
                             </LineChart>
                         </ResponsiveContainer>
                     </CardContent>

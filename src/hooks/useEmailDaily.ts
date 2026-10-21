@@ -7,12 +7,16 @@ export interface EmailDailyBreakdown {
     campaign: string;
     sent: number;
     clicked: number;
+    opened: number;
+    openBase: number;
 }
 
 export interface EmailDailyGroup {
     date: string;
     totalSent: number;
     totalClicked: number;
+    totalOpened: number;
+    totalOpenBase: number;
     breakdown: EmailDailyBreakdown[];
 }
 

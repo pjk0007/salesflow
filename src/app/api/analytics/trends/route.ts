@@ -1,3 +1,4 @@
+import { openedSendSql } from "@/lib/email-open-sql";
 import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkSendLogs, emailSendLogs, emailClickLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
@@ -47,6 +48,7 @@ export async function GET(req: NextRequest) {
                     date: sql<string>`date_trunc('day', ${emailSendLogs.sentAt})::date::text`.as("date"),
                     sent: sql<number>`count(*) filter (where ${emailSendLogs.status} = 'sent')::int`.as("sent"),
                     failed: sql<number>`count(*) filter (where ${emailSendLogs.status} in ('failed', 'rejected'))::int`.as("failed"),
+                    opened: sql<number>`count(*) filter (where ${openedSendSql("email_send_logs", { orgId, since: start })})::int`.as("opened"),
                     clicked: sql<number>`count(*) filter (where exists (select 1 from ${emailClickLogs} ecl where ecl.send_log_id = email_send_logs.id and ecl.is_bot = false))::int`.as("clicked"),
                 })
                 .from(emailSendLogs)
@@ -66,6 +68,7 @@ export async function GET(req: NextRequest) {
             emailSent: number;
             emailFailed: number;
             emailClicked: number;
+            emailOpened: number;
         }>();
 
         for (const row of alimtalkTrends) {
@@ -76,6 +79,7 @@ export async function GET(req: NextRequest) {
                 emailSent: 0,
                 emailFailed: 0,
                 emailClicked: 0,
+                emailOpened: 0,
             });
         }
 
@@ -85,6 +89,7 @@ export async function GET(req: NextRequest) {
                 existing.emailSent = row.sent;
                 existing.emailFailed = row.failed;
                 existing.emailClicked = row.clicked;
+                existing.emailOpened = row.opened;
             } else {
                 map.set(row.date, {
                     date: row.date,
@@ -93,6 +98,7 @@ export async function GET(req: NextRequest) {
                     emailSent: row.sent,
                     emailFailed: row.failed,
                     emailClicked: row.clicked,
+                    emailOpened: row.opened,
                 });
             }
         }

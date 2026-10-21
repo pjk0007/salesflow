@@ -1,3 +1,4 @@
+import { openBaseSql, openedSendSql } from "@/lib/email-open-sql";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
                     s.id AS cur,
                     s.parent_log_id,
                     s.trigger_type,
-                    s.sent_at,
+                    s.sent_at, s.open_tracked, s.status,
                     COALESCE(tl.name, apl.name, et.name) AS campaign,
                     p.name AS product,
                     0 AS depth
@@ -61,7 +62,7 @@ export async function GET(req: NextRequest) {
                     par.id AS cur,
                     par.parent_log_id,
                     lo.trigger_type,
-                    lo.sent_at,
+                    lo.sent_at, lo.open_tracked, lo.status,
                     COALESCE(tl.name, apl.name, et.name) AS campaign,
                     p.name AS product,
                     lo.depth + 1
@@ -76,19 +77,19 @@ export async function GET(req: NextRequest) {
             resolved AS (
                 -- 로그별로 캠페인이 잡힌 가장 얕은(가까운) 조상 1건 선택
                 SELECT DISTINCT ON (id)
-                    id, campaign, product, trigger_type, sent_at
+                    id, campaign, product, trigger_type, sent_at, open_tracked, status
                 FROM log_origin
                 WHERE campaign IS NOT NULL
                 ORDER BY id, depth ASC
             ),
             -- 끝까지 캠페인을 못 찾은 로그는 별도로 살린다 (campaign NULL)
             final AS (
-                SELECT lo.id, NULL::text AS campaign, NULL::text AS product, lo.trigger_type, lo.sent_at
+                SELECT lo.id, NULL::text AS campaign, NULL::text AS product, lo.trigger_type, lo.sent_at, lo.open_tracked, lo.status
                 FROM log_origin lo
                 WHERE lo.depth = 0
                   AND lo.id NOT IN (SELECT id FROM resolved)
                 UNION ALL
-                SELECT id, campaign, product, trigger_type, sent_at FROM resolved
+                SELECT id, campaign, product, trigger_type, sent_at, open_tracked, status FROM resolved
             )
             SELECT
                 (f.sent_at AT TIME ZONE 'Asia/Seoul')::date::text AS date,
@@ -98,7 +99,9 @@ export async function GET(req: NextRequest) {
                 count(*)::int AS sent,
                 count(*) FILTER (WHERE EXISTS (
                     SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = f.id AND ecl.is_bot = false
-                ))::int AS clicked
+                ))::int AS clicked,
+                count(*) FILTER (WHERE ${openBaseSql("f")})::int AS "openBase",
+                count(*) FILTER (WHERE ${openedSendSql("f", { orgId: user.orgId, since: fromIso })})::int AS opened
             FROM final f
             GROUP BY 1, 2, 3, 4
             ORDER BY 1 DESC, sent DESC
@@ -109,6 +112,8 @@ export async function GET(req: NextRequest) {
             campaign: string;
             sent: number;
             clicked: number;
+            opened: number;
+            openBase: number;
         }>;
 
         // 날짜별로 그룹핑 — 합계 + breakdown
@@ -116,23 +121,29 @@ export async function GET(req: NextRequest) {
             date: string;
             totalSent: number;
             totalClicked: number;
-            breakdown: Array<{ triggerType: string; product: string; campaign: string; sent: number; clicked: number }>;
+            totalOpened: number;
+            totalOpenBase: number;
+            breakdown: Array<{ triggerType: string; product: string; campaign: string; sent: number; clicked: number; opened: number; openBase: number }>;
         }>();
 
         for (const r of rows) {
             let g = byDate.get(r.date);
             if (!g) {
-                g = { date: r.date, totalSent: 0, totalClicked: 0, breakdown: [] };
+                g = { date: r.date, totalSent: 0, totalClicked: 0, totalOpened: 0, totalOpenBase: 0, breakdown: [] };
                 byDate.set(r.date, g);
             }
             g.totalSent += r.sent;
             g.totalClicked += r.clicked;
+            g.totalOpened += r.opened;
+            g.totalOpenBase += r.openBase;
             g.breakdown.push({
                 triggerType: r.triggerType ?? "unknown",
                 product: r.product,
                 campaign: r.campaign,
                 sent: r.sent,
                 clicked: r.clicked,
+                opened: r.opened,
+                openBase: r.openBase,
             });
         }
 

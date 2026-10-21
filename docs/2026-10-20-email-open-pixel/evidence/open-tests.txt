@@ -1,0 +1,53 @@
+$ pnpm exec tsx --test src/lib/email-open-rules.test.ts src/lib/email-open-pixel.test.ts src/lib/request-ip.test.ts src/lib/email-open-migration.test.ts src/lib/email-open-static.test.ts src/lib/email-open-sql.test.ts src/components/email/opens/utils/openRate.test.ts src/components/email/opens/utils/openCell.test.ts
+✔ B28: 오픈 칸 계약 1 (0.9345ms)
+✔ B28: 오픈 칸 계약 2 (0.071833ms)
+✔ B28: 오픈 칸 계약 3 (0.053ms)
+✔ B28: 오픈 칸 계약 4 (0.044375ms)
+✔ B28: 오픈 칸 계약 5 (0.06175ms)
+✔ B28: 오픈 칸 계약 6 (0.034625ms)
+✔ B28: 오픈 칸 계약 7 (0.037667ms)
+✔ B28: 오픈 칸 계약 8 (0.118541ms)
+✔ B28: 오픈 칸 계약 9 (0.088333ms)
+✔ B28: 오픈 칸 계약 10 (0.080292ms)
+✔ B28: 오픈 칸 계약 11 (0.070458ms)
+✔ B28: 오픈 칸 계약 12 (0.041208ms)
+✔ B28: 오픈 칸 계약 13 (0.050917ms)
+✔ B21·B30: 대상 0은 null·대시, 나머지는 소수 첫째 자리 (0.509333ms)
+✔ B31: 안내 4줄에 추정치와 누락·프리페치 한계 명시 (0.120375ms)
+✔ B17·B18·B19: 0089는 제한 시간 내 멱등 DDL만 적용 (2.247666ms)
+✔ B19: journal idx 89와 실행 시각은 고정되고 유일 (0.345708ms)
+✔ B3: id는 정규 십진 int4 양수만 허용 (1.97375ms)
+✔ B3: 서명은 id·키에 귀속되고 변조·누락은 거부 (2.471583ms)
+✔ B1·B3: URL과 태그 계약 (0.424042ms)
+✔ B1: 본문 앞 또는 머리말 뒤에 하나만 삽입하고 원문 보존 (0.781625ms)
+✔ B2: 기존 클릭 링크 보존 (0.101ms)
+✔ B6: 43바이트 투명 GIF와 캐시 금지 헤더 (19.185083ms)
+✔ B11: 60초 미만과 음수만 early (4.181583ms)
+✔ B12: 비어 있는 UA는 기계 (0.140708ms)
+✔ B13: 22종 기계 UA와 CUBOT은 대소문자 무관 ua (0.175625ms)
+✔ B14: 프록시·Outlook·Apple·브라우저는 시간 규칙만 적용 (0.114ms)
+✔ B15: ua가 early보다 우선 (0.056166ms)
+✔ B10: 추적 대상만 사람·기계별 독립 상한 적용 (0.1125ms)
+✔ 동시 상한 경고는 누계가 있고 마지막 로그부터 60초 이상일 때만 남긴다 (0.069041ms)
+✔ 동시 상한 경고 후 누계를 비우고 시각을 갱신하면 다음 60초 동안 억제한다 (0.051917ms)
+✔ B25: 분모는 추적한 sent 발송 (1.134541ms)
+✔ B20: email_send_logs의 사람 오픈·클릭 IN 하위 질의를 조직·시작 시각으로 제한 (0.2755ms)
+✔ B20: f의 사람 오픈·클릭 IN 하위 질의를 조직·시작 시각으로 제한 (0.129125ms)
+✔ B20: Date는 ISO 문자열로 변환하고 조직·시각은 SQL에 삽입하지 않는다 (1.267542ms)
+✔ B4: 7개 발송 경로는 공통 추적만 호출 (186.863125ms)
+✔ B18: 모든 발송 insert는 openTracked를 명시 (0.78175ms)
+✔ B5: insert 뒤에만 픽셀을 입힌다 (0.991292ms)
+✔ B2: 링크 래핑 뒤 픽셀 삽입 (0.128583ms)
+✔ B3·B6·B9: 상수 시간 서명, 쿠키·대기 없는 응답, 잠금 없는 기록 (0.302875ms)
+✔ B16: 판정은 import와 NHN 오픈 값에 의존하지 않는다 (39.156416ms)
+✔ B29: 두 로그 표는 오픈 판정 없이 공통 칸을 사용 (0.4025ms)
+✔ XFF 첫 IP를 우선하고 유효하지 않으면 real IP로 대체 (11.743458ms)
+ℹ tests 43
+ℹ suites 0
+ℹ pass 43
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 640.802042
+exit 0

@@ -39,7 +39,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B3 PASS: POST 201, ordered deduplication and first id",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -53,7 +53,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B4 PASS: foreign/missing id rejected, POST/PUT rows unchanged",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -67,7 +67,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B5 PASS: empty/null POST and PUT clear both fields",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -81,7 +81,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B6 PASS: omitted sender fields preserved",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -95,7 +95,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B7 PASS: malformed/over-50 pools return 400 for POST and PUT",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -109,7 +109,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B8 PASS: legacy single id becomes pool",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -123,7 +123,7 @@
       "evidence": {
         "kind": "local-api",
         "ref": "evidence/api.ts",
-        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=local-fixture-only pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
+        "cmd": "DATABASE_URL=postgresql://jaehun@localhost:5432/salesflow JWT_SECRET=<시험용 값> pnpm exec tsx docs/2026-10-16-template-link-sender/evidence/api.ts",
         "output": "B9 PASS: GET exposes both fields",
         "at": "2026-10-16T07:35:55.587419+00:00"
       }
@@ -150,9 +150,9 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "ref": "docs/2026-10-16-template-link-sender/evidence/sender-test.ts",
         "cmd": "tsx sender-test.ts setup|send|queue|requeue",
-        "output": "연결 B(묶음 NULL) → profile 5 cs@pixlnlogic.com, NHN success, Gmail INBOX 수신",
+        "output": "연결 B(묶음 NULL) → profile 5 cs@pixlnlogic.com, NHN success, Gmail INBOX 수신 / 운영 재확인(2026-10-17): 운영 연결 19 묶음 [6] → 레코드 등록 시 cs@dihi.kr 발송, NHN success, Gmail INBOX 수신. 시험 데이터 삭제",
         "at": "2026-10-16T08:15Z"
       }
     },
@@ -178,9 +178,9 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "ref": "docs/2026-10-16-template-link-sender/evidence/sender-test.ts",
         "cmd": "tsx sender-test.ts setup|send|queue|requeue",
-        "output": "연결 C([6,7]) 2건 → profile 7 cs@100office.store, profile 6 cs@dihi.kr로 갈림. 반복 대기열: 6 정지 시 A 줄 미룸(pending, next_run_at=10/17 09:00 KST)",
+        "output": "연결 C([6,7]) 2건 → profile 7 cs@100office.store, profile 6 cs@dihi.kr로 갈림. 반복 대기열: 6 정지 시 A 줄 미룸(pending, next_run_at=10/17 09:00 KST) (근거: 로컬 시나리오 출력. 운영 재확인은 묶음 1개 배선만 입증하므로 이 항목 근거가 아님)",
         "at": "2026-10-16T08:15Z"
       }
     },
@@ -192,9 +192,9 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "ref": "docs/2026-10-16-template-link-sender/evidence/sender-test.ts",
         "cmd": "tsx sender-test.ts setup|send|queue|requeue",
-        "output": "미뤄진 A 줄 2개를 둔 채 연결 A 묶음을 [7]로 변경 → 재처리 시 둘 다 profile 7 cs@100office.store로 발송",
+        "output": "미뤄진 A 줄 2개를 둔 채 연결 A 묶음을 [7]로 변경 → 재처리 시 둘 다 profile 7 cs@100office.store로 발송 (근거: 로컬 시나리오 출력. 운영 재확인은 묶음 1개 배선만 입증하므로 이 항목 근거가 아님)",
         "at": "2026-10-16T08:15Z"
       }
     },
@@ -220,9 +220,9 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "ref": "docs/2026-10-16-template-link-sender/evidence/sender-test.ts",
         "cmd": "tsx sender-test.ts setup|send|queue|requeue",
-        "output": "로그 7건 sender_profile_id·sender_email이 실제 Gmail 수신 메일의 From과 일치(dihi.kr·pixlnlogic.com·100office.store)",
+        "output": "로그 7건 sender_profile_id·sender_email이 실제 Gmail 수신 메일의 From과 일치(dihi.kr·pixlnlogic.com·100office.store) / 운영 재확인(2026-10-17): 운영 연결 19 묶음 [6] → 레코드 등록 시 cs@dihi.kr 발송, NHN success, Gmail INBOX 수신. 시험 데이터 삭제",
         "at": "2026-10-16T08:15Z"
       }
     },
@@ -234,9 +234,9 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "ref": "docs/2026-10-16-template-link-sender/evidence/sender-test.ts",
         "cmd": "tsx sender-test.ts setup|send|queue|requeue",
-        "output": "A([6], 6 정지) first 2줄 + B(묶음 NULL) first 1줄 → processEmailRepeatQueue: completed 1, deferred 2. B 줄은 그 회차에 발송",
+        "output": "A([6], 6 정지) first 2줄 + B(묶음 NULL) first 1줄 → processEmailRepeatQueue: completed 1, deferred 2. B 줄은 그 회차에 발송 (근거: 로컬 시나리오 출력. 운영 재확인은 묶음 1개 배선만 입증하므로 이 항목 근거가 아님)",
         "at": "2026-10-16T08:15Z"
       }
     },
@@ -248,9 +248,9 @@
       "passes": true,
       "evidence": {
         "kind": "manual",
-        "ref": "로컬 DB + 실제 NHN 발송(수신 ghty6323+sendb-*@gmail.com) 스크립트 scratchpad/sender-test.ts",
+        "ref": "docs/2026-10-16-template-link-sender/evidence/sender-test.ts",
         "cmd": "tsx sender-test.ts setup|send|queue|requeue",
-        "output": "A의 기한 된 first 2줄이 같은 next_run_at(2026-10-17T00:00Z)로 함께 미뤄짐",
+        "output": "A의 기한 된 first 2줄이 같은 next_run_at(2026-10-17T00:00Z)로 함께 미뤄짐 (근거: 로컬 시나리오 출력. 운영 재확인은 묶음 1개 배선만 입증하므로 이 항목 근거가 아님)",
         "at": "2026-10-16T08:15Z"
       }
     },
@@ -378,6 +378,62 @@
         "cmd": "ego-browser nodejs",
         "output": "{ manualNotice: true, checkboxes: 0, summary: true }\n{ manualPutOmitsSender: true, saved: [ { triggerType: 'manual', senderProfileIds: [ 999999 ] } ] }",
         "at": "2026-10-16T08:00:14.830Z"
+      }
+    },
+    {
+      "id": "B28",
+      "desc": "발신 프로필이 9개 이상이면 검색 칸이 보이고 이름·보내는 사람·이메일로 걸러지며, 고른 프로필은 검색과 상관없이 위에 남는다",
+      "priority": "P2",
+      "target": "src/components/email/sender-profiles/ui/SenderPoolField.tsx",
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "src/components/email/sender-profiles/utils/senderPool.test.ts",
+        "cmd": "pnpm test — senderPool.test.ts (이번 변경 신규 10건: filterSenderProfiles 4 + senderPoolSearchSelection 6) + ego-browser localhost:3123 빈 DB salesflow_ui, 프로필 20개",
+        "output": "\"matchesplan.c\" 검색 → 결과 2줄 + 고른 디하 1줄(rows 3)",
+        "at": "2026-10-16T09:30Z"
+      }
+    },
+    {
+      "id": "B29",
+      "desc": "목록 박스는 높이가 고정(max-h-96)되고 넘치면 안에서 스크롤된다",
+      "priority": "P2",
+      "target": "src/components/email/sender-profiles/ui/SenderPoolField.tsx",
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "src/components/email/sender-profiles/utils/senderPool.test.ts",
+        "cmd": "pnpm test — senderPool.test.ts (이번 변경 신규 10건: filterSenderProfiles 4 + senderPoolSearchSelection 6) + ego-browser localhost:3123 빈 DB salesflow_ui, 프로필 20개",
+        "output": "ego-browser 화면 확인: 프로필 20개에서 목록 박스 높이 고정, 박스 내부 스크롤바 표시(캡처는 저장소에 남기지 않음). 코드: SenderPoolField 박스 max-h-96 overflow-y-auto",
+        "at": "2026-10-16T09:30Z"
+      }
+    },
+    {
+      "id": "B30",
+      "desc": "검색 중 전체 선택은 검색 결과에만 적용된다 — 켜면 결과 중 미선택만 추가, 끄면 결과에 든 선택만 해제하고 검색 밖 선택은 유지",
+      "priority": "P2",
+      "target": "src/components/email/sender-profiles/ui/SenderPoolField.tsx",
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "src/components/email/sender-profiles/utils/senderPool.test.ts",
+        "cmd": "pnpm test — senderPool.test.ts (이번 변경 신규 10건: filterSenderProfiles 4 + senderPoolSearchSelection 6) + ego-browser localhost:3123 빈 DB salesflow_ui, 프로필 20개",
+        "output": "켬 → [디하, cloud, co] 3/20, 끔 → [디하] 1/20",
+        "at": "2026-10-16T09:30Z"
+      }
+    },
+    {
+      "id": "B31",
+      "desc": "\"검색 결과가 없습니다\"는 검색어에 맞는 프로필이 하나도 없을 때만 보인다(결과를 모두 골라도 안 보임)",
+      "priority": "P2",
+      "target": "src/components/email/sender-profiles/ui/SenderPoolField.tsx",
+      "passes": true,
+      "evidence": {
+        "kind": "visual",
+        "ref": "src/components/email/sender-profiles/utils/senderPool.test.ts",
+        "cmd": "pnpm test — senderPool.test.ts (이번 변경 신규 10건: filterSenderProfiles 4 + senderPoolSearchSelection 6) + ego-browser localhost:3123 빈 DB salesflow_ui, 프로필 20개",
+        "output": "수정 후: 결과 전부 선택 empty=false, 없는주소zzz empty=true",
+        "at": "2026-10-16T09:30Z"
       }
     }
   ]

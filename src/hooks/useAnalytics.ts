@@ -8,6 +8,7 @@ export interface TrendItem {
     emailSent: number;
     emailFailed: number;
     emailClicked: number;
+    emailOpened: number;
 }
 
 export interface ChannelSummary {
@@ -33,6 +34,9 @@ export interface TemplatePerformance {
     clicked: number;
     successRate: number;
     clickRate: number;
+    opened: number;
+    openBase: number;
+    openRate: number | null;
 }
 
 export type Period = "7d" | "30d" | "90d";

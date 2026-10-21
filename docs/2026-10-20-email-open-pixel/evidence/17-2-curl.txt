@@ -1,0 +1,89 @@
+== 헤더(A, Chrome)
+HTTP/1.1 200 OK
+cache-control: no-store, no-cache, must-revalidate, private, max-age=0
+content-length: 43
+content-type: image/gif
+expires: Thu, 01 Jan 1970 00:00:00 GMT
+pragma: no-cache
+x-content-type-options: nosniff
+== R2~R6 on A
+200 43 image/gif
+200 43 image/gif
+200 43 image/gif
+200 43 image/gif
+200 43 image/gif
+== R13 서명 변조
+200 43 image/gif
+== R14 잘못된 입력
+200 43 image/gif
+200 43 image/gif
+200 43 image/gif
+200 43 image/gif
+200 43 image/gif
+== R15 없는 id 서명 맞음
+200 43 image/gif
+== R16 C(open_tracked=false)
+200 43 image/gif
+== R17 HEAD
+HTTP/1.1 200 OK
+content-length: 43
+content-type: image/gif
+x-content-type-options: nosniff
+== 기록 행
+ send_log_id | is_machine | machine_reason |                    ua                    | ip  
+-------------+------------+----------------+------------------------------------------+-----
+           1 | f          |                | Mozilla/5.0                              | ::1
+           1 | f          |                | Mozilla/5.0 (Windows NT 5.1; rv:11.0) Ge | ::1
+           1 | f          |                | Mozilla/4.0 (compatible; MSIE 7.0; Windo | ::1
+           1 | f          |                | Mozilla/5.0 (Macintosh; Intel Mac OS X 1 | ::1
+(4 rows)
+
+== R5·R6 다시(간격 1초)
+200
+200
+ send_log_id | is_machine | machine_reason |     ua     
+-------------+------------+----------------+------------
+           1 | t          | ua             | curl/8.7.1
+           1 | t          | ua             | <null>
+(2 rows)
+
+== R7~R12 B(id 3, 방금 발송) 순차 요청 6건(간격 없음)
+200 200 200 200 200 200 
+ is_machine | machine_reason |               ua               |   after_send    
+------------+----------------+--------------------------------+-----------------
+ t          | early          | Mozilla/5.0 (Macintosh; Intel  | 00:00:00.684881
+ t          | early          | Mozilla/5.0 (Windows NT 5.1; r | 00:00:00.702881
+ t          | early          | Mozilla/4.0 (compatible; MSIE  | 00:00:00.720881
+ t          | early          | Mozilla/5.0                    | 00:00:00.736881
+ t          | ua             | curl/8.7.1                     | 00:00:00.756881
+ t          | ua             | <null>                         | 00:00:00.770881
+(6 rows)
+
+== R18 id 4: 같은 URL 200회 동시 50
+ 200 200 43
+rows=4
+== R19 id 5: 사람 20행 뒤 Chrome
+human=20
+== R20 id 6: 기계 10행 뒤 curl
+machine=10
+== R21 표 없음
+200 43
+[open-pixel] 오픈 기록 실패 (send_log 1): 42P01
+
+== 2차(2026-10-21, 서버 데운 뒤) R1~R6: 다른 조직 e1의 1시간 전 발송 id 9에 1초 간격
+200 43
+200 43
+200 43
+200 43
+200 43
+200 43
+                org_id                | send_log_id |   after_send    | is_machine | machine_reason |                      ua                       | ip  
+--------------------------------------+-------------+-----------------+------------+----------------+-----------------------------------------------+-----
+ 00000000-0000-4000-8000-0000000000e1 |           9 | 01:00:00.993857 | f          |                | Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_ | ::1
+ 00000000-0000-4000-8000-0000000000e1 |           9 | 01:00:02.114857 | f          |                | Mozilla/5.0 (Windows NT 5.1; rv:11.0) Gecko F | ::1
+ 00000000-0000-4000-8000-0000000000e1 |           9 | 01:00:03.700857 | f          |                | Mozilla/4.0 (compatible; MSIE 7.0; Windows NT | ::1
+ 00000000-0000-4000-8000-0000000000e1 |           9 | 01:00:04.883857 | f          |                | Mozilla/5.0                                   | ::1
+ 00000000-0000-4000-8000-0000000000e1 |           9 | 01:00:05.962857 | t          | ua             | curl/8.7.1                                    | ::1
+ 00000000-0000-4000-8000-0000000000e1 |           9 | 01:00:06.996857 | t          | ua             | <null>                                        | ::1
+(6 rows)
+

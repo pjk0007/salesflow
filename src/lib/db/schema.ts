@@ -1,3 +1,4 @@
+import type { MachineOpenReason } from "@/lib/email-open-rules";
 import type { BotReason } from "@/lib/email-click-bot-rules";
 import {
     pgTable,
@@ -766,6 +767,8 @@ export const emailSendLogs = pgTable("email_send_logs", {
     deliveryStatusCode: varchar("delivery_status_code", { length: 16 }),
     /** recipient | sender (SST7·8, 5.7.x·SPF·DKIM·DMARC) */
     deliveryFailSide: varchar("delivery_fail_side", { length: 10 }),
+    /** 본문에 오픈 픽셀을 넣어 보낸 발송. 기존 행은 false로 오픈율 대상에서 제외한다. */
+    openTracked: boolean("open_tracked").default(false).notNull(),
 }, (table) => [
     // 마이그레이션에는 없다 — 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (src/lib/db/send-log-indexes.ts, DESIGN-SND 8-3).
     // 이 저장소는 db:generate를 쓰지 않으므로 이 선언이 마이그레이션을 만들지 않는다. 이름은 send-log-indexes.ts와 같다
@@ -791,10 +794,27 @@ export const emailClickLogs = pgTable("email_click_logs", {
     botReason: varchar("bot_reason", { length: 16 }).$type<BotReason>(),
 }, (table) => [
     index("email_click_logs_send_log_idx").on(table.sendLogId),
+    index("email_click_logs_org_clicked_idx").on(table.orgId, table.clickedAt),
     uniqueIndex("email_click_logs_click_id_idx").on(table.clickId),
 ]);
 
 export type EmailClickLog = typeof emailClickLogs.$inferSelect;
+
+export const emailOpenLogs = pgTable("email_open_logs", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id").notNull(),
+    sendLogId: integer("send_log_id").references(() => emailSendLogs.id, { onDelete: "cascade" }).notNull(),
+    openedAt: timestamptz("opened_at").defaultNow().notNull(),
+    ip: varchar("ip", { length: 50 }),
+    userAgent: text("user_agent"),
+    isMachine: boolean("is_machine").notNull(),
+    machineReason: varchar("machine_reason", { length: 16 }).$type<MachineOpenReason>(),
+}, (table) => [
+    index("email_open_logs_send_log_machine_idx").on(table.sendLogId, table.isMachine),
+    index("email_open_logs_org_opened_idx").on(table.orgId, table.openedAt),
+]);
+
+export type EmailOpenLog = typeof emailOpenLogs.$inferSelect;
 
 // ============================================
 // 이메일 수신거부

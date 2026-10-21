@@ -1,3 +1,4 @@
+import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import {
     db,
@@ -94,7 +95,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
         name: "list_email_logs",
-        description: "이메일 발송 이력을 조회합니다. clickCount는 사람 클릭 수입니다(메일 보안 검사기 같은 봇 클릭은 빼고 셉니다). botClickCount는 봇으로 판정된 클릭 수입니다.",
+        description: "이메일 발송 이력을 조회합니다. clickCount는 사람 클릭 수입니다(메일 보안 검사기 같은 봇 클릭은 빼고 셉니다). botClickCount는 봇으로 판정된 클릭 수입니다. openCount는 사람 오픈 추정 수(오픈 픽셀 요청 중 발송 60초 안과 검사기 UA를 뺀 수), machineOpenCount는 기계 오픈으로 본 수입니다. 오픈은 추정치입니다 — 이미지를 막으면 빠지고 Apple 메일은 열지 않아도 잡힐 수 있습니다. openTracked가 false인 발송은 픽셀이 없어 오픈을 알 수 없습니다.",
         inputSchema: {
             type: "object" as const,
             properties: {
@@ -302,10 +303,14 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
             }).from(emailSendLogs).where(whereClause)
                 .orderBy(desc(emailSendLogs.sentAt)).limit(pageSize).offset((page - 1) * pageSize);
 
-            const signals = await clickSignalsForSendLogs(tokenInfo.orgId, logs.map((log) => log.id));
+            const logIds = logs.map((log) => log.id);
+            const [signals, openSignals] = await Promise.all([
+                clickSignalsForSendLogs(tokenInfo.orgId, logIds),
+                openSignalsForSendLogs(tokenInfo.orgId, logIds),
+            ]);
             const logsWithClicks = logs.map((log) => {
                 const { clickCount, botClickCount } = signals.get(log.id) ?? EMPTY_CLICK_SIGNAL;
-                return { ...log, clickCount, botClickCount };
+                return { ...log, clickCount, botClickCount, ...(openSignals.get(log.id) ?? EMPTY_OPEN_SIGNAL) };
             });
 
             return ok({ totalCount: countResult?.count ?? 0, page, pageSize, logs: logsWithClicks });
