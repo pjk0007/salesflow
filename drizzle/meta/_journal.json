@@ -855,6 +855,13 @@
       "when": 1792605600000,
       "tag": "0120_email_open_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1792692000000,
+      "tag": "0121_email_stats",
+      "breakpoints": true
     }
   ]
 }

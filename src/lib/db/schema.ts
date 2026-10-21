@@ -21,6 +21,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { FormulaConfig } from "@/types";
 export * from "./ai-copy-schema";
+export * from "./email-stats-schema";
 export * from "./email-experiment-schema";
 export * from "./copy-automation-schema";
 export * from "./inbox-schema";
@@ -298,6 +299,7 @@ export const records = pgTable(
     },
     (table) => ({
         orgIdx: index("records_org_idx").on(table.orgId),
+        orgCreatedAtIdx: index("records_org_created_at_idx").on(table.orgId, table.createdAt),
         partitionIdx: index("records_partition_idx").on(table.partitionId),
         workspaceIdx: index("records_workspace_idx").on(table.workspaceId),
     })

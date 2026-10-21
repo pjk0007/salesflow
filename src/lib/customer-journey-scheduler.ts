@@ -1,65 +1,85 @@
 import { journeyAlertConfig } from "./customer-journey-alert-config";
 import { isProductionServer } from "./deep-visitor-alert-rules";
 import type { JourneyAlertStats } from "./customer-journey-alert";
-
-interface TimerHandle { unref?: () => void }
-interface SchedulerState {
+interface TimerHandle {
+    unref?: () => void;
+}
+interface SchedulerState<T> {
     running: boolean;
     lastStartedAt: string | null;
     lastCompletedAt: string | null;
-    lastResult: JourneyAlertStats | null;
+    lastResult: T | null;
     lastError: string | null;
 }
-interface SchedulerOptions {
-    run: () => Promise<JourneyAlertStats>;
+interface SchedulerOptions<T> {
+    intervalMs?: number;
+    firstDelayMs?: number;
+    failureLabel?: string;
+    run: () => Promise<T>;
     schedule?: (callback: () => Promise<void>, delayMs: number) => TimerHandle;
     cancel?: (handle: TimerHandle) => void;
     now?: () => Date;
-    onResult?: (result: JourneyAlertStats) => void;
-    onError?: () => void;
+    onResult?: (result: T) => void;
+    onError?: (error: unknown) => void;
 }
-
 /** 완료 후 다음 회차를 예약한다. 오래 걸리는 회차와 다음 회차를 한 프로세스에서 겹치지 않는다. */
-export function createJourneyScheduler(options: SchedulerOptions) {
+export function createJourneyScheduler<T = JourneyAlertStats>(options: SchedulerOptions<T>) {
     const schedule = options.schedule ?? ((callback, delayMs) => setTimeout(() => { void callback(); }, delayMs));
     const cancel = options.cancel ?? ((handle) => clearTimeout(handle as ReturnType<typeof setTimeout>));
     const now = options.now ?? (() => new Date());
-    const state: SchedulerState = { running: false, lastStartedAt: null, lastCompletedAt: null, lastResult: null, lastError: null };
+    const state: SchedulerState<T> = {
+        running: false,
+        lastStartedAt: null,
+        lastCompletedAt: null,
+        lastResult: null,
+        lastError: null
+    };
     let stopped = false;
     let timer: TimerHandle;
-    const enqueue = (delayMs: number) => { timer = schedule(tick, delayMs); timer.unref?.(); };
+    const enqueue = (delayMs: number) => {
+        timer = schedule(tick, delayMs);
+        timer.unref?.();
+    };
     async function tick() {
-        if (stopped) return;
+        if(stopped)
+            return;
         state.running = true;
         state.lastStartedAt = now().toISOString();
         try {
             state.lastResult = await options.run();
             state.lastError = null;
             options.onResult?.(state.lastResult);
-        } catch {
-            state.lastError = "고객 여정 정기 처리 실패";
-            options.onError?.();
+        } catch(error) {
+            state.lastError = options.failureLabel ?? "고객 여정 정기 처리 실패";
+            options.onError?.(error);
         } finally {
             state.running = false;
             state.lastCompletedAt = now().toISOString();
-            if (!stopped) enqueue(5 * 60 * 1000);
+            if(!stopped)
+                enqueue(options.intervalMs ?? 5 * 60 * 1000);
         }
     }
-    enqueue(20_000);
-    return { state, stop() { stopped = true; cancel(timer); } };
+    enqueue(options.firstDelayMs ?? 20000);
+    return {
+        state, stop() {
+            stopped = true;
+            cancel(timer);
+        }
+    };
 }
-
 type Scheduler = ReturnType<typeof createJourneyScheduler>;
-const server = globalThis as typeof globalThis & { __sendbJourneyScheduler?: Scheduler };
+const server = globalThis as typeof globalThis & {
+    __sendbJourneyScheduler?: Scheduler;
+};
 
 export function journeySchedulerEnabled(env: Record<string, string | undefined>) {
     const config = journeyAlertConfig(env);
     return env.JOURNEY_ALERT_SCHEDULER === "on" && isProductionServer(env) && config.mode !== "off" && config.ids.length > 0 && !config.configurationError;
 }
-
 /** Next의 계측·라우트가 별도 번들로 로드되어도 서버 프로세스당 한 번만 시작한다. */
 export function startCustomerJourneyScheduler() {
-    if (server.__sendbJourneyScheduler || !journeySchedulerEnabled(process.env)) return;
+    if(server.__sendbJourneyScheduler || !journeySchedulerEnabled(process.env))
+        return;
     server.__sendbJourneyScheduler = createJourneyScheduler({
         run: async () => (await import("./customer-journey-alert")).processCustomerJourneyAlerts(),
         onResult: (result) => console.info("[customer-journey] 정기 처리 완료", JSON.stringify(result)),

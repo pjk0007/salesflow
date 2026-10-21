@@ -1,5 +1,5 @@
 /**
- * email_send_logs 색인 세 개를 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (DESIGN-SND 8-3, SND-15 — DESIGN-RPL과 같은 결론).
+ * 발송 로그·records 색인을 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (DESIGN-SND 8-3, SND-15 — DESIGN-RPL과 같은 결론).
  *
  * 마이그레이션(한 트랜잭션) 안에서 만들면 같은 트랜잭션의 ALTER TABLE … ADD COLUMN이 쥔 ACCESS EXCLUSIVE 잠금이 커밋까지 남아
  * 색인을 만드는 내내 그 표의 읽기까지 막힌다 (클릭 추적·수신거부 토큰·깊이 알림·대기열 워커가 멈춘다).
@@ -15,8 +15,12 @@ import postgres from "postgres";
 
 export const SEND_LOG_INDEX_LOCK_KEY = 0x5c4edf0a;
 
-/** schema.ts의 emailSendLogs 색인 선언과 같은 이름 */
+/** schema.ts의 색인 선언과 같은 이름 */
 export const SEND_LOG_INDEXES: ReadonlyArray<{ name: string; ddl: string }> = [
+    {
+        name: "records_org_created_at_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "records_org_created_at_idx" ON "records" ("org_id", "created_at")`,
+    },
     {
         name: "email_send_logs_org_sent_at_idx",
         ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_org_sent_at_idx" ON "email_send_logs" ("org_id", "sent_at")`,
@@ -51,6 +55,18 @@ export const SEND_LOG_INDEXES_READY_SQL = `
       AND i.indisvalid
 `;
 
+export const RECORDS_INDEX_READY_SQL = `
+    SELECT EXISTS (
+        SELECT 1
+        FROM pg_class c
+        JOIN pg_index i ON i.indexrelid = c.oid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = current_schema()
+          AND c.relname = 'records_org_created_at_idx'
+          AND i.indisvalid
+    ) AS ready
+`;
+
 export async function ensureSendLogIndexes(connectionString: string | undefined = process.env.DATABASE_URL): Promise<void> {
     if (!connectionString) return;
     const started = Date.now();
@@ -61,7 +77,7 @@ export async function ensureSendLogIndexes(connectionString: string | undefined 
         const lock = await client<{ ok: boolean }[]>`SELECT pg_try_advisory_lock(${SEND_LOG_INDEX_LOCK_KEY}) AS ok`;
         locked = lock[0]?.ok === true;
         if (!locked) {
-            console.log("[indexes] 다른 인스턴스가 email_send_logs 색인을 만드는 중 — 건너뜀");
+            console.log("[indexes] 다른 인스턴스가 email_send_logs·records 색인을 만드는 중 — 건너뜀");
             return;
         }
         // 이 연결에서만 시간 제한을 끈다 (큰 표는 몇 분 걸릴 수 있다)
@@ -84,9 +100,9 @@ export async function ensureSendLogIndexes(connectionString: string | undefined 
             created++;
         }
         const secs = Math.round((Date.now() - started) / 100) / 10;
-        console.log(`[indexes] email_send_logs 색인 준비됨 (${secs}초${created > 0 ? `, 새로 ${created}개` : ""})`);
+        console.log(`[indexes] email_send_logs·records 색인 준비됨 (${secs}초${created > 0 ? `, 새로 ${created}개` : ""})`);
     } catch (e) {
-        console.error(`[indexes] email_send_logs 색인 만들기 실패 — 다음 부팅에 다시: ${shortError(e)}`);
+        console.error(`[indexes] email_send_logs·records 색인 만들기 실패 — 다음 부팅에 다시: ${shortError(e)}`);
     } finally {
         if (client) {
             try {
