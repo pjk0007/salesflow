@@ -1,0 +1,69 @@
+== 새: 정확 주소 (count + 목록, /api/email/logs와 같은 조건)
+                                                                         QUERY PLAN                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=0.441..0.441 rows=1 loops=1)
+   Buffers: shared hit=1 read=2
+   ->  Index Scan using email_send_logs_org_recipient_lower_idx on email_send_logs (actual time=0.438..0.438 rows=0 loops=1)
+         Index Cond: ((org_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (lower((recipient_email)::text) = 'u123456@d2456.example.invalid'::text))
+         Buffers: shared hit=1 read=2
+ Planning:
+   Buffers: shared hit=160
+ Planning Time: 1.315 ms
+ Execution Time: 0.484 ms
+(9 rows)
+
+                                                                            QUERY PLAN                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.047..0.048 rows=0 loops=1)
+   Buffers: shared hit=6
+   ->  Sort (actual time=0.043..0.043 rows=0 loops=1)
+         Sort Key: sent_at DESC
+         Sort Method: quicksort  Memory: 25kB
+         Buffers: shared hit=6
+         ->  Index Scan using email_send_logs_org_recipient_lower_idx on email_send_logs (actual time=0.028..0.029 rows=0 loops=1)
+               Index Cond: ((org_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (lower((recipient_email)::text) = 'u123456@d2456.example.invalid'::text))
+               Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=113
+ Planning Time: 0.307 ms
+ Execution Time: 0.099 ms
+(13 rows)
+
+== 옛: ILIKE (같은 주소)
+                                                                                                             QUERY PLAN                                                                                                             
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Finalize Aggregate (actual time=180.958..182.736 rows=1 loops=1)
+   Buffers: shared hit=14221 read=35780
+   ->  Gather (actual time=180.839..182.725 rows=3 loops=1)
+         Workers Planned: 2
+         Workers Launched: 2
+         Buffers: shared hit=14221 read=35780
+         ->  Partial Aggregate (actual time=175.771..175.771 rows=1 loops=3)
+               Buffers: shared hit=14221 read=35780
+               ->  Parallel Seq Scan on email_send_logs (actual time=175.768..175.768 rows=0 loops=3)
+                     Filter: ((org_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (((recipient_email)::text ~~* '%u123456@d2456.example.invalid%'::text) OR ((subject)::text ~~* '%u123456@d2456.example.invalid%'::text)))
+                     Rows Removed by Filter: 100002
+                     Buffers: shared hit=14221 read=35780
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.280 ms
+ Execution Time: 182.769 ms
+(16 rows)
+
+                                                                            QUERY PLAN                                                                            
+------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.183..0.185 rows=1 loops=1)
+   Buffers: shared hit=6 read=1
+   ->  Sort (actual time=0.179..0.180 rows=1 loops=1)
+         Sort Key: sent_at DESC
+         Sort Method: quicksort  Memory: 27kB
+         Buffers: shared hit=6 read=1
+         ->  Index Scan using email_send_logs_org_recipient_lower_idx on email_send_logs (actual time=0.158..0.159 rows=1 loops=1)
+               Index Cond: ((org_id = '00000000-0000-4000-8000-0000000000a1'::uuid) AND (lower((recipient_email)::text) = 'u123456@d3456.example.invalid'::text))
+               Buffers: shared hit=3 read=1
+ Planning:
+   Buffers: shared hit=265
+ Planning Time: 4.178 ms
+ Execution Time: 0.248 ms
+(13 rows)
+

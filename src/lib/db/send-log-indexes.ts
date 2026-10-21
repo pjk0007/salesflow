@@ -1,5 +1,5 @@
 /**
- * email_send_logs 색인 두 개를 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (DESIGN-SND 8-3, SND-15 — DESIGN-RPL과 같은 결론).
+ * email_send_logs 색인 세 개를 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (DESIGN-SND 8-3, SND-15 — DESIGN-RPL과 같은 결론).
  *
  * 마이그레이션(한 트랜잭션) 안에서 만들면 같은 트랜잭션의 ALTER TABLE … ADD COLUMN이 쥔 ACCESS EXCLUSIVE 잠금이 커밋까지 남아
  * 색인을 만드는 내내 그 표의 읽기까지 막힌다 (클릭 추적·수신거부 토큰·깊이 알림·대기열 워커가 멈춘다).
@@ -24,6 +24,10 @@ export const SEND_LOG_INDEXES: ReadonlyArray<{ name: string; ddl: string }> = [
     {
         name: "email_send_logs_request_id_idx",
         ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_request_id_idx" ON "email_send_logs" ("request_id") WHERE "request_id" IS NOT NULL`,
+    },
+    {
+        name: "email_send_logs_org_recipient_lower_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_org_recipient_lower_idx" ON "email_send_logs" ("org_id", lower("recipient_email"))`,
     },
 ];
 

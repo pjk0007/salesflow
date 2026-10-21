@@ -267,7 +267,7 @@ export default function EmailSendLogTable() {
                 <div className="relative flex-1 sm:max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="수신자 이메일 또는 제목 검색..."
+                        placeholder="수신자 이메일 주소 전체 또는 제목"
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
                         className="pl-9"

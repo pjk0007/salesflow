@@ -1,0 +1,13 @@
+== 빈 DB(salesflow_search) 부팅 로그 중 색인 줄
+[indexes] email_send_logs 색인 준비됨 (53.7초, 새로 2개)
+== pg_index (부팅 뒤 + 재현 시험 뒤 재조회)
+                 relname                 | indisvalid |                                                           pg_get_indexdef                                                           
+-----------------------------------------+------------+-------------------------------------------------------------------------------------------------------------------------------------
+ email_send_logs_org_recipient_lower_idx | t          | CREATE INDEX email_send_logs_org_recipient_lower_idx ON public.email_send_logs USING btree (org_id, lower((recipient_email)::text))
+ email_send_logs_org_sent_at_idx         | t          | CREATE INDEX email_send_logs_org_sent_at_idx ON public.email_send_logs USING btree (org_id, sent_at)
+ email_send_logs_request_id_idx          | t          | CREATE INDEX email_send_logs_request_id_idx ON public.email_send_logs USING btree (request_id) WHERE (request_id IS NOT NULL)
+ email_send_logs_unsubscribe_token_idx   | t          | CREATE UNIQUE INDEX email_send_logs_unsubscribe_token_idx ON public.email_send_logs USING btree (unsubscribe_token)
+(4 rows)
+
+== 표 크기
+300006 rows, 391 MB

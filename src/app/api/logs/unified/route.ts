@@ -1,3 +1,4 @@
+import { isExactEmailSearch } from "@/lib/send-log-search";
 import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import { NextRequest, NextResponse } from "next/server";
@@ -23,6 +24,10 @@ export async function GET(req: NextRequest) {
         const endDate = searchParams.get("endDate") || "";
         const recordId = searchParams.get("recordId") ? Number(searchParams.get("recordId")) : null;
         const search = searchParams.get("search") || "";
+        const isExactSearch = isExactEmailSearch(search);
+        if (isExactSearch && channel === "alimtalk") {
+            return NextResponse.json({ success: true, data: [], total: 0, page, pageSize, totalPages: 0 });
+        }
 
         function buildSubquery(
             type: "alimtalk" | "email",
@@ -51,7 +56,9 @@ export async function GET(req: NextRequest) {
                 q = sql`${q} AND sent_at <= ${end.toISOString()}::timestamptz`;
             }
             if (recordId) q = sql`${q} AND record_id = ${recordId}`;
-            if (search) {
+            if (isExactSearch) {
+                q = sql`${q} AND lower(recipient_email) = lower(${search.trim()})`;
+            } else if (search) {
                 const like = `%${search}%`;
                 q = sql`${q} AND (${sql.raw(recipientCol)} ILIKE ${like} OR ${sql.raw(titleCol)} ILIKE ${like})`;
             }
@@ -61,7 +68,9 @@ export async function GET(req: NextRequest) {
 
         let unionQuery;
 
-        if (channel === "alimtalk") {
+        if (isExactSearch) {
+            unionQuery = buildSubquery("email", user.orgId);
+        } else if (channel === "alimtalk") {
             unionQuery = buildSubquery("alimtalk", user.orgId);
         } else if (channel === "email") {
             unionQuery = buildSubquery("email", user.orgId);

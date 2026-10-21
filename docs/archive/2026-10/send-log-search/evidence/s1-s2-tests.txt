@@ -1,0 +1,12 @@
+✔ S2: 수신자 색인은 부팅 뒤 CONCURRENTLY·IF NOT EXISTS로 생성 (0.755791ms)
+✔ S2: 수신자 색인은 어느 마이그레이션 SQL에도 포함하지 않는다 (30.605958ms)
+✔ S1: 전체 이메일 주소는 대소문자·앞뒤 공백과 무관하게 정확 검색 (0.54175ms)
+✔ S1: 부분 주소·공백·퍼센트·빈 값은 기존 부분 검색 (0.094375ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 359.32475

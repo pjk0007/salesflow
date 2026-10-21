@@ -1,0 +1,106 @@
+{
+  "version": 1,
+  "cycleId": "2026-10-21-send-log-search",
+  "behaviors": [
+    {
+      "id": "S1",
+      "desc": "isExactEmailSearch 경계: 주소 모양만 true",
+      "priority": "P1",
+      "target": "src/lib/send-log-search.ts:2-4",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/send-log-search.test.ts",
+        "cmd": "pnpm exec tsx --test src/lib/send-log-search.test.ts src/lib/db/send-log-indexes.test.ts",
+        "output": "ℹ pass 4",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "S2",
+      "desc": "SEND_LOG_INDEXES에 (org_id, lower(recipient_email)) 색인 CONCURRENTLY 추가, schema 이름 일치, 마이그레이션·journal 무변경, 부팅 뒤 valid",
+      "priority": "P1",
+      "target": "src/lib/db/send-log-indexes.ts:28-31",
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "src/lib/db/send-log-indexes.test.ts",
+        "cmd": "pnpm exec tsx --test src/lib/send-log-search.test.ts src/lib/db/send-log-indexes.test.ts",
+        "output": "ℹ pass 4",
+        "at": "2026-10-21",
+        "note": "부팅·indisvalid: docs/2026-10-21-send-log-search/evidence/boot-index.txt (\"[indexes] email_send_logs 색인 준비됨 (53.7초, 새로 2개)\", email_send_logs_org_recipient_lower_idx | t)"
+      }
+    },
+    {
+      "id": "S3",
+      "desc": "/api/email/logs 정확 주소 검색: 대소문자·공백 무관, 다른 주소·제목 일치 제외",
+      "priority": "P1",
+      "target": "src/app/api/email/logs/route.ts:26-28",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-21-send-log-search/evidence/api.txt",
+        "cmd": "로컬 3200(salesflow_search) GET /api/email/logs?search=info@inzent.com, %20Info@INZENT.com%20",
+        "output": "둘 다 총 2(A1 정확·A2 대문자), 같은 도메인·접두 다름·제목 포함 제외",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "S4",
+      "desc": "/api/logs/unified 정확 주소 검색은 S3과 같고 알림톡 제외, 비주소 검색어는 기존과 같음",
+      "priority": "P1",
+      "target": "src/app/api/logs/unified/route.ts:27-30,59-61,71-73",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-21-send-log-search/evidence/api.txt",
+        "cmd": "GET /api/logs/unified?search=info@inzent.com / &channel=alimtalk / ?search=inzent",
+        "output": "정확: 총 2 이메일만, alimtalk 0; 부분 inzent: 총 6(알림톡 포함, 기존 ILIKE)",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "S5",
+      "desc": "정확 주소 검색이 새 색인을 쓰고 1초 안",
+      "priority": "P1",
+      "target": "src/lib/db/send-log-indexes.ts:28-31",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-21-send-log-search/evidence/explain.txt",
+        "cmd": "EXPLAIN (ANALYZE, BUFFERS) 30만 행 391MB",
+        "output": "정확: Index Scan email_send_logs_org_recipient_lower_idx 0.25~0.48ms, 블록 3~6; 옛 ILIKE: Parallel Seq Scan 182.8ms, 블록 5만. API 첫 호출 0.78s(컴파일 포함) 이후 0.01~0.03s",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "S6",
+      "desc": "조직 격리",
+      "priority": "P1",
+      "target": "src/app/api/email/logs/route.ts:23",
+      "passes": true,
+      "evidence": {
+        "kind": "manual",
+        "ref": "docs/2026-10-21-send-log-search/evidence/api.txt",
+        "cmd": "조직 B 토큰으로 같은 검색",
+        "output": "두 라우트 모두 총 1(B1만)",
+        "at": "2026-10-21"
+      }
+    },
+    {
+      "id": "S7",
+      "desc": "pnpm test·tsc·eslint 통과",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-21-send-log-search/evidence/pnpm-test-tmpdir.txt",
+        "cmd": "pnpm exec tsc --noEmit",
+        "output": "tsc 0",
+        "at": "2026-10-21",
+        "note": "pnpm test(TMPDIR=.local-check-tmp): tests 1529 pass 1527 fail 1 skipped 1 — 실패는 변경 없는 channel-source-export/output.test.ts 시간 제한, 단독 재실행 pass 12 fail 0(docs/2026-10-21-send-log-search/evidence/flaky-output-test.txt). eslint 9파일 exit 0(docs/2026-10-21-send-log-search/evidence/eslint.txt)"
+      }
+    }
+  ]
+}

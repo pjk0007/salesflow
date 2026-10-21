@@ -1,3 +1,4 @@
+import { isExactEmailSearch } from "@/lib/send-log-search";
 import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import { NextRequest, NextResponse } from "next/server";
@@ -22,7 +23,9 @@ export async function GET(req: NextRequest) {
         const conditions = [eq(emailSendLogs.orgId, user.orgId)];
 
         const search = searchParams.get("search");
-        if (search) {
+        if (search && isExactEmailSearch(search)) {
+            conditions.push(sql`lower(${emailSendLogs.recipientEmail}) = lower(${search.trim()})`);
+        } else if (search) {
             conditions.push(
                 or(
                     ilike(emailSendLogs.recipientEmail, `%${search}%`),

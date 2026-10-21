@@ -773,6 +773,7 @@ export const emailSendLogs = pgTable("email_send_logs", {
     // 마이그레이션에는 없다 — 부팅 뒤 트랜잭션 밖에서 CONCURRENTLY로 만든다 (src/lib/db/send-log-indexes.ts, DESIGN-SND 8-3).
     // 이 저장소는 db:generate를 쓰지 않으므로 이 선언이 마이그레이션을 만들지 않는다. 이름은 send-log-indexes.ts와 같다
     index("email_send_logs_org_sent_at_idx").on(table.orgId, table.sentAt),
+    index("email_send_logs_org_recipient_lower_idx").on(table.orgId, sql`lower(${table.recipientEmail})`),
     index("email_send_logs_request_id_idx").on(table.requestId).where(sql`request_id IS NOT NULL`),
 ]);
 

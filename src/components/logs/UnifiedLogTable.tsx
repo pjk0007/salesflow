@@ -142,7 +142,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
 
                     <div className="flex gap-2">
                         <Input
-                            placeholder="수신자/제목 검색"
+                            placeholder="수신자/제목 또는 이메일 주소 전체"
                             value={searchInput}
                             onChange={(e) => setSearchInput(e.target.value)}
                             onKeyDown={handleSearchKeyDown}

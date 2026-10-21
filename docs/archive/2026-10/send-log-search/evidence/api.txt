@@ -1,0 +1,10 @@
+== S3 /api/email/logs (조직 A)
+search=info@inzent.com | 시간 0.776964s | 총 2 | [('email', 'Info@Inzent.COM', 'A2 대문자'), ('email', 'info@inzent.com', 'A1 정확')]
+search=%20Info@INZENT.com%20 | 시간 0.032320s | 총 2 | [('email', 'Info@Inzent.COM', 'A2 대문자'), ('email', 'info@inzent.com', 'A1 정확')]
+== S4 /api/logs/unified (조직 A)
+전체채널 search=info@inzent.com | 시간 0.014362s | 총 2 | [('email', 'Info@Inzent.COM', 'A2 대문자'), ('email', 'info@inzent.com', 'A1 정확')]
+channel=alimtalk | 시간 0.004817s | 총 0 | []
+부분 search=inzent (기존 ILIKE) | 시간 0.239221s | 총 6 | [('alimtalk', '01000000000', '알림 info@inzent.com'), ('email', 'inzent@inzent.com', 'A3 같은 도메인 다른 주소'), ('email', 'other@example.invalid', 'A4 제목에 info@inzent.com 포함'), ('email', 'xinfo@inzent.com', 'A5 접두 다름'), ('email', 'Info@Inzent.COM', 'A2 대문자'), ('email', 'info@inzent.com', 'A1 정확')]
+== S6 조직 B
+B /api/email/logs | 시간 0.010700s | 총 1 | [('email', 'info@inzent.com', 'B1 다른 조직')]
+B unified | 시간 0.006844s | 총 1 | [('email', 'info@inzent.com', 'B1 다른 조직')]
