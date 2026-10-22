@@ -232,7 +232,7 @@ export const partitions = pgTable("partitions", {
         countPerDay: number;
         lastRunDate?: string; // "YYYY-MM-DD" — 하루 1회 실행 보장
     } | null>(),
-    // 고객 행동(웹폼·외부 API·광고 리드)으로 레코드가 생기면 알릴 구글챗 스페이스 (마이그레이션 0121). NULL이면 알리지 않는다
+    // 고객 행동(웹폼·외부 API·광고 리드)으로 레코드가 생기면 알릴 구글챗 스페이스 (마이그레이션 0122). NULL이면 알리지 않는다
     chatSpaceId: integer("chat_space_id").references(() => chatSpaces.id, { onDelete: "set null" }),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
