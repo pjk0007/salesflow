@@ -220,25 +220,21 @@ export default function OrgTeamTab() {
                                                             </Button>
                                                         </DropdownMenuTrigger>
                                                         <DropdownMenuContent align="end">
-                                                            {isOwner && (
-                                                                <>
-                                                                    <DropdownMenuItem
-                                                                        disabled={member.role === "admin"}
-                                                                        onClick={() => handleRoleChange(member.id, "admin")}
-                                                                    >
-                                                                        <Shield className="h-4 w-4 mr-2 text-blue-500" />
-                                                                        관리자로 변경
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuItem
-                                                                        disabled={member.role === "member"}
-                                                                        onClick={() => handleRoleChange(member.id, "member")}
-                                                                    >
-                                                                        <UserCircle className="h-4 w-4 mr-2 text-green-500" />
-                                                                        멤버로 변경
-                                                                    </DropdownMenuItem>
-                                                                    <DropdownMenuSeparator />
-                                                                </>
-                                                            )}
+                                                            <DropdownMenuItem
+                                                                disabled={member.role === "admin"}
+                                                                onClick={() => handleRoleChange(member.id, "admin")}
+                                                            >
+                                                                <Shield className="h-4 w-4 mr-2 text-blue-500" />
+                                                                관리자로 변경
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem
+                                                                disabled={member.role === "member"}
+                                                                onClick={() => handleRoleChange(member.id, "member")}
+                                                            >
+                                                                <UserCircle className="h-4 w-4 mr-2 text-green-500" />
+                                                                멤버로 변경
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuSeparator />
                                                             {member.role === "member" && (
                                                                 <>
                                                                     <DropdownMenuItem
@@ -346,8 +342,8 @@ export default function OrgTeamTab() {
                         {(Object.entries(roleConfig) as [OrgRole, typeof roleConfig.owner][]).map(([role, config]) => {
                             const Icon = config.icon;
                             const permissions: Record<OrgRole, string[]> = {
-                                owner: ["모든 권한", "조직 삭제", "역할 변경", "관리자 초대"],
-                                admin: ["멤버 초대", "멤버 제거", "설정 수정"],
+                                owner: ["모든 권한", "조직 삭제", "관리자 강등/제거"],
+                                admin: ["멤버·관리자 초대", "멤버를 관리자로 변경", "멤버 제거", "설정 수정"],
                                 member: ["데이터 조회/편집", "파티션별 권한 설정 가능"],
                             };
                             return (
@@ -393,7 +389,7 @@ export default function OrgTeamTab() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="member">멤버</SelectItem>
-                                    {isOwner && <SelectItem value="admin">관리자</SelectItem>}
+                                    <SelectItem value="admin">관리자</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

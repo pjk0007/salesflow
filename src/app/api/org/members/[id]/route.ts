@@ -46,11 +46,6 @@ export async function PATCH(
             return NextResponse.json({ success: false, error: "소유자의 역할은 변경할 수 없습니다." }, { status: 403 });
         }
 
-        // admin은 admin 승격 불가
-        if (user.role === "admin" && role === "admin") {
-            return NextResponse.json({ success: false, error: "관리자 승격 권한이 없습니다." }, { status: 403 });
-        }
-
         // admin은 다른 admin 변경 불가
         if (user.role === "admin" && target.role === "admin") {
             return NextResponse.json({ success: false, error: "관리자의 역할을 변경할 수 없습니다." }, { status: 403 });
