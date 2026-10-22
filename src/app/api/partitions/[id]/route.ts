@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, records, fieldDefinitions, folders } from "@/lib/db";
+import { db, partitions, records, fieldDefinitions, folders, chatSpaces } from "@/lib/db";
 import { eq, and, count } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
@@ -59,7 +59,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 파티션 ID입니다." }, { status: 400 });
     }
 
-    const { name, folderId, fieldTypeId, visibleFields, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig, scheduledRegistrationConfig } = await req.json();
+    const { name, folderId, fieldTypeId, visibleFields, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig, scheduledRegistrationConfig, chatSpaceId } = await req.json();
 
     // name-only 업데이트가 아닌 경우에도 지원
     if (name !== undefined && (!name || !String(name).trim())) {
@@ -149,6 +149,25 @@ export async function PATCH(
 
         if (distributionDefaults !== undefined) {
             updateData.distributionDefaults = distributionDefaults;
+        }
+
+        // 구글챗 알림 스페이스 — 고객 연락처가 나가는 곳이라 관리자만 바꾼다. 같은 조직의 스페이스만 고를 수 있다
+        if (chatSpaceId !== undefined) {
+            if (user.role === "member") {
+                return NextResponse.json({ success: false, error: "구글챗 알림 설정은 관리자만 변경할 수 있습니다." }, { status: 403 });
+            }
+            if (chatSpaceId === null) {
+                updateData.chatSpaceId = null;
+            } else {
+                const [space] = await db
+                    .select({ id: chatSpaces.id })
+                    .from(chatSpaces)
+                    .where(and(eq(chatSpaces.id, Number(chatSpaceId)), eq(chatSpaces.orgId, user.orgId)));
+                if (!space) {
+                    return NextResponse.json({ success: false, error: "구글챗 스페이스를 찾을 수 없습니다." }, { status: 400 });
+                }
+                updateData.chatSpaceId = space.id;
+            }
         }
 
         if (duplicateConfig !== undefined) {
