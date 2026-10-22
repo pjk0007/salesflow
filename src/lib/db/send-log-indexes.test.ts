@@ -10,6 +10,29 @@ test("S2: 수신자 색인은 부팅 뒤 CONCURRENTLY·IF NOT EXISTS로 생성",
     const schema = readFileSync(new URL("./schema.ts", import.meta.url), "utf8");
     assert.ok(schema.includes('index("email_send_logs_org_recipient_lower_idx").on(table.orgId, sql`lower(${table.recipientEmail})`)'));
 });
+test("발송 중복 확인·레코드별 조회 색인은 부팅 뒤 CONCURRENTLY로 만들고 schema.ts와 이름이 같다", () => {
+    const expected: Record<string, [string, string]> = {
+        email_send_logs_partition_recipient_idx: [
+            'CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_partition_recipient_idx" ON "email_send_logs" ("partition_id", "recipient_email")',
+            'index("email_send_logs_partition_recipient_idx").on(table.partitionId, table.recipientEmail)',
+        ],
+        email_send_logs_template_link_recipient_idx: [
+            'CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_template_link_recipient_idx" ON "email_send_logs" ("template_link_id", "recipient_email") WHERE "template_link_id" IS NOT NULL',
+            'index("email_send_logs_template_link_recipient_idx").on(table.templateLinkId, table.recipientEmail).where(sql`template_link_id IS NOT NULL`)',
+        ],
+        email_send_logs_record_idx: [
+            'CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_record_idx" ON "email_send_logs" ("record_id") WHERE "record_id" IS NOT NULL',
+            'index("email_send_logs_record_idx").on(table.recordId).where(sql`record_id IS NOT NULL`)',
+        ],
+    };
+    const schema = readFileSync(new URL("./schema.ts", import.meta.url), "utf8");
+    for (const [name, [ddl, declaration]] of Object.entries(expected)) {
+        const indexes = SEND_LOG_INDEXES.filter(index => index.name === name);
+        assert.equal(indexes.length, 1, name);
+        assert.equal(indexes[0].ddl, ddl);
+        assert.ok(schema.includes(declaration), name);
+    }
+});
 test("S2: 수신자 색인은 어느 마이그레이션 SQL에도 포함하지 않는다", () => {
     const migrations = new URL("../../../drizzle/", import.meta.url);
     for (const name of readdirSync(migrations).filter(name => name.endsWith(".sql"))) {

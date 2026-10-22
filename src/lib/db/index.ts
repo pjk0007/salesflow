@@ -18,7 +18,21 @@ function poolMax(): number {
     return Number.isSafeInteger(n) && n >= 5 && n <= 200 ? n : 20;
 }
 
-export const queryClient = postgres(connectionString, { max: poolMax() });
+/**
+ * 풀 연결의 기본 쿼리 시간 제한(ms). 제한이 없으면 느린 조회가 끝날 때까지 연결을 쥐어 풀이 바닥나고 사이트 전체가 멈춘다
+ * (2026-10-22 장애) — 기본 60초, DATABASE_STATEMENT_TIMEOUT_MS로 바꾸고 0이면 끈다.
+ * 더 오래 걸리는 정기 작업은 reserve()한 연결에서 SET statement_timeout으로 따로 정한다(RESET하면 이 값으로 돌아온다).
+ */
+export function statementTimeoutMs(raw = process.env.DATABASE_STATEMENT_TIMEOUT_MS): number {
+    const value = (raw ?? "").trim();
+    const n = /^\d+$/.test(value) ? Number(value) : NaN;
+    return Number.isSafeInteger(n) && n <= 3_600_000 ? n : 60_000;
+}
+
+export const queryClient = postgres(connectionString, {
+    max: poolMax(),
+    connection: { statement_timeout: statementTimeoutMs() },
+});
 export const db = drizzle(queryClient, { schema });
 
 export * from "./schema";

@@ -33,6 +33,20 @@ export const SEND_LOG_INDEXES: ReadonlyArray<{ name: string; ddl: string }> = [
         name: "email_send_logs_org_recipient_lower_idx",
         ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_org_recipient_lower_idx" ON "email_send_logs" ("org_id", lower("recipient_email"))`,
     },
+    // 발송 직전 중복 확인(같은 파티션·같은 규칙에 이 주소로 보냈나)과 레코드별 발송 조회가 매번 표 전체를 훑어
+    // 디스크 읽기로 연결 풀이 바닥났다 (2026-10-22 운영 장애)
+    {
+        name: "email_send_logs_partition_recipient_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_partition_recipient_idx" ON "email_send_logs" ("partition_id", "recipient_email")`,
+    },
+    {
+        name: "email_send_logs_template_link_recipient_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_template_link_recipient_idx" ON "email_send_logs" ("template_link_id", "recipient_email") WHERE "template_link_id" IS NOT NULL`,
+    },
+    {
+        name: "email_send_logs_record_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_record_idx" ON "email_send_logs" ("record_id") WHERE "record_id" IS NOT NULL`,
+    },
 ];
 
 function shortError(e: unknown): string {
