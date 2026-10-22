@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
+import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
 
 // GET: Meta Webhook 검증
 export async function GET(req: NextRequest) {
@@ -296,6 +297,9 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
                 orgId: integration.orgId,
             });
         }
+
+        notifyRecordChatAlert({ recordId: newRecord.id, source: "meta_ad" })
+            .catch((e) => console.error("Record chat alert error:", e));
     } catch (err) {
         await db.insert(adLeadLogs).values({
             integrationId: integration.id,
