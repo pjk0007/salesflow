@@ -799,6 +799,9 @@ export const emailSendLogs = pgTable("email_send_logs", {
     index("email_send_logs_org_sent_at_idx").on(table.orgId, table.sentAt),
     index("email_send_logs_org_recipient_lower_idx").on(table.orgId, sql`lower(${table.recipientEmail})`),
     index("email_send_logs_request_id_idx").on(table.requestId).where(sql`request_id IS NOT NULL`),
+    index("email_send_logs_partition_recipient_idx").on(table.partitionId, table.recipientEmail),
+    index("email_send_logs_template_link_recipient_idx").on(table.templateLinkId, table.recipientEmail).where(sql`template_link_id IS NOT NULL`),
+    index("email_send_logs_record_idx").on(table.recordId).where(sql`record_id IS NOT NULL`),
 ]);
 
 // ============================================
