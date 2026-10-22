@@ -1,9 +1,8 @@
 "use client";
 import { ConversationServiceStatus } from "@/components/inbox-operations/ui/ConversationServiceStatus";
-import { IncomingEmailFiles } from "@/components/inbox-email/ui/IncomingEmailFiles";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
@@ -11,11 +10,10 @@ import { inboxRequest, inboxWrite } from "../api";
 import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
 import type { StaffDraftSession } from "../hooks/staff-draft-session";
 import { AttachmentDrafts } from "./AttachmentDrafts";
-import { AttachmentList } from "./AttachmentList";
+import { MessageHistory } from "./MessageHistory";
 import { InboxAudit } from "./InboxAudit";
 import { CustomerCrmContext } from "./CustomerCrmContext";
 import { ConversationJourneyPanel } from "@/components/inbox-journey/ui/ConversationJourneyPanel";
-import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliveryStatus";
 import { EmailReplyRecipients } from "@/components/inbox-email/ui/EmailReplyRecipients";
 import { useEmailReply } from "@/components/inbox-email/hooks/useEmailReply";
 import { useNoteMentions } from "@/components/inbox-collaboration/hooks/useNoteMentions";
@@ -49,6 +47,7 @@ export function ConversationPane({
     onDismissMention,
     presenceAgents,
     onActivity,
+    onSent,
 }: {
     draftSession: StaffDraftSession;
     userId: string;
@@ -63,6 +62,7 @@ export function ConversationPane({
     onDismissMention: () => void;
     presenceAgents: InboxPresence["agents"];
     onActivity: (activity: AgentActivity | null) => void;
+    onSent: (conversationId: string, message: ChatMessage) => Promise<unknown>;
 }) {
     const workspaceId = bootstrap.channels.find(
         (c) => c.id === chat.channelId,
@@ -236,7 +236,7 @@ export function ConversationPane({
         try {
             const attachmentIds = await attachments.prepare(uploadUrl, kind, undefined, operation);
             operation.assertCurrent();
-            await inboxRequest(`/api/inbox/conversations/${chat.id}`, {
+            const sent = await inboxRequest<ChatMessage>(`/api/inbox/conversations/${chat.id}`, {
                 method: "POST",
                 signal: operation.signal,
                 body: JSON.stringify({
@@ -259,11 +259,15 @@ export function ConversationPane({
                 } else localStorage.removeItem(draftStorageKey + ":note-mentions");
             } catch {}
             operation.complete();
+            await onSent(chat.id, sent);
             if (mounted.current) {
                 onActivity(null);
                 follow.current = true;
-                await refresh();
-                if (operation.isCurrent() && mounted.current) void guard.refresh();
+                // The POST is confirmed. A slow/failed refresh must not look like a failed send.
+                void refresh().catch(() => {
+                    if (mounted.current) toast.info("메시지는 저장됐습니다. 최신 상담 정보를 다시 불러와주세요.");
+                });
+                void guard.refresh();
             }
         } catch (e) {
             if (operation.isCurrent()) {
@@ -277,10 +281,10 @@ export function ConversationPane({
             operation.finish();
         }
     }
-    const allMessages = [
-        ...older.filter((o) => !messages.some((m) => m.id === o.id)),
-        ...messages,
-    ];
+    const allMessages = useMemo(() => {
+        const ids = new Set(messages.map(m => m.id));
+        return [...older.filter(m => !ids.has(m.id)), ...messages];
+    }, [older, messages]);
     return (
         <div className="flex min-h-0 min-w-0 flex-1">
             <section className="flex min-w-0 flex-1 flex-col bg-background">
@@ -475,161 +479,7 @@ export function ConversationPane({
                             고객이 문의를 작성하고 있습니다.
                         </p>
                     )}
-                    {allMessages.map((m, index) => (
-                        <Fragment key={m.id}>
-                            {(!index ||
-                                new Date(
-                                    allMessages[index - 1].createdAt,
-                                ).toDateString() !==
-                                    new Date(m.createdAt).toDateString()) && (
-                                <div className="pb-2 text-center text-xs text-muted-foreground">
-                                    {new Date(m.createdAt).toLocaleDateString(
-                                        "ko-KR",
-                                        {
-                                            year: "numeric",
-                                            month: "long",
-                                            day: "numeric",
-                                        },
-                                    )}
-                                </div>
-                            )}
-                            <div
-                                className={`flex ${m.kind === "customer" ? "justify-start" : "justify-end"}`}
-                            >
-                                <div className="max-w-[85%] space-y-1.5">
-                                    <div
-                                        className={`flex items-center gap-1.5 text-[11px] text-muted-foreground ${m.kind !== "customer" ? "justify-end" : ""}`}
-                                    >
-                                        {m.kind === "note" && (
-                                            <LockKeyhole size={11} />
-                                        )}
-                                        {m.authorName}
-                                        {m.kind === "note"
-                                            ? " · 내부 메모"
-                                            : ""}
-                                        <time>
-                                            {new Date(
-                                                m.createdAt,
-                                            ).toLocaleTimeString("ko-KR", {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                            })}
-                                        </time>
-                                    </div>
-                                    {chat.historyOnly && (
-                                        <p className="text-[10px] text-muted-foreground">
-                                            {new Date(
-                                                m.createdAt,
-                                            ).toLocaleString("ko-KR")}{" "}
-                                            · 원본{" "}
-                                            {m.importMetadata?.sourceId ?? ""}
-                                        </p>
-                                    )}
-                                    {m.email && (
-                                        <p className="text-[11px] text-muted-foreground">
-                                            {m.email.subject} ·{" "}
-                                            {new Date(
-                                                m.email.receivedAt,
-                                            ).toLocaleString("ko-KR")}
-                                            {m.email.cc.length
-                                                ? ` · 참조 ${m.email.cc.join(", ")}`
-                                                : ""}
-                                        </p>
-                                    )}
-                                    {m.body && (
-                                        <p
-                                            className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
-                                        >
-                                            {m.body}
-                                        </p>
-                                    )}
-                                    {m.kind === "note" &&
-                                        !!m.mentions?.length && (
-                                            <p className="text-xs text-amber-800">
-                                                {m.mentions
-                                                    .map(
-                                                        (person) =>
-                                                            `@${person.name}`,
-                                                    )
-                                                    .join(" ")}
-                                            </p>
-                                        )}
-                                    {m.email && (
-                                        <details className="text-xs text-muted-foreground">
-                                            <summary>
-                                                메일 발신·수신 정보
-                                            </summary>
-                                            <p className="break-all">
-                                                보낸 사람: {m.email.from}
-                                            </p>
-                                            <p className="break-all">
-                                                받는 사람:{" "}
-                                                {m.email.to.join(", ")}
-                                            </p>
-                                            <p className="break-all">
-                                                참조:{" "}
-                                                {m.email.cc.join(", ") ||
-                                                    "없음"}
-                                            </p>
-                                            {!!m.email.replyTo?.length && (
-                                                <p className="break-all">
-                                                    회신 주소:{" "}
-                                                    {m.email.replyTo.join(", ")}
-                                                </p>
-                                            )}
-                                        </details>
-                                    )}
-                                    {m.delivery && (
-                                        <EmailDeliveryStatus
-                                            canRespond={canRespond}
-                                            item={m.delivery}
-                                            refresh={refresh}
-                                        />
-                                    )}
-                                    {!!m.email?.files.length && (
-                                        <IncomingEmailFiles
-                                            canRetry={canRespond}
-                                            files={m.email.files}
-                                            refresh={refresh}
-                                        />
-                                    )}
-                                    <AttachmentList
-                                        files={m.attachments}
-                                        url={(id) =>
-                                            `/api/inbox/attachments/${id}`
-                                        }
-                                    />
-                                    {!!m.importMetadata?.files?.length && (
-                                        <p className="mt-2 text-xs text-muted-foreground">
-                                            원본 첨부 ·{" "}
-                                            {m.importMetadata.files
-                                                .map((f) =>
-                                                    String(
-                                                        f.name ||
-                                                            f.fileName ||
-                                                            f.id ||
-                                                            "파일",
-                                                    ),
-                                                )
-                                                .join(", ")}{" "}
-                                            · 파일 원본{" "}
-                                            {
-                                                m.attachments.filter(
-                                                    (f) =>
-                                                        f.importMetadata &&
-                                                        !f.importMetadata
-                                                            .previousSource,
-                                                ).length
-                                            }
-                                            /{m.importMetadata.files.length}개
-                                            확보. 미확보 파일은 기존 자료
-                                            이전에서 보충할 수 있습니다.
-                                        </p>
-                                    )}
-                                </div>
-                            </div>
-                        </Fragment>
-                    ))}
+                    <MessageHistory messages={allMessages} historyOnly={chat.historyOnly} canRespond={canRespond} refresh={refresh} />
                     <div ref={end} />
                 </div>
                 <ConversationPresence agents={presenceAgents} userId={userId} />
