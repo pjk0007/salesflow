@@ -1,3 +1,4 @@
+import { acquireWorkerLock } from "./db/worker-lock";
 /**
  * 회신 받기 워커 — 5분마다 회신 메일함(Gmail)에서 샌드비 발신 주소 앞으로 온 메일만 읽어 발송 기록에 잇고,
  * 사람 회신이면 그 사업의 자동 메일을 멈추고 알린다. 반송 안내는 SND 신호로 넘긴다.
@@ -13,7 +14,7 @@
  * 설계: docs/2026-10-11-reply-and-health/DESIGN-RPL.md
  */
 import { sql } from "drizzle-orm";
-import { db, queryClient } from "@/lib/db";
+import { db } from "@/lib/db";
 import type { DbExec, DbTx } from "@/lib/db/tx";
 import {
     GmailApiError,
@@ -212,12 +213,9 @@ export async function processReplySync(opts: { now?: Date; env?: Env; fetchImpl?
         return { ...stats, noWorkspaces: true };
     }
 
-    const conn = await queryClient.reserve();
-    let acquired = false;
+    const workerLock = await acquireWorkerLock(REPLY_LOCK_KEY);
     try {
-        const lock = await conn<{ acquired: boolean }[]>`SELECT pg_try_advisory_lock(${REPLY_LOCK_KEY}) AS acquired`;
-        acquired = lock[0]?.acquired === true;
-        if (!acquired) {
+        if (!workerLock) {
             console.log("[reply-sync] 다른 회차가 도는 중 — 건너뜀");
             return { ...stats, skippedAsLocked: true };
         }
@@ -230,12 +228,7 @@ export async function processReplySync(opts: { now?: Date; env?: Env; fetchImpl?
         }
         throw e;
     } finally {
-        if (acquired) {
-            await conn`SELECT pg_advisory_unlock(${REPLY_LOCK_KEY})`.catch((e: unknown) => {
-                console.error(`[reply-sync] 잠금 풀기 실패: ${describeReplyError(e)}`);
-            });
-        }
-        conn.release();
+        await workerLock?.release();
     }
 }
 

@@ -1,4 +1,5 @@
-import { db, queryClient, emailSendQueue, emailAutoPersonalizedLinks, emailSendLogs, records } from "@/lib/db";
+import { acquireWorkerLock } from "./db/worker-lock";
+import { db, emailSendQueue, emailAutoPersonalizedLinks, emailSendLogs, records } from "@/lib/db";
 import { sql, eq, and, or, gt, gte, lt, inArray, like } from "drizzle-orm";
 import { addDaysYmd, kstParts, kstToDate } from "@/lib/kst";
 import type { SQL } from "drizzle-orm";
@@ -114,17 +115,10 @@ export async function processEmailSendQueue(options: { deliveryOnly?: boolean } 
         reclaimed: 0,
     };
 
-    // 락을 잡은 커넥션에서 해제해야 하므로 전용 커넥션을 확보한다.
-    // 풀에서 매번 다른 커넥션이 나오면 unlock이 다른 세션에 걸려 락이 영구히 남는다.
-    const conn = await queryClient.reserve();
-    let acquired = false;
-
+    // 잠금 전용 연결은 공유 조회 풀에서 분리하고 회차 종료 시 닫는다.
+    const workerLock = await acquireWorkerLock(lockKey);
     try {
-        const lockResult = await conn<{ acquired: boolean }[]>`
-            SELECT pg_try_advisory_lock(${lockKey}) AS acquired
-        `;
-        acquired = lockResult[0]?.acquired === true;
-        if (!acquired) {
+        if (!workerLock) {
             console.log("[send-queue] another worker running, skip");
             return { ...stats, skippedAsLocked: true };
         }
@@ -170,10 +164,7 @@ export async function processEmailSendQueue(options: { deliveryOnly?: boolean } 
         );
         return stats;
     } finally {
-        if (acquired) {
-            await conn`SELECT pg_advisory_unlock(${lockKey})`;
-        }
-        conn.release();
+        await workerLock?.release();
     }
 }
 

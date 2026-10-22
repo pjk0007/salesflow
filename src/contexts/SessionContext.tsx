@@ -10,6 +10,7 @@ import {
     type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { fetchSessionResponse } from "@/lib/session-request";
 import type { OrgRole } from "@/types";
 import { SessionTransitionQueue } from "@/components/inbox/hooks/session-transition-queue";
 
@@ -34,6 +35,7 @@ interface SessionUser {
 interface SessionContextType {
     user: SessionUser | null;
     isLoading: boolean;
+    sessionError: string | null;
     logout: () => void;
     refreshSession: () => Promise<void>;
     switchOrg: (orgId: string) => Promise<void>;
@@ -49,6 +51,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const router = useRouter();
     const [user, setUser] = useState<SessionUser | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [sessionError, setSessionError] = useState<string | null>(null);
     const [isSessionChanging, setIsSessionChanging] = useState(false);
     const sessionChanging = useRef(false);
     const [sessionEpoch, setSessionEpoch] = useState(0);
@@ -73,15 +76,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const fetchSession = useCallback(async (reconciling = false) => {
         // Ordinary refreshes cannot supersede the queued transition's final identity check.
         if (sessionChanging.current && reconciling !== true) return;
-        const request = ++sessionRequest.current;
+        let request = ++sessionRequest.current;
+        if (!identity.current) setIsLoading(true);
+        setSessionError(null);
         try {
-            const res = await fetch("/api/auth/me");
-            const data = await res.json();
+            const data = await fetchSessionResponse();
             if (request !== sessionRequest.current) return;
 
             if (data.success) {
                 const nextIdentity = `${data.user.orgId}:${data.user.userId}`;
-                if (identity.current && identity.current !== nextIdentity) invalidate();
+                if (identity.current && identity.current !== nextIdentity) { invalidate(); request = sessionRequest.current; }
                 identity.current = nextIdentity;
                 setUser({
                     id: data.user.userId,
@@ -99,17 +103,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                     })) ?? [],
                 });
             } else {
-                if (identity.current) invalidate();
+                if (identity.current) { invalidate(); request = sessionRequest.current; }
                 identity.current = null;
                 setUser(null);
             }
         } catch {
             if (request !== sessionRequest.current) return;
-            if (identity.current) invalidate();
+            // Hide stale account data after an ambiguous cookie transition, but keep
+            // the cookie so retry can recover without redirecting to login.
+            if (identity.current) { invalidate(); request = sessionRequest.current; }
             identity.current = null;
             setUser(null);
+            setSessionError("로그인 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         } finally {
-            setIsLoading(false);
+            if (request === sessionRequest.current) setIsLoading(false);
         }
     }, [invalidate]);
 
@@ -174,6 +181,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             value={{
                 user,
                 isLoading,
+                sessionError,
                 logout,
                 refreshSession: fetchSession,
                 switchOrg,

@@ -61,3 +61,4 @@ ml/
 # Generated isolated electronic signature worker
 /.esign-runtime/
 /.playwright-cli/
+/.testenv/

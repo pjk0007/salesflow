@@ -1,4 +1,5 @@
-import { db, queryClient, partitions, workspaces, scheduledRegistrations } from "@/lib/db";
+import { acquireWorkerLock } from "./db/worker-lock";
+import { db, partitions, workspaces, scheduledRegistrations } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { insertImportedRecords, dispatchImportTriggers } from "@/lib/record-import";
 import type { DbRecord } from "@/lib/db";
@@ -65,15 +66,10 @@ function nowKst(): { date: string; hhmm: string } {
 export async function processScheduledRegistrations(): Promise<ScheduledRegStats> {
     const stats: ScheduledRegStats = { duePartitions: 0, registered: 0 };
 
-    // advisory lock (크론 겹침 방지) — 잡은 그 커넥션에서 해제해야 하므로 전용 커넥션 reserve.
-    const conn = await queryClient.reserve();
-    let acquired = false;
+    // 잠금 전용 연결은 공유 조회 풀에서 분리하고 회차 종료 시 닫는다.
+    const workerLock = await acquireWorkerLock(LOCK_KEY);
     try {
-        const lockResult = await conn<{ acquired: boolean }[]>`
-            SELECT pg_try_advisory_lock(${LOCK_KEY}) AS acquired
-        `;
-        acquired = lockResult[0]?.acquired === true;
-        if (!acquired) {
+        if (!workerLock) {
             console.log("[scheduled-reg] another instance running, skip");
             return { ...stats, skippedAsLocked: true };
         }
@@ -113,10 +109,7 @@ export async function processScheduledRegistrations(): Promise<ScheduledRegStats
 
         return stats;
     } finally {
-        if (acquired) {
-            await conn`SELECT pg_advisory_unlock(${LOCK_KEY})`;
-        }
-        conn.release();
+        await workerLock?.release();
     }
 }
 

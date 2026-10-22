@@ -10,7 +10,8 @@ const path = require('node:path');
 const Module = require('node:module');
 const root = path.resolve(__dirname, '..');
 process.env.DATABASE_URL = 'postgresql://isolated@127.0.0.1:1/isolated';
-const pgliteRuntime = require(path.join(root, '.testenv/test-runtime/node_modules/@electric-sql/pglite'));
+const isolatedRuntime = path.join(root, '.testenv/test-runtime/node_modules/@electric-sql/pglite');
+const pgliteRuntime = fs.existsSync(isolatedRuntime) ? require(isolatedRuntime) : require('@electric-sql/pglite');
 const { PGlite } = pgliteRuntime;
 const { drizzle } = (() => {
   const load = Module._load;
@@ -80,6 +81,8 @@ async function main() {
     };
     conn.release = () => {};
     override('db', { ...schema, db: bridge(database), queryClient: { reserve: async () => conn } });
+    // Real PostgreSQL lock contention/cleanup is verified separately by check-incident-db.ts.
+    override('db/worker-lock', { acquireWorkerLock: async () => ({ release: async () => {} }) });
     override('ai', {
       getAiClient: () => state.aiReady ? { provider: 'fake', model: 'fake' } : null,
       getSearchAiClient: () => ({ provider: 'fake', model: 'fake-search' }),

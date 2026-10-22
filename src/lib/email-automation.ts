@@ -1,4 +1,5 @@
-import { db, queryClient, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
+import { acquireWorkerLock } from "./db/worker-lock";
+import { db, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
 import { eq, ne, and, gt, gte, lte, asc, inArray, notInArray, sql } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
@@ -495,16 +496,10 @@ export interface RepeatQueueRunStats {
 export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
     const stats: RepeatQueueRunStats = { processed: 0, sent: 0, completed: 0, failed: 0, deferred: 0, stopped: 0, held: 0 };
 
-    // 락을 잡은 커넥션에서 해제해야 하므로 전용 커넥션을 확보한다 (email-send-queue.ts와 같은 방식)
-    const conn = await queryClient.reserve();
-    let acquired = false;
-
+    // 잠금 전용 연결은 공유 조회 풀에서 분리하고 회차 종료 시 닫는다.
+    const workerLock = await acquireWorkerLock(REPEAT_LOCK_KEY);
     try {
-        const lockResult = await conn<{ acquired: boolean }[]>`
-            SELECT pg_try_advisory_lock(${REPEAT_LOCK_KEY}) AS acquired
-        `;
-        acquired = lockResult[0]?.acquired === true;
-        if (!acquired) {
+        if (!workerLock) {
             console.log("[EmailRepeat] another worker running, skip");
             return { ...stats, skippedAsLocked: true };
         }
@@ -569,10 +564,7 @@ export async function processEmailRepeatQueue(): Promise<RepeatQueueRunStats> {
         );
         return stats;
     } finally {
-        if (acquired) {
-            await conn`SELECT pg_advisory_unlock(${REPEAT_LOCK_KEY})`;
-        }
-        conn.release();
+        await workerLock?.release();
     }
 }
 

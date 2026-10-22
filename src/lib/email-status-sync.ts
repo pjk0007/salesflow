@@ -1,3 +1,4 @@
+import { acquireWorkerLock } from "./db/worker-lock";
 /**
  * NHN 발송 결과 자동 맞추기 (SND-1) — docs/2026-10-11-reply-and-health/DESIGN-SND.md 3절.
  *
@@ -12,7 +13,7 @@
  * 오류 글·로그에 받는 주소·키를 넣지 않는다. dsnMessage는 DB에만 둔다.
  */
 import { sql } from "drizzle-orm";
-import { db, queryClient } from "@/lib/db";
+import { db } from "@/lib/db";
 import { NhnEmailClient } from "@/lib/nhn-email";
 import type { NhnEmailQueryResult, NhnUpdatedMail } from "@/lib/nhn-email";
 import {
@@ -174,20 +175,16 @@ export async function syncOrgStatuses(orgId: string, opts: StatusSyncOptions = {
 }
 
 async function withSyncLock(run: () => Promise<StatusSyncStats>): Promise<StatusSyncStats> {
-    // 락을 잡은 커넥션에서 풀어야 하므로 전용 커넥션을 쓴다 (email-send-queue.ts와 같은 방식)
-    const conn = await queryClient.reserve();
-    let acquired = false;
+    // 잠금 전용 연결은 공유 조회 풀에서 분리하고 회차 종료 시 닫는다.
+    const workerLock = await acquireWorkerLock(STATUS_SYNC_LOCK_KEY);
     try {
-        const lock = await conn<{ acquired: boolean }[]>`SELECT pg_try_advisory_lock(${STATUS_SYNC_LOCK_KEY}) AS acquired`;
-        acquired = lock[0]?.acquired === true;
-        if (!acquired) {
+        if (!workerLock) {
             console.log("[status-sync] 다른 회차가 도는 중 — 건너뜀");
             return { ...emptyStats(), skippedAsLocked: true };
         }
         return await run();
     } finally {
-        if (acquired) await conn`SELECT pg_advisory_unlock(${STATUS_SYNC_LOCK_KEY})`;
-        conn.release();
+        await workerLock?.release();
     }
 }
 

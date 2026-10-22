@@ -1,3 +1,4 @@
+import { acquireWorkerLock } from "./db/worker-lock";
 /**
  * 발신 건강 회차 (SND-3) — DB. docs/2026-10-11-reply-and-health/DESIGN-SND.md 5~7절.
  *
@@ -10,7 +11,7 @@
  * 알림 글·로그에 받는 사람 주소·이름·본문을 넣지 않는다 (명단 이름·우리 발신 주소·숫자·사유 코드 이름만).
  */
 import { sql } from "drizzle-orm";
-import { db, queryClient } from "@/lib/db";
+import { db } from "@/lib/db";
 import { chatRequestIdEnabled, chatRequestIdFor, chatThreadsEnabled, postGoogleChatText, type ChatPostOptions, type GoogleChatResult } from "@/lib/google-chat";
 import {
     isWebhookConfigError,
@@ -166,12 +167,9 @@ export async function runSendHealth(opts: SendHealthOptions = {}): Promise<SendH
     };
     if (config.mode === "off") return { ...stats, skipped: "off" };
 
-    const conn = await queryClient.reserve();
-    let acquired = false;
+    const workerLock = await acquireWorkerLock(SEND_HEALTH_LOCK_KEY);
     try {
-        const lock = await conn<{ acquired: boolean }[]>`SELECT pg_try_advisory_lock(${SEND_HEALTH_LOCK_KEY}) AS acquired`;
-        acquired = lock[0]?.acquired === true;
-        if (!acquired) {
+        if (!workerLock) {
             console.log("[send-health] 다른 회차가 도는 중 — 건너뜀");
             return { ...stats, skippedAsLocked: true };
         }
@@ -225,8 +223,7 @@ export async function runSendHealth(opts: SendHealthOptions = {}): Promise<SendH
         );
         return stats;
     } finally {
-        if (acquired) await conn`SELECT pg_advisory_unlock(${SEND_HEALTH_LOCK_KEY})`;
-        conn.release();
+        await workerLock?.release();
     }
 }
 

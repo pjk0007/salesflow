@@ -1,0 +1,111 @@
+{
+  "checkedAt": "2026-10-22T15:51:05.601Z",
+  "fixtureRows": 300000,
+  "environment": "isolated loopback PostgreSQL; synthetic @fixture.invalid addresses; no production DB or outbound delivery",
+  "queryPlans": {
+    "before": {
+      "partitionDuplicate": {
+        "timeMs": 60.135,
+        "blocks": 5078,
+        "scans": [
+          {
+            "type": "Seq Scan",
+            "index": null,
+            "removed": 100000
+          }
+        ]
+      },
+      "templateDuplicate": {
+        "timeMs": 45.489,
+        "blocks": 5078,
+        "scans": [
+          {
+            "type": "Seq Scan",
+            "index": null,
+            "removed": 100000
+          }
+        ]
+      },
+      "recordCooldown": {
+        "timeMs": 0.912,
+        "blocks": 88,
+        "scans": [
+          {
+            "type": "Index Scan",
+            "index": "email_send_logs_org_sent_at_idx",
+            "removed": 3576
+          }
+        ]
+      },
+      "exactRecipient": {
+        "timeMs": 57.875,
+        "blocks": 5078,
+        "scans": [
+          {
+            "type": "Seq Scan",
+            "index": null,
+            "removed": 100000
+          }
+        ]
+      }
+    },
+    "after": {
+      "partitionDuplicate": {
+        "timeMs": 0.091,
+        "blocks": 3,
+        "scans": [
+          {
+            "type": "Index Scan",
+            "index": "email_send_logs_partition_recipient_idx",
+            "removed": 0
+          }
+        ]
+      },
+      "templateDuplicate": {
+        "timeMs": 0.1,
+        "blocks": 3,
+        "scans": [
+          {
+            "type": "Index Scan",
+            "index": "email_send_logs_template_link_recipient_idx",
+            "removed": 0
+          }
+        ]
+      },
+      "recordCooldown": {
+        "timeMs": 0.162,
+        "blocks": 3,
+        "scans": [
+          {
+            "type": "Index Scan",
+            "index": "email_send_logs_record_idx",
+            "removed": 0
+          }
+        ]
+      },
+      "exactRecipient": {
+        "timeMs": 0.107,
+        "blocks": 4,
+        "scans": [
+          {
+            "type": "Index Scan",
+            "index": "email_send_logs_org_recipient_lower_idx",
+            "removed": 0
+          }
+        ]
+      }
+    }
+  },
+  "idempotentIndexBuild": true,
+  "invalidIndexRepair": true,
+  "concurrentBuilderGuard": true,
+  "transientIndexRetry": true,
+  "queryTimeoutAndRecovery": true,
+  "sharedPoolStarvationReproduced": true,
+  "applicationQueriesWithFourWorkerLocks": {
+    "calls": 20,
+    "elapsedMs": 1
+  },
+  "workerCapacityBoundAndFifoWait": true,
+  "workerSessionCloseReleasesLock": true
+}

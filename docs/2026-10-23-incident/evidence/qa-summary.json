@@ -1,0 +1,35 @@
+{
+  "verifiedOnKst": "2026-10-23",
+  "baseDev": "733a5ed120c5cbbe79539024212b37b998f82c0f",
+  "observedProductionCommit": "5b2737a06c8bca5281e7013152a203eb672a65c1",
+  "node": "24.19.0",
+  "pnpm": "10.15.0",
+  "unitTests": {
+    "command": "pnpm exec tsx --test --test-concurrency=2 src/**/*.test.ts",
+    "total": 1435,
+    "passed": 1434,
+    "failed": 0,
+    "skipped": 1,
+    "skipReason": "Existing opt-in native PostgreSQL electronic-signature integration test was not configured",
+    "durationMs": 89538.9415,
+    "exitCode": 0,
+    "earlierFailure": "Unmodified collector 40ms timing test failed during concurrent I/O, passed independently and in the final full run"
+  },
+  "typecheckExitCode": 0,
+  "incidentLint": { "files": 11, "exitCode": 0 },
+  "cloudtypeBuild": {
+    "exitCode": 0,
+    "staticPagesGenerated": 225,
+    "runtimeMigrations": 116,
+    "journalSha256": "0291c081686d7c92a3805bc97d5939fbc5af25239629bdd38b347fe3c7c473b0",
+    "standaloneServerPresent": true,
+    "copiedSourceHashComparison": { "files": 1841, "mismatches": 0 },
+    "environment": "Isolated local build with dummy DB URL and dummy JWT; no deployment credentials"
+  },
+  "databaseReproduction": "incident-db-evidence.json",
+  "randomEmailRegression": { "passed": true, "fixtureRecords": 1010, "preparedAcrossTwoDays": 40, "externalRequests": 0 },
+  "browserQa": { "actualSessionComponents": true, "mockApiAndRouter": true, "passed": ["503 retry", "stalled headers retry", "stalled body retry", "401 login navigation"] },
+  "cleanup": { "testPostgresStopped": true, "testUiServerStopped": true },
+  "productionDatabaseAccessed": false,
+  "productionChangedByThisWork": false
+}
