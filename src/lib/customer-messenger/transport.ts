@@ -54,7 +54,7 @@ export async function sendNotificationMail(
     const result = await new NhnEmailClient(
         sender.config.appKey,
         sender.config.secretKey,
-        { timeoutMs: 30000 },
+        { timeoutMs: 30000, orgId: input.orgId },
     ).sendEachMail({
         senderAddress: sender.address,
         senderName: input.name,

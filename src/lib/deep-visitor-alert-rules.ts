@@ -851,20 +851,20 @@ export interface UnsubscribeRow {
 
 export interface UnsubscribeIndex {
     recordIds: Set<number>;
-    /** 이 워크스페이스에서 거부한 메일 (normalizeEmail 값) */
+    /** 이 계정의 모든 사업에서 거부한 메일 (normalizeEmail 값) */
     emails: Set<string>;
 }
 
 /**
- * 수신거부 줄 → 찾아보기 표. record_id는 워크스페이스와 상관없이 막고,
- * 메일 주소는 같은 워크스페이스 줄만 막는다 (거부 범위가 워크스페이스 단위다)
+ * 같은 조직으로 조회한 수신거부 줄 → 찾아보기 표. 사업 출처와 관계없이 차단한다.
+ * 조직 간 격리는 호출자의 SQL에서 보장해야 한다.
  */
-export function buildUnsubscribeIndex(rows: readonly UnsubscribeRow[], workspaceId: number): UnsubscribeIndex {
+export function buildUnsubscribeIndex(rows: readonly UnsubscribeRow[]): UnsubscribeIndex {
     const out: UnsubscribeIndex = { recordIds: new Set(), emails: new Set() };
     for (const r of rows) {
         if (r.recordId !== null) out.recordIds.add(r.recordId);
         const email = normalizeEmail(r.email);
-        if (r.workspaceId === workspaceId && email) out.emails.add(email);
+        if (email) out.emails.add(email);
     }
     return out;
 }

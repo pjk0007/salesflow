@@ -689,22 +689,23 @@ test("수신거부 → 알림 없음 (B14)", () => {
     assert.deepEqual(r.d, { alert: false, reason: "unsubscribed", level: null, angle: null });
 });
 
-test("수신거부 매칭: record_id는 워크스페이스와 상관없이, 메일은 같은 워크스페이스 줄만 막는다 (B14)", () => {
+test("수신거부 매칭: 같은 계정의 모든 사업과 삭제된 사업의 거부 주소를 막는다 (B14)", () => {
     const index = buildUnsubscribeIndex(
         [
             { recordId: 772051, workspaceId: 9, email: "someone@other.example" },
             { recordId: null, workspaceId: 8, email: " Kim@Sample.CO.KR\t" },
             { recordId: null, workspaceId: 9, email: "lee@sample.co.kr" },
             { recordId: null, workspaceId: 8, email: null },
-        ],
-        8
+            { recordId: null, workspaceId: null, email: "deleted@sample.co.kr" },
+        ]
     );
     assert.equal(isUnsubscribedBy(index, 772051, "nobody@sample.co.kr"), true);
     // 대소문자·앞뒤 탭·줄바꿈·NBSP·전각 공백이 달라도 같은 주소다
     assert.equal(isUnsubscribedBy(index, 1, "kim@sample.co.kr\n"), true);
     assert.equal(isUnsubscribedBy(index, 1, " KIM@SAMPLE.CO.KR　"), true);
-    // 다른 워크스페이스(9)에서 거부한 메일 주소로는 막지 않는다 (거부 범위가 워크스페이스 단위)
-    assert.equal(isUnsubscribedBy(index, 1, "lee@sample.co.kr"), false);
+    // 같은 조직으로 조회된 다른 사업과 삭제된 사업의 수신거부도 적용한다.
+    assert.equal(isUnsubscribedBy(index, 1, "lee@sample.co.kr"), true);
+    assert.equal(isUnsubscribedBy(index, 1, "deleted@sample.co.kr"), true);
     // 빈 주소끼리 맞지 않는다
     assert.equal(isUnsubscribedBy(index, 1, null), false);
     assert.equal(isUnsubscribedBy(index, 1, "  "), false);

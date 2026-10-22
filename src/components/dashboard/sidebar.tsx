@@ -23,6 +23,7 @@ import {
     History,
     ShieldCheck,
     Activity,
+    Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +40,7 @@ const navItems = [
     { href: "/customer-crm", label: "고객 관리", icon: Building2 },
     { href: "/alimtalk", label: "알림톡", icon: MessageSquare },
     { href: "/email", label: "이메일", icon: Mail },
+    { href: "/email/unsubscribes", label: "수신거부 목록", icon: Ban },
     { href: "/esign", label: "전자서명", icon: FileSignature },
     { href: "/products", label: "제품 관리", icon: Package },
     { href: "/web-forms", label: "웹 폼", icon: FileText },
@@ -66,7 +68,7 @@ function NavLinks({
         const isActive =
             item.href === "/"
                 ? pathname === "/"
-                : pathname.startsWith(item.href);
+                : pathname.startsWith(item.href) && !navItems.some((other) => other.href !== item.href && other.href.startsWith(`${item.href}/`) && pathname.startsWith(other.href));
 
         const link = (
             <Link

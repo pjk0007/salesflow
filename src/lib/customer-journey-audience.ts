@@ -104,8 +104,8 @@ export async function loadJourneyAudience(conn: Connection, target: {
                     OR (e.event_type IN ('CLICK', 'CUSTOM') AND e.event_name ~* '(subscribe_submit|signup_complete)')
                     OR (e.event_type = 'PAGE_VIEW' AND e.page_url ~ '/(signup/complete|main/)'))), '[]'::json) AS "completionEvents",
             EXISTS (SELECT 1 FROM email_unsubscribes u JOIN own ON own.org_id = u.org_id
-                WHERE u.record_id IN (SELECT id FROM related) OR (u.workspace_id = own.workspace_id
-                    AND lower(btrim(u.email, ${EMAIL_TRIM_CHARS})) = ${normalizeEmail(target.recipientEmail)})) AS unsubscribed,
+                WHERE u.record_id IN (SELECT id FROM related)
+                    OR lower(btrim(u.email, ${EMAIL_TRIM_CHARS})) = ${normalizeEmail(target.recipientEmail)}) AS unsubscribed,
             GREATEST(${target.session.startedAt.toISOString()}::timestamptz,
                 (SELECT MAX(LEAST(COALESCE(v.ended_at, v.started_at), ${now.toISOString()})) FROM visits v),
                 (SELECT MAX(e.occurred_at) FROM tracker_events e JOIN visits v ON v.id = e.session_id AND v.site_id = e.site_id

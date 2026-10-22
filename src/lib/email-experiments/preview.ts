@@ -85,7 +85,7 @@ export async function previewExperiment(
         AND (l.status IN('pending','sent','delivered','uncertain') OR l.status='failed' AND l.request_id IS NOT NULL AND (l.nhn_status_code IS NOT NULL OR l.delivery_fail_source IS NOT NULL))`;
     const unsubscribedRows = await conn<
         { email: string }[]
-    >`SELECT email FROM email_unsubscribes WHERE org_id=${input.orgId} AND workspace_id=${experiment.workspace_id}`;
+    >`SELECT email FROM email_unsubscribes WHERE org_id=${input.orgId}`;
     const unsubscribed = new Set(unsubscribedRows.map((r) => normalizeEmail(r.email)));
     const alreadySent = new Set(sent.map((r) => normalizeEmail(r.recipient_email))),
         seenEmails = new Set<string>(),

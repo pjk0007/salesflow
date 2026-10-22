@@ -40,6 +40,7 @@ import { loadReplyStops, type ReplyStop } from "@/lib/email-reply-guard";
 import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
 import { getActiveHold, reviveOrphanHeldRows } from "@/lib/partition-hold";
 import type { DbRecord } from "@/lib/db";
+import { unsubscribedRecipientsQuery } from "@/lib/email-unsubscribe-store";
 
 /** scheduled-registration(0x5c4edf01)과 다른 키를 쓴다 — 두 잡은 독립적으로 돌아야 한다. */
 const LOCK_KEY = 0x5c4edf02;
@@ -736,7 +737,7 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
             ? await Promise.all([
                   loadCooldownRecordIds(live.map((r) => r.record_id)),
                   loadDuplicateRecipients(group.partitionId, [...dupEmails]),
-                  workspaceId !== null ? loadUnsubscribedEmails(workspaceId, [...unsubEmails]) : Promise.resolve(new Set<string>()),
+                  loadUnsubscribedEmails(group.orgId, [...unsubEmails]),
                   // 보내기 직전 막기 (findReplyStop과 같은 조건, DESIGN-RPL 7-4) — 묶음 주소를 한 번에
                   loadReplyStops(group.orgId, workspaceId, [...unsubEmails]),
               ])
@@ -767,7 +768,7 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
         isDuplicate: (email) => (dupEmails.has(email) ? duplicates.has(email) : undefined),
         workspaceId: row.workspace_id,
         isUnsubscribed: (email) =>
-            row.workspace_id === workspaceId && unsubEmails.has(email) ? unsubscribed.has(email) : undefined,
+            unsubEmails.has(email) ? unsubscribed.has(email) : undefined,
         isReplyStopped: (email) =>
             row.workspace_id === workspaceId && unsubEmails.has(email) ? replyStops.get(email)?.reason ?? null : undefined,
         aiClientReady,
@@ -878,23 +879,15 @@ async function loadDuplicateRecipients(partitionId: number, emails: string[]): P
 }
 
 /**
- * isUnsubscribed와 같은 조건(같은 워크스페이스, lower(email) = lower(값))으로 거부한 받는 주소.
+ * isOrganizationUnsubscribed와 같은 계정 전체·공백/대소문자 정규화 조건으로 거부한 받는 주소.
  * 값을 VALUES로 넘겨 SQL의 lower로 비교한다 — JS 소문자와 Postgres lower가 다를 수 있는 글자에서도 같은 답이 나오게
  */
-async function loadUnsubscribedEmails(workspaceId: number, emails: string[]): Promise<Set<string>> {
+async function loadUnsubscribedEmails(orgId: string, emails: string[]): Promise<Set<string>> {
     const out = new Set<string>();
     for (let i = 0; i < emails.length; i += IN_CHUNK) {
         const part = emails.slice(i, i + IN_CHUNK);
-        const rows = (await db.execute(sql`
-            SELECT v.email
-            FROM (VALUES ${sql.join(part.map((e) => sql`(${e}::text)`), sql`, `)}) AS v(email)
-            WHERE EXISTS (
-                SELECT 1 FROM email_unsubscribes u
-                WHERE u.workspace_id = ${workspaceId}
-                  AND lower(u.email) = lower(v.email)
-            )
-        `)) as unknown as Array<{ email: string }>;
-        for (const r of rows) out.add(r.email);
+        const rows = (await db.execute(unsubscribedRecipientsQuery(orgId, part))) as unknown as Array<{ ordinal: number }>;
+        for (const r of rows) out.add(part[r.ordinal]);
     }
     return out;
 }

@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
     output: "standalone",
+    // Keep server.js at .next/standalone even when a parent folder has another lockfile.
+    outputFileTracingRoot: __dirname,
     reactCompiler: true,
     reactStrictMode: true,
     images: {

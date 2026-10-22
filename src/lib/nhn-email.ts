@@ -1,6 +1,8 @@
 import { db, emailConfigs } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { createDroppedHeaderWarner, withSafeCustomHeaders } from "@/lib/nhn-email-headers";
+import { submitEmailWithGuard } from "@/lib/email-send-guard";
+import { isOrganizationUnsubscribed } from "@/lib/email-unsubscribe";
 
 // ============================================
 // NHN Cloud Email API 타입
@@ -99,7 +101,7 @@ export class NhnEmailClient {
     private appKey: string;
     private secretKey: string;
 
-    constructor(appKey: string, secretKey: string, private options: { timeoutMs?: number } = {}) {
+    constructor(appKey: string, secretKey: string, private options: { timeoutMs?: number; orgId?: string } = {}) {
         this.appKey = appKey;
         this.secretKey = secretKey;
     }
@@ -143,10 +145,21 @@ export class NhnEmailClient {
         header: NhnEmailApiHeader;
         data: NhnEmailSendResult | null;
     }> {
-        return this.request<NhnEmailSendResult>(
-            "POST",
-            "/email/v2.1/appKeys/{appKey}/sender/eachMail",
-            withSafeCustomHeaders(data, warnDroppedHeaders)
+        return submitEmailWithGuard(
+            this.options.orgId,
+            data.receiverList.map((receiver) => receiver.receiveMailAddr),
+            isOrganizationUnsubscribed,
+            (recipients) => this.request<NhnEmailSendResult>(
+                "POST",
+                "/email/v2.1/appKeys/{appKey}/sender/eachMail",
+                withSafeCustomHeaders({
+                    ...data,
+                    receiverList: data.receiverList.map((receiver, index) => ({
+                        ...receiver,
+                        receiveMailAddr: recipients[index],
+                    })),
+                }, warnDroppedHeaders),
+            ),
         );
     }
 
@@ -335,7 +348,7 @@ export async function getEmailClient(orgId: string): Promise<NhnEmailClient | nu
         .limit(1);
 
     if (!config) return null;
-    return new NhnEmailClient(config.appKey, config.secretKey);
+    return new NhnEmailClient(config.appKey, config.secretKey, { orgId });
 }
 
 export async function getEmailConfig(orgId: string) {

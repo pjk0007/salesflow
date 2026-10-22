@@ -4,6 +4,8 @@ import {
     customerAccessPredicate,
 } from "@/lib/customer-access/access";
 import { checkGoogleGuard } from "./google-guard";
+import { isOrganizationUnsubscribed } from "@/lib/email-unsubscribe";
+import { checkEmailSubmission, EMAIL_SEND_BLOCKED } from "@/lib/email-send-guard";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { and, eq, inArray, lte, or, sql, asc } from "drizzle-orm";
 import { z } from "zod";
@@ -482,6 +484,19 @@ export async function claimEmail(
             .limit(1)
             .for("update");
         if (!candidate) return null;
+        const decision = await checkEmailSubmission(
+            box.orgId,
+            [...(candidate.recipientTo ?? [candidate.recipient]), ...(candidate.recipientCc ?? [])],
+            (orgId, email) => isOrganizationUnsubscribed(orgId, email, tx),
+        );
+        if (!decision.allowed) {
+            if (decision.rejection.header.resultCode !== EMAIL_SEND_BLOCKED)
+                throw new InboxError(decision.rejection.header.resultMessage, 503);
+            await tx.update(deliveries).set({
+                state: "cancelled", errorCode: "email_unsubscribed", leaseToken: null, leaseUntil: null,
+            }).where(eq(deliveries.id, candidate.id));
+            return null;
+        }
         const [delivery] = await tx
             .update(deliveries)
             .set({
@@ -590,7 +605,7 @@ export async function changeEmailDelivery(
         hint = await emailDeliveryMailbox(actor, id, exec);
     if (["retry", "cancel", "begin"].includes(input.action))
         await requireCustomerAccess(actor, hint.workspaceId, "respond", exec);
-    return exec.transaction(async (tx) => {
+    const result = await exec.transaction(async (tx) => {
         const box = await ownedMailbox(actor, hint.id, tx, true);
         if (input.action === "begin")
             await checkGoogleGuard(tx, box.id, expectedConnectionVersion);
@@ -676,6 +691,20 @@ export async function changeEmailDelivery(
                     "발송 권한이 만료되거나 메일함 설정이 변경됐습니다.",
                     409,
                 );
+            // Recheck after queueing and attachment preparation, immediately before provider dispatch.
+            const decision = await checkEmailSubmission(
+                box.orgId,
+                [...(item.recipientTo ?? [item.recipient]), ...(item.recipientCc ?? [])],
+                (orgId, email) => isOrganizationUnsubscribed(orgId, email, tx),
+            );
+            if (!decision.allowed) {
+                if (decision.rejection.header.resultCode !== EMAIL_SEND_BLOCKED)
+                    throw new InboxError(decision.rejection.header.resultMessage, 503);
+                const [cancelled] = await tx.update(deliveries).set({
+                    state: "cancelled", errorCode: "email_unsubscribed", leaseToken: null, leaseUntil: null,
+                }).where(eq(deliveries.id, id)).returning();
+                return cancelled;
+            }
             const [next] = await tx
                 .update(deliveries)
                 .set({
@@ -783,4 +812,8 @@ export async function changeEmailDelivery(
             });
         return next;
     });
+    // Persist cancellation before returning an error: every current relay awaits begin before sending.
+    if (input.action === "begin" && result.state === "cancelled" && result.errorCode === "email_unsubscribed")
+        throw new InboxError("이 조직의 수신거부 목록에 등록된 주소가 있어 메일을 보내지 않았습니다.", 409);
+    return result;
 }
