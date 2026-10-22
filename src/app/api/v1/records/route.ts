@@ -11,6 +11,7 @@ import { broadcastToPartition } from "@/lib/sse";
 import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
 import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
+import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -266,6 +267,8 @@ async function handlePost(req: NextRequest) {
                                 recordId: merged.id,
                                 data: merged.data as Record<string, unknown>,
                             }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
+                            notifyRecordChatAlert({ recordId: merged.id, source: "api", kind: "merged" })
+                                .catch((err) => console.error("Record chat alert error:", err));
                             return NextResponse.json({ success: true, data: merged, merged: true, event: mergedEvent ?? null });
                         }
 
@@ -352,6 +355,9 @@ async function handlePost(req: NextRequest) {
             recordId: result.record.id,
             data: result.record.data as Record<string, unknown>,
         }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
+
+        notifyRecordChatAlert({ recordId: result.record.id, source: "api" })
+            .catch((err) => console.error("Record chat alert error:", err));
 
         return NextResponse.json({ success: true, data: result.record, event: result.event ?? null }, { status: 201 });
     } catch (error) {

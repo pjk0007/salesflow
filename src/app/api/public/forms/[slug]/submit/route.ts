@@ -9,6 +9,7 @@ import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { linkVisitorByFormSubmit } from "@/lib/tracker/match-record";
 import { parseAttributionParams } from "@/lib/attribution/parse-params";
 import { resolveAttribution } from "@/lib/attribution/resolve-attribution";
+import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
 
 export async function POST(
     req: NextRequest,
@@ -149,6 +150,9 @@ export async function POST(
             triggerType: "on_create",
             orgId: form.orgId,
         }).catch((err) => console.error("Email auto trigger error:", err));
+
+        notifyRecordChatAlert({ recordId: result.id, source: "web_form" })
+            .catch((err) => console.error("Record chat alert error:", err));
 
         // SSE broadcast
         broadcastToPartition(form.partitionId, "record:created", {

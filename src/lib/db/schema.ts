@@ -237,9 +237,31 @@ export const partitions = pgTable("partitions", {
         countPerDay: number;
         lastRunDate?: string; // "YYYY-MM-DD" — 하루 1회 실행 보장
     } | null>(),
+    // 고객 행동(웹폼·외부 API·광고 리드)으로 레코드가 생기면 알릴 구글챗 스페이스 (마이그레이션 0122). NULL이면 알리지 않는다
+    chatSpaceId: integer("chat_space_id").references(() => chatSpaces.id, { onDelete: "set null" }),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
+
+// ============================================
+// 구글챗 스페이스 (조직별 등록, 파티션이 골라 쓴다)
+// ============================================
+export const chatSpaces = pgTable("chat_spaces", {
+    id: serial("id").primaryKey(),
+    orgId: uuid("org_id")
+        .references(() => organizations.id, { onDelete: "cascade" })
+        .notNull(),
+    name: varchar("name", { length: 100 }).notNull(),
+    // 웹훅 주소는 그 자체가 비밀값이다 — API 응답에는 스페이스 ID만 가려서 내보낸다
+    webhookUrl: text("webhook_url").notNull(),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamptz("created_at").defaultNow().notNull(),
+    updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+}, (table) => ({
+    orgNameUnique: unique().on(table.orgId, table.name),
+}));
+
+export type ChatSpace = typeof chatSpaces.$inferSelect;
 
 // ============================================
 // 예약 등록 대기열 (업로드 → 매일 N개씩 레코드 등록)

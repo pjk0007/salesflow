@@ -862,6 +862,13 @@
       "when": 1792692000000,
       "tag": "0121_email_stats",
       "breakpoints": true
+    },
+    {
+      "idx": 123,
+      "version": "7",
+      "when": 1792778400000,
+      "tag": "0122_record_chat_alerts",
+      "breakpoints": true
     }
   ]
 }

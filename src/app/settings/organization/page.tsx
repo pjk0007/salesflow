@@ -6,13 +6,14 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, Users, Bot, Key, Megaphone } from "lucide-react";
+import { Building2, Users, Bot, Key, Megaphone, MessageSquare } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
 import OrgGeneralTab from "@/components/settings/OrgGeneralTab";
 import OrgTeamTab from "@/components/settings/OrgTeamTab";
 import AiUsageTab from "@/components/settings/AiUsageTab";
 import ApiTokensTab from "@/components/settings/ApiTokensTab";
 import AdIntegrationTab from "@/components/settings/AdIntegrationTab";
+import ChatSpacesTab from "@/components/chat-alerts/ui/ChatSpacesTab";
 
 function OrganizationSettingsContent() {
     const router = useRouter();
@@ -69,6 +70,10 @@ function OrganizationSettingsContent() {
                                 <Megaphone className="mr-2 h-4 w-4" />
                                 광고 연동
                             </TabsTrigger>
+                            <TabsTrigger value="chat-spaces">
+                                <MessageSquare className="mr-2 h-4 w-4" />
+                                구글챗 알림
+                            </TabsTrigger>
                         </TabsList>
                     </div>
 
@@ -90,6 +95,10 @@ function OrganizationSettingsContent() {
 
                     <TabsContent value="ad-integration" className="mt-6">
                         <AdIntegrationTab />
+                    </TabsContent>
+
+                    <TabsContent value="chat-spaces" className="mt-6">
+                        <ChatSpacesTab />
                     </TabsContent>
                 </Tabs>
             </PageContainer>

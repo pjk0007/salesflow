@@ -26,6 +26,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Partition } from "@/lib/db/schema";
 import type { FieldDefinition } from "@/types";
+import { useSession } from "@/contexts/SessionContext";
+import PartitionChatAlertSection from "@/components/chat-alerts/ui/PartitionChatAlertSection";
 
 type DistributionDefault = { field: string; value: string };
 type DistributionDefaults = Record<number, DistributionDefault[]>;
@@ -47,6 +49,7 @@ interface Props {
         maxDistributionOrder: number;
         distributionDefaults: DistributionDefaults | null;
         duplicateConfig?: DuplicateConfig | null;
+        chatSpaceId?: number | null;
     }) => Promise<{ success: boolean; error?: string }>;
 }
 
@@ -71,6 +74,12 @@ export default function DistributionSettingsDialog({
     const [dupHighlight, setDupHighlight] = useState(false);
     const [dupColor, setDupColor] = useState("#FEF3C7");
 
+    // 구글챗 알림 (관리자만 바꾼다 — API도 member는 막는다)
+    const { user } = useSession();
+    const isAdmin = !!user && user.role !== "member";
+    const [chatSpaceId, setChatSpaceId] = useState<number | null>(partition.chatSpaceId);
+    const [chatEnabled, setChatEnabled] = useState(!!partition.chatSpaceId);
+
     useEffect(() => {
         if (open) {
             setEnabled(!!partition.useDistributionOrder);
@@ -83,6 +92,8 @@ export default function DistributionSettingsDialog({
             setDupAction(dc?.action || "reject");
             setDupHighlight(dc?.highlightEnabled ?? false);
             setDupColor(dc?.highlightColor || "#FEF3C7");
+            setChatSpaceId(partition.chatSpaceId);
+            setChatEnabled(!!partition.chatSpaceId);
         }
     }, [open, partition]);
 
@@ -128,6 +139,10 @@ export default function DistributionSettingsDialog({
             toast.error("분배 순번은 1~99 범위여야 합니다.");
             return;
         }
+        if (isAdmin && chatEnabled && !chatSpaceId) {
+            toast.error("구글챗 알림을 받을 스페이스를 골라주세요.");
+            return;
+        }
 
         // 사용하지 않는 순번의 defaults 정리
         const cleanedDefaults: DistributionDefaults = {};
@@ -146,6 +161,7 @@ export default function DistributionSettingsDialog({
                 duplicateConfig: dupField && dupField !== "__none__"
                     ? { field: dupField, action: dupAction, highlightEnabled: dupHighlight, highlightColor: dupColor }
                     : null,
+                ...(isAdmin ? { chatSpaceId: chatEnabled ? chatSpaceId : null } : {}),
             });
             if (result.success) {
                 toast.success("파티션 설정이 저장되었습니다.");
@@ -395,6 +411,15 @@ export default function DistributionSettingsDialog({
                             </>
                         )}
                     </div>
+
+                    {isAdmin && (
+                        <PartitionChatAlertSection
+                            value={chatSpaceId}
+                            onChange={setChatSpaceId}
+                            enabled={chatEnabled}
+                            onEnabledChange={setChatEnabled}
+                        />
+                    )}
 
                     <div className="flex justify-end gap-2 pt-2">
                         <Button
