@@ -1,0 +1,802 @@
+{
+  "baseline": "71a7451",
+  "synthetic": true,
+  "reactCompiler": true,
+  "metric": "input capture through React Profiler commit (not animation-frame delay)",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "/api/inbox-notifications?unread=false",
+      "at": 1792686729040,
+      "ms": 31
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox",
+      "at": 1792686729040,
+      "ms": 31
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686729103,
+      "ms": 3004
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox-presence",
+      "at": 1792686729104,
+      "ms": 42
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1",
+      "at": 1792686729106,
+      "ms": 41
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1",
+      "at": 1792686729154,
+      "ms": 37
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686737117,
+      "ms": 3006
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686738312,
+      "ms": 36
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1/journey?v=1",
+      "at": 1792686738427,
+      "ms": 41
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-operations/conversations/qa-1",
+      "at": 1792686738428,
+      "ms": 40
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686738429,
+      "ms": 40
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686738429,
+      "ms": 40
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox-presence",
+      "at": 1792686738430,
+      "ms": 39
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686738469,
+      "ms": 44
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox-presence",
+      "at": 1792686738470,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686738629,
+      "ms": 35
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686738629,
+      "ms": 3014
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686738629,
+      "ms": 35
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox-presence",
+      "at": 1792686738741,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686738847,
+      "ms": 42
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox-presence",
+      "at": 1792686741305,
+      "ms": 37
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686741359,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686741359,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686741459,
+      "ms": 33
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-notifications?unread=false",
+      "at": 1792686744049,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox",
+      "at": 1792686744049,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686744215,
+      "ms": 3002
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686744471,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686744545,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686744616,
+      "ms": 33
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686747521,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686747686,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686747755,
+      "ms": 35
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686750572,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686750828,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686750902,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686751293,
+      "ms": 3002
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1/journey?v=1",
+      "at": 1792686753442,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-operations/conversations/qa-1",
+      "at": 1792686753443,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686753621,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686753967,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686754041,
+      "ms": 29
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686756673,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686757108,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686757172,
+      "ms": 40
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686758372,
+      "ms": 3003
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-notifications?unread=false",
+      "at": 1792686759109,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox",
+      "at": 1792686759109,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686759725,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686760235,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686760303,
+      "ms": 36
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686762775,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686763377,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686763439,
+      "ms": 42
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686765452,
+      "ms": 3004
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686765828,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686766504,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686766587,
+      "ms": 35
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1/journey?v=1",
+      "at": 1792686768526,
+      "ms": 35
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-operations/conversations/qa-1",
+      "at": 1792686768526,
+      "ms": 36
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686768878,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686769660,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686769728,
+      "ms": 36
+    },
+    {
+      "method": "POST",
+      "url": "/api/inbox-presence",
+      "at": 1792686770457,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686770503,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686771930,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686772534,
+      "ms": 3004
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686772803,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686772863,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-notifications?unread=false",
+      "at": 1792686774170,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox",
+      "at": 1792686774170,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686774981,
+      "ms": 45
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686775945,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686776014,
+      "ms": 35
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686778036,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686779089,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686779151,
+      "ms": 41
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686779613,
+      "ms": 3004
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686781085,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686782227,
+      "ms": 29
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686782287,
+      "ms": 44
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1/journey?v=1",
+      "at": 1792686783575,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-operations/conversations/qa-1",
+      "at": 1792686783575,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686784145,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686785363,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686785429,
+      "ms": 37
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox?view=list&channelId=1&q=&status=open&filter=all&teamId=",
+      "at": 1792686786700,
+      "ms": 3007
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686787196,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686788506,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686788572,
+      "ms": 37
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-notifications?unread=false",
+      "at": 1792686789228,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox",
+      "at": 1792686789229,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox/conversations/qa-1",
+      "at": 1792686790249,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-presence?channelId=1&conversationId=qa-1",
+      "at": 1792686791649,
+      "ms": 43
+    },
+    {
+      "method": "GET",
+      "url": "/api/inbox-reply-guard?channelId=1&conversationId=qa-1&sessionId=46771e97-ac31-432b-a029-9279512e7d8d",
+      "at": 1792686791721,
+      "ms": 31
+    }
+  ],
+  "measurements": [
+    {
+      "type": "switch",
+      "label": "가상고객 1 상담 열기",
+      "at": 9424.700000000186
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 27,
+      "renderMs": 24.200000002980232,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 12.200000000186265,
+      "renderMs": 9.600000000558794,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 11,
+      "renderMs": 9.5,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 13.299999999813735,
+      "renderMs": 11.5,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 9.299999999813735,
+      "renderMs": 7.599999999627471,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 9,
+      "renderMs": 7.6000000005587935,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 9.800000000745058,
+      "renderMs": 8.099999999627471,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.799999999813735,
+      "renderMs": 24.100000000558794,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 27.399999999441206,
+      "renderMs": 25.299999999813735,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 26.09999999962747,
+      "renderMs": 23.90000000037253,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.200000000186265,
+      "renderMs": 23.700000000186265,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 26.09999999962747,
+      "renderMs": 23.799999999813735,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.09999999962747,
+      "renderMs": 23.5,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.09999999962747,
+      "renderMs": 23.600000001490116,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.700000000186265,
+      "renderMs": 24.200000001117587,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 27.5,
+      "renderMs": 25.899999999441206,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 26.799999999813735,
+      "renderMs": 24.700000000186265,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 27.40000000037253,
+      "renderMs": 26.09999999962747,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 17.40000000037253,
+      "renderMs": 15.699999999254942,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.90000000037253,
+      "renderMs": 24.000000000931323,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 28.399999999441206,
+      "renderMs": 26.90000000037253,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 27.300000000745058,
+      "renderMs": 25.09999999869615,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 26.200000000186265,
+      "renderMs": 24.700000000186265,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 26.09999999962747,
+      "renderMs": 23.699999999254942,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.5,
+      "renderMs": 23.90000000037253,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 25.200000000186265,
+      "renderMs": 23.799999999813735,
+      "dateFormats": 101,
+      "visibility": "visible"
+    },
+    {
+      "type": "input",
+      "field": "고객 답변 입력",
+      "commitMs": 27.700000000186265,
+      "renderMs": 26.399999999441206,
+      "dateFormats": 101,
+      "visibility": "visible"
+    }
+  ],
+  "sends": []
+}

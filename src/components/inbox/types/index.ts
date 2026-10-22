@@ -104,6 +104,6 @@ export type ConversationFilter =
     | "myTeams";
 export interface InboxListPage {
     rows: Conversation[];
-    counts: Record<ConversationFilter, number>;
+    counts?: Record<ConversationFilter, number>;
     hasMore: boolean;
 }

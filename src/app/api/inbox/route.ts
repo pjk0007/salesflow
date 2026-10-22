@@ -4,6 +4,7 @@ import {
     bootstrapInbox,
     listConversations,
     conversationListPage,
+    conversationCounts,
 } from "@/lib/inbox/repository";
 import { readConversationFilters } from "@/lib/inbox/rules";
 import { handleInbox, inboxActor } from "@/lib/inbox/http";
@@ -21,6 +22,12 @@ export async function GET(req: NextRequest) {
             ? z.string().uuid().parse(req.nextUrl.searchParams.get("beforeId"))
             : undefined;
         const filters = readConversationFilters(req.nextUrl.searchParams);
+        if (req.nextUrl.searchParams.get("view") === "counts")
+            return conversationCounts(actor, channel, filters);
+        if (req.nextUrl.searchParams.get("view") === "rows") {
+            const rows = await listConversations(actor, channel, undefined, cursor, beforeId, filters);
+            return { rows, hasMore: rows.length === 100 };
+        }
         if (req.nextUrl.searchParams.get("view") === "list")
             return conversationListPage(
                 actor,

@@ -1,0 +1,13 @@
+{
+  "synthetic": true,
+  "engine": "PGlite PostgreSQL WASM",
+  "conversations": 20000,
+  "rowsMs": 21.515800000000127,
+  "countsMs": 29.064499999999498,
+  "firstPage": 100,
+  "secondPage": 100,
+  "counts": 10000,
+  "legacyCompatible": true,
+  "scopeDenied": true,
+  "searchPassed": true
+}
