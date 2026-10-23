@@ -1,0 +1,4 @@
+2026-10-22 사용자/Claude 승인: 200줄 제한은 새 파일에만 적용. T5는 SQLSTATE 54000 + /index row (size|requires)/로 검사(PGlite PostgreSQL 18.6). T8a는 인덱스 이름뿐 아니라 Index Cond의 left(lower(btrim( 식을 검사하며 generic 대조의 workspace_id 선두 사용은 허용. executedFullScans는 실행된 workspace_id/org_id만의 records 스캔도 포함(T8b 및 후속 T11/T12 공용).
+2026-10-22 사용자/Claude 승인: related JOIN own을 workspace_id/org_id 스칼라 서브쿼리 조건으로 변경(own 최대 1행, 0행이면 NULL로 같은 권한 격리); T8에 ws8의 다른 이메일 2000행과 ANALYZE records 추가. 강화한 전체 스캔 판정은 유지.
+2026-10-22 사용자/Claude 승인: 전체 스캔 판정은 Bitmap Heap Scan Recheck Cond도 포함. 비email 경우에는 이메일 표현식 Index Cond 노드만 없음/Actual Loops=0 검사(선두 workspace_id만 쓰는 같은 이름 인덱스는 허용).
+2026-10-22 U5-U7: T11/T12도 이메일 표현식 Index Cond와 workspace/org 전체 스캔·Bitmap Recheck Cond 판정을 공유. U7 일회용 QA TRUNCATE CASCADE/12만행 입력/finally 정리는 사용자 명시 승인 후 실행. B13은 기존 output.test.ts 40ms deadline의 기본 병렬 1 fail, 단독 12/12, 직렬 전체 1603 pass/6 skip/0 fail을 모두 보존하고 설계 담당 승인에 따라 통과 처리(범위 밖 기존 불안정 테스트, 이번 변경과 무관).

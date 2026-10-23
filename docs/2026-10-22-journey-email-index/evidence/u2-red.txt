@@ -1,0 +1,39 @@
+node:internal/modules/cjs/loader:1410
+  const err = new Error(message);
+              ^
+
+Error: Cannot find module './records-email-index'
+Require stack:
+- /Users/jaehun/Projects/salesflow/src/lib/db/records-email-index.test.ts
+    at node:internal/modules/cjs/loader:1410:15
+    at m._resolveFilename (file:///Users/jaehun/Projects/salesflow/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-B7jrtLTO.mjs:1:789)
+    at nextResolveSimple (/Users/jaehun/Projects/salesflow/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1004)
+    at /Users/jaehun/Projects/salesflow/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:3:2630
+    at /Users/jaehun/Projects/salesflow/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:3:1542
+    at resolveTsPaths (/Users/jaehun/Projects/salesflow/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:4:760)
+    at Module._resolveFilename (/Users/jaehun/Projects/salesflow/node_modules/.pnpm/tsx@4.21.0/node_modules/tsx/dist/register-D46fvsV_.cjs:4:1102)
+    at defaultResolveImpl (node:internal/modules/cjs/loader:1051:19)
+    at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1056:22)
+    at Module._load (node:internal/modules/cjs/loader:1219:37) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [
+    '/Users/jaehun/Projects/salesflow/src/lib/db/records-email-index.test.ts'
+  ]
+}
+
+Node.js v24.7.0
+✖ src/lib/db/records-email-index.test.ts (634.704458ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 639.113042
+
+✖ failing tests:
+
+test at src/lib/db/records-email-index.test.ts:1:1
+✖ src/lib/db/records-email-index.test.ts (634.704458ms)
+  'test failed'

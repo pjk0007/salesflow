@@ -1,14 +1,13 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- 격리된 Postgres 검사 실행기 */
 /*
  * 실제 DB·웹훅·환경 파일을 읽지 않는다. 모든 데이터는 가상이고 외부 네트워크는 차단한다.
- * npm install --prefix .testenv/test-runtime --no-save --no-package-lock @electric-sql/pglite@0.5.8
  * node --import tsx scripts/check-customer-journey-priority.cjs
  */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
-const { PGlite } = require(path.join(root, '.testenv/test-runtime/node_modules/@electric-sql/pglite'));
+const { PGlite } = require('@electric-sql/pglite');
 const { PgDialect, getTableConfig } = require('drizzle-orm/pg-core');
 const { SQL } = require('drizzle-orm');
 const schema = require('../src/lib/db/schema.ts');

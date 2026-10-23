@@ -1,0 +1,6 @@
+
+/Users/jaehun/Projects/salesflow/src/lib/deep-visitor-alert.ts
+  58:5  warning  'EMAIL_TRIM_CHARS' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+

@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "cycleId": "2026-10-22-journey-email-index",
+  "behaviors": [
+    {
+      "id": "B1",
+      "desc": "SEND_LOG_INDEXES에 records 'email' 정규화 표현식 인덱스가 CONCURRENTLY·IF NOT EXISTS DDL로 있고, schema.ts에 같은 이름 선언, 마이그레이션 SQL에는 없음",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B2",
+      "desc": "QA DB에서 ensureSendLogIndexes() 후 새 인덱스가 indisvalid=true",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u7-green.txt",
+        "cmd": "EMAIL_STATS_TEST_URL=postgresql://jaehun@127.0.0.1:5432/sendb_email_stats_qa node --import tsx --test src/lib/customer-journey-audience.db.test.ts",
+        "output": "[indexes] email_send_logs·records 색인 준비됨 (0.3초, 새로 1개)\n✔ T12 B2/B11: local QA 120k records, concurrent index, actual driver and generic/custom plans\nℹ tests 1\nℹ pass 1\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B3",
+      "desc": "트림 SQL 리터럴을 PG에서 평가한 값이 EMAIL_TRIM_CHARS(10글자, \\v 포함)와 정확히 같음",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B4",
+      "desc": "'email' 갈래가 custom plan과 generic plan(force_generic_plan) 모두에서 새 인덱스를 사용",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B5",
+      "desc": "emailKeys 산출 규칙은 그대로이고, 'email'과 나머지 키로 나눈 합집합이 원래 emailKeys와 같음",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B6",
+      "desc": "새 related 레코드 집합이 예전 SQL과 같음(대소문자·트림 10종·가운데 공백·집합 밖 공백·비문자열 값·다른 워크스페이스/조직·emailKeys 4가지·대상 email 빈 값·links/identities 전용)",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B7",
+      "desc": "AudienceFacts 전체와 loadJourneyAudience 반환값이 예전 SQL로 만든 값과 같음(배열 순서 무시)",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B8",
+      "desc": "나머지 키가 없으면 그 갈래가 records를 읽지 않고, 있으면 예전과 같은 비교로 찾음",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B9",
+      "desc": "새 인덱스가 없거나 INVALID여도 오류 없이 같은 결과",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B10",
+      "desc": "새 인덱스가 있어도 'email' 값이 10KB인 레코드의 INSERT·UPDATE가 성공",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u4-green.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B11",
+      "desc": "QA DB 10만 행 fixture에서 새 조회가 records 전체를 읽지 않고 1초 안에 끝남, 전후 EXPLAIN(ANALYZE, BUFFERS) 저장",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u7-green.txt",
+        "cmd": "EMAIL_STATS_TEST_URL=postgresql://jaehun@127.0.0.1:5432/sendb_email_stats_qa node --import tsx --test src/lib/customer-journey-audience.db.test.ts",
+        "output": "[indexes] email_send_logs·records 색인 준비됨 (0.3초, 새로 1개)\n✔ T12 B2/B11: local QA 120k records, concurrent index, actual driver and generic/custom plans\nℹ tests 1\nℹ pass 1\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B12",
+      "desc": "배포 뒤 운영 EXPLAIN(읽기 전용)에서 워크스페이스 8 대상 조회가 새 인덱스를 사용",
+      "priority": "P1",
+      "target": null,
+      "passes": false,
+      "evidence": null
+    },
+    {
+      "id": "B13",
+      "desc": "pnpm test·tsc --noEmit·바꾼 파일 eslint 통과, check-customer-journey-priority.cjs PASS",
+      "priority": "P1",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence",
+        "cmd": "node --import tsx scripts/check-customer-journey-priority.cjs",
+        "output": "{\"result\":\"passed\",\"externalRequests\":0,\"productionOrDevelopmentDbAccess\":false,\"scenarios\":22}\n(추가: tsc --noEmit exit 0, 바꾼 파일 eslint exit 0, 직렬 전체 1609/1603 pass/0 fail/6 skip — evidence/u6-serial-tests.txt. 기본 병렬 pnpm test는 범위 밖 기존 불안정 테스트 channel-source-export/output.test.ts 40ms deadline 1건만 간헐 실패, 단독 12/12 — 이번 변경과 무관)",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B14",
+      "desc": "깊이 알림 loadAudienceGuardsMany 결과가 예전 SQL과 같음",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u6-serial-tests.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    },
+    {
+      "id": "B15",
+      "desc": "깊이 알림 grec의 'email' 갈래가 새 인덱스를 사용",
+      "priority": "P2",
+      "target": null,
+      "passes": true,
+      "evidence": {
+        "kind": "test",
+        "ref": "docs/2026-10-22-journey-email-index/evidence/u6-serial-tests.txt",
+        "cmd": "node --import tsx --test src/lib/customer-journey-audience.test.ts src/lib/db/records-email-index.test.ts src/lib/db/send-log-indexes.test.ts src/lib/deep-visitor-alert-guards-sql.test.ts",
+        "output": "✔ T7: absent legacy facts and audience (25 combinations)\n✔ T7: valid legacy facts and audience (25 combinations)\n✔ T7: invalid legacy facts and audience (25 combinations)\n✔ T8a: generic and custom use the expression index; parameterized trim control\n✔ T8b: branch gates prevent full scans in generic and custom plans\n✔ T9: journey SQL has exactly one literal expression and no unsafe fragments\n✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v\n✔ T2: expression is exact printable ASCII without template metacharacters\n✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email\n✔ T4: registered DDL creates a prefix index\n✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE\n✔ T6: records email index has exact DDL, schema declaration and no migration\n✔ T10: guards preserve workspace/email pairs, ordering, isolation and funnel events\n✔ T11: guards expression index and full-scan gates (custom)\nℹ tests 18\nℹ pass 18\nℹ fail 0",
+        "at": "2026-10-22T09:53:19.060073+00:00"
+      }
+    }
+  ]
+}

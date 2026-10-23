@@ -12,6 +12,7 @@
  * 색인이 생기기 전에는 건강 판정이 그 회차를 건너뛰고(sender-health.ts), 동기화·회신 조회는 느리게 돈다.
  */
 import postgres from "postgres";
+import { recordEmailIndexKeySql } from "./records-email-index";
 
 export const SEND_LOG_INDEX_LOCK_KEY = 0x5c4edf0a;
 
@@ -46,6 +47,11 @@ export const SEND_LOG_INDEXES: ReadonlyArray<{ name: string; ddl: string }> = [
     {
         name: "email_send_logs_record_idx",
         ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_record_idx" ON "email_send_logs" ("record_id") WHERE "record_id" IS NOT NULL`,
+    },
+    // 고객 여정·깊이 알림이 받는 메일이 같은 레코드를 찾으려고 워크스페이스 records를 통째로 읽었다 (2026-10-22 운영 20~30초).
+    {
+        name: "records_workspace_email_norm_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "records_workspace_email_norm_idx" ON "records" ("workspace_id", (${recordEmailIndexKeySql('"data"')}))`,
     },
 ];
 

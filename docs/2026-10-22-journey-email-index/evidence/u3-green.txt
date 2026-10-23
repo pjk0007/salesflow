@@ -1,0 +1,18 @@
+✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v (1462.601916ms)
+ℹ [{"version":"PostgreSQL 18.6 (PGlite 0.5.10) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271), 32-bit"}]
+✔ T2: expression is exact printable ASCII without template metacharacters (0.425125ms)
+✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email (0.571292ms)
+✔ T4: registered DDL creates a prefix index (942.118166ms)
+✔ T5: unbounded control rejects long values; prefix index permits INSERT and UPDATE (904.115875ms)
+✔ S2: 수신자 색인은 부팅 뒤 CONCURRENTLY·IF NOT EXISTS로 생성 (0.883917ms)
+✔ 발송 중복 확인·레코드별 조회 색인은 부팅 뒤 CONCURRENTLY로 만들고 schema.ts와 이름이 같다 (0.417417ms)
+✔ S2: 수신자 색인은 어느 마이그레이션 SQL에도 포함하지 않는다 (25.955125ms)
+✔ T6: records email index has exact DDL, schema declaration and no migration (4.871084ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4168.223625

@@ -1,3 +1,4 @@
+import { recordEmailIndexKeySql } from "./records-email-index";
 import type { MachineOpenReason } from "@/lib/email-open-rules";
 import type { BotReason } from "@/lib/email-click-bot-rules";
 import {
@@ -324,6 +325,8 @@ export const records = pgTable(
         orgCreatedAtIdx: index("records_org_created_at_idx").on(table.orgId, table.createdAt),
         partitionIdx: index("records_partition_idx").on(table.partitionId),
         workspaceIdx: index("records_workspace_idx").on(table.workspaceId),
+        // 부팅 뒤 CONCURRENTLY로 만들기 때문에 마이그레이션에는 없다. 식의 정본은 records-email-index.ts다.
+        emailNormIdx: index("records_workspace_email_norm_idx").on(table.workspaceId, sql.raw(recordEmailIndexKeySql('"data"'))),
     })
 );
 
