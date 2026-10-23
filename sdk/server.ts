@@ -1,5 +1,9 @@
 import type { SendbInboxTeam } from "./routing-types";
-import type { SendbImportFile, SendbImportFilePage, SendbImportFileDetail } from "./import-file-types";
+import type {
+    SendbImportFile,
+    SendbImportFilePage,
+    SendbImportFileDetail,
+} from "./import-file-types";
 export type * from "./import-file-types";
 import type {
     SendbReplyGuardPage,
@@ -363,6 +367,7 @@ export class SendbClient {
         workspaceId: number;
         address: string;
         name: string;
+        googleAccount?: string;
     }) {
         return this.request<SendbEmailMailbox>(
             "/api/v1/email/mailboxes",
@@ -370,11 +375,20 @@ export class SendbClient {
             input,
         );
     }
-    changeEmailMailbox(id: string, version: number, enabled: boolean) {
+    changeEmailMailbox(
+        id: string,
+        version: number,
+        enabled: boolean,
+        googleAccount?: string | null,
+    ) {
         return this.request<SendbEmailMailbox>(
             `/api/v1/email/mailboxes/${encodeURIComponent(id)}`,
             "POST",
-            { version, enabled },
+            {
+                version,
+                enabled,
+                ...(googleAccount === undefined ? {} : { googleAccount }),
+            },
         );
     }
     receiveEmail(id: string, input: SendbInboundEmail) {
@@ -441,7 +455,11 @@ export class SendbClient {
         return this.request<SendbImportJob>(
             `/api/v1/imports/${encodeURIComponent(id)}`,
             "POST",
-            { action: "step", cursor, ...(batchSize === undefined ? {} : { batchSize }) },
+            {
+                action: "step",
+                cursor,
+                ...(batchSize === undefined ? {} : { batchSize }),
+            },
         );
     }
     importFiles(jobId: string, offset = 0) {
@@ -450,7 +468,9 @@ export class SendbClient {
         );
     }
     importFile(jobId: string, fileId: string) {
-        return this.request<SendbImportFileDetail>(`/api/v1/imports/${encodeURIComponent(jobId)}/files?fileId=${encodeURIComponent(fileId)}`);
+        return this.request<SendbImportFileDetail>(
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files?fileId=${encodeURIComponent(fileId)}`,
+        );
     }
     prepareImportFiles(jobId: string, offset = 0) {
         return this.request<{
@@ -470,16 +490,41 @@ export class SendbClient {
             { action: "fetch", id, version },
         );
     }
-    planArchiveImportFile(jobId: string, id: string, version: number, identity: { size: number; sha256: string }) {
-        return this.request<{ objectKey: string; fileName: string; size: number; sha256: string }>(
-            `/api/v1/imports/${encodeURIComponent(jobId)}/files`, "POST",
-            { action: "archive_plan", id, version, size: identity.size, sha256: identity.sha256 },
-        );
+    planArchiveImportFile(
+        jobId: string,
+        id: string,
+        version: number,
+        identity: { size: number; sha256: string },
+    ) {
+        return this.request<{
+            objectKey: string;
+            fileName: string;
+            size: number;
+            sha256: string;
+        }>(`/api/v1/imports/${encodeURIComponent(jobId)}/files`, "POST", {
+            action: "archive_plan",
+            id,
+            version,
+            size: identity.size,
+            sha256: identity.sha256,
+        });
     }
-    connectArchiveImportFile(jobId: string, id: string, version: number, identity: { size: number; sha256: string }) {
+    connectArchiveImportFile(
+        jobId: string,
+        id: string,
+        version: number,
+        identity: { size: number; sha256: string },
+    ) {
         return this.request<SendbImportFile>(
-            `/api/v1/imports/${encodeURIComponent(jobId)}/files`, "POST",
-            { action: "archive_attach", id, version, size: identity.size, sha256: identity.sha256 },
+            `/api/v1/imports/${encodeURIComponent(jobId)}/files`,
+            "POST",
+            {
+                action: "archive_attach",
+                id,
+                version,
+                size: identity.size,
+                sha256: identity.sha256,
+            },
         );
     }
     refreshImportFileSource(

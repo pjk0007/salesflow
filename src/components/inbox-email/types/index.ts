@@ -1,4 +1,5 @@
 export interface EmailMailbox {
+    googleAccount?: string | null;
     id: string;
     workspaceId: number;
     address: string;

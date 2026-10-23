@@ -60,8 +60,18 @@ export function EmailDeliveryStatus({
             {item.errorCode === "access_revoked" && (
                 <p>작성자의 사업 응대 권한이 회수되어 발송을 중단했습니다.</p>
             )}
+            {item.errorCode === "alias_unverified" && (
+                <p>
+                    사업 문의 주소가 Gmail에서 인증된 발신 주소인지 확인하지
+                    못해 발송을 중단했습니다. Google 계정의 다른 주소에서 메일
+                    보내기 설정을 확인한 뒤 재시도해주세요.
+                </p>
+            )}
             {item.errorCode === "email_unsubscribed" && (
-                <p>조직 전체 수신거부 목록에 등록된 주소가 있어 발송을 중단했습니다.</p>
+                <p>
+                    조직 전체 수신거부 목록에 등록된 주소가 있어 발송을
+                    중단했습니다.
+                </p>
             )}
             {item.state === "uncertain" && (
                 <p>

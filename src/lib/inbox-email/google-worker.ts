@@ -14,6 +14,7 @@ import {
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { GmailApiError, type GmailCredentials } from "@/lib/gmail-client";
+import { googleAccountAddress } from "./google-identity";
 import { InboxError } from "@/lib/inbox/errors";
 import {
     gmailReader,
@@ -225,7 +226,7 @@ async function poll(
         profile = z
             .object({ emailAddress: z.email(), historyId })
             .parse(await get("profile"));
-    if (profile.emailAddress.toLowerCase() !== job.box.address)
+    if (profile.emailAddress.toLowerCase() !== googleAccountAddress(job.box))
         throw new GmailApiError("auth", null, "메일 계정 주소를 확인해주세요.");
     if (c.phase === "full") {
         const query = new URLSearchParams({

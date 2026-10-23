@@ -15,7 +15,24 @@ export const createEmailMailbox = (
     workspaceId: number,
     address: string,
     name: string,
-) => inboxWrite("/api/email-mailboxes", { workspaceId, address, name });
+    googleAccount?: string,
+) =>
+    inboxWrite("/api/email-mailboxes", {
+        workspaceId,
+        address,
+        name,
+        ...(googleAccount ? { googleAccount } : {}),
+    });
+export const changeGoogleAccount = (
+    id: string,
+    version: number,
+    googleAccount: string,
+) =>
+    inboxWrite(`/api/email-mailboxes/${id}`, {
+        version,
+        enabled: false,
+        googleAccount,
+    });
 export const toggleEmailMailbox = (
     id: string,
     version: number,

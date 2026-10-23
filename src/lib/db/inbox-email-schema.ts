@@ -58,6 +58,7 @@ export const inboxMailboxes = pgTable(
             .notNull()
             .references(() => inboxChannels.id, { onDelete: "cascade" }),
         address: varchar("address", { length: 254 }).notNull(),
+        googleAccount: varchar("google_account", { length: 254 }),
         name: varchar("name", { length: 100 }).notNull(),
         enabled: boolean("enabled").notNull().default(false),
         version: integer("version").notNull().default(1),

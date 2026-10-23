@@ -94,11 +94,18 @@ export function GoogleConnectionPanel({
                             : "Google 계정 연결"}
                     </button>
                     <p className="text-xs text-muted-foreground">
-                        등록한 주소와 같은 계정을 선택하고 메일 읽기·발송을
-                        승인해주세요. 연결 후 수신·발송 켜기를 눌러야 자동
-                        처리가 시작됩니다. 다시 연결하면 기존 발송 대기 답장은
-                        취소됩니다.
+                        {box.googleAccount || box.address} 계정을 선택하고 메일
+                        읽기·발송을 승인해주세요. 연결 후 수신·발송 켜기를
+                        눌러야 자동 처리가 시작됩니다. 다시 연결하면 기존 발송
+                        대기 답장은 취소됩니다.
                     </p>
+                    {box.googleAccount && box.googleAccount !== box.address && (
+                        <p className="text-xs text-muted-foreground">
+                            {box.address}로 받은 문의만 가져오고 같은 주소로
+                            답장합니다. Google 계정의 인증된 발신 주소에 이
+                            주소가 있어야 연결됩니다.
+                        </p>
+                    )}
                 </>
             )}
             {connected && (

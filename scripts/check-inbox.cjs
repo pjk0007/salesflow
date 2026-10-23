@@ -83,6 +83,7 @@ async function fixture(testRuntime) {
         "0098_inbox_email.sql",
         "0099_inbox_email_files.sql",
         "0100_inbox_google_connection.sql",
+        "0124_inbox_google_account.sql",
         "0101_inbox_operations.sql",
         "0102_customer_workspace_access.sql",
         "0103_crm_object_lifecycle.sql",
