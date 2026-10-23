@@ -1,0 +1,63 @@
+# U0 운영 읽기 전용 증거 2026-10-22 17:39:53 KST
+ server_version 
+----------------
+ 16.15
+(1 row)
+
+ server_encoding 
+-----------------
+ UTF8
+(1 row)
+
+  heap  | total  
+--------+--------
+ 245 MB | 557 MB
+(1 row)
+
+ n_tup_upd | n_tup_hot_upd | last_autoanalyze 
+-----------+---------------+------------------
+      3738 |             0 | 
+(1 row)
+
+            indexname             
+----------------------------------
+ records_company_research_key_idx
+ records_org_created_at_idx
+ records_org_idx
+ records_partition_idx
+ records_pkey
+ records_workspace_idx
+(6 rows)
+
+        ?column?        
+------------------------
+ sample email length=19
+(1 row)
+
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Gather  (cost=1000.00..35978.38 rows=591 width=4)
+   Workers Planned: 2
+   ->  Nested Loop Semi Join  (cost=0.00..34919.28 rows=246 width=4)
+         Join Filter: (lower(btrim((r.data ->> k.key), ' '::text)) = 'sample@example.com'::text)
+         ->  Parallel Seq Scan on records r  (cost=0.00..33440.67 rows=49287 width=535)
+               Filter: (workspace_id = 8)
+         ->  Function Scan on unnest k  (cost=0.00..0.01 rows=1 width=32)
+(7 rows)
+
+
+-- 깊이 알림 grec 형태(현재): 조직 records 전체에 OR 조건
+                                           QUERY PLAN                                            
+-------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on records r  (cost=1510.30..36515.56 rows=65878 width=4)
+   Recheck Cond: (org_id = $0)
+   Filter: ((id = ANY ('{1,2}'::integer[])) OR (hashed SubPlan 2))
+   InitPlan 1 (returns $0)
+     ->  Seq Scan on workspaces  (cost=0.00..1.23 rows=1 width=16)
+           Filter: (id = 8)
+   ->  Bitmap Index Scan on records_org_created_at_idx  (cost=0.00..1492.58 rows=131755 width=0)
+         Index Cond: (org_id = $0)
+   SubPlan 2
+     ->  Function Scan on unnest  (cost=0.01..0.01 rows=1 width=36)
+(10 rows)
+

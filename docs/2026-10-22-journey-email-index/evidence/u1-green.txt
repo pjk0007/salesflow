@@ -1,0 +1,9 @@
+✔ T7 U1: no-index legacy facts and audience baseline (25 combinations) (1362.051334ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2139.738958

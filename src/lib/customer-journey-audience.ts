@@ -1,4 +1,5 @@
 /** 고객별 내부·공유 브라우저·전환 여부를 생성 시와 전송 직전에 같은 방식으로 확인한다. */
+import { splitEmailKeys } from "./db/records-email-index";
 import type { queryClient } from "./db";
 import { EMAIL_TRIM_CHARS, contactKindOf, isFunnelRecordEvent, isRecordInFunnel, isSubmitSignal, normalizeEmail, type FunnelFieldStage, type SessionInput } from "./deep-visitor-alert-rules";
 import type { JourneyAudience } from "./customer-journey-priority";
@@ -50,7 +51,11 @@ export async function loadJourneyAudience(conn: Connection, target: {
     fields: { key: string; label: string; fieldType: string; value: string }[];
 }, now: Date, extraDomains: readonly string[] = []): Promise<JourneyAudience> {
     const emailKeys = target.fields.filter((f) => contactKindOf(f) === "email").map((f) => f.key);
+    const keys = splitEmailKeys(emailKeys);
+    const email = normalizeEmail(target.recipientEmail);
     const since = new Date(now.getTime() - 30 * 86400_000).toISOString();
+    // 'email' 칸만 records_workspace_email_norm_idx로 찾는다 — 정본과 같은 리터럴이라 공용 계획에서도 인덱스와 맞는다(T9).
+    // own은 최대 한 행이고 없으면 스칼라가 NULL이므로 JOIN과 같은 결과를 내면서 own 주도 workspace 전체 스캔을 피한다.
     const [facts] = await conn<AudienceFacts[]>`
         WITH own AS (
             SELECT w.org_id, w.id AS workspace_id, site.id AS site_id
@@ -71,10 +76,22 @@ export async function loadJourneyAudience(conn: Connection, target: {
             UNION SELECT l.record_id FROM visitor_record_links l JOIN own ON own.org_id = l.org_id
                 WHERE l.visitor_id = ${target.session.visitorId}
         ), related AS MATERIALIZED (
-            SELECT r.id, r.data FROM records r JOIN own ON own.workspace_id = r.workspace_id AND own.org_id = r.org_id
-            WHERE r.id = ${target.recordId} OR r.id IN (SELECT record_id FROM links) OR r.id IN (SELECT record_id FROM identities)
-               OR EXISTS (SELECT 1 FROM unnest(${emailKeys}::text[]) AS k(key)
-                    WHERE lower(btrim(r.data->>k.key, ${EMAIL_TRIM_CHARS})) = ${normalizeEmail(target.recipientEmail)})
+            SELECT r.id, r.data FROM records r
+            WHERE r.id = ANY(ARRAY(
+                SELECT ${target.recordId}::int
+                UNION ALL SELECT record_id FROM links
+                UNION ALL SELECT record_id FROM identities
+                UNION ALL SELECT rm.id FROM records rm
+                    WHERE ${keys.indexed}::boolean AND rm.workspace_id = ${target.workspaceId}
+                      AND left(lower(btrim(rm.data->>'email', chr(32)||chr(9)||chr(10)||chr(11)||chr(12)||chr(13)||chr(160)||chr(12288)||chr(65279)||chr(8203))), 200) = left(${email}, 200)
+                      AND lower(btrim(rm.data->>'email', ${EMAIL_TRIM_CHARS})) = ${email}
+                UNION ALL SELECT ro.id FROM records ro
+                    WHERE cardinality(${keys.others}::text[]) > 0 AND ro.workspace_id = ${target.workspaceId}
+                      AND EXISTS (SELECT 1 FROM unnest(${keys.others}::text[]) AS k(key)
+                          WHERE lower(btrim(ro.data->>k.key, ${EMAIL_TRIM_CHARS})) = ${email})
+            ))
+              AND r.workspace_id = (SELECT workspace_id FROM own)
+              AND r.org_id = (SELECT org_id FROM own)
         ), funnel AS (
             SELECT f.stages FROM tracker_funnels f JOIN own ON own.site_id = f.site_id AND own.org_id = f.org_id
             WHERE f.kind = 'marketing' AND f.is_default = 1 ORDER BY f.created_at DESC LIMIT 1

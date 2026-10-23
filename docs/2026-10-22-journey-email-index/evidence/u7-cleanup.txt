@@ -1,0 +1,2 @@
+{"database":"sendb_email_stats_qa"}
+[{"records":0,"organizations":0,"email_send_logs":0}]

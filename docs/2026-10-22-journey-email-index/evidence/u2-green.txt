@@ -1,0 +1,12 @@
+✔ T1: PG trim literal equals all ten EMAIL_TRIM_CHARS and preserves v (1120.3535ms)
+ℹ [{"version":"PostgreSQL 18.6 (PGlite 0.5.10) on wasm32-unknown-emscripten, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 6.0.5 (1db513782be24469589d7cb8a1f1834e9a33f271), 32-bit"}]
+✔ T2: expression is exact printable ASCII without template metacharacters (0.410375ms)
+✔ T3: splitEmailKeys preserves sets, removes duplicates and isolates email (0.551542ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1731.234625

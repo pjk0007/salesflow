@@ -7,6 +7,7 @@
  *
  * 설계: docs/2026-10-02-deep-visitor-alert/DESIGN.md 4·6·7절.
  */
+import { audienceGuardsSql, type AudienceGuardsRow } from "./deep-visitor-alert-guards-sql";
 import { and, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
@@ -14,7 +15,6 @@ import { db, queryClient, deepVisitorAlerts, trackerEvents, trackerFunnels, emai
 import type { DeepVisitorAlert } from "@/lib/db";
 import {
     emailKeysOf,
-    emailPairsByKey,
     eventLabelsOf,
     resolveFieldDefs,
     toCandidateRow,
@@ -55,7 +55,6 @@ import {
     PRE_DELIVERY_BUDGET_MS,
     STALE_AFTER_MS,
     RUN_INTERVAL_MS,
-    EMAIL_TRIM_CHARS,
     evaluateSendWithFallback,
     pickChosenSession,
     humanClickFallbackSession,
@@ -1921,30 +1920,6 @@ interface GuardGroup {
     items: GuardItem[];
 }
 
-interface GuardRecordJson {
-    id: number;
-    workspace_id: number;
-    partition_id: number;
-    integrated_code: string | null;
-    created_at: string;
-    data: Record<string, unknown> | null;
-    email_match: boolean | null;
-}
-
-/**
- * 받는 메일 주소가 같은 레코드 조건 (조각). normalizeEmail과 같은 규칙으로 비교한다 —
- * 앞뒤 문자는 EMAIL_TRIM_CHARS로 btrim한다 (Postgres trim()은 공백만 지워 JS와 어긋났다).
- * 예전 조건(워크스페이스마다 workspace_id = w AND (칸 키마다 lower(btrim(data->>key)) IN 그 워크스페이스 주소))과 같다:
- * 칸 키마다 (워크스페이스, 주소) 짝을 배열로 넘겨 (r.workspace_id, 값) IN 짝 — 워크스페이스를 한 번만 훑는다.
- */
-function sameEmailSql(specs: Array<{ workspaceId: number; keys: string[]; emails: string[] }>): SQL {
-    const parts = [...emailPairsByKey(specs)].map(([key, p]) => sql`
-        (r.workspace_id, lower(btrim(r.data->>${key}::text, ${EMAIL_TRIM_CHARS}::text))) IN (
-            SELECT * FROM unnest(${sql.param(p.ws)}::int[], ${sql.param(p.emails)}::text[])
-        )`);
-    return parts.length === 0 ? sql`false` : sql.join(parts, sql` OR `);
-}
-
 /**
  * 설계 4절 "이미 깔때기 안"·수신거부 재료를 묶어 읽는다. 탐지와 보내기 전 재확인이 같이 쓴다 — 규칙이 어긋나지 않게.
  * 같은 조직의 여러 묶음(워크스페이스·사이트)을 함께 읽고 묶음마다 결과를 groups 순서로 돌려준다.
@@ -1991,53 +1966,9 @@ async function loadAudienceGuardsMany(exec: Exec, orgId: string, groups: GuardGr
     const unsubWorkspaceIds = specs.filter((s) => s.emails.length > 0).map((s) => s.workspaceId);
     const allEmails = uniq(specs.flatMap((s) => s.emails));
     const allStageValues = uniq(funnelStagesOf.flatMap((stages) => stages.map((s) => s.value)));
-    const emailMatch = sameEmailSql(specs);
-
-    const [row] = await runSql<{
-        linked: Array<{ visitor_id: number; record_id: number | null }> | null;
-        unsub: Array<{ record_id: number | null; workspace_id: number | null; email: string | null }> | null;
-        records: GuardRecordJson[] | null;
-        funnel_events: Array<{ record_id: number; type: string | null; label: string | null }> | null;
-    }>(exec, sql`
-        WITH linked AS MATERIALIZED (
-            SELECT v.id AS visitor_id, v.record_id, 0 AS src, 0 AS ord
-            FROM tracker_visitors v
-            WHERE v.id = ANY(${sql.param(visitorIds)}::int[]) AND v.org_id = ${orgId}::uuid AND v.record_id IS NOT NULL
-            UNION ALL
-            SELECT l.visitor_id, l.record_id, 1 AS src, l.id AS ord
-            FROM visitor_record_links l
-            WHERE l.visitor_id = ANY(${sql.param(visitorIds)}::int[]) AND l.org_id = ${orgId}::uuid
-        ),
-        unsub AS (
-            SELECT u.record_id, u.workspace_id, u.email
-            FROM email_unsubscribes u
-            WHERE u.org_id = ${orgId}::uuid
-              AND (u.record_id = ANY(${sql.param(itemRecordIds)}::int[])
-                   OR (u.workspace_id = ANY(${sql.param(unsubWorkspaceIds)}::int[])
-                       AND lower(btrim(u.email, ${EMAIL_TRIM_CHARS}::text)) = ANY(${sql.param(allEmails)}::text[])))
-        ),
-        grec AS MATERIALIZED (
-            SELECT r.id, r.workspace_id, r.partition_id, r.integrated_code, r.created_at, r.data,
-                   (${emailMatch}) AS email_match
-            FROM records r
-            WHERE r.org_id = ${orgId}::uuid
-              AND (r.id = ANY(${sql.param(itemRecordIds)}::int[])
-                   OR r.id IN (SELECT record_id FROM linked)
-                   OR (${emailMatch}))
-        ),
-        fev AS (
-            SELECT DISTINCT e.record_id, e.type, e.label
-            FROM record_events e
-            WHERE cardinality(${sql.param(allStageValues)}::text[]) > 0
-              AND e.org_id = ${orgId}::uuid
-              AND e.record_id IN (SELECT id FROM grec)
-              AND (e.type = 'signup' OR e.label = ANY(${sql.param(allStageValues)}::text[]))
-        )
-        SELECT (SELECT COALESCE(json_agg(json_build_object('visitor_id', visitor_id, 'record_id', record_id) ORDER BY src, ord), '[]'::json) FROM linked) AS linked,
-               (SELECT COALESCE(json_agg(unsub), '[]'::json) FROM unsub) AS unsub,
-               (SELECT COALESCE(json_agg(grec ORDER BY grec.id), '[]'::json) FROM grec) AS records,
-               (SELECT COALESCE(json_agg(fev), '[]'::json) FROM fev) AS funnel_events
-    `);
+    const [row] = await runSql<AudienceGuardsRow>(exec, audienceGuardsSql({
+        orgId, visitorIds, itemRecordIds, unsubWorkspaceIds, allEmails, allStageValues, specs,
+    }));
 
     const linkedByVisitor = new Map<number, Set<number>>();
     for (const r of row?.linked ?? []) {
