@@ -5,7 +5,10 @@ import {
 } from "@/lib/customer-access/access";
 import { checkGoogleGuard } from "./google-guard";
 import { isOrganizationUnsubscribed } from "@/lib/email-unsubscribe";
-import { checkEmailSubmission, EMAIL_SEND_BLOCKED } from "@/lib/email-send-guard";
+import {
+    checkEmailSubmission,
+    EMAIL_SEND_BLOCKED,
+} from "@/lib/email-send-guard";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
 import { and, eq, inArray, lte, or, sql, asc } from "drizzle-orm";
 import { z } from "zod";
@@ -20,10 +23,12 @@ import {
     inboxEmailThreads as threads,
     inboxEmailReceipts as receipts,
     inboxEmailDeliveries as deliveries,
+    inboxGoogleConnections as googleConnections,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
 import { InboxError } from "@/lib/inbox/errors";
+import { googleAccountAddress } from "./google-identity";
 import { appendMessage } from "@/lib/inbox/repository";
 import { seedEmailFiles } from "./files";
 import { inboxAttachments } from "@/lib/db";
@@ -152,10 +157,37 @@ export async function changeMailbox(
                 "메일함 설정이 변경됐습니다. 새로 불러와주세요.",
                 409,
             );
-        if (box.enabled === input.enabled) return box;
+        const googleAccount =
+            input.googleAccount === undefined
+                ? box.googleAccount
+                : input.googleAccount;
+        const accountChanged =
+            googleAccountAddress(box) !==
+            googleAccountAddress({ address: box.address, googleAccount });
+        if (accountChanged) {
+            const [connection] = await tx
+                .select()
+                .from(googleConnections)
+                .where(eq(googleConnections.mailboxId, id));
+            if (connection && connection.status !== "disconnected")
+                throw new InboxError(
+                    "Google 연결을 먼저 해제한 뒤 로그인 계정을 변경해주세요.",
+                    409,
+                );
+            if (input.enabled)
+                throw new InboxError(
+                    "로그인 계정 변경 후 Google 계정을 다시 연결해주세요.",
+                    409,
+                );
+        }
+        if (box.enabled === input.enabled && !accountChanged) return box;
         const [next] = await tx
             .update(boxes)
-            .set({ enabled: input.enabled, version: box.version + 1 })
+            .set({
+                enabled: input.enabled,
+                googleAccount,
+                version: box.version + 1,
+            })
             .where(eq(boxes.id, id))
             .returning();
         // Anything already handed to a provider must not be represented as cancelled.
@@ -179,7 +211,20 @@ export async function changeMailbox(
             actorId: actor.userId,
             actorName: actor.name,
             action: "email.mailbox.updated",
-            changes: { enabled: { before: box.enabled, after: input.enabled } },
+            changes: {
+                enabled: { before: box.enabled, after: input.enabled },
+                ...(accountChanged
+                    ? {
+                          googleAccount: {
+                              before: googleAccountAddress(box),
+                              after: googleAccountAddress({
+                                  address: box.address,
+                                  googleAccount,
+                              }),
+                          },
+                      }
+                    : {}),
+            },
         });
         return next;
     });
@@ -240,7 +285,9 @@ export async function receiveEmail(
                 duplicate: true,
             };
         }
-        const ignoredReason = ignoredEmail(input, box.address);
+        const ignoredReason =
+            ignoredEmail(input, box.address) ??
+            (input.from === googleAccountAddress(box) ? "mailbox_self" : null);
         if (ignoredReason) {
             const [receipt] = await tx
                 .insert(receipts)
@@ -486,15 +533,27 @@ export async function claimEmail(
         if (!candidate) return null;
         const decision = await checkEmailSubmission(
             box.orgId,
-            [...(candidate.recipientTo ?? [candidate.recipient]), ...(candidate.recipientCc ?? [])],
+            [
+                ...(candidate.recipientTo ?? [candidate.recipient]),
+                ...(candidate.recipientCc ?? []),
+            ],
             (orgId, email) => isOrganizationUnsubscribed(orgId, email, tx),
         );
         if (!decision.allowed) {
             if (decision.rejection.header.resultCode !== EMAIL_SEND_BLOCKED)
-                throw new InboxError(decision.rejection.header.resultMessage, 503);
-            await tx.update(deliveries).set({
-                state: "cancelled", errorCode: "email_unsubscribed", leaseToken: null, leaseUntil: null,
-            }).where(eq(deliveries.id, candidate.id));
+                throw new InboxError(
+                    decision.rejection.header.resultMessage,
+                    503,
+                );
+            await tx
+                .update(deliveries)
+                .set({
+                    state: "cancelled",
+                    errorCode: "email_unsubscribed",
+                    leaseToken: null,
+                    leaseUntil: null,
+                })
+                .where(eq(deliveries.id, candidate.id));
             return null;
         }
         const [delivery] = await tx
@@ -536,6 +595,7 @@ export async function claimEmail(
             recipientTo: delivery.recipientTo ?? [delivery.recipient],
             attachments: files,
             from: box.address,
+            googleAccount: googleAccountAddress(box),
             fromName: box.name,
         };
     });
@@ -550,6 +610,7 @@ export const deliveryActionInput = z.discriminatedUnion("action", [
                 "attachment_changed",
                 "mime_invalid",
                 "mailbox_mismatch",
+                "alias_unverified",
             ]),
         })
         .strict(),
@@ -694,15 +755,28 @@ export async function changeEmailDelivery(
             // Recheck after queueing and attachment preparation, immediately before provider dispatch.
             const decision = await checkEmailSubmission(
                 box.orgId,
-                [...(item.recipientTo ?? [item.recipient]), ...(item.recipientCc ?? [])],
+                [
+                    ...(item.recipientTo ?? [item.recipient]),
+                    ...(item.recipientCc ?? []),
+                ],
                 (orgId, email) => isOrganizationUnsubscribed(orgId, email, tx),
             );
             if (!decision.allowed) {
                 if (decision.rejection.header.resultCode !== EMAIL_SEND_BLOCKED)
-                    throw new InboxError(decision.rejection.header.resultMessage, 503);
-                const [cancelled] = await tx.update(deliveries).set({
-                    state: "cancelled", errorCode: "email_unsubscribed", leaseToken: null, leaseUntil: null,
-                }).where(eq(deliveries.id, id)).returning();
+                    throw new InboxError(
+                        decision.rejection.header.resultMessage,
+                        503,
+                    );
+                const [cancelled] = await tx
+                    .update(deliveries)
+                    .set({
+                        state: "cancelled",
+                        errorCode: "email_unsubscribed",
+                        leaseToken: null,
+                        leaseUntil: null,
+                    })
+                    .where(eq(deliveries.id, id))
+                    .returning();
                 return cancelled;
             }
             const [next] = await tx
@@ -813,7 +887,14 @@ export async function changeEmailDelivery(
         return next;
     });
     // Persist cancellation before returning an error: every current relay awaits begin before sending.
-    if (input.action === "begin" && result.state === "cancelled" && result.errorCode === "email_unsubscribed")
-        throw new InboxError("이 조직의 수신거부 목록에 등록된 주소가 있어 메일을 보내지 않았습니다.", 409);
+    if (
+        input.action === "begin" &&
+        result.state === "cancelled" &&
+        result.errorCode === "email_unsubscribed"
+    )
+        throw new InboxError(
+            "이 조직의 수신거부 목록에 등록된 주소가 있어 메일을 보내지 않았습니다.",
+            409,
+        );
     return result;
 }

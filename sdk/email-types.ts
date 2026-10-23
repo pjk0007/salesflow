@@ -1,4 +1,5 @@
 export interface SendbEmailMailbox {
+    googleAccount?: string | null;
     id: string;
     workspaceId: number;
     address: string;
@@ -42,6 +43,7 @@ export interface SendbInboundEmail {
     }[];
 }
 export interface SendbEmailClaim {
+    googleAccount?: string | null;
     attachments?: {
         id: string;
         fileName: string;
@@ -94,7 +96,8 @@ export type SendbEmailDeliveryAction =
               | "attachment_download"
               | "attachment_changed"
               | "mime_invalid"
-              | "mailbox_mismatch";
+              | "mailbox_mismatch"
+              | "alias_unverified";
       }
     | { action: "begin"; leaseToken: string }
     | { action: "sent"; leaseToken: string; providerMessageId: string }

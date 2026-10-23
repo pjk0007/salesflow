@@ -18,7 +18,11 @@ import {
     uniqueEmails,
 } from "./recipients";
 import { inboundInput } from "./rules";
-import { checkEmailSubmission, EMAIL_SEND_BLOCKED } from "@/lib/email-send-guard";
+import { googleAccountAddress } from "./google-identity";
+import {
+    checkEmailSubmission,
+    EMAIL_SEND_BLOCKED,
+} from "@/lib/email-send-guard";
 import { isOrganizationUnsubscribed } from "@/lib/email-unsubscribe";
 export function replyRequestFingerprint(selection?: EmailReplySelection) {
     return createHash("sha256")
@@ -100,8 +104,12 @@ export async function emailConversationContext(
     conversationId: string,
 ) {
     const row = await replySource(exec, conversationId),
-        reply = replyRecipients(row.envelope, row.mailbox.address, "reply"),
-        all = replyRecipients(row.envelope, row.mailbox.address, "reply_all");
+        reply = replyRecipients(row.envelope, row.mailbox.address, "reply", [
+            googleAccountAddress(row.mailbox),
+        ]),
+        all = replyRecipients(row.envelope, row.mailbox.address, "reply_all", [
+            googleAccountAddress(row.mailbox),
+        ]);
     return {
         subject: row.thread.subject,
         recipient: reply.to[0] ?? row.thread.correspondent,
@@ -150,6 +158,7 @@ export async function queueEmailReply(
             row.envelope,
             row.mailbox.address,
             selection,
+            [googleAccountAddress(row.mailbox)],
         );
     } catch (e) {
         throw new InboxError((e as Error).message);
@@ -160,8 +169,12 @@ export async function queueEmailReply(
         (orgId, email) => isOrganizationUnsubscribed(orgId, email, exec),
     );
     if (!decision.allowed)
-        throw new InboxError(decision.rejection.header.resultMessage,
-            decision.rejection.header.resultCode === EMAIL_SEND_BLOCKED ? 409 : 503);
+        throw new InboxError(
+            decision.rejection.header.resultMessage,
+            decision.rejection.header.resultCode === EMAIL_SEND_BLOCKED
+                ? 409
+                : 503,
+        );
     const id = randomUUID();
     await exec.insert(deliveries).values({
         id,

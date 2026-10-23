@@ -15,6 +15,7 @@ import {
     decodePartData,
     parseContentType,
 } from "@/lib/email-reply-rules";
+import { googleAccountAddress, assertGoogleAlias } from "./google-identity";
 import { inboundInput, emailAddress, rfcId } from "./rules";
 import { createHash } from "node:crypto";
 import { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "@/lib/inbox/file-rules";
@@ -319,11 +320,25 @@ export async function deliverGmailReply(
     const identity = (await profile.json()) as { emailAddress?: string };
     const item = await client.claimEmail(mailboxId);
     if (!item) return null;
-    if (identity.emailAddress?.toLowerCase() !== item.from) {
+    const account = googleAccountAddress({
+        address: item.from,
+        googleAccount: item.googleAccount,
+    });
+    if (identity.emailAddress?.toLowerCase() !== account) {
         await client.changeEmailDelivery(item.id, {
             action: "prepare_failed",
             leaseToken: item.leaseToken,
             errorCode: "mailbox_mismatch",
+        });
+        return { deliveryId: item.id, state: "failed" };
+    }
+    try {
+        await assertGoogleAlias(item.from, account, accessToken, fetchImpl);
+    } catch {
+        await client.changeEmailDelivery(item.id, {
+            action: "prepare_failed",
+            leaseToken: item.leaseToken,
+            errorCode: "alias_unverified",
         });
         return { deliveryId: item.id, state: "failed" };
     }
@@ -606,7 +621,7 @@ export async function retryGmailFiles(
     if (!mailbox?.enabled) throw new Error("활성 메일함을 선택해주세요.");
     const get = await gmailReader(credentials, fetchImpl),
         profile = await get<{ emailAddress?: string }>("profile");
-    if (profile.emailAddress?.toLowerCase() !== mailbox.address)
+    if (profile.emailAddress?.toLowerCase() !== googleAccountAddress(mailbox))
         throw new Error("메일함과 Gmail 계정 주소가 다릅니다.");
     const page = await client.pendingEmailFiles(mailbox.id, options.before),
         failures: { id: string; code: string }[] = [],
@@ -661,7 +676,7 @@ export async function receiveGmailPage(
     if (!mailbox?.enabled) throw new Error("활성 메일함을 선택해주세요.");
     const get = await gmailReader(credentials, fetchImpl);
     const profile = (await get("profile")) as { emailAddress?: string };
-    if (profile.emailAddress?.toLowerCase() !== mailbox.address)
+    if (profile.emailAddress?.toLowerCase() !== googleAccountAddress(mailbox))
         throw new Error("메일함과 Gmail 계정 주소가 다릅니다.");
     const query = new URLSearchParams({
         labelIds: "INBOX",

@@ -16,11 +16,16 @@ export const mailboxInput = z
     .object({
         workspaceId: z.number().int().positive(),
         address: emailAddress,
+        googleAccount: emailAddress.nullable().optional(),
         name: header(100).min(1),
     })
     .strict();
 export const mailboxPatch = z
-    .object({ version: z.number().int().positive(), enabled: z.boolean() })
+    .object({
+        version: z.number().int().positive(),
+        enabled: z.boolean(),
+        googleAccount: emailAddress.nullable().optional(),
+    })
     .strict();
 const sourceId = header(200).min(1);
 export const rfcId = header(998).regex(

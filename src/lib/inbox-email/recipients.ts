@@ -28,9 +28,11 @@ export function replyRecipients(
     envelope: { from: string; to: string[]; cc: string[]; replyTo?: string[] },
     mailbox: string,
     mode: "reply" | "reply_all",
+    otherSelf: string[] = [],
 ) {
-    const self = emailAddress.parse(mailbox),
-        omit = (a: string[]) => uniqueEmails(a).filter((s) => s !== self);
+    const self = uniqueEmails([mailbox, ...otherSelf]),
+        omit = (a: string[]) =>
+            uniqueEmails(a).filter((s) => !self.includes(s));
     const to = omit(
         envelope.replyTo?.length ? envelope.replyTo : [envelope.from],
     );
@@ -46,6 +48,7 @@ export function resolveRecipients(
     envelope: Parameters<typeof replyRecipients>[0],
     mailbox: string,
     selection?: EmailReplySelection,
+    otherSelf: string[] = [],
 ) {
     const value =
         selection?.mode === "custom"
@@ -53,11 +56,20 @@ export function resolveRecipients(
                   to: uniqueEmails(selection.to ?? []),
                   cc: uniqueEmails(selection.cc ?? []),
               }
-            : replyRecipients(envelope, mailbox, selection?.mode ?? "reply");
+            : replyRecipients(
+                  envelope,
+                  mailbox,
+                  selection?.mode ?? "reply",
+                  otherSelf,
+              );
     value.cc = value.cc.filter((s) => !value.to.includes(s));
     if (!value.to.length || value.to.length + value.cc.length > 30)
         throw new Error("받는 사람과 참조는 합계 1~30명으로 지정해주세요.");
-    if ([...value.to, ...value.cc].includes(mailbox))
+    if (
+        [...value.to, ...value.cc].some((a) =>
+            uniqueEmails([mailbox, ...otherSelf]).includes(a),
+        )
+    )
         throw new Error("상담 메일함 자신을 받는 사람으로 지정할 수 없습니다.");
     return value;
 }

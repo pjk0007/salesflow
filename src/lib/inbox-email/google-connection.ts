@@ -18,6 +18,7 @@ import type { JWTPayload } from "@/types";
 import { sameRequestOrigin } from "@/lib/inbox/rules";
 import { InboxError } from "@/lib/inbox/errors";
 import { ownedMailbox } from "./repository";
+import { googleAccountAddress, assertGoogleAlias } from "./google-identity";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import {
     GOOGLE_MAIL_SCOPES,
@@ -138,7 +139,7 @@ export async function beginGoogleConnection(
             access_type: "offline",
             prompt: "consent",
             state,
-            login_hint: box.address,
+            login_hint: googleAccountAddress(box),
             code_challenge: Buffer.from(googleHash(verifier), "hex").toString(
                 "base64url",
             ),
@@ -270,11 +271,17 @@ export async function finishGoogleConnection(
             historyId: z.string().regex(/^\d{1,128}$/),
         })
         .parse(await profileResponse.json());
-    if (profile.emailAddress.toLowerCase() !== box.address)
+    if (profile.emailAddress.toLowerCase() !== googleAccountAddress(box))
         throw new InboxError(
-            "등록한 메일 주소와 Google 계정이 다릅니다. 같은 계정을 선택해주세요.",
+            "등록한 Google 로그인 계정과 다릅니다. 메일함 설정의 계정을 선택해주세요.",
             409,
         );
+    await assertGoogleAlias(
+        box.address,
+        googleAccountAddress(box),
+        token.access_token,
+        fetchImpl,
+    );
     return exec.transaction(async (tx) => {
         await currentAdmin(actor, tx);
         const locked = await ownedMailbox(actor, box.id, tx, true);

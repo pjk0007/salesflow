@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { GoogleConnectionPanel } from "./GoogleConnectionPanel";
+import { MailboxGoogleAccount } from "./MailboxGoogleAccount";
 import { toast } from "sonner";
 import { useEmailMailboxes } from "../hooks/useEmailMailboxes";
 import { createEmailMailbox, toggleEmailMailbox } from "../api";
@@ -15,6 +16,7 @@ export function EmailMailboxSettings({
     const connectionResult = useSearchParams().get("emailConnection");
     const { data, error, mutate } = useEmailMailboxes(workspaceId);
     const [address, setAddress] = useState(""),
+        [googleAccount, setGoogleAccount] = useState(""),
         [name, setName] = useState(""),
         [busy, setBusy] = useState(false);
     const run = async (fn: () => Promise<unknown>) => {
@@ -52,7 +54,7 @@ export function EmailMailboxSettings({
                             ? "Google 계정이 연결됐습니다. 메일함의 수신·발송 켜기를 눌러주세요."
                             : connectionResult === "cancelled"
                               ? "Google 연결 승인을 취소했습니다."
-                              : "Google 연결을 완료하지 못했습니다. 등록 주소와 같은 계정으로 다시 시도해주세요."}
+                              : "Google 연결을 완료하지 못했습니다. 등록한 Google 로그인 계정과 문의 주소의 Gmail 발신 인증을 확인해주세요."}
                     </p>
                 )}
                 <p className="text-sm text-muted-foreground">
@@ -77,6 +79,11 @@ export function EmailMailboxSettings({
                     >
                         <h3 className="font-semibold">{box.name}</h3>
                         <p>{box.address}</p>
+                        <MailboxGoogleAccount
+                            key={box.googleAccount || box.address}
+                            box={box}
+                            onChange={mutate}
+                        />
                         <p className="text-xs text-muted-foreground">
                             연결 ID <code className="break-all">{box.id}</code>
                         </p>
@@ -110,9 +117,11 @@ export function EmailMailboxSettings({
                                 workspaceId,
                                 address,
                                 name,
+                                googleAccount.trim() || undefined,
                             );
                             setAddress("");
                             setName("");
+                            setGoogleAccount("");
                         });
                     }}
                 >
@@ -129,7 +138,7 @@ export function EmailMailboxSettings({
                         />
                     </label>
                     <label className="block text-sm">
-                        수신·발신 주소
+                        사업 문의 주소 (수신·답장)
                         <input
                             type="email"
                             className="mt-1 w-full rounded-lg border p-2"
@@ -140,6 +149,23 @@ export function EmailMailboxSettings({
                             disabled={busy}
                         />
                     </label>
+                    <label className="block text-sm">
+                        Google 로그인 계정 (다른 경우)
+                        <input
+                            type="email"
+                            className="mt-1 w-full rounded-lg border p-2"
+                            value={googleAccount}
+                            onChange={(e) => setGoogleAccount(e.target.value)}
+                            maxLength={254}
+                            disabled={busy}
+                            placeholder="예: support@100office.kr"
+                        />
+                    </label>
+                    <p className="text-xs text-muted-foreground">
+                        같은 통합 계정을 여러 사업에서 연결할 수 있습니다. 문의
+                        주소는 Gmail에서 인증된 발신 주소여야 하며, 해당 주소로
+                        받은 문의만 이 사업에 가져옵니다.
+                    </p>
                     <button
                         disabled={busy || !data}
                         className="rounded-lg bg-[#635BFF] px-4 py-2 text-sm text-white disabled:opacity-50"
