@@ -1,11 +1,12 @@
-import { db, emailUnsubscribes, emailSendLogs, partitions } from "@/lib/db";
-import { and, eq, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { createEmailUnsubscribeStore } from "./email-unsubscribe-store";
+import { buildPublicUnsubscribeUrl, isPublicUnsubscribeUrl } from "./email-public-url";
 import { nanoid } from "nanoid";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://sendb.kr";
-
-/** 수신거부 확인 페이지 경로. wrapTrackingUrls가 이 URL을 이중 래핑하지 않도록 판별에도 쓴다. */
-const UNSUBSCRIBE_PATH = "/unsubscribe";
+export const {
+    isOrganizationUnsubscribed, isUnsubscribed, resolveWorkspaceId, resolveUnsubscribeTarget,
+    recordUnsubscribe, attachUnsubscribeReason,
+} = createEmailUnsubscribeStore(db);
 
 /**
  * 발송 건마다 새로 발급하는 수신거부 토큰. email_click_logs.click_id와 같은 방식.
@@ -16,12 +17,12 @@ export function generateUnsubscribeToken(): string {
 }
 
 export function buildUnsubscribeUrl(token: string): string {
-    return `${BASE_URL}${UNSUBSCRIBE_PATH}?token=${token}`;
+    return buildPublicUnsubscribeUrl(token);
 }
 
 /** 트래킹 래핑에서 제외해야 하는 수신거부 링크인지 판별. */
 export function isUnsubscribeUrl(url: string): boolean {
-    return url.startsWith(`${BASE_URL}${UNSUBSCRIBE_PATH}`);
+    return isPublicUnsubscribeUrl(url);
 }
 
 /**
@@ -35,7 +36,7 @@ export function isUnsubscribeUrl(url: string): boolean {
  * 2024년 2월 Gmail/Yahoo 대량 발신자 가이드라인이 이 헤더를 요구한다.
  */
 export function buildListUnsubscribeHeaders(token: string): Record<string, string> {
-    const oneClickUrl = `${BASE_URL}/api/email/unsubscribe/one-click?token=${token}`;
+    const oneClickUrl = buildPublicUnsubscribeUrl(token, true);
     return {
         "List-Unsubscribe": `<${oneClickUrl}>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
@@ -59,123 +60,4 @@ export function appendUnsubscribeFooter(htmlBody: string, unsubscribeUrl: string
         return htmlBody.replace("</body>", footer + "</body>");
     }
     return htmlBody + footer;
-}
-
-/**
- * 이 워크스페이스에서 해당 주소가 수신거부 상태인지.
- * 대소문자 차이로 우회되지 않도록 lower()로 비교한다(UNIQUE 인덱스도 동일 기준).
- */
-export async function isUnsubscribed(workspaceId: number, email: string): Promise<boolean> {
-    const [row] = await db
-        .select({ id: emailUnsubscribes.id })
-        .from(emailUnsubscribes)
-        .where(
-            and(
-                eq(emailUnsubscribes.workspaceId, workspaceId),
-                sql`lower(${emailUnsubscribes.email}) = lower(${email})`
-            )
-        )
-        .limit(1);
-    return !!row;
-}
-
-/**
- * partitionId로 workspaceId를 찾는다.
- * 발송 로직은 partitionId만 들고 있고 email_send_logs에는 workspace_id가 없다.
- */
-export async function resolveWorkspaceId(partitionId: number): Promise<number | null> {
-    const [row] = await db
-        .select({ workspaceId: partitions.workspaceId })
-        .from(partitions)
-        .where(eq(partitions.id, partitionId))
-        .limit(1);
-    return row?.workspaceId ?? null;
-}
-
-/**
- * 수신거부 토큰으로 발송 건을 되짚어 거부 대상 정보를 얻는다.
- * 확인 페이지에서 "무엇을 거부하는지" 보여주고, 실제 등록 시 재사용한다.
- */
-export async function resolveUnsubscribeTarget(token: string): Promise<{
-    orgId: string;
-    workspaceId: number;
-    email: string;
-    sendLogId: number;
-    recordId: number | null;
-    alreadyUnsubscribed: boolean;
-} | null> {
-    const [log] = await db
-        .select({
-            id: emailSendLogs.id,
-            orgId: emailSendLogs.orgId,
-            partitionId: emailSendLogs.partitionId,
-            recipientEmail: emailSendLogs.recipientEmail,
-            recordId: emailSendLogs.recordId,
-        })
-        .from(emailSendLogs)
-        .where(eq(emailSendLogs.unsubscribeToken, token))
-        .limit(1);
-
-    if (!log || !log.partitionId) return null;
-
-    const workspaceId = await resolveWorkspaceId(log.partitionId);
-    if (!workspaceId) return null;
-
-    return {
-        orgId: log.orgId,
-        workspaceId,
-        email: log.recipientEmail,
-        sendLogId: log.id,
-        recordId: log.recordId,
-        alreadyUnsubscribed: await isUnsubscribed(workspaceId, log.recipientEmail),
-    };
-}
-
-/**
- * 수신거부 등록. 이미 거부된 주소면 조용히 넘어간다(재클릭은 에러가 아니다).
- */
-export async function recordUnsubscribe(args: {
-    orgId: string;
-    workspaceId: number;
-    email: string;
-    sendLogId?: number;
-    recordId?: number | null;
-    /** link=본문 링크+확인 페이지, one_click=메일 클라이언트 상단 버튼, manual=운영자 등록 */
-    source?: "link" | "one_click" | "manual";
-    reason?: string | null;
-}): Promise<void> {
-    await db
-        .insert(emailUnsubscribes)
-        .values({
-            orgId: args.orgId,
-            workspaceId: args.workspaceId,
-            email: args.email,
-            sendLogId: args.sendLogId ?? null,
-            recordId: args.recordId ?? null,
-            source: args.source ?? "link",
-            reason: args.reason ?? null,
-        })
-        .onConflictDoNothing();
-}
-
-/**
- * 이미 등록된 수신거부에 사유만 덧붙인다.
- * 거부 처리와 사유 수집을 분리해, 사유를 남기지 않아도 거부는 이미 끝나 있게 한다.
- */
-export async function attachUnsubscribeReason(token: string, reason: string): Promise<boolean> {
-    const target = await resolveUnsubscribeTarget(token);
-    if (!target) return false;
-
-    const result = await db
-        .update(emailUnsubscribes)
-        .set({ reason })
-        .where(
-            and(
-                eq(emailUnsubscribes.workspaceId, target.workspaceId),
-                sql`lower(${emailUnsubscribes.email}) = lower(${target.email})`
-            )
-        )
-        .returning({ id: emailUnsubscribes.id });
-
-    return result.length > 0;
 }

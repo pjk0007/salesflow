@@ -86,7 +86,7 @@ export function UnsubscribeCard() {
                                 {status.email}
                             </p>
                             <p className="mt-1.5 text-[14px] leading-relaxed text-[#78736d]">
-                                앞으로 이 주소로 메일을 보내지 않습니다.
+                                이 발신 조직의 모든 사업에서 이 주소로 보내는 메일을 차단합니다.
                             </p>
 
                             <button
@@ -133,7 +133,7 @@ export function UnsubscribeCard() {
                                     {status.email}
                                 </p>
                                 <p className="mt-1.5 text-[14px] leading-relaxed text-[#78736d]">
-                                    앞으로 이 주소로 메일을 보내지 않습니다.
+                                    이 발신 조직의 모든 사업에서 이 주소로 보내는 메일이 차단됩니다.
                                 </p>
                             </div>
 

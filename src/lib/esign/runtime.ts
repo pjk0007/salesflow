@@ -66,7 +66,7 @@ function runtime(): Runtime {
             if (!email) return null;
             const sender = selectEsignEmailSender(process.env.ESIGN_EMAIL_SENDER, await loadOrgSenderProfiles(orgId), email);
             if (!sender.fromEmail) return null;
-            const client = new NhnEmailClient(email.appKey, email.secretKey);
+            const client = new NhnEmailClient(email.appKey, email.secretKey, { orgId });
             return { address: sender.fromEmail, name: sender.fromName, submit: request => client.sendEachMail(request) };
         },
     });

@@ -847,16 +847,15 @@ export type EmailOpenLog = typeof emailOpenLogs.$inferSelect;
 // ============================================
 // 이메일 수신거부
 // ============================================
-// 거부 범위는 워크스페이스 단위. 등록되면 해당 워크스페이스의 모든 발송 경로
-// (수동/자동/AI/후속)에서 제외된다.
+// 거부 범위는 계정(조직) 전체. workspaceId는 최초 수신거부의 출처만 보존한다.
+// 사업 삭제 후에도 다른 사업에서 재발송되지 않도록 출처 FK는 SET NULL이다.
 export const emailUnsubscribes = pgTable("email_unsubscribes", {
     id: serial("id").primaryKey(),
     orgId: uuid("org_id")
         .references(() => organizations.id, { onDelete: "cascade" })
         .notNull(),
     workspaceId: integer("workspace_id")
-        .references(() => workspaces.id, { onDelete: "cascade" })
-        .notNull(),
+        .references(() => workspaces.id, { onDelete: "set null" }),
     email: varchar("email", { length: 200 }).notNull(),
     sendLogId: integer("send_log_id").references(() => emailSendLogs.id, {
         onDelete: "set null",
@@ -865,7 +864,13 @@ export const emailUnsubscribes = pgTable("email_unsubscribes", {
     source: varchar("source", { length: 20 }).default("link").notNull(),  // link | one_click | manual
     reason: text("reason"),
     unsubscribedAt: timestamptz("unsubscribed_at").defaultNow().notNull(),
-});
+}, (table) => [
+    uniqueIndex("email_unsubscribes_workspace_email_idx").on(table.workspaceId, sql`lower(${table.email})`),
+    index("email_unsubscribes_org_normalized_email_idx").on(
+        table.orgId,
+        sql`lower(btrim(${table.email}, E' \\t\\n\\u000b\\f\\r\\u00a0\\u3000\\ufeff\\u200b'))`,
+    ),
+]);
 
 export type EmailUnsubscribe = typeof emailUnsubscribes.$inferSelect;
 

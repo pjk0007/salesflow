@@ -60,6 +60,9 @@ export function EmailDeliveryStatus({
             {item.errorCode === "access_revoked" && (
                 <p>작성자의 사업 응대 권한이 회수되어 발송을 중단했습니다.</p>
             )}
+            {item.errorCode === "email_unsubscribed" && (
+                <p>조직 전체 수신거부 목록에 등록된 주소가 있어 발송을 중단했습니다.</p>
+            )}
             {item.state === "uncertain" && (
                 <p>
                     중복 발송을 막기 위해 자동 재전송하지 않습니다. 메일

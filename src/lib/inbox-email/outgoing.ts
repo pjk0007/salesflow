@@ -18,6 +18,8 @@ import {
     uniqueEmails,
 } from "./recipients";
 import { inboundInput } from "./rules";
+import { checkEmailSubmission, EMAIL_SEND_BLOCKED } from "@/lib/email-send-guard";
+import { isOrganizationUnsubscribed } from "@/lib/email-unsubscribe";
 export function replyRequestFingerprint(selection?: EmailReplySelection) {
     return createHash("sha256")
         .update(
@@ -152,6 +154,14 @@ export async function queueEmailReply(
     } catch (e) {
         throw new InboxError((e as Error).message);
     }
+    const decision = await checkEmailSubmission(
+        row.mailbox.orgId,
+        [...recipients.to, ...recipients.cc],
+        (orgId, email) => isOrganizationUnsubscribed(orgId, email, exec),
+    );
+    if (!decision.allowed)
+        throw new InboxError(decision.rejection.header.resultMessage,
+            decision.rejection.header.resultCode === EMAIL_SEND_BLOCKED ? 409 : 503);
     const id = randomUUID();
     await exec.insert(deliveries).values({
         id,

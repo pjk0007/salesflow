@@ -1988,7 +1988,6 @@ async function loadAudienceGuardsMany(exec: Exec, orgId: string, groups: GuardGr
     }));
     const visitorIds = uniq(groups.flatMap((g) => g.items.map((i) => i.visitorId).filter(isPresent)));
     const itemRecordIds = uniq(groups.flatMap((g) => g.items.map((i) => i.recordId)));
-    const unsubWorkspaceIds = specs.filter((s) => s.emails.length > 0).map((s) => s.workspaceId);
     const allEmails = uniq(specs.flatMap((s) => s.emails));
     const allStageValues = uniq(funnelStagesOf.flatMap((stages) => stages.map((s) => s.value)));
     const emailMatch = sameEmailSql(specs);
@@ -2013,8 +2012,7 @@ async function loadAudienceGuardsMany(exec: Exec, orgId: string, groups: GuardGr
             FROM email_unsubscribes u
             WHERE u.org_id = ${orgId}::uuid
               AND (u.record_id = ANY(${sql.param(itemRecordIds)}::int[])
-                   OR (u.workspace_id = ANY(${sql.param(unsubWorkspaceIds)}::int[])
-                       AND lower(btrim(u.email, ${EMAIL_TRIM_CHARS}::text)) = ANY(${sql.param(allEmails)}::text[])))
+                   OR lower(btrim(u.email, ${EMAIL_TRIM_CHARS}::text)) = ANY(${sql.param(allEmails)}::text[]))
         ),
         grec AS MATERIALIZED (
             SELECT r.id, r.workspace_id, r.partition_id, r.integrated_code, r.created_at, r.data,
@@ -2098,7 +2096,7 @@ async function loadAudienceGuardsMany(exec: Exec, orgId: string, groups: GuardGr
                 .filter((r) => relatedSet.has(r.recordId) && isFunnelRecordEvent(r, stageValues))
                 .map((r) => r.recordId)
         );
-        const unsub = buildUnsubscribeIndex(unsubRows, g.ws.id);
+        const unsub = buildUnsubscribeIndex(unsubRows);
         const funnelStages = funnelStagesOf[i];
         const inFunnel = (recordId: number): boolean =>
             isRecordInFunnel(funnelStages, recordRows.get(recordId)?.data, funnelEventRecordIds.has(recordId));

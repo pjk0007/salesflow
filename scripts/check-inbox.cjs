@@ -3,28 +3,10 @@ const assert = require("node:assert/strict"),
     fs = require("node:fs"),
     path = require("node:path"),
     { randomUUID } = require("node:crypto");
-const { PGlite } = require(
-    path.resolve(
-        __dirname,
-        "../.testenv/test-runtime/node_modules/@electric-sql/pglite",
-    ),
-);
-const Module = require("node:module"),
-    originalResolve = Module._resolveFilename;
-Module._resolveFilename = function (name, ...args) {
-    return name === "@electric-sql/pglite"
-        ? require.resolve(
-              path.resolve(
-                  __dirname,
-                  "../.testenv/test-runtime/node_modules/@electric-sql/pglite",
-              ),
-          )
-        : originalResolve.call(this, name, ...args);
-};
+const { PGlite } = require("@electric-sql/pglite");
 const { drizzle } = require("drizzle-orm/pglite"),
     { PgDialect, getTableConfig } = require("drizzle-orm/pg-core"),
     { SQL } = require("drizzle-orm");
-Module._resolveFilename = originalResolve;
 process.env.DATABASE_URL =
     "postgresql://isolated:isolated@127.0.0.1:1/isolated";
 process.env.JWT_SECRET = "isolated-inbox-test-only-not-a-real-key";
@@ -69,6 +51,7 @@ async function fixture(testRuntime) {
         schema.aiUsageQuotas,
         schema.aiCopyGenerationJobs,
         schema.emailSendLogs,
+        schema.emailUnsubscribes,
         schema.emailConfigs,
         schema.emailSenderProfiles,
         schema.emailCopyExperiments,
