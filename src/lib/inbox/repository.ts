@@ -392,11 +392,20 @@ export async function conversationListPage(
     beforeId?: string,
     exec: DbExec = db,
 ) {
+    const [rows, counts] = await Promise.all([
+        listConversations(actor, channelId, exec, before, beforeId, filters),
+        conversationCounts(actor, channelId, filters, exec),
+    ]);
+    return { rows, counts, hasMore: rows.length === 100 };
+}
+
+/** Counts are independent of the paged list: a slow aggregate must not block reading a conversation. */
+export async function conversationCounts(
+    actor: Actor, channelId: number, filters: Partial<ConversationFilters>, exec: DbExec = db,
+) {
     await requireCustomerChannel(actor, channelId, "read", exec);
     const input = conversationFiltersInput.parse(filters);
-    const [rows, counts] = await Promise.all([
-        listConversations(actor, channelId, exec, before, beforeId, input),
-        exec
+    const counts = await exec
             .select({
                 all: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly})`.mapWith(
                     Number,
@@ -450,9 +459,8 @@ export async function conversationListPage(
                           )
                         : undefined,
                 ),
-            ),
-    ]);
-    return { rows, counts: counts[0], hasMore: rows.length === 100 };
+            );
+    return counts[0];
 }
 export async function ownedConversation(
     actor: Actor,

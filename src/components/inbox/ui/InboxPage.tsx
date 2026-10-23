@@ -24,27 +24,16 @@ import {
     CheckCheck,
 } from "lucide-react";
 import { useInbox } from "../hooks/useInbox";
-import {
-    useStaffDraftSession,
-    type SubscribeSessionInvalidation,
-} from "../hooks/useStaffDraftSession";
+import { useInboxSearch } from "../hooks/useInboxSearch";
+import { useStaffDraftSession, type SubscribeSessionInvalidation } from "../hooks/useStaffDraftSession";
 import { EmailMailboxSettings } from "@/components/inbox-email/ui/EmailMailboxSettings";
 import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
-export function InboxPage({
-    userId,
-    orgId = "",
-    role,
-    subscribeSessionInvalidation,
-}: {
-    userId: string;
-    orgId?: string;
-    role: string;
-    subscribeSessionInvalidation?: SubscribeSessionInvalidation;
-}) {
+const listDate = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" });
+export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
     const params = useSearchParams();
     const [emailSettings, setEmailSettings] = useState(() =>
         params.has("emailConnection"),
@@ -101,8 +90,9 @@ export function InboxPage({
     const initial = useInbox(null, null),
         bootstrap = initial.bootstrap.data;
     const channelId = chosenChannel ?? bootstrap?.channels[0]?.id ?? null;
-    const { list, detail, patch } = useInbox(channelId, selected, {
-        q: query,
+    const searchQuery = useInboxSearch(query);
+    const { list, detail, patch, receiveMessage } = useInbox(channelId, selected, {
+        q: searchQuery,
         status,
         filter,
         teamId: channelId ? (teamFilters[channelId] ?? "") : "",
@@ -148,7 +138,7 @@ export function InboxPage({
         { id: "history", label: "이전 상담 기록", icon: Archive },
         { id: "mentioned", label: "나를 멘션한 상담", icon: MessageCircle },
     ];
-    const count = (id: ConversationFilter) => list.counts?.[id] ?? 0;
+    const count = (id: ConversationFilter) => list.counts?.[id] ?? "…";
     const error = initial.bootstrap.error || list.error || detail.error;
     return (
         <div className="flex h-full min-h-[600px] flex-col bg-background">
@@ -460,6 +450,8 @@ export function InboxPage({
                                     onChange={(e) => setQuery(e.target.value)}
                                 />
                             </label>
+                            {query !== searchQuery && <p role="status" className="text-xs text-muted-foreground">검색어 입력 중…</p>}
+                            {list.countsError && <button className="text-xs text-muted-foreground" onClick={() => void list.refreshCounts()}>상담 건수 다시 확인</button>}
                             <div
                                 className={
                                     filter === "history"
@@ -549,12 +541,7 @@ export function InboxPage({
                                                 />
                                             )}
                                             <time className="ml-auto shrink-0 text-[10px] text-muted-foreground">
-                                                {new Date(
-                                                    c.lastMessageAt,
-                                                ).toLocaleDateString("ko-KR", {
-                                                    month: "2-digit",
-                                                    day: "2-digit",
-                                                })}
+                                                {listDate.format(new Date(c.lastMessageAt))}
                                             </time>
                                         </div>
                                         <div className="mt-1 flex items-center gap-2">
@@ -605,10 +592,7 @@ export function InboxPage({
                             · 모든 상담과 대화에서 검색
                         </p>
                     </section>
-                    {selected &&
-                    detail.data &&
-                    detail.data.conversation.channelId === channelId &&
-                    !detail.error ? (
+                    {selected && detail.data && detail.data.conversation.id === selected && detail.data.conversation.channelId === channelId && ![401, 403, 404].includes(detail.error?.status) ? (
                         <ConversationPane
                             draftSession={draftSession}
                             userId={userId}
@@ -620,11 +604,13 @@ export function InboxPage({
                             onDismissMention={() => setFocusMessageId(null)}
                             messages={detail.data.messages}
                             hasOlder={detail.data.hasOlder}
+                            onSent={receiveMessage}
                             bootstrap={bootstrap}
                             patch={async (value) => {
                                 await patch(value);
                             }}
                             refresh={async () => {
+                                void list.refreshCounts().catch(() => {});
                                 await Promise.all([
                                     detail.mutate(),
                                     list.mutate(),

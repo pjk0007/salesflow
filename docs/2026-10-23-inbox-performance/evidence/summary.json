@@ -1,0 +1,42 @@
+{
+  "environment": "Chrome, real InboxPage, React compiler on, development React instrumentation, synthetic API only",
+  "baseline": "71a7451",
+  "input": {
+    "before": {
+      "samples": 27,
+      "medianMs": 25.8,
+      "p95Ms": 27.7,
+      "maxMs": 28.4,
+      "dateFormatsPerInput": 101
+    },
+    "after": {
+      "samples": 27,
+      "medianMs": 3.9,
+      "p95Ms": 6.2,
+      "maxMs": 6.7,
+      "dateFormatsPerInput": 0
+    }
+  },
+  "faultInjectedListSwitchMs": {
+    "countDelayMs": 3000,
+    "before": 3121,
+    "after": 340
+  },
+  "faultInjectedSendVisibleMs": {
+    "detailRefreshDelayMs": 2500,
+    "postDelayMs": 80,
+    "before": 2777,
+    "after": 320
+  },
+  "searchDistinctQueries": {
+    "before": 7,
+    "after": 1
+  },
+  "uncertainSend": {
+    "responseTimeoutMs": 15000,
+    "confirmedUniqueMessages": 1,
+    "visibleCopiesAfterRetry": 1,
+    "draftPreserved": true
+  },
+  "scope": "No production database or real customer delivery used. Not production latency/SLA measurements. Early animation-frame measurements discarded due to browser scheduling influence."
+}

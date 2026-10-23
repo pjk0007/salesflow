@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
                     senderName = defaultProfile.fromName;
                 }
 
-                await emailClient.sendEachMail({
+                const result = await emailClient.sendEachMail({
                     senderAddress,
                     senderName,
                     title: `[Sendb] ${orgName} 팀에 초대되었습니다`,
@@ -183,7 +183,10 @@ export async function POST(req: NextRequest) {
 </div>`,
                     receiverList: [{ receiveMailAddr: email.toLowerCase(), receiveType: "MRT0" }],
                 });
-                emailSent = true;
+                emailSent = result.header.isSuccessful
+                    && !!result.data?.requestId
+                    && result.data.results?.length === 1
+                    && result.data.results[0].resultCode === 0;
             }
         } catch (e) {
             console.error("Invitation email send error:", e);

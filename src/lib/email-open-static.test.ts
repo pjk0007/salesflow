@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { posix } from "node:path";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const sendFiles = [
@@ -10,7 +10,7 @@ const sendFiles = [
 ];
 function sourceFiles(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
-        const path = join(dir, entry.name);
+        const path = posix.join(dir, entry.name);
         return entry.isDirectory() ? sourceFiles(path) : /\.tsx?$/.test(path) && !path.endsWith(".test.ts") ? [path] : [];
     });
 }
