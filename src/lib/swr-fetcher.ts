@@ -50,8 +50,10 @@ export async function apiRequest<T = unknown>(
             let response: Response;
             try {
                 response = await fetch(url, { ...options, signal: controller.signal });
-            } catch {
+            } catch (cause) {
                 if (options?.signal?.aborted) throw options.signal.reason;
+                // 호출부의 시간 초과·중단 분기(inbox-presence 등)가 이름으로 구분하므로 그대로 전달한다.
+                if (cause instanceof Error && ["AbortError", "TimeoutError"].includes(cause.name)) throw cause;
                 throw new RequestError(messages.network ?? (write
                     ? "서버에 연결할 수 없습니다. 변경 여부를 확인한 뒤 다시 시도해주세요."
                     : "서버에 연결할 수 없습니다. 다시 시도해주세요."), 0);

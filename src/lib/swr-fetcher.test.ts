@@ -93,3 +93,14 @@ test("사용자 중단의 AbortError와 업로드·사용자 헤더를 보존한
         await apiRequest("/fixture", { method: "POST", body, headers: { "X-Test": "preserved" } });
     } finally { global.fetch = original; }
 });
+
+test("fetch가 던진 TimeoutError·AbortError는 이름을 보존해 호출부 분기가 동작한다", async () => {
+    const original = global.fetch;
+    try {
+        for (const name of ["TimeoutError", "AbortError"]) {
+            global.fetch = async () => { throw Object.assign(new Error("raw"), { name }); };
+            await assert.rejects(apiRequest("/fixture"), cause =>
+                !(cause instanceof RequestError) && (cause as Error).name === name);
+        }
+    } finally { global.fetch = original; }
+});
