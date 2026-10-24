@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkTemplateLinks, alimtalkSendLogs, records, partitions, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 import { getAlimtalkClient, normalizePhoneNumber } from "@/lib/nhn-alimtalk";
 
 export async function POST(req: NextRequest) {
@@ -52,11 +53,30 @@ export async function POST(req: NextRequest) {
 
         const templateLink = link.alimtalk_template_links;
 
-        // 레코드 조회
+        // 연결 파티션에 대한 요청자 권한 확인 (접근 금지 member는 발송 전에 막는다)
+        const access = await requirePartitionAccess(user, templateLink.partitionId, "read");
+        if (!access.ok) {
+            return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+        }
+
+        const ids = [...new Set(recordIds.map(Number))];
+        if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+            return NextResponse.json({ success: false, error: "발송 대상 레코드 ID를 확인해주세요." }, { status: 400 });
+        }
+
+        // 레코드 조회 — 연결된 파티션의 레코드만 대상으로 한다
         const recordList = await db
             .select()
             .from(records)
-            .where(inArray(records.id, recordIds));
+            .where(and(inArray(records.id, ids), eq(records.partitionId, templateLink.partitionId)));
+
+        // 다른 조직·다른 파티션·없는 레코드가 하나라도 섞이면 아무에게도 보내지 않는다
+        if (recordList.length !== ids.length) {
+            return NextResponse.json({
+                success: false,
+                error: "발송 대상 중 이 템플릿 연결의 파티션에서 찾을 수 없는 레코드가 있습니다. 목록을 새로고침한 뒤 다시 선택해주세요.",
+            }, { status: 404 });
+        }
 
         // 수신자 목록 구성
         const recipientList: Array<{
