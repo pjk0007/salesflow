@@ -1,3 +1,4 @@
+import { kstDateFilter } from "@/lib/tracker/date-range";
 import { isExactEmailSearch } from "@/lib/send-log-search";
 import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
@@ -53,16 +54,13 @@ export async function GET(req: NextRequest) {
         if (triggerType) {
             conditions.push(eq(emailSendLogs.triggerType, triggerType));
         }
-        const startDate = searchParams.get("startDate");
-        if (startDate) {
-            conditions.push(gte(emailSendLogs.sentAt, new Date(startDate)));
+        // 날짜는 KST 하루 경계로 자른다 — 서버 시간대와 무관(통계 대시보드와 같은 날짜 계약)
+        const dates = kstDateFilter(searchParams.get("startDate"), searchParams.get("endDate"));
+        if (!dates.ok) {
+            return NextResponse.json({ success: false, error: dates.error }, { status: 400 });
         }
-        const endDate = searchParams.get("endDate");
-        if (endDate) {
-            const end = new Date(endDate);
-            end.setDate(end.getDate() + 1);
-            conditions.push(lte(emailSendLogs.sentAt, end));
-        }
+        if (dates.fromIso) conditions.push(gte(emailSendLogs.sentAt, new Date(dates.fromIso)));
+        if (dates.toIso) conditions.push(lte(emailSendLogs.sentAt, new Date(dates.toIso)));
         const isClicked = searchParams.get("isClicked");
         if (isClicked === "1") {
             conditions.push(sql`EXISTS (SELECT 1 FROM email_click_logs ecl WHERE ecl.send_log_id = email_send_logs.id AND ecl.is_bot = false)`);

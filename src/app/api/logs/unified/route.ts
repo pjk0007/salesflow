@@ -1,3 +1,4 @@
+import { kstDateFilter } from "@/lib/tracker/date-range";
 import { isExactEmailSearch } from "@/lib/send-log-search";
 import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
@@ -20,8 +21,12 @@ export async function GET(req: NextRequest) {
         const channel = searchParams.get("channel") || "";
         const status = searchParams.get("status") || "";
         const triggerType = searchParams.get("triggerType") || "";
-        const startDate = searchParams.get("startDate") || "";
-        const endDate = searchParams.get("endDate") || "";
+        // 날짜는 KST 하루 경계로 자른다 — 서버·DB 세션 시간대와 무관
+        const dates = kstDateFilter(searchParams.get("startDate"), searchParams.get("endDate"));
+        if (!dates.ok) {
+            return NextResponse.json({ success: false, error: dates.error }, { status: 400 });
+        }
+        const { fromIso, toIso } = dates;
         const recordId = searchParams.get("recordId") ? Number(searchParams.get("recordId")) : null;
         const search = searchParams.get("search") || "";
         const isExactSearch = isExactEmailSearch(search);
@@ -49,12 +54,8 @@ export async function GET(req: NextRequest) {
 
             if (status) q = sql`${q} AND status = ${status}`;
             if (triggerType) q = sql`${q} AND trigger_type = ${triggerType}`;
-            if (startDate) q = sql`${q} AND sent_at >= ${startDate}::timestamptz`;
-            if (endDate) {
-                const end = new Date(endDate);
-                end.setHours(23, 59, 59, 999);
-                q = sql`${q} AND sent_at <= ${end.toISOString()}::timestamptz`;
-            }
+            if (fromIso) q = sql`${q} AND sent_at >= ${fromIso}::timestamptz`;
+            if (toIso) q = sql`${q} AND sent_at <= ${toIso}::timestamptz`;
             if (recordId) q = sql`${q} AND record_id = ${recordId}`;
             if (isExactSearch) {
                 q = sql`${q} AND lower(recipient_email) = lower(${search.trim()})`;

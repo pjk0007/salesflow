@@ -8,6 +8,7 @@ import useSWR from "swr";
 import { useEmailLogs } from "@/hooks/useEmailLogs";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { defaultFetcher } from "@/lib/swr-fetcher";
+import { presetRange } from "@/lib/email-stats/rules";
 import {
     Table,
     TableBody,
@@ -135,15 +136,11 @@ export default function EmailSendLogTable() {
     );
     const aiRules = aiRulesData?.data ?? [];
 
+    // 최근 N일 = 오늘(KST) 포함 N일 — 이메일 통계 대시보드와 같은 기간 계약
     const dateRange = (() => {
         if (!period) return {};
-        const end = new Date();
-        const start = new Date();
-        start.setDate(start.getDate() - Number(period));
-        return {
-            startDate: start.toISOString().split("T")[0],
-            endDate: end.toISOString().split("T")[0],
-        };
+        const { from, to } = presetRange(Number(period), new Date());
+        return { startDate: from, endDate: to };
     })();
 
     // 검색 debounce (300ms)
