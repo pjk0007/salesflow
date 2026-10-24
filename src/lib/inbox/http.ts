@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { InboxError } from "./repository";
 import { rateLimit } from "@/lib/tracker/rate-limit";
-import { sameApplicationOrigin } from "./rules";
+import { inputErrorMessage, sameApplicationOrigin } from "./rules";
 export function inboxActor(req: NextRequest) {
     const user = getUserFromNextRequest(req);
     if (!user) throw new InboxError("인증이 필요합니다.", 401);
@@ -24,14 +24,6 @@ export const ok = (data: unknown) =>
         { success: true, data },
         { headers: { "Cache-Control": "no-store" } },
     );
-const inputLabels: Record<string, string> = {
-    email: "이메일", name: "이름", title: "제목", body: "내용", text: "내용",
-    message: "메시지", phone: "전화번호", phoneNumber: "전화번호", url: "주소",
-    domain: "도메인", subject: "제목", description: "설명", label: "이름",
-    start: "시작 시각", end: "종료 시각", timezone: "시간대", color: "색상",
-    tags: "태그", tagIds: "태그", assigneeId: "담당자", status: "상태",
-    to: "받는 사람", cc: "참조", bcc: "숨은 참조", filename: "파일 이름",
-};
 export async function handleInbox(action: () => Promise<unknown>) {
     try {
         return ok(await action());
@@ -40,7 +32,7 @@ export async function handleInbox(action: () => Promise<unknown>) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: `${inputLabels[String(error.issues[0]?.path.at(-1))] ?? "입력값"}: 입력 형식과 길이를 확인해주세요.`,
+                    error: inputErrorMessage(error),
                 },
                 { status: 400 },
             );

@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { ChevronLeft, ChevronRight, CheckCircle2, MailQuestion } from "lucide-react";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -57,7 +56,7 @@ export default function RepliesTab() {
     const single = useReplies({ id: selectedId }, selectedId !== undefined && !inPage);
     const selected = inPage ?? (selectedId !== undefined ? single.items[0] ?? null : null);
 
-    const { data: partitionsData , error: queryError0, mutate: retryQuery0 } = useSWR<{ success: boolean; data?: PartitionRow[] }>("/api/partitions", defaultFetcher);
+    const { data: partitionsData } = useSWR<{ success: boolean; data?: PartitionRow[] }>("/api/partitions", defaultFetcher);
     const workspaces = useMemo(() => {
         const seen = new Map<number, string>();
         for (const p of partitionsData?.data ?? []) if (!seen.has(p.workspaceId)) seen.set(p.workspaceId, p.workspaceName);
@@ -81,8 +80,6 @@ export default function RepliesTab() {
 
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
     const resetPage = () => setPage(1);
-
-    if (queryError0) return <QueryErrorState error={queryError0} onRetry={() => retryQuery0()} />;
 
     return (
         <div className="space-y-4">
