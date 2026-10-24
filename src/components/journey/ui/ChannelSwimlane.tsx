@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { Globe, Mail, UserPlus, GitBranch, MessageCircle } from "lucide-react";
 import type { JourneyEvent } from "../types";
 import { dedupStages } from "../utils/stage";
+import { dayKeyParts, formatTimeKst, kstDateKey } from "../utils/format";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,14 +23,11 @@ function laneOf(channel: string): string {
     if (channel === "가입") return "가입";
     return "단계";
 }
-function timeLabel(iso: string): string {
-    const d = new Date(iso);
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
+// 날짜 컬럼·시각은 KST — 브라우저 시간대와 무관하게 같은 날짜로 묶는다
+const timeLabel = formatTimeKst;
 function dateLabel(key: string): string {
-    const d = new Date(key + "T00:00:00");
-    const wd = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
-    return `${d.getMonth() + 1}/${d.getDate()} ${wd}`;
+    const { month, day, weekday } = dayKeyParts(key);
+    return `${month}/${day} ${weekday}`;
 }
 
 /**
@@ -49,7 +47,7 @@ export function ChannelSwimlane({
     const columns = useMemo(() => {
         const byDay = new Map<string, JourneyEvent[]>();
         for (const e of events) {
-            const k = e.at.slice(0, 10);
+            const k = kstDateKey(e.at);
             (byDay.get(k) ?? byDay.set(k, []).get(k)!).push(e);
         }
         const days = [...byDay.keys()].sort();

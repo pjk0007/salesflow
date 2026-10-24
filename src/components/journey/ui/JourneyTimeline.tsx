@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { JourneyEvent } from "../types";
-import { formatDateTime, channelStyle, isEmphasizedChannel } from "../utils/format";
+import { formatDateTime, channelStyle, isEmphasizedChannel, kstDateKey, dayKeyParts } from "../utils/format";
 
 /**
  * L2 — 시간순 통합 타임라인. 채널별 색/점, 세션 묶음은 펼치기.
@@ -27,12 +27,11 @@ export function JourneyTimeline({
     // 날짜별 그룹
     const groups: { key: string; label: string; events: JourneyEvent[] }[] = [];
     for (const e of events) {
-        const key = e.at.slice(0, 10);
+        const key = kstDateKey(e.at);
         let g = groups.find((x) => x.key === key);
         if (!g) {
-            const d = new Date(key + "T00:00:00");
-            const wd = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
-            g = { key, label: `${d.getMonth() + 1}/${d.getDate()} (${wd})`, events: [] };
+            const { month, day, weekday } = dayKeyParts(key);
+            g = { key, label: `${month}/${day} (${weekday})`, events: [] };
             groups.push(g);
         }
         g.events.push(e);

@@ -1,3 +1,4 @@
+import { countByKstDate } from "@/lib/kst";
 import {
     db,
     records,
@@ -275,14 +276,8 @@ async function buildSummary(
         : 0;
 
     // 일별 활동량
-    const dailyMap = new Map<string, number>();
-    for (const e of events) {
-        const day = e.at.slice(0, 10);
-        dailyMap.set(day, (dailyMap.get(day) ?? 0) + 1);
-    }
-    const dailyActivity = [...dailyMap.entries()]
-        .map(([date, count]) => ({ date, count }))
-        .sort((a, b) => a.date.localeCompare(b.date));
+    // KST 날짜로 묶는다 — UTC 절단은 한국 새벽 활동을 전날로 보낸다
+    const dailyActivity = countByKstDate(events.map((e) => e.at));
 
     return {
         firstSeenAt,

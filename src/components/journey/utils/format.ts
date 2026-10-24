@@ -1,4 +1,5 @@
 // 여정 표시용 포맷 헬퍼
+import { formatKstHm, kstParts, KST_TIME_ZONE, weekdayOfYmd } from "@/lib/kst";
 
 export function formatDwell(sec: number): string {
     if (!sec) return "0초";
@@ -12,6 +13,7 @@ export function formatClickRate(rate: number): string {
     return `${Math.round(rate * 100)}%`;
 }
 
+// 여정의 날짜·시각은 업무 기준인 KST로 보여 준다 — 해외 브라우저에서도 날짜 묶음과 행 시각이 맞는다.
 export function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString("ko-KR", {
         month: "2-digit",
@@ -19,14 +21,32 @@ export function formatDateTime(iso: string): string {
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,
+        timeZone: KST_TIME_ZONE,
     });
 }
 
-export function formatDate(iso: string): string {
-    return new Date(iso).toLocaleDateString("ko-KR", {
-        month: "2-digit",
-        day: "2-digit",
-    });
+/** 이벤트 시각(ISO)의 KST 날짜 키 "YYYY-MM-DD" — 일별 그룹·집계는 UTC 문자열 절단이 아니라 이것으로 묶는다 */
+export function kstDateKey(iso: string): string {
+    return kstParts(new Date(iso)).date;
+}
+
+/** 이벤트 시각(ISO)의 KST "HH:mm" */
+export function formatTimeKst(iso: string): string {
+    return formatKstHm(new Date(iso));
+}
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+/** 날짜 키 → 월·일·요일 (이미 KST 날짜라 시간대 변환 없이 읽는다) */
+export function dayKeyParts(ymd: string): { month: number; day: number; weekday: string } {
+    const [, month, day] = ymd.split("-").map(Number);
+    return { month, day, weekday: WEEKDAYS[weekdayOfYmd(ymd)] };
+}
+
+/** 날짜 키 → "MM. DD." (일별 차트 축) */
+export function formatDayKey(ymd: string): string {
+    const [, month, day] = ymd.split("-");
+    return `${month}. ${day}.`;
 }
 
 // 채널별 색상/아이콘 키
