@@ -1,3 +1,4 @@
+import { recordEqualsSql, recordKstDateSql } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
@@ -63,7 +64,7 @@ export async function GET(
                     conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
                     break;
                 case "equals":
-                    conditions.push(sql`${records.data}->>${key} = ${String(val)}`);
+                    conditions.push(recordEqualsSql(key, val));
                     break;
                 case "not_equals":
                     conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
@@ -81,14 +82,14 @@ export async function GET(
                     conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
                     break;
                 case "before":
-                    conditions.push(sql`(${records.data}->>${key})::date < ${String(val)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} < ${String(val)}::date`);
                     break;
                 case "after":
-                    conditions.push(sql`(${records.data}->>${key})::date > ${String(val)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} > ${String(val)}::date`);
                     break;
                 case "between":
-                    conditions.push(sql`(${records.data}->>${key})::date >= ${String(val)}::date`);
-                    conditions.push(sql`(${records.data}->>${key})::date <= ${String(f.valueTo)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} >= ${String(val)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} <= ${String(f.valueTo)}::date`);
                     break;
                 case "is_empty":
                     conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);

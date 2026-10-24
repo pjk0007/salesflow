@@ -1,3 +1,6 @@
+import { formatKstDateTime, kstParts } from "@/lib/kst";
+import { isValidYmd } from "@/lib/tracker/date-range";
+import { recordEqualsSql, recordKstDateSql } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
@@ -10,19 +13,16 @@ const MAX_EXPORT = 10000;
 function formatValue(value: unknown, fieldType: string): string {
     if (value === null || value === undefined) return "";
     switch (fieldType) {
-        case "date":
-            try {
-                return new Date(String(value)).toISOString().split("T")[0];
-            } catch {
-                return String(value);
-            }
-        case "datetime":
-            try {
-                const d = new Date(String(value));
-                return `${d.toISOString().split("T")[0]} ${d.toTimeString().slice(0, 5)}`;
-            } catch {
-                return String(value);
-            }
+        // 날짜·일시는 화면과 같은 KST로 쓴다 — 서버(UTC) 시간대와 무관
+        case "date": {
+            if (typeof value === "string" && isValidYmd(value)) return value;
+            const d = value instanceof Date ? value : new Date(String(value));
+            return Number.isNaN(d.getTime()) ? String(value) : kstParts(d).date;
+        }
+        case "datetime": {
+            const d = value instanceof Date ? value : new Date(String(value));
+            return Number.isNaN(d.getTime()) ? String(value) : formatKstDateTime(d);
+        }
         case "checkbox":
             return Boolean(value) ? "TRUE" : "FALSE";
         default:
@@ -102,7 +102,7 @@ export async function GET(
                     conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
                     break;
                 case "equals":
-                    conditions.push(sql`${records.data}->>${key} = ${String(val)}`);
+                    conditions.push(recordEqualsSql(key, val));
                     break;
                 case "not_equals":
                     conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
@@ -120,14 +120,14 @@ export async function GET(
                     conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
                     break;
                 case "before":
-                    conditions.push(sql`(${records.data}->>${key})::date < ${String(val)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} < ${String(val)}::date`);
                     break;
                 case "after":
-                    conditions.push(sql`(${records.data}->>${key})::date > ${String(val)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} > ${String(val)}::date`);
                     break;
                 case "between":
-                    conditions.push(sql`(${records.data}->>${key})::date >= ${String(val)}::date`);
-                    conditions.push(sql`(${records.data}->>${key})::date <= ${String(f.valueTo)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} >= ${String(val)}::date`);
+                    conditions.push(sql`${recordKstDateSql(key)} <= ${String(f.valueTo)}::date`);
                     break;
                 case "is_empty":
                     conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);
@@ -185,7 +185,11 @@ export async function GET(
             const d = record.data as Record<string, unknown>;
             return [
                 record.integratedCode || "",
-                ...exportFields.map(f => formatValue(d[f.key], f.fieldType)),
+                // 시스템 항목(등록일·수정일)은 data가 아니라 레코드 컬럼을 읽는다 — RecordTable과 같은 규칙
+                ...exportFields.map(f => formatValue(
+                    f.systemColumn ? (record as unknown as Record<string, unknown>)[f.systemColumn] : d[f.key],
+                    f.fieldType,
+                )),
             ].map(escapeCsv).join(",");
         });
 
@@ -193,7 +197,7 @@ export async function GET(
 
         // 응답
         const partitionName = partition.name || "records";
-        const dateStr = new Date().toISOString().split("T")[0].replace(/-/g, "");
+        const dateStr = kstParts(new Date()).date.replace(/-/g, "");
         const filename = `${partitionName}_${dateStr}.csv`;
 
         return new NextResponse(csv, {
