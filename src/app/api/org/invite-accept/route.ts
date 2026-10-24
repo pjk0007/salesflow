@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizationInvitations, organizationMembers } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
-import { getActiveUserFromNextRequest, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { getActiveUserFromNextRequest, setSessionCookie } from "@/lib/auth";
 import type { JWTPayload, OrgRole } from "@/types";
 
 export async function POST(req: NextRequest) {
@@ -83,19 +83,15 @@ export async function POST(req: NextRequest) {
             role: invitation.role as OrgRole,
             // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
             tokenVersion: 0,
+            ...(user.isSuperAdmin && { isSuperAdmin: true }),
         };
-
-        const newToken = generateToken(payload);
-        const maxAge = Math.floor(getTokenExpiryMs() / 1000);
-        const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-        const cookieString = `token=${newToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
 
         const response = NextResponse.json({
             success: true,
             user: payload,
             message: "초대를 수락하고 조직에 참여했습니다.",
         });
-        response.headers.set("Set-Cookie", cookieString);
+        setSessionCookie(response, payload);
         return response;
     } catch (error) {
         console.error("Invite accept error:", error);

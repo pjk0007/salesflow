@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users, organizationMembers } from "@/lib/db";
 import { eq, desc } from "drizzle-orm";
-import { verifyPassword, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { verifyPassword, setSessionCookie } from "@/lib/auth";
 import type { JWTPayload } from "@/types";
 
 export async function POST(req: NextRequest) {
@@ -83,17 +83,8 @@ export async function POST(req: NextRequest) {
             ...(user.isSuperAdmin === 1 && { isSuperAdmin: true }),
         };
 
-        const token = generateToken(payload);
-        const maxAge = Math.floor(getTokenExpiryMs() / 1000);
-
         const response = NextResponse.json({ success: true, user: payload });
-        response.cookies.set("token", token, {
-            path: "/",
-            httpOnly: true,
-            sameSite: "lax",
-            maxAge,
-            secure: process.env.NODE_ENV === "production",
-        });
+        setSessionCookie(response, payload);
 
         return response;
     } catch (error) {

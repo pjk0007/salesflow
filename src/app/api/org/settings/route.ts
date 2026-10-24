@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizations, organizationMembers } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
-import { generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { eq, and, sql } from "drizzle-orm";
+import { setSessionCookie } from "@/lib/auth";
+import { isForeignKeyViolation } from "@/lib/db/errors";
 import { requireAdmin } from "@/lib/auth-admin";
 import type { JWTPayload } from "@/types";
 
@@ -128,8 +129,22 @@ export async function DELETE(req: NextRequest) {
 
         const nextOrg = otherOrgs.find((o) => o.organizationId !== user.orgId);
 
-        // 조직 삭제
-        await db.delete(organizations).where(eq(organizations.id, user.orgId));
+        await db.transaction(async (tx) => {
+            // users.org_id는 ON DELETE CASCADE다. 이 조직을 기본 조직으로 둔 사용자 중 다른 조직에도 속한 사람은
+            // 가장 최근 소속으로 먼저 옮겨, 조직 삭제가 그 계정과 다른 조직 멤버십까지 지우지 않게 한다.
+            // 다른 소속이 없는 계정은 기존처럼 조직과 함께 정리된다.
+            await tx.execute(sql`
+                UPDATE users u SET org_id = other.organization_id, updated_at = now()
+                FROM (
+                    SELECT DISTINCT ON (m.user_id) m.user_id, m.organization_id
+                    FROM organization_members m
+                    WHERE m.organization_id <> ${user.orgId}
+                    ORDER BY m.user_id, m.joined_at DESC
+                ) other
+                WHERE u.id = other.user_id AND u.org_id = ${user.orgId}
+            `);
+            await tx.delete(organizations).where(eq(organizations.id, user.orgId));
+        });
 
         if (nextOrg) {
             // 다른 조직으로 JWT 전환
@@ -140,22 +155,25 @@ export async function DELETE(req: NextRequest) {
                 orgId: nextOrg.organizationId,
                 role: nextOrg.role as "owner" | "admin" | "member",
                 tokenVersion: nextOrg.tokenVersion,
+                ...(user.isSuperAdmin && { isSuperAdmin: true }),
             };
-            const token = generateToken(payload);
-            const maxAge = Math.floor(getTokenExpiryMs() / 1000);
-            const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-            const cookieString = `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
             const response = NextResponse.json({ success: true, switchedTo: nextOrg.organizationId });
-            response.headers.set("Set-Cookie", cookieString);
+            setSessionCookie(response, payload);
             return response;
         } else {
             // 다른 조직 없음 — 쿠키 삭제
-            const cookieString = "token=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0";
             const response = NextResponse.json({ success: true, noOrgsLeft: true });
-            response.headers.set("Set-Cookie", cookieString);
+            response.cookies.set("token", "", { path: "/", httpOnly: true, sameSite: "lax", maxAge: 0 });
             return response;
         }
     } catch (error) {
+        // 발송 이력·상담 기록 등 아직 이 조직(또는 정리될 계정)을 참조하는 기록이 있으면 DB가 삭제를 막는다
+        if (isForeignKeyViolation(error)) {
+            return NextResponse.json({
+                success: false,
+                error: "발송·상담 기록 등 이 조직을 참조하는 기록이 남아 있어 삭제할 수 없습니다. 고객센터에 문의해주세요.",
+            }, { status: 409 });
+        }
         console.error("Org delete error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }

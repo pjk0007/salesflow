@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizationInvitations, users, organizationMembers } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
-import { hashPassword, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { hashPassword, setSessionCookie } from "@/lib/auth";
 import type { OrgRole } from "@/types";
 
 export async function GET(req: NextRequest) {
@@ -142,8 +142,14 @@ export async function POST(req: NextRequest) {
             return created;
         });
 
-        // JWT 생성
-        const jwtToken = generateToken({
+        const response = NextResponse.json({
+            success: true,
+            data: {
+                userId: newUser.id,
+                orgId: invitation.orgId,
+            },
+        });
+        setSessionCookie(response, {
             userId: newUser.id,
             orgId: invitation.orgId,
             email: newUser.email,
@@ -152,19 +158,6 @@ export async function POST(req: NextRequest) {
             // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
             tokenVersion: 0,
         });
-
-        const maxAge = Math.floor(getTokenExpiryMs() / 1000);
-        const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-        const cookieString = `token=${jwtToken}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-
-        const response = NextResponse.json({
-            success: true,
-            data: {
-                userId: newUser.id,
-                orgId: invitation.orgId,
-            },
-        });
-        response.headers.set("Set-Cookie", cookieString);
         return response;
     } catch (error) {
         console.error("Invitation accept error:", error);

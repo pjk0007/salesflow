@@ -2,7 +2,8 @@ import crypto from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizations, plans, subscriptions, organizationMembers } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { getActiveUserFromNextRequest, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { getActiveUserFromNextRequest, setSessionCookie } from "@/lib/auth";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 function generateSlug(): string {
     return `org-${crypto.randomBytes(4).toString("hex")}`;
@@ -21,59 +22,63 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "조직 이름을 입력해주세요." }, { status: 400 });
         }
 
-        // 조직 생성
-        const [newOrg] = await db
-            .insert(organizations)
-            .values({
-                name: name.trim(),
-                slug: generateSlug(),
-            })
-            .returning({ id: organizations.id, name: organizations.name, slug: organizations.slug });
+        // 조직·구독·owner 멤버십을 한 트랜잭션으로 만든다 — 중간 실패 시 멤버 없는 조직이 남지 않는다
+        const newOrg = await db.transaction(async (tx) => {
+            const [freePlan] = await tx
+                .select({ id: plans.id })
+                .from(plans)
+                .where(eq(plans.slug, "free"));
+            // Free 요금제가 없으면 한도가 모두 0인 조직이 생기므로 만들지 않는다
+            if (!freePlan) return null;
 
-        // Free 구독 자동 생성
-        const [freePlan] = await db
-            .select({ id: plans.id })
-            .from(plans)
-            .where(eq(plans.slug, "free"));
+            const [org] = await tx
+                .insert(organizations)
+                .values({
+                    name: name.trim(),
+                    slug: generateSlug(),
+                })
+                .returning({ id: organizations.id, name: organizations.name, slug: organizations.slug });
 
-        if (freePlan) {
-            await db.insert(subscriptions).values({
-                orgId: newOrg.id,
+            await tx.insert(subscriptions).values({
+                orgId: org.id,
                 planId: freePlan.id,
                 status: "active",
             });
-        }
 
-        // owner 멤버십 생성
-        await db.insert(organizationMembers).values({
-            organizationId: newOrg.id,
-            userId: user.userId,
-            role: "owner",
+            await tx.insert(organizationMembers).values({
+                organizationId: org.id,
+                userId: user.userId,
+                role: "owner",
+            });
+            return org;
         });
 
-        // 새 조직으로 JWT 전환
-        const payload = {
-            userId: user.userId,
-            email: user.email,
-            name: user.name,
-            orgId: newOrg.id,
-            role: "owner" as const,
-            // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
-            tokenVersion: 0,
-        };
-
-        const token = generateToken(payload);
-        const maxAge = Math.floor(getTokenExpiryMs() / 1000);
-        const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-        const cookieString = `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+        if (!newOrg) {
+            return NextResponse.json(
+                { success: false, error: "기본 요금제가 준비되지 않아 조직을 만들 수 없습니다. 고객센터에 문의해주세요." },
+                { status: 503 }
+            );
+        }
 
         const response = NextResponse.json({
             success: true,
             data: { id: newOrg.id, name: newOrg.name, slug: newOrg.slug, role: "owner" },
         });
-        response.headers.set("Set-Cookie", cookieString);
+        // 새 조직으로 JWT 전환. 새 멤버십이라 token_version은 DEFAULT 0. 슈퍼관리자 표시는 유지한다
+        setSessionCookie(response, {
+            userId: user.userId,
+            email: user.email,
+            name: user.name,
+            orgId: newOrg.id,
+            role: "owner",
+            tokenVersion: 0,
+            ...(user.isSuperAdmin && { isSuperAdmin: true }),
+        });
         return response;
     } catch (error) {
+        if (isUniqueViolation(error)) {
+            return NextResponse.json({ success: false, error: "조직 주소가 겹쳤습니다. 다시 시도해주세요." }, { status: 409 });
+        }
         console.error("Create org error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
