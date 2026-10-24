@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { resolveComparisonPeriod } from "@/lib/tracker/comparison";
-import { ymd } from "../../utils/range";
+import { todayYmd, ymd } from "../../utils/range";
 import type { ComparisonSelection, Range } from "../../types/overview";
 
 export function ComparisonSelector({ range, value, onChange }: {
@@ -34,7 +34,7 @@ export function ComparisonSelector({ range, value, onChange }: {
                     : "같은 길이의 기간입니다. 방문자·세션·페이지뷰는 합계로 증감률을 계산합니다."}
                 {" "}평균 체류는 세션 평균, 이탈률·리드·가입은 각 기간의 비율로 비교합니다.
             </p>
-            {range.to === ymd(new Date()) && <p className="text-xs text-muted-foreground">오늘 통계는 현재까지 수집된 값입니다.</p>}
+            {range.to === todayYmd() && <p className="text-xs text-muted-foreground">오늘 통계는 현재까지 수집된 값입니다.</p>}
         </div>
     );
 }

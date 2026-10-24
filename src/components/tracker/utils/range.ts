@@ -1,10 +1,11 @@
+import { kstParts } from "@/lib/kst";
 import { isValidYmd } from "@/lib/tracker/date-range";
 import type { Range, RangePreset } from "../types/overview";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const PRESET_DAYS = { "1d": 1, "7d": 7, "30d": 30, "90d": 90 } as const;
 
-// 달력에서 고른 날짜와 브라우저의 오늘은 로컬 날짜로 읽는다.
+// 달력에서 고른 날짜는 브라우저 로컬 날짜로 읽는다(달력 칸 = 사용자가 고른 날짜).
 export function ymd(date: Date): string {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
@@ -19,18 +20,23 @@ export function rangeDays(range: Pick<Range, "from" | "to">): number {
     return (Date.parse(`${range.to}T00:00:00Z`) - Date.parse(`${range.from}T00:00:00Z`)) / DAY_MS + 1;
 }
 
+// "오늘"은 업무 집계 기준인 KST 날짜다 — 해외 브라우저에서도 API 기본 기간과 같은 날을 가리킨다.
+export function todayYmd(now = new Date()): string {
+    return kstParts(now).date;
+}
+
 export function presetRange(preset: RangePreset, now = new Date()): Range {
     const key = preset === "custom" ? "1d" : preset;
-    const to = ymd(now);
+    const to = todayYmd(now);
     return { preset: key, from: addDays(to, 1 - PRESET_DAYS[key]), to };
 }
 
 /** 선택한 기간 길이만큼 이동하며, 다음 기간이 미래면 오늘까지의 동일 길이로 맞춘다. */
 export function shiftRange(range: Range, direction: -1 | 1, now = new Date()): Range {
-    const today = ymd(now);
-    if (direction === 1 && range.to >= today) return range;
+    const latest = todayYmd(now);
+    if (direction === 1 && range.to >= latest) return range;
     const days = rangeDays(range);
-    const to = direction === 1 ? [addDays(range.to, days), today].sort()[0] : addDays(range.to, -days);
+    const to = direction === 1 ? [addDays(range.to, days), latest].sort()[0] : addDays(range.to, -days);
     return { ...range, from: addDays(to, 1 - days), to };
 }
 

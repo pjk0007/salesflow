@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites } from "@/lib/db";
 import { and, eq, sql } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { rangeBounds, resolveRange } from "@/lib/tracker/date-range";
 import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
 
 /**
@@ -11,14 +12,6 @@ import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
  * 페이지 필터: path prefix (예: `/pricing`). 미지정 시 사이트 전체 합산.
  */
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function rangeBounds(fromYmd: string, toYmd: string) {
-    return {
-        fromIso: `${fromYmd}T00:00:00+09:00`,
-        toIso: `${toYmd}T23:59:59.999+09:00`,
-    };
-}
 
 function deviceFilterSql(device: string | null, alias: string) {
     return device
@@ -51,10 +44,7 @@ export async function GET(req: NextRequest) {
     if (!site) return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
 
     // 기간
-    const today = new Date();
-    const ymd = (d: Date) => d.toISOString().slice(0, 10);
-    const fromYmd = sp.get("from") ?? ymd(new Date(today.getTime() - 30 * DAY_MS));
-    const toYmd = sp.get("to") ?? ymd(today);
+    const { fromYmd, toYmd } = resolveRange(sp.get("from"), sp.get("to"));
     const { fromIso, toIso } = rangeBounds(fromYmd, toYmd);
 
     // 세그먼트 필터

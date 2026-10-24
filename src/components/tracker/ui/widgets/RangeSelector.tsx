@@ -4,7 +4,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Range, RangePreset } from "../../types/overview";
-import { presetRange, rangeDays, shiftRange, ymd } from "../../utils/range";
+import { presetRange, rangeDays, shiftRange, todayYmd, ymd } from "../../utils/range";
 
 interface Props {
     value: Range;
@@ -20,7 +20,7 @@ const PRESETS: Array<{ key: RangePreset; label: string }> = [
 
 export function RangeSelector({ value, onChange }: Props) {
     const days = rangeDays(value);
-    const nextDisabled = value.to >= ymd(new Date());
+    const nextDisabled = value.to >= todayYmd();
     return (
         <div className="inline-flex flex-wrap items-center gap-2">
             <Button
