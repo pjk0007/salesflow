@@ -5,19 +5,32 @@ import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
-
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export default function AdminOrganizations() {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    const { data, isLoading } = useSWR(`/api/admin/organizations?search=${search}&page=${page}&limit=20`, fetcher);
-    const { data: detail } = useSWR(selectedId ? `/api/admin/organizations/${selectedId}` : null, fetcher);
+    const { data, isLoading, error, mutate } = useSWR(`/api/admin/organizations?search=${search}&page=${page}&limit=20`, defaultFetcher);
+    const { data: detail, error: detailError, mutate: mutateDetail } = useSWR(selectedId ? `/api/admin/organizations/${selectedId}` : null, defaultFetcher);
 
     const orgs = data?.data || [];
     const pagination = data?.pagination;
+
+    if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+
+    if (selectedId && detailError && !detail) {
+        return (
+            <div className="space-y-6">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> 목록으로
+                </Button>
+                <QueryErrorState error={detailError} onRetry={() => mutateDetail()} />
+            </div>
+        );
+    }
 
     if (selectedId && detail?.data) {
         const d = detail.data;

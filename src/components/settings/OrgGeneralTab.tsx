@@ -11,34 +11,26 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-    AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { AsyncAlertDialog } from "@/components/ui/alert-dialog";
+import { apiRequest } from "@/lib/swr-fetcher";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useOrgSettings } from "@/hooks/useOrgSettings";
 import { useSession } from "@/contexts/SessionContext";
 import { Copy, Trash2 } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 export default function OrgGeneralTab() {
     const router = useRouter();
     const { user, logout, refreshSession } = useSession();
-    const { org, isLoading, updateOrg } = useOrgSettings();
+    const { org, isLoading, updateOrg, loadError, mutate } = useOrgSettings();
     const isOwner = user?.role === "owner";
     const canEdit = user?.role === "owner" || user?.role === "admin";
 
     const [name, setName] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deleteConfirmText, setDeleteConfirmText] = useState("");
-    const [isDeleting, setIsDeleting] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
 
     useEffect(() => {
         if (org) {
@@ -77,29 +69,19 @@ export default function OrgGeneralTab() {
     };
 
     const handleDeleteOrg = async () => {
-        setIsDeleting(true);
+        const result = await apiRequest<{ success: boolean; noOrgsLeft?: boolean }>("/api/org/settings", { method: "DELETE" });
+        toast.success("조직이 삭제되었습니다.");
+        // 삭제는 끝났다. 뒤이은 세션 갱신이 실패해도 확인창에 실패로 남겨 재삭제(404)를 유도하지 않는다.
         try {
-            const res = await fetch("/api/org/settings", {
-                method: "DELETE",
-            });
-            const result = await res.json();
-            if (result.success) {
-                toast.success("조직이 삭제되었습니다.");
-                if (result.noOrgsLeft) {
-                    logout();
-                } else {
-                    await refreshSession();
-                    router.push("/");
-                }
-            } else {
-                toast.error(result.error || "삭제에 실패했습니다.");
-            }
-        } catch {
-            toast.error("서버에 연결할 수 없습니다.");
-        } finally {
-            setIsDeleting(false);
+            if (result.noOrgsLeft) logout();
+            else await refreshSession();
+        } catch (cause) {
+            console.error("조직 삭제 후 세션 갱신 실패:", cause);
         }
+        if (!result.noOrgsLeft) router.push("/");
     };
+
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;
@@ -173,40 +155,17 @@ export default function OrgGeneralTab() {
                                     조직과 모든 데이터가 영구적으로 삭제됩니다.
                                 </p>
                             </div>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        조직 삭제
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>정말로 삭제하시겠습니까?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            이 작업은 되돌릴 수 없습니다. 조직의 모든 데이터가 영구적으로 삭제됩니다.
-                                            확인하려면 조직명 &quot;{org?.name}&quot;을 입력해주세요.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <Input
-                                        value={deleteConfirmText}
-                                        onChange={(e) => setDeleteConfirmText(e.target.value)}
-                                        placeholder={org?.name ?? ""}
-                                    />
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel onClick={() => setDeleteConfirmText("")}>
-                                            취소
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={handleDeleteOrg}
-                                            disabled={deleteConfirmText !== org?.name || isDeleting}
-                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                        >
-                                            {isDeleting ? "삭제 중..." : "삭제"}
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                            <Button variant="destructive" size="sm" onClick={() => { setDeleteConfirmText(""); setDeleteOpen(true); }}>
+                                <Trash2 className="h-4 w-4 mr-2" />조직 삭제
+                            </Button>
+                            <AsyncAlertDialog open={deleteOpen} onOpenChange={(open) => { setDeleteOpen(open); setDeleteConfirmText(""); }}
+                                title="정말로 삭제하시겠습니까?"
+                                description={<>이 작업은 되돌릴 수 없습니다. 조직의 모든 데이터가 영구적으로 삭제됩니다. 확인하려면 조직명 &quot;{org?.name}&quot;을 입력해주세요.</>}
+                                onConfirm={handleDeleteOrg}
+                                confirmDisabled={!org?.name || deleteConfirmText !== org.name}
+                            >
+                                <Input aria-label="삭제할 조직명 확인" value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} placeholder={org?.name ?? ""} />
+                            </AsyncAlertDialog>
                         </div>
                     </CardContent>
                 </Card>

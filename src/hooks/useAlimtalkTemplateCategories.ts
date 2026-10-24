@@ -9,7 +9,7 @@ interface CategoriesResponse {
 
 
 export function useAlimtalkTemplateCategories() {
-    const { data, isLoading } = useSWR<CategoriesResponse>(
+    const { data, error, isLoading, mutate } = useSWR<CategoriesResponse>(
         "/api/alimtalk/template-categories",
         defaultFetcher
     );
@@ -17,5 +17,7 @@ export function useAlimtalkTemplateCategories() {
     return {
         categoryGroups: data?.data?.groups ?? [],
         isLoading,
+        error,
+        mutate,
     };
 }

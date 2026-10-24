@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, WorkspaceDetail, UpdateWorkspaceInput } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 
 export function useWorkspaceSettings(workspaceId: number | null) {
@@ -24,7 +24,9 @@ export function useWorkspaceSettings(workspaceId: number | null) {
     return {
         workspace: data?.data ?? null,
         isLoading,
+        mutate,
         error,
+        loadError: blockingError(data, error),
         updateWorkspace,
     };
 }

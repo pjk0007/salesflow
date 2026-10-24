@@ -200,3 +200,22 @@ export function sameApplicationOrigin(
         return false;
     }
 }
+
+const inputLabels: Record<string, string> = {
+    email: "이메일", name: "이름", title: "제목", body: "내용", text: "내용",
+    message: "메시지", phone: "전화번호", phoneNumber: "전화번호", url: "주소",
+    domain: "도메인", subject: "제목", description: "설명", label: "이름",
+    start: "시작 시각", end: "종료 시각", timezone: "시간대", color: "색상",
+    tags: "태그", tagIds: "태그", assigneeId: "담당자", status: "상태",
+    to: "받는 사람", cc: "참조", bcc: "숨은 참조", filename: "파일 이름",
+};
+
+/**
+ * 입력 검증 실패 안내. 스키마에 적은 한국어 문구는 그대로 쓰고,
+ * zod 기본 영어 문구·내부 필드 경로는 "라벨: 고정 문구"로 바꾼다.
+ */
+export function inputErrorMessage(error: z.ZodError): string {
+    const issue = error.issues[0];
+    if (issue && /[가-힣]/.test(issue.message)) return issue.message;
+    return `${inputLabels[String(issue?.path.at(-1))] ?? "입력값"}: 입력 형식과 길이를 확인해주세요.`;
+}

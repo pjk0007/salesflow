@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { EmailTemplate } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplatesResponse {
     success: boolean;
@@ -69,6 +69,7 @@ export function useEmailTemplates() {
         totalCount: data?.totalCount ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createTemplate,
         updateTemplate,

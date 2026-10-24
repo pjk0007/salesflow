@@ -1,10 +1,11 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { NhnTemplate } from "@/lib/nhn-alimtalk";
 import type { AlimtalkTemplateDraft } from "@/lib/db";
 import {
@@ -64,17 +65,17 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 
 export default function TemplateList() {
     const router = useRouter();
-    const { senders } = useAlimtalkSenders();
+    const { senders, loadError: sendersError, mutate: mutateSenders } = useAlimtalkSenders();
     const [selectedSenderKey, setSelectedSenderKey] = useState<string>("__all__");
     const isAll = selectedSenderKey === "__all__";
     const singleSenderKey = isAll ? null : selectedSenderKey;
 
     // 단일 발신프로필 선택 시
-    const { templates: singleTemplates, isLoading: singleLoading } = useAlimtalkTemplates(singleSenderKey);
+    const { templates: singleTemplates, isLoading: singleLoading, loadError: singleError, mutate: mutateSingle } = useAlimtalkTemplates(singleSenderKey);
 
     // 전체 선택 시 — 모든 sender 병렬 조회
     const allSenderKeys = useMemo(() => senders.map((s) => s.senderKey), [senders]);
-    const { data: allData, isLoading: allLoading } = useSWR(
+    const { data: allData, isLoading: allLoading, error: allError, mutate: mutateAll } = useSWR(
         isAll && allSenderKeys.length > 0
             ? allSenderKeys.map((k) => `/api/alimtalk/templates?senderKey=${encodeURIComponent(k)}`)
             : null,
@@ -89,7 +90,7 @@ export default function TemplateList() {
     const { deleteTemplate, commentTemplate } = useAlimtalkTemplateManage(singleSenderKey);
 
     // 임시저장 목록
-    const { data: draftsData, mutate: mutateDrafts } = useSWR<{ success: boolean; data: AlimtalkTemplateDraft[] }>(
+    const { data: draftsData, mutate: mutateDrafts, error: draftsError } = useSWR<{ success: boolean; data: AlimtalkTemplateDraft[] }>(
         "/api/alimtalk/template-drafts",
         defaultFetcher
     );
@@ -145,6 +146,9 @@ export default function TemplateList() {
         setCommentText("");
     };
 
+    const loadError = sendersError || (isAll ? blockingError(allData, allError) : singleError);
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => Promise.all([mutateSenders(), isAll ? mutateAll() : mutateSingle()])} />;
+
     return (
         <div className="space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -175,7 +179,8 @@ export default function TemplateList() {
                 </div>
             </div>
 
-            {/* 임시저장 목록 */}
+            {/* 임시저장 목록 — 실패해도 템플릿 목록은 그대로 보여준다 */}
+            {draftsError && !draftsData && <QueryErrorState error={draftsError} onRetry={() => mutateDrafts()} />}
             {drafts.length > 0 && (
                 <div className="space-y-2">
                     <h4 className="text-sm font-medium text-muted-foreground">임시저장 ({drafts.length})</h4>

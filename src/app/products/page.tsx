@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,7 @@ export default function ProductsPage() {
     const [categoryFilter, setCategoryFilter] = useState("");
     const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
-    const { products, isLoading, deleteProduct } = useProducts({
+    const { products, isLoading, deleteProduct, loadError, mutate } = useProducts({
         search: search || undefined,
         category: categoryFilter || undefined,
     });
@@ -50,6 +50,8 @@ export default function ProductsPage() {
             toast.error(result.error || "삭제에 실패했습니다.");
         }
     }, [deleteTarget, deleteProduct]);
+
+    if (loadError) return <WorkspaceLayout><QueryErrorState error={loadError} onRetry={() => mutate()} /></WorkspaceLayout>;
 
     return (
         <WorkspaceLayout>

@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import type { OpenSignal } from "@/components/email/opens/types";
 import { OpenColumnHead } from "@/components/email/opens/ui/OpenColumnHead";
 import { OpenCountCell } from "@/components/email/opens/ui/OpenCountCell";
@@ -162,7 +163,7 @@ export default function EmailSendLogTable() {
         return {};
     })();
 
-    const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
+    const { logs, totalCount, isLoading, syncLogs, loadError, mutate } = useEmailLogs({
         page,
         search: debouncedSearch || undefined,
         status: status || undefined,
@@ -413,8 +414,10 @@ export default function EmailSendLogTable() {
                 )}
             </div>
 
-            {/* 테이블 */}
-            {isLoading ? (
+            {/* 테이블 — 실패해도 검색·필터는 남겨 조건을 바꿀 수 있게 한다 */}
+            {loadError ? (
+                <QueryErrorState error={loadError} onRetry={() => mutate()} />
+            ) : isLoading ? (
                 <div className="space-y-3">
                     {[1, 2, 3, 4, 5].map((i) => (
                         <Skeleton key={i} className="h-10 w-full" />

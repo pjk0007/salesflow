@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,8 +26,7 @@ import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import FollowupStepsForm, { type FollowupStepUI } from "@/components/alimtalk/FollowupStepsForm";
 import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
 import useSWR from "swr";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 const TRIGGER_LABELS: Record<string, string> = {
     manual: "수동",
@@ -44,7 +43,7 @@ function NewAlimtalkLinkContent() {
     );
     const partitionId = selectedPartitionId ?? 0;
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData, error: partitionsError, mutate: mutatePartitions } = useSWR("/api/partitions", defaultFetcher);
     const { senders } = useAlimtalkSenders();
     const [senderKey, setSenderKey] = useState("");
     const { templates } = useAlimtalkTemplates(senderKey || null);
@@ -114,6 +113,10 @@ function NewAlimtalkLinkContent() {
             setSaving(false);
         }
     };
+
+    if (partitionsError && !allPartitionsData) {
+        return <WorkspaceLayout><QueryErrorState error={partitionsError} onRetry={() => mutatePartitions()} /></WorkspaceLayout>;
+    }
 
     if (!selectedPartitionId) {
         const rawPartitions = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? [];

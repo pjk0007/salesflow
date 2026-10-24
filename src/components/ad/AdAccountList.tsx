@@ -1,7 +1,8 @@
 "use client";
 
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import {
     Card,
     CardContent,
@@ -61,10 +62,10 @@ function formatRelativeTime(dateStr: string | null): string {
 }
 
 export default function AdAccountList() {
-    const { accounts, isLoading, updateAccount } = useAdAccounts();
+    const { accounts, isLoading, updateAccount, loadError: accountsError, mutate: mutateAccounts } = useAdAccounts();
     const { platforms } = useAdPlatforms();
     const platformMap = new Map(platforms.map((p) => [p.id, p.platform]));
-    const { data: wsData } = useSWR<{ success: boolean; data: Workspace[] }>(
+    const { data: wsData, error: workspacesError, mutate: mutateWorkspaces } = useSWR<{ success: boolean; data: Workspace[] }>(
         "/api/workspaces",
         defaultFetcher
     );
@@ -79,6 +80,9 @@ export default function AdAccountList() {
             toast.error(result.error || "변경에 실패했습니다.");
         }
     };
+
+    const loadError = blockingError(wsData, workspacesError) || accountsError;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => Promise.all([mutateWorkspaces(), mutateAccounts()])} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

@@ -1,6 +1,7 @@
 "use client";
 
 import useSWR from "swr";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { VisitorDetailResponse } from "../types/visitor-detail";
@@ -24,10 +25,12 @@ function cardSpan(i: number, n: number): string {
 }
 
 export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
-    const { data, isLoading } = useSWR<VisitorDetailResponse>(
+    const { data, error, isLoading, mutate } = useSWR<VisitorDetailResponse>(
         `/api/tracker/visitors/${visitorPk}`,
         defaultFetcher,
     );
+
+    if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <Skeleton className="h-96 w-full" />;

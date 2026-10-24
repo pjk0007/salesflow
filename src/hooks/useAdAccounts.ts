@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { AdAccountInfo } from "@/types";
 
 interface ListResponse {
@@ -36,6 +36,7 @@ export function useAdAccounts(platformId?: number, workspaceId?: number) {
     return {
         accounts: data?.data || [],
         error,
+        loadError: blockingError(data, error),
         isLoading,
         mutate,
         updateAccount,

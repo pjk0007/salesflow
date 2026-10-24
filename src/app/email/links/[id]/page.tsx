@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,12 +39,11 @@ import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 import { useRuleSenderPool } from "@/components/email/sender-profiles/hooks/useRuleSenderPool";
 import { templateLinkSenderBody } from "@/components/email/template-links/utils/templateLinkSender";
 import TemplateLinkSenderCard from "@/components/email/template-links/ui/TemplateLinkSenderCard";
 import TemplateLinkSenderSummary from "@/components/email/template-links/ui/TemplateLinkSenderSummary";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const TRIGGER_LABELS: Record<string, string> = {
     manual: "수동",
@@ -72,7 +71,7 @@ function EditLinkPageContent() {
     const linkId = Number(params.id);
     const partitionId = Number(searchParams.get("partitionId"));
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData, error: partitionsError, mutate: mutatePartitions } = useSWR("/api/partitions", defaultFetcher);
     const { templates: allTemplates } = useEmailTemplates();
     const templates = allTemplates.filter((t) => t.status !== "draft");
     const { templateLinks, isLoading, updateLink } = useEmailTemplateLinks(partitionId || null);
@@ -149,6 +148,10 @@ function EditLinkPageContent() {
             setSaving(false);
         }
     };
+
+    if (partitionsError && !allPartitionsData) {
+        return <WorkspaceLayout><QueryErrorState error={partitionsError} onRetry={() => mutatePartitions()} /></WorkspaceLayout>;
+    }
 
     if (isLoading) {
         return (

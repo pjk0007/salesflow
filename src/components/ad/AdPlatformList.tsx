@@ -14,6 +14,8 @@ import { useAdPlatforms } from "@/hooks/useAdPlatforms";
 import { RefreshCw, Unlink, Loader2, Plus } from "lucide-react";
 import { useEffect, useCallback } from "react";
 import type { AdPlatformType, AdPlatformStatus } from "@/types";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 const PLATFORM_LABELS: Record<AdPlatformType, string> = {
     meta: "Meta (Facebook/Instagram)",
@@ -42,7 +44,8 @@ function formatRelativeTime(dateStr: string | null): string {
 }
 
 export default function AdPlatformList() {
-    const { platforms, isLoading, mutate, deletePlatform, syncAccounts } = useAdPlatforms();
+    const { confirm, confirmationDialog } = useAsyncConfirm();
+    const { platforms, loadError, isLoading, mutate, deletePlatform, syncAccounts } = useAdPlatforms();
 
     // Meta OAuth 팝업 결과 수신
     const handleOAuthMessage = useCallback((event: MessageEvent) => {
@@ -85,16 +88,21 @@ export default function AdPlatformList() {
     };
 
     const handleDisconnect = async (id: number, name: string) => {
-        if (!window.confirm(`"${name}" 플랫폼 연결을 해제하시겠습니까? 연결된 광고 계정과 연동 설정도 함께 삭제됩니다.`)) {
-            return;
-        }
-        const result = await deletePlatform(id);
-        if (result.success) {
-            toast.success("플랫폼 연결이 해제되었습니다.");
-        } else {
-            toast.error(result.error || "연결 해제에 실패했습니다.");
-        }
+        confirm({
+            title: "플랫폼 연결 해제",
+            description: `"${name}" 플랫폼 연결을 해제하시겠습니까? 연결된 광고 계정과 연동 설정도 함께 삭제됩니다.`,
+            onConfirm: async () => {
+                const result = await deletePlatform(id);
+                if (result.success) {
+                    toast.success("플랫폼 연결이 해제되었습니다.");
+                } else {
+                    throw new Error(result.error || "연결 해제에 실패했습니다.");
+                }
+            },
+        });
     };
+
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;
@@ -102,6 +110,7 @@ export default function AdPlatformList() {
 
     return (
         <Card>
+            {confirmationDialog}
             <CardHeader className="flex flex-row items-center justify-between">
                 <div>
                     <CardTitle>플랫폼 연결</CardTitle>

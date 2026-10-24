@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
@@ -48,7 +49,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
-    const { templateLinks, isLoading, updateLink, deleteLink } = useEmailTemplateLinks(selectedPartitionId);
+    const { templateLinks, isLoading, updateLink, deleteLink, loadError, mutate } = useEmailTemplateLinks(selectedPartitionId);
     const selectedPartition = selectedPartitionId !== "all" ? partitions.find((p) => p.id === selectedPartitionId) : null;
     const { fields } = useFields(selectedPartition?.workspaceId ?? null);
     const partitionMap = useMemo(() => Object.fromEntries(partitions.map((p) => [p.id, p.name])), [partitions]);
@@ -113,7 +114,9 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                 </div>
             </CardHeader>
             <CardContent>
-                {isLoading ? (
+                {loadError ? (
+                    <QueryErrorState error={loadError} onRetry={() => mutate()} />
+                ) : isLoading ? (
                     <div className="flex justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>

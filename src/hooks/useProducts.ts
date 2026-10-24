@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { Product } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface ApiResponse<T> {
     success: boolean;
@@ -68,6 +68,7 @@ export function useProducts(options?: UseProductsOptions) {
         products: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createProduct,
         updateProduct,

@@ -1,7 +1,7 @@
 import useSWR, { mutate as globalMutate } from "swr";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition, ImportResult } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseRecordsParams {
     partitionId: number | null;
@@ -195,6 +195,7 @@ export function useRecords(params: UseRecordsParams) {
         totalPages: data?.totalPages ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createRecord,
         updateRecord,

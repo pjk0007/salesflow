@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { EmailSendLog } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface LogsResponse {
     success: boolean;
@@ -41,6 +41,7 @@ export function useEmailLogs(params?: { partitionId?: number; search?: string; s
         totalCount: data?.totalCount ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         syncLogs,
     };

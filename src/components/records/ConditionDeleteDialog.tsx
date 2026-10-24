@@ -14,6 +14,7 @@ import FilterBuilder from "./FilterBuilder";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDefinition, FilterCondition } from "@/types";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 const NO_VALUE_OPS = new Set(["is_empty", "is_not_empty", "is_true", "is_false"]);
 const OP_LABEL: Record<string, string> = {
@@ -40,6 +41,7 @@ interface Props {
 }
 
 export default function ConditionDeleteDialog({ open, onOpenChange, partitionId, fields, onDeleted }: Props) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const [filters, setFilters] = useState<FilterCondition[]>([]);
     const [count, setCount] = useState<number | null>(null);
     const [counting, setCounting] = useState(false);
@@ -87,27 +89,33 @@ export default function ConditionDeleteDialog({ open, onOpenChange, partitionId,
 
     const handleDelete = async () => {
         if (!partitionId || completeFilters.length === 0) return;
-        if (!confirm(`정말 ${count?.toLocaleString() ?? ""}건을 삭제할까요? 되돌릴 수 없습니다.`)) return;
-        setDeleting(true);
-        try {
-            const res = await fetch(`/api/partitions/${partitionId}/records/delete-all`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ filters: completeFilters }),
-            });
-            const json = await res.json();
-            if (json.success) {
-                toast.success(`${json.data.deletedCount.toLocaleString()}건이 삭제되었습니다.`);
-                onDeleted();
-                handleOpenChange(false);
-            } else {
-                toast.error(json.error ?? "삭제 실패");
-            }
-        } catch {
-            toast.error("삭제 중 오류가 발생했습니다.");
-        } finally {
-            setDeleting(false);
-        }
+        confirm({
+            title: "조건에 맞는 레코드 삭제",
+            description: `정말 ${count?.toLocaleString() ?? ""}건을 삭제할까요? 되돌릴 수 없습니다.`,
+            onConfirm: async () => {
+                setDeleting(true);
+                try {
+                    let json;
+                    try {
+                        const res = await fetch(`/api/partitions/${partitionId}/records/delete-all`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ filters: completeFilters }),
+                        });
+                        json = await res.json();
+                    } catch {
+                        // 연결·응답 해석 실패만 고정 문구로 바꾸고, 서버 안내는 아래에서 그대로 보여준다
+                        throw new Error("삭제 중 오류가 발생했습니다.");
+                    }
+                    if (!json.success) throw new Error(json.error ?? "삭제 실패");
+                    toast.success(`${json.data.deletedCount.toLocaleString()}건이 삭제되었습니다.`);
+                    onDeleted();
+                    handleOpenChange(false);
+                } finally {
+                    setDeleting(false);
+                }
+            },
+        });
     };
 
     if (!partitionId) return null;
@@ -117,6 +125,7 @@ export default function ConditionDeleteDialog({ open, onOpenChange, partitionId,
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-lg">
+            {confirmationDialog}
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-destructive">
                         <Trash2 className="h-5 w-5" />

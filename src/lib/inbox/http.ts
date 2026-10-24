@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getUserFromNextRequest } from "@/lib/auth";
 import { InboxError } from "./repository";
 import { rateLimit } from "@/lib/tracker/rate-limit";
-import { sameApplicationOrigin } from "./rules";
+import { inputErrorMessage, sameApplicationOrigin } from "./rules";
 export function inboxActor(req: NextRequest) {
     const user = getUserFromNextRequest(req);
     if (!user) throw new InboxError("인증이 필요합니다.", 401);
@@ -32,7 +32,7 @@ export async function handleInbox(action: () => Promise<unknown>) {
             return NextResponse.json(
                 {
                     success: false,
-                    error: error.issues[0]?.message ?? "입력값을 확인해주세요.",
+                    error: inputErrorMessage(error),
                 },
                 { status: 400 },
             );

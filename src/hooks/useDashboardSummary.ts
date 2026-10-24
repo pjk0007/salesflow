@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface ChannelStats {
     total: number;
@@ -50,7 +50,7 @@ const empty: DashboardSummary = {
 };
 
 export function useDashboardSummary() {
-    const { data, error, isLoading } = useSWR<SummaryResponse>(
+    const { data, error, isLoading, mutate } = useSWR<SummaryResponse>(
         "/api/dashboard/summary",
         defaultFetcher,
         { refreshInterval: 60000 }
@@ -59,6 +59,8 @@ export function useDashboardSummary() {
     return {
         summary: data?.data ?? empty,
         isLoading,
+        mutate,
         error,
+        loadError: blockingError(data, error),
     };
 }

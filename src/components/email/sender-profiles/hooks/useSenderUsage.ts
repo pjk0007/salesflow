@@ -11,7 +11,7 @@ import { SENDER_USAGE_KEY } from "../api/senderProfiles";
  * 사용량을 못 읽었다고 프로필 목록이나 규칙 저장을 막지 않는다.
  */
 export function useSenderUsage(enabled: boolean = true) {
-    const { data, isLoading, mutate } = useSWR<ApiResult<SenderUsageView[]>>(
+    const { data, error, isLoading, mutate } = useSWR<ApiResult<SenderUsageView[]>>(
         enabled ? SENDER_USAGE_KEY : null,
         defaultFetcher
     );
@@ -21,5 +21,5 @@ export function useSenderUsage(enabled: boolean = true) {
         return new Map(rows.map((u) => [u.profileId, u]));
     }, [data]);
 
-    return { usageById, isLoading, mutate };
+    return { usageById, isLoading, error, mutate };
 }

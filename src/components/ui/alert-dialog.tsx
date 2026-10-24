@@ -1,3 +1,5 @@
+"use client"
+
 import * as React from "react"
 import { AlertDialog as AlertDialogPrimitive } from "radix-ui"
 
@@ -178,7 +180,112 @@ function AlertDialogCancel({
   )
 }
 
+interface AsyncAlertDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: React.ReactNode
+  description: React.ReactNode
+  onConfirm: () => Promise<unknown>
+  confirmLabel?: string
+  pendingLabel?: string
+  confirmDisabled?: boolean
+  children?: React.ReactNode
+}
+
+/** 실패는 throw 또는 success:false로 전달한다. 성공 시에만 닫힌다. */
+function AsyncAlertDialog({
+  open, onOpenChange, title, description, onConfirm,
+  confirmLabel = "삭제", pendingLabel = "처리 중...", confirmDisabled, children,
+}: AsyncAlertDialogProps) {
+  const busyRef = React.useRef(false)
+  const openerRef = React.useRef<HTMLElement | null>(null)
+  const [pending, setPending] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+  const changeOpen = (next: boolean) => {
+    if (busyRef.current) return
+    setError(null)
+    onOpenChange(next)
+  }
+  return (
+    <AlertDialog open={open} onOpenChange={changeOpen}>
+      <AlertDialogContent aria-busy={pending}
+        onOpenAutoFocus={() => {
+          openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        }}
+        onCloseAutoFocus={(event) => {
+          if (openerRef.current?.isConnected) {
+            event.preventDefault()
+            openerRef.current.focus()
+          }
+        }}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription asChild><div className="whitespace-pre-line">{description}</div></AlertDialogDescription>
+        </AlertDialogHeader>
+        {children}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <AlertDialogFooter>
+          {/* 진행 중에도 disabled 대신 aria-disabled를 써서 포커스가 버튼에 남게 한다(닫기는 changeOpen이 막는다) */}
+          <AlertDialogCancel aria-disabled={pending} className={cn(pending && "pointer-events-none opacity-50")}>취소</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            disabled={confirmDisabled}
+            aria-disabled={pending}
+            className={cn(pending && "pointer-events-none opacity-50")}
+            onClick={async (event) => {
+              event.preventDefault()
+              if (busyRef.current || confirmDisabled) return
+              busyRef.current = true
+              setPending(true)
+              setError(null)
+              try {
+                const result = await onConfirm()
+                if (result && typeof result === "object" && "success" in result && result.success === false) {
+                  throw new Error("error" in result && typeof result.error === "string"
+                    ? result.error : "요청을 처리하지 못했습니다.")
+                }
+                onOpenChange(false)
+              } catch (cause) {
+                setError(cause instanceof Error && /[가-힣]/.test(cause.message)
+                  ? cause.message : "요청을 처리하지 못했습니다. 다시 시도해주세요.")
+              } finally {
+                busyRef.current = false
+                setPending(false)
+              }
+            }}
+          >
+            {pending ? pendingLabel : confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/** 네이티브 confirm 대체. 확인할 동작 자체를 넘겨 실패·진행 상태를 창에서 관리한다. */
+function useAsyncConfirm() {
+  type Request = Omit<AsyncAlertDialogProps, "open" | "onOpenChange">
+  const [request, setRequest] = React.useState<Request | null>(null)
+  const requestRef = React.useRef<Request | null>(null)
+  const confirm = React.useCallback((next: Request) => {
+    if (requestRef.current) return
+    requestRef.current = next
+    setRequest(next)
+  }, [])
+  const confirmationDialog = request ? (
+    <AsyncAlertDialog {...request} open onOpenChange={(open) => {
+      if (!open) {
+        requestRef.current = null
+        setRequest(null)
+      }
+    }} />
+  ) : null
+  return { confirm, confirmationDialog }
+}
+
 export {
+  AsyncAlertDialog,
+  useAsyncConfirm,
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,

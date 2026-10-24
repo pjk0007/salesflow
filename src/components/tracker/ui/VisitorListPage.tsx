@@ -28,6 +28,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Users, UserCheck, Eye, Settings, BarChart3, Megaphone, Activity } from "lucide-react";
 import type { TrackerSite } from "../types";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
 
@@ -49,7 +50,7 @@ export function VisitorListPage() {
         router.replace(`${pathname}${sp.toString() ? "?" + sp.toString() : ""}`, { scroll: false });
     };
 
-    const { workspaces } = useWorkspaces();
+    const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(() => {
         if (typeof window === "undefined") return null;
         const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY);
@@ -68,7 +69,9 @@ export function VisitorListPage() {
         localStorage.setItem(WORKSPACE_STORAGE_KEY, String(id));
     };
 
-    const { site, isLoading: siteLoading, mutate: mutateSite } = useTrackerSite(workspaceId);
+    const { site, isLoading: siteLoading, loadError: siteError, mutate: mutateSite } = useTrackerSite(workspaceId);
+
+    if (workspacesError) return <QueryErrorState error={workspacesError} onRetry={() => mutateWorkspaces()} />;
 
     if (!workspaces || workspaces.length === 0) {
         return <p className="text-sm text-muted-foreground">워크스페이스가 없습니다.</p>;
@@ -91,6 +94,16 @@ export function VisitorListPage() {
             </SelectContent>
         </Select>
     );
+
+    // 사이트 조회가 실패해도 다른 워크스페이스로 바꿀 수 있게 선택기를 남긴다
+    if (siteError) {
+        return (
+            <div className="space-y-4">
+                {workspaceSelector}
+                <QueryErrorState error={siteError} onRetry={() => mutateSite()} />
+            </div>
+        );
+    }
 
     if (siteLoading) {
         return (
@@ -182,7 +195,7 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
         setPage(1);
     }, [q, hasRecord, filters.pagePath, filters.channel, site.id]);
 
-    const { items, total, totalPages, isLoading } = useTrackerVisitors({
+    const { items, total, totalPages, isLoading, loadError: visitorsError, mutate: mutateVisitors } = useTrackerVisitors({
         siteId: site.id,
         page,
         q: q || undefined,
@@ -245,7 +258,9 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
                 />
             </div>
 
-            {isLoading && items.length === 0 ? (
+            {visitorsError ? (
+                <QueryErrorState error={visitorsError} onRetry={() => mutateVisitors()} />
+            ) : isLoading && items.length === 0 ? (
                 <Skeleton className="h-96 w-full rounded-xl" />
             ) : (
                 <>

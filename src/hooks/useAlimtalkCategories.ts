@@ -13,7 +13,7 @@ interface CategoriesResponse {
 export function useAlimtalkCategories() {
     const { isConfigured } = useAlimtalkConfig();
 
-    const { data, error, isLoading } = useSWR<CategoriesResponse>(
+    const { data, error, isLoading, mutate } = useSWR<CategoriesResponse>(
         isConfigured ? "/api/alimtalk/sender-categories" : null,
         defaultFetcher,
         { revalidateOnFocus: false }
@@ -22,6 +22,7 @@ export function useAlimtalkCategories() {
     return {
         categories: data?.success ? (data.data ?? []) : [],
         isLoading,
+        mutate,
         error: error || (data && !data.success ? data.error : null),
     };
 }

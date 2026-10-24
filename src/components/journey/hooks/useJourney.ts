@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { JourneyData } from "../types";
 
 /** record 여정 또는 익명 방문자 여정 — 응답 shape 동일, 소스만 다름 */
@@ -25,6 +25,7 @@ export function useJourney(source: JourneySource | null, channels?: string[]) {
         journey: data?.data ?? null,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
     };
 }

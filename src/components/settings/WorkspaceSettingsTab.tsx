@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +24,10 @@ import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 
 export default function WorkspaceSettingsTab() {
-    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList } = useWorkspaces();
+    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, loadError: listError, mutate: mutateList } = useWorkspaces();
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { workspace, isLoading, updateWorkspace } = useWorkspaceSettings(selectedId);
-    const { fieldTypes: types } = useFieldTypes();
+    const { workspace, isLoading, updateWorkspace, loadError: workspaceError, mutate: mutateWorkspace } = useWorkspaceSettings(selectedId);
+    const { fieldTypes: types, loadError: typesError, mutate: mutateTypes } = useFieldTypes();
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
@@ -128,7 +129,7 @@ export default function WorkspaceSettingsTab() {
             setSelectedId(null);
             setDeleteOpen(false);
         } else {
-            toast.error(result.error || "삭제에 실패했습니다.");
+            throw new Error(result.error || "삭제에 실패했습니다.");
         }
     };
 
@@ -161,6 +162,8 @@ export default function WorkspaceSettingsTab() {
             </CardContent>
         </Card>
     );
+
+    if (listError) return <QueryErrorState error={listError} onRetry={() => mutateList()} />;
 
     if (wsListLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;
@@ -205,7 +208,9 @@ export default function WorkspaceSettingsTab() {
             {selectedId && (
                 <>
                     <Separator />
-                    {isLoading ? (
+                    {workspaceError || typesError ? (
+                        <QueryErrorState error={workspaceError || typesError} onRetry={() => Promise.all([mutateWorkspace(), mutateTypes()])} />
+                    ) : isLoading ? (
                         <div className="text-muted-foreground py-4 text-center">로딩 중...</div>
                     ) : (
                         <div className="space-y-4 max-w-lg">

@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, InvitationItem, OrgRole } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 
 export function useOrgInvitations() {
@@ -33,6 +33,7 @@ export function useOrgInvitations() {
         invitations: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createInvitation,
         cancelInvitation,

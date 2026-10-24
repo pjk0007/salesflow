@@ -18,10 +18,11 @@ export function useAdPerformance(args: {
             ...(args.funnelId ? { funnelId: String(args.funnelId) } : {}),
         }).toString()
         : null;
-    const { data, isLoading, error } = useSWR<AdPerformanceResponse>(key, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<AdPerformanceResponse>(key, defaultFetcher);
     return {
         data: data?.success ? data.data : null,
         isLoading,
+        mutate,
         error: data && !data.success ? data.error : (error?.message ?? null),
     };
 }

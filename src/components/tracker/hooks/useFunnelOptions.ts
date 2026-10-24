@@ -6,10 +6,11 @@ import type { FunnelOptionsResponse } from "../types/funnel";
 
 export function useFunnelOptions(siteId: number | null) {
     const key = siteId ? `/api/tracker/sites/${siteId}/funnel-options` : null;
-    const { data, isLoading, error } = useSWR<FunnelOptionsResponse>(key, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<FunnelOptionsResponse>(key, defaultFetcher);
     return {
         options: data?.success ? data.data : null,
         isLoading,
+        mutate,
         error: data && !data.success ? data.error : (error?.message ?? null),
     };
 }

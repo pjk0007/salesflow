@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import {
     Dialog,
     DialogContent,
@@ -55,7 +56,7 @@ function normalizeSteps(cfg: LinkInfo["followupConfig"]): FollowupStep[] {
 }
 
 export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkName }: Props) {
-    const { data, isLoading } = useSWR<{
+    const { data, isLoading, error, mutate } = useSWR<{
         success: boolean;
         data?: { link: LinkInfo; logs: LogItem[] };
         error?: string;
@@ -168,7 +169,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
 
                 <ScrollArea className="max-h-[65vh] w-full">
                     <div className="w-0 min-w-full px-6">
-                        {isLoading ? (
+                        {error && !data ? <QueryErrorState error={error} onRetry={() => mutate()} /> : isLoading ? (
                             <div className="flex items-center justify-center py-12">
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>

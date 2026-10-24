@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface AlimtalkConfigData {
     id: number;
@@ -57,6 +57,7 @@ export function useAlimtalkConfig() {
         isConfigured: !!data?.data?.appKey,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         saveConfig,
         testConnection,

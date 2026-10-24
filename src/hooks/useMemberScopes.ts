@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 export type MemberScopeType = "workspace" | "folder" | "partition";
 
@@ -69,6 +69,7 @@ export function useMemberScopes(userId?: string) {
         scopes: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         grantScopes,
         updateScope,
         revokeScope,

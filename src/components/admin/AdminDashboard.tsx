@@ -2,12 +2,14 @@
 
 import useSWR from "swr";
 import { Building2, Users, UserPlus, TrendingUp, Database, Mail, MessageSquare, Cpu, Layers } from "lucide-react";
-
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export default function AdminDashboard() {
-    const { data, isLoading } = useSWR("/api/admin/stats", fetcher);
+    const { data, error, isLoading, mutate } = useSWR("/api/admin/stats", defaultFetcher);
     const stats = data?.data;
+
+    if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     if (isLoading || !stats) {
         return <div className="text-center py-12 text-muted-foreground">로딩 중...</div>;

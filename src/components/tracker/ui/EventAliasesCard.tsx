@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useEventAliases, deleteEventAlias } from "../hooks/useEventAliases";
 import { EventAliasEditorDialog } from "./EventAliasEditorDialog";
 import type { EventAliasRow, EventAliasType } from "../types/event-alias";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 interface Props {
     siteId: number;
@@ -44,6 +45,7 @@ const FILTERS: Array<{ value: "all" | EventAliasType; label: string }> = [
  * 운영자가 한글 라벨을 매핑할 수 있게 한다.
  */
 export function EventAliasesCard({ siteId }: Props) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const { data, isLoading, mutate } = useEventAliases(siteId);
     const [filter, setFilter] = useState<"all" | EventAliasType>("all");
     const [editorOpen, setEditorOpen] = useState(false);
@@ -68,18 +70,21 @@ export function EventAliasesCard({ siteId }: Props) {
     };
     const handleDelete = async (row: EventAliasRow) => {
         if (!row.id) return;
-        if (!confirm(`"${row.label || row.eventName}" 별칭을 삭제하시겠습니까?\n분석 화면에서는 raw 이름으로 표시됩니다.`)) return;
-        try {
-            await deleteEventAlias(row.id);
-            toast.success("삭제되었습니다.");
-            mutate();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "삭제 실패");
-        }
+        const id = row.id;
+        confirm({
+            title: "이벤트 별칭 삭제",
+            description: `"${row.label || row.eventName}" 별칭을 삭제하시겠습니까?\n분석 화면에서는 raw 이름으로 표시됩니다.`,
+            onConfirm: async () => {
+                await deleteEventAlias(id);
+                toast.success("삭제되었습니다.");
+                mutate();
+            },
+        });
     };
 
     return (
         <Card>
+            {confirmationDialog}
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between text-base">
                     <span className="inline-flex items-center gap-2">

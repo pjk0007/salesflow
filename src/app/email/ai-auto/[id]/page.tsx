@@ -54,10 +54,9 @@ import ReplyToSummaryRow from "@/components/email/reply-to/ui/ReplyToSummaryRow"
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface EmailSignature { id: number; name: string; isDefault: boolean; }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -104,12 +103,12 @@ function EditAiAutoPageContent() {
     const initialPartitionId = Number(searchParams.get("partitionId"));
     const [currentPartitionId, setCurrentPartitionId] = useState<number>(initialPartitionId);
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData } = useSWR("/api/partitions", defaultFetcher);
     // 초기 로드는 URL의 partitionId로 (link 조회용), 이후 화면 표시는 currentPartitionId 기반
     const { links, isLoading, updateLink } = useAutoPersonalizedEmail(initialPartitionId || null);
     const { products } = useProducts({ activeOnly: true });
     const { fields } = useResolvedFields(currentPartitionId || null);
-    const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
+    const { data: signaturesData } = useSWR("/api/email/signatures", defaultFetcher);
     const signatures: EmailSignature[] = signaturesData?.data ?? [];
     const link = links.find((l) => l.id === linkId);
     // 대기·예상 소진일은 저장된 묶음으로 센 값이다 — 폼에서 묶음을 바꿨는지 요약 칸이 알리게 넘긴다

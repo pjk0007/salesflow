@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
 import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
 import type { ReactNode } from "react";
@@ -104,7 +104,7 @@ export default function RecordsPage() {
         typeof crypto !== "undefined" ? crypto.randomUUID() : Math.random().toString(36).slice(2)
     );
 
-    const { workspaces } = useWorkspaces();
+    const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const {
         partitionTree,
         isLoading: ptLoading,
@@ -115,6 +115,7 @@ export default function RecordsPage() {
         createFolder,
         renameFolder,
         deleteFolder,
+        loadError: partitionsError,
         mutate: mutatePartitions,
     } = usePartitions(workspaceId);
     const { fields: workspaceFields } = useFields(workspaceId);
@@ -132,6 +133,7 @@ export default function RecordsPage() {
         bulkDelete,
         exportCsv,
         bulkImport,
+        loadError: recordsError,
         mutate: mutateRecords,
     } = useRecords({
         partitionId,
@@ -489,6 +491,11 @@ export default function RecordsPage() {
         ],
     );
 
+    const navError = workspacesError || partitionsError;
+    if (navError) {
+        return <WorkspaceLayout><QueryErrorState error={navError} onRetry={() => Promise.all([mutateWorkspaces(), mutatePartitions()])} /></WorkspaceLayout>;
+    }
+
     return (
         <WorkspaceLayout>
             <MobileBreadcrumbBridge
@@ -551,7 +558,9 @@ export default function RecordsPage() {
                                 allFields={fields}
                                 onToggleColumn={handleToggleColumn}
                             />
-                            {viewMode === "grouped" && statusField && partitionId ? (
+                            {recordsError ? (
+                                <QueryErrorState error={recordsError} onRetry={() => mutateRecords()} />
+                            ) : viewMode === "grouped" && statusField && partitionId ? (
                                 <GroupedRecordView
                                     partitionId={partitionId}
                                     groupByField={statusField}

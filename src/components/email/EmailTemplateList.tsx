@@ -26,10 +26,13 @@ import { Plus, Pencil, Trash2, Send } from "lucide-react";
 import { toast } from "sonner";
 import EmailTestSendDialog from "@/components/email/EmailTestSendDialog";
 import type { EmailTemplate } from "@/lib/db";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 export default function EmailTemplateList() {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
-    const { templates, isLoading, deleteTemplate } = useEmailTemplates();
+    const { templates, isLoading, loadError, mutate, deleteTemplate } = useEmailTemplates();
     const { categories } = useEmailCategories();
     const [categoryFilter, setCategoryFilter] = useState<string>("all");
     const [testSendTemplate, setTestSendTemplate] = useState<EmailTemplate | null>(null);
@@ -41,11 +44,18 @@ export default function EmailTemplateList() {
             : templates.filter((t) => t.categoryId === Number(categoryFilter));
 
     const handleDelete = async (id: number) => {
-        if (!confirm("이 템플릿을 삭제하시겠습니까?")) return;
-        const result = await deleteTemplate(id);
-        if (result.success) toast.success("템플릿이 삭제되었습니다.");
-        else toast.error(result.error || "삭제에 실패했습니다.");
+        confirm({
+            title: "이메일 템플릿 삭제",
+            description: "이 템플릿을 삭제하시겠습니까?",
+            onConfirm: async () => {
+                const result = await deleteTemplate(id);
+                if (result.success) toast.success("템플릿이 삭제되었습니다.");
+                else throw new Error(result.error || "삭제에 실패했습니다.");
+            },
+        });
     };
+
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return (
@@ -59,6 +69,7 @@ export default function EmailTemplateList() {
 
     return (
         <div className="space-y-4">
+            {confirmationDialog}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex flex-wrap items-center gap-3">
                     <h3 className="text-lg font-medium whitespace-nowrap">이메일 템플릿</h3>

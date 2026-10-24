@@ -29,6 +29,7 @@ export function useSendQueueStats(enabled: boolean = true) {
         loaded: stats !== null,
         loadFailed: !!error || (data !== undefined && !data.success),
         isLoading,
+        error,
         mutate,
     };
 }

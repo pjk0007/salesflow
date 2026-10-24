@@ -25,8 +25,10 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 export default function EditWebFormPage() {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const params = useParams();
     const formId = Number(params.id);
@@ -145,22 +147,26 @@ export default function EditWebFormPage() {
 
     const handleAiGenerate = useCallback(async () => {
         if (!aiPrompt.trim()) return;
-        if (formFields.length > 0) {
-            if (!confirm("기존 필드가 AI 생성 결과로 대체됩니다. 계속하시겠습니까?")) return;
-        }
-        setAiGenerating(true);
-        try {
-            const res = await fetch("/api/ai/generate-webform", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prompt: aiPrompt.trim(),
-                    workspaceFields: workspaceFields.map((f) => ({ key: f.key, label: f.label })),
-                    model: aiModel,
-                }),
-            });
-            const json = await res.json();
-            if (json.success) {
+        const generate = async () => {
+            setAiGenerating(true);
+            try {
+                let json;
+                try {
+                    const res = await fetch("/api/ai/generate-webform", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            prompt: aiPrompt.trim(),
+                            workspaceFields: workspaceFields.map((f) => ({ key: f.key, label: f.label })),
+                            model: aiModel,
+                        }),
+                    });
+                    json = await res.json();
+                } catch {
+                    // 연결·응답 해석 실패만 고정 문구로 바꾸고, 서버 안내는 아래에서 그대로 보여준다
+                    throw new Error("AI 생성 중 오류가 발생했습니다.");
+                }
+                if (!json.success) throw new Error(json.error || "AI 생성에 실패했습니다.");
                 const data = json.data;
                 if (data.name) setFormName(data.name);
                 setFormTitle(data.title);
@@ -180,14 +186,22 @@ export default function EditWebFormPage() {
                 toast.success(`${data.fields.length}개 필드가 생성되었습니다.`);
                 setAiOpen(false);
                 setAiPrompt("");
-            } else {
-                toast.error(json.error || "AI 생성에 실패했습니다.");
+            } finally {
+                setAiGenerating(false);
             }
-        } catch {
-            toast.error("AI 생성 중 오류가 발생했습니다.");
+        };
+        if (formFields.length > 0) {
+            confirm({
+                title: "웹 폼 필드 교체",
+                confirmLabel: "생성",
+                description: "기존 필드가 AI 생성 결과로 대체됩니다. 계속하시겠습니까?",
+                onConfirm: generate,
+            });
+        } else {
+            try { await generate(); }
+            catch (cause) { toast.error(cause instanceof Error && /[가-힣]/.test(cause.message) ? cause.message : "AI 생성 중 오류가 발생했습니다."); }
         }
-        setAiGenerating(false);
-    }, [aiPrompt, aiModel, formFields.length, workspaceFields]);
+    }, [aiPrompt, aiModel, formFields.length, workspaceFields, confirm]);
 
     if (loading) {
         return (
@@ -201,6 +215,7 @@ export default function EditWebFormPage() {
 
     return (
         <WorkspaceLayout>
+            {confirmationDialog}
             <div className="flex flex-col h-[calc(100vh-64px)]">
                 {/* 헤더 */}
                 <div className="border-b px-6 py-3 flex items-center justify-between shrink-0">

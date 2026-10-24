@@ -1,3 +1,5 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { useState } from "react";
 import { useEmailCategories } from "@/hooks/useEmailCategories";
 import type { NhnCategory } from "@/hooks/useEmailCategories";
@@ -23,7 +25,8 @@ import { Plus, Pencil, Trash2, Check, X } from "lucide-react";
 import { toast } from "sonner";
 
 export default function EmailCategoryManager() {
-    const { categories, isLoading, createCategory, updateCategory, deleteCategory } = useEmailCategories();
+    const { confirm, confirmationDialog } = useAsyncConfirm();
+    const { categories, loadError, mutate, isLoading, createCategory, updateCategory, deleteCategory } = useEmailCategories();
     const [adding, setAdding] = useState(false);
     const [newName, setNewName] = useState("");
     const [newDesc, setNewDesc] = useState("");
@@ -68,14 +71,22 @@ export default function EmailCategoryManager() {
     };
 
     const handleDelete = async (categoryId: number) => {
-        if (!confirm("이 카테고리를 삭제하시겠습니까?")) return;
-        const result = await deleteCategory(categoryId);
-        if (result.success) toast.success("카테고리가 삭제되었습니다.");
-        else toast.error(result.error || "삭제에 실패했습니다.");
+        confirm({
+            title: "카테고리 삭제",
+            description: "이 카테고리를 삭제하시겠습니까?",
+            onConfirm: async () => {
+                const result = await deleteCategory(categoryId);
+                if (result.success) toast.success("카테고리가 삭제되었습니다.");
+                else throw new Error(result.error || "삭제에 실패했습니다.");
+            },
+        });
     };
+
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <Card>
+            {confirmationDialog}
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>

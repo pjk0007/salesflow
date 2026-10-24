@@ -29,6 +29,7 @@ export function useReplies(filters: ReplyFilters, enabled: boolean = true) {
         candidates: data?.meta?.candidates ?? [],
         loadFailed: !!error || (data !== undefined && !data.success),
         isLoading,
+        error,
         mutate,
         update,
     };

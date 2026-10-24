@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 const CHANNEL_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
     alimtalk: { label: "알림톡", variant: "secondary" },
@@ -65,7 +66,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
     const [search, setSearch] = useState("");
     const [searchInput, setSearchInput] = useState("");
 
-    const { logs, total, totalPages, isLoading } = useUnifiedLogs({
+    const { logs, total, totalPages, isLoading, loadError, mutate } = useUnifiedLogs({
         channel: channel || undefined,
         status: status || undefined,
         triggerType: triggerType || undefined,
@@ -155,7 +156,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                 </div>
             )}
 
-            {isLoading ? (
+            {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : isLoading ? (
                 <div className="space-y-3">
                     {Array.from({ length: compact ? 5 : 10 }).map((_, i) => (
                         <Skeleton key={i} className="h-10 w-full" />
@@ -238,6 +239,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                             </p>
                             <div className="flex items-center gap-1">
                                 <Button
+                                    aria-label="이전 페이지"
                                     variant="outline"
                                     size="icon"
                                     className="h-8 w-8"
@@ -250,6 +252,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                                     {page} / {totalPages}
                                 </span>
                                 <Button
+                                    aria-label="다음 페이지"
                                     variant="outline"
                                     size="icon"
                                     className="h-8 w-8"

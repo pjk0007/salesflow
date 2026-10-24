@@ -1,3 +1,5 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
@@ -52,9 +54,10 @@ function formatFollowupDelay(cfg: FollowupStepCfg | FollowupStepCfg[] | null): s
 }
 
 export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplateLinkListProps) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
-    const { templateLinks, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
+    const { templateLinks, loadError, mutate, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
 
     const partitionMap = useMemo(
         () => Object.fromEntries(partitions.map((p) => [p.id, p.name])),
@@ -71,14 +74,22 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
     };
 
     const handleDelete = async (id: number) => {
-        if (!confirm("이 연결을 삭제하시겠습니까?")) return;
-        const result = await deleteLink(id);
-        if (result.success) toast.success("연결이 삭제되었습니다.");
-        else toast.error(result.error || "삭제에 실패했습니다.");
+        confirm({
+            title: "알림톡 연결 삭제",
+            description: "이 연결을 삭제하시겠습니까?",
+            onConfirm: async () => {
+                const result = await deleteLink(id);
+                if (result.success) toast.success("연결이 삭제되었습니다.");
+                else throw new Error(result.error || "삭제에 실패했습니다.");
+            },
+        });
     };
+
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">
+            {confirmationDialog}
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">연결 관리</h3>
                 <Button onClick={handleCreate}>

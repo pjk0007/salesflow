@@ -22,7 +22,9 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, CalendarClock, Trash2, Loader2 } from "lucide-react";
 import FieldMappingStep from "../../import/FieldMappingStep";
 import type { FieldDefinition } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 const EXCLUDED_TYPES = ["file", "formula", "user_select"];
 
@@ -60,7 +62,8 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
     );
 
     const listKey = open && partitionId ? `/api/partitions/${partitionId}/scheduled-registrations` : null;
-    const { data, mutate, isLoading } = useSWR<ListResponse>(listKey, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<ListResponse>(listKey, defaultFetcher);
+    const loadError = blockingError(data, error);
 
     const handleOpenChange = (v: boolean) => {
         if (!v) setTab("list");
@@ -90,13 +93,15 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                     </TabsList>
 
                     <TabsContent value="list">
-                        <ListTab
-                            partitionId={partitionId}
-                            data={data}
-                            isLoading={isLoading}
-                            fields={mappableFields}
-                            onChanged={() => mutate()}
-                        />
+                        {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : (
+                            <ListTab
+                                partitionId={partitionId}
+                                data={data}
+                                isLoading={isLoading}
+                                fields={mappableFields}
+                                onChanged={() => mutate()}
+                            />
+                        )}
                     </TabsContent>
 
                     <TabsContent value="upload">
@@ -111,11 +116,14 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                     </TabsContent>
 
                     <TabsContent value="settings">
-                        <SettingsTab
-                            partitionId={partitionId}
-                            config={data?.data.config ?? null}
-                            onSaved={() => mutate()}
-                        />
+                        {/* 기존 설정을 못 읽은 채 저장하면 기본값으로 덮어쓰므로 막는다 */}
+                        {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : (
+                            <SettingsTab
+                                partitionId={partitionId}
+                                config={data?.data.config ?? null}
+                                onSaved={() => mutate()}
+                            />
+                        )}
                     </TabsContent>
                 </Tabs>
             </DialogContent>
@@ -137,6 +145,7 @@ function ListTab({
     fields: FieldDefinition[];
     onChanged: () => void;
 }) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const [clearing, setClearing] = useState(false);
     const items = data?.data.items ?? [];
     const total = data?.data.total ?? 0;
@@ -156,28 +165,34 @@ function ListTab({
         : "예약 등록 비활성 (설정 탭에서 켜기)";
 
     const handleClearAll = async () => {
-        if (!confirm(`대기 중인 ${total.toLocaleString()}건을 모두 삭제할까요?`)) return;
-        setClearing(true);
-        try {
-            const res = await fetch(`/api/partitions/${partitionId}/scheduled-registrations`, {
-                method: "DELETE",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({}),
-            });
-            const json = await res.json();
-            if (json.success) {
-                toast.success(`${json.data.deleted.toLocaleString()}건 삭제됨`);
-                onChanged();
-            } else {
-                toast.error(json.error ?? "삭제 실패");
-            }
-        } finally {
-            setClearing(false);
-        }
+        confirm({
+            title: "예약 대기 목록 삭제",
+            description: `대기 중인 ${total.toLocaleString()}건을 모두 삭제할까요?`,
+            onConfirm: async () => {
+                setClearing(true);
+                try {
+                    const res = await fetch(`/api/partitions/${partitionId}/scheduled-registrations`, {
+                        method: "DELETE",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({}),
+                    });
+                    const json = await res.json();
+                    if (json.success) {
+                        toast.success(`${json.data.deleted.toLocaleString()}건 삭제됨`);
+                        onChanged();
+                    } else {
+                        throw new Error(json.error ?? "삭제 실패");
+                    }
+                } finally {
+                    setClearing(false);
+                }
+            },
+        });
     };
 
     return (
         <div className="space-y-3 py-2">
+            {confirmationDialog}
             <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm">
                 <div>
                     <span className="font-medium">대기 {total.toLocaleString()}건</span>

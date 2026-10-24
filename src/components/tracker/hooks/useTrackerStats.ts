@@ -25,11 +25,12 @@ export function useTrackerStats(
           }).toString()}`
         : null;
 
-    const { data, isLoading, mutate } = useSWR<Response>(key, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<Response>(key, defaultFetcher);
 
     return {
         stats: data?.success ? data.data : null,
         isLoading,
+        error,
         mutate,
     };
 }

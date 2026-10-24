@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { FieldDefinition } from "@/types";
 
 interface ResolvedFieldsResponse {
@@ -17,6 +17,7 @@ export function useResolvedFields(partitionId: number | null) {
         fields: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
     };
 }

@@ -1,7 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { z } from "zod";
 import {
     channelInput,
+    inputErrorMessage,
+    messageInput,
     normalizeOrigins,
     safePageUrl,
     sameRequestOrigin,
@@ -80,4 +83,14 @@ test("상담창의 잘못된 도메인과 도메인 없는 활성화는 입력 �
         channelInput.safeParse({ ...base, allowedOrigins: [] }).success,
         false,
     );
+});
+
+test("입력 오류는 스키마의 한국어 문구를 유지하고 영어 기본 문구만 라벨+고정 문구로 바꾼다", () => {
+    const tooLong = messageInput.safeParse({ clientId: "00000000-0000-4000-8000-000000000001", body: "가".repeat(5001) });
+    assert.equal(tooLong.success, false);
+    assert.equal(inputErrorMessage(tooLong.error!), "메시지는 5,000자까지 입력할 수 있습니다.");
+    const email = z.object({ email: z.string().email() }).safeParse({ email: "not-email" });
+    assert.equal(inputErrorMessage(email.error!), "이메일: 입력 형식과 길이를 확인해주세요.");
+    const unknownField = messageInput.safeParse({ clientId: "x", body: "안녕하세요" });
+    assert.equal(inputErrorMessage(unknownField.error!), "입력값: 입력 형식과 길이를 확인해주세요.");
 });

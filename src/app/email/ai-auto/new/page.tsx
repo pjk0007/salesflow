@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,10 +43,9 @@ import RuleQueueSummary from "@/components/email/sender-profiles/ui/RuleQueueSum
 import ReplyToSummaryRow from "@/components/email/reply-to/ui/ReplyToSummaryRow";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import useSWR from "swr";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface EmailSignature { id: number; name: string; isDefault: boolean; }
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -94,11 +93,11 @@ function NewAiAutoPageContent() {
     );
     const partitionId = selectedPartitionId ?? 0;
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData, error: partitionsError, mutate: mutatePartitions } = useSWR("/api/partitions", defaultFetcher);
     const { createLink } = useAutoPersonalizedEmail(partitionId || null);
     const { products } = useProducts({ activeOnly: true });
     const { fields } = useResolvedFields(partitionId || null);
-    const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
+    const { data: signaturesData, error: signaturesError, mutate: mutateSignatures } = useSWR("/api/email/signatures", defaultFetcher);
     const signatures: EmailSignature[] = signaturesData?.data ?? [];
 
     const [saving, setSaving] = useState(false);
@@ -173,6 +172,11 @@ function NewAiAutoPageContent() {
             setSaving(false);
         }
     };
+
+    const loadError = blockingError(allPartitionsData, partitionsError) || blockingError(signaturesData, signaturesError);
+    if (loadError) {
+        return <WorkspaceLayout><QueryErrorState error={loadError} onRetry={() => Promise.all([mutatePartitions(), mutateSignatures()])} /></WorkspaceLayout>;
+    }
 
     if (!selectedPartitionId) {
         const rawPartitions = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? [];

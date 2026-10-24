@@ -37,6 +37,7 @@ import RuleQueueBadges from "@/components/email/sender-profiles/ui/RuleQueueBadg
 import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
 import { useSendHealth } from "@/components/email/send-health/hooks/useSendHealth";
 import RuleHealthBadges from "@/components/email/send-health/ui/RuleHealthBadges";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -64,7 +65,7 @@ export default function AutoPersonalizedEmailConfig({
     const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
     const [followupTestTarget, setFollowupTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
-    const { links, isLoading, createLink, updateLink, deleteLink } =
+    const { links, isLoading, createLink, updateLink, deleteLink, loadError, mutate } =
         useAutoPersonalizedEmail(selectedPartitionId);
     // 복제할 때 지워진 발신 프로필을 묶음에서 빼려고 지금 프로필 목록을 본다
     const { profiles: senderProfiles, isLoading: senderProfilesLoading, loadFailed: senderProfilesLoadFailed } =
@@ -147,6 +148,8 @@ export default function AutoPersonalizedEmailConfig({
         await deleteLink(deleteTarget.id);
         setDeleteTarget(null);
     };
+
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <Card>
