@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users, organizationMembers } from "@/lib/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, ne, sql } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-admin";
 
 export async function PATCH(
@@ -54,6 +54,25 @@ export async function PATCH(
                 success: false,
                 error: "본인 계정은 비활성화할 수 없습니다.",
             }, { status: 403 });
+        }
+
+        // users.is_active는 계정 전체(모든 조직) 로그인을 막는 전역 값이다. 다른 조직에도 속한 사람을
+        // 이 조직 관리자가 바꾸면 그 조직 업무까지 막히므로, 이 조직에서의 사용 중지는 멤버 제거로 안내한다.
+        if (isActive !== undefined && isActive !== targetUser.isActive) {
+            const [otherMembership] = await db
+                .select({ id: organizationMembers.id })
+                .from(organizationMembers)
+                .where(and(
+                    eq(organizationMembers.userId, targetId),
+                    ne(organizationMembers.organizationId, currentUser.orgId)
+                ))
+                .limit(1);
+            if (otherMembership) {
+                return NextResponse.json({
+                    success: false,
+                    error: "다른 조직에도 속한 사용자는 계정 전체를 비활성화할 수 없습니다. 이 조직에서만 사용을 중지하려면 멤버에서 제거해주세요.",
+                }, { status: 409 });
+            }
         }
 
         // admin은 member만 수정 가능
