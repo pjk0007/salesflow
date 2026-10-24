@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getSearchAiClient, generateProduct, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { scrapeImageUrl } from "@/lib/scrape-image";
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

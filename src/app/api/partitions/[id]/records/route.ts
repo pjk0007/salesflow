@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, organizations, fieldDefinitions, memos } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
@@ -15,7 +15,7 @@ export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -151,7 +151,7 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

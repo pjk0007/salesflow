@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient } from "@/lib/nhn-email";
 
 export async function PUT(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -48,7 +48,7 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

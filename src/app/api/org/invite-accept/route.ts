@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizationInvitations, organizationMembers } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
-import { getUserFromNextRequest, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { getActiveUserFromNextRequest, generateToken, getTokenExpiryMs } from "@/lib/auth";
 import type { JWTPayload, OrgRole } from "@/types";
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user) {
         return NextResponse.json({ success: false, error: "로그인이 필요합니다." }, { status: 401 });
     }

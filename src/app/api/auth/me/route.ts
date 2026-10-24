@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { db, organizations, organizationMembers } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import type { OrgRole } from "@/types";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json(
             { success: false, error: "인증되지 않았습니다." },

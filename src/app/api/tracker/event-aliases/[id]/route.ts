@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerEventAliases } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { eventAliasUpdateSchema } from "@/lib/tracker/event-alias-validations";
 
 async function loadOwned(id: number, orgId: string) {
@@ -17,7 +17,7 @@ async function loadOwned(id: number, orgId: string) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     if (user.role === "member") return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
 
@@ -54,7 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     if (user.role === "member") return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
 

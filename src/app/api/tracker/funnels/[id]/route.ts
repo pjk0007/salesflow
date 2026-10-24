@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerFunnels } from "@/lib/db";
 import { and, eq, ne } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { funnelUpdateSchema } from "@/lib/tracker/funnel-validations";
 import { validateUserStages } from "@/lib/tracker/funnel-analytics";
 
@@ -12,7 +12,7 @@ async function loadFunnel(funnelId: number, orgId: string) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     const { id } = await params;
     const funnel = await loadFunnel(Number(id), user.orgId);
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     if (user.role === "member") return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
 
@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     if (user.role === "member") return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
 

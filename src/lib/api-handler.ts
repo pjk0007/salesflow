@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { hasMinRole } from "@/lib/auth-admin-rules";
 import type { JWTPayload } from "@/types";
 
 type ApiHandler = (
@@ -13,10 +14,8 @@ interface ApiHandlerOptions {
     minRole?: "admin" | "owner";
 }
 
-const roleOrder: Record<string, number> = { member: 0, admin: 1, owner: 2 };
-
 /**
- * API route wrapper — 인증 체크 + 역할 검증 + try/catch 에러 핸들링
+ * API route wrapper — 인증 체크(getActiveUserFromNextRequest: 현재 멤버십·DB 역할) + 역할 검증 + try/catch 에러 핸들링
  *
  * @example
  * // 기본 사용 (인증만)
@@ -36,7 +35,7 @@ export function withAuth(handler: ApiHandler, options?: ApiHandlerOptions) {
         req: NextRequest,
         context?: { params: Promise<Record<string, string>> }
     ) => {
-        const user = getUserFromNextRequest(req);
+        const user = await getActiveUserFromNextRequest(req);
         if (!user) {
             return NextResponse.json(
                 { success: false, error: "인증이 필요합니다." },
@@ -45,9 +44,7 @@ export function withAuth(handler: ApiHandler, options?: ApiHandlerOptions) {
         }
 
         if (options?.minRole) {
-            const userLevel = roleOrder[user.role] ?? 0;
-            const requiredLevel = roleOrder[options.minRole];
-            if (userLevel < requiredLevel) {
+            if (!hasMinRole(user.role, options.minRole)) {
                 return NextResponse.json(
                     { success: false, error: "접근 권한이 없습니다." },
                     { status: 403 }

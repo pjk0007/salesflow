@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailConfig } from "@/lib/nhn-email";
 import { loadOrgSenderProfiles } from "@/lib/email-sender-resolver";
 import { normalizeSenderPool } from "@/lib/email-sender-limit-rules";
@@ -20,7 +20,7 @@ import type { MxStatus, SenderMxEntry } from "@/lib/reply-to-rules";
  * (email-mx-lookup.ts). 조회 실패는 "unknown" (안내하지 않는다)
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

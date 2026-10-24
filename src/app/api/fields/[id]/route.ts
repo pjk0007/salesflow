@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, fieldDefinitions, workspaces, partitions } from "@/lib/db";
 import { fieldTypes } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 
 async function verifyOwnership(fieldId: number, orgId: string) {
     // fieldTypeId 기반 (field type 시스템)
@@ -28,7 +28,7 @@ export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -128,7 +128,7 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

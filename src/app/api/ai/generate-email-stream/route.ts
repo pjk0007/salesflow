@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, products, records } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getAiClient, buildEmailSystemPrompt, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import type { AiClient, GenerateEmailInput } from "@/lib/ai";
 
 type Usage = { promptTokens: number; completionTokens: number };
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -7,12 +7,12 @@ import { InboxError } from "@/lib/inbox/errors";
 import { isDevelopmentPreviewRuntime } from "@/lib/development-runtime";
 import { connectVerifiedLead } from "@/lib/inbox-journey/repository";
 import { issueCustomerIdentity } from "@/lib/customer-platform/identity";
-import { requireCustomerAccess } from "@/lib/customer-access/access";
+import { activeCustomerActor, requireCustomerAccess } from "@/lib/customer-access/access";
 
 export async function POST(req: NextRequest) {
     return handleInbox(async () => {
         if (!isDevelopmentPreviewRuntime(process.env)) throw new InboxError("체험 자료는 개발 서버에서만 준비할 수 있습니다.", 404);
-        const actor = inboxActor(req);
+        const actor = await activeCustomerActor(inboxActor(req));
         if (!["owner", "admin"].includes(actor.role)) throw new InboxError("관리자 계정으로 체험해주세요.", 403);
         const input = await jsonBody(req);
         const origin = new URL(process.env.NEXT_PUBLIC_APP_URL!).origin;

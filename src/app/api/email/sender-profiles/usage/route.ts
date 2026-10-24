@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getSenderUsage } from "@/lib/email-sender-limit";
 
 /**
@@ -7,7 +7,7 @@ import { getSenderUsage } from "@/lib/email-sender-limit";
  * 보기만 하므로 조직 구성원이면 누구나 본다 (바꾸는 것은 PUT /api/email/sender-profiles/[id], 관리자).
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { queryClient } from "@/lib/db";
 import { parseStatsQuery } from "@/lib/email-stats/query";
 import { readKpi } from "@/lib/email-stats/read-kpi";
@@ -7,7 +7,7 @@ import { readTrend, readCompare } from "@/lib/email-stats/read-series";
 import { describeReplyError } from "@/lib/email-reply-rules";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user)
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     const now = new Date();

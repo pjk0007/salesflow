@@ -1,6 +1,6 @@
 import { S3Client } from "@aws-sdk/client-s3";
 import type { NextRequest } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { EsignService } from "./core";
 import { createPostgresEsignSql, PostgresEsignRepository } from "./postgres-repository";
 import { createEsignStorage, localEsignBlobStore, s3EsignBlobStore } from "./storage";
@@ -26,8 +26,8 @@ function config() {
     if (enabled && process.env.ESIGN_WORKER !== "on") issues.push("전자서명 작업 실행을 활성화해야 합니다.");
     return { enabled, secret, databaseUrl, local, storageReady, issues, writeMode };
 }
-function userFrom(request: Request) {
-    const user = getUserFromNextRequest(request as NextRequest);
+async function userFrom(request: Request) {
+    const user = await getActiveUserFromNextRequest(request as NextRequest);
     if (!user) throw new EsignError("로그인이 필요합니다.", 401, "unauthenticated");
     return user;
 }
@@ -90,7 +90,7 @@ export function startEsignScheduler() {
 export const esignHttpDependencies: EsignHttpDependencies = {
     async engine() { return runtime(); },
     async authorize(request, workspaceId, capability) {
-        const user = userFrom(request);
+        const user = await userFrom(request);
         try {
             const { requireCustomerAccess } = await import("@/lib/customer-access/access");
             const actor = await requireCustomerAccess(user, workspaceId, capability);
@@ -101,7 +101,7 @@ export const esignHttpDependencies: EsignHttpDependencies = {
         }
     },
     async status(request) {
-        const user = userFrom(request), cfg = config();
+        const user = await userFrom(request), cfg = config();
         let databaseReady = false, emailReady = false, smsReady = false;
         let alimtalk: EsignAlimtalkStatus = { ready: false, templates: [], reason: "전자서명 연결을 먼저 준비해주세요." };
         const issues = [...cfg.issues];
@@ -116,7 +116,7 @@ export const esignHttpDependencies: EsignHttpDependencies = {
         return { enabled: cfg.enabled, emailReady, smsReady, alimtalkReady: alimtalk.ready, alimtalk, databaseReady, storageReady: cfg.storageReady && cfg.secret.length >= 32, issues };
     },
     async prefill(request, actor: EsignActor, params) {
-        const user = userFrom(request);
+        const user = await userFrom(request);
         const { db, crmContacts, fieldDefinitions, workspaces } = await import("@/lib/db");
         const { and, eq, isNull } = await import("drizzle-orm");
         const contactId = params.get("contactId"), recordId = Number(params.get("recordId"));

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getVisitorIdsByChannel } from "@/lib/tracker/session-filter";
 import { pagePathExpr } from "@/lib/tracker/page-path";
 
@@ -13,7 +13,7 @@ const PAGE_SIZE = 50;
  * - record_id 없으면 visitor 단독 (익명)
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

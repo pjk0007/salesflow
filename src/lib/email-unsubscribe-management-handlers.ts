@@ -4,7 +4,7 @@ import { manualUnsubscribeInput, parseUnsubscribePagination, parseUnsubscribeTar
 
 interface Identity { orgId: string; role: string }
 interface Dependencies {
-    authenticate: (request: NextRequest) => Identity | null;
+    authenticate: (request: NextRequest) => Identity | null | Promise<Identity | null>;
     list: (orgId: string, options: { page: number; pageSize: number; q: string }) => Promise<{ items: UnsubscribeEntry[]; totalCount: number }>;
     register: (orgId: string, input: { email: string; reason?: string }) => Promise<void>;
     lookup: (orgId: string, targets: UnsubscribeTarget[]) => Promise<UnsubscribeLookupResult[]>;
@@ -28,7 +28,7 @@ export function createUnsubscribeManagementHandlers(deps: Dependencies) {
     }
     return {
         async GET(request: NextRequest) {
-            const user = deps.authenticate(request);
+            const user = await deps.authenticate(request);
             if (!user) return failure("인증이 필요합니다.", 401);
             const mismatch = identityError(request, user);
             if (mismatch) return mismatch;
@@ -41,7 +41,7 @@ export function createUnsubscribeManagementHandlers(deps: Dependencies) {
             }
         },
         async POST(request: NextRequest) {
-            const user = deps.authenticate(request);
+            const user = await deps.authenticate(request);
             if (!user) return failure("인증이 필요합니다.", 401);
             const mismatch = identityError(request, user);
             if (mismatch) return mismatch;
@@ -56,7 +56,7 @@ export function createUnsubscribeManagementHandlers(deps: Dependencies) {
             }
         },
         async lookup(request: NextRequest) {
-            const user = deps.authenticate(request);
+            const user = await deps.authenticate(request);
             if (!user) return failure("인증이 필요합니다.", 401);
             const mismatch = identityError(request, user);
             if (mismatch) return mismatch;

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, memos } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 
 // DELETE: 메모 삭제
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string; memoId: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

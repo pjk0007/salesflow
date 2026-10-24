@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, fieldTypes, fieldDefinitions, partitions, workspaces } from "@/lib/db";
 import { eq, and, asc, max, or, isNull } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { isValidSystemColumn } from "@/components/records/system-columns";
 
 const FIELD_TYPE_TO_CELL_TYPE: Record<string, string> = {
@@ -26,7 +26,7 @@ export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -56,7 +56,7 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

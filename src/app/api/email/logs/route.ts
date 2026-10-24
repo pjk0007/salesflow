@@ -4,12 +4,12 @@ import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-s
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailSendLogs, emailSenderProfiles } from "@/lib/db";
 import { eq, and, desc, sql, gte, lte, or, ilike } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { repliesForSendLogs } from "@/lib/email-reply-list";
 import { pgErrorOf } from "@/lib/email-reply-rules";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

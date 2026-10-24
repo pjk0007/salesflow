@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, partitions, fieldDefinitions } from "@/lib/db";
 import { and, eq, sql, inArray } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 
 /**
  * 퍼널 단계 편집기에서 사용할 매칭 옵션들을 사이트 실제 데이터에서 추출.
@@ -13,7 +13,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
  * - popularPaths: 인기 페이지 경로 TOP 10 (utm 제거)
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
 
     const { id } = await params;

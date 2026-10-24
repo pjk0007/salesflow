@@ -1,8 +1,6 @@
 import { and, eq, sql, type SQLWrapper } from "drizzle-orm";
 import {
     db,
-    users,
-    organizationMembers,
     workspaces,
     inboxChannels,
     inboxConversations,
@@ -14,6 +12,7 @@ import {
     checkTokenVersion,
     isTokenVersionAcceptable,
 } from "@/lib/auth-admin-rules";
+import { findActiveMembership } from "@/lib/auth";
 import { InboxError } from "@/lib/inbox/errors";
 import {
     permitsCustomerRole,
@@ -26,28 +25,11 @@ export type CustomerActor = Pick<
     "orgId" | "userId" | "name" | "role"
 > &
     Pick<Partial<JWTPayload>, "tokenVersion">;
-async function activeMembership(orgId: string, userId: string, exec: DbExec) {
-    const [member] = await exec
-        .select({
-            role: organizationMembers.role,
-            tokenVersion: organizationMembers.tokenVersion,
-        })
-        .from(organizationMembers)
-        .innerJoin(users, eq(users.id, organizationMembers.userId))
-        .where(
-            and(
-                eq(organizationMembers.organizationId, orgId),
-                eq(organizationMembers.userId, userId),
-                eq(users.isActive, 1),
-            ),
-        );
-    return member;
-}
 export async function activeCustomerActor(
     actor: CustomerActor,
     exec: DbExec = db,
 ) {
-    const member = await activeMembership(actor.orgId, actor.userId, exec);
+    const member = await findActiveMembership(actor.orgId, actor.userId, exec);
     if (
         !member ||
         !isTokenVersionAcceptable(
@@ -66,7 +48,7 @@ export async function customerStaffActor(
     name: string,
     exec: DbExec = db,
 ) {
-    const member = await activeMembership(orgId, userId, exec);
+    const member = await findActiveMembership(orgId, userId, exec);
     if (!member) throw new InboxError("현재 직원 권한을 확인해주세요.", 403);
     return {
         orgId,

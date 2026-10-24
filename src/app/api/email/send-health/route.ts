@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { loadActiveHolds, loadSendHealthView } from "@/lib/sender-health-view";
 import { describeReplyError } from "@/lib/email-reply-rules";
 
@@ -9,7 +9,7 @@ import { describeReplyError } from "@/lib/email-reply-rules";
  * ?scope=holds 이면 보류 중인 명단만 ({ holds, isAdmin }) — 명단 목록·레코드 화면 머리가 가볍게 읽는다.
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

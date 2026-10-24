@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailConfigs, emailSenderProfiles } from "@/lib/db";
 import { eq, and, ne } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
 import { kstParts } from "@/lib/kst";
 import { pickHealthPatch, pickLimitPatch } from "@/lib/email-sender-limit";
@@ -19,7 +19,7 @@ import { newSenderDomainNeedsAdmin } from "@/lib/email-reply-rules";
 import { isReplyScopeOrg } from "@/lib/email-reply-list";
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -180,7 +180,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
