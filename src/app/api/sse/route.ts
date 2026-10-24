@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 import { addClient, removeClient, sendHeartbeat } from "@/lib/sse";
 
 export const dynamic = "force-dynamic";
@@ -10,12 +11,21 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const partitionId = req.nextUrl.searchParams.get("partitionId");
+    const partitionParam = req.nextUrl.searchParams.get("partitionId");
     const sessionId = req.nextUrl.searchParams.get("sessionId") || "";
 
-    if (!partitionId) {
+    const partitionNumber = Number(partitionParam);
+    if (!partitionParam || !Number.isSafeInteger(partitionNumber) || partitionNumber <= 0) {
         return NextResponse.json({ success: false, error: "partitionId가 필요합니다." }, { status: 400 });
     }
+
+    // 내 조직이고 읽을 수 있는 파티션만 구독한다 — 남의 파티션 레코드 변경 시점·ID가 새지 않게
+    const access = await requirePartitionAccess(user, partitionNumber, "read");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+    }
+    // broadcastToPartition은 String(partitionId)로 찾는다 — "007" 같은 입력도 같은 키로 맞춘다
+    const partitionId = String(access.partition.id);
 
     const stream = new ReadableStream({
         start(controller) {
