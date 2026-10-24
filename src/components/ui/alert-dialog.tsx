@@ -220,15 +220,18 @@ function AsyncAlertDialog({
         }}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription asChild><div>{description}</div></AlertDialogDescription>
+          <AlertDialogDescription asChild><div className="whitespace-pre-line">{description}</div></AlertDialogDescription>
         </AlertDialogHeader>
         {children}
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>취소</AlertDialogCancel>
+          {/* 진행 중에도 disabled 대신 aria-disabled를 써서 포커스가 버튼에 남게 한다(닫기는 changeOpen이 막는다) */}
+          <AlertDialogCancel aria-disabled={pending} className={cn(pending && "pointer-events-none opacity-50")}>취소</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
-            disabled={pending || confirmDisabled}
+            disabled={confirmDisabled}
+            aria-disabled={pending}
+            className={cn(pending && "pointer-events-none opacity-50")}
             onClick={async (event) => {
               event.preventDefault()
               if (busyRef.current || confirmDisabled) return

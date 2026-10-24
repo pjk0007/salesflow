@@ -28,11 +28,13 @@ export default function DeleteWorkspaceDialog({
             title="워크스페이스 삭제"
             description={<div className="space-y-2">
                 <p>&quot;{workspace.name}&quot; 워크스페이스를 삭제합니다. 하위 파티션, 레코드 등 모든 데이터가 영구적으로 삭제됩니다.</p>
-                {error && <QueryErrorState error={error} onRetry={() => mutate()} />}
                 {stats && (stats.partitionCount > 0 || stats.recordCount > 0) && <p className="text-destructive font-medium">파티션 {stats.partitionCount}개, 레코드 {stats.recordCount}개가 삭제됩니다.</p>}
             </div>}
             onConfirm={onConfirm}
-            confirmDisabled={Boolean(error) || !stats}
-        />
+            confirmDisabled={!stats}
+        >
+            {/* 설명(aria-describedby) 밖에 두어 "다시 시도" 버튼까지 설명으로 읽히지 않게 한다 */}
+            {error && !stats && <QueryErrorState error={error} onRetry={() => mutate()} />}
+        </AsyncAlertDialog>
     );
 }
