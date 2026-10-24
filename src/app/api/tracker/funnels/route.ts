@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerFunnels } from "@/lib/db";
 import { and, eq, desc } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { funnelCreateSchema } from "@/lib/tracker/funnel-validations";
 import { validateUserStages } from "@/lib/tracker/funnel-analytics";
 
 // GET /api/tracker/funnels?siteId=N — 사이트의 퍼널 목록
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
 
     const siteId = Number(req.nextUrl.searchParams.get("siteId"));
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/tracker/funnels — 신규 퍼널 생성
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     if (user.role === "member") return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
 

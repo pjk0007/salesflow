@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { queryPageAnalytics } from "@/lib/tracker/analytics-queries";
 
 /**
@@ -9,7 +9,7 @@ import { queryPageAnalytics } from "@/lib/tracker/analytics-queries";
  * 방문자 탭 페이지 필터 드롭다운용. 페이지뷰 많은 순 상위 100개.
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

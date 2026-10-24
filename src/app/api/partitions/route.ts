@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, partitions, workspaces } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { filterAccessiblePartitions, loadOrgScopes } from "@/lib/partition-access";
 
 // 조직 내 모든 파티션 조회 (워크스페이스명 포함)
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkConfigs } from "@/lib/db";
 import { eq } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-admin";
+
+const ADMIN_ONLY = "관리자만 변경할 수 있습니다.";
 
 function maskSecret(secret: string): string {
     if (secret.length <= 6) return "***";
@@ -9,7 +12,7 @@ function maskSecret(secret: string): string {
 }
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -42,10 +45,13 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    // 조직 전체의 알림톡 발송에 영향을 주는 변경이라 관리자만 한다
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        const error = auth.status === 403 ? ADMIN_ONLY : auth.error;
+        return NextResponse.json({ success: false, error }, { status: auth.status });
     }
+    const user = auth.user;
 
     try {
         const { appKey, secretKey } = await req.json();

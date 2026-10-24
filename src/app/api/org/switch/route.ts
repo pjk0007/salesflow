@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizationMembers } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest, generateToken, getTokenExpiryMs } from "@/lib/auth";
+import { getActiveUserFromNextRequest, setSessionCookie } from "@/lib/auth";
 import type { JWTPayload, OrgRole } from "@/types";
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -45,15 +45,12 @@ export async function POST(req: NextRequest) {
             role: membership.role as OrgRole,
             // 전환 대상 조직의 버전을 담는다 — 조직마다 무효화가 독립적이다
             tokenVersion: membership.tokenVersion,
+            // 슈퍼관리자 표시는 DB 값(user)을 그대로 이어 간다 — 전환 뒤 /admin 메뉴가 사라지지 않는다
+            ...(user.isSuperAdmin && { isSuperAdmin: true }),
         };
 
-        const token = generateToken(payload);
-        const maxAge = Math.floor(getTokenExpiryMs() / 1000);
-        const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-        const cookieString = `token=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
-
         const response = NextResponse.json({ success: true, user: payload });
-        response.headers.set("Set-Cookie", cookieString);
+        setSessionCookie(response, payload);
         return response;
     } catch (error) {
         console.error("Org switch error:", error);

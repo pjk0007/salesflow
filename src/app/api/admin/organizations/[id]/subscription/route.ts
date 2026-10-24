@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { db, subscriptions, plans } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user?.isSuperAdmin) {
         return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     }

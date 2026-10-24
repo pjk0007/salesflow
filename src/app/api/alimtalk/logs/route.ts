@@ -2,10 +2,10 @@ import { kstDateFilter } from "@/lib/tracker/date-range";
 import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkSendLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

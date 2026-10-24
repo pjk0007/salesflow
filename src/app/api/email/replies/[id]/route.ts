@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getReplyForUser } from "@/lib/email-reply-list";
 import { claimReplyEffects, stopAutomationForReply } from "@/lib/email-reply-effects";
 import { REPLY_KINDS, describeReplyError, resolveReplyConfig, type ReplyKind } from "@/lib/email-reply-rules";
@@ -16,7 +16,7 @@ import { REPLY_KINDS, describeReplyError, resolveReplyConfig, type ReplyKind } f
  * - stopAutomation=false("자동 메일 다시 허용")는 앞으로의 막기만 푼다 — 멈춘 줄은 살아나지 않는다 (R27)
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

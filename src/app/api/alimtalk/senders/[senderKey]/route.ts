@@ -1,15 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-admin";
 import { getAlimtalkClient } from "@/lib/nhn-alimtalk";
+
+const ADMIN_ONLY = "관리자만 변경할 수 있습니다.";
 
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ senderKey: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    // 조직 전체의 알림톡 발송에 영향을 주는 변경이라 관리자만 한다
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        const error = auth.status === 403 ? ADMIN_ONLY : auth.error;
+        return NextResponse.json({ success: false, error }, { status: auth.status });
     }
+    const user = auth.user;
 
     const client = await getAlimtalkClient(user.orgId);
     if (!client) {

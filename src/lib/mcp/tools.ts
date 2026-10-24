@@ -10,8 +10,8 @@ import {
     emailSendLogs,
     folders,
 } from "@/lib/db";
-import { eq, and, desc, gte, sql } from "drizzle-orm";
-import { checkTokenAccess } from "@/lib/auth";
+import { eq, and, desc, gte, inArray, sql } from "drizzle-orm";
+import { checkTokenAccess, tokenAccessiblePartitions } from "@/lib/auth";
 
 import { ok, err, type ToolHandler } from "./types";
 import { TRACKER_TOOL_DEFINITIONS, createTrackerToolHandlers } from "./tracker-tools";
@@ -133,6 +133,9 @@ export const TOOL_DEFINITIONS = [
 export function createMcpToolHandlers(): Record<string, ToolHandler> {
     return {
         list_workspaces: async (_args, tokenInfo) => {
+            // 범위 제한 토큰은 접근 가능한 워크스페이스만 보여준다(v1/partitions와 같은 범위)
+            const scope = await tokenAccessiblePartitions(tokenInfo);
+            if (scope && scope.workspaceIds.length === 0) return ok([]);
             const result = await db
                 .select({
                     id: workspaces.id,
@@ -142,7 +145,7 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
                     createdAt: workspaces.createdAt,
                 })
                 .from(workspaces)
-                .where(eq(workspaces.orgId, tokenInfo.orgId))
+                .where(and(eq(workspaces.orgId, tokenInfo.orgId), scope ? inArray(workspaces.id, scope.workspaceIds) : undefined))
                 .orderBy(workspaces.name);
             return ok(result);
         },
@@ -151,6 +154,11 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
             const workspaceId = args.workspaceId as number | undefined;
             const conditions = [eq(workspaces.orgId, tokenInfo.orgId)];
             if (workspaceId) conditions.push(eq(partitions.workspaceId, workspaceId));
+            const scope = await tokenAccessiblePartitions(tokenInfo);
+            if (scope) {
+                if (scope.partitionIds.length === 0) return ok([]);
+                conditions.push(inArray(partitions.id, scope.partitionIds));
+            }
 
             const result = await db
                 .select({
@@ -291,6 +299,14 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
 
             const conditions = [eq(emailSendLogs.orgId, tokenInfo.orgId)];
             if (partitionId) conditions.push(eq(emailSendLogs.partitionId, partitionId));
+            else {
+                // 파티션을 비워도 범위 제한 토큰은 접근 가능한 파티션의 기록만 본다
+                const scope = await tokenAccessiblePartitions(tokenInfo);
+                if (scope) {
+                    if (scope.partitionIds.length === 0) return ok({ totalCount: 0, page, pageSize, logs: [] });
+                    conditions.push(inArray(emailSendLogs.partitionId, scope.partitionIds));
+                }
+            }
             if (status) conditions.push(eq(emailSendLogs.status, status));
 
             const whereClause = and(...conditions);
@@ -330,6 +346,13 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
 
             const conditions = [eq(alimtalkSendLogs.orgId, tokenInfo.orgId)];
             if (partitionId) conditions.push(eq(alimtalkSendLogs.partitionId, partitionId));
+            else {
+                const scope = await tokenAccessiblePartitions(tokenInfo);
+                if (scope) {
+                    if (scope.partitionIds.length === 0) return ok({ totalCount: 0, page, pageSize, logs: [] });
+                    conditions.push(inArray(alimtalkSendLogs.partitionId, scope.partitionIds));
+                }
+            }
             if (status) conditions.push(eq(alimtalkSendLogs.status, status));
 
             const whereClause = and(...conditions);

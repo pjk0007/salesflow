@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryClient } from "@/lib/db";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { listAssessedLeads } from "@/lib/customer-journey-leads";
 
 /** 구글챗에 사용한 최신 유효 판정을 사업·고객별로 한 번만 보여준다. */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     const workspace = req.nextUrl.searchParams.get("workspaceId"), limit = Number(req.nextUrl.searchParams.get("limit") ?? 50);
     if ((workspace !== null && (!Number.isSafeInteger(Number(workspace)) || Number(workspace) <= 0)) || !Number.isSafeInteger(limit) || limit < 1 || limit > 200) {

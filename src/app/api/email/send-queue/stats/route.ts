@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { db, emailAutoPersonalizedLinks, emailSendQueue, partitions, workspaces } from "@/lib/db";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { loadSendersWithUsage } from "@/lib/email-sender-limit";
 import { buildSendQueueStats } from "@/lib/email-send-queue-stats";
 
@@ -16,7 +16,7 @@ import { buildSendQueueStats } from "@/lib/email-send-queue-stats";
  * 보기만 하므로 조직 구성원이면 누구나 본다.
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

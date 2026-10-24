@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { syncOrgStatuses } from "@/lib/email-status-sync";
 
 /**
@@ -9,7 +9,7 @@ import { syncOrgStatuses } from "@/lib/email-status-sync";
  * 응답 이름(synced·updated)은 화면이 읽던 그대로 둔다.
  */
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAlimtalkConfig } from "@/hooks/useAlimtalkConfig";
+import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +10,9 @@ import { toast } from "sonner";
 
 export default function AlimtalkConfigForm() {
     const { config, isLoading, saveConfig, testConnection } = useAlimtalkConfig();
+    const { user } = useSession();
+    // 앱 키 변경은 조직 전체 발송에 영향을 주므로 관리자만 한다(서버도 403)
+    const canManage = !!user && user.role !== "member";
     const [appKey, setAppKey] = useState("");
     const [secretKey, setSecretKey] = useState("");
     const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "fail">("idle");
@@ -78,6 +82,7 @@ export default function AlimtalkConfigForm() {
                             setTestStatus("idle");
                         }}
                         placeholder="NHN Cloud App Key"
+                        disabled={!canManage}
                     />
                 </div>
 
@@ -92,6 +97,7 @@ export default function AlimtalkConfigForm() {
                             setTestStatus("idle");
                         }}
                         placeholder={config ? "변경하려면 새 Secret Key 입력" : "NHN Cloud Secret Key"}
+                        disabled={!canManage}
                     />
                     {config && !secretKey && (
                         <p className="text-xs text-muted-foreground">
@@ -122,6 +128,12 @@ export default function AlimtalkConfigForm() {
                     </div>
                 )}
 
+                {!canManage && (
+                    <p className="text-sm text-muted-foreground">
+                        알림톡 API 설정은 관리자만 변경할 수 있습니다.
+                    </p>
+                )}
+
                 <div className="flex items-center gap-3 pt-2">
                     <Button
                         variant="outline"
@@ -141,7 +153,7 @@ export default function AlimtalkConfigForm() {
                     </Button>
                     <Button
                         onClick={handleSave}
-                        disabled={saving || !appKey || !secretKey}
+                        disabled={!canManage || saving || !appKey || !secretKey}
                     >
                         {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         저장

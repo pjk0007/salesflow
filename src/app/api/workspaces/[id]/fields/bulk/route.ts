@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, fieldDefinitions, partitions } from "@/lib/db";
 import { eq, and, max } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 const FIELD_TYPE_TO_CELL_TYPE: Record<string, string> = {
     text: "editable",
@@ -25,7 +26,7 @@ export async function POST(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -77,20 +78,28 @@ export async function POST(
             isRequired?: boolean;
             options?: string[];
         }> = [];
-        let skippedCount = 0;
+        // 건너뛴 줄과 이유 — 화면이 어떤 key를 왜 빼야 했는지 보여준다(문구는 단건 추가와 같다)
+        const skippedItems: Array<{ key: string; reason: string }> = [];
+        const skip = (key: unknown, reason: string) =>
+            skippedItems.push({ key: typeof key === "string" ? key.trim() : "", reason });
 
         for (const f of fields) {
-            if (!f.key || !f.label) { skippedCount++; continue; }
-            if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(f.key.trim())) { skippedCount++; continue; }
-            if (!f.fieldType || !VALID_FIELD_TYPES.includes(f.fieldType)) { skippedCount++; continue; }
-            if (existingKeys.has(f.key.trim())) { skippedCount++; continue; }
+            const key = typeof f?.key === "string" ? f.key.trim() : "";
+            if (!key) { skip(f?.key, "key를 입력해주세요."); continue; }
+            if (typeof f.label !== "string" || !f.label.trim()) { skip(key, "라벨을 입력해주세요."); continue; }
+            if (!/^[a-zA-Z][a-zA-Z0-9]*$/.test(key)) { skip(key, "key는 영문으로 시작하고 영문과 숫자만 사용 가능합니다."); continue; }
+            if (!f.fieldType || !VALID_FIELD_TYPES.includes(f.fieldType)) { skip(key, "유효하지 않은 필드 타입입니다."); continue; }
+            if (existingKeys.has(key)) { skip(key, "이미 존재하는 key입니다."); continue; }
+            // 같은 요청 안에서 같은 key가 다시 나오면 앞의 것만 만든다 — 고유 제약 위반으로 전체가 실패하지 않게
+            existingKeys.add(key);
             fieldsToCreate.push(f);
         }
+        const skippedCount = skippedItems.length;
 
         if (fieldsToCreate.length === 0) {
             return NextResponse.json({
                 success: true,
-                data: { created: 0, skipped: skippedCount, total: fields.length },
+                data: { created: 0, skipped: skippedCount, skippedItems, total: fields.length },
             });
         }
 
@@ -141,9 +150,13 @@ export async function POST(
 
         return NextResponse.json({
             success: true,
-            data: { created: createdKeys.length, skipped: skippedCount, total: fields.length },
+            data: { created: createdKeys.length, skipped: skippedCount, skippedItems, total: fields.length },
         }, { status: 201 });
     } catch (error) {
+        // 동시에 같은 key를 추가한 경우 — 트랜잭션이 통째로 취소되어 아무것도 만들어지지 않았다
+        if (isUniqueViolation(error)) {
+            return NextResponse.json({ success: false, error: "다른 사용자가 같은 key를 먼저 추가했습니다. 목록을 새로고침한 뒤 다시 시도해주세요." }, { status: 409 });
+        }
         console.error("Bulk fields create error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkConfig } from "@/hooks/useAlimtalkConfig";
+import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +31,9 @@ export default function SenderProfileList() {
     const { config, setDefaultSender } = useAlimtalkConfig();
     const [registerOpen, setRegisterOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+    const { user } = useSession();
+    // 기본 발신프로필 변경·삭제는 조직 전체 발송에 영향을 주므로 관리자만 한다(서버도 403)
+    const canManage = !!user && user.role !== "member";
 
     const handleSetDefault = async (senderKey: string) => {
         const result = await setDefaultSender(senderKey);
@@ -71,6 +75,12 @@ export default function SenderProfileList() {
                 </Button>
             </div>
 
+            {!canManage && senders.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                    기본 발신프로필 변경과 삭제는 관리자만 할 수 있습니다.
+                </p>
+            )}
+
             {senders.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12 text-muted-foreground border rounded-lg border-dashed">
                     <MessageSquare className="h-10 w-10 mb-3" />
@@ -101,6 +111,7 @@ export default function SenderProfileList() {
                                                 {sender.senderKey}
                                             </p>
                                         </div>
+                                        {canManage && (
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -125,6 +136,7 @@ export default function SenderProfileList() {
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+                                        )}
                                     </div>
 
                                     <div className="flex items-center gap-2 mt-3">

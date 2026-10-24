@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { adPlatforms } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import type { MetaCredentials } from "@/types";
 
 const ACCOUNT_STATUS_MAP: Record<number, string> = {
@@ -19,7 +19,7 @@ const ACCOUNT_STATUS_MAP: Record<number, string> = {
 };
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites } from "@/lib/db";
 import { and, eq, sql } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 
 /**
  * GET /api/tracker/sites/[id]/event-name-options
@@ -10,7 +10,7 @@ import { getUserFromNextRequest } from "@/lib/auth";
  * 전체 기간 조회, occurrences desc, 100건 LIMIT.
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
 
     const { id } = await params;

@@ -1,4 +1,4 @@
-import { and, eq, desc, lt, or } from "drizzle-orm";
+import { and, eq, desc, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
     db,
@@ -50,6 +50,10 @@ export async function accessRoster(
             active: users.isActive,
             role: grants.role,
             version: grants.version,
+            // 권한을 낮추기 전에 영향을 보여주기 위한 건수 — 이 직원이 게시한 활성 자동화(게시자 권한으로 실행된다)와
+            // 아직 발송 대기 중인 이 직원의 메일 답장(응대 권한을 잃으면 취소된다)
+            publishedWorkflows: sql<number>`(SELECT count(*)::int FROM customer_workflows cw JOIN customer_workflow_revisions cr ON cr.id = cw.active_revision_id WHERE cw.org_id = ${actor.orgId} AND cw.workspace_id = ${workspaceId} AND cw.enabled AND cr.published_by = ${users.id})`,
+            pendingEmailReplies: sql<number>`(SELECT count(*)::int FROM inbox_email_deliveries ed JOIN inbox_mailboxes mb ON mb.id = ed.mailbox_id JOIN inbox_messages em ON em.id = ed.message_id WHERE mb.org_id = ${actor.orgId} AND mb.workspace_id = ${workspaceId} AND ed.state IN ('queued', 'leased') AND em.author_id = ${users.id})`,
         })
         .from(organizationMembers)
         .innerJoin(users, eq(users.id, organizationMembers.userId))

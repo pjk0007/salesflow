@@ -4,7 +4,7 @@ import { recordEqualsSql, recordKstDateSql } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 
 const EXCLUDED_TYPES = ["file", "formula", "user_select"];
@@ -41,7 +41,7 @@ export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

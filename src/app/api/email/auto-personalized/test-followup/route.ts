@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, emailSendLogs, emailClickLogs, records } from "@/lib/db";
 import { eq, and, desc, isNotNull, inArray } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { generateAiFollowupPreview } from "@/lib/email-followup";
 import { getEmailClient, getEmailConfig } from "@/lib/nhn-email";
 import { resolveSender } from "@/lib/email-sender-resolver";
@@ -13,7 +13,7 @@ import { applyEmailTracking } from "@/lib/email-click-tracking";
  * 해당 규칙으로 발송된 최근 로그 목록 반환 (테스트 대상 후보)
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
  * mode === "send": testEmail로 실제 발송도 진행
  */
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

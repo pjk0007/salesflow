@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { queryClient } from "@/lib/db";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getLeadFollowup, saveLeadFollowup, LeadFollowupError } from "@/lib/customer-journey-followup";
 import { parseFollowupPatch } from "@/lib/customer-journey-followup-rules";
 
 async function handle(req: NextRequest, params: Promise<{ id: string }>, write: boolean) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     const id = Number((await params).id);
     if (!Number.isSafeInteger(id) || id <= 0) return NextResponse.json({ success: false, error: "고객 ID를 확인해 주세요." }, { status: 400 });

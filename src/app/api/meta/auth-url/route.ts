@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest, sealOAuthState } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { adPlatforms } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -45,14 +45,14 @@ export async function GET(req: NextRequest) {
         "pages_read_engagement",
     ].join(",");
 
-    // state에 orgId, userId, platformId를 포함
-    const state = Buffer.from(JSON.stringify({
+    // state에 orgId, userId, platformId를 봉인해 담는다 — 콜백에서 위조된 state로 다른 플랫폼 토큰을 덮어쓰지 못한다
+    const state = sealOAuthState("meta", {
         orgId: user.orgId,
         userId: user.userId,
         platformId: platform.id,
-    })).toString("base64");
+    });
 
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${credentials.appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${state}&response_type=code`;
+    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${credentials.appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${encodeURIComponent(state)}&response_type=code`;
 
     return NextResponse.json({ success: true, data: { authUrl } });
 }

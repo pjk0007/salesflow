@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerFunnels, trackerSessions } from "@/lib/db";
 import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { rangeBounds, resolveRange } from "@/lib/tracker/date-range";
 import { getStageVisitorIds } from "@/lib/tracker/funnel-analytics";
 import { classifyAdGroup, type AdGroup } from "@/components/journey/utils/ad-group";
@@ -10,7 +10,7 @@ import type { StageMatch } from "@/components/tracker/types/funnel";
 
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
 
     const sp = req.nextUrl.searchParams;

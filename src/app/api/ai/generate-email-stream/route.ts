@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, products, records } from "@/lib/db";
+import { db, products } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requireRecordAccess } from "@/lib/partition-access";
 import { getAiClient, buildEmailSystemPrompt, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import type { AiClient, GenerateEmailInput } from "@/lib/ai";
 
 type Usage = { promptTokens: number; completionTokens: number };
 
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -43,10 +44,14 @@ export async function POST(req: NextRequest) {
             product = p ?? null;
         }
 
+        // 프롬프트에 넣을 고객 자료는 내 조직·접근 가능한 파티션의 레코드만 쓴다 — 확인을 통과한 record만 AI 입력이 된다
         let recordData = null;
         if (recordId) {
-            const [r] = await db.select().from(records).where(eq(records.id, recordId)).limit(1);
-            if (r) recordData = r.data as Record<string, unknown>;
+            const access = await requireRecordAccess(user, Number(recordId), "read");
+            if (!access.ok) {
+                return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+            }
+            recordData = access.record.data as Record<string, unknown>;
         }
 
         const input: GenerateEmailInput = {

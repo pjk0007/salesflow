@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, products, records } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, getSearchAiClient, generateEmail, generateCompanyResearch, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
@@ -11,7 +11,7 @@ import { substitutePromptVariables } from "@/lib/email-utils";
 // POST /api/email/auto-personalized/test-send
 // body: { linkId: number, testEmail: string, recordId?: number }
 export async function POST(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

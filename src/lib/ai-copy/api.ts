@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ZodError } from "zod";
-import { getUserFromNextRequest } from "../auth";
+import { getActiveUserFromNextRequest } from "../auth";
 import { queryClient } from "../db";
 import type { CopyConnection } from "./types";
 import { CopyDeferredError } from "./generation";
@@ -11,10 +11,10 @@ export async function copyAdminApi(
     req: NextRequest,
     action: (
         conn: CopyConnection,
-        user: NonNullable<ReturnType<typeof getUserFromNextRequest>>,
+        user: NonNullable<Awaited<ReturnType<typeof getActiveUserFromNextRequest>>>,
     ) => Promise<unknown>,
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user)
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     if (user.role === "member")

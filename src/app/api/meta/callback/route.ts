@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { adPlatforms } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { openOAuthState } from "@/lib/auth";
 import type { MetaCredentials } from "@/types";
 
 export async function GET(req: NextRequest) {
@@ -17,20 +18,18 @@ export async function GET(req: NextRequest) {
         return htmlResponse("error", "잘못된 요청입니다.");
     }
 
-    // state에서 orgId, userId, platformId 복원
-    let platformId: number;
-    try {
-        const state = JSON.parse(Buffer.from(stateParam, "base64").toString());
-        platformId = state.platformId;
-    } catch {
-        return htmlResponse("error", "잘못된 state 파라미터입니다.");
+    // 봉인된 state에서 orgId, platformId 복원 — 위조·만료된 state는 거부한다
+    const state = openOAuthState<{ orgId: string; platformId: number }>("meta", stateParam);
+    if (!state || typeof state.orgId !== "string" || !Number.isSafeInteger(state.platformId)) {
+        return htmlResponse("error", "연결 요청이 만료되었거나 올바르지 않습니다. 연동 화면에서 다시 시도해주세요.");
     }
+    const platformId = state.platformId;
 
-    // DB에서 플랫폼의 appId/appSecret 조회
+    // DB에서 플랫폼의 appId/appSecret 조회 — state를 만든 조직의 플랫폼만
     const [platform] = await db
         .select()
         .from(adPlatforms)
-        .where(eq(adPlatforms.id, platformId))
+        .where(and(eq(adPlatforms.id, platformId), eq(adPlatforms.orgId, state.orgId)))
         .limit(1);
 
     if (!platform) {

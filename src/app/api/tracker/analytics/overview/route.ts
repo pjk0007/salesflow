@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites } from "@/lib/db";
 import { and, eq, sql } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { classifyInflow } from "@/components/journey/utils/referrer";
 import { getSessionIdsByChannel } from "@/lib/tracker/session-filter";
 import { aggregateRange, notExcludedExpr } from "@/lib/tracker/analytics-queries";
@@ -18,7 +18,7 @@ function normalizePath(url: string): string {
 // 한 기간의 핵심 집계 (KPI 7종 raw + 직전기간 비교용).
 // 세그먼트 필터: device(visitor), sessionIds(channel로 거른 세션 ID, null이면 미적용)
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { db, organizations, organizationMembers, subscriptions, plans, records, emailSendLogs, alimtalkSendLogs, workspaces, partitions } from "@/lib/db";
 import { sql, ilike, or } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user?.isSuperAdmin) {
         return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
     }

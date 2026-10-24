@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { isReplyScopeOrg } from "@/lib/email-reply-list";
 import { describeReplyError } from "@/lib/email-reply-rules";
 
@@ -8,7 +8,7 @@ import { describeReplyError } from "@/lib/email-reply-rules";
  * 회신 읽기 대상 조직(REPLY_WORKSPACE_IDS, 없으면 DEEP_ALERT_WORKSPACE_IDS의 조직)에만 탭을 보인다.
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { adLeadIntegrations, adAccounts, partitions } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
 
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -56,7 +57,7 @@ export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
@@ -84,7 +85,16 @@ export async function PATCH(
             updateData.name = body.name.trim();
         }
         if (body.partitionId !== undefined) {
-            updateData.partitionId = body.partitionId;
+            // 연결을 끊는(null) 경우 말고는 내 조직 파티션인지 확인한다
+            if (body.partitionId !== null) {
+                const access = await requirePartitionAccess(user, Number(body.partitionId), "create");
+                if (!access.ok) {
+                    return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+                }
+                updateData.partitionId = access.partition.id;
+            } else {
+                updateData.partitionId = null;
+            }
         }
         if (body.fieldMappings !== undefined) {
             updateData.fieldMappings = body.fieldMappings;
@@ -113,7 +123,7 @@ export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }

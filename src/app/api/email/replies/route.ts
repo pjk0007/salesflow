@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUserFromNextRequest } from "@/lib/auth";
+import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { ambiguousCandidates, isAdminRole, isReplyScopeOrg, listReplies, type ReplyListFilters } from "@/lib/email-reply-list";
 import { loadReplySyncStatus } from "@/lib/email-reply-sync";
 import { describeReplyError } from "@/lib/email-reply-rules";
@@ -18,7 +18,7 @@ function positiveInt(value: string | null): number | undefined {
  * 다른 조직에 내려주지 않는다 (RH-SEC-5·OPS-6)
  */
 export async function GET(req: NextRequest) {
-    const user = getUserFromNextRequest(req);
+    const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
