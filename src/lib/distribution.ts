@@ -1,6 +1,6 @@
-import { db, partitions } from "@/lib/db";
-import { eq, sql } from "drizzle-orm";
-import type { PgTransaction } from "drizzle-orm/pg-core";
+import { partitions } from "@/lib/db/schema";
+import { and, eq, sql } from "drizzle-orm";
+import type { RecordDb } from "@/lib/record-create";
 
 interface DistributionResult {
     distributionOrder: number;
@@ -10,26 +10,28 @@ interface DistributionResult {
 /**
  * 원자적 라운드로빈 할당.
  * 단일 UPDATE + RETURNING으로 race condition 방지.
+ * 결과는 쿼리 빌더의 returning 배열로 읽는다 — postgres-js의 execute 결과는 배열이라 `.rows`가 없다 (UX-037).
  */
 export async function assignDistributionOrder(
-    tx: PgTransaction<any, any, any>,
+    tx: RecordDb,
     partitionId: number
 ): Promise<DistributionResult | null> {
-    const result = await tx.execute(sql`
-        UPDATE partitions
-        SET last_assigned_order = (last_assigned_order % max_distribution_order) + 1
-        WHERE id = ${partitionId} AND use_distribution_order = 1
-        RETURNING last_assigned_order, distribution_defaults
-    `);
-
-    const row = result.rows?.[0] as
-        | { last_assigned_order: number; distribution_defaults: Record<string, { field: string; value: string }[]> | null }
-        | undefined;
+    const [row] = await tx
+        .update(partitions)
+        .set({
+            // max_distribution_order가 0이면 0으로 나누기 오류가 나므로 최소 1로 본다
+            lastAssignedOrder: sql`(${partitions.lastAssignedOrder} % GREATEST(${partitions.maxDistributionOrder}, 1)) + 1`,
+        })
+        .where(and(eq(partitions.id, partitionId), eq(partitions.useDistributionOrder, 1)))
+        .returning({
+            order: partitions.lastAssignedOrder,
+            allDefaults: partitions.distributionDefaults,
+        });
 
     if (!row) return null;
 
-    const order = row.last_assigned_order;
-    const allDefaults = row.distribution_defaults;
+    const order = row.order;
+    const allDefaults = row.allDefaults;
     const defaults: Record<string, unknown> = {};
 
     if (allDefaults) {

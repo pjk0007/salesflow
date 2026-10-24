@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { checkTokenAccess } from "@/lib/auth";
+import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
 
 import { ok, err, type ToolHandler } from "./types";
 import { TRACKER_TOOL_DEFINITIONS, createTrackerToolHandlers } from "./tracker-tools";
@@ -227,22 +228,38 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
         create_record: async (args, tokenInfo) => {
             const partitionId = args.partitionId as number;
             const data = args.data as Record<string, unknown>;
+            if (!data || typeof data !== "object" || Array.isArray(data)) return err("레코드 데이터(data)가 필요합니다.");
 
             const hasAccess = await checkTokenAccess(tokenInfo, partitionId, "create");
             if (!hasAccess) return err("레코드 생성 권한이 없습니다.");
 
-            const [partition] = await db.select({ workspaceId: partitions.workspaceId })
-                .from(partitions).where(eq(partitions.id, partitionId)).limit(1);
-            if (!partition) return err("파티션을 찾을 수 없습니다.");
+            const [row] = await db.select({ partition: partitions })
+                .from(partitions)
+                .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+                .where(and(eq(partitions.id, partitionId), eq(workspaces.orgId, tokenInfo.orgId)))
+                .limit(1);
+            if (!row) return err("파티션을 찾을 수 없습니다.");
 
-            const [created] = await db.insert(records).values({
+            // 다른 유입 경로와 같은 생성 함수 — 한도·중복 정책·통합코드·분배·기본값·자동화·실시간 갱신 (UX-038)
+            const result = await createRecord({
                 orgId: tokenInfo.orgId,
-                workspaceId: partition.workspaceId,
-                partitionId,
+                partition: toRecordCreatePartition(row.partition),
                 data,
-            }).returning();
+                source: "mcp",
+                enforcePlanLimit: true,
+            });
+            if (result.status === "plan_limit") {
+                return err(`레코드 한도(${result.limit}건)를 초과했습니다. 플랜 업그레이드가 필요합니다.`);
+            }
+            if (result.status === "duplicate") {
+                return err(`중복된 데이터가 존재합니다. (${result.fieldLabel}: ${result.value})`);
+            }
 
-            return ok({ id: created.id, partitionId: created.partitionId, data: created.data, createdAt: created.createdAt });
+            const saved = result.record;
+            return ok({
+                id: saved.id, partitionId: saved.partitionId, integratedCode: saved.integratedCode,
+                data: saved.data, createdAt: saved.createdAt, merged: result.status === "merged",
+            });
         },
 
         update_record: async (args, tokenInfo) => {
