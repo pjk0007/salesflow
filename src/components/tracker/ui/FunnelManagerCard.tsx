@@ -1,5 +1,7 @@
 "use client";
 
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -81,6 +83,7 @@ function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault }: RowProps) {
  * 한 카드 안에서 두 섹션으로 분리해, 각각 추가/관리한다.
  */
 export function FunnelManagerCard({ siteId }: Props) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const { funnels, isLoading, mutate } = useTrackerFunnels(siteId);
     const [editing, setEditing] = useState<FunnelDefinition | null>(null);
     const [newKind, setNewKind] = useState<FunnelKind>("marketing");
@@ -112,14 +115,19 @@ export function FunnelManagerCard({ siteId }: Props) {
         setOpen(true);
     };
     const handleDelete = async (f: FunnelDefinition) => {
-        if (!confirm(`"${f.name}" 퍼널을 삭제하시겠습니까?`)) return;
-        try {
-            await deleteFunnel(f.id);
-            toast.success("삭제되었습니다.");
-            mutate();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "삭제 실패");
-        }
+        confirm({
+            title: "퍼널 삭제",
+            description: `"${f.name}" 퍼널을 삭제하시겠습니까?`,
+            onConfirm: async () => {
+                try {
+                    await deleteFunnel(f.id);
+                    toast.success("삭제되었습니다.");
+                    mutate();
+                } catch (err) {
+                    throw new Error(err instanceof Error ? err.message : "삭제 실패");
+                }
+            },
+        });
     };
     const setAsDefault = async (f: FunnelDefinition) => {
         try {
@@ -133,6 +141,7 @@ export function FunnelManagerCard({ siteId }: Props) {
 
     return (
         <Card>
+            {confirmationDialog}
             <CardHeader className="pb-3">
                 <CardTitle className="inline-flex items-center gap-2 text-base">
                     <Target className="h-4 w-4 text-muted-foreground" />

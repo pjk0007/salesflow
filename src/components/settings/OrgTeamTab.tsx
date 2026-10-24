@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -75,8 +76,8 @@ const roleConfig: Record<OrgRole, { icon: typeof Crown; label: string; color: st
 
 export default function OrgTeamTab() {
     const { user } = useSession();
-    const { members, isLoading: membersLoading, updateRole, removeMember } = useOrgMembers();
-    const { invitations, isLoading: invitationsLoading, createInvitation, cancelInvitation } = useOrgInvitations();
+    const { members, isLoading: membersLoading, updateRole, removeMember , error: loadError0, mutate: retryLoad0 } = useOrgMembers();
+    const { invitations, isLoading: invitationsLoading, createInvitation, cancelInvitation , error: loadError1, mutate: retryLoad1 } = useOrgInvitations();
 
     const isOwner = user?.role === "owner";
     const canManageTeam = user?.role === "owner" || user?.role === "admin";
@@ -152,6 +153,8 @@ export default function OrgTeamTab() {
         navigator.clipboard.writeText(url);
         toast.success("초대 링크가 복사되었습니다.");
     };
+
+    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
 
     if (membersLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

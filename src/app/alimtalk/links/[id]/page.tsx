@@ -1,8 +1,10 @@
 "use client";
 
+import { defaultFetcher } from "@/lib/swr-fetcher";
+
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +29,7 @@ import FollowupStepsForm, { type FollowupStepUI } from "@/components/alimtalk/Fo
 import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
 import useSWR from "swr";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
 
 const TRIGGER_LABELS: Record<string, string> = {
     manual: "수동", on_create: "생성 시", on_update: "수정 시",
@@ -42,7 +44,7 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
     const [loaded, setLoaded] = useState(false);
     const [partitionId, setPartitionId] = useState<number | null>(null);
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData , error: queryError0, mutate: retryQuery0 } = useSWR("/api/partitions", defaultFetcher);
     const { senders } = useAlimtalkSenders();
     const [senderKey, setSenderKey] = useState("");
     const { templates } = useAlimtalkTemplates(senderKey || null);
@@ -170,6 +172,8 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
             setSaving(false);
         }
     };
+
+    if (queryError0) return <WorkspaceLayout><QueryErrorState error={queryError0} onRetry={() => retryQuery0()} /></WorkspaceLayout>;
 
     if (!loaded) {
         return (

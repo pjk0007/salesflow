@@ -1,3 +1,5 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, Loader2, Copy, Pencil, Trash2, ImageIcon } from "lucide-react";
@@ -8,11 +10,12 @@ import AssetRenameDialog from "./AssetRenameDialog";
 import type { EmailAsset } from "../types";
 
 export default function AssetManager() {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const [uploading, setUploading] = useState(false);
     const [renaming, setRenaming] = useState<EmailAsset | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const { assets, isLoading, upload, rename, remove } = useEmailAssets();
+    const { assets, error, mutate, isLoading, upload, rename, remove } = useEmailAssets();
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -40,14 +43,22 @@ export default function AssetManager() {
     };
 
     const handleDelete = async (asset: EmailAsset) => {
-        if (!confirm(`"${asset.name}"을(를) 목록에서 삭제할까요? (이미 발송된 메일의 이미지는 유지됩니다)`)) return;
-        const result = await remove(asset.id);
-        if (result.success) toast.success("삭제되었습니다.");
-        else toast.error(result.error || "삭제에 실패했습니다.");
+        confirm({
+            title: "이미지 삭제",
+            description: `"${asset.name}"을(를) 목록에서 삭제할까요? (이미 발송된 메일의 이미지는 유지됩니다)`,
+            onConfirm: async () => {
+                const result = await remove(asset.id);
+                if (result.success) toast.success("삭제되었습니다.");
+                else throw new Error(result.error || "삭제에 실패했습니다.");
+            },
+        });
     };
+
+    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">
+            {confirmationDialog}
             <div className="flex items-center justify-between">
                 <p className="text-sm text-muted-foreground">
                     이메일 본문에 넣을 이미지를 조직 전체에서 공유·재사용합니다.

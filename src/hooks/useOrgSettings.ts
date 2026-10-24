@@ -21,6 +21,7 @@ export function useOrgSettings() {
     };
 
     return {
+        mutate: mutate,
         org: data?.data ?? null,
         isLoading,
         error,

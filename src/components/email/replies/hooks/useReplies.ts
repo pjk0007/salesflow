@@ -22,6 +22,7 @@ export function useReplies(filters: ReplyFilters, enabled: boolean = true) {
     };
 
     return {
+        error: error,
         items: data?.success ? data.data ?? [] : [],
         totalCount: data?.totalCount ?? 0,
         sync: data?.meta?.sync ?? null,

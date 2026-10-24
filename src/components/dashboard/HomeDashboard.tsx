@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import Link from "next/link";
 import AnalyticsSection from "./AnalyticsSection";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
@@ -169,7 +170,9 @@ function QuickActions() {
 }
 
 export default function HomeDashboard() {
-    const { summary, isLoading } = useDashboardSummary();
+    const { summary, isLoading , error: loadError0, mutate: retryLoad0 } = useDashboardSummary();
+
+    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
 
     return (
         <div className="p-4 md:p-6 space-y-4 md:space-y-6">

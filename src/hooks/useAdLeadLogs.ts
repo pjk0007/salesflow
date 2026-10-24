@@ -43,12 +43,13 @@ export function useAdLeadLogStats(integrationId?: number) {
         ? `/api/ad-lead-logs/stats?integrationId=${integrationId}`
         : null;
 
-    const { data, error, isLoading } = useSWR<StatsResponse>(
+    const { data, error, isLoading , mutate: retryQuery0 } = useSWR<StatsResponse>(
         url,
         defaultFetcher
     );
 
     return {
+        mutate: retryQuery0,
         stats: data?.data || null,
         error,
         isLoading,

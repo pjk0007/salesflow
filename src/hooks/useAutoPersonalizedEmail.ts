@@ -147,6 +147,7 @@ export function useAutoPersonalizedEmail(partitionId: number | null | "all") {
     };
 
     return {
+        mutate: mutate,
         links: (data?.data ?? []) as AutoPersonalizedLink[],
         isLoading,
         error,

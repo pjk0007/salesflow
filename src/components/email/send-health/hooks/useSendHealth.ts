@@ -27,6 +27,7 @@ export function useSendHealth(enabled: boolean = true) {
     };
 
     return {
+        error: error,
         view,
         holdByPartition,
         senderById,
@@ -49,7 +50,7 @@ export function useSendHealth(enabled: boolean = true) {
 
 /** 보류 중인 명단만 (명단 목록의 빨간 점·레코드 화면 머리 띠 — 가볍게 읽는다) */
 export function usePartitionHolds(enabled: boolean = true) {
-    const { data, mutate } = useSWR<ApiResult<{ holds: PartitionHoldRow[]; isAdmin: boolean }>>(
+    const { data, mutate , error: queryError0 } = useSWR<ApiResult<{ holds: PartitionHoldRow[]; isAdmin: boolean }>>(
         enabled ? SEND_HEALTH_HOLDS_KEY : null,
         defaultFetcher,
         { refreshInterval: 5 * 60 * 1000 }
@@ -58,6 +59,8 @@ export function usePartitionHolds(enabled: boolean = true) {
     const holds = useMemo(() => (data?.success ? data.data?.holds ?? [] : []), [data]);
     const byPartition = useMemo(() => new Map(holds.map((h) => [h.partitionId, h])), [holds]);
     return {
+        error: queryError0,
+        mutate: mutate,
         holds,
         byPartition,
         isAdmin: data?.success ? !!data.data?.isAdmin : false,

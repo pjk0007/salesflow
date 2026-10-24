@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +24,10 @@ import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 
 export default function WorkspaceSettingsTab() {
-    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList } = useWorkspaces();
+    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList , error: loadError0 } = useWorkspaces();
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { workspace, isLoading, updateWorkspace } = useWorkspaceSettings(selectedId);
-    const { fieldTypes: types } = useFieldTypes();
+    const { workspace, isLoading, updateWorkspace , error: loadError1, mutate: retryLoad1 } = useWorkspaceSettings(selectedId);
+    const { fieldTypes: types , error: loadError2, mutate: retryLoad2 } = useFieldTypes();
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
@@ -128,7 +129,7 @@ export default function WorkspaceSettingsTab() {
             setSelectedId(null);
             setDeleteOpen(false);
         } else {
-            toast.error(result.error || "삭제에 실패했습니다.");
+            throw new Error(result.error || "삭제에 실패했습니다.");
         }
     };
 
@@ -161,6 +162,8 @@ export default function WorkspaceSettingsTab() {
             </CardContent>
         </Card>
     );
+
+    if (loadError0 || loadError1 || loadError2) return <QueryErrorState error={loadError0 || loadError1 || loadError2} onRetry={() => Promise.all([mutateList(), retryLoad1(), retryLoad2()])} />;
 
     if (wsListLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

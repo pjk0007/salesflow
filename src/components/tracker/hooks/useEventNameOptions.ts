@@ -19,8 +19,10 @@ type EventNameOptionsResponse =
  */
 export function useEventNameOptions(siteId: number) {
     const key = `/api/tracker/sites/${siteId}/event-name-options`;
-    const { data, isLoading } = useSWR<EventNameOptionsResponse>(key, defaultFetcher);
+    const { data, isLoading , error: queryError0, mutate: retryQuery0 } = useSWR<EventNameOptionsResponse>(key, defaultFetcher);
     return {
+        error: queryError0,
+        mutate: retryQuery0,
         data: data?.success ? data.data : [],
         isLoading,
     };

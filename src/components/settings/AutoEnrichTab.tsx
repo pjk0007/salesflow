@@ -1,5 +1,7 @@
 "use client";
 
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+
 import { useState, useMemo } from "react";
 import { useAutoEnrichRules } from "@/hooks/useAutoEnrich";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
@@ -40,10 +42,10 @@ import { toast } from "sonner";
 import type { RecordAutoEnrichRule } from "@/lib/db";
 
 export default function AutoEnrichTab() {
-    const { workspaces } = useWorkspaces();
+    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
     const firstWorkspaceId = workspaces?.[0]?.id ?? null;
-    const { partitionTree } = usePartitions(firstWorkspaceId);
-    const { fields } = useFields(firstWorkspaceId);
+    const { partitionTree , error: loadError1, mutate: retryLoad1 } = usePartitions(firstWorkspaceId);
+    const { fields , error: loadError2, mutate: retryLoad2 } = useFields(firstWorkspaceId);
 
     const partitions = useMemo(() => {
         if (!partitionTree) return [];
@@ -58,7 +60,7 @@ export default function AutoEnrichTab() {
     const [editingRule, setEditingRule] = useState<RecordAutoEnrichRule | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<RecordAutoEnrichRule | null>(null);
 
-    const { rules, isLoading, createRule, updateRule, deleteRule } =
+    const { rules, isLoading, createRule, updateRule, deleteRule , error: loadError3, mutate: retryLoad3 } =
         useAutoEnrichRules(selectedPartitionId);
 
     // Dialog form state
@@ -146,6 +148,8 @@ export default function AutoEnrichTab() {
 
     // 검색 필드로 선택된 것은 대상에서 제외
     const availableTargetFields = fields.filter((f) => f.key !== searchField && !f.key.startsWith("_"));
+
+    if (loadError0 || loadError1 || loadError2 || loadError3) return <QueryErrorState error={loadError0 || loadError1 || loadError2 || loadError3} onRetry={() => Promise.all([retryLoad0(), retryLoad1(), retryLoad2(), retryLoad3()])} />;
 
     return (
         <div className="space-y-6">

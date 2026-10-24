@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
@@ -64,17 +65,17 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 
 export default function TemplateList() {
     const router = useRouter();
-    const { senders } = useAlimtalkSenders();
+    const { senders , error: loadError0, mutate: retryLoad0 } = useAlimtalkSenders();
     const [selectedSenderKey, setSelectedSenderKey] = useState<string>("__all__");
     const isAll = selectedSenderKey === "__all__";
     const singleSenderKey = isAll ? null : selectedSenderKey;
 
     // 단일 발신프로필 선택 시
-    const { templates: singleTemplates, isLoading: singleLoading } = useAlimtalkTemplates(singleSenderKey);
+    const { templates: singleTemplates, isLoading: singleLoading , error: loadError1, mutate: retryLoad1 } = useAlimtalkTemplates(singleSenderKey);
 
     // 전체 선택 시 — 모든 sender 병렬 조회
     const allSenderKeys = useMemo(() => senders.map((s) => s.senderKey), [senders]);
-    const { data: allData, isLoading: allLoading } = useSWR(
+    const { data: allData, isLoading: allLoading, error: allError, mutate: retryAll } = useSWR(
         isAll && allSenderKeys.length > 0
             ? allSenderKeys.map((k) => `/api/alimtalk/templates?senderKey=${encodeURIComponent(k)}`)
             : null,
@@ -89,7 +90,7 @@ export default function TemplateList() {
     const { deleteTemplate, commentTemplate } = useAlimtalkTemplateManage(singleSenderKey);
 
     // 임시저장 목록
-    const { data: draftsData, mutate: mutateDrafts } = useSWR<{ success: boolean; data: AlimtalkTemplateDraft[] }>(
+    const { data: draftsData, mutate: mutateDrafts, error: draftsError } = useSWR<{ success: boolean; data: AlimtalkTemplateDraft[] }>(
         "/api/alimtalk/template-drafts",
         defaultFetcher
     );
@@ -144,6 +145,8 @@ export default function TemplateList() {
         setCommentTarget(null);
         setCommentText("");
     };
+
+    if (loadError0 || loadError1 || allError || draftsError) return <QueryErrorState error={loadError0 || loadError1 || allError || draftsError} onRetry={() => Promise.all([retryLoad0(), retryLoad1(), retryAll(), mutateDrafts()])} />;
 
     return (
         <div className="space-y-4">

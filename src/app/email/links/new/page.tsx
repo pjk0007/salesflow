@@ -1,8 +1,10 @@
 "use client";
 
+import { defaultFetcher } from "@/lib/swr-fetcher";
+
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +46,7 @@ import { templateLinkSenderBody } from "@/components/email/template-links/utils/
 import TemplateLinkSenderCard from "@/components/email/template-links/ui/TemplateLinkSenderCard";
 import TemplateLinkSenderSummary from "@/components/email/template-links/ui/TemplateLinkSenderSummary";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
 
 const TRIGGER_LABELS: Record<string, string> = {
     manual: "수동",
@@ -74,7 +76,7 @@ function NewLinkPageContent() {
     );
     const partitionId = selectedPartitionId ?? 0;
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData , error: queryError0, mutate: retryQuery0 } = useSWR("/api/partitions", defaultFetcher);
     const { templates: allTemplates } = useEmailTemplates();
     const templates = allTemplates.filter((t) => t.status !== "draft");
     const { createLink } = useEmailTemplateLinks(partitionId || null);
@@ -134,6 +136,8 @@ function NewLinkPageContent() {
             setSaving(false);
         }
     };
+
+    if (queryError0) return <WorkspaceLayout><QueryErrorState error={queryError0} onRetry={() => retryQuery0()} /></WorkspaceLayout>;
 
     if (!selectedPartitionId) {
         const rawPartitions = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? [];

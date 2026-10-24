@@ -1,5 +1,7 @@
 "use client";
 
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+
 import { useState, useMemo } from "react";
 import {
     DndContext,
@@ -127,9 +129,9 @@ function SortableFieldRow({
 }
 
 export default function FieldTypeManagementTab() {
-    const { fieldTypes: types, createType, updateType, deleteType } = useFieldTypes();
+    const { fieldTypes: types, createType, updateType, deleteType , error: loadError0, mutate: retryLoad0 } = useFieldTypes();
     const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
-    const { fields, reorderFields, createField, updateField, deleteField } = useFieldTypeManagement(selectedTypeId);
+    const { fields, reorderFields, createField, updateField, deleteField , error: loadError1, mutate: retryLoad1 } = useFieldTypeManagement(selectedTypeId);
 
     const [createTypeOpen, setCreateTypeOpen] = useState(false);
     const [newTypeName, setNewTypeName] = useState("");
@@ -231,6 +233,8 @@ export default function FieldTypeManagementTab() {
         setDeleteTarget({ id: field.id, label: field.label, key: field.key });
         setDeleteOpen(true);
     };
+
+    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
 
     return (
         <div className="space-y-6">

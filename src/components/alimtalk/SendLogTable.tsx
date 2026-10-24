@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState } from "react";
 import { useAlimtalkLogs } from "@/hooks/useAlimtalkLogs";
 import {
@@ -50,7 +51,7 @@ export default function SendLogTable() {
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<AlimtalkSendLog | null>(null);
 
-    const { logs, total, totalPages, isLoading, syncResults } = useAlimtalkLogs({
+    const { logs, total, totalPages, isLoading, syncResults , error: loadError0, mutate: retryLoad0 } = useAlimtalkLogs({
         page,
         status: status || undefined,
         startDate: startDate || undefined,
@@ -67,6 +68,8 @@ export default function SendLogTable() {
             toast.error(result.error || "동기화에 실패했습니다.");
         }
     };
+
+    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
 
     return (
         <div className="space-y-4">

@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
@@ -48,9 +49,9 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
-    const { templateLinks, isLoading, updateLink, deleteLink } = useEmailTemplateLinks(selectedPartitionId);
+    const { templateLinks, isLoading, updateLink, deleteLink , error: loadError0, mutate: retryLoad0 } = useEmailTemplateLinks(selectedPartitionId);
     const selectedPartition = selectedPartitionId !== "all" ? partitions.find((p) => p.id === selectedPartitionId) : null;
-    const { fields } = useFields(selectedPartition?.workspaceId ?? null);
+    const { fields , error: loadError1, mutate: retryLoad1 } = useFields(selectedPartition?.workspaceId ?? null);
     const partitionMap = useMemo(() => Object.fromEntries(partitions.map((p) => [p.id, p.name])), [partitions]);
     const fieldLabelMap = useMemo(() => {
         const map: Record<string, string> = {};
@@ -82,6 +83,8 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
         else toast.error(result.error || "삭제에 실패했습니다.");
         setDeleteTarget(null);
     };
+
+    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
 
     return (
         <Card>

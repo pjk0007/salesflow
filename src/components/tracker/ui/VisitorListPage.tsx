@@ -1,5 +1,7 @@
 "use client";
 
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
@@ -49,7 +51,7 @@ export function VisitorListPage() {
         router.replace(`${pathname}${sp.toString() ? "?" + sp.toString() : ""}`, { scroll: false });
     };
 
-    const { workspaces } = useWorkspaces();
+    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(() => {
         if (typeof window === "undefined") return null;
         const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY);
@@ -68,7 +70,9 @@ export function VisitorListPage() {
         localStorage.setItem(WORKSPACE_STORAGE_KEY, String(id));
     };
 
-    const { site, isLoading: siteLoading, mutate: mutateSite } = useTrackerSite(workspaceId);
+    const { site, isLoading: siteLoading, mutate: mutateSite , error: loadError1 } = useTrackerSite(workspaceId);
+
+    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), mutateSite()])} />;
 
     if (!workspaces || workspaces.length === 0) {
         return <p className="text-sm text-muted-foreground">워크스페이스가 없습니다.</p>;
@@ -182,7 +186,7 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
         setPage(1);
     }, [q, hasRecord, filters.pagePath, filters.channel, site.id]);
 
-    const { items, total, totalPages, isLoading } = useTrackerVisitors({
+    const { items, total, totalPages, isLoading , error: loadError2, mutate: retryLoad2 } = useTrackerVisitors({
         siteId: site.id,
         page,
         q: q || undefined,
@@ -191,16 +195,18 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
         channel: filters.channel ?? undefined,
     });
 
-    const { stats } = useTrackerStats(site.id, {
+    const { stats , error: loadError3, mutate: retryLoad3 } = useTrackerStats(site.id, {
         pagePath: filters.pagePath ?? undefined,
         channel: filters.channel ?? undefined,
     });
 
-    const { pages } = useTrackerPages(site.id);
+    const { pages , error: loadError4, mutate: retryLoad4 } = useTrackerPages(site.id);
 
     const isFresh =
         stats != null && stats.totalVisitors === 0 &&
         !q && !hasRecord && !filters.pagePath && !filters.channel;
+    if (loadError2 || loadError3 || loadError4) return <QueryErrorState error={loadError2 || loadError3 || loadError4} onRetry={() => Promise.all([retryLoad2(), retryLoad3(), retryLoad4()])} />;
+
     if (isFresh) return <TrackerInstallGuide apiKey={site.apiKey} />;
 
     return (

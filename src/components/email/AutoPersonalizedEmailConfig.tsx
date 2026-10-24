@@ -1,5 +1,7 @@
 "use client";
 
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAutoPersonalizedEmail, type AutoPersonalizedLink } from "@/hooks/useAutoPersonalizedEmail";
@@ -64,7 +66,7 @@ export default function AutoPersonalizedEmailConfig({
     const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
     const [followupTestTarget, setFollowupTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
-    const { links, isLoading, createLink, updateLink, deleteLink } =
+    const { links, isLoading, createLink, updateLink, deleteLink , error: loadError0, mutate: retryLoad0 } =
         useAutoPersonalizedEmail(selectedPartitionId);
     // 복제할 때 지워진 발신 프로필을 묶음에서 빼려고 지금 프로필 목록을 본다
     const { profiles: senderProfiles, isLoading: senderProfilesLoading, loadFailed: senderProfilesLoadFailed } =
@@ -147,6 +149,8 @@ export default function AutoPersonalizedEmailConfig({
         await deleteLink(deleteTarget.id);
         setDeleteTarget(null);
     };
+
+    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
 
     return (
         <Card>

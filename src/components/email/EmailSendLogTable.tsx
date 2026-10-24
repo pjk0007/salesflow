@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import type { OpenSignal } from "@/components/email/opens/types";
 import { OpenColumnHead } from "@/components/email/opens/ui/OpenColumnHead";
 import { OpenCountCell } from "@/components/email/opens/ui/OpenCountCell";
@@ -129,7 +130,7 @@ export default function EmailSendLogTable() {
 
     // 연결 규칙 + AI 규칙 목록
     const { templateLinks } = useEmailTemplateLinks("all");
-    const { data: aiRulesData } = useSWR<{ success: boolean; data?: Array<{ id: number; name: string | null; partitionName?: string; prompt?: string | null }> }>(
+    const { data: aiRulesData , error: queryError0, mutate: retryQuery0 } = useSWR<{ success: boolean; data?: Array<{ id: number; name: string | null; partitionName?: string; prompt?: string | null }> }>(
         "/api/email/auto-personalized",
         defaultFetcher
     );
@@ -165,7 +166,7 @@ export default function EmailSendLogTable() {
         return {};
     })();
 
-    const { logs, totalCount, isLoading, syncLogs } = useEmailLogs({
+    const { logs, totalCount, isLoading, syncLogs, error: logsError, mutate: retryLogs } = useEmailLogs({
         page,
         search: debouncedSearch || undefined,
         status: status || undefined,
@@ -247,6 +248,8 @@ export default function EmailSendLogTable() {
     const formatDateFull = (dateStr: string) => {
         return new Date(dateStr).toLocaleString("ko-KR");
     };
+
+    if (queryError0 || logsError) return <QueryErrorState error={queryError0 || logsError} onRetry={() => Promise.all([retryQuery0(), retryLogs()])} />;
 
     return (
         <div className="space-y-4">

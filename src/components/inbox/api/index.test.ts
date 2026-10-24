@@ -84,6 +84,22 @@ test("auth errors retain their status; successful data is unchanged", async () =
     } finally { global.fetch = original; }
 });
 
+test("상담 네트워크·비JSON 오류는 한국어이며 전송 초안 보존을 안내한다", async () => {
+    const original = global.fetch;
+    try {
+        for (const method of ["GET", "POST"]) {
+            global.fetch = async () => { throw new TypeError("Failed to fetch"); };
+            await assert.rejects(inboxRequest("/api/inbox", { method }), cause =>
+                cause instanceof InboxRequestError && cause.status === 0 && /[가-힣]/.test(cause.message) &&
+                (method === "GET" || cause.message.includes("초안은 유지됩니다")));
+            global.fetch = async () => new Response("<html>Bad gateway</html>", { status: 502 });
+            await assert.rejects(inboxRequest("/api/inbox", { method }), cause =>
+                cause instanceof InboxRequestError && cause.status === 502 && cause.message.includes("서버 응답") &&
+                (method === "GET" || cause.message.includes("초안은 유지됩니다")));
+        }
+    } finally { global.fetch = original; }
+});
+
 test("a file upload survives the text deadline and still has a bounded deadline", async (t) => {
     const original = global.fetch;
     t.mock.timers.enable({apis:["setTimeout"]});

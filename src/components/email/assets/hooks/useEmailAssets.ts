@@ -32,6 +32,7 @@ export function useEmailAssets(enabled: boolean = true) {
         assets: (data?.data ?? []) as EmailAsset[],
         isLoading,
         error,
+        mutate,
         upload,
         rename,
         remove,

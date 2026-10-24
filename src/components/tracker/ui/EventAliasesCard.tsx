@@ -1,5 +1,7 @@
 "use client";
 
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,7 @@ const FILTERS: Array<{ value: "all" | EventAliasType; label: string }> = [
  * 운영자가 한글 라벨을 매핑할 수 있게 한다.
  */
 export function EventAliasesCard({ siteId }: Props) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const { data, isLoading, mutate } = useEventAliases(siteId);
     const [filter, setFilter] = useState<"all" | EventAliasType>("all");
     const [editorOpen, setEditorOpen] = useState(false);
@@ -68,18 +71,25 @@ export function EventAliasesCard({ siteId }: Props) {
     };
     const handleDelete = async (row: EventAliasRow) => {
         if (!row.id) return;
-        if (!confirm(`"${row.label || row.eventName}" 별칭을 삭제하시겠습니까?\n분석 화면에서는 raw 이름으로 표시됩니다.`)) return;
-        try {
-            await deleteEventAlias(row.id);
-            toast.success("삭제되었습니다.");
-            mutate();
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "삭제 실패");
-        }
+        const id = row.id;
+        confirm({
+            title: "이벤트 별칭 삭제",
+            description: `"${row.label || row.eventName}" 별칭을 삭제하시겠습니까?\n분석 화면에서는 raw 이름으로 표시됩니다.`,
+            onConfirm: async () => {
+                try {
+                    await deleteEventAlias(id);
+                    toast.success("삭제되었습니다.");
+                    mutate();
+                } catch (err) {
+                    throw new Error(err instanceof Error ? err.message : "삭제 실패");
+                }
+            },
+        });
     };
 
     return (
         <Card>
+            {confirmationDialog}
             <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between text-base">
                     <span className="inline-flex items-center gap-2">

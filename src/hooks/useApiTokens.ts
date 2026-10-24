@@ -78,6 +78,7 @@ export function useApiTokens() {
         tokens: data?.data ?? [],
         isLoading,
         error,
+        mutate,
         createToken,
         updateToken,
         deleteToken,

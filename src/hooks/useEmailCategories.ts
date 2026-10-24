@@ -14,7 +14,7 @@ interface CategoriesResponse {
 
 
 export function useEmailCategories() {
-    const { data, isLoading, mutate } = useSWR<CategoriesResponse>(
+    const { data, error, isLoading, mutate } = useSWR<CategoriesResponse>(
         "/api/email/categories",
         defaultFetcher
     );
@@ -52,6 +52,7 @@ export function useEmailCategories() {
 
     return {
         categories: data?.data ?? [],
+        error,
         isLoading,
         mutate,
         createCategory,

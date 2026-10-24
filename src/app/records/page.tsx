@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
 import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
 import type { ReactNode } from "react";
@@ -104,7 +104,7 @@ export default function RecordsPage() {
         typeof crypto !== "undefined" ? crypto.randomUUID() : Math.random().toString(36).slice(2)
     );
 
-    const { workspaces } = useWorkspaces();
+    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
     const {
         partitionTree,
         isLoading: ptLoading,
@@ -116,9 +116,9 @@ export default function RecordsPage() {
         renameFolder,
         deleteFolder,
         mutate: mutatePartitions,
-    } = usePartitions(workspaceId);
+        error: loadError1 } = usePartitions(workspaceId);
     const { fields: workspaceFields } = useFields(workspaceId);
-    const { fields: resolvedFields } = useResolvedFields(partitionId);
+    const { fields: resolvedFields , error: loadError2, mutate: retryLoad2 } = useResolvedFields(partitionId);
     const fields = resolvedFields.length > 0 ? resolvedFields : workspaceFields;
     const {
         records,
@@ -133,7 +133,7 @@ export default function RecordsPage() {
         exportCsv,
         bulkImport,
         mutate: mutateRecords,
-    } = useRecords({
+        error: loadError3 } = useRecords({
         partitionId,
         page,
         search: search || undefined,
@@ -488,6 +488,8 @@ export default function RecordsPage() {
             mutatePartitions,
         ],
     );
+
+    if (loadError0 || loadError1 || loadError2 || loadError3) return <WorkspaceLayout><QueryErrorState error={loadError0 || loadError1 || loadError2 || loadError3} onRetry={() => Promise.all([retryLoad0(), mutatePartitions(), retryLoad2(), mutateRecords()])} /></WorkspaceLayout>;
 
     return (
         <WorkspaceLayout>

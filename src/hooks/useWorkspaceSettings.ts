@@ -22,6 +22,7 @@ export function useWorkspaceSettings(workspaceId: number | null) {
     };
 
     return {
+        mutate: mutate,
         workspace: data?.data ?? null,
         isLoading,
         error,

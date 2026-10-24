@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 
@@ -34,10 +34,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     if (sessionError) {
         return (
             <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6">
-                <p role="alert" className="text-muted-foreground">{sessionError}</p>
-                <button type="button" className="rounded-md border px-4 py-2" onClick={() => void refreshSession()}>
-                    다시 시도
-                </button>
+                <QueryErrorState error={sessionError} onRetry={refreshSession} />
             </div>
         );
     }
@@ -45,4 +42,28 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     if (!user) return null;
 
     return <DashboardShell>{children}</DashboardShell>;
+}
+
+/** 빈 목록을 표시하기 전에 사용하는 공통 오류·재시도 표시. */
+export function QueryErrorState({ error, onRetry }: { error: unknown; onRetry: () => unknown }) {
+    const [pending, setPending] = useState(false);
+    const [retryError, setRetryError] = useState<unknown>(null);
+    const cause = retryError ?? error;
+    const message = cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "";
+    return (
+        <div className="flex flex-col items-center justify-center gap-4 p-6">
+            <p role="alert" className="text-muted-foreground">{/[가-힣]/.test(message) ? message : "자료를 불러오지 못했습니다."}</p>
+            <button type="button" className="rounded-md border px-4 py-2" disabled={pending}
+                onClick={async () => {
+                    if (pending) return;
+                    setPending(true);
+                    setRetryError(null);
+                    try { await onRetry(); }
+                    catch (cause) { setRetryError(cause); }
+                    finally { setPending(false); }
+                }}>
+                {pending ? "불러오는 중..." : "다시 시도"}
+            </button>
+        </div>
+    );
 }

@@ -1,8 +1,10 @@
 "use client";
 
+import { defaultFetcher } from "@/lib/swr-fetcher";
+
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,7 +48,7 @@ import useSWR from "swr";
 
 interface EmailSignature { id: number; name: string; isDefault: boolean; }
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -94,11 +96,11 @@ function NewAiAutoPageContent() {
     );
     const partitionId = selectedPartitionId ?? 0;
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData , error: queryError0, mutate: retryQuery0 } = useSWR("/api/partitions", defaultFetcher);
     const { createLink } = useAutoPersonalizedEmail(partitionId || null);
     const { products } = useProducts({ activeOnly: true });
     const { fields } = useResolvedFields(partitionId || null);
-    const { data: signaturesData } = useSWR("/api/email/signatures", fetcher);
+    const { data: signaturesData , error: queryError1, mutate: retryQuery1 } = useSWR("/api/email/signatures", defaultFetcher);
     const signatures: EmailSignature[] = signaturesData?.data ?? [];
 
     const [saving, setSaving] = useState(false);
@@ -173,6 +175,8 @@ function NewAiAutoPageContent() {
             setSaving(false);
         }
     };
+
+    if (queryError0 || queryError1) return <WorkspaceLayout><QueryErrorState error={queryError0 || queryError1} onRetry={() => Promise.all([retryQuery0(), retryQuery1()])} /></WorkspaceLayout>;
 
     if (!selectedPartitionId) {
         const rawPartitions = (allPartitionsData?.data as Array<{ id: number; name: string; workspaceId: number; workspaceName: string }>) ?? [];

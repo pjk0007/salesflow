@@ -17,13 +17,14 @@ interface StatsResponse {
 
 
 export function useAlimtalkStats(period: "today" | "week" | "month" = "today") {
-    const { data, error, isLoading } = useSWR<StatsResponse>(
+    const { data, error, isLoading , mutate: retryQuery0 } = useSWR<StatsResponse>(
         `/api/alimtalk/stats?period=${period}`,
         defaultFetcher,
         { refreshInterval: 30000 }
     );
 
     return {
+        mutate: retryQuery0,
         stats: data?.data ?? { total: 0, sent: 0, failed: 0, pending: 0, recentLogs: [] },
         isLoading,
         error,

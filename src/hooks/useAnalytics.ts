@@ -62,22 +62,24 @@ export function useAnalytics(period: Period = "30d", channel: string = "all") {
     const summaryKey = `/api/analytics/summary?startDate=${startDate}&endDate=${endDate}`;
     const templatesKey = `/api/analytics/templates?startDate=${startDate}&endDate=${endDate}&channel=${channel}&limit=10`;
 
-    const { data: trendsData, isLoading: trendsLoading } = useSWR<{
+    const { data: trendsData, isLoading: trendsLoading , error: queryError0, mutate: retryQuery0 } = useSWR<{
         success: boolean;
         data?: TrendItem[];
     }>(trendsKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
-    const { data: summaryData, isLoading: summaryLoading } = useSWR<{
+    const { data: summaryData, isLoading: summaryLoading , error: queryError1, mutate: retryQuery1 } = useSWR<{
         success: boolean;
         data?: AnalyticsSummary;
     }>(summaryKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
-    const { data: templatesData, isLoading: templatesLoading } = useSWR<{
+    const { data: templatesData, isLoading: templatesLoading , error: queryError2, mutate: retryQuery2 } = useSWR<{
         success: boolean;
         data?: TemplatePerformance[];
     }>(templatesKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     return {
+        error: queryError0 || queryError1 || queryError2,
+        mutate: () => Promise.all([retryQuery0(), retryQuery1(), retryQuery2()]),
         trends: trendsData?.data ?? [],
         summary: summaryData?.data ?? emptySummary,
         templates: templatesData?.data ?? [],

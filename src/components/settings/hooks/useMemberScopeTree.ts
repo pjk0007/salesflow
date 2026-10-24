@@ -113,7 +113,7 @@ export function useMemberScopeTree({ open, userId }: { open: boolean; userId: st
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
     // 열린 워크스페이스의 트리만 불러온다
-    const { data: treeMap } = useSWR<Record<number, PartitionTree>>(
+    const { data: treeMap , error: queryError0, mutate: retryQuery0 } = useSWR<Record<number, PartitionTree>>(
         open && workspaces.length > 0 ? ["member-scope-trees", workspaces.map((w) => w.id).join(",")] : null,
         async () => {
             const entries = await Promise.all(
@@ -261,6 +261,8 @@ export function useMemberScopeTree({ open, userId }: { open: boolean; userId: st
     };
 
     return {
+        error: queryError0,
+        mutate: retryQuery0,
         nodes,
         scopes,
         isLoading,

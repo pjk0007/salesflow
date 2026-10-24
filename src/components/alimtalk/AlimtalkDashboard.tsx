@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState } from "react";
 import { useAlimtalkStats } from "@/hooks/useAlimtalkStats";
 import { useAlimtalkConfig } from "@/hooks/useAlimtalkConfig";
@@ -26,9 +27,11 @@ interface AlimtalkDashboardProps {
 }
 
 export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProps) {
-    const { isConfigured } = useAlimtalkConfig();
+    const { isConfigured , error: loadError0, mutate: retryLoad0 } = useAlimtalkConfig();
     const [period, setPeriod] = useState<"today" | "week" | "month">("today");
-    const { stats, isLoading } = useAlimtalkStats(period);
+    const { stats, isLoading , error: loadError1, mutate: retryLoad1 } = useAlimtalkStats(period);
+
+    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
 
     if (!isConfigured) {
         return (

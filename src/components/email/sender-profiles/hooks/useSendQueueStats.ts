@@ -23,6 +23,7 @@ export function useSendQueueStats(enabled: boolean = true) {
     );
 
     return {
+        error: error,
         stats,
         byLinkId,
         /** 통계를 읽었는가. 못 읽었으면 "대기 없음"으로 보이지 않게 가린다 */

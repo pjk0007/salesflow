@@ -1,5 +1,9 @@
 "use client";
 
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+
+import { defaultFetcher } from "@/lib/swr-fetcher";
+
 import { useState } from "react";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
@@ -7,13 +11,13 @@ import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+
 
 export default function AdminUsers() {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
 
-    const { data, isLoading, mutate } = useSWR(`/api/admin/users?search=${search}&page=${page}&limit=20`, fetcher);
+    const { data, error, isLoading, mutate } = useSWR(`/api/admin/users?search=${search}&page=${page}&limit=20`, defaultFetcher);
     const userList = data?.data || [];
     const pagination = data?.pagination;
 
@@ -31,6 +35,8 @@ export default function AdminUsers() {
             toast.error(data.error || "변경 실패");
         }
     }
+
+    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">

@@ -22,10 +22,14 @@ export interface ApiResponse<T = unknown> {
 }
 
 export interface PaginatedResponse<T> {
+  /** 현재 페이지의 항목. 필터와 검색은 서버에서 전체 결과에 먼저 적용한다. */
   data: T[];
+  /** 현재 필터·검색에 일치하는 전체 건수(현재 페이지 길이가 아님). */
   total: number;
+  /** 1부터 시작. 필터·검색·정렬·pageSize 변경 시 요청 page는 1로 초기화한다. */
   page: number;
   pageSize: number;
+  /** ceil(total / pageSize). 빈 결과는 0이며 페이지 이동을 표시하지 않는다. */
   totalPages: number;
 }
 

@@ -50,13 +50,14 @@ const empty: DashboardSummary = {
 };
 
 export function useDashboardSummary() {
-    const { data, error, isLoading } = useSWR<SummaryResponse>(
+    const { data, error, isLoading , mutate: retryQuery0 } = useSWR<SummaryResponse>(
         "/api/dashboard/summary",
         defaultFetcher,
         { refreshInterval: 60000 }
     );
 
     return {
+        mutate: retryQuery0,
         summary: data?.data ?? empty,
         isLoading,
         error,

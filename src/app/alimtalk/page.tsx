@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +42,7 @@ function AlimtalkPageContent() {
         window.history.replaceState(null, "", newUrl);
     };
 
-    const { data: allPartitionsData } = useSWR("/api/partitions", defaultFetcher);
+    const { data: allPartitionsData , error: queryError0, mutate: retryQuery0 } = useSWR("/api/partitions", defaultFetcher);
 
     const partitions = useMemo(() => {
         const items: Array<{ id: number; name: string; workspaceId: number; workspaceName: string }> = allPartitionsData?.data ?? [];
@@ -53,6 +53,8 @@ function AlimtalkPageContent() {
             name: hasMultipleWorkspaces ? `[${p.workspaceName}] ${p.name}` : p.name,
         }));
     }, [allPartitionsData]);
+
+    if (queryError0) return <WorkspaceLayout><QueryErrorState error={queryError0} onRetry={() => retryQuery0()} /></WorkspaceLayout>;
 
     return (
         <WorkspaceLayout>

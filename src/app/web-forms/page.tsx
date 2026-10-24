@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
 import { useWebForms } from "@/hooks/useWebForms";
@@ -26,13 +26,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, Pencil, Link2, Trash2, Eye, EyeOff } from "lucide-react";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 export default function WebFormsPage() {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const [workspaceId, setWorkspaceId] = useState<number | null>(null);
-    const { workspaces } = useWorkspaces();
-    const { partitionTree } = usePartitions(workspaceId);
-    const { forms, updateForm, deleteForm } = useWebForms(workspaceId);
+    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
+    const { partitionTree , error: loadError1, mutate: retryLoad1 } = usePartitions(workspaceId);
+    const { forms, updateForm, deleteForm , error: loadError2, mutate: retryLoad2 } = useWebForms(workspaceId);
 
     // 임베드 다이얼로그
     const [embedSlug, setEmbedSlug] = useState<string | null>(null);
@@ -53,15 +55,13 @@ export default function WebFormsPage() {
 
     const handleDelete = useCallback(
         async (id: number) => {
-            if (!confirm("정말 삭제하시겠습니까?")) return;
-            const result = await deleteForm(id);
-            if (result.success) {
+            confirm({ title: "웹 폼 삭제", description: "정말 삭제하시겠습니까?", onConfirm: async () => {
+                const result = await deleteForm(id);
+                if (!result.success) throw new Error(result.error || "삭제에 실패했습니다.");
                 toast.success("폼이 삭제되었습니다.");
-            } else {
-                toast.error(result.error || "삭제에 실패했습니다.");
-            }
+            } });
         },
-        [deleteForm]
+        [deleteForm, confirm]
     );
 
     const handleToggleActive = useCallback(
@@ -76,8 +76,11 @@ export default function WebFormsPage() {
         [updateForm]
     );
 
+    if (loadError0 || loadError1 || loadError2) return <WorkspaceLayout><QueryErrorState error={loadError0 || loadError1 || loadError2} onRetry={() => Promise.all([retryLoad0(), retryLoad1(), retryLoad2()])} /></WorkspaceLayout>;
+
     return (
         <WorkspaceLayout>
+            {confirmationDialog}
             <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold">웹 폼</h1>

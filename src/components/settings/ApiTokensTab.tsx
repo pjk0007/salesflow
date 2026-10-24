@@ -1,3 +1,4 @@
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -64,7 +65,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function ApiTokensTab() {
     const { user } = useSession();
-    const { tokens, isLoading, createToken, updateToken, deleteToken } = useApiTokens();
+    const { tokens, isLoading, error, mutate, createToken, updateToken, deleteToken } = useApiTokens();
     const canEdit = user?.role === "owner" || user?.role === "admin";
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -117,6 +118,8 @@ export default function ApiTokensTab() {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
+
+    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

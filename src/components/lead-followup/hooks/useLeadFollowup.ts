@@ -7,7 +7,8 @@ export function useLeadFollowup(recordId: number) {
     const { mutate: refresh } = useSWRConfig();
     const { data, error, isLoading, mutate } = useSWR<{ success: boolean; data?: FollowupDetail; error?: string }>(
         `/api/records/${recordId}/lead-followup`, defaultFetcher, { refreshInterval: 60_000 });
-    return { detail: data?.data, error: error ? "후속 대응 상태를 불러오지 못했습니다." : data?.success === false ? data.error : null,
+    return {
+        mutate: mutate, detail: data?.data, error: error ? "후속 대응 상태를 불러오지 못했습니다." : data?.success === false ? data.error : null,
         isLoading, reload: () => mutate(), save: async (patch: FollowupPatch) => {
             try {
                 const detail = await saveFollowup(recordId, patch);

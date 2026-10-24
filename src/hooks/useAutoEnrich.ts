@@ -10,7 +10,7 @@ interface ApiResponse {
 
 
 export function useAutoEnrichRules(partitionId: number | null) {
-    const { data, isLoading, mutate } = useSWR<ApiResponse>(
+    const { data, isLoading, mutate , error: queryError0 } = useSWR<ApiResponse>(
         partitionId ? `/api/records/auto-enrich?partitionId=${partitionId}` : null,
         defaultFetcher
     );
@@ -55,6 +55,7 @@ export function useAutoEnrichRules(partitionId: number | null) {
     };
 
     return {
+        error: queryError0,
         rules: data?.data ?? [],
         isLoading,
         mutate,

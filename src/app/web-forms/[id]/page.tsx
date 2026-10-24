@@ -25,8 +25,10 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 export default function EditWebFormPage() {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const params = useParams();
     const formId = Number(params.id);
@@ -145,9 +147,7 @@ export default function EditWebFormPage() {
 
     const handleAiGenerate = useCallback(async () => {
         if (!aiPrompt.trim()) return;
-        if (formFields.length > 0) {
-            if (!confirm("기존 필드가 AI 생성 결과로 대체됩니다. 계속하시겠습니까?")) return;
-        }
+        const generate = async () => {
         setAiGenerating(true);
         try {
             const res = await fetch("/api/ai/generate-webform", {
@@ -181,13 +181,19 @@ export default function EditWebFormPage() {
                 setAiOpen(false);
                 setAiPrompt("");
             } else {
-                toast.error(json.error || "AI 생성에 실패했습니다.");
+                throw new Error(json.error || "AI 생성에 실패했습니다.");
             }
-        } catch {
-            toast.error("AI 생성 중 오류가 발생했습니다.");
+        } finally {
+            setAiGenerating(false);
         }
-        setAiGenerating(false);
-    }, [aiPrompt, aiModel, formFields.length, workspaceFields]);
+        };
+        if (formFields.length > 0) {
+            confirm({ title: "웹 폼 필드 교체", confirmLabel: "생성", description: "기존 필드가 AI 생성 결과로 대체됩니다. 계속하시겠습니까?", onConfirm: generate });
+        } else {
+            try { await generate(); }
+            catch { toast.error("AI 생성 중 오류가 발생했습니다."); }
+        }
+    }, [aiPrompt, aiModel, formFields.length, workspaceFields, confirm]);
 
     if (loading) {
         return (
@@ -201,6 +207,7 @@ export default function EditWebFormPage() {
 
     return (
         <WorkspaceLayout>
+            {confirmationDialog}
             <div className="flex flex-col h-[calc(100vh-64px)]">
                 {/* 헤더 */}
                 <div className="border-b px-6 py-3 flex items-center justify-between shrink-0">

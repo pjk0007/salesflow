@@ -1,23 +1,29 @@
 "use client";
 
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+
+import { defaultFetcher } from "@/lib/swr-fetcher";
+
 import { useState } from "react";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 
-const fetcher = (url: string) => fetch(url).then(r => r.json());
+
 
 export default function AdminOrganizations() {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
-    const { data, isLoading } = useSWR(`/api/admin/organizations?search=${search}&page=${page}&limit=20`, fetcher);
-    const { data: detail } = useSWR(selectedId ? `/api/admin/organizations/${selectedId}` : null, fetcher);
+    const { data, isLoading, error, mutate } = useSWR(`/api/admin/organizations?search=${search}&page=${page}&limit=20`, defaultFetcher);
+    const { data: detail, error: detailError, mutate: retryDetail } = useSWR(selectedId ? `/api/admin/organizations/${selectedId}` : null, defaultFetcher);
 
     const orgs = data?.data || [];
     const pagination = data?.pagination;
+
+    if (error || detailError) return <QueryErrorState error={error || detailError} onRetry={() => Promise.all([mutate(), retryDetail()])} />;
 
     if (selectedId && detail?.data) {
         const d = detail.data;

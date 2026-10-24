@@ -1,9 +1,11 @@
 "use client";
 
+import { defaultFetcher } from "@/lib/swr-fetcher";
+
 import { Suspense, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSWR from "swr";
-import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
+import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,7 +28,7 @@ import { useSenderProfiles } from "@/hooks/useSenderProfiles";
 import AiCopyManager from "@/components/ai-copy/ui/AiCopyManager";
 import ExperimentManager from "@/components/email-experiments/ui/ExperimentManager";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
 
 function EmailPageContent() {
     const router = useRouter();
@@ -45,7 +47,7 @@ function EmailPageContent() {
     const isSetupLoading = configLoading || profilesLoading;
 
     // 조직 내 모든 파티션 조회
-    const { data: allPartitionsData } = useSWR("/api/partitions", fetcher);
+    const { data: allPartitionsData , error: queryError0, mutate: retryQuery0 } = useSWR("/api/partitions", defaultFetcher);
 
     const partitions = useMemo(() => {
         const items: Array<{ id: number; name: string; workspaceId: number; workspaceName: string }> = allPartitionsData?.data ?? [];
@@ -56,6 +58,8 @@ function EmailPageContent() {
             name: hasMultipleWorkspaces ? `[${p.workspaceName}] ${p.name}` : p.name,
         }));
     }, [allPartitionsData]);
+
+    if (queryError0) return <WorkspaceLayout><QueryErrorState error={queryError0} onRetry={() => retryQuery0()} /></WorkspaceLayout>;
 
     return (
         <WorkspaceLayout>
