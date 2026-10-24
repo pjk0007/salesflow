@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, partitions, folders, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { getApiTokenFromNextRequest, resolveApiToken } from "@/lib/auth";
+import { getApiTokenFromNextRequest, resolveApiToken, tokenScopeCovers } from "@/lib/auth";
 import type { ApiTokenInfo } from "@/lib/auth";
 
 // GET /api/v1/partitions — 토큰 scope에 해당하는 파티션 목록 반환
@@ -43,18 +43,8 @@ export async function GET(req: NextRequest) {
             }
         }
 
-        // scope 기반 필터링
-        const accessible = allPartitions.filter((p) => {
-            for (const scope of tokenInfo.scopes) {
-                if (!scope.permissions.read) continue;
-                // 목록 쿼리가 이미 orgId로 걸러졌으므로 org 스코프는 전부 통과
-                if (scope.scopeType === "org") return true;
-                if (scope.scopeType === "partition" && scope.scopeId === p.id) return true;
-                if (scope.scopeType === "folder" && p.folderId === scope.scopeId) return true;
-                if (scope.scopeType === "workspace" && p.workspaceId === scope.scopeId) return true;
-            }
-            return false;
-        });
+        // scope 기반 필터링 — 목록 쿼리가 이미 orgId로 걸러졌으므로 org 스코프는 전부 통과
+        const accessible = allPartitions.filter((p) => tokenScopeCovers(tokenInfo.scopes, p, "read"));
 
         const data = accessible.map((p) => ({
             id: p.id,
