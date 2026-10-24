@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, partitions, records } from "@/lib/db";
 import { eq, and, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { isForeignKeyViolation } from "@/lib/db/errors";
 
 export async function GET(
     req: NextRequest,
@@ -99,6 +100,13 @@ export async function DELETE(
 
         return NextResponse.json({ success: true });
     } catch (error) {
+        // 상담·메일 상담·Google 연결·AI 문안 평가 기록 등이 이 워크스페이스를 참조하면 DB가 삭제를 막는다
+        if (isForeignKeyViolation(error)) {
+            return NextResponse.json({
+                success: false,
+                error: "상담·메일 기록 등이 남아 있어 이 워크스페이스는 바로 삭제할 수 없습니다. 목록에서 감추려면 워크스페이스 설정의 숨김을 사용해주세요.",
+            }, { status: 409 });
+        }
         console.error("Workspace delete error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }

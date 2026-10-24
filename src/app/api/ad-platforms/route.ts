@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { adPlatforms, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 const UNMASK_KEYS = new Set(["type", "webhookVerifyToken"]);
 
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
             },
         }, { status: 201 });
     } catch (error: unknown) {
-        if (error instanceof Error && error.message?.includes("unique")) {
+        if (isUniqueViolation(error)) {
             return NextResponse.json({ success: false, error: "이미 동일한 이름의 플랫폼 연결이 존재합니다." }, { status: 409 });
         }
         console.error("Ad platform create error:", error);

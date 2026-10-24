@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, fieldTypes, workspaces, partitions } from "@/lib/db";
 import { eq, and, or } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 export async function PATCH(
     req: NextRequest,
@@ -37,7 +38,7 @@ export async function PATCH(
         await db.update(fieldTypes).set(updates).where(eq(fieldTypes.id, typeId));
         return NextResponse.json({ success: true });
     } catch (error: unknown) {
-        if (error instanceof Error && error.message?.includes("unique")) {
+        if (isUniqueViolation(error)) {
             return NextResponse.json({ success: false, error: "이미 존재하는 타입 이름입니다." }, { status: 409 });
         }
         console.error("Field type update error:", error);

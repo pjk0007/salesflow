@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, fieldDefinitions, partitions } from "@/lib/db";
 import { eq, and, asc, max } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 const FIELD_TYPE_TO_CELL_TYPE: Record<string, string> = {
     text: "editable",
@@ -155,7 +156,7 @@ export async function POST(
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error: unknown) {
-        if (error instanceof Error && error.message?.includes("unique")) {
+        if (isUniqueViolation(error)) {
             return NextResponse.json({ success: false, error: "이미 존재하는 key입니다." }, { status: 409 });
         }
         console.error("Field create error:", error);

@@ -98,6 +98,13 @@ export default function CreateWorkspaceDialog({
                         const result = await res.json();
                         if (result.success) {
                             toast.success(`워크스페이스가 생성되었습니다. ${result.data.created}개 속성이 추가되었습니다.`);
+                            const skippedItems: Array<{ key: string; reason: string }> = result.data.skippedItems ?? [];
+                            if (skippedItems.length > 0) {
+                                toast.warning(`속성 ${skippedItems.length}개를 건너뛰었습니다: ${skippedItems
+                                    .slice(0, 3)
+                                    .map((item) => `${item.key || "(key 없음)"} — ${item.reason}`)
+                                    .join(", ")}${skippedItems.length > 3 ? " 외" : ""}`);
+                            }
                         }
                     }
                 } catch {
