@@ -4,6 +4,7 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { KnowledgeForm } from "@/components/ai-copy/ui/VersionForms";
 import { stateLabel } from "@/components/ai-copy/ui/Fields";
+import { kstParts } from "@/lib/kst";
 import { supportRequest, supportWrite } from "../api";
 import type { SupportKnowledge } from "../types";
 export function KnowledgeManager({
@@ -138,7 +139,7 @@ export function KnowledgeManager({
                                         {claim.sourceUrl}
                                     </a>
                                     <p className="text-muted-foreground">
-                                        {claim.checkedAt.slice(0, 10)} 확인 ·{" "}
+                                        {kstParts(new Date(claim.checkedAt)).date} 확인 ·{" "}
                                         {claim.purposes.includes(
                                             "customer_chat",
                                         )
