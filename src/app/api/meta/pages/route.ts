@@ -12,6 +12,10 @@ export async function GET(req: NextRequest) {
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
     }
+    // 페이지 목록 조회가 페이지 액세스 토큰을 갱신·저장하는 연동 관리 동작이라 관리자만 한다
+    if (user.role === "member") {
+        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
+    }
 
     const platformId = Number(req.nextUrl.searchParams.get("platformId"));
     if (!platformId) {
@@ -86,7 +90,11 @@ export async function GET(req: NextRequest) {
                 .where(eq(adPlatforms.id, platformId));
         }
 
-        return NextResponse.json({ success: true, data: pages });
+        // 페이지 액세스 토큰은 서버에만 저장하고 브라우저에는 돌려주지 않는다
+        return NextResponse.json({
+            success: true,
+            data: pages.map((page: { id: string; name: string }) => ({ id: page.id, name: page.name })),
+        });
     } catch (error) {
         console.error("Meta pages fetch error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });

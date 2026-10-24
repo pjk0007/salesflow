@@ -4,7 +4,6 @@ import { defaultFetcher } from "@/lib/swr-fetcher";
 export interface MetaPage {
     id: string;
     name: string;
-    accessToken: string;
 }
 
 interface ListResponse {
