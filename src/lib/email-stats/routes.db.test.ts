@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { fixture, openQa, qaUrl } from "./db-fixture.test-helper";
 
@@ -12,7 +13,11 @@ test("통계 라우트의 인증·권한·조직 격리", { skip: !url }, async 
         const { generateToken } = await import("../auth");
         const { POST } = await import("../../app/api/analytics/email-stats/refresh/route");
         const { GET } = await import("../../app/api/analytics/email-stats/route");
-        const token = generateToken({ userId: "qa", orgId: orgs[0].orgId, email: "qa@example.invalid", name: "QA", role: "member" });
+        // 직원 API는 DB의 현재 멤버십을 확인한다(UX-014) — 가상 member 계정·멤버십을 둔다(TRUNCATE organizations CASCADE로 함께 정리)
+        const userId = randomUUID();
+        await c`INSERT INTO users(id,org_id,email,password,name,role) VALUES(${userId},${orgs[0].orgId},'qa-member@example.invalid','qa-not-a-password','QA','member')`;
+        await c`INSERT INTO organization_members(organization_id,user_id,role) VALUES(${orgs[0].orgId},${userId},'member')`;
+        const token = generateToken({ userId, orgId: orgs[0].orgId, email: "qa-member@example.invalid", name: "QA", role: "member" });
         await t.test("refresh POST 토큰 없음 401", async () => {
             assert.equal((await POST(new NextRequest("http://localhost/api/analytics/email-stats/refresh", { method: "POST" }))).status, 401);
         });
