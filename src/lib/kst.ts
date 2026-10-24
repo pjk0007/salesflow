@@ -6,6 +6,8 @@
  */
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+/** 업무 집계 기준 시간대. SQL의 일 단위 묶음은 `AT TIME ZONE 'Asia/Seoul'`로 이 값과 맞춘다 */
+export const KST_TIME_ZONE = "Asia/Seoul";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const BUSINESS_START_HOUR = 9;
@@ -44,6 +46,26 @@ export function kstToDate(ymd: string, hour: number, minute = 0): Date {
     return new Date(Date.UTC(y, m - 1, d, hour, minute) - KST_OFFSET_MS);
 }
 
+/**
+ * now가 속한 KST 날짜를 마지막 날로 하는 최근 days일(오늘 포함)의 시작 순간.
+ * days=1이면 KST 오늘 00:00 — 서버 시간대와 무관하게 "오늘"·"최근 N일" 하한으로 쓴다.
+ */
+export function kstRecentDaysStart(now: Date, days = 1): Date {
+    return kstToDate(addDaysYmd(kstParts(now).date, 1 - days), 0);
+}
+
+/** 시각 목록을 KST 날짜별로 센다(날짜 오름차순). 일별 활동량처럼 하루 단위 묶음은 UTC 절단 대신 이것을 쓴다 */
+export function countByKstDate(instants: Iterable<string | Date>): { date: string; count: number }[] {
+    const counts = new Map<string, number>();
+    for (const at of instants) {
+        const day = kstParts(at instanceof Date ? at : new Date(at)).date;
+        counts.set(day, (counts.get(day) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+        .map(([date, count]) => ({ date, count }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 /** 날짜 문자열에 n일을 더한다 (달·해 넘김 포함) */
 export function addDaysYmd(ymd: string, n: number): string {
     const [y, m, d] = ymd.split("-").map(Number);
@@ -72,6 +94,11 @@ export function nextWeekdayYmd(ymd: string): string {
 export function formatKstShort(date: Date): string {
     const s = shifted(date);
     return `${s.getUTCMonth() + 1}/${s.getUTCDate()} ${pad2(s.getUTCHours())}:${pad2(s.getUTCMinutes())}`;
+}
+
+/** "YYYY-MM-DD HH:mm" — 내보내기 파일처럼 정렬 가능한 KST 일시 */
+export function formatKstDateTime(date: Date): string {
+    return `${kstParts(date).date} ${formatKstHm(date)}`;
 }
 
 /** "HH:mm" */

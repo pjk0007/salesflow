@@ -1,5 +1,6 @@
-import { records } from "@/lib/db";
+import { records } from "@/lib/db/schema";
 import { eq, sql, type SQL } from "drizzle-orm";
+import { isValidYmd } from "@/lib/tracker/date-range";
 
 export interface RecordFilter {
     field: string;
@@ -14,6 +15,31 @@ export interface RecordConditionOptions {
     groupBy?: string | null;
     groupValue?: string | null;
     filters?: RecordFilter[];
+}
+
+/**
+ * 날짜·시간 속성 값의 KST 날짜(SQL date).
+ *
+ * date 속성("YYYY-MM-DD")은 그대로, datetime 속성(UTC ISO처럼 시간대가 붙은 값)은 KST로 바꿔
+ * 날짜를 뽑는다 — DB 세션 시간대와 무관하다. 시간대 없는 일시는 적힌 날짜를 쓴다.
+ * 날짜 모양이 아닌 값은 NULL이라 비교에서 빠진다.
+ * 필드 타입 대신 값의 모양으로 분기해 목록·조건 삭제·내보내기·그룹 수가 같은 의미로 거른다.
+ */
+export function recordKstDateSql(key: string): SQL {
+    const v = sql`${records.data}->>${key}`;
+    return sql`(CASE
+        WHEN ${v} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN (${v})::date
+        WHEN ${v} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}.*(Z|[+-][0-9]{2}(:?[0-9]{2})?)$'
+            THEN ((${v})::timestamptz AT TIME ZONE 'Asia/Seoul')::date
+        WHEN ${v} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ]' THEN left(${v}, 10)::date
+    END)`;
+}
+
+/** '같음' — 값이 날짜(YYYY-MM-DD)면 날짜·시간 속성을 KST 날짜로도 비교한다. 그 밖에는 문자열 비교 */
+export function recordEqualsSql(key: string, value: unknown): SQL {
+    const text = String(value);
+    if (!isValidYmd(text)) return sql`${records.data}->>${key} = ${text}`;
+    return sql`(${records.data}->>${key} = ${text} OR ${recordKstDateSql(key)} = ${text}::date)`;
 }
 
 /**
@@ -50,7 +76,7 @@ export function buildRecordConditions(
                 conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
                 break;
             case "equals":
-                conditions.push(sql`${records.data}->>${key} = ${String(val)}`);
+                conditions.push(recordEqualsSql(key, val));
                 break;
             case "not_equals":
                 conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
@@ -68,14 +94,14 @@ export function buildRecordConditions(
                 conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
                 break;
             case "before":
-                conditions.push(sql`(${records.data}->>${key})::date < ${String(val)}::date`);
+                conditions.push(sql`${recordKstDateSql(key)} < ${String(val)}::date`);
                 break;
             case "after":
-                conditions.push(sql`(${records.data}->>${key})::date > ${String(val)}::date`);
+                conditions.push(sql`${recordKstDateSql(key)} > ${String(val)}::date`);
                 break;
             case "between":
-                conditions.push(sql`(${records.data}->>${key})::date >= ${String(val)}::date`);
-                conditions.push(sql`(${records.data}->>${key})::date <= ${String(f.valueTo)}::date`);
+                conditions.push(sql`${recordKstDateSql(key)} >= ${String(val)}::date`);
+                conditions.push(sql`${recordKstDateSql(key)} <= ${String(f.valueTo)}::date`);
                 break;
             case "is_empty":
                 conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);

@@ -112,13 +112,13 @@ export async function GET(
             .limit(8),
         db
             .select({
-                date: sql<string>`${trackerEvents.occurredAt}::date::text`,
+                date: sql<string>`(${trackerEvents.occurredAt} AT TIME ZONE 'Asia/Seoul')::date::text`,
                 count: sql<number>`COUNT(*)::int`,
             })
             .from(trackerEvents)
             .where(inArray(trackerEvents.visitorId, visitorIds))
-            .groupBy(sql`${trackerEvents.occurredAt}::date`)
-            .orderBy(sql`${trackerEvents.occurredAt}::date`),
+            .groupBy(sql`(${trackerEvents.occurredAt} AT TIME ZONE 'Asia/Seoul')::date`)
+            .orderBy(sql`(${trackerEvents.occurredAt} AT TIME ZONE 'Asia/Seoul')::date`),
         db
             .select({
                 hour: sql<number>`EXTRACT(HOUR FROM ${trackerEvents.occurredAt} AT TIME ZONE 'Asia/Seoul')::int`,

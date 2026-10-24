@@ -1,3 +1,4 @@
+import { kstDateFilter } from "@/lib/tracker/date-range";
 import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkSendLogs } from "@/lib/db";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
@@ -29,16 +30,13 @@ export async function GET(req: NextRequest) {
         if (status) {
             conditions.push(eq(alimtalkSendLogs.status, status));
         }
-        const startDate = searchParams.get("startDate");
-        if (startDate) {
-            conditions.push(gte(alimtalkSendLogs.sentAt, new Date(startDate)));
+        // 날짜는 KST 하루 경계로 자른다 — 서버 시간대와 무관
+        const dates = kstDateFilter(searchParams.get("startDate"), searchParams.get("endDate"));
+        if (!dates.ok) {
+            return NextResponse.json({ success: false, error: dates.error }, { status: 400 });
         }
-        const endDate = searchParams.get("endDate");
-        if (endDate) {
-            const endDateObj = new Date(endDate);
-            endDateObj.setHours(23, 59, 59, 999);
-            conditions.push(lte(alimtalkSendLogs.sentAt, endDateObj));
-        }
+        if (dates.fromIso) conditions.push(gte(alimtalkSendLogs.sentAt, new Date(dates.fromIso)));
+        if (dates.toIso) conditions.push(lte(alimtalkSendLogs.sentAt, new Date(dates.toIso)));
 
         const where = and(...conditions);
 

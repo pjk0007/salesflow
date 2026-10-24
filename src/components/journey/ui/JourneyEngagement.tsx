@@ -2,7 +2,7 @@
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LabelList } from "recharts";
 import type { JourneyDailyActivity } from "../types";
-import { formatDate } from "../utils/format";
+import { formatDayKey } from "../utils/format";
 
 /**
  * L3 관여도 — 일별 활동량. 평균 대비 폭증일은 색 강조.
@@ -15,7 +15,7 @@ export function JourneyEngagement({ daily }: { daily: JourneyDailyActivity[] }) 
 
     const data = daily.map((d) => ({
         ...d,
-        label: formatDate(d.date + "T00:00:00"),
+        label: formatDayKey(d.date),
         spike: d.count >= spikeThreshold && d.count > 1,
     }));
 

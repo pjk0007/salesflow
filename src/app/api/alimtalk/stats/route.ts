@@ -1,3 +1,4 @@
+import { kstRecentDaysStart } from "@/lib/kst";
 import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkSendLogs } from "@/lib/db";
 import { eq, and, gte, sql } from "drizzle-orm";
@@ -11,20 +12,9 @@ export async function GET(req: NextRequest) {
 
     try {
         const period = req.nextUrl.searchParams.get("period") || "today";
-        const now = new Date();
-        let since: Date;
-
-        switch (period) {
-            case "week":
-                since = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-                break;
-            case "month":
-                since = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-                break;
-            default: // today
-                since = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                break;
-        }
+        // week·month는 화면 표기대로 오늘(KST) 포함 최근 7일·30일, today는 KST 오늘 00:00부터
+        const days = period === "week" ? 7 : period === "month" ? 30 : 1;
+        const since = kstRecentDaysStart(new Date(), days);
 
         const conditions = [
             eq(alimtalkSendLogs.orgId, user.orgId),

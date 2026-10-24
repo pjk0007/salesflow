@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { targetsFor } from "@/lib/ai-copy/defaults";
+import { kstParts, kstToDate } from "@/lib/kst";
 import type {
     CopyPurpose,
     KnowledgePurpose,
@@ -11,8 +12,8 @@ import type {
     PolicySnapshot,
 } from "@/lib/ai-copy/types";
 import { Field, controlClass, purposeLabel } from "./Fields";
-const today = () =>
-    new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
+// 확인일은 KST 날짜로 고르고 KST 자정 순간으로 저장한다 — 다시 열거나 복제할 때도 KST 날짜로 읽어야 하루씩 밀리지 않는다.
+const today = () => kstParts(new Date()).date;
 type Workspaces = { id: number; name: string }[];
 function BusinessField({
     value,
@@ -67,7 +68,7 @@ export function KnowledgeForm({
     const [claims, setClaims] = useState(
         initial?.snapshot.claims.map((c) => ({
             ...c,
-            checkedAt: c.checkedAt.slice(0, 10),
+            checkedAt: kstParts(new Date(c.checkedAt)).date,
         })) ?? [
             {
                 text: "",
@@ -95,9 +96,7 @@ export function KnowledgeForm({
                             .filter((c) => c.text.trim())
                             .map((c) => ({
                                 ...c,
-                                checkedAt: new Date(
-                                    `${c.checkedAt}T00:00:00+09:00`,
-                                ).toISOString(),
+                                checkedAt: kstToDate(c.checkedAt, 0).toISOString(),
                             })),
                     },
                 });

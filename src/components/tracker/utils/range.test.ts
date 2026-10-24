@@ -69,3 +69,25 @@ test("잘못된 날짜·프리셋은 오늘로 복구하고 날짜 길이가 다
         preset: "custom", from: "2026-10-17", to: "2026-10-18",
     });
 });
+
+test("오늘 프리셋은 브라우저 시간대가 아니라 KST 날짜다 — 00:00·08:59·09:00 KST·해외 브라우저 (UX-212)", () => {
+    const original = process.env.TZ;
+    try {
+        for (const tz of ["Asia/Seoul", "UTC", "America/Los_Angeles", "Europe/Berlin"]) {
+            process.env.TZ = tz;
+            for (const iso of ["2026-10-17T15:00:00Z", "2026-10-17T23:59:00Z", "2026-10-18T00:00:00Z"]) {
+                const now = new Date(iso);
+                assert.deepEqual(presetRange("1d", now), { preset: "1d", from: "2026-10-18", to: "2026-10-18" }, `${tz} ${iso}`);
+                assert.deepEqual(presetRange("7d", now), { preset: "7d", from: "2026-10-12", to: "2026-10-18" }, `${tz} ${iso}`);
+                // 오늘에서는 다음 이동이 막힌다
+                const today = presetRange("1d", now);
+                assert.deepEqual(shiftRange(today, 1, now), today, `${tz} ${iso}`);
+            }
+            // KST 10-17 23:59는 아직 10-17
+            assert.equal(presetRange("1d", new Date("2026-10-17T14:59:00Z")).to, "2026-10-17", tz);
+        }
+    } finally {
+        if (original === undefined) delete process.env.TZ;
+        else process.env.TZ = original;
+    }
+});

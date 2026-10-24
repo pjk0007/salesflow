@@ -2,19 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerFunnels, trackerSessions } from "@/lib/db";
 import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
 import { getUserFromNextRequest } from "@/lib/auth";
+import { rangeBounds, resolveRange } from "@/lib/tracker/date-range";
 import { getStageVisitorIds } from "@/lib/tracker/funnel-analytics";
 import { classifyAdGroup, type AdGroup } from "@/components/journey/utils/ad-group";
 import type { AdPerformanceRow } from "@/components/tracker/types/ad-performance";
 import type { StageMatch } from "@/components/tracker/types/funnel";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function rangeBounds(fromYmd: string, toYmd: string) {
-    return {
-        fromIso: `${fromYmd}T00:00:00+09:00`,
-        toIso: `${toYmd}T23:59:59.999+09:00`,
-    };
-}
 
 export async function GET(req: NextRequest) {
     const user = getUserFromNextRequest(req);
@@ -44,10 +37,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 기간
-    const today = new Date();
-    const ymd = (d: Date) => d.toISOString().slice(0, 10);
-    const fromYmd = sp.get("from") ?? ymd(new Date(today.getTime() - 30 * DAY_MS));
-    const toYmd = sp.get("to") ?? ymd(today);
+    const { fromYmd, toYmd } = resolveRange(sp.get("from"), sp.get("to"));
     const { fromIso, toIso } = rangeBounds(fromYmd, toYmd);
 
     // 1) 기간 내 광고 세션 → 광고 그룹별 visitor 집합 (JS 분류)

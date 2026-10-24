@@ -68,8 +68,8 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="today">오늘</SelectItem>
-                        <SelectItem value="week">이번 주</SelectItem>
-                        <SelectItem value="month">이번 달</SelectItem>
+                        <SelectItem value="week">최근 7일</SelectItem>
+                        <SelectItem value="month">최근 30일</SelectItem>
                     </SelectContent>
                 </Select>
             </div>

@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
             aggregateRange({ siteId, fromIso: prevFromIso, toIso: prevToIso, excludes, device, sessionIds: sessionIdsPrev }),
             // 일별 페이지뷰
             db.execute(sql`
-                SELECT occurred_at::date::text AS date, COUNT(*)::int AS count
+                SELECT (occurred_at AT TIME ZONE 'Asia/Seoul')::date::text AS date, COUNT(*)::int AS count
                 FROM tracker_events ev
                 JOIN tracker_visitors tv ON tv.id = ev.visitor_id
                 WHERE ev.site_id = ${siteId} AND ev.event_type = 'PAGE_VIEW'
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
             // 일별 가입/구독 추이 — record_events 기반 (signup + match_stage=conversionStage)
             db.execute(sql`
                 SELECT
-                    re.occurred_at::date::text AS date,
+                    (re.occurred_at AT TIME ZONE 'Asia/Seoul')::date::text AS date,
                     COUNT(DISTINCT re.record_id) FILTER (WHERE re.type = 'signup')::int AS signups,
                     COUNT(DISTINCT re.record_id) FILTER (
                         WHERE re.type = 'match_stage' AND re.label = ${site.conversionStage ?? ""}
