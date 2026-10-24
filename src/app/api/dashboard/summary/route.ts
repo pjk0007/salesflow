@@ -1,3 +1,4 @@
+import { kstRecentDaysStart } from "@/lib/kst";
 import { NextRequest, NextResponse } from "next/server";
 import {
     db,
@@ -18,8 +19,8 @@ export async function GET(req: NextRequest) {
 
     try {
         const { orgId } = user;
-        const todayStart = new Date();
-        todayStart.setHours(0, 0, 0, 0);
+        // "오늘" = KST 오늘 00:00부터 — 서버 시간대와 무관(아래 기간 분석과 같은 날짜 기준)
+        const todayStart = kstRecentDaysStart(new Date());
 
         const [
             recordCountResult,

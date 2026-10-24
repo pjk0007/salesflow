@@ -1,3 +1,4 @@
+import { kstRecentDaysStart } from "@/lib/kst";
 import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
 import {
@@ -121,7 +122,7 @@ export const TOOL_DEFINITIONS = [
     },
     {
         name: "get_analytics",
-        description: "발송 통계를 조회합니다. 오늘의 알림톡/이메일 발송 현황과 레코드 수를 반환합니다.",
+        description: "발송 통계를 조회합니다. 오늘(KST 0시부터)의 알림톡/이메일 발송 현황과 레코드 수를 반환합니다.",
         inputSchema: { type: "object" as const, properties: {} },
     },
     ...TRACKER_TOOL_DEFINITIONS,
@@ -347,8 +348,8 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
         },
 
         get_analytics: async (_args, tokenInfo) => {
-            const todayStart = new Date();
-            todayStart.setHours(0, 0, 0, 0);
+            // "오늘" = KST 오늘 00:00부터 — 서버 시간대와 무관
+            const todayStart = kstRecentDaysStart(new Date());
 
             const [recordCount, workspaceCount, partitionCount, alimtalkStats, emailStats] = await Promise.all([
                 db.select({ count: sql<number>`count(*)::int` }).from(records).where(eq(records.orgId, tokenInfo.orgId)),
