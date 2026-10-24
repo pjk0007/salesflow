@@ -169,7 +169,7 @@ export default function AiFollowupTestDialog({ open, onOpenChange, linkId, linkN
 
                 <ScrollArea className="max-h-[65vh] w-full">
                     <div className="w-0 min-w-full px-6">
-                        {error ? <QueryErrorState error={error} onRetry={() => mutate()} /> : isLoading ? (
+                        {error && !data ? <QueryErrorState error={error} onRetry={() => mutate()} /> : isLoading ? (
                             <div className="flex items-center justify-center py-12">
                                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                             </div>

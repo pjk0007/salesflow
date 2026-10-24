@@ -76,8 +76,8 @@ const roleConfig: Record<OrgRole, { icon: typeof Crown; label: string; color: st
 
 export default function OrgTeamTab() {
     const { user } = useSession();
-    const { members, isLoading: membersLoading, updateRole, removeMember , error: loadError0, mutate: retryLoad0 } = useOrgMembers();
-    const { invitations, isLoading: invitationsLoading, createInvitation, cancelInvitation , error: loadError1, mutate: retryLoad1 } = useOrgInvitations();
+    const { members, isLoading: membersLoading, updateRole, removeMember, loadError: membersError, mutate: mutateMembers } = useOrgMembers();
+    const { invitations, isLoading: invitationsLoading, createInvitation, cancelInvitation, loadError: invitationsError, mutate: mutateInvitations } = useOrgInvitations();
 
     const isOwner = user?.role === "owner";
     const canManageTeam = user?.role === "owner" || user?.role === "admin";
@@ -154,7 +154,7 @@ export default function OrgTeamTab() {
         toast.success("초대 링크가 복사되었습니다.");
     };
 
-    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
+    if (membersError) return <QueryErrorState error={membersError} onRetry={() => mutateMembers()} />;
 
     if (membersLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;
@@ -272,6 +272,9 @@ export default function OrgTeamTab() {
             </Card>
 
             {/* 대기 중인 초대 */}
+            {canManageTeam && invitationsError ? (
+                <QueryErrorState error={invitationsError} onRetry={() => mutateInvitations()} />
+            ) : null}
             {canManageTeam && invitations.length > 0 && (
                 <Card>
                     <CardHeader>

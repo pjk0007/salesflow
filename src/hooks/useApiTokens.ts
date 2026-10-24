@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface ApiTokenScope {
     id: number;
@@ -78,6 +78,7 @@ export function useApiTokens() {
         tokens: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createToken,
         updateToken,

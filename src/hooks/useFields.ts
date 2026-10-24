@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, FieldDefinition } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 
 export function useFields(workspaceId: number | null) {
@@ -13,6 +13,7 @@ export function useFields(workspaceId: number | null) {
         fields: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
     };
 }

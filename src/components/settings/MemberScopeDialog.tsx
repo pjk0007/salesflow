@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { ChevronRight, ChevronDown, Loader2, Folder, Database, Layers } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import {
     useMemberScopeTree,
     permissionsToLevel,
@@ -51,6 +52,8 @@ export function MemberScopeDialog({ open, onOpenChange, userId, userName }: Memb
     const {
         nodes,
         isLoading,
+        loadError,
+        retry,
         busyKey,
         expanded,
         toggleExpand,
@@ -72,7 +75,9 @@ export function MemberScopeDialog({ open, onOpenChange, userId, userName }: Memb
                 </DialogHeader>
 
                 <div className="max-h-[55vh] overflow-y-auto rounded-md border">
-                    {isLoading ? (
+                    {loadError ? (
+                        <QueryErrorState error={loadError} onRetry={retry} />
+                    ) : isLoading ? (
                         <p className="p-6 text-sm text-muted-foreground">불러오는 중…</p>
                     ) : nodes.length === 0 ? (
                         <p className="p-6 text-sm text-muted-foreground">워크스페이스가 없습니다.</p>
@@ -94,7 +99,7 @@ export function MemberScopeDialog({ open, onOpenChange, userId, userName }: Memb
                     )}
                 </div>
 
-                {!hasAnyScope && !isLoading && (
+                {!hasAnyScope && !isLoading && !loadError && (
                     <p className="text-xs text-muted-foreground">
                         아직 추가 권한이 없습니다 — 데이터 조회·편집은 가능하지만 파티션을 만들거나 지울 수는 없습니다.
                     </p>

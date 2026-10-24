@@ -1,17 +1,13 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
-import { defaultFetcher } from "@/lib/swr-fetcher";
-
 import { useState } from "react";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
 import { toast } from "sonner";
-
-
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 export default function AdminUsers() {
     const [search, setSearch] = useState("");
@@ -36,7 +32,7 @@ export default function AdminUsers() {
         }
     }
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">

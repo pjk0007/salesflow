@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, CreateWorkspaceInput } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface WorkspaceItem {
     id: number;
@@ -46,6 +46,7 @@ export function useWorkspaces() {
         allWorkspaces,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createWorkspace,
         deleteWorkspace,

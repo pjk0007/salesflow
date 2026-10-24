@@ -1,9 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
-import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,6 +14,8 @@ import { useAdPlatforms } from "@/hooks/useAdPlatforms";
 import { RefreshCw, Unlink, Loader2, Plus } from "lucide-react";
 import { useEffect, useCallback } from "react";
 import type { AdPlatformType, AdPlatformStatus } from "@/types";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 const PLATFORM_LABELS: Record<AdPlatformType, string> = {
     meta: "Meta (Facebook/Instagram)",
@@ -47,7 +45,7 @@ function formatRelativeTime(dateStr: string | null): string {
 
 export default function AdPlatformList() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
-    const { platforms, error, isLoading, mutate, deletePlatform, syncAccounts } = useAdPlatforms();
+    const { platforms, loadError, isLoading, mutate, deletePlatform, syncAccounts } = useAdPlatforms();
 
     // Meta OAuth 팝업 결과 수신
     const handleOAuthMessage = useCallback((event: MessageEvent) => {
@@ -104,7 +102,7 @@ export default function AdPlatformList() {
         });
     };
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

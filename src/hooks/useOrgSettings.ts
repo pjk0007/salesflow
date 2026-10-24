@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, OrgInfo, UpdateOrgInput } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 
 export function useOrgSettings() {
@@ -21,10 +21,11 @@ export function useOrgSettings() {
     };
 
     return {
-        mutate: mutate,
         org: data?.data ?? null,
         isLoading,
+        mutate,
         error,
+        loadError: blockingError(data, error),
         updateOrg,
     };
 }

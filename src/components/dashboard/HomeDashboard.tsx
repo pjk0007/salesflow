@@ -1,6 +1,6 @@
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import Link from "next/link";
 import AnalyticsSection from "./AnalyticsSection";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useDashboardSummary } from "@/hooks/useDashboardSummary";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -170,58 +170,63 @@ function QuickActions() {
 }
 
 export default function HomeDashboard() {
-    const { summary, isLoading , error: loadError0, mutate: retryLoad0 } = useDashboardSummary();
-
-    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
+    const { summary, isLoading, loadError, mutate } = useDashboardSummary();
 
     return (
         <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                <StatCard
-                    label="전체 레코드"
-                    value={summary.recordCount.toLocaleString()}
-                    icon={Users}
-                    color="text-blue-600"
-                    isLoading={isLoading}
-                />
-                <StatCard
-                    label="워크스페이스"
-                    value={summary.workspaceCount}
-                    subtitle={`파티션 ${summary.partitionCount}개`}
-                    icon={LayoutGrid}
-                    color="text-purple-600"
-                    isLoading={isLoading}
-                />
-                <StatCard
-                    label="알림톡 (오늘)"
-                    value={isLoading ? "-" : `${summary.alimtalk.sent} / ${summary.alimtalk.failed}`}
-                    subtitle={`전체 ${summary.alimtalk.total}건`}
-                    icon={MessageSquare}
-                    color="text-green-600"
-                    isLoading={false}
-                />
-                <StatCard
-                    label="이메일 (오늘)"
-                    value={isLoading ? "-" : `${summary.email.sent} / ${summary.email.failed}`}
-                    subtitle={`전체 ${summary.email.total}건`}
-                    icon={Mail}
-                    color="text-orange-600"
-                    isLoading={false}
-                />
-            </div>
+            {/* 요약을 못 읽어도 바로가기·분석은 그대로 쓴다 */}
+            {loadError ? (
+                <QueryErrorState error={loadError} onRetry={() => mutate()} />
+            ) : (
+                <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                        <StatCard
+                            label="전체 레코드"
+                            value={summary.recordCount.toLocaleString()}
+                            icon={Users}
+                            color="text-blue-600"
+                            isLoading={isLoading}
+                        />
+                        <StatCard
+                            label="워크스페이스"
+                            value={summary.workspaceCount}
+                            subtitle={`파티션 ${summary.partitionCount}개`}
+                            icon={LayoutGrid}
+                            color="text-purple-600"
+                            isLoading={isLoading}
+                        />
+                        <StatCard
+                            label="알림톡 (오늘)"
+                            value={isLoading ? "-" : `${summary.alimtalk.sent} / ${summary.alimtalk.failed}`}
+                            subtitle={`전체 ${summary.alimtalk.total}건`}
+                            icon={MessageSquare}
+                            color="text-green-600"
+                            isLoading={false}
+                        />
+                        <StatCard
+                            label="이메일 (오늘)"
+                            value={isLoading ? "-" : `${summary.email.sent} / ${summary.email.failed}`}
+                            subtitle={`전체 ${summary.email.total}건`}
+                            icon={Mail}
+                            color="text-orange-600"
+                            isLoading={false}
+                        />
+                    </div>
 
-            <div className="grid md:grid-cols-2 gap-4 md:gap-6">
-                <RecentLogsCard
-                    title="최근 알림톡"
-                    logs={summary.recentAlimtalkLogs}
-                    type="alimtalk"
-                />
-                <RecentLogsCard
-                    title="최근 이메일"
-                    logs={summary.recentEmailLogs}
-                    type="email"
-                />
-            </div>
+                    <div className="grid md:grid-cols-2 gap-4 md:gap-6">
+                        <RecentLogsCard
+                            title="최근 알림톡"
+                            logs={summary.recentAlimtalkLogs}
+                            type="alimtalk"
+                        />
+                        <RecentLogsCard
+                            title="최근 이메일"
+                            logs={summary.recentEmailLogs}
+                            type="email"
+                        />
+                    </div>
+                </>
+            )}
 
             <QuickActions />
 

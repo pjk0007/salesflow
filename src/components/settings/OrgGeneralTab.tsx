@@ -1,7 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,11 +18,12 @@ import { toast } from "sonner";
 import { useOrgSettings } from "@/hooks/useOrgSettings";
 import { useSession } from "@/contexts/SessionContext";
 import { Copy, Trash2 } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 export default function OrgGeneralTab() {
     const router = useRouter();
     const { user, logout, refreshSession } = useSession();
-    const { org, isLoading, updateOrg , error: loadError0, mutate: retryLoad0 } = useOrgSettings();
+    const { org, isLoading, updateOrg, loadError, mutate } = useOrgSettings();
     const isOwner = user?.role === "owner";
     const canEdit = user?.role === "owner" || user?.role === "admin";
 
@@ -72,11 +71,17 @@ export default function OrgGeneralTab() {
     const handleDeleteOrg = async () => {
         const result = await apiRequest<{ success: boolean; noOrgsLeft?: boolean }>("/api/org/settings", { method: "DELETE" });
         toast.success("조직이 삭제되었습니다.");
-        if (result.noOrgsLeft) logout();
-        else { await refreshSession(); router.push("/"); }
+        // 삭제는 끝났다. 뒤이은 세션 갱신이 실패해도 확인창에 실패로 남겨 재삭제(404)를 유도하지 않는다.
+        try {
+            if (result.noOrgsLeft) logout();
+            else await refreshSession();
+        } catch (cause) {
+            console.error("조직 삭제 후 세션 갱신 실패:", cause);
+        }
+        if (!result.noOrgsLeft) router.push("/");
     };
 
-    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

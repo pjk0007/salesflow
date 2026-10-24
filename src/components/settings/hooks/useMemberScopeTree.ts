@@ -7,7 +7,7 @@ import {
     type MemberScopeType,
     type ScopePermissions,
 } from "@/hooks/useMemberScopes";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import useSWR from "swr";
 import type { Folder, Partition } from "@/lib/db";
 
@@ -107,13 +107,13 @@ function findRedundantScopes(
 }
 
 export function useMemberScopeTree({ open, userId }: { open: boolean; userId: string }) {
-    const { scopes, isLoading, grantScopes, updateScope, revokeScope } = useMemberScopes(userId);
-    const { allWorkspaces: workspaces } = useWorkspaces();
+    const { scopes, isLoading, loadError: scopesError, mutate: mutateScopes, grantScopes, updateScope, revokeScope } = useMemberScopes(userId);
+    const { allWorkspaces: workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const [busyKey, setBusyKey] = useState<string | null>(null);
     const [expanded, setExpanded] = useState<Set<number>>(new Set());
 
     // 열린 워크스페이스의 트리만 불러온다
-    const { data: treeMap , error: queryError0, mutate: retryQuery0 } = useSWR<Record<number, PartitionTree>>(
+    const { data: treeMap, error: treeError, mutate: mutateTrees } = useSWR<Record<number, PartitionTree>>(
         open && workspaces.length > 0 ? ["member-scope-trees", workspaces.map((w) => w.id).join(",")] : null,
         async () => {
             const entries = await Promise.all(
@@ -261,11 +261,12 @@ export function useMemberScopeTree({ open, userId }: { open: boolean; userId: st
     };
 
     return {
-        error: queryError0,
-        mutate: retryQuery0,
         nodes,
         scopes,
         isLoading,
+        // 권한 목록·트리를 못 읽은 채 빈 체크 상태를 보여주면 잘못 부여할 수 있어 오류로 막는다
+        loadError: workspacesError || scopesError || blockingError(treeMap, treeError),
+        retry: () => Promise.all([mutateWorkspaces(), mutateScopes(), mutateTrees()]),
         busyKey,
         expanded,
         toggleExpand,

@@ -1,7 +1,5 @@
 "use client";
 
-import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +8,7 @@ import { toast } from "sonner";
 import { useEventAliases, deleteEventAlias } from "../hooks/useEventAliases";
 import { EventAliasEditorDialog } from "./EventAliasEditorDialog";
 import type { EventAliasRow, EventAliasType } from "../types/event-alias";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 interface Props {
     siteId: number;
@@ -76,13 +75,9 @@ export function EventAliasesCard({ siteId }: Props) {
             title: "이벤트 별칭 삭제",
             description: `"${row.label || row.eventName}" 별칭을 삭제하시겠습니까?\n분석 화면에서는 raw 이름으로 표시됩니다.`,
             onConfirm: async () => {
-                try {
-                    await deleteEventAlias(id);
-                    toast.success("삭제되었습니다.");
-                    mutate();
-                } catch (err) {
-                    throw new Error(err instanceof Error ? err.message : "삭제 실패");
-                }
+                await deleteEventAlias(id);
+                toast.success("삭제되었습니다.");
+                mutate();
             },
         });
     };

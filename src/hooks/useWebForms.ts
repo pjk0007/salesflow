@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { WebForm } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface WebFormWithFieldCount extends WebForm {
     fieldCount: number;
@@ -56,6 +56,7 @@ export function useWebForms(workspaceId?: number | null) {
         forms: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         createForm,
         updateForm,
         deleteForm,

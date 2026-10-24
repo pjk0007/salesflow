@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { RequestError } from "@/lib/swr-fetcher";
 
 interface WorkspaceLayoutProps {
     children: React.ReactNode;
@@ -44,25 +45,36 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     return <DashboardShell>{children}</DashboardShell>;
 }
 
-/** 빈 목록을 표시하기 전에 사용하는 공통 오류·재시도 표시. */
+/**
+ * 보여줄 자료가 없을 때의 공통 오류·재시도 표시.
+ * 자료가 있는 상태의 재검증 실패는 화면을 유지하고 전역 알림으로만 안내한다(blockingError 참고).
+ */
 export function QueryErrorState({ error, onRetry }: { error: unknown; onRetry: () => unknown }) {
+    const { refreshSession } = useSession();
     const [pending, setPending] = useState(false);
     const [retryError, setRetryError] = useState<unknown>(null);
     const cause = retryError ?? error;
     const message = cause instanceof Error ? cause.message : typeof cause === "string" ? cause : "";
+    // 401은 다시 요청해도 같으므로 세션을 먼저 확인한다. 만료됐으면 WorkspaceLayout이 로그인으로 보낸다.
+    const unauthorized = cause instanceof RequestError && cause.status === 401;
     return (
         <div className="flex flex-col items-center justify-center gap-4 p-6">
-            <p role="alert" className="text-muted-foreground">{/[가-힣]/.test(message) ? message : "자료를 불러오지 못했습니다."}</p>
+            <p role="alert" className="text-muted-foreground">
+                {unauthorized ? "로그인 정보를 확인해야 합니다." : /[가-힣]/.test(message) ? message : "자료를 불러오지 못했습니다."}
+            </p>
             <button type="button" className="rounded-md border px-4 py-2" disabled={pending}
                 onClick={async () => {
                     if (pending) return;
                     setPending(true);
                     setRetryError(null);
-                    try { await onRetry(); }
+                    try {
+                        if (unauthorized) await refreshSession();
+                        await onRetry();
+                    }
                     catch (cause) { setRetryError(cause); }
                     finally { setPending(false); }
                 }}>
-                {pending ? "불러오는 중..." : "다시 시도"}
+                {pending ? "불러오는 중..." : unauthorized ? "로그인 상태 확인" : "다시 시도"}
             </button>
         </div>
     );

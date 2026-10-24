@@ -28,7 +28,7 @@ export default function ProductsPage() {
     const [categoryFilter, setCategoryFilter] = useState("");
     const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
-    const { products, isLoading, deleteProduct , error: loadError0, mutate: retryLoad0 } = useProducts({
+    const { products, isLoading, deleteProduct, loadError, mutate } = useProducts({
         search: search || undefined,
         category: categoryFilter || undefined,
     });
@@ -51,7 +51,7 @@ export default function ProductsPage() {
         }
     }, [deleteTarget, deleteProduct]);
 
-    if (loadError0) return <WorkspaceLayout><QueryErrorState error={loadError0} onRetry={() => retryLoad0()} /></WorkspaceLayout>;
+    if (loadError) return <WorkspaceLayout><QueryErrorState error={loadError} onRetry={() => mutate()} /></WorkspaceLayout>;
 
     return (
         <WorkspaceLayout>

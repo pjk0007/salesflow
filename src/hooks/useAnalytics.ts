@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import { presetRange } from "@/lib/email-stats/rules";
 
 export interface TrendItem {
@@ -62,27 +62,29 @@ export function useAnalytics(period: Period = "30d", channel: string = "all") {
     const summaryKey = `/api/analytics/summary?startDate=${startDate}&endDate=${endDate}`;
     const templatesKey = `/api/analytics/templates?startDate=${startDate}&endDate=${endDate}&channel=${channel}&limit=10`;
 
-    const { data: trendsData, isLoading: trendsLoading , error: queryError0, mutate: retryQuery0 } = useSWR<{
+    const { data: trendsData, error: trendsError, isLoading: trendsLoading, mutate: mutateTrends } = useSWR<{
         success: boolean;
         data?: TrendItem[];
     }>(trendsKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
-    const { data: summaryData, isLoading: summaryLoading , error: queryError1, mutate: retryQuery1 } = useSWR<{
+    const { data: summaryData, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<{
         success: boolean;
         data?: AnalyticsSummary;
     }>(summaryKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
-    const { data: templatesData, isLoading: templatesLoading , error: queryError2, mutate: retryQuery2 } = useSWR<{
+    const { data: templatesData, error: templatesError, isLoading: templatesLoading, mutate: mutateTemplates } = useSWR<{
         success: boolean;
         data?: TemplatePerformance[];
     }>(templatesKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     return {
-        error: queryError0 || queryError1 || queryError2,
-        mutate: () => Promise.all([retryQuery0(), retryQuery1(), retryQuery2()]),
         trends: trendsData?.data ?? [],
         summary: summaryData?.data ?? emptySummary,
         templates: templatesData?.data ?? [],
         isLoading: trendsLoading || summaryLoading || templatesLoading,
+        error: trendsError || summaryError || templatesError,
+        loadError: blockingError(trendsData, trendsError) || blockingError(summaryData, summaryError) ||
+            blockingError(templatesData, templatesError),
+        mutate: () => Promise.all([mutateTrends(), mutateSummary(), mutateTemplates()]),
     };
 }

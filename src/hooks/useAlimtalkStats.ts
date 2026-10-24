@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { AlimtalkSendLog } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface StatsData {
     total: number;
@@ -17,16 +17,17 @@ interface StatsResponse {
 
 
 export function useAlimtalkStats(period: "today" | "week" | "month" = "today") {
-    const { data, error, isLoading , mutate: retryQuery0 } = useSWR<StatsResponse>(
+    const { data, error, isLoading, mutate } = useSWR<StatsResponse>(
         `/api/alimtalk/stats?period=${period}`,
         defaultFetcher,
         { refreshInterval: 30000 }
     );
 
     return {
-        mutate: retryQuery0,
         stats: data?.data ?? { total: 0, sent: 0, failed: 0, pending: 0, recentLogs: [] },
         isLoading,
+        mutate,
         error,
+        loadError: blockingError(data, error),
     };
 }

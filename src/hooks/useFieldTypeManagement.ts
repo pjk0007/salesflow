@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { FieldDefinition, CreateFieldInput, UpdateFieldInput } from "@/types";
 
 interface FieldsResponse {
@@ -57,6 +57,7 @@ export function useFieldTypeManagement(fieldTypeId: number | null) {
         fields: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createField,
         updateField,

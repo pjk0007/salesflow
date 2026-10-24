@@ -24,11 +24,11 @@ export function useEngagementAnalytics(args: {
             ...(args.page ? { page: args.page } : {}),
         }).toString()
         : null;
-    const { data, isLoading, error , mutate: retryQuery0 } = useSWR<EngagementResponse>(key, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<EngagementResponse>(key, defaultFetcher);
     return {
-        mutate: retryQuery0,
         data: data?.success ? data.data : null,
         isLoading,
+        mutate,
         error: data && !data.success ? data.error : (error?.message ?? null),
     };
 }

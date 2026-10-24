@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import { useAlimtalkConfig } from "./useAlimtalkConfig";
 import type { NhnSenderProfile } from "@/lib/nhn-alimtalk";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface SendersResponse {
     success: boolean;
@@ -63,6 +63,7 @@ export function useAlimtalkSenders() {
         totalCount: data?.data?.totalCount ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         registerSender,
         authenticateToken,

@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { AlimtalkSendLog } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseAlimtalkLogsParams {
     partitionId?: number | null;
@@ -60,6 +60,7 @@ export function useAlimtalkLogs(params: UseAlimtalkLogsParams = {}) {
         totalPages: data?.totalPages ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         syncResults,
     };

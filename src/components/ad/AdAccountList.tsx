@@ -2,7 +2,7 @@
 
 import useSWR from "swr";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import {
     Card,
     CardContent,
@@ -62,10 +62,10 @@ function formatRelativeTime(dateStr: string | null): string {
 }
 
 export default function AdAccountList() {
-    const { accounts, isLoading, updateAccount, error: accountsError, mutate: retryAccounts } = useAdAccounts();
+    const { accounts, isLoading, updateAccount, loadError: accountsError, mutate: mutateAccounts } = useAdAccounts();
     const { platforms } = useAdPlatforms();
     const platformMap = new Map(platforms.map((p) => [p.id, p.platform]));
-    const { data: wsData , error: queryError0, mutate: retryQuery0 } = useSWR<{ success: boolean; data: Workspace[] }>(
+    const { data: wsData, error: workspacesError, mutate: mutateWorkspaces } = useSWR<{ success: boolean; data: Workspace[] }>(
         "/api/workspaces",
         defaultFetcher
     );
@@ -81,7 +81,8 @@ export default function AdAccountList() {
         }
     };
 
-    if (queryError0 || accountsError) return <QueryErrorState error={queryError0 || accountsError} onRetry={() => Promise.all([retryQuery0(), retryAccounts()])} />;
+    const loadError = blockingError(wsData, workspacesError) || accountsError;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => Promise.all([mutateWorkspaces(), mutateAccounts()])} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

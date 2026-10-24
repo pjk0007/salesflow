@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { UnifiedLog } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface UseUnifiedLogsParams {
     channel?: string;
@@ -53,6 +53,7 @@ export function useUnifiedLogs(params: UseUnifiedLogsParams = {}) {
         totalPages: data?.totalPages ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
     };
 }

@@ -65,7 +65,7 @@ function formatDate(dateStr: string | null): string {
 
 export default function ApiTokensTab() {
     const { user } = useSession();
-    const { tokens, isLoading, error, mutate, createToken, updateToken, deleteToken } = useApiTokens();
+    const { tokens, isLoading, loadError, mutate, createToken, updateToken, deleteToken } = useApiTokens();
     const canEdit = user?.role === "owner" || user?.role === "admin";
 
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -119,7 +119,7 @@ export default function ApiTokensTab() {
         setTimeout(() => setCopied(false), 2000);
     };
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;

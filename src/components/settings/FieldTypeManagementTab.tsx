@@ -1,7 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
 import { useState, useMemo } from "react";
 import {
     DndContext,
@@ -50,6 +48,7 @@ import EditFieldDialog from "./EditFieldDialog";
 import DeleteFieldDialog from "./DeleteFieldDialog";
 import { toast } from "sonner";
 import type { FieldDefinition } from "@/types";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 const FIELD_TYPE_LABELS: Record<string, string> = {
     text: "텍스트",
@@ -129,9 +128,9 @@ function SortableFieldRow({
 }
 
 export default function FieldTypeManagementTab() {
-    const { fieldTypes: types, createType, updateType, deleteType , error: loadError0, mutate: retryLoad0 } = useFieldTypes();
+    const { fieldTypes: types, createType, updateType, deleteType, loadError: typesError, mutate: mutateTypes } = useFieldTypes();
     const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);
-    const { fields, reorderFields, createField, updateField, deleteField , error: loadError1, mutate: retryLoad1 } = useFieldTypeManagement(selectedTypeId);
+    const { fields, reorderFields, createField, updateField, deleteField, loadError: fieldsError, mutate: mutateFields } = useFieldTypeManagement(selectedTypeId);
 
     const [createTypeOpen, setCreateTypeOpen] = useState(false);
     const [newTypeName, setNewTypeName] = useState("");
@@ -234,7 +233,7 @@ export default function FieldTypeManagementTab() {
         setDeleteOpen(true);
     };
 
-    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
+    if (typesError) return <QueryErrorState error={typesError} onRetry={() => mutateTypes()} />;
 
     return (
         <div className="space-y-6">
@@ -302,7 +301,9 @@ export default function FieldTypeManagementTab() {
                         </div>
                     </div>
 
-                    {fields.length === 0 ? (
+                    {fieldsError ? (
+                        <QueryErrorState error={fieldsError} onRetry={() => mutateFields()} />
+                    ) : fields.length === 0 ? (
                         <div className="text-muted-foreground py-8 text-center">
                             등록된 속성이 없습니다.
                         </div>

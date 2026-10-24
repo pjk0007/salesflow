@@ -1,7 +1,5 @@
 "use client";
 
-import { defaultFetcher } from "@/lib/swr-fetcher";
-
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
@@ -56,10 +54,9 @@ import ReplyToSummaryRow from "@/components/email/reply-to/ui/ReplyToSummaryRow"
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { linkSenderPool } from "@/lib/email-sender-limit-rules";
 import useSWR from "swr";
+import { defaultFetcher } from "@/lib/swr-fetcher";
 
 interface EmailSignature { id: number; name: string; isDefault: boolean; }
-
-
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },

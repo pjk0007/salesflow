@@ -1,7 +1,5 @@
 "use client";
 
-import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-
 import { useState, useMemo, useRef } from "react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -24,8 +22,9 @@ import { Progress } from "@/components/ui/progress";
 import { Upload, CalendarClock, Trash2, Loader2 } from "lucide-react";
 import FieldMappingStep from "../../import/FieldMappingStep";
 import type { FieldDefinition } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 const EXCLUDED_TYPES = ["file", "formula", "user_select"];
 
@@ -63,7 +62,8 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
     );
 
     const listKey = open && partitionId ? `/api/partitions/${partitionId}/scheduled-registrations` : null;
-    const { data, mutate, isLoading, error } = useSWR<ListResponse>(listKey, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<ListResponse>(listKey, defaultFetcher);
+    const loadError = blockingError(data, error);
 
     const handleOpenChange = (v: boolean) => {
         if (!v) setTab("list");
@@ -85,7 +85,7 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                     </DialogDescription>
                 </DialogHeader>
 
-                {error ? <QueryErrorState error={error} onRetry={() => mutate()} /> : <Tabs value={tab} onValueChange={setTab}>
+                <Tabs value={tab} onValueChange={setTab}>
                     <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger value="list">대기 목록</TabsTrigger>
                         <TabsTrigger value="upload">업로드</TabsTrigger>
@@ -93,13 +93,15 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                     </TabsList>
 
                     <TabsContent value="list">
-                        <ListTab
-                            partitionId={partitionId}
-                            data={data}
-                            isLoading={isLoading}
-                            fields={mappableFields}
-                            onChanged={() => mutate()}
-                        />
+                        {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : (
+                            <ListTab
+                                partitionId={partitionId}
+                                data={data}
+                                isLoading={isLoading}
+                                fields={mappableFields}
+                                onChanged={() => mutate()}
+                            />
+                        )}
                     </TabsContent>
 
                     <TabsContent value="upload">
@@ -114,13 +116,16 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                     </TabsContent>
 
                     <TabsContent value="settings">
-                        <SettingsTab
-                            partitionId={partitionId}
-                            config={data?.data.config ?? null}
-                            onSaved={() => mutate()}
-                        />
+                        {/* 기존 설정을 못 읽은 채 저장하면 기본값으로 덮어쓰므로 막는다 */}
+                        {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : (
+                            <SettingsTab
+                                partitionId={partitionId}
+                                config={data?.data.config ?? null}
+                                onSaved={() => mutate()}
+                            />
+                        )}
                     </TabsContent>
-                </Tabs>}
+                </Tabs>
             </DialogContent>
         </Dialog>
     );

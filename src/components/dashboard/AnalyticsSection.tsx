@@ -18,9 +18,9 @@ import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 export default function AnalyticsSection() {
     const [period, setPeriod] = useState<Period>("30d");
     const [channel, setChannel] = useState("all");
-    const { trends, summary, templates, isLoading, error, mutate } = useAnalytics(period, channel);
+    const { trends, summary, templates, isLoading, loadError, mutate } = useAnalytics(period, channel);
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">

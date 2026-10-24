@@ -1,7 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
 import { useState, useMemo } from "react";
 import { useAutoEnrichRules } from "@/hooks/useAutoEnrich";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
@@ -40,12 +38,13 @@ import {
 import { Loader2, Plus, Pencil, Trash2, Search, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import type { RecordAutoEnrichRule } from "@/lib/db";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 export default function AutoEnrichTab() {
-    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
+    const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const firstWorkspaceId = workspaces?.[0]?.id ?? null;
-    const { partitionTree , error: loadError1, mutate: retryLoad1 } = usePartitions(firstWorkspaceId);
-    const { fields , error: loadError2, mutate: retryLoad2 } = useFields(firstWorkspaceId);
+    const { partitionTree, loadError: partitionsError, mutate: mutatePartitions } = usePartitions(firstWorkspaceId);
+    const { fields, loadError: fieldsError, mutate: mutateFields } = useFields(firstWorkspaceId);
 
     const partitions = useMemo(() => {
         if (!partitionTree) return [];
@@ -60,7 +59,7 @@ export default function AutoEnrichTab() {
     const [editingRule, setEditingRule] = useState<RecordAutoEnrichRule | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<RecordAutoEnrichRule | null>(null);
 
-    const { rules, isLoading, createRule, updateRule, deleteRule , error: loadError3, mutate: retryLoad3 } =
+    const { rules, isLoading, createRule, updateRule, deleteRule, loadError: rulesError, mutate: mutateRules } =
         useAutoEnrichRules(selectedPartitionId);
 
     // Dialog form state
@@ -149,7 +148,10 @@ export default function AutoEnrichTab() {
     // 검색 필드로 선택된 것은 대상에서 제외
     const availableTargetFields = fields.filter((f) => f.key !== searchField && !f.key.startsWith("_"));
 
-    if (loadError0 || loadError1 || loadError2 || loadError3) return <QueryErrorState error={loadError0 || loadError1 || loadError2 || loadError3} onRetry={() => Promise.all([retryLoad0(), retryLoad1(), retryLoad2(), retryLoad3()])} />;
+    const setupError = workspacesError || partitionsError || fieldsError;
+    if (setupError) {
+        return <QueryErrorState error={setupError} onRetry={() => Promise.all([mutateWorkspaces(), mutatePartitions(), mutateFields()])} />;
+    }
 
     return (
         <div className="space-y-6">
@@ -197,7 +199,9 @@ export default function AutoEnrichTab() {
                                 </Button>
                             </div>
 
-                            {isLoading ? (
+                            {rulesError ? (
+                                <QueryErrorState error={rulesError} onRetry={() => mutateRules()} />
+                            ) : isLoading ? (
                                 <div className="flex items-center justify-center py-8">
                                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                                 </div>

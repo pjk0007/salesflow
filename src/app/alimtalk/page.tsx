@@ -42,7 +42,7 @@ function AlimtalkPageContent() {
         window.history.replaceState(null, "", newUrl);
     };
 
-    const { data: allPartitionsData , error: queryError0, mutate: retryQuery0 } = useSWR("/api/partitions", defaultFetcher);
+    const { data: allPartitionsData, error: partitionsError, mutate: mutatePartitions } = useSWR("/api/partitions", defaultFetcher);
 
     const partitions = useMemo(() => {
         const items: Array<{ id: number; name: string; workspaceId: number; workspaceName: string }> = allPartitionsData?.data ?? [];
@@ -54,7 +54,9 @@ function AlimtalkPageContent() {
         }));
     }, [allPartitionsData]);
 
-    if (queryError0) return <WorkspaceLayout><QueryErrorState error={queryError0} onRetry={() => retryQuery0()} /></WorkspaceLayout>;
+    if (partitionsError && !allPartitionsData) {
+        return <WorkspaceLayout><QueryErrorState error={partitionsError} onRetry={() => mutatePartitions()} /></WorkspaceLayout>;
+    }
 
     return (
         <WorkspaceLayout>

@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 export interface NhnCategory {
     categoryId: number;
@@ -53,6 +53,7 @@ export function useEmailCategories() {
     return {
         categories: data?.data ?? [],
         error,
+        loadError: blockingError(data, error),
         isLoading,
         mutate,
         createCategory,

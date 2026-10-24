@@ -1,6 +1,11 @@
-/** HTTP 상태를 유지해 세션 만료·권한 오류를 호출부가 구분할 수 있다. */
+import type { SWRConfiguration } from "swr";
+
+/**
+ * HTTP 상태를 유지해 세션 만료·권한 오류를 호출부가 구분할 수 있다.
+ * fromServer는 서버가 준 한국어 안내를 그대로 담았는지 여부다(전송·해석 실패 문구는 false).
+ */
 export class RequestError extends Error {
-    constructor(message: string, public status: number) {
+    constructor(message: string, public status: number, public fromServer = false) {
         super(message);
         this.name = "RequestError";
     }
@@ -68,7 +73,8 @@ export async function apiRequest<T = unknown>(
             const envelope = result !== null && typeof result === "object"
                 ? result as { success?: unknown; error?: unknown } : undefined;
             if (!response.ok || envelope?.success === false) {
-                throw new RequestError(responseError(envelope?.error), response.status);
+                const message = responseError(envelope?.error);
+                throw new RequestError(message, response.status, message === envelope?.error);
             }
             return result as T;
         })()]);
@@ -81,3 +87,44 @@ export async function apiRequest<T = unknown>(
 // 기본 any는 기존 무타입 useSWR·직접 조회 소비자의 성공 응답 추론과 호환된다.
 // TypeScript의 Response.json() 반환형을 그대로 따른다.
 export const defaultFetcher = (url: string): ReturnType<Response["json"]> => apiRequest(url);
+
+/**
+ * SWR은 재검증이 실패해도 이전 data를 유지하고 error만 설정한다.
+ * 보여줄 자료가 아직 없을 때의 오류만 돌려줘 화면 전체 오류 표시는 이 값으로만 한다.
+ */
+export function blockingError(data: unknown, error: unknown): unknown {
+    return data === undefined ? error : undefined;
+}
+
+/** 서버가 준 구체적인 안내(4xx·논리 오류)는 그대로, 전송 실패·서버 장애는 화면별 안내로 표시한다. */
+export function requestErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof RequestError && error.fromServer && error.status < 500 ? error.message : fallback;
+}
+
+/** 다시 요청해도 결과가 같은 오류. 408·429는 잠시 뒤 성공할 수 있어 제외한다. */
+export function isPermanentRequestError(error: unknown): boolean {
+    return error instanceof RequestError && error.status >= 400 && error.status < 500 &&
+        error.status !== 408 && error.status !== 429;
+}
+
+/**
+ * 앱 전역 SWR 오류 처리. 권한·입력 오류는 재시도하지 않고, 401은 세션 확인으로 넘기며,
+ * 이미 표시 중인 자료의 재검증 실패는 화면을 유지한 채 알림만 띄운다.
+ */
+export function createSwrErrorHandlers(options: {
+    retry: NonNullable<SWRConfiguration["onErrorRetry"]>;
+    hasData: (key: string) => boolean;
+    onUnauthorized: () => void;
+    onStaleError: (error: unknown) => void;
+}): Pick<SWRConfiguration, "onError" | "onErrorRetry"> {
+    return {
+        onErrorRetry: (error, key, config, revalidate, revalidateOptions) => {
+            if (isPermanentRequestError(error)) return;
+            options.retry(error, key, config, revalidate, revalidateOptions);
+        },
+        onError: (error, key) => {
+            if (error instanceof RequestError && error.status === 401) options.onUnauthorized();
+            else if (options.hasData(key)) options.onStaleError(error);
+        },
+    };
+}

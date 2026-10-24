@@ -24,10 +24,10 @@ import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 
 export default function WorkspaceSettingsTab() {
-    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, mutate: mutateList , error: loadError0 } = useWorkspaces();
+    const { allWorkspaces: workspaces, isLoading: wsListLoading, createWorkspace, deleteWorkspace, loadError: listError, mutate: mutateList } = useWorkspaces();
     const [selectedId, setSelectedId] = useState<number | null>(null);
-    const { workspace, isLoading, updateWorkspace , error: loadError1, mutate: retryLoad1 } = useWorkspaceSettings(selectedId);
-    const { fieldTypes: types , error: loadError2, mutate: retryLoad2 } = useFieldTypes();
+    const { workspace, isLoading, updateWorkspace, loadError: workspaceError, mutate: mutateWorkspace } = useWorkspaceSettings(selectedId);
+    const { fieldTypes: types, loadError: typesError, mutate: mutateTypes } = useFieldTypes();
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
@@ -163,7 +163,7 @@ export default function WorkspaceSettingsTab() {
         </Card>
     );
 
-    if (loadError0 || loadError1 || loadError2) return <QueryErrorState error={loadError0 || loadError1 || loadError2} onRetry={() => Promise.all([mutateList(), retryLoad1(), retryLoad2()])} />;
+    if (listError) return <QueryErrorState error={listError} onRetry={() => mutateList()} />;
 
     if (wsListLoading) {
         return <div className="text-muted-foreground py-8 text-center">로딩 중...</div>;
@@ -208,7 +208,9 @@ export default function WorkspaceSettingsTab() {
             {selectedId && (
                 <>
                     <Separator />
-                    {isLoading ? (
+                    {workspaceError || typesError ? (
+                        <QueryErrorState error={workspaceError || typesError} onRetry={() => Promise.all([mutateWorkspace(), mutateTypes()])} />
+                    ) : isLoading ? (
                         <div className="text-muted-foreground py-4 text-center">로딩 중...</div>
                     ) : (
                         <div className="space-y-4 max-w-lg">

@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { TrackerSite } from "../types";
 
 type Response = { success: true; data: TrackerSite | null } | { success: false; error: string };
@@ -18,6 +18,7 @@ export function useTrackerSite(workspaceId: number | null) {
         site,
         isLoading,
         error: error || (data && !data.success ? new Error(data.error) : null),
+        loadError: blockingError(data, error),
         mutate,
     };
 }

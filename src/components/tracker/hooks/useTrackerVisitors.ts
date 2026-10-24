@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { TrackerVisitorRow } from "../types";
 
 type Response =
@@ -36,17 +36,18 @@ export function useTrackerVisitors({ siteId, page, q, hasRecord, pagePath, chann
           }).toString()}`
         : null;
 
-    const { data, isLoading, mutate , error: queryError0 } = useSWR<Response>(key, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<Response>(key, defaultFetcher);
 
     const ok = data?.success ? data : null;
 
     return {
-        error: queryError0,
         items: ok?.data ?? [],
         page: ok?.page ?? page,
         total: ok?.total ?? 0,
         totalPages: ok?.totalPages ?? 1,
         isLoading,
+        error,
+        loadError: blockingError(data, error),
         mutate,
     };
 }

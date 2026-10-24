@@ -1,9 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
-import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useEmailTemplates } from "@/hooks/useEmailTemplates";
@@ -30,11 +26,13 @@ import { Plus, Pencil, Trash2, Send } from "lucide-react";
 import { toast } from "sonner";
 import EmailTestSendDialog from "@/components/email/EmailTestSendDialog";
 import type { EmailTemplate } from "@/lib/db";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 export default function EmailTemplateList() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
-    const { templates, isLoading, error, mutate, deleteTemplate } = useEmailTemplates();
+    const { templates, isLoading, loadError, mutate, deleteTemplate } = useEmailTemplates();
     const { categories } = useEmailCategories();
     const [categoryFilter, setCategoryFilter] = useState<string>("all");
     const [testSendTemplate, setTestSendTemplate] = useState<EmailTemplate | null>(null);
@@ -57,7 +55,7 @@ export default function EmailTemplateList() {
         });
     };
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return (

@@ -32,9 +32,9 @@ export default function WebFormsPage() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const [workspaceId, setWorkspaceId] = useState<number | null>(null);
-    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
-    const { partitionTree , error: loadError1, mutate: retryLoad1 } = usePartitions(workspaceId);
-    const { forms, updateForm, deleteForm , error: loadError2, mutate: retryLoad2 } = useWebForms(workspaceId);
+    const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
+    const { partitionTree } = usePartitions(workspaceId);
+    const { forms, updateForm, deleteForm, loadError: formsError, mutate: mutateForms } = useWebForms(workspaceId);
 
     // 임베드 다이얼로그
     const [embedSlug, setEmbedSlug] = useState<string | null>(null);
@@ -76,7 +76,9 @@ export default function WebFormsPage() {
         [updateForm]
     );
 
-    if (loadError0 || loadError1 || loadError2) return <WorkspaceLayout><QueryErrorState error={loadError0 || loadError1 || loadError2} onRetry={() => Promise.all([retryLoad0(), retryLoad1(), retryLoad2()])} /></WorkspaceLayout>;
+    if (workspacesError) {
+        return <WorkspaceLayout><QueryErrorState error={workspacesError} onRetry={() => mutateWorkspaces()} /></WorkspaceLayout>;
+    }
 
     return (
         <WorkspaceLayout>
@@ -110,7 +112,9 @@ export default function WebFormsPage() {
                     </div>
                 </div>
 
-                {forms.length === 0 ? (
+                {formsError ? (
+                    <QueryErrorState error={formsError} onRetry={() => mutateForms()} />
+                ) : forms.length === 0 ? (
                     <div className="text-center py-20 text-muted-foreground">
                         <p className="text-lg mb-1">아직 웹 폼이 없습니다</p>
                         <p className="text-sm">

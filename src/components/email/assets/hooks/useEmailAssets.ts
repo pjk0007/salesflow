@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 import type { EmailAsset } from "../types";
 import { uploadAsset, renameAsset, deleteAsset } from "../api/assets";
 
@@ -32,6 +32,7 @@ export function useEmailAssets(enabled: boolean = true) {
         assets: (data?.data ?? []) as EmailAsset[],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         upload,
         rename,

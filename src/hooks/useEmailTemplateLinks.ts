@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { EmailTemplateLink } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplateLinksResponse {
     success: boolean;
@@ -82,6 +82,7 @@ export function useEmailTemplateLinks(partitionId: number | null | "all") {
         templateLinks: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createLink,
         updateLink,

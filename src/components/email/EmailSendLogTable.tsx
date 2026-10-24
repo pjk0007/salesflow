@@ -130,7 +130,7 @@ export default function EmailSendLogTable() {
 
     // 연결 규칙 + AI 규칙 목록
     const { templateLinks } = useEmailTemplateLinks("all");
-    const { data: aiRulesData , error: queryError0, mutate: retryQuery0 } = useSWR<{ success: boolean; data?: Array<{ id: number; name: string | null; partitionName?: string; prompt?: string | null }> }>(
+    const { data: aiRulesData } = useSWR<{ success: boolean; data?: Array<{ id: number; name: string | null; partitionName?: string; prompt?: string | null }> }>(
         "/api/email/auto-personalized",
         defaultFetcher
     );
@@ -166,7 +166,7 @@ export default function EmailSendLogTable() {
         return {};
     })();
 
-    const { logs, totalCount, isLoading, syncLogs, error: logsError, mutate: retryLogs } = useEmailLogs({
+    const { logs, totalCount, isLoading, syncLogs, loadError, mutate } = useEmailLogs({
         page,
         search: debouncedSearch || undefined,
         status: status || undefined,
@@ -248,8 +248,6 @@ export default function EmailSendLogTable() {
     const formatDateFull = (dateStr: string) => {
         return new Date(dateStr).toLocaleString("ko-KR");
     };
-
-    if (queryError0 || logsError) return <QueryErrorState error={queryError0 || logsError} onRetry={() => Promise.all([retryQuery0(), retryLogs()])} />;
 
     return (
         <div className="space-y-4">
@@ -419,8 +417,10 @@ export default function EmailSendLogTable() {
                 )}
             </div>
 
-            {/* 테이블 */}
-            {isLoading ? (
+            {/* 테이블 — 실패해도 검색·필터는 남겨 조건을 바꿀 수 있게 한다 */}
+            {loadError ? (
+                <QueryErrorState error={loadError} onRetry={() => mutate()} />
+            ) : isLoading ? (
                 <div className="space-y-3">
                     {[1, 2, 3, 4, 5].map((i) => (
                         <Skeleton key={i} className="h-10 w-full" />

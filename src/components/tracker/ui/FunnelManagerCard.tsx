@@ -1,7 +1,5 @@
 "use client";
 
-import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +8,7 @@ import { toast } from "sonner";
 import { FunnelEditorDialog } from "./FunnelEditorDialog";
 import { useTrackerFunnels, deleteFunnel, updateFunnel } from "../hooks/useTrackerFunnels";
 import type { FunnelDefinition, FunnelKind } from "../types/funnel";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 interface Props {
     siteId: number;
@@ -119,13 +118,9 @@ export function FunnelManagerCard({ siteId }: Props) {
             title: "퍼널 삭제",
             description: `"${f.name}" 퍼널을 삭제하시겠습니까?`,
             onConfirm: async () => {
-                try {
-                    await deleteFunnel(f.id);
-                    toast.success("삭제되었습니다.");
-                    mutate();
-                } catch (err) {
-                    throw new Error(err instanceof Error ? err.message : "삭제 실패");
-                }
+                await deleteFunnel(f.id);
+                toast.success("삭제되었습니다.");
+                mutate();
             },
         });
     };

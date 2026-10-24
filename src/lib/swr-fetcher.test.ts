@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { apiRequest, defaultFetcher, RequestError } from "./swr-fetcher";
+import { apiRequest, blockingError, createSwrErrorHandlers, defaultFetcher, RequestError, requestErrorMessage } from "./swr-fetcher";
 
 test("성공 응답 전체와 빈 목록·페이지 정보의 계약을 유지한다", async () => {
     const original = global.fetch;
@@ -102,5 +102,53 @@ test("fetch가 던진 TimeoutError·AbortError는 이름을 보존해 호출부 
             await assert.rejects(apiRequest("/fixture"), cause =>
                 !(cause instanceof RequestError) && (cause as Error).name === name);
         }
+    } finally { global.fetch = original; }
+});
+
+test("자료가 있으면 재검증 오류로 화면을 막지 않는다", () => {
+    const error = new RequestError("요청을 처리하지 못했습니다.", 500);
+    assert.equal(blockingError(undefined, error), error);
+    assert.equal(blockingError({ success: true, data: [] }, error), undefined);
+    assert.equal(blockingError(undefined, undefined), undefined);
+});
+
+test("4xx(408·429 제외)는 재시도하지 않고 401은 세션 확인, 표시 중 자료는 알림만 띄운다", () => {
+    const retried: number[] = [];
+    const calls: string[] = [];
+    const handlers = createSwrErrorHandlers({
+        retry: (error) => { retried.push((error as RequestError).status); },
+        hasData: key => key === "/cached",
+        onUnauthorized: () => calls.push("session"),
+        onStaleError: () => calls.push("stale"),
+    });
+    const options = { retryCount: 1, dedupe: true };
+    for (const status of [0, 400, 401, 403, 404, 408, 409, 429, 500, 503]) {
+        handlers.onErrorRetry!(new RequestError("오류", status), "/key", {} as never, async () => true, options);
+    }
+    assert.deepEqual(retried, [0, 408, 429, 500, 503]);
+    handlers.onError!(new RequestError("인증이 필요합니다.", 401), "/cached", {} as never);
+    handlers.onError!(new RequestError("오류", 500), "/cached", {} as never);
+    handlers.onError!(new RequestError("오류", 500), "/empty", {} as never);
+    assert.deepEqual(calls, ["session", "stale"]);
+});
+
+test("서버의 구체적인 한국어 안내만 화면 문구로 쓰고 전송 실패·서버 장애는 화면별 안내로 바꾼다", async () => {
+    const original = global.fetch;
+    const fallback = "핵심 리드를 불러오지 못했습니다.";
+    const failure = async () => { try { await defaultFetcher("/fixture"); } catch (cause) { return cause; } };
+    try {
+        for (const [status, error, expected] of [
+            [400, "고객 ID를 확인해 주세요.", "고객 ID를 확인해 주세요."],
+            [200, "설정이 필요합니다.", "설정이 필요합니다."],
+            [400, "Bad Request", fallback],
+            [500, "서버 오류가 발생했습니다.", fallback],
+        ] as const) {
+            global.fetch = async () => Response.json({ success: false, error }, { status });
+            assert.equal(requestErrorMessage(await failure(), fallback), expected);
+        }
+        global.fetch = async () => new Response("<html>", { status: 404 });
+        assert.equal(requestErrorMessage(await failure(), fallback), fallback);
+        global.fetch = async () => { throw new TypeError("Failed to fetch"); };
+        assert.equal(requestErrorMessage(await failure(), fallback), fallback);
     } finally { global.fetch = original; }
 });

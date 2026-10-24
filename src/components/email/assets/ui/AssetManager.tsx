@@ -15,7 +15,7 @@ export default function AssetManager() {
     const [renaming, setRenaming] = useState<EmailAsset | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const { assets, error, mutate, isLoading, upload, rename, remove } = useEmailAssets();
+    const { assets, loadError, mutate, isLoading, upload, rename, remove } = useEmailAssets();
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -54,7 +54,7 @@ export default function AssetManager() {
         });
     };
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">

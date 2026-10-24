@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { NhnTemplate } from "@/lib/nhn-alimtalk";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplatesResponse {
     success: boolean;
@@ -22,6 +22,7 @@ export function useAlimtalkTemplates(senderKey: string | null) {
         totalCount: data?.data?.totalCount ?? 0,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
     };
 }

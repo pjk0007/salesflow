@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import type { ApiResponse, CreatePartitionInput, CreateFolderInput } from "@/types";
 import type { Folder, Partition } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 export interface PartitionTree {
     folders: (Folder & { partitions: Partition[] })[];
@@ -88,6 +88,7 @@ export function usePartitions(workspaceId: number | null) {
         partitionTree: data?.data ?? null,
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createPartition,
         movePartition,

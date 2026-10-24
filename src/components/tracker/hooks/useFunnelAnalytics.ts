@@ -24,11 +24,11 @@ export function useFunnelAnalytics(args: {
             ...(args.channelMode && args.channelMode !== "all" ? { channelMode: args.channelMode } : {}),
         }).toString()
         : null;
-    const { data, isLoading, error , mutate: retryQuery0 } = useSWR<FunnelAnalyticsResponse>(key, defaultFetcher);
+    const { data, error, isLoading, mutate } = useSWR<FunnelAnalyticsResponse>(key, defaultFetcher);
     return {
-        mutate: retryQuery0,
         data: data?.success ? data.data : null,
         isLoading,
+        mutate,
         error: data && !data.success ? data.error : (error?.message ?? null),
     };
 }

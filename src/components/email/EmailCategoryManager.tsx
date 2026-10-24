@@ -26,7 +26,7 @@ import { toast } from "sonner";
 
 export default function EmailCategoryManager() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
-    const { categories, error, mutate, isLoading, createCategory, updateCategory, deleteCategory } = useEmailCategories();
+    const { categories, loadError, mutate, isLoading, createCategory, updateCategory, deleteCategory } = useEmailCategories();
     const [adding, setAdding] = useState(false);
     const [newName, setNewName] = useState("");
     const [newDesc, setNewDesc] = useState("");
@@ -82,7 +82,7 @@ export default function EmailCategoryManager() {
         });
     };
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <Card>

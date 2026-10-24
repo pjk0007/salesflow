@@ -51,7 +51,7 @@ export default function SendLogTable() {
     const [syncing, setSyncing] = useState(false);
     const [selectedLog, setSelectedLog] = useState<AlimtalkSendLog | null>(null);
 
-    const { logs, total, totalPages, isLoading, syncResults , error: loadError0, mutate: retryLoad0 } = useAlimtalkLogs({
+    const { logs, total, totalPages, isLoading, syncResults, loadError, mutate } = useAlimtalkLogs({
         page,
         status: status || undefined,
         startDate: startDate || undefined,
@@ -69,7 +69,7 @@ export default function SendLogTable() {
         }
     };
 
-    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">

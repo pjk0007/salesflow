@@ -25,12 +25,12 @@ function cardSpan(i: number, n: number): string {
 }
 
 export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
-    const { data, isLoading , error: queryError0, mutate: retryQuery0 } = useSWR<VisitorDetailResponse>(
+    const { data, error, isLoading, mutate } = useSWR<VisitorDetailResponse>(
         `/api/tracker/visitors/${visitorPk}`,
         defaultFetcher,
     );
 
-    if (queryError0) return <QueryErrorState error={queryError0} onRetry={() => retryQuery0()} />;
+    if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     if (isLoading) {
         return <Skeleton className="h-96 w-full" />;

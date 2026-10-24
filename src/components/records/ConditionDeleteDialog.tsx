@@ -1,7 +1,5 @@
 "use client";
 
-import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-
 import { useState, useEffect, useMemo, useCallback } from "react";
 import {
     Dialog,
@@ -16,6 +14,7 @@ import FilterBuilder from "./FilterBuilder";
 import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDefinition, FilterCondition } from "@/types";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 const NO_VALUE_OPS = new Set(["is_empty", "is_not_empty", "is_true", "is_false"]);
 const OP_LABEL: Record<string, string> = {
@@ -96,21 +95,22 @@ export default function ConditionDeleteDialog({ open, onOpenChange, partitionId,
             onConfirm: async () => {
                 setDeleting(true);
                 try {
-                    const res = await fetch(`/api/partitions/${partitionId}/records/delete-all`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ filters: completeFilters }),
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        toast.success(`${json.data.deletedCount.toLocaleString()}건이 삭제되었습니다.`);
-                        onDeleted();
-                        handleOpenChange(false);
-                    } else {
-                        throw new Error(json.error ?? "삭제 실패");
+                    let json;
+                    try {
+                        const res = await fetch(`/api/partitions/${partitionId}/records/delete-all`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ filters: completeFilters }),
+                        });
+                        json = await res.json();
+                    } catch {
+                        // 연결·응답 해석 실패만 고정 문구로 바꾸고, 서버 안내는 아래에서 그대로 보여준다
+                        throw new Error("삭제 중 오류가 발생했습니다.");
                     }
-                } catch {
-                    throw new Error("삭제 중 오류가 발생했습니다.");
+                    if (!json.success) throw new Error(json.error ?? "삭제 실패");
+                    toast.success(`${json.data.deletedCount.toLocaleString()}건이 삭제되었습니다.`);
+                    onDeleted();
+                    handleOpenChange(false);
                 } finally {
                     setDeleting(false);
                 }

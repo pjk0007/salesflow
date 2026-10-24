@@ -148,19 +148,25 @@ export default function EditWebFormPage() {
     const handleAiGenerate = useCallback(async () => {
         if (!aiPrompt.trim()) return;
         const generate = async () => {
-        setAiGenerating(true);
-        try {
-            const res = await fetch("/api/ai/generate-webform", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    prompt: aiPrompt.trim(),
-                    workspaceFields: workspaceFields.map((f) => ({ key: f.key, label: f.label })),
-                    model: aiModel,
-                }),
-            });
-            const json = await res.json();
-            if (json.success) {
+            setAiGenerating(true);
+            try {
+                let json;
+                try {
+                    const res = await fetch("/api/ai/generate-webform", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            prompt: aiPrompt.trim(),
+                            workspaceFields: workspaceFields.map((f) => ({ key: f.key, label: f.label })),
+                            model: aiModel,
+                        }),
+                    });
+                    json = await res.json();
+                } catch {
+                    // 연결·응답 해석 실패만 고정 문구로 바꾸고, 서버 안내는 아래에서 그대로 보여준다
+                    throw new Error("AI 생성 중 오류가 발생했습니다.");
+                }
+                if (!json.success) throw new Error(json.error || "AI 생성에 실패했습니다.");
                 const data = json.data;
                 if (data.name) setFormName(data.name);
                 setFormTitle(data.title);
@@ -180,18 +186,20 @@ export default function EditWebFormPage() {
                 toast.success(`${data.fields.length}개 필드가 생성되었습니다.`);
                 setAiOpen(false);
                 setAiPrompt("");
-            } else {
-                throw new Error(json.error || "AI 생성에 실패했습니다.");
+            } finally {
+                setAiGenerating(false);
             }
-        } finally {
-            setAiGenerating(false);
-        }
         };
         if (formFields.length > 0) {
-            confirm({ title: "웹 폼 필드 교체", confirmLabel: "생성", description: "기존 필드가 AI 생성 결과로 대체됩니다. 계속하시겠습니까?", onConfirm: generate });
+            confirm({
+                title: "웹 폼 필드 교체",
+                confirmLabel: "생성",
+                description: "기존 필드가 AI 생성 결과로 대체됩니다. 계속하시겠습니까?",
+                onConfirm: generate,
+            });
         } else {
             try { await generate(); }
-            catch { toast.error("AI 생성 중 오류가 발생했습니다."); }
+            catch (cause) { toast.error(cause instanceof Error && /[가-힣]/.test(cause.message) ? cause.message : "AI 생성 중 오류가 발생했습니다."); }
         }
     }, [aiPrompt, aiModel, formFields.length, workspaceFields, confirm]);
 

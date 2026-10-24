@@ -66,7 +66,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
     const [search, setSearch] = useState("");
     const [searchInput, setSearchInput] = useState("");
 
-    const { logs, total, totalPages, isLoading, error, mutate } = useUnifiedLogs({
+    const { logs, total, totalPages, isLoading, loadError, mutate } = useUnifiedLogs({
         channel: channel || undefined,
         status: status || undefined,
         triggerType: triggerType || undefined,
@@ -156,7 +156,7 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                 </div>
             )}
 
-            {error ? <QueryErrorState error={error} onRetry={() => mutate()} /> : isLoading ? (
+            {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : isLoading ? (
                 <div className="space-y-3">
                     {Array.from({ length: compact ? 5 : 10 }).map((_, i) => (
                         <Skeleton key={i} className="h-10 w-full" />

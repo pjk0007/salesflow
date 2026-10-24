@@ -1,7 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
 import { useState, useMemo, useEffect } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
@@ -30,6 +28,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Users, UserCheck, Eye, Settings, BarChart3, Megaphone, Activity } from "lucide-react";
 import type { TrackerSite } from "../types";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
 
@@ -51,7 +50,7 @@ export function VisitorListPage() {
         router.replace(`${pathname}${sp.toString() ? "?" + sp.toString() : ""}`, { scroll: false });
     };
 
-    const { workspaces , error: loadError0, mutate: retryLoad0 } = useWorkspaces();
+    const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(() => {
         if (typeof window === "undefined") return null;
         const saved = localStorage.getItem(WORKSPACE_STORAGE_KEY);
@@ -70,9 +69,9 @@ export function VisitorListPage() {
         localStorage.setItem(WORKSPACE_STORAGE_KEY, String(id));
     };
 
-    const { site, isLoading: siteLoading, mutate: mutateSite , error: loadError1 } = useTrackerSite(workspaceId);
+    const { site, isLoading: siteLoading, loadError: siteError, mutate: mutateSite } = useTrackerSite(workspaceId);
 
-    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), mutateSite()])} />;
+    if (workspacesError) return <QueryErrorState error={workspacesError} onRetry={() => mutateWorkspaces()} />;
 
     if (!workspaces || workspaces.length === 0) {
         return <p className="text-sm text-muted-foreground">워크스페이스가 없습니다.</p>;
@@ -95,6 +94,16 @@ export function VisitorListPage() {
             </SelectContent>
         </Select>
     );
+
+    // 사이트 조회가 실패해도 다른 워크스페이스로 바꿀 수 있게 선택기를 남긴다
+    if (siteError) {
+        return (
+            <div className="space-y-4">
+                {workspaceSelector}
+                <QueryErrorState error={siteError} onRetry={() => mutateSite()} />
+            </div>
+        );
+    }
 
     if (siteLoading) {
         return (
@@ -186,7 +195,7 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
         setPage(1);
     }, [q, hasRecord, filters.pagePath, filters.channel, site.id]);
 
-    const { items, total, totalPages, isLoading , error: loadError2, mutate: retryLoad2 } = useTrackerVisitors({
+    const { items, total, totalPages, isLoading, loadError: visitorsError, mutate: mutateVisitors } = useTrackerVisitors({
         siteId: site.id,
         page,
         q: q || undefined,
@@ -195,18 +204,16 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
         channel: filters.channel ?? undefined,
     });
 
-    const { stats , error: loadError3, mutate: retryLoad3 } = useTrackerStats(site.id, {
+    const { stats } = useTrackerStats(site.id, {
         pagePath: filters.pagePath ?? undefined,
         channel: filters.channel ?? undefined,
     });
 
-    const { pages , error: loadError4, mutate: retryLoad4 } = useTrackerPages(site.id);
+    const { pages } = useTrackerPages(site.id);
 
     const isFresh =
         stats != null && stats.totalVisitors === 0 &&
         !q && !hasRecord && !filters.pagePath && !filters.channel;
-    if (loadError2 || loadError3 || loadError4) return <QueryErrorState error={loadError2 || loadError3 || loadError4} onRetry={() => Promise.all([retryLoad2(), retryLoad3(), retryLoad4()])} />;
-
     if (isFresh) return <TrackerInstallGuide apiKey={site.apiKey} />;
 
     return (
@@ -251,7 +258,9 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
                 />
             </div>
 
-            {isLoading && items.length === 0 ? (
+            {visitorsError ? (
+                <QueryErrorState error={visitorsError} onRetry={() => mutateVisitors()} />
+            ) : isLoading && items.length === 0 ? (
                 <Skeleton className="h-96 w-full rounded-xl" />
             ) : (
                 <>

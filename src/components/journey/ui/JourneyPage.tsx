@@ -1,7 +1,5 @@
 "use client";
 
-import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -17,13 +15,14 @@ import { JourneyEventDetail } from "./JourneyEventDetail";
 import { ChannelFilter } from "./ChannelFilter";
 import type { JourneyEvent } from "../types";
 import { LeadFollowupPanel } from "@/components/lead-followup/ui/LeadFollowupPanel";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 export function JourneyPage({ recordId, visitorId }: { recordId?: number; visitorId?: number }) {
     const router = useRouter();
     const [channels, setChannels] = useState<string[]>([]);
     const isAnonymous = !recordId;
     // 필터는 클라이언트에서 처리 — 서버 재요청 없이 즉시 (깜빡임 방지)
-    const { journey, isLoading , error: loadError0, mutate: retryLoad0 } = useJourney(
+    const { journey, isLoading, loadError, mutate } = useJourney(
         recordId ? { recordId } : visitorId ? { visitorId } : null,
     );
     const [selected, setSelected] = useState<JourneyEvent | null>(null);
@@ -39,7 +38,7 @@ export function JourneyPage({ recordId, visitorId }: { recordId?: number; visito
     // hover 중이면 그 이벤트, 아니면 클릭 선택, 둘 다 없으면 첫 이벤트(기본)
     const preview = hovered ?? selected ?? filteredEvents[0] ?? null;
 
-    if (loadError0) return <QueryErrorState error={loadError0} onRetry={() => retryLoad0()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="mx-auto max-w-7xl p-4 sm:p-6 space-y-4">

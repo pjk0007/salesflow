@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { ApiResponse, MemberItem, OrgRole } from "@/types";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 
 export function useOrgMembers() {
@@ -33,6 +33,7 @@ export function useOrgMembers() {
         members: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         updateRole,
         removeMember,

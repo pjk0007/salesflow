@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { AlimtalkTemplateLink } from "@/lib/db";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 interface TemplateLinksResponse {
     success: boolean;
@@ -79,6 +79,7 @@ export function useAlimtalkTemplateLinks(partitionId: number | null | "all") {
         templateLinks: data?.data ?? [],
         isLoading,
         error,
+        loadError: blockingError(data, error),
         mutate,
         createLink,
         updateLink,

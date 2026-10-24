@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
 
 
 export interface AutoPersonalizedLink {
@@ -147,10 +147,11 @@ export function useAutoPersonalizedEmail(partitionId: number | null | "all") {
     };
 
     return {
-        mutate: mutate,
         links: (data?.data ?? []) as AutoPersonalizedLink[],
         isLoading,
+        mutate,
         error,
+        loadError: blockingError(data, error),
         createLink,
         updateLink,
         deleteLink,

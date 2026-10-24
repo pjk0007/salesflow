@@ -57,7 +57,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
-    const { templateLinks, error, mutate, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
+    const { templateLinks, loadError, mutate, isLoading, deleteLink } = useAlimtalkTemplateLinks(selectedPartitionId);
 
     const partitionMap = useMemo(
         () => Object.fromEntries(partitions.map((p) => [p.id, p.name])),
@@ -85,7 +85,7 @@ export default function AlimtalkTemplateLinkList({ partitions }: AlimtalkTemplat
         });
     };
 
-    if (error) return <QueryErrorState error={error} onRetry={() => mutate()} />;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">

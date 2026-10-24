@@ -49,9 +49,9 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
 
-    const { templateLinks, isLoading, updateLink, deleteLink , error: loadError0, mutate: retryLoad0 } = useEmailTemplateLinks(selectedPartitionId);
+    const { templateLinks, isLoading, updateLink, deleteLink, loadError, mutate } = useEmailTemplateLinks(selectedPartitionId);
     const selectedPartition = selectedPartitionId !== "all" ? partitions.find((p) => p.id === selectedPartitionId) : null;
-    const { fields , error: loadError1, mutate: retryLoad1 } = useFields(selectedPartition?.workspaceId ?? null);
+    const { fields } = useFields(selectedPartition?.workspaceId ?? null);
     const partitionMap = useMemo(() => Object.fromEntries(partitions.map((p) => [p.id, p.name])), [partitions]);
     const fieldLabelMap = useMemo(() => {
         const map: Record<string, string> = {};
@@ -84,8 +84,6 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
         setDeleteTarget(null);
     };
 
-    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
-
     return (
         <Card>
             <CardHeader>
@@ -116,7 +114,9 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                 </div>
             </CardHeader>
             <CardContent>
-                {isLoading ? (
+                {loadError ? (
+                    <QueryErrorState error={loadError} onRetry={() => mutate()} />
+                ) : isLoading ? (
                     <div className="flex justify-center py-8">
                         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>

@@ -6,7 +6,7 @@ import type { ChatSpaceInput, ChatSpaceItem } from "../types";
 
 /** 조직의 구글챗 스페이스 목록. enabled=false면 불러오지 않는다 (관리자가 아닐 때) */
 export function useChatSpaces(enabled = true) {
-    const { data, isLoading, mutate , error: queryError0 } = useSWR<ApiResponse<ChatSpaceItem[]>>(
+    const { data, error, isLoading, mutate } = useSWR<ApiResponse<ChatSpaceItem[]>>(
         enabled ? CHAT_SPACES_URL : null,
         defaultFetcher
     );
@@ -18,10 +18,10 @@ export function useChatSpaces(enabled = true) {
     };
 
     return {
-        error: queryError0,
-        mutate: mutate,
         spaces: data?.data ?? [],
         isLoading,
+        error,
+        mutate,
         create: (input: ChatSpaceInput) => withRefresh(createChatSpace(input)),
         update: (id: number, input: ChatSpaceInput) => withRefresh(updateChatSpace(id, input)),
         remove: (id: number) => withRefresh(deleteChatSpace(id)),

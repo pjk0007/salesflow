@@ -27,11 +27,12 @@ interface AlimtalkDashboardProps {
 }
 
 export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProps) {
-    const { isConfigured , error: loadError0, mutate: retryLoad0 } = useAlimtalkConfig();
+    const { isConfigured, loadError: configError, mutate: mutateConfig } = useAlimtalkConfig();
     const [period, setPeriod] = useState<"today" | "week" | "month">("today");
-    const { stats, isLoading , error: loadError1, mutate: retryLoad1 } = useAlimtalkStats(period);
+    const { stats, isLoading, loadError: statsError, mutate: mutateStats } = useAlimtalkStats(period);
 
-    if (loadError0 || loadError1) return <QueryErrorState error={loadError0 || loadError1} onRetry={() => Promise.all([retryLoad0(), retryLoad1()])} />;
+    const loadError = configError || statsError;
+    if (loadError) return <QueryErrorState error={loadError} onRetry={() => Promise.all([mutateConfig(), mutateStats()])} />;
 
     if (!isConfigured) {
         return (
