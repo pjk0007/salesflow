@@ -14,6 +14,7 @@ import {
     inboxConversations,
     crmDeals,
     crmTasks,
+    users,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
@@ -115,16 +116,33 @@ async function actorFor(
     workspaceId: number,
     exec: DbExec,
 ): Promise<SalesActor> {
-    if (!userId)
-        throw new InboxError("게시한 직원의 권한을 확인해주세요.", 403);
-    const actor = await customerStaffActor(
-        orgId,
-        userId,
-        `자동화 · ${name}`.slice(0, 100),
-        exec,
-    );
-    await requireCustomerAccess(actor, workspaceId, "manage", exec);
-    return actor;
+    const revoked = async () => {
+        // 실패 사유는 "지금 보고 있는 관리자"가 아니라 게시한 직원의 권한 문제임을 분명히 한다
+        const [publisher] = userId
+            ? await exec
+                  .select({ name: users.name })
+                  .from(users)
+                  .where(eq(users.id, userId))
+            : [];
+        return new InboxError(
+            `게시한 직원${publisher ? `(${publisher.name})` : ""}의 운영 관리 권한이 없어 실행하지 못했습니다. 운영 관리 권한이 있는 직원이 다시 게시해주세요.`,
+            403,
+        );
+    };
+    if (!userId) throw await revoked();
+    try {
+        const actor = await customerStaffActor(
+            orgId,
+            userId,
+            `자동화 · ${name}`.slice(0, 100),
+            exec,
+        );
+        await requireCustomerAccess(actor, workspaceId, "manage", exec);
+        return actor;
+    } catch (error) {
+        if (error instanceof InboxError && error.status === 403) throw await revoked();
+        throw error;
+    }
 }
 async function processClaim(
     job: Run,
