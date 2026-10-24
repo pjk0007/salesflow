@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { adAccounts, adPlatforms } from "@/lib/db/schema";
+import { adAccounts, adPlatforms, workspaces } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 
@@ -35,7 +35,19 @@ export async function PATCH(
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
         if (body.workspaceId !== undefined) {
-            updateData.workspaceId = body.workspaceId;
+            // 연결 해제(null) 말고는 내 조직의 워크스페이스인지 확인한다
+            if (body.workspaceId !== null) {
+                const [ws] = await db
+                    .select({ id: workspaces.id })
+                    .from(workspaces)
+                    .where(and(eq(workspaces.id, Number(body.workspaceId)), eq(workspaces.orgId, user.orgId)));
+                if (!ws) {
+                    return NextResponse.json({ success: false, error: "워크스페이스를 찾을 수 없습니다." }, { status: 404 });
+                }
+                updateData.workspaceId = ws.id;
+            } else {
+                updateData.workspaceId = null;
+            }
         }
         if (body.name?.trim()) {
             updateData.name = body.name.trim();

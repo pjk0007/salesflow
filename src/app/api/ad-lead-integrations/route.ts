@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { adLeadIntegrations, adAccounts, adPlatforms, partitions } from "@/lib/db/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requirePartitionAccess } from "@/lib/partition-access";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);
@@ -92,6 +94,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "광고 계정을 찾을 수 없습니다." }, { status: 404 });
         }
 
+        // 리드가 쌓일 파티션이 내 조직의 것인지 확인한다
+        if (partitionId) {
+            const access = await requirePartitionAccess(user, Number(partitionId), "create");
+            if (!access.ok) {
+                return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+            }
+        }
+
         const [created] = await db
             .insert(adLeadIntegrations)
             .values({
@@ -110,8 +120,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error: unknown) {
-        const errStr = String(error) + String((error as { cause?: unknown })?.cause || "");
-        if (errStr.includes("unique") || errStr.includes("23505")) {
+        if (isUniqueViolation(error)) {
             return NextResponse.json({ success: false, error: "이미 동일한 광고 계정과 폼의 연동이 존재합니다. 기존 연동을 삭제 후 다시 시도하세요." }, { status: 409 });
         }
         console.error("Ad lead integration create error:", error);
