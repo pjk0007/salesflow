@@ -21,6 +21,8 @@ export function useSSE({
     onAnyChange,
 }: UseSSEOptions) {
     const [isConnected, setIsConnected] = useState(false);
+    // 연결 오류가 난 뒤 아직 다시 연결되지 않은 상태. 첫 연결 중에는 false라 화면 안내가 깜빡이지 않는다.
+    const [hasError, setHasError] = useState(false);
     const esRef = useRef<EventSource | null>(null);
     const sessionIdRef = useRef(
         typeof crypto !== "undefined" ? crypto.randomUUID() : Math.random().toString(36).slice(2)
@@ -61,6 +63,7 @@ export function useSSE({
 
         es.addEventListener("connected", () => {
             setIsConnected(true);
+            setHasError(false);
             attemptRef.current = 0;
             if (connectedOnceRef.current) callbacksRef.current.onAnyChange?.();
             connectedOnceRef.current = true;
@@ -97,6 +100,7 @@ export function useSSE({
 
         es.onerror = () => {
             setIsConnected(false);
+            setHasError(true);
             es.close();
             esRef.current = null;
 
@@ -125,10 +129,16 @@ export function useSSE({
                 esRef.current = null;
             }
             setIsConnected(false);
+            setHasError(false);
         };
     }, [connect]);
 
     const reconnect = useCallback(() => {
+        // 예약된 자동 재시도가 있으면 지우고 바로 연결한다(이중 연결 방지).
+        if (reconnectTimerRef.current) {
+            clearTimeout(reconnectTimerRef.current);
+            reconnectTimerRef.current = null;
+        }
         attemptRef.current = 0;
         connect();
     }, [connect]);
@@ -149,5 +159,5 @@ export function useSSE({
         };
     }, [partitionId, enabled, reconnect]);
 
-    return { isConnected, sessionId: sessionIdRef.current, reconnect };
+    return { isConnected, disconnected: hasError && !isConnected, sessionId: sessionIdRef.current, reconnect };
 }

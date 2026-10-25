@@ -83,6 +83,10 @@ export function KnowledgeForm({
             },
         ],
     );
+    // 사용할 곳을 고르지 않은 사실은 서버가 '입력 형식' 오류로만 거절하므로 저장 전에 알린다.
+    const missingPurpose = claims.some(
+        (c) => c.text.trim() && !c.purposes.length,
+    );
     const update = (index: number, value: Partial<(typeof claims)[number]>) =>
         setClaims((items) =>
             items.map((c, i) => (i === index ? { ...c, ...value } : c)),
@@ -237,6 +241,12 @@ export function KnowledgeForm({
                             항목 삭제
                         </Button>
                     </div>
+                    {claim.text.trim() && !claim.purposes.length && (
+                        <p className="text-xs text-amber-700">
+                            이 사실을 사용할 곳(첫 소개 메일·방문 감사
+                            메일·고객 상담)을 하나 이상 선택해주세요.
+                        </p>
+                    )}
                 </fieldset>
             ))}
             <div className="flex gap-3">
@@ -257,7 +267,7 @@ export function KnowledgeForm({
                 >
                     사실 추가
                 </Button>
-                <Button disabled={pending} type="submit">
+                <Button disabled={pending || missingPurpose} type="submit">
                     새 지식 버전 저장
                 </Button>
             </div>

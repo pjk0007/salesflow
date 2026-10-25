@@ -8,6 +8,7 @@ import InlineEditCell from "./InlineEditCell";
 import MemoPopover from "./MemoPopover";
 import RecordEmptyState from "./ui/RecordEmptyState";
 import { toggleAllSelection } from "./utils/list-query";
+import { recordFieldValue } from "./utils/field-value";
 import { isFieldVisible } from "@/lib/visible-fields";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
@@ -162,7 +163,6 @@ export default function RecordTable({
                     </TableHeader>
                     <TableBody>
                         {records.map((record) => {
-                            const data = record.data as Record<string, unknown>;
                             let openBtnPlaced = false;
                             return (
                                 <TableRow
@@ -192,9 +192,7 @@ export default function RecordTable({
                                         if (isOpenTarget) openBtnPlaced = true;
                                         // 시스템 매핑 필드는 records의 시스템 컬럼 값을 읽고 읽기 전용
                                         const isSystemField = !!field.systemColumn;
-                                        const cellValue = isSystemField
-                                            ? (record as unknown as Record<string, unknown>)[field.systemColumn as string]
-                                            : data[field.key];
+                                        const cellValue = recordFieldValue(record, field);
                                         const cellSave = isSystemField
                                             ? undefined
                                             : (val: unknown) => handleCellSave(record.id, field.key, val);

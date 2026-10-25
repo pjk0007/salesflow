@@ -3,6 +3,7 @@
 import { recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { Button } from "@/components/ui/button";
 import PartitionNav from "@/components/records/PartitionNav";
 import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
 import type { ReactNode } from "react";
@@ -59,7 +60,7 @@ import { importDuplicatePolicy } from "@/components/records/utils/duplicate-poli
 import { apiRequest, requestErrorMessage } from "@/lib/swr-fetcher";
 import { useSession } from "@/contexts/SessionContext";
 import { useRecordListQuery } from "@/components/records/hooks/useRecordListQuery";
-import { recordsStorageKey, resolvePartitionSelection } from "@/components/records/utils/list-query";
+import { recordsStorageKey, resolvePartitionSelection, resolveWorkspaceSelection } from "@/components/records/utils/list-query";
 import PartitionHoldBanner from "@/components/email/send-health/ui/PartitionHoldBanner";
 
 export default function RecordsPage() {
@@ -175,7 +176,7 @@ export default function RecordsPage() {
         }
     }, [viewMode, partitionId, mutateRecords]);
 
-    useSSE({
+    const realtime = useSSE({
         partitionId,
         onAnyChange: handleSSEChange,
     });
@@ -191,13 +192,14 @@ export default function RecordsPage() {
         setRestoredOrgId(orgId);
     }, [orgId, restoredOrgId, resetListQuery]);
 
-    // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째)
+    // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째). 저장값이 없을 뿐이면 마지막 파티션은 유지한다
     useEffect(() => {
-        if (!restoredOrgId || workspaces.length === 0) return;
-        if (workspaceId && workspaces.some((w) => w.id === workspaceId)) return;
-        // 저장된 워크스페이스가 없거나 유효하지 않으면 첫 번째 선택
-        setWorkspaceId(workspaces[0].id);
-        setPartitionId(null);
+        if (!restoredOrgId) return;
+        const next = resolveWorkspaceSelection(workspaces.map((w) => w.id), workspaceId);
+        if (!next) return;
+        setWorkspaceId(next.workspaceId);
+        localStorage.setItem(recordsStorageKey("workspace", restoredOrgId), String(next.workspaceId));
+        if (!next.keepPartition) setPartitionId(null);
     }, [workspaces, workspaceId, restoredOrgId]);
 
     // 워크스페이스 변경 시 파티션 초기화
@@ -611,6 +613,15 @@ export default function RecordsPage() {
                                 isMember={user?.role === "member"}
                                 onToggleColumn={handleToggleColumn}
                             />
+                            {realtime.disconnected && (
+                                // 다시 연결은 실시간 연결만 새로 열어 선택·필터·쪽은 그대로 둔다. 연결되면 놓친 변경을 다시 불러온다(UX-109)
+                                <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                    실시간 갱신이 끊겼습니다. 다른 사람의 변경이 바로 보이지 않을 수 있습니다.
+                                    <Button variant="outline" size="sm" className="h-7" onClick={realtime.reconnect}>
+                                        다시 연결
+                                    </Button>
+                                </div>
+                            )}
                             {recordsError ? (
                                 <QueryErrorState error={recordsError} onRetry={() => mutateRecords()} />
                             ) : viewMode === "grouped" && statusField && partitionId ? (

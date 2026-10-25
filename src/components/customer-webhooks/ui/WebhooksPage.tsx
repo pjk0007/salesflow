@@ -10,6 +10,10 @@ import type { InboxBootstrap } from "@/components/inbox/types";
 import { WebhookEditor } from "./WebhookEditor";
 import { WebhookDeliveries } from "./WebhookDeliveries";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import {
+    nextSelfRotation,
+    type SelfRotation,
+} from "../utils/self-rotation";
 export function WebhooksPage({ role }: { role: string }) {
     void role;
     const params = useSearchParams(),
@@ -27,7 +31,8 @@ export function WebhooksPage({ role }: { role: string }) {
         [busy, setBusy] = useState(false),
         [issued, setIssued] = useState<{ id: string; secret: string } | null>(
             null,
-        );
+        ),
+        [selfRotation, setSelfRotation] = useState<SelfRotation | null>(null);
     const workspaceId =
             chosenWorkspace ?? bootstrap.data?.workspaces[0]?.id ?? null,
         list = useSWR<WebhookList>(
@@ -61,12 +66,23 @@ export function WebhooksPage({ role }: { role: string }) {
                     setIssued({ id: target.id, secret: result.secret });
                     setShowSecret(false);
                 }
+                rememberRotation(target, result.endpoint);
                 await list.mutate();
                 toast.success(
                     "새 서명 키를 발급했습니다. 복사해 수신 서버에 저장해주세요.",
                 );
             },
         });
+    }
+    // 재발급 응답의 버전을 편집기에 알려 내 재발급을 '다른 변경'으로 보지 않게 한다.
+    function rememberRotation(
+        target: WebhookEndpoint,
+        saved: WebhookEndpoint | undefined,
+    ) {
+        if (saved)
+            setSelfRotation((prev) =>
+                nextSelfRotation(prev, target.id, target.version, saved.version),
+            );
     }
     async function save(value: unknown) {
         setBusy(true);
@@ -105,6 +121,7 @@ export function WebhooksPage({ role }: { role: string }) {
             );
             if (result.secret)
                 setIssued({ id: endpoint.id, secret: result.secret });
+            if (type === "rotate") rememberRotation(endpoint, result.endpoint);
             await list.mutate();
             toast.success(
                 type === "test"
@@ -282,6 +299,11 @@ export function WebhooksPage({ role }: { role: string }) {
                                     eventTypes={list.data.eventTypes}
                                     busy={busy}
                                     onSave={save}
+                                    selfRotation={
+                                        selfRotation?.id === endpoint.id
+                                            ? selfRotation
+                                            : undefined
+                                    }
                                 />
                             ) : (
                                 <h2 className="font-semibold">

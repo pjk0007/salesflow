@@ -107,6 +107,19 @@ export function resolvePartitionSelection(tree: PartitionTreeLike, partitionId: 
     return all[0]?.id ?? null;
 }
 
+/**
+ * 저장된 워크스페이스 검증. 유효하면 null(그대로). 한 번도 바꾼 적 없어 저장값이 없으면 첫 워크스페이스를 고르되
+ * 저장된 파티션은 남겨 트리 검증(resolvePartitionSelection)에 맡기고, 저장값이 무효(삭제·다른 조직)일 때만 파티션도 버린다.
+ */
+export function resolveWorkspaceSelection(
+    workspaceIds: number[],
+    workspaceId: number | null,
+): { workspaceId: number; keepPartition: boolean } | null {
+    if (!workspaceIds.length) return null;
+    if (workspaceId && workspaceIds.includes(workspaceId)) return null;
+    return { workspaceId: workspaceIds[0], keepPartition: !workspaceId };
+}
+
 /** 조직마다 마지막으로 본 워크스페이스·파티션을 따로 기억한다(조직 전환 뒤 남의 파티션 복원 방지, UX-082) */
 export function recordsStorageKey(kind: "workspace" | "partition", orgId: string | null | undefined): string {
     const base = kind === "workspace" ? "records_last_workspace" : "records_last_partition";

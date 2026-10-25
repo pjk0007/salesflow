@@ -302,7 +302,7 @@ export function KnowledgeManager({
                             minLength={10}
                             maxLength={1000}
                         />
-                        <p id="support-knowledge-block-reason" className="text-xs text-muted-foreground">{reason.trim().length}/10자 이상 · 차단 이유를 10자 이상 입력해주세요.</p>
+                        <p id="support-knowledge-block-reason" className="text-xs text-muted-foreground">{reason.trim().length}/10자 이상{reason.trim().length < 10 ? " · 차단 이유를 10자 이상 입력해주세요." : ""}</p>
                         <div className="flex gap-3">
                             <button
                                 disabled={busy || reason.trim().length < 10}

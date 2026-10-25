@@ -556,8 +556,12 @@ export function WorkflowEditor({
                                     </button>
                                     {saved.publishedAt && (
                                         <p className="text-xs text-muted-foreground">
-                                            게시한 버전은 보존합니다. 다시
-                                            적용하려면 새 버전으로 저장해주세요.
+                                            이 버전은 이미 게시했습니다. 중단한
+                                            자동화는 위 &apos;현재 적용&apos;의
+                                            &apos;같은 게시 버전으로 다시
+                                            켜기&apos;로 다시 켜고, 내용을
+                                            바꾸려면 새 버전으로 저장해 모의
+                                            실행 후 게시해주세요.
                                         </p>
                                     )}
                                 </>

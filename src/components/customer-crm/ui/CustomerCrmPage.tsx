@@ -464,6 +464,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                                                                     d.contactName,
                                                                                 companyName:
                                                                                     d.companyName,
+                                                                                contactArchivedAt:
+                                                                                    d.contactArchivedAt,
+                                                                                companyArchivedAt:
+                                                                                    d.companyArchivedAt,
                                                                                 ownerId:
                                                                                     d.ownerId,
                                                                             },

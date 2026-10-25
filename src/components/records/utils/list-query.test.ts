@@ -6,6 +6,7 @@ import {
     recordListQueryReducer as reduce,
     recordsStorageKey,
     resolvePartitionSelection,
+    resolveWorkspaceSelection,
     toggleAllSelection,
     type RecordListQuery,
 } from "./list-query";
@@ -100,4 +101,14 @@ test("UX-082 마지막 파티션 저장 키는 조직마다 다르다", () => {
     assert.notEqual(recordsStorageKey("partition", "org-a"), recordsStorageKey("partition", "org-b"));
     assert.notEqual(recordsStorageKey("partition", "org-a"), recordsStorageKey("workspace", "org-a"));
     assert.equal(recordsStorageKey("workspace", "org-a"), "records_last_workspace:org-a");
+});
+
+test("UI확인-R3 워크스페이스를 바꾼 적 없어 저장값이 없으면 첫 워크스페이스를 고르되 마지막 파티션은 유지한다", () => {
+    assert.deepEqual(resolveWorkspaceSelection([1, 2], null), { workspaceId: 1, keepPartition: true });
+});
+
+test("UI확인-R3 저장된 워크스페이스가 무효면 첫 워크스페이스로 가고 파티션도 버린다, 유효하면 그대로", () => {
+    assert.deepEqual(resolveWorkspaceSelection([1, 2], 9), { workspaceId: 1, keepPartition: false });
+    assert.equal(resolveWorkspaceSelection([1, 2], 2), null);
+    assert.equal(resolveWorkspaceSelection([], null), null);
 });

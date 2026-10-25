@@ -1,6 +1,10 @@
 "use client";
 import { useState } from "react";
 import type { WebhookEndpoint } from "../types";
+import {
+    draftBaseVersion,
+    type SelfRotation,
+} from "../utils/self-rotation";
 export const eventNames: Record<string, string> = {
     "contact.created": "고객 생성",
     "contact.updated": "고객 정보 변경",
@@ -26,11 +30,13 @@ export function WebhookEditor({
     eventTypes,
     busy,
     onSave,
+    selfRotation,
 }: {
     endpoint?: WebhookEndpoint;
     eventTypes: string[];
     busy: boolean;
     onSave: (value: unknown) => Promise<WebhookEndpoint>;
+    selfRotation?: SelfRotation;
 }) {
     const initial = () => ({
         name: endpoint?.name ?? "",
@@ -44,6 +50,8 @@ export function WebhookEditor({
     });
     const [draft, setDraft] = useState(initial),
         [error, setError] = useState("");
+    // 내가 서명 키를 재발급해 올라간 버전은 다른 변경이 아니다.
+    const baseVersion = draftBaseVersion(draft.version, selfRotation);
     const field =
         "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
     return (
@@ -55,7 +63,7 @@ export function WebhookEditor({
                 try {
                     const saved = await onSave(
                         endpoint
-                            ? draft
+                            ? { ...draft, version: baseVersion }
                             : {
                                   name: draft.name,
                                   url: draft.url,
@@ -77,7 +85,7 @@ export function WebhookEditor({
             <h2 className="font-semibold">
                 {endpoint ? "수신 설정" : "웹훅 등록"}
             </h2>
-            {endpoint && endpoint.version !== draft.version && (
+            {endpoint && endpoint.version !== baseVersion && (
                 <div
                     role="alert"
                     className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800"
