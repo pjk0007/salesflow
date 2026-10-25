@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { installFakeDb, isolateEnv, isMembershipLookup } from "./auth-fake-db.test-helper";
@@ -7,7 +7,7 @@ import { installFakeDb, isolateEnv, isMembershipLookup } from "./auth-fake-db.te
 
 const ORG = "00000000-0000-4000-8000-000000000078";
 
-async function setup(t: Parameters<Parameters<typeof test>[1]>[0]) {
+async function setup(t: TestContext) {
     isolateEnv(t);
     const { db } = await import("./db");
     const { generateToken } = await import("./auth");
