@@ -259,3 +259,19 @@ test("UX-163: 자동 첫 메일도 매핑 누락이면 NHN 0회, 발송 이력�
     assert.equal(values.status, "failed");
     assert.match(values.resultMessage, /##회사명##/);
 });
+
+test("UX-155: 설정 조회 — member는 앱 키도 가려 받고, admin은 그대로 받는다", async (t) => {
+    for (const [role, expected] of [["member", "app***890"], ["admin", "app-key-1234567890"]] as const) {
+        await t.test(role, async (t) => {
+            const { db, request, membership } = await staff(t, role);
+            const { GET } = await import("../app/api/email/config/route");
+            installFakeDb(t, db, chain(membership, (c) =>
+                c.table === "email_configs" ? [{ id: 1, appKey: "app-key-1234567890", secretKey: "secret-abcdef", fromName: null, fromEmail: null, signature: null, signatureEnabled: 0, isActive: 1 }] : undefined));
+            const res = await GET(request("https://example.test/api/email/config", "GET"));
+            assert.equal(res.status, 200);
+            const body = await res.json();
+            assert.equal(body.data.appKey, expected);
+            assert.equal(body.data.secretKey, "sec***def");
+        });
+    }
+});

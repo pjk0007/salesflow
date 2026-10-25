@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useEmailConfig } from "@/hooks/useEmailConfig";
+import { useSession } from "@/contexts/SessionContext";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
 import { useSignatures } from "@/hooks/useSignatures";
 import SenderProfileManager from "./SenderProfileManager";
@@ -15,19 +16,18 @@ import { toast } from "sonner";
 
 export default function EmailConfigForm() {
     const { config, isLoading: configLoading, saveConfig, testConnection } = useEmailConfig();
+    const { user } = useSession();
+    // 조직 전체 발송에 쓰는 키라 관리자만 바꾼다 — 서버 POST도 관리자만 받는다 (UX-155)
+    const canEditKeys = user?.role !== "member";
     const { profiles, createProfile, updateProfile, deleteProfile, isLoading: profilesLoading } = useSenderProfiles();
     const { signatures, createSignature, updateSignature, deleteSignature, isLoading: signaturesLoading } = useSignatures();
 
-    const [appKey, setAppKey] = useState("");
+    // 입력 전에는 저장된 키를 보인다 (effect로 상태를 채우지 않고 그때그때 계산한다)
+    const [appKeyDraft, setAppKey] = useState<string | null>(null);
+    const appKey = appKeyDraft ?? config?.appKey ?? "";
     const [secretKey, setSecretKey] = useState("");
     const [testStatus, setTestStatus] = useState<"idle" | "testing" | "success" | "fail">("idle");
     const [saving, setSaving] = useState(false);
-
-    useEffect(() => {
-        if (config) {
-            setAppKey(config.appKey);
-        }
-    }, [config]);
 
     const handleTest = async () => {
         if (!appKey || !secretKey) {
@@ -75,7 +75,9 @@ export default function EmailConfigForm() {
                 <CardHeader>
                     <CardTitle>NHN Cloud Email API</CardTitle>
                     <CardDescription>
-                        NHN Cloud Email 서비스의 API 키를 입력해주세요.
+                        {canEditKeys
+                            ? "NHN Cloud Email 서비스의 API 키를 입력해주세요."
+                            : `조직 관리자만 API 키를 변경할 수 있습니다. ${config ? "현재 설정되어 있습니다." : "아직 설정되지 않았습니다 — 관리자에게 요청해주세요."}`}
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -84,6 +86,7 @@ export default function EmailConfigForm() {
                         <Input
                             id="email-appKey"
                             value={appKey}
+                            disabled={!canEditKeys}
                             onChange={(e) => { setAppKey(e.target.value); setTestStatus("idle"); }}
                             placeholder="NHN Cloud Email App Key"
                         />
@@ -94,6 +97,7 @@ export default function EmailConfigForm() {
                             id="email-secretKey"
                             type="password"
                             value={secretKey}
+                            disabled={!canEditKeys}
                             onChange={(e) => { setSecretKey(e.target.value); setTestStatus("idle"); }}
                             placeholder={config ? "변경하려면 새 Secret Key 입력" : "NHN Cloud Secret Key"}
                         />
@@ -102,13 +106,13 @@ export default function EmailConfigForm() {
                         )}
                     </div>
                     <div className="flex items-center gap-3 pt-2">
-                        <Button variant="outline" onClick={handleTest} disabled={testStatus === "testing" || !appKey || !secretKey}>
+                        <Button variant="outline" onClick={handleTest} disabled={!canEditKeys || testStatus === "testing" || !appKey || !secretKey}>
                             {testStatus === "testing" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                             {testStatus === "success" && <CheckCircle2 className="h-4 w-4 mr-2 text-green-500" />}
                             {testStatus === "fail" && <XCircle className="h-4 w-4 mr-2 text-red-500" />}
                             연결 테스트
                         </Button>
-                        <Button onClick={handleSave} disabled={saving || !appKey || !secretKey}>
+                        <Button onClick={handleSave} disabled={!canEditKeys || saving || !appKey || !secretKey}>
                             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                             저장
                         </Button>
