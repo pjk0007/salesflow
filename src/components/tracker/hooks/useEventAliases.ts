@@ -7,13 +7,28 @@ import type {
     EventAliasListResponse,
     EventAliasMutateResponse,
     EventAliasDeleteResponse,
+    EventAliasType,
 } from "../types/event-alias";
 
-export function useEventAliases(siteId: number | null) {
-    const key = siteId ? `/api/tracker/event-aliases?siteId=${siteId}` : null;
-    const { data, isLoading, error, mutate } = useSWR<EventAliasListResponse>(key, defaultFetcher);
+export function useEventAliases(
+    siteId: number | null,
+    params: { type?: EventAliasType | null; q?: string; page?: number } = {},
+) {
+    const key = siteId
+        ? `/api/tracker/event-aliases?` + new URLSearchParams({
+            siteId: String(siteId),
+            ...(params.type ? { type: params.type } : {}),
+            ...(params.q ? { q: params.q } : {}),
+            ...(params.page && params.page > 1 ? { page: String(params.page) } : {}),
+        }).toString()
+        : null;
+    const { data, isLoading, error, mutate } = useSWR<EventAliasListResponse>(key, defaultFetcher, { keepPreviousData: true });
+    const list = data?.success ? data : null;
     return {
-        data: data?.success ? data.data : [],
+        data: list?.data ?? [],
+        total: list?.total ?? 0,
+        page: list?.page ?? 1,
+        totalPages: list?.totalPages ?? 0,
         isLoading,
         error: data && !data.success ? data.error : (error?.message ?? null),
         mutate,

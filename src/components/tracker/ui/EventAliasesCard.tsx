@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tags, Plus, Pencil, Trash2, Copy, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Tags, Plus, Pencil, Trash2, Copy, Check, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useEventAliases, deleteEventAlias } from "../hooks/useEventAliases";
 import { EventAliasEditorDialog } from "./EventAliasEditorDialog";
 import type { EventAliasRow, EventAliasType } from "../types/event-alias";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { TrackerPagination } from "./TrackerPagination";
 
 interface Props {
     siteId: number;
@@ -46,14 +49,33 @@ const FILTERS: Array<{ value: "all" | EventAliasType; label: string }> = [
  */
 export function EventAliasesCard({ siteId }: Props) {
     const { confirm, confirmationDialog } = useAsyncConfirm();
-    const { data, isLoading, mutate } = useEventAliases(siteId);
     const [filter, setFilter] = useState<"all" | EventAliasType>("all");
+    const [searchInput, setSearchInput] = useState("");
+    const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const { data: filtered, total, page: servedPage, totalPages, isLoading, error, mutate } = useEventAliases(siteId, {
+        type: filter === "all" ? null : filter,
+        q: search,
+        page,
+    });
     const [editorOpen, setEditorOpen] = useState(false);
     const [initial, setInitial] = useState<EventAliasRow | null>(null);
+    const hasFilter = filter !== "all" || search !== "";
 
-    const filtered = useMemo(() => {
-        return filter === "all" ? data : data.filter((r) => r.eventType === filter);
-    }, [data, filter]);
+    const changeFilter = (value: "all" | EventAliasType) => {
+        setFilter(value);
+        setPage(1);
+    };
+    const submitSearch = () => {
+        setSearch(searchInput.trim());
+        setPage(1);
+    };
+    const resetFilters = () => {
+        setFilter("all");
+        setSearch("");
+        setSearchInput("");
+        setPage(1);
+    };
 
     const openCreate = () => {
         setInitial(null);
@@ -103,12 +125,14 @@ export function EventAliasesCard({ siteId }: Props) {
                     한글 라벨을 매핑하면 마케팅 탭의 페이지 인게이지먼트에서 라벨로 표시됩니다.
                 </p>
 
+                <div className="flex flex-wrap items-center gap-2">
                 <div className="inline-flex rounded-md border bg-muted/30 p-0.5 text-[11px]">
                     {FILTERS.map((f) => (
                         <button
                             key={f.value}
                             type="button"
-                            onClick={() => setFilter(f.value)}
+                            aria-pressed={filter === f.value}
+                            onClick={() => changeFilter(f.value)}
                             className={
                                 filter === f.value
                                     ? "rounded bg-background px-2 py-0.5 font-medium shadow-sm"
@@ -119,15 +143,41 @@ export function EventAliasesCard({ siteId }: Props) {
                         </button>
                     ))}
                 </div>
+                    <div className="flex gap-1">
+                        <Input
+                            aria-label="이벤트 이름·라벨 검색"
+                            placeholder="이름·라벨 검색"
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }}
+                            className="h-7 w-44 text-xs"
+                        />
+                        <Button size="icon" variant="outline" className="h-7 w-7" aria-label="검색" onClick={submitSearch}>
+                            <Search className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                </div>
 
-                {isLoading ? (
+                {error && filtered.length === 0 ? (
+                    <QueryErrorState error={error} onRetry={() => mutate()} />
+                ) : isLoading && filtered.length === 0 ? (
                     <p className="text-sm text-muted-foreground">불러오는 중...</p>
                 ) : filtered.length === 0 ? (
                     <div className="rounded-md border border-dashed bg-muted/30 p-4 text-center text-[12px] text-muted-foreground">
-                        아직 추적된 이벤트가 없습니다. 페이지에 <code className="font-mono">data-track-section</code> /{" "}
-                        <code className="font-mono">data-track-click</code> 속성을 박은 후 방문이 발생하면 여기에 표시됩니다.
+                        {hasFilter ? (
+                            <>
+                                조건에 맞는 이벤트가 없습니다.{" "}
+                                <button type="button" className="underline" onClick={resetFilters}>필터 초기화</button>
+                            </>
+                        ) : (
+                            <>
+                                아직 추적된 이벤트가 없습니다. 페이지에 <code className="font-mono">data-track-section</code> /{" "}
+                                <code className="font-mono">data-track-click</code> 속성을 박은 후 방문이 발생하면 여기에 표시됩니다.
+                            </>
+                        )}
                     </div>
                 ) : (
+                    <>
                     <div className="rounded-md border text-xs">
                         <table className="w-full">
                             <thead className="bg-muted/50">
@@ -192,6 +242,12 @@ export function EventAliasesCard({ siteId }: Props) {
                             </tbody>
                         </table>
                     </div>
+                    <div className="flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground">총 {total.toLocaleString()}건</p>
+                        {/* 요청 page가 마지막을 넘으면(삭제로 마지막 페이지가 빈 경우 등) 서버가 당겨 준 page를 기준으로 표시·이동한다 */}
+                        <TrackerPagination page={servedPage} totalPages={totalPages} onChange={setPage} />
+                    </div>
+                    </>
                 )}
             </CardContent>
             <EventAliasEditorDialog

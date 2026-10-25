@@ -20,6 +20,7 @@ export function TrackerPagination({
     return (
         <div className="flex items-center gap-1">
             <Button
+                aria-label="이전 페이지"
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
@@ -32,6 +33,7 @@ export function TrackerPagination({
                 {page} / {totalPages}
             </span>
             <Button
+                aria-label="다음 페이지"
                 variant="outline"
                 size="icon"
                 className="h-8 w-8"
