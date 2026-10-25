@@ -35,10 +35,21 @@ async function open() {
 test("UX-060·062 잘못된 조건으로 조건 삭제 범위가 넓어지지 않고 숫자·체크박스 혼합 값도 조회된다", async () => {
     const pg = await open();
     try {
-        for (const filter of [{ field: "d", operator: "unknown", value: "x" }, { field: "d", operator: "contains", value: null }, { field: "d", operator: "between", value: "2026-10-18" }]) {
-            const q = whereOf([filter]);
+        const malformed: unknown[] = [
+            { field: "d", operator: "unknown", value: "x" },
+            { field: "d", operator: "contains", value: null },
+            { field: "d", operator: "between", value: "2026-10-18" },
+            ...[["equals"], ["is_empty"], ["gt"], {}, null, 1, true].map(operator => ({ field: "d", operator, value: 1 })),
+            { field: "d", operator: "between", value: "2026-10-18", valueTo: ["2026-10-18"] },
+            null, [], {},
+        ];
+        for (const filter of malformed) {
+            const q = whereOf([filter] as RecordFilter[]);
             assert.equal((await pg.query(`DELETE FROM records WHERE ${q.sql} RETURNING id`, q.params)).rows.length, 0);
         }
+        // 명시적으로 필터를 생략한 공용 빌더는 기존처럼 파티션의 전체 행을 반환한다.
+        const all = whereOf([]);
+        assert.equal((await pg.query(`SELECT id FROM records WHERE ${all.sql}`, all.params)).rows.length, 9);
         const values = [{ n: "3", b: "true" }, { n: "bad", b: "false" }, { n: "", b: "invalid" }, { n: "2.5", b: 1 }, { n: null, b: null }];
         for (let i = 0; i < values.length; i++) await pg.query("UPDATE records SET data = $2::jsonb WHERE id = $1", [i + 1, JSON.stringify(values[i])]);
         for (const [filter, ids] of [[{ field: "n", operator: "gt", value: 2 }, [1, 4]], [{ field: "b", operator: "is_true", value: null }, [1, 4]]] as const) {

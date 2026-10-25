@@ -160,6 +160,10 @@ export function buildRecordConditions(
             case "is_false":
                 conditions.push(sql`NOT ${recordCheckboxSql(key)}`);
                 break;
+            default:
+                // 검증기에 연산자가 추가돼도 SQL 구현이 빠지면 삭제 범위를 넓히지 않는다.
+                conditions.push(sql`false`);
+                break;
         }
     }
 
