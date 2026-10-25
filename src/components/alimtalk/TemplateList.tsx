@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
-import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
+import { apiRequest, blockingError, defaultFetcher, requestErrorMessage } from "@/lib/swr-fetcher";
 import type { NhnTemplate } from "@/lib/nhn-alimtalk";
 import type { AlimtalkTemplateDraft } from "@/lib/db";
 import {
@@ -29,16 +29,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AsyncAlertDialog, useAsyncConfirm } from "@/components/ui/alert-dialog";
 import {
     Dialog,
     DialogContent,
@@ -96,14 +87,21 @@ export default function TemplateList() {
     );
     const drafts = draftsData?.data ?? [];
 
-    const handleDeleteDraft = async (id: number) => {
-        const res = await fetch(`/api/alimtalk/template-drafts/${id}`, { method: "DELETE" });
-        const result = await res.json();
-        if (result.success) {
+    // 초안 삭제는 되돌릴 수 없다 — 확인창에서 실행하고 실패하면 창을 유지한다(UX-183)
+    const { confirm, confirmationDialog } = useAsyncConfirm();
+    const handleDeleteDraft = (draft: AlimtalkTemplateDraft) => confirm({
+        title: "초안 삭제",
+        description: `"${draft.templateName}" 임시저장 초안을 삭제합니다. 삭제한 초안은 되돌릴 수 없습니다.`,
+        onConfirm: async () => {
+            try {
+                await apiRequest(`/api/alimtalk/template-drafts/${draft.id}`, { method: "DELETE" });
+            } catch (error) {
+                throw new Error(requestErrorMessage(error, "초안을 삭제하지 못했습니다. 다시 시도해주세요."));
+            }
             toast.success("임시저장이 삭제되었습니다.");
             mutateDrafts();
-        }
-    };
+        },
+    });
 
     const [detailTemplate, setDetailTemplate] = useState<{
         senderKey: string;
@@ -115,7 +113,6 @@ export default function TemplateList() {
 
     // 삭제 확인
     const [deleteTarget, setDeleteTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
-    const [deleting, setDeleting] = useState(false);
 
     // 임시저장 미리보기
     const [draftPreview, setDraftPreview] = useState<AlimtalkTemplateDraft | null>(null);
@@ -124,22 +121,44 @@ export default function TemplateList() {
     const [commentTarget, setCommentTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
     const [commentText, setCommentText] = useState("");
     const [commenting, setCommenting] = useState(false);
+    const [commentError, setCommentError] = useState<string | null>(null);
+
+    // '전체' 보기는 발신 프로필별 캐시와 다른 키를 쓴다 — 변경 뒤 현재 목록을 함께 갱신한다(UX-184)
+    const refreshTemplates = () => (isAll ? mutateAll() : mutateSingle());
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
-        setDeleting(true);
-        await deleteTemplate(deleteTarget.templateCode, deleteTarget.senderKey);
-        setDeleting(false);
-        setDeleteTarget(null);
+        try {
+            await deleteTemplate(deleteTarget.templateCode, deleteTarget.senderKey);
+        } catch (error) {
+            throw new Error(requestErrorMessage(error, "템플릿을 삭제하지 못했습니다. 다시 시도해주세요."));
+        }
+        toast.success("템플릿이 삭제되었습니다.");
+        refreshTemplates();
     };
 
+    // 실패하면 창과 코멘트를 그대로 두고 사유를 보여 준다(UX-179)
     const handleComment = async () => {
-        if (!commentTarget || !commentText.trim()) return;
+        if (!commentTarget || !commentText.trim() || commenting) return;
         setCommenting(true);
-        await commentTemplate(commentTarget.templateCode, commentTarget.senderKey, commentText);
-        setCommenting(false);
+        setCommentError(null);
+        try {
+            await commentTemplate(commentTarget.templateCode, commentTarget.senderKey, commentText);
+            toast.success("검수 요청을 보냈습니다.");
+            refreshTemplates();
+            setCommentTarget(null);
+            setCommentText("");
+        } catch (error) {
+            setCommentError(requestErrorMessage(error, "검수 요청 결과를 확인하지 못했습니다. 템플릿 상태를 확인한 뒤 다시 시도해주세요."));
+        } finally {
+            setCommenting(false);
+        }
+    };
+    const closeComment = () => {
+        if (commenting) return;
         setCommentTarget(null);
         setCommentText("");
+        setCommentError(null);
     };
 
     const loadError = sendersError || (isAll ? blockingError(allData, allError) : singleError);
@@ -198,7 +217,8 @@ export default function TemplateList() {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8 shrink-0 md:hidden"
-                                            onClick={() => handleDeleteDraft(draft.id)}
+                                            aria-label="초안 삭제"
+                                            onClick={() => handleDeleteDraft(draft)}
                                         >
                                             <X className="h-4 w-4" />
                                         </Button>
@@ -218,22 +238,20 @@ export default function TemplateList() {
                                         >
                                             <Eye className="h-4 w-4 mr-1" /> 미리보기
                                         </Button>
+                                        {/* 초안은 아직 공급자에 등록되지 않았다 — 코멘트가 아니라 작성 화면에서 등록(검수 요청)한다(UX-182) */}
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => setCommentTarget({
-                                                senderKey: draft.senderKey,
-                                                templateCode: draft.templateCode,
-                                                templateName: draft.templateName,
-                                            })}
+                                            onClick={() => router.push(`/alimtalk/templates/new?draftId=${draft.id}`)}
                                         >
-                                            <Send className="h-4 w-4 mr-1" /> 검수요청
+                                            <Send className="h-4 w-4 mr-1" /> 등록·검수요청
                                         </Button>
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8 hidden md:inline-flex"
-                                            onClick={() => handleDeleteDraft(draft.id)}
+                                            aria-label="초안 삭제"
+                                            onClick={() => handleDeleteDraft(draft)}
                                         >
                                             <X className="h-4 w-4" />
                                         </Button>
@@ -379,23 +397,16 @@ export default function TemplateList() {
                 />
             )}
 
-            {/* 삭제 확인 */}
-            <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>템플릿 삭제</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            &quot;{deleteTarget?.templateName}&quot; 템플릿을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={deleting}>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} disabled={deleting}>
-                            {deleting ? "삭제 중..." : "삭제"}
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* 삭제 확인 — 성공해야 닫히고 실패하면 사유를 보여 준다(UX-179) */}
+            <AsyncAlertDialog
+                open={!!deleteTarget}
+                onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+                title="템플릿 삭제"
+                description={`"${deleteTarget?.templateName ?? ""}" 템플릿을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`}
+                onConfirm={handleDelete}
+                pendingLabel="삭제 중..."
+            />
+            {confirmationDialog}
 
             {/* 임시저장 미리보기 다이얼로그 */}
             <Dialog open={!!draftPreview} onOpenChange={() => setDraftPreview(null)}>
@@ -429,7 +440,7 @@ export default function TemplateList() {
             </Dialog>
 
             {/* 검수 요청 다이얼로그 */}
-            <Dialog open={!!commentTarget} onOpenChange={() => { setCommentTarget(null); setCommentText(""); }}>
+            <Dialog open={!!commentTarget} onOpenChange={(open) => { if (!open) closeComment(); }}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>검수 요청 — {commentTarget?.templateName}</DialogTitle>
@@ -440,8 +451,9 @@ export default function TemplateList() {
                         onChange={(e) => setCommentText(e.target.value)}
                         rows={4}
                     />
+                    {commentError && <p role="alert" className="text-sm text-destructive">{commentError}</p>}
                     <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => { setCommentTarget(null); setCommentText(""); }} disabled={commenting}>
+                        <Button variant="outline" onClick={closeComment} disabled={commenting}>
                             취소
                         </Button>
                         <Button onClick={handleComment} disabled={commenting || !commentText.trim()}>
