@@ -46,8 +46,61 @@ export async function fillFromBatches<R, T>(
     return { items, scanned, exhausted: false };
 }
 
-type AssessedRow = { id: number; workspace_id: number; record_id: number; session_id: number; message: Record<string, unknown> | string;
-    created_at: Date; tier_rank: number; cursor_at: string };
+type AlertRow = { id: number; workspace_id: number; record_id: number; session_id: number; message: Record<string, unknown> | string; created_at: Date };
+type AssessedRow = AlertRow & { tier_rank: number; cursor_at: string };
+
+/** 사업·고객 키의 후속 대응 상태 (없으면 null) */
+export async function loadFollowupState(conn: JourneyConnection, orgId: string, workspaceId: number, customerKey: string): Promise<LeadFollowup | null> {
+    const [state] = await conn<{ data: LeadFollowup }[]>`SELECT json_build_object(
+        'status',status,'dueAt',due_at,'note',note,'revision',revision,'updatedAt',updated_at,
+        'updatedBy',updated_by_name,'lastRemindedAt',last_reminded_at,'reminderCount',reminder_count) AS data
+        FROM journey_lead_followups WHERE org_id=${orgId} AND workspace_id=${workspaceId} AND customer_key=${customerKey}`;
+    return state ? jsonValue(state.data) : null;
+}
+
+/**
+ * 저장한 판정 한 줄을 지금 자료로 다시 확인한다 — 목록(listAssessedLeads)과 제외 이유 설명(explainLeadExclusion)이 같은 규칙을 쓴다.
+ */
+async function checkLeadRow(conn: JourneyConnection, row: AlertRow, ctx: {
+    orgId: string; now: Date; since: string; env: Record<string, string | undefined>;
+}): Promise<{ lead: AssessedLead; reason: null } | { lead: null; reason: string }> {
+    const priority = jsonValue(row.message).journeyPriority as JourneyPriority;
+    const [target] = await loadCandidates(conn, row.workspace_id, ctx.now, new Date(ctx.since), { sessionId: row.session_id, orgId: ctx.orgId });
+    if (!target) return { lead: null, reason: "판정한 방문 기록을 지금 다시 확인할 수 없습니다." };
+    const config = journeyAlertConfig(ctx.env);
+    const input = await enrichedInput(conn, target, config.baseUrl, ctx.now, [], (ctx.env.JOURNEY_ALERT_INTERNAL_DOMAINS ?? "").split(","));
+    const summary = summarizeJourney(input, ctx.now);
+    if (summary.completed) return { lead: null, reason: "고객이 신청·구매를 완료했습니다." };
+    if (!summary.eligible) return { lead: null, reason: summary.priority.excludedReason ?? "현재 판정 조건(방문 진행 중·자동 방문 의심 등)에 해당하지 않습니다." };
+    if (!priority.rankEligible) return { lead: null, reason: priority.excludedReason ?? "제외 조건에 해당합니다." };
+    const followup = await loadFollowupState(conn, ctx.orgId, row.workspace_id, priority.customerKey);
+    return { reason: null, lead: { alertId: row.id, recordId: row.record_id, workspaceId: row.workspace_id, customerKey: priority.customerKey,
+        businessName: input.businessName, company: summary.company, person: summary.person, email: input.recipientEmail,
+        stage: summary.stage, totalSeconds: summary.totalSeconds, assessedAt: new Date(row.created_at).toISOString(),
+        priority, ownerName: journeyOwner(config.routes[row.workspace_id])?.name ?? null,
+        followup: followup ?? emptyFollowup() } };
+}
+
+/**
+ * 이 레코드에 유효한 판정이 없을 때 그 이유 (UX-278). 마지막 판정 줄을 기간·저장 판정·현재 자료 순으로 본다.
+ */
+export async function explainLeadExclusion(conn: JourneyConnection, opts: {
+    orgId: string; recordId: number; now?: Date; env?: Record<string, string | undefined>;
+}): Promise<string> {
+    const now = opts.now ?? new Date(), env = opts.env ?? process.env;
+    const since = new Date(now.getTime() - DAYS_30).toISOString();
+    const [row] = await conn<(AlertRow & { status: string; last_error: string | null })[]>`
+        SELECT id,workspace_id,record_id,session_id,message,created_at,status,last_error FROM customer_journey_alerts
+        WHERE org_id=${opts.orgId} AND record_id=${opts.recordId} ORDER BY last_activity_at DESC, id DESC LIMIT 1`;
+    if (!row) return "이 고객의 메일 유입 여정 판정 기록이 없습니다.";
+    if (new Date(row.created_at).getTime() < Date.parse(since)) return "마지막 판정 후 30일이 지나 핵심 리드 판정에서 빠졌습니다.";
+    const priority = (jsonValue(row.message) as { journeyPriority?: JourneyPriority }).journeyPriority;
+    if (row.status === "skipped") return row.last_error ? `판정에서 제외됐습니다: ${row.last_error}` : "판정에서 제외됐습니다.";
+    if (!priority || priority.version !== 1) return "이전 형식의 판정이라 다시 확인할 수 없습니다.";
+    if (!priority.rankEligible) return priority.excludedReason ?? "제외 조건(내부·공유·완료 등)에 해당합니다.";
+    const checked = await checkLeadRow(conn, row, { orgId: opts.orgId, now, since, env });
+    return checked.reason ?? "현재 유효한 판정이 있습니다. 화면을 새로 고쳐 주세요.";
+}
 
 export async function listAssessedLeads(conn: JourneyConnection, opts: {
     orgId: string; workspaceId?: number; recordId?: number; limit?: number; now?: Date;
@@ -55,7 +108,6 @@ export async function listAssessedLeads(conn: JourneyConnection, opts: {
 }): Promise<AssessedLead[]> {
     const now = opts.now ?? new Date(), env = opts.env ?? process.env;
     const since = new Date(now.getTime() - DAYS_30).toISOString();
-    const routes = journeyAlertConfig(env).routes;
     const limit = Math.max(1, Math.min(opts.limit ?? 50, 200));
     // 정렬: 긴급 먼저 → 최근 활동 → id (동률 고정). 커서는 마지막 줄의 (tier_rank, last_activity_at, id).
     // last_activity_at은 같은 세션 안에서 text로 왕복해 마이크로초까지 그대로 비교한다.
@@ -86,23 +138,8 @@ export async function listAssessedLeads(conn: JourneyConnection, opts: {
         ORDER BY tier_rank, last_activity_at DESC, id DESC
         LIMIT ${size}`;
     // 목록을 읽은 뒤 완료·내부·공유·짧은 방문으로 바뀐 고객은 빼고, 그만큼 다음 묶음에서 채운다.
-    const accept = async (row: AssessedRow): Promise<AssessedLead | null> => {
-        const priority = jsonValue(row.message).journeyPriority as JourneyPriority;
-        const [target] = await loadCandidates(conn, row.workspace_id, now, new Date(since), { sessionId: row.session_id, orgId: opts.orgId });
-        if (!target) return null;
-        const input = await enrichedInput(conn, target, journeyAlertConfig(env).baseUrl, now, [], (env.JOURNEY_ALERT_INTERNAL_DOMAINS ?? "").split(","));
-        const summary = summarizeJourney(input, now);
-        if (!summary.eligible || summary.completed || !priority.rankEligible) return null;
-        const [state] = await conn<{ data: LeadFollowup }[]>`SELECT json_build_object(
-            'status',status,'dueAt',due_at,'note',note,'revision',revision,'updatedAt',updated_at,
-            'updatedBy',updated_by_name,'lastRemindedAt',last_reminded_at,'reminderCount',reminder_count) AS data
-            FROM journey_lead_followups WHERE org_id=${opts.orgId} AND workspace_id=${row.workspace_id} AND customer_key=${priority.customerKey}`;
-        return { alertId: row.id, recordId: row.record_id, workspaceId: row.workspace_id, customerKey: priority.customerKey,
-            businessName: input.businessName, company: summary.company, person: summary.person, email: input.recipientEmail,
-            stage: summary.stage, totalSeconds: summary.totalSeconds, assessedAt: new Date(row.created_at).toISOString(),
-            priority, ownerName: journeyOwner(routes[row.workspace_id])?.name ?? null,
-            followup: state ? jsonValue(state.data) : emptyFollowup() };
-    };
+    const accept = async (row: AssessedRow): Promise<AssessedLead | null> =>
+        (await checkLeadRow(conn, row, { orgId: opts.orgId, now, since, env })).lead;
     const { items } = await fillFromBatches(fetchBatch, accept, limit, { batchSize: Math.max(limit, LEAD_BATCH_SIZE) });
     return items;
 }
