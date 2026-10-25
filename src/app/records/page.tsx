@@ -53,6 +53,9 @@ import { mutate as globalMutate } from "swr";
 import { toast } from "sonner";
 import type { DbRecord } from "@/lib/db";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { updatePartitionSettings } from "@/components/records/api/partition-settings";
+import { toggleVisibleField } from "@/lib/visible-fields";
+import { requestErrorMessage } from "@/lib/swr-fetcher";
 import { useSession } from "@/contexts/SessionContext";
 import { useRecordListQuery } from "@/components/records/hooks/useRecordListQuery";
 import { recordsStorageKey, resolvePartitionSelection } from "@/components/records/utils/list-query";
@@ -417,27 +420,19 @@ export default function RecordsPage() {
 
 
     // 컬럼 표시/숨기기 토글
+    // 컬럼 표시/숨기기 — 전체 표시(null)·마지막 열 규칙은 lib/visible-fields.ts(UX-067), 실패는 안내(UX-079)
     const handleToggleColumn = useCallback(async (fieldKey: string, visible: boolean) => {
         if (!partitionId || !currentPartition) return;
-        // null(전체 표시) 상태에서 처음 토글하면 모든 필드를 명시적으로 풀어둔다
-        const currentFields =
-            currentPartition.visibleFields?.length
-                ? currentPartition.visibleFields
-                : fields.map((f) => f.key);
-        const newFields = visible
-            ? [...currentFields, fieldKey]
-            : currentFields.filter(k => k !== fieldKey);
+        const next = toggleVisibleField(currentPartition.visibleFields, fields.map((f) => f.key), fieldKey, visible);
+        if (next === undefined) {
+            toast.info("열은 하나 이상 표시해야 합니다.");
+            return;
+        }
         try {
-        const res = await fetch(`/api/partitions/${partitionId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", "x-session-id": sessionIdRef.current },
-            body: JSON.stringify({ visibleFields: newFields }),
-        });
-        const json = await res.json();
-        if (json.success) mutatePartitions();
-        else toast.error(json.error || "열 표시 설정을 저장하지 못했습니다.");
-        } catch {
-            toast.error("열 표시 설정을 저장하지 못했습니다. 다시 시도해주세요.");
+            await updatePartitionSettings(partitionId, { visibleFields: next }, sessionIdRef.current);
+            mutatePartitions();
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "열 표시 설정을 저장하지 못했습니다. 다시 시도해주세요."));
         }
     }, [partitionId, currentPartition, fields, mutatePartitions]);
 
@@ -588,6 +583,7 @@ export default function RecordsPage() {
                                 hasStatusField={!!statusField}
                                 visibleFieldKeys={currentPartition?.visibleFields ?? null}
                                 allFields={fields}
+                                isMember={user?.role === "member"}
                                 onToggleColumn={handleToggleColumn}
                             />
                             {recordsError ? (
@@ -752,16 +748,14 @@ export default function RecordsPage() {
                         open={true}
                         onOpenChange={(open) => { if (!open) setDistributionSettingsPartitionId(null); }}
                         partition={pt}
-                        fields={fields}
                         onSave={async (data) => {
-                            const res = await fetch(`/api/partitions/${pt.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json", "x-session-id": sessionIdRef.current },
-                                body: JSON.stringify(data),
-                            });
-                            const json = await res.json();
-                            if (json.success) mutatePartitions();
-                            return json;
+                            try {
+                                await updatePartitionSettings(pt.id, data, sessionIdRef.current);
+                                mutatePartitions();
+                                return { success: true };
+                            } catch (error) {
+                                return { success: false, error: requestErrorMessage(error, "설정을 저장하지 못했습니다. 다시 시도해주세요.") };
+                            }
                         }}
                     />
                 );

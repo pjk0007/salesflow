@@ -118,6 +118,9 @@ export default function FilterBuilder({
         });
     };
 
+    // 필드를 고른 뒤 값이 빠진 조건 — 적용하지 않고 버튼 옆에 알린다(UX-062, 조건 삭제와 같은 규칙)
+    const incompleteCount = draft.filter((c) => c.field !== "" && !isCompleteRecordFilter(c)).length;
+
     const handleApply = () => {
         const valid = draft.filter(isCompleteRecordFilter);
         onFiltersChange(valid);
@@ -328,13 +331,20 @@ export default function FilterBuilder({
                     조건 추가
                 </Button>
 
-                <div className="flex justify-between pt-3 mt-3 border-t">
+                <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t">
                     <Button variant="ghost" size="sm" onClick={handleReset}>
                         초기화
                     </Button>
-                    <Button size="sm" onClick={handleApply}>
-                        적용
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        {incompleteCount > 0 && (
+                            <p className="text-xs text-muted-foreground" role="status">
+                                값이 빠진 조건 {incompleteCount}개는 적용되지 않습니다.
+                            </p>
+                        )}
+                        <Button size="sm" onClick={handleApply}>
+                            적용
+                        </Button>
+                    </div>
                 </div>
             </PopoverContent>
         </Popover>

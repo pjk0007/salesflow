@@ -25,8 +25,8 @@ import { ChevronRight, Plus, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Partition } from "@/lib/db/schema";
-import type { FieldDefinition } from "@/types";
 import { useSession } from "@/contexts/SessionContext";
+import { useResolvedFields } from "@/hooks/useResolvedFields";
 import PartitionChatAlertSection from "@/components/chat-alerts/ui/PartitionChatAlertSection";
 
 type DistributionDefault = { field: string; value: string };
@@ -43,7 +43,6 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     partition: Partition;
-    fields: FieldDefinition[];
     onSave: (data: {
         useDistributionOrder: boolean;
         maxDistributionOrder: number;
@@ -57,9 +56,10 @@ export default function DistributionSettingsDialog({
     open,
     onOpenChange,
     partition,
-    fields,
     onSave,
 }: Props) {
+    // 지금 열린 파티션이 아니라 설정하려는 파티션의 속성(속성 타입이 다를 수 있다)
+    const { fields } = useResolvedFields(open ? partition.id : null);
     const [enabled, setEnabled] = useState(!!partition.useDistributionOrder);
     const [maxOrder, setMaxOrder] = useState(partition.maxDistributionOrder);
     const [defaults, setDefaults] = useState<DistributionDefaults>(

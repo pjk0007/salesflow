@@ -1,3 +1,4 @@
+import { addVisibleFieldKeys } from "@/lib/visible-fields";
 import { NextRequest, NextResponse } from "next/server";
 import { db, fieldTypes, fieldDefinitions, partitions, workspaces } from "@/lib/db";
 import { eq, and, asc, max, or, isNull } from "drizzle-orm";
@@ -164,13 +165,13 @@ export async function POST(
             );
 
         for (const p of partitionList) {
-            const currentFields = (p.visibleFields as string[]) || [];
             // null·빈 배열은 전체 표시다. 한 열만 담는 배열로 바꾸지 않는다.
-            if (currentFields.length > 0 && !currentFields.includes(newKey)) {
+            const nextFields = addVisibleFieldKeys(p.visibleFields as string[] | null, [newKey]);
+            if (nextFields) {
                 await db
                     .update(partitions)
                     .set({
-                        visibleFields: [...currentFields, newKey],
+                        visibleFields: nextFields,
                         updatedAt: new Date(),
                     })
                     .where(eq(partitions.id, p.id));

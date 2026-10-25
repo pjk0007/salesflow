@@ -8,6 +8,7 @@ import InlineEditCell from "./InlineEditCell";
 import MemoPopover from "./MemoPopover";
 import RecordEmptyState from "./ui/RecordEmptyState";
 import { toggleAllSelection } from "./utils/list-query";
+import { isFieldVisible } from "@/lib/visible-fields";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
@@ -66,11 +67,7 @@ export default function RecordTable({
 }: RecordTableProps) {
     // 표시할 필드 결정 (순서는 fields의 sortOrder 기준)
     const displayFields = useMemo(() => {
-        if (visibleFieldKeys && visibleFieldKeys.length > 0) {
-            const keySet = new Set(visibleFieldKeys);
-            return fields.filter((f) => keySet.has(f.key));
-        }
-        return fields;
+        return fields.filter((f) => isFieldVisible(visibleFieldKeys, f.key));
     }, [fields, visibleFieldKeys]);
 
     // 열기 버튼이 들어갈 첫 번째 text 필드 key
