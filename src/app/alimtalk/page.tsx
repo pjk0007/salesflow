@@ -83,11 +83,11 @@ function AlimtalkPageContent() {
                     </TabsContent>
 
                     <TabsContent value="senders" className="mt-6">
-                        <SenderProfileList />
+                        <SenderProfileList onConfigure={() => handleTabChange("settings")} />
                     </TabsContent>
 
                     <TabsContent value="templates" className="mt-6">
-                        <TemplateList />
+                        <TemplateList onConfigure={() => handleTabChange("settings")} />
                     </TabsContent>
 
                     <TabsContent value="links" className="mt-6">

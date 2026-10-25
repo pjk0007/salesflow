@@ -16,7 +16,7 @@ import { extractEmailVariables } from "@/lib/email-utils";
 import { useEmailCategories } from "@/hooks/useEmailCategories";
 import AiEmailPanel from "@/components/email/AiEmailPanel";
 import AssetPicker from "@/components/email/assets/ui/AssetPicker";
-import { assetsToImgHtml, insertAtCursor } from "@/components/email/assets/utils/insertImg";
+import { assetsToImgHtml, insertAtCursor, insertHtmlIntoEditor } from "@/components/email/assets/utils/insertImg";
 import type { SelectedAsset } from "@/components/email/assets/types";
 import { toast } from "sonner";
 import type { EmailTemplate } from "@/lib/db";
@@ -109,12 +109,22 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
 
     const variables = extractEmailVariables(subject + " " + htmlBody);
 
+    // 마지막 커서 위치 — 에셋 선택 창이 열리면 편집기 초점·선택이 사라지므로 미리 기억한다 (UX-145)
+    const editorRangeRef = useRef<Range | null>(null);
+    const rememberEditorRange = useCallback(() => {
+        const selection = window.getSelection();
+        if (!selection?.rangeCount || !editorRef.current) return;
+        const range = selection.getRangeAt(0);
+        if (editorRef.current.contains(range.commonAncestorContainer)) editorRangeRef.current = range.cloneRange();
+    }, []);
+
     // contenteditable → state 동기화
     const handleVisualInput = useCallback(() => {
         if (editorRef.current) {
             setHtmlBody(editorRef.current.innerHTML);
         }
-    }, []);
+        rememberEditorRange();
+    }, [rememberEditorRange]);
 
     // 모드 전환
     const handleModeChange = useCallback((mode: "visual" | "code") => {
@@ -132,11 +142,19 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         const html = assetsToImgHtml(selected);
 
         if (editMode === "visual" && editorRef.current) {
-            editorRef.current.focus();
-            // execCommand는 deprecated지만 contenteditable 커서 삽입에 여전히 가장 단순·안정적
-            const inserted = document.execCommand("insertHTML", false, html);
-            if (!inserted) editorRef.current.innerHTML += html;
+            // 선택 창이 아직 초점을 가두고 있어 편집기에 초점을 줄 수 없으므로, 기억한 커서 위치에 직접 넣는다 (UX-145)
+            const after = insertHtmlIntoEditor(editorRef.current, editorRangeRef.current, html);
+            editorRangeRef.current = after;
             setHtmlBody(editorRef.current.innerHTML);
+            // 창이 닫힌 뒤 편집기 초점과 커서를 삽입 지점 뒤로 되돌린다
+            requestAnimationFrame(() => {
+                const editor = editorRef.current;
+                if (!editor || !editor.contains(after.commonAncestorContainer)) return;
+                editor.focus();
+                const selection = window.getSelection();
+                selection?.removeAllRanges();
+                selection?.addRange(after);
+            });
         } else {
             const ta = codeRef.current;
             const start = ta?.selectionStart ?? htmlBody.length;
@@ -561,6 +579,9 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                                 contentEditable
                                 suppressContentEditableWarning
                                 onInput={handleVisualInput}
+                                onKeyUp={rememberEditorRange}
+                                onMouseUp={rememberEditorRange}
+                                onBlur={rememberEditorRange}
                                 className="p-4 min-h-full outline-none text-sm leading-relaxed [&_h1]:text-2xl [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:mb-2 [&_p]:mb-2 [&_a]:text-blue-600 [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:mb-1 [&_table]:border-collapse [&_td]:border [&_td]:p-2 [&_th]:border [&_th]:p-2 [&_th]:bg-muted"
                             />
                         ) : (

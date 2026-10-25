@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, Send, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
+import { sendResultHeading } from "./send-result";
 
 interface SendAlimtalkDialogProps {
     open: boolean;
@@ -106,8 +107,10 @@ export default function SendAlimtalkDialog({
                 {result ? (
                     <div className="space-y-4">
                         <div className="text-center py-4">
-                            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                            <p className="text-lg font-medium">발송 요청 결과</p>
+                            {sendResultHeading(result).tone === "success"
+                                ? <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" aria-hidden="true" />
+                                : <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-3" aria-hidden="true" />}
+                            <p className="text-lg font-medium">{sendResultHeading(result).title}</p>
                         </div>
                         <div className="flex justify-center gap-4">
                             <div className="text-center">

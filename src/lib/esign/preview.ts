@@ -85,7 +85,7 @@ export async function createEsignPreviewRuntime(pdfBytes: Uint8Array) {
 type PreviewRuntime = Awaited<ReturnType<typeof createEsignPreviewRuntime>>;
 const shared = globalThis as typeof globalThis & { __sendbEsignPreview?: Promise<PreviewRuntime> };
 export async function getEsignPreviewRuntime() {
-    return shared.__sendbEsignPreview ??= readFile(path.join(process.cwd(), "public/dev-start/esign-contract.pdf")).then(createEsignPreviewRuntime);
+    return shared.__sendbEsignPreview ??= readFile(path.join(process.cwd(), "dev-preview-assets/esign-contract.pdf")).then(createEsignPreviewRuntime);
 }
 export async function handleEsignPreviewRequest(request: Request, options: { enabled: boolean; actor(request: Request): Promise<Omit<EsignActor, "workspaceId">>; runtime?: () => Promise<PreviewRuntime> }) {
     const headers = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };

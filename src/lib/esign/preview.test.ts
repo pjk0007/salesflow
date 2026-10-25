@@ -20,7 +20,7 @@ test("preview requires the exact dev deployment and explicit opt-in; disabled/an
     assert.equal(allocated, 0);
 });
 test("dev preview uses real handler/worker for seeded invitation, inline OTP, signing and final PDF, with no DB or transport", async () => {
-    const app = await createEsignPreviewRuntime(await readFile("public/dev-start/esign-contract.pdf"));
+    const app = await createEsignPreviewRuntime(await readFile("dev-preview-assets/esign-contract.pdf"));
     const options = { enabled: true, actor: async () => actor, runtime: async () => app };
     async function api<T>(route: string, body?: unknown, expected = 200, headers?: Record<string, string>) {
         const response = await handleEsignPreviewRequest(new Request(`http://localhost/api/esign-preview${route}`, { method: body ? "POST" : "GET", headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...headers }, ...(body ? { body: JSON.stringify(body) } : {}) }), options);

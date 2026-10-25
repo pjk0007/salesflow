@@ -96,8 +96,8 @@ function htmlResponse(status: "success" | "error", message: string) {
     const safeMessage = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return new Response(
         `<!DOCTYPE html>
-<html>
-<head><title>Meta 연결</title></head>
+<html lang="ko">
+<head><meta charset="utf-8"><title>Meta 연결</title></head>
 <body>
 <script>
     const payload = ${payload};
@@ -112,6 +112,7 @@ function htmlResponse(status: "success" | "error", message: string) {
 <p>${safeMessage}</p>
 </body>
 </html>`,
-        { headers: { "Content-Type": "text/html" } }
+        // charset이 없으면 브라우저가 한국어 안내를 다른 인코딩으로 읽어 글자가 깨진다 (UX-049)
+        { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } }
     );
 }

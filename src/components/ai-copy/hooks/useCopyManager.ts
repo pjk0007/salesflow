@@ -69,6 +69,8 @@ export function useCopyManager(enabled = true) {
         knowledgePage: { validating: knowledge.isValidating, error: knowledge.data ? knowledge.error : null, retry: () => void knowledge.mutate() },
         pending,
         actionError,
+        // 대화상자를 닫거나 탭을 옮기면 그 작업의 오류를 페이지에 남기지 않는다.
+        clearActionError: () => setActionError(null),
         act,
         cursor,
         setCursor,

@@ -8,3 +8,10 @@ export function displayDate(value: string) { return new Date(value).toLocaleStri
 export function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 
 export const channelLabels: Record<EsignChannel, string> = { email: "이메일", alimtalk: "알림톡", sms: "SMS" };
+
+/** 공개 서명자 화면은 외부인이 본다 — 서버 설정 문구(암호화 키·DB·저장소 등)는 고객용 안내로 바꾼다. */
+export const SIGNER_UNAVAILABLE_MESSAGE = "전자서명 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 확인하거나 요청자에게 문의해 주세요.";
+export function signerErrorMessage(cause: unknown, fallback: string) {
+    if ((cause as { code?: unknown } | null)?.code === "configuration") return SIGNER_UNAVAILABLE_MESSAGE;
+    return cause instanceof Error && cause.message ? cause.message : fallback;
+}

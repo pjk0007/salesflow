@@ -91,8 +91,7 @@ export default function BillingTab() {
         setActionLoading(planSlug);
         try {
             if (!data?.subscription?.hasBillingKey) {
-                await openTossPayment(planSlug);
-                return;
+                return await openTossPayment(planSlug);
             }
             const res = await fetch("/api/billing/subscribe", {
                 method: "POST",
@@ -105,7 +104,7 @@ export default function BillingTab() {
                 toast.success("플랜이 변경되었습니다.");
                 await fetchBilling();
             } else if (json.needBillingKey) {
-                await openTossPayment(planSlug);
+                return await openTossPayment(planSlug);
             } else {
                 return { success: false, error: json.error || "플랜 변경에 실패했습니다." };
             }
@@ -117,7 +116,8 @@ export default function BillingTab() {
         }
     };
 
-    const openTossPayment = async (planSlug: string) => {
+    // 카드 등록창을 열기 전·도중의 실패는 결제 요청 전이므로 "결과 불명"이 아니라 "결제 안 됨"으로 알린다 (UX-020).
+    const openTossPayment = async (planSlug: string): Promise<{ success: false; error: string } | undefined> => {
         try {
             const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY;
             if (!clientKey) {
@@ -137,7 +137,8 @@ export default function BillingTab() {
                 customerName: user?.name,
             });
         } catch (error) {
-            throw new Error(error instanceof Error && /[가-힣]/.test(error.message) ? error.message : "결제창을 열 수 없습니다.");
+            const reason = error instanceof Error && /[가-힣]/.test(error.message) ? error.message : "결제창을 열 수 없습니다.";
+            return { success: false, error: `${reason} 카드 등록 전이라 결제는 진행되지 않았습니다.` };
         }
     };
 

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { fetchSessionResponse } from "@/lib/session-request";
+import { announceSessionChange, sessionIdentityKey, watchSessionChanges } from "@/lib/session-sync";
 import type { OrgRole } from "@/types";
 import { SessionTransitionQueue } from "@/components/inbox/hooks/session-transition-queue";
 
@@ -104,8 +105,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
             if (data.success) {
                 // 같은 조직에 다시 참여하거나 권한이 바뀐 세션도 이전 권한의 캐시를 재사용하지 않는다.
-                const nextIdentity = [data.user.orgId, data.user.userId, data.user.membershipId,
-                    data.user.tokenVersion, data.user.role, data.user.isSuperAdmin === true].join(":");
+                const nextIdentity = sessionIdentityKey(data.user);
                 identity.current = nextIdentity;
                 if (reloadPending.current || (cacheIdentity.current && cacheIdentity.current !== nextIdentity)) {
                     // 조직이 바뀌면 SWR 전역 캐시와 페이지 자체 상태를 함께 비운다.
@@ -156,6 +156,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }, [finishNavigation, invalidate]);
 
     const logout = useCallback(() => transitions.run(async (isLatest) => {
+        const before = identity.current;
         try {
             await fetch("/api/auth/logout", { method: "POST" });
         } catch (error) {
@@ -163,6 +164,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         } finally {
             // An uncertain response may still have changed the cookie.
             await fetchSession(true);
+            if (identity.current !== before) announceSessionChange();
         }
         if (isLatest() && identity.current === null) navigationPending.current = "/login";
     }), [fetchSession, transitions]);
@@ -170,6 +172,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const switchOrg = useCallback(async (orgId: string) => {
         let result = { success: false, error: "조직을 전환하지 못했습니다. 다시 시도해주세요." };
         await transitions.run(async (isLatest) => {
+        const before = identity.current;
         try {
             const res = await fetch("/api/org/switch", {
                 method: "POST",
@@ -183,6 +186,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         } finally {
             // Also reconcile intermediate successes and failed/ambiguous cookie responses.
             await fetchSession(true);
+            if (identity.current !== before) announceSessionChange();
         }
         if (result.success && isLatest() && identity.current) navigationPending.current = "/";
         });
@@ -192,6 +196,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const createOrg = useCallback(async (name: string) => {
         let result: { success: boolean; error?: string } = { success: false, error: "서버 오류가 발생했습니다." };
         await transitions.run(async (isLatest) => {
+            const before = identity.current;
             try {
                 const res = await fetch("/api/org/create", {
                     method: "POST",
@@ -204,6 +209,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 // Reconcile even if Set-Cookie arrived with an unreadable response body.
             } finally {
                 await fetchSession(true);
+                if (identity.current !== before) announceSessionChange();
             }
             if (result.success && isLatest() && identity.current) navigationPending.current = "/";
         });
@@ -213,6 +219,23 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         fetchSession();
     }, [fetchSession]);
+
+    // 다른 탭이 조직을 바꾸거나 로그아웃하면 이 탭의 이전 조직 화면에 새 조직 자료가 섞이지 않게
+    // 전환과 같은 경로(캐시 무효화 → 세션 재확인 → 홈 다시 열기)로 맞춘다 (UX-010).
+    const reconcileExternalChange = useCallback(async () => {
+        if (sessionChanging.current || identity.current === undefined) return;
+        let next: string | null;
+        try {
+            const data = await fetchSessionResponse();
+            next = data.success ? sessionIdentityKey(data.user) : null;
+        } catch {
+            return; // 확인 실패는 화면을 숨기지 않고 다음 복귀 때 다시 확인한다.
+        }
+        if (sessionChanging.current || next === identity.current) return;
+        await transitions.run(() => fetchSession(true));
+    }, [fetchSession, transitions]);
+
+    useEffect(() => watchSessionChanges(window, () => { void reconcileExternalChange(); }), [reconcileExternalChange]);
 
     return (
         <SessionContext.Provider

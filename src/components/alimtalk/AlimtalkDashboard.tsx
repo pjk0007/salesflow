@@ -19,9 +19,9 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
-import { Send, CheckCircle2, XCircle, Clock, Settings, AlertTriangle } from "lucide-react";
+import { Send, CheckCircle2, XCircle, Clock, AlertTriangle } from "lucide-react";
 import { STATUS_MAP, TRIGGER_TYPE_MAP } from "./SendLogTable";
+import AlimtalkSetupRequired from "./AlimtalkSetupRequired";
 
 interface AlimtalkDashboardProps {
     onTabChange?: (tab: string) => void;
@@ -35,20 +35,7 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
     const loadError = configError || statsError;
     if (loadError) return <QueryErrorState error={loadError} onRetry={() => Promise.all([mutateConfig(), mutateStats()])} />;
 
-    if (!isConfigured) {
-        return (
-            <div className="flex flex-col items-center justify-center p-12">
-                <Settings className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">알림톡 설정이 필요합니다</h3>
-                <p className="text-sm text-muted-foreground mb-4">
-                    NHN Cloud API 키를 등록하여 알림톡 서비스를 시작하세요.
-                </p>
-                <Button onClick={() => onTabChange?.("settings")}>
-                    설정으로 이동
-                </Button>
-            </div>
-        );
-    }
+    if (!isConfigured) return <AlimtalkSetupRequired onConfigure={onTabChange && (() => onTabChange("settings"))} />;
 
     const cards = [
         { label: "전체 발송", value: stats.total, icon: Send, color: "text-blue-600" },
