@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
                 updatedAt: adLeadIntegrations.updatedAt,
                 adAccountName: adAccounts.name,
                 partitionName: partitions.name,
+                partitionWorkspaceId: partitions.workspaceId,
             })
             .from(adLeadIntegrations)
             .leftJoin(adAccounts, eq(adLeadIntegrations.adAccountId, adAccounts.id))

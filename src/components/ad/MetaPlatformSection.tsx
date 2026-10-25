@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,7 +60,7 @@ import {
     Pencil,
 } from "lucide-react";
 import useSWR from "swr";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { apiRequest, defaultFetcher, requestErrorMessage } from "@/lib/swr-fetcher";
 import type { AdPlatformInfo, AdLeadIntegrationInfo } from "@/types";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
@@ -87,6 +87,16 @@ function formatRelativeTime(dateStr: string | null): string {
     if (hours < 24) return `${hours}시간 전`;
     const days = Math.floor(hours / 24);
     return `${days}일 전`;
+}
+
+/** 토큰 만료 안내 — 지났거나 7일 이내면 경고로 보인다 (UX-049) */
+function tokenExpiryNotice(expiresAt: string | null | undefined, now = Date.now()): { text: string; warn: boolean } | null {
+    if (!expiresAt) return null;
+    const at = new Date(expiresAt).getTime();
+    if (Number.isNaN(at)) return null;
+    const days = Math.floor((at - now) / 86400000);
+    if (at <= now) return { text: "인증 만료됨", warn: true };
+    return { text: days < 1 ? "인증 만료: 오늘" : `인증 만료: ${days}일 남음`, warn: days < 7 };
 }
 
 function formatDateTime(dateStr: string): string {
@@ -273,7 +283,7 @@ function MetaConnected({
 }) {
     const { accounts, mutate: mutateAccounts } = useAdAccounts(platform.id);
     const { integrations, mutate: mutateIntegrations, updateIntegration, deleteIntegration } = useAdLeadIntegrations();
-    const { logs } = useAdLeadLogs();
+    const { logs, mutate: mutateLogs } = useAdLeadLogs();
     const { data: workspacesData } = useSWR<{ success: boolean; data: Array<{ id: number; name: string }> }>("/api/workspaces", defaultFetcher);
     const workspaces = workspacesData?.data || [];
 
@@ -284,21 +294,52 @@ function MetaConnected({
     const [accountsOpen, setAccountsOpen] = useState(true);
     const [integrationsOpen, setIntegrationsOpen] = useState(true);
     const [logsOpen, setLogsOpen] = useState(false);
+    const [retryingLogId, setRetryingLogId] = useState<number | null>(null);
+    const [editTarget, setEditTarget] = useState<{ integration: AdLeadIntegrationInfo; platformId: number } | null>(null);
 
     // 이 플랫폼의 연동만 필터
     const metaIntegrations = integrations.filter((i) => i.platform === "meta");
     const metaLogs = logs.filter((l) => metaIntegrations.some((i) => i.id === l.integrationId)).slice(0, 20);
 
+    const failedLogCount = metaLogs.filter((l) => l.status === "failed").length;
+
     const handleSync = async () => {
         setSyncing(true);
-        const result = await onSync(platform.id);
-        if (result.success) {
-            toast.success("광고 계정 동기화 완료");
-            mutateAccounts();
-        } else {
-            toast.error(result.error || "동기화 실패");
+        try {
+            const result = await onSync(platform.id);
+            if (result.success) {
+                toast.success("광고 계정 동기화 완료");
+                mutateAccounts();
+            } else {
+                toast.error(result.error || "동기화하지 못했습니다.");
+                onMutate(); // 토큰 만료로 상태가 '만료됨'이 됐을 수 있다
+            }
+        } catch {
+            toast.error("서버에 연결할 수 없습니다. 잠시 뒤 다시 시도해주세요.");
+        } finally {
+            setSyncing(false);
         }
-        setSyncing(false);
+    };
+
+    // 실패한 리드를 Meta에서 다시 읽어 처리한다 — 이미 처리된 리드는 서버가 건너뛴다 (UX-049)
+    const handleRetryLog = async (logId: number) => {
+        if (retryingLogId !== null) return;
+        setRetryingLogId(logId);
+        try {
+            const result = await apiRequest<{ data: { status: string; errorMessage: string | null } | null }>(
+                `/api/ad-lead-logs/${logId}/retry`, { method: "POST" }
+            );
+            const outcome = result.data;
+            if (outcome?.status === "success") toast.success("리드를 다시 처리해 레코드를 만들었습니다.");
+            else if (outcome?.status === "duplicate") toast.info("이미 등록된 리드라 새로 만들지 않았습니다.");
+            else toast.error(outcome?.errorMessage || "다시 처리하지 못했습니다.");
+            mutateLogs();
+            onMutate();
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "다시 처리하지 못했습니다. 결과가 반영됐는지 로그를 새로고침해 확인해주세요."));
+        } finally {
+            setRetryingLogId(null);
+        }
     };
 
     const handleDisconnect = () => {
@@ -354,7 +395,9 @@ function MetaConnected({
     };
 
     const statusBadge = STATUS_BADGE[platform.status] || STATUS_BADGE.connected;
-    const credentials = platform.credentials as { webhookVerifyToken?: string; appId?: string };
+    const credentials = platform.credentials as { webhookVerifyToken?: string; appId?: string; tokenExpiresAt?: string | null };
+    const expiry = tokenExpiryNotice(credentials.tokenExpiresAt);
+    const needsReauth = platform.status === "expired" || (expiry?.warn ?? false);
     const webhookVerifyToken = credentials.webhookVerifyToken;
     const [showWebhookInfo, setShowWebhookInfo] = useState(false);
 
@@ -375,6 +418,9 @@ function MetaConnected({
                             </div>
                             <CardDescription>
                                 마지막 동기화: {formatRelativeTime(platform.lastSyncAt)}
+                                {expiry && (
+                                    <span className={expiry.warn ? "ml-2 text-yellow-700 dark:text-yellow-300" : "ml-2"}>· {expiry.text}</span>
+                                )}
                             </CardDescription>
                         </div>
                     </div>
@@ -392,6 +438,13 @@ function MetaConnected({
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
+                {needsReauth && (
+                    <div role="alert" className="rounded-lg border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
+                        {platform.status === "expired"
+                            ? "Meta 인증이 만료되어 광고 리드를 가져오지 못하고 있습니다. '다시 연결'로 다시 인증한 뒤, 실패한 리드는 수집 로그에서 '다시 처리'를 눌러주세요."
+                            : "Meta 인증이 곧 만료됩니다. 리드 수집이 멈추지 않도록 '다시 연결'로 미리 다시 인증해주세요."}
+                    </div>
+                )}
                 {/* ─── Webhook 설정 안내 ─── */}
                 {webhookVerifyToken && (
                     <div className="border rounded-lg">
@@ -555,7 +608,7 @@ function MetaConnected({
 
                 {/* ─── 수집 로그 ─── */}
                 <CollapsibleSection
-                    title="최근 수집 로그"
+                    title={failedLogCount > 0 ? `최근 수집 로그 · 실패 ${failedLogCount}건` : "최근 수집 로그"}
                     count={metaLogs.length}
                     open={logsOpen}
                     onToggle={() => setLogsOpen(!logsOpen)}
@@ -570,6 +623,7 @@ function MetaConnected({
                                     <TableHead>연동</TableHead>
                                     <TableHead>리드 ID</TableHead>
                                     <TableHead>상태</TableHead>
+                                    <TableHead>사유</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -584,6 +638,23 @@ function MetaConnected({
                                                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}>
                                                     {status.label}
                                                 </span>
+                                            </TableCell>
+                                            <TableCell className="text-xs text-muted-foreground whitespace-normal break-words">
+                                                <div className="flex flex-col items-start gap-1">
+                                                    <span>{log.errorMessage || "-"}</span>
+                                                    {log.status === "failed" && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 text-xs"
+                                                            disabled={retryingLogId !== null}
+                                                            onClick={() => handleRetryLog(log.id)}
+                                                        >
+                                                            {retryingLogId === log.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                                                            다시 처리
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             </TableCell>
                                         </TableRow>
                                     );
@@ -618,10 +689,20 @@ function MetaConnected({
                         integration={detailIntegration}
                         open={!!detailIntegration}
                         onOpenChange={(open) => { if (!open) setDetailIntegration(null); }}
-                        onUpdate={updateIntegration}
-                        onUpdated={() => mutateIntegrations()}
+                        onEdit={() => {
+                            setEditTarget({ integration: detailIntegration, platformId: platform.id });
+                            setDetailIntegration(null);
+                        }}
                     />
                 )}
+
+                {/* 연동 수정 — 추가와 같은 단계 화면을 재사용 (UX-052) */}
+                <CreateIntegrationDialog
+                    open={!!editTarget}
+                    onOpenChange={(open) => { if (!open) setEditTarget(null); }}
+                    onCreated={() => mutateIntegrations()}
+                    editTarget={editTarget ?? undefined}
+                />
             </CardContent>
         </Card>
     );
@@ -668,70 +749,16 @@ function IntegrationDetailDialog({
     integration,
     open,
     onOpenChange,
-    onUpdate,
-    onUpdated,
+    onEdit,
 }: {
     integration: AdLeadIntegrationInfo;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onUpdate: (id: number, params: { fieldMappings?: Record<string, string>; defaultValues?: Record<string, unknown> }) => Promise<{ success: boolean; error?: string }>;
-    onUpdated: () => void;
+    /** 수정은 연동 추가와 같은 단계 화면(파티션·매핑 목록 선택)으로 한다 (UX-052) */
+    onEdit: () => void;
 }) {
-    const [editing, setEditing] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [mappings, setMappings] = useState<Array<{ from: string; to: string }>>([]);
-    const [defaults, setDefaults] = useState<Array<{ key: string; value: string }>>([]);
-
-    const startEditing = () => {
-        setMappings(
-            Object.entries(integration.fieldMappings || {}).map(([from, to]) => ({ from, to: String(to) }))
-        );
-        setDefaults(
-            Object.entries(integration.defaultValues || {}).map(([key, val]) => ({ key, value: String(val) }))
-        );
-        setEditing(true);
-    };
-
-    const handleSave = async () => {
-        setSaving(true);
-        const fieldMappings: Record<string, string> = {};
-        for (const m of mappings) {
-            if (m.from.trim() && m.to.trim()) fieldMappings[m.from.trim()] = m.to.trim();
-        }
-        const defaultValues: Record<string, unknown> = {};
-        for (const d of defaults) {
-            if (d.key.trim() && d.value.trim()) defaultValues[d.key.trim()] = d.value.trim();
-        }
-        const result = await onUpdate(integration.id, { fieldMappings, defaultValues });
-        if (result.success) {
-            toast.success("연동 설정이 수정되었습니다.");
-            setEditing(false);
-            onUpdated();
-            onOpenChange(false);
-        } else {
-            toast.error(result.error || "수정 실패");
-        }
-        setSaving(false);
-    };
-
-    const updateMapping = (index: number, field: "from" | "to", value: string) => {
-        setMappings((prev) => prev.map((m, i) => (i === index ? { ...m, [field]: value } : m)));
-    };
-
-    const removeMapping = (index: number) => {
-        setMappings((prev) => prev.filter((_, i) => i !== index));
-    };
-
-    const updateDefault = (index: number, field: "key" | "value", value: string) => {
-        setDefaults((prev) => prev.map((d, i) => (i === index ? { ...d, [field]: value } : d)));
-    };
-
-    const removeDefault = (index: number) => {
-        setDefaults((prev) => prev.filter((_, i) => i !== index));
-    };
-
     return (
-        <Dialog open={open} onOpenChange={(o) => { if (!o) { setEditing(false); } onOpenChange(o); }}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{integration.name}</DialogTitle>
@@ -756,114 +783,58 @@ function IntegrationDetailDialog({
                         </div>
                     </div>
 
-                    {!editing ? (
-                        <>
-                            <div>
-                                <span className="text-muted-foreground">필드 매핑</span>
-                                <div className="mt-1 rounded-md border">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="text-xs">Meta 필드</TableHead>
-                                                <TableHead className="text-xs">DB 컬럼</TableHead>
+                    <div>
+                        <span className="text-muted-foreground">필드 매핑</span>
+                        <div className="mt-1 rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="text-xs">Meta 필드</TableHead>
+                                        <TableHead className="text-xs">DB 컬럼</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {Object.entries(integration.fieldMappings || {}).map(([from, to]) => (
+                                        <TableRow key={from}>
+                                            <TableCell className="font-mono text-xs py-1.5">{from}</TableCell>
+                                            <TableCell className="font-mono text-xs py-1.5">{to}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </div>
+
+                    {integration.defaultValues && Object.keys(integration.defaultValues).length > 0 && (
+                        <div>
+                            <span className="text-muted-foreground">기본값</span>
+                            <div className="mt-1 rounded-md border">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="text-xs">컬럼</TableHead>
+                                            <TableHead className="text-xs">값</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {Object.entries(integration.defaultValues).map(([key, val]) => (
+                                            <TableRow key={key}>
+                                                <TableCell className="font-mono text-xs py-1.5">{key}</TableCell>
+                                                <TableCell className="text-xs py-1.5">{String(val)}</TableCell>
                                             </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {Object.entries(integration.fieldMappings || {}).map(([from, to]) => (
-                                                <TableRow key={from}>
-                                                    <TableCell className="font-mono text-xs py-1.5">{from}</TableCell>
-                                                    <TableCell className="font-mono text-xs py-1.5">{to}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
-                                </div>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </div>
-
-                            {integration.defaultValues && Object.keys(integration.defaultValues).length > 0 && (
-                                <div>
-                                    <span className="text-muted-foreground">기본값</span>
-                                    <div className="mt-1 rounded-md border">
-                                        <Table>
-                                            <TableHeader>
-                                                <TableRow>
-                                                    <TableHead className="text-xs">컬럼</TableHead>
-                                                    <TableHead className="text-xs">값</TableHead>
-                                                </TableRow>
-                                            </TableHeader>
-                                            <TableBody>
-                                                {Object.entries(integration.defaultValues).map(([key, val]) => (
-                                                    <TableRow key={key}>
-                                                        <TableCell className="font-mono text-xs py-1.5">{key}</TableCell>
-                                                        <TableCell className="text-xs py-1.5">{String(val)}</TableCell>
-                                                    </TableRow>
-                                                ))}
-                                            </TableBody>
-                                        </Table>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex justify-end">
-                                <Button size="sm" variant="outline" onClick={startEditing}>
-                                    <Pencil className="h-4 w-4 mr-1" />
-                                    수정
-                                </Button>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="text-muted-foreground">필드 매핑</span>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setMappings([...mappings, { from: "", to: "" }])}>
-                                        <Plus className="h-3 w-3 mr-1" /> 추가
-                                    </Button>
-                                </div>
-                                <div className="space-y-2">
-                                    {mappings.map((m, i) => (
-                                        <div key={i} className="flex items-center gap-2">
-                                            <Input className="h-8 text-xs font-mono" placeholder="Meta 필드" value={m.from} onChange={(e) => updateMapping(i, "from", e.target.value)} />
-                                            <span className="text-muted-foreground shrink-0">→</span>
-                                            <Input className="h-8 text-xs font-mono" placeholder="DB 컬럼" value={m.to} onChange={(e) => updateMapping(i, "to", e.target.value)} />
-                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 text-destructive" onClick={() => removeMapping(i)}>
-                                                <Unlink className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div className="flex items-center justify-between mb-1">
-                                    <span className="text-muted-foreground">기본값</span>
-                                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDefaults([...defaults, { key: "", value: "" }])}>
-                                        <Plus className="h-3 w-3 mr-1" /> 추가
-                                    </Button>
-                                </div>
-                                <div className="space-y-2">
-                                    {defaults.map((d, i) => (
-                                        <div key={i} className="flex items-center gap-2">
-                                            <Input className="h-8 text-xs font-mono" placeholder="컬럼" value={d.key} onChange={(e) => updateDefault(i, "key", e.target.value)} />
-                                            <span className="text-muted-foreground shrink-0">=</span>
-                                            <Input className="h-8 text-xs" placeholder="값" value={d.value} onChange={(e) => updateDefault(i, "value", e.target.value)} />
-                                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0 text-destructive" onClick={() => removeDefault(i)}>
-                                                <Unlink className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end gap-2">
-                                <Button size="sm" variant="outline" onClick={() => setEditing(false)} disabled={saving}>취소</Button>
-                                <Button size="sm" onClick={handleSave} disabled={saving}>
-                                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                                    저장
-                                </Button>
-                            </div>
-                        </>
+                        </div>
                     )}
+
+                    <div className="flex justify-end">
+                        <Button size="sm" variant="outline" onClick={onEdit}>
+                            <Pencil className="h-4 w-4 mr-1" />
+                            수정
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

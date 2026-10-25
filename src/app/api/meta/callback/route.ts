@@ -4,6 +4,7 @@ import { adPlatforms } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { openOAuthState } from "@/lib/auth";
 import type { MetaCredentials } from "@/types";
+import { exchangeLongLivedToken } from "@/lib/meta-graph";
 
 export async function GET(req: NextRequest) {
     const code = req.nextUrl.searchParams.get("code");
@@ -56,22 +57,34 @@ export async function GET(req: NextRequest) {
             return htmlResponse("error", "Meta 인증에 실패했습니다. 권한을 확인하고 다시 연결해주세요.");
         }
 
-        const accessToken = tokenData.access_token;
+        // 2. 단기 토큰(약 1~2시간)을 장기 토큰으로 바꿔 저장한다 — 리드 웹훅이 이 토큰으로 리드를 읽는다 (UX-049)
+        const token = await exchangeLongLivedToken({
+            appId,
+            appSecret,
+            shortToken: tokenData.access_token,
+            shortExpiresIn: tokenData.expires_in,
+        });
 
-        // 2. 기존 플랫폼 레코드 업데이트 (accessToken 채우기 + 상태)
+        // 3. 기존 플랫폼 레코드 업데이트 (accessToken·만료 시각 + 상태)
         await db
             .update(adPlatforms)
             .set({
                 credentials: {
                     ...credentials,
-                    accessToken,
+                    accessToken: token.accessToken,
+                    tokenExpiresAt: token.expiresAt,
                 },
                 status: "connected",
                 updatedAt: new Date(),
             })
             .where(eq(adPlatforms.id, platformId));
 
-        return htmlResponse("success", "Meta 연결이 완료되었습니다!");
+        return htmlResponse(
+            "success",
+            token.longLived
+                ? "Meta 연결이 완료되었습니다!"
+                : "Meta 연결은 완료됐지만 장기 토큰을 받지 못했습니다. 연결이 곧 만료될 수 있으니 만료 시각을 확인하고 다시 연결해주세요."
+        );
     } catch (err) {
         console.error("Meta callback error:", err);
         return htmlResponse("error", "연결 처리 중 오류가 발생했습니다.");
