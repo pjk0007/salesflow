@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { createSiteSchema } from "@/lib/tracker/validations";
 import { generateApiKey } from "@/lib/tracker/api-key";
+import { trackerRateLimitedRecently } from "@/lib/tracker/rate-limit";
 
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);
@@ -31,7 +32,11 @@ export async function GET(req: NextRequest) {
         .from(trackerSites)
         .where(eq(trackerSites.workspaceId, workspaceId));
 
-    return NextResponse.json({ success: true, data: site ?? null });
+    // 설정 화면 경고용 — 한도로 버린 요청 수(메모리, 이 인스턴스 기준)
+    return NextResponse.json({
+        success: true,
+        data: site ? { ...site, rateLimited: trackerRateLimitedRecently(site.apiKey) } : null,
+    });
 }
 
 export async function POST(req: NextRequest) {

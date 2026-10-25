@@ -28,8 +28,11 @@ function neutralizeMarkup(text: string): string {
         .join(" ");
 }
 
-/** 맨 URL이 눌리는 링크가 되지 않게 한다 (https:// → hxxps://, www. → www[.]) — 고객이 보낸 피싱 주소가 직원 채팅에서 눌리지 않게 */
-function defangUrls(text: string): string {
+/**
+ * 맨 URL이 눌리는 링크가 되지 않게 한다 (https:// → hxxps://, www. → www[.]) — 고객이 보낸 피싱 주소가 직원 채팅에서 눌리지 않게.
+ * 줄바꿈을 지켜야 하는 곳(상담 알림 카드 본문)은 chatSafe 대신 이것만 쓴다.
+ */
+export function defangUrls(text: string): string {
     return text.replace(/\bhttp(s?):\/\//gi, (_m, s: string) => `hxxp${s}://`).replace(/\bwww\./gi, "www[.]");
 }
 

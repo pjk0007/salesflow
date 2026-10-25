@@ -154,8 +154,10 @@
 
     function detectDevice() {
         var ua = navigator.userAgent || "";
-        var isMobile = /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-        var isTablet = /iPad|Android(?!.*Mobile)/i.test(ua);
+        // iPadOS 13+ Safari는 데스크톱 Mac UA를 보낸다 — 터치 지점이 여럿인 Mac은 iPad로 본다
+        var isIPadDesktopUa = ua.indexOf("Macintosh") > -1 && (navigator.maxTouchPoints || 0) > 1;
+        var isMobile = isIPadDesktopUa || /iPhone|iPad|iPod|Android|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+        var isTablet = isIPadDesktopUa || /iPad|Android(?!.*Mobile)/i.test(ua);
 
         var browser = "unknown";
         if (ua.indexOf("Firefox") > -1) browser = "Firefox";
@@ -164,12 +166,13 @@
         else if (ua.indexOf("Safari") > -1) browser = "Safari";
         else if (ua.indexOf("Opera") > -1 || ua.indexOf("OPR") > -1) browser = "Opera";
 
+        // 모바일 OS를 먼저 본다 — iOS UA에는 "like Mac OS X", Android UA에는 "Linux"가 들어 있다
         var os = "unknown";
-        if (ua.indexOf("Win") > -1) os = "Windows";
+        if (/iPhone|iPad|iPod/.test(ua) || isIPadDesktopUa) os = "iOS";
+        else if (ua.indexOf("Android") > -1) os = "Android";
+        else if (ua.indexOf("Win") > -1) os = "Windows";
         else if (ua.indexOf("Mac") > -1) os = "macOS";
         else if (ua.indexOf("Linux") > -1) os = "Linux";
-        else if (ua.indexOf("Android") > -1) os = "Android";
-        else if (/iPhone|iPad|iPod/.test(ua)) os = "iOS";
 
         return {
             type: isTablet ? "tablet" : isMobile ? "mobile" : "desktop",
@@ -289,9 +292,23 @@
             name: props.name,
             phone: props.phone,
         });
+        var url = config.identifyEndpoint + "?key=" + encodeURIComponent(config.apiKey);
+        // 제출 직후 페이지를 옮겨도 요청이 끝까지 가도록 sendCollect와 같은 keepalive fetch를 먼저 쓴다
         try {
+            if (typeof fetch !== "undefined") {
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: payload,
+                    keepalive: true,
+                    mode: "cors",
+                    credentials: "omit",
+                }).catch(function () {});
+                return;
+            }
+            // fallback: XHR
             var xhr = new XMLHttpRequest();
-            xhr.open("POST", config.identifyEndpoint + "?key=" + encodeURIComponent(config.apiKey), true);
+            xhr.open("POST", url, true);
             xhr.setRequestHeader("Content-Type", "application/json");
             xhr.send(payload);
         } catch (e) {}

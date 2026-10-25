@@ -22,8 +22,8 @@ import {
     type GmailMessage,
 } from "@/lib/gmail-client";
 import {
-    chatRequestIdEnabled,
-    chatRequestIdFor,
+    chatFixedMessageIdEnabled,
+    chatMessageIdFor,
     chatThreadsEnabled,
     chatWebhookProblem,
     postGoogleChatText,
@@ -1744,7 +1744,7 @@ class ReplyRun {
                 try {
                     return await postGoogleChatText(url, text, fetch, {
                         threadKey,
-                        requestId: row ? chatRequestIdFor(this.env, "reply", row.id) : undefined,
+                        messageId: row && chatFixedMessageIdEnabled(this.env) ? chatMessageIdFor(this.env, "reply", row.id) : undefined,
                     });
                 } catch (e) {
                     return { ok: false, status: null, error: e instanceof Error ? e.message : String(e), retryable: true };
@@ -1753,7 +1753,7 @@ class ReplyRun {
             // 기한 줄은 보내는 때 기준으로 다시 쓴다 — 늦게 나간 카드에 지난 기한이 가지 않게 (RC-12)
             prepareText: (row) => refreshReplyCardForSend(row.message, this.now),
             onResult: (row, result) => recordChatWebhookResult(sourceOf.get(row.workspaceId), row.workspaceId, result, this.config.webhookByWorkspace[row.workspaceId]),
-            idempotent: chatRequestIdEnabled(this.env),
+            idempotent: chatFixedMessageIdEnabled(this.env),
             markSent: async (id) => {
                 await db.execute(sql`
                     UPDATE email_replies SET alert_status = 'sent', alert_sent_at = now(), alert_last_error = NULL, alert_locked_at = NULL

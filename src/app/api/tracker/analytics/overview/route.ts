@@ -65,10 +65,10 @@ export async function GET(req: NextRequest) {
     try {
         // 채널 필터 있으면 매칭 세션 ID 사전 추출 (현재/직전 기간 각각)
         const [sessionIdsCurr, sessionIdsPrev, activeSessionIdsCurr, activeSessionIdsPrev] = await Promise.all([
-            getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode }),
-            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode }),
-            getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode, activity: { excludes, device } }),
-            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode, activity: { excludes, device } }),
+            getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode, domains: site.domains }),
+            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode, domains: site.domains }),
+            getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode, activity: { excludes, device }, domains: site.domains }),
+            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode, activity: { excludes, device }, domains: site.domains }),
         ]);
 
         const devFilterTv = deviceFilterSql(device, "tv");
@@ -299,7 +299,7 @@ export async function GET(req: NextRequest) {
         // 유입 채널은 JS로 분류 후 집계
         const channelMap = new Map<string, number>();
         for (const row of (channelsRaw as Array<{ referrer: string | null; landing_page: string | null }>)) {
-            const ch = classifyInflow(row.referrer, row.landing_page);
+            const ch = classifyInflow(row.referrer, row.landing_page, site.domains);
             channelMap.set(ch, (channelMap.get(ch) ?? 0) + 1);
         }
 
@@ -312,7 +312,7 @@ export async function GET(req: NextRequest) {
             visitorEmail: r.email,
             visitorAnonId: String(r.anon_id ?? "").slice(0, 8),
             landingPath: r.landing_page ? normalizePath(r.landing_page) : null,
-            channel: classifyInflow(r.referrer, r.landing_page),
+            channel: classifyInflow(r.referrer, r.landing_page, site.domains),
             pageCount: r.page_count,
             startedAt: new Date(r.started_at).toISOString(),
         }));
@@ -330,7 +330,7 @@ export async function GET(req: NextRequest) {
                 .sort((a, b) => b.sessions - a.sessions),
             channelConversions: summarizeChannelConversions(channelConv as Array<{
                 visitor_id: number; is_lead: boolean; referrer: string | null; landing_page: string | null;
-            }>),
+            }>, site.domains),
             dailyConversions: (dailyConv as Array<{ date: string; signups: number; paid: number }>),
             funnel: {
                 visitors: curr.visitors,

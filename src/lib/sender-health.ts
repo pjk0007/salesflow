@@ -11,7 +11,7 @@
  */
 import { sql } from "drizzle-orm";
 import { db, queryClient } from "@/lib/db";
-import { chatRequestIdEnabled, chatRequestIdFor, chatThreadsEnabled, postGoogleChatText, type ChatPostOptions, type GoogleChatResult } from "@/lib/google-chat";
+import { chatFixedMessageIdEnabled, chatMessageIdFor, chatThreadsEnabled, postGoogleChatText, type ChatPostOptions, type GoogleChatResult } from "@/lib/google-chat";
 import {
     isWebhookConfigError,
     POST_INTERVAL_MS,
@@ -1720,7 +1720,7 @@ export async function deliverHealthAlerts(opts: {
         tally.skipped += closed.length;
         return tally;
     }
-    const idempotent = chatRequestIdEnabled(env);
+    const idempotent = chatFixedMessageIdEnabled(env);
     /** 보내지 않은 줄을 pending으로 되돌린다 (시도 수도 되돌린다) */
     const release = async (ids: number[]) => {
         if (ids.length === 0) return;
@@ -1745,8 +1745,8 @@ export async function deliverHealthAlerts(opts: {
         }
     };
 
-    // 15분 넘은 processing 회수 — 보낸 뒤 기록만 실패했을 수 있다 (HB-3). requestId 없이 보내면 시간 초과와 같게 두 번째에서 그치고
-    // (같은 글 최대 2통), requestId를 켜면 구글이 중복을 거르니 시도 상한까지 다시 보낸다
+    // 15분 넘은 processing 회수 — 보낸 뒤 기록만 실패했을 수 있다 (HB-3). 고정 messageId 없이 보내면 시간 초과와 같게 두 번째에서 그치고
+    // (같은 글 최대 2통), 고정 messageId를 켜면 구글이 중복을 거르니 시도 상한까지 다시 보낸다
     const reclaimCap = idempotent ? ALERT_MAX_ATTEMPTS : UNCERTAIN_MAX_ATTEMPTS;
     await db.execute(sql`
         UPDATE email_health_alerts
@@ -1856,7 +1856,7 @@ export async function deliverHealthAlerts(opts: {
                 posted++;
                 attempted = true;
                 const result = await post(hook.url, message, {
-                    requestId: chatRequestIdFor(env, "health", row.id),
+                    messageId: idempotent ? chatMessageIdFor(env, "health", row.id) : undefined,
                     threadKey: chatThreadsEnabled(env) ? healthThreadKey(row.batch_key, row.org_id, row.target) : undefined,
                 });
                 await recordChatWebhookResult(hook.source, target === "ops" ? null : target, result, hook.url);
@@ -1877,7 +1877,7 @@ export async function deliverHealthAlerts(opts: {
                     console.warn(`[send-health] 웹훅 설정 오류 target=${row.target} status=${result.status} — 이번 회차는 보내지 않음`);
                     continue;
                 }
-                // 시간 초과는 구글이 이미 올렸을 수 있다 — requestId 없이 보낼 때는 두 번째 시도에서 그친다 (HB-2)
+                // 시간 초과는 구글이 이미 올렸을 수 있다 — 고정 messageId 없이 보낼 때는 두 번째 시도에서 그친다 (HB-2)
                 const uncertainStop = result.uncertain === true && !idempotent && row.attempts >= UNCERTAIN_MAX_ATTEMPTS;
                 if (!result.retryable || row.attempts >= ALERT_MAX_ATTEMPTS || uncertainStop) {
                     const err = uncertainStop ? `${lastError} — ${UNCERTAIN_GIVE_UP_NOTE}`.slice(0, 500) : lastError;

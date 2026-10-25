@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useJourney } from "../hooks/useJourney";
@@ -26,6 +26,13 @@ export function JourneyPage({ recordId, visitorId }: { recordId?: number; visito
         recordId ? { recordId } : visitorId ? { visitorId } : null,
     );
     const [selected, setSelected] = useState<JourneyEvent | null>(null);
+    // 카드 링크의 앵커(#lead-followup)는 여정을 다 그린 뒤에야 대상이 생긴다 — 그때 한 번 그 자리로 옮긴다 (UX-273)
+    const loaded = !isLoading && !!journey;
+    useEffect(() => {
+        if (!loaded) return;
+        const id = decodeURIComponent(window.location.hash.slice(1));
+        if (id) document.getElementById(id)?.scrollIntoView({ block: "start" });
+    }, [loaded]);
     const [hovered, setHovered] = useState<JourneyEvent | null>(null);
 
     // 채널(source) 필터: 빈 배열이면 전체

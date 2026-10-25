@@ -1,5 +1,5 @@
 import { FOLLOWUP_LABELS, type AssessedLead, type FollowupDetail, type FollowupHistory, type FollowupPatch } from "../components/lead-followup/types";
-import { jsonValue, listAssessedLeads, type JourneyConnection } from "./customer-journey-leads";
+import { explainLeadExclusion, jsonValue, listAssessedLeads, loadFollowupState, type JourneyConnection } from "./customer-journey-leads";
 import { FOLLOWUP_DAY_MS, shouldRemindLead } from "./customer-journey-followup-rules";
 import { buildJourneyCard, summarizeJourney } from "./customer-journey-card";
 import { enrichedInput, loadCandidates } from "./customer-journey-source";
@@ -25,12 +25,35 @@ export async function getLeadFollowup(conn: JourneyConnection, orgId: string, re
     const [record] = await conn`SELECT id FROM records WHERE id=${recordId} AND org_id=${orgId}`;
     if (!record) throw new LeadFollowupError("고객을 찾을 수 없습니다.", 404);
     const [lead] = await listAssessedLeads(conn, { orgId, recordId, now, env, includeNormal: true, limit: 1 });
-    if (!lead) return { lead: null, history: [] };
+    if (lead) return { lead, history: await loadFollowupHistory(conn, orgId, lead.workspaceId, lead.customerKey) };
+    // 완료·30일 경과·제외로 판정이 빠져도 담당자가 남긴 처리 상태·메모 이력은 읽기 전용으로 보여 준다 (UX-278).
+    // 목록 필터(listAssessedLeads)와 재알림 대상 판정은 바꾸지 않는다.
+    const excludedReason = await explainLeadExclusion(conn, { orgId, recordId, now, env });
+    const key = await followupKeyOfRecord(conn, orgId, recordId);
+    if (!key) return { lead: null, history: [], archivedFollowup: null, excludedReason };
+    return { lead: null, history: await loadFollowupHistory(conn, orgId, key.workspaceId, key.customerKey),
+        archivedFollowup: await loadFollowupState(conn, orgId, key.workspaceId, key.customerKey), excludedReason };
+}
+
+async function loadFollowupHistory(conn: JourneyConnection, orgId: string, workspaceId: number, customerKey: string): Promise<FollowupHistory[]> {
     const history = await conn<{ at: Date; meta: Record<string, unknown> | string }[]>`
         SELECT occurred_at AS at,meta FROM record_events WHERE org_id=${orgId} AND type='lead_followup'
-            AND meta->>'workspaceId'=${String(lead.workspaceId)} AND meta->>'customerKey'=${lead.customerKey}
+            AND meta->>'workspaceId'=${String(workspaceId)} AND meta->>'customerKey'=${customerKey}
         ORDER BY occurred_at DESC,id DESC LIMIT 20`;
-    return { lead, history: history.map((h) => ({ at: new Date(h.at).toISOString(), ...jsonValue(h.meta) })) as FollowupHistory[] };
+    return history.map((h) => ({ at: new Date(h.at).toISOString(), ...jsonValue(h.meta) })) as FollowupHistory[];
+}
+
+/** 이 레코드의 후속 대응 키 — 후속 대응 줄(record_id 최신)을 먼저, 없으면 이 레코드에 남은 처리 이력의 키 */
+async function followupKeyOfRecord(conn: JourneyConnection, orgId: string, recordId: number): Promise<{ workspaceId: number; customerKey: string } | null> {
+    const [row] = await conn<{ workspace_id: number; customer_key: string }[]>`
+        SELECT workspace_id,customer_key FROM journey_lead_followups WHERE org_id=${orgId} AND record_id=${recordId}
+        ORDER BY updated_at DESC,id DESC LIMIT 1`;
+    if (row) return { workspaceId: Number(row.workspace_id), customerKey: row.customer_key };
+    const [event] = await conn<{ workspace_id: string | null; customer_key: string | null }[]>`
+        SELECT meta->>'workspaceId' AS workspace_id, meta->>'customerKey' AS customer_key FROM record_events
+        WHERE org_id=${orgId} AND record_id=${recordId} AND type='lead_followup' ORDER BY occurred_at DESC,id DESC LIMIT 1`;
+    const workspaceId = Number(event?.workspace_id);
+    return event?.customer_key && Number.isSafeInteger(workspaceId) && workspaceId > 0 ? { workspaceId, customerKey: event.customer_key } : null;
 }
 
 export async function saveLeadFollowup(conn: JourneyConnection, actor: { orgId: string; userId: string; name: string }, recordId: number,

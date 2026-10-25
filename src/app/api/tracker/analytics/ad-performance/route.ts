@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     const visitorsByGroup = new Map<string, Set<number>>();
     for (const s of sessions) {
         if (s.visitorId == null) continue;
-        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage), channel, channelMode)) continue;
+        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage, site.domains), channel, channelMode)) continue;
         const g = classifyAdGroup(s.referrer, s.landingPage);
         if (!g) continue;
         if (!groupMeta.has(g.key)) {

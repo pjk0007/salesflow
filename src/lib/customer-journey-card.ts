@@ -101,18 +101,25 @@ export function summarizeJourney(input: JourneyCardInput, now: Date): JourneyCar
         if ((e.eventType === "CLICK" || e.eventType === "CUSTOM") && label && !actions.includes(label)) actions.push(label);
     }
     const completed = verdict.submitted || events.some((e) => e.eventType === "PURCHASE") || input.audience?.alreadyConverted === true;
-    const stage = completed ? "신청·구독·구매 완료" : STAGE_LABELS[verdict.deepestStage];
-    const recommendation = completed ? "완료 고객입니다. 신청·구매 내역을 확인하고 온보딩을 이어 주세요."
-        : verdict.signupStart || verdict.aiStart || verdict.coupon ? "신청을 시작한 뒤 완료하지 않았습니다. 진행 중 막힌 부분이 있는지 확인해 주세요."
-        : verdict.action ? "상담·체험 행동이 있었습니다. 요청 내역을 확인하고 다음 일정을 제안해 주세요."
-        : verdict.sawPrice ? "가격을 확인했습니다. 기존 CRM 맥락을 확인한 뒤 요금·적용 사례를 안내해 주세요."
-        : verdict.sawCases || verdict.sawDetail ? "사례·서비스 상세를 확인했습니다. 해당 회사와 관련된 사례로 후속 연락을 준비해 주세요."
-        : "초기 방문입니다. 추가 방문·클릭이 있는지 고객 여정에서 확인해 주세요.";
     const totalSeconds = measuredSessionSeconds(s, now);
     const eligible = (totalSeconds === null || totalSeconds >= MIN_JOURNEY_SECONDS)
         && !verdict.machine && !!verdict.chosenSession && lastActivityAt.getTime() <= now.getTime() - SETTLE_MS
         && !input.audience?.internal && !input.audience?.sharedVisitor && !input.audience?.existingVisitor && !input.audience?.unsubscribed;
     const priority = classifyJourneyPriority({ ...input, eligible, completed, totalSeconds, events }, now);
+    // 입력 시작 근거는 우선순위 판정(explicitStart)과 같다 — 신청 화면만 본 고객을 "입력하다 막힘"으로 안내하지 않는다.
+    // 깊이 알림의 단계(deepestStage) 규칙은 그대로 두고 카드 문구만 나눈다.
+    const inputStarted = priority.inputStarted === true || verdict.coupon;
+    const signupScreenOnly = !inputStarted && (verdict.signupStart || verdict.signupScreen);
+    const stage = completed ? "신청·구독·구매 완료"
+        : signupScreenOnly && verdict.deepestStage === 7 ? "신청 화면 확인 (입력 시작 미확인)"
+        : STAGE_LABELS[verdict.deepestStage];
+    const recommendation = completed ? "완료 고객입니다. 신청·구매 내역을 확인하고 온보딩을 이어 주세요."
+        : inputStarted ? "신청을 시작한 뒤 완료하지 않았습니다. 진행 중 막힌 부분이 있는지 확인해 주세요."
+        : signupScreenOnly ? "신청 화면을 확인했지만 입력을 시작한 기록은 없습니다. 신청 방법·준비물 안내가 필요한지 확인해 주세요."
+        : verdict.action ? "상담·체험 행동이 있었습니다. 요청 내역을 확인하고 다음 일정을 제안해 주세요."
+        : verdict.sawPrice ? "가격을 확인했습니다. 기존 CRM 맥락을 확인한 뒤 요금·적용 사례를 안내해 주세요."
+        : verdict.sawCases || verdict.sawDetail ? "사례·서비스 상세를 확인했습니다. 해당 회사와 관련된 사례로 후속 연락을 준비해 주세요."
+        : "초기 방문입니다. 추가 방문·클릭이 있는지 고객 여정에서 확인해 주세요.";
     const chatEligible = eligible && totalSeconds !== null && totalSeconds >= MIN_JOURNEY_CHAT_SECONDS;
     const chatSuppressionReason = !eligible || chatEligible ? null : totalSeconds === null
         ? "체류시간 미확인: 구글챗 발송 제외"

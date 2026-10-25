@@ -12,15 +12,18 @@ import { parseInflowDetail } from "../../utils/inflowDetail";
 export function VisitorChannelCard({
     sessions,
     className,
+    ownDomains = [],
 }: {
     sessions: TrackerSession[];
     className?: string;
+    /** 사이트 허용 도메인 — 자기 사이트에서 온 방문을 직접으로 본다 */
+    ownDomains?: readonly string[];
 }) {
     if (sessions.length === 0) return null;
 
     const counts = new Map<string, { count: number; isPaid: boolean }>();
     for (const s of sessions) {
-        const { channel, isPaid } = parseInflowDetail(s.referrer, s.landingPage);
+        const { channel, isPaid } = parseInflowDetail(s.referrer, s.landingPage, ownDomains);
         const cur = counts.get(channel) ?? { count: 0, isPaid };
         cur.count++;
         counts.set(channel, cur);

@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import {
-    chatRequestIdFor,
+    chatMessageIdFor,
+    chatFixedMessageIdEnabled,
     chatWebhookProblem,
     postGoogleChatText,
     resetChatSpaceSlots,
@@ -261,26 +262,39 @@ test("'<users/…>' 멘션은 마지막에 막는다 (CT-4)", async () => {
     assert.equal(JSON.parse(String(calls[0].init?.body)).text, "메모: ‹users/all> 확인 ‹users/12345>");
 });
 
-test("threadKey·requestId를 넘기면 웹훅 문서 모양으로 붙인다, requestId 요청의 409는 이미 올라간 것 (DV-8·CT-1)", async () => {
+test("UX-221 threadKey·고정 messageId를 웹훅 문서 모양으로 붙이고 requestId는 보내지 않는다, 같은 ID의 409는 이미 올라간 것 (DV-8·CT-1)", async () => {
     const { fetchImpl, calls } = fakeFetch([{ status: 409 }]);
-    const r = await postGoogleChatText(WEBHOOK, "글", fetchImpl, { ...NO_WAIT, threadKey: "reply-r1", requestId: "abc" });
+    const messageId = chatMessageIdFor({}, "reply", 1);
+    const r = await postGoogleChatText(WEBHOOK, "글", fetchImpl, { ...NO_WAIT, threadKey: "reply-r1", messageId });
     assert.deepEqual(r, { ok: true });
     const u = new URL(calls[0].url);
     assert.equal(u.searchParams.get("messageReplyOption"), "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD");
-    assert.equal(u.searchParams.get("requestId"), "abc");
+    assert.equal(u.searchParams.get("messageId"), messageId);
+    assert.equal(u.searchParams.has("requestId"), false);
     assert.equal(u.searchParams.get("key"), FAKE_KEY);
     assert.deepEqual(JSON.parse(String(calls[0].init?.body)), { text: "글", thread: { threadKey: "reply-r1" } });
-    // requestId 없이 온 409는 실패다
+    // 고정 ID 없이 온 409는 실패다
     const plain = fakeFetch([{ status: 409 }]);
     assert.equal((await postGoogleChatText(WEBHOOK, "글", plain.fetchImpl, NO_WAIT)).ok, false);
 });
 
-test("requestId는 켜야만 만들고, 같은 입력이면 같고 서버 주소가 다르면 다르다", () => {
-    assert.equal(chatRequestIdFor({}, "deep", 1), undefined);
-    const on = { GOOGLE_CHAT_REQUEST_ID: "on", NEXT_PUBLIC_BASE_URL: "https://sendb.kr" };
-    const a = chatRequestIdFor(on, "deep", 41);
-    assert.match(a ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-a[0-9a-f]{3}-[0-9a-f]{12}$/);
-    assert.equal(chatRequestIdFor(on, "deep", 41), a);
-    assert.notEqual(chatRequestIdFor(on, "reply", 41), a);
-    assert.notEqual(chatRequestIdFor({ ...on, NEXT_PUBLIC_BASE_URL: "https://dev.example.test" }, "deep", 41), a);
+test("UX-221 400은 고정 ID가 있어도 다시 보내지 않는 확정 실패", async () => {
+    const { fetchImpl, calls } = fakeFetch([{ status: 400, body: '{"error":{"message":"Invalid argument"}}' }]);
+    const r = await postGoogleChatText(WEBHOOK, "글", fetchImpl, { ...NO_WAIT, messageId: chatMessageIdFor({}, "deep", 3) });
+    assert.equal(r.ok, false);
+    assert.equal(!r.ok && r.retryable, false);
+    assert.equal(calls.length, 1);
+});
+
+test("UX-221 고정 messageId는 플래그와 무관하게 만들 수 있고, 형식이 맞고, 같은 입력이면 같고 서버 주소·종류가 다르면 다르다", () => {
+    assert.equal(chatFixedMessageIdEnabled({}), false);
+    assert.equal(chatFixedMessageIdEnabled({ GOOGLE_CHAT_REQUEST_ID: " ON " }), true);
+    const env = { NEXT_PUBLIC_BASE_URL: "https://sendb.kr" };
+    const a = chatMessageIdFor(env, "deep", 41);
+    assert.match(a, /^client-[a-z0-9-]{1,56}$/);
+    assert.ok(a.length <= 63);
+    assert.equal(chatMessageIdFor(env, "deep", 41), a);
+    assert.notEqual(chatMessageIdFor(env, "reply", 41), a);
+    assert.notEqual(chatMessageIdFor({ NEXT_PUBLIC_BASE_URL: "https://dev.example.test" }, "deep", 41), a);
+    assert.match(chatMessageIdFor(env, "Journey_Card!!", 1), /^client-journeycard-[0-9a-f]{32}$/);
 });

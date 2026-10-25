@@ -22,6 +22,8 @@ export interface JourneyPriority {
     excludedReason: string | null;
     rankEligible: boolean;
     customerKey: string;
+    /** 신청 입력·AI 신청 시작 행동이 있었다 (신청 화면 조회만으로는 false). 예전에 저장한 판정에는 없다 */
+    inputStarted?: boolean;
     percentile: number | null;
     cohortSize: number;
 }
@@ -110,7 +112,7 @@ export function classifyJourneyPriority(input: {
     const urgent = !excludedReason && strong && score >= 75 && (coreIcp || (rank.percentile !== null ? rank.percentile >= 95 : score >= 85));
     const highlight = !excludedReason && (coreIcp || intent >= 30 || (score >= 35 && categories.size >= 2));
     return { version: 1, tier: urgent ? "urgent" : highlight ? "highlight" : "normal", score, coreIcp,
-        evidence: excludedReason ? [] : evidence, excludedReason, rankEligible: !excludedReason, customerKey, ...rank };
+        evidence: excludedReason ? [] : evidence, excludedReason, rankEligible: !excludedReason, customerKey, inputStarted: explicitStart, ...rank };
 }
 
 export { PRIORITY_LABELS } from "../components/lead-followup/utils/labels";

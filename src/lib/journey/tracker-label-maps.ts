@@ -13,6 +13,8 @@ export type TrackerLabelMaps = {
     customEventLabels: Map<string, string>;
     /** TYPE:name → 라벨. CUSTOM의 퍼널 우선 규칙도 포함한다. */
     eventLabels: Map<string, string>;
+    /** 사이트 id → 허용 도메인 — 유입 '직접' 판정(classifyInflow)에 쓴다. 넘기지 않으면 자체 도메인을 모른다 */
+    siteDomains?: ReadonlyMap<number, readonly string[]>;
 };
 
 /**

@@ -3,7 +3,8 @@ import { db, trackerSites, trackerVisitors } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { identifyPayloadSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
-import { rateLimit } from "@/lib/tracker/rate-limit";
+import { trackerRequestAllowed, trackerVisitorAllowed } from "@/lib/tracker/rate-limit";
+import { requestIp } from "@/lib/request-ip";
 import { linkVisitorRecord } from "@/lib/visitor-links";
 
 function corsHeaders(origin: string) {
@@ -33,11 +34,9 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) return cors(401, { error: "API key required" }, origin);
 
-    const { allowed } = rateLimit(`tracker-identify:${apiKey}`, {
-        maxRequests: 50,
-        windowMs: 60_000,
-    });
-    if (!allowed) return cors(429, { error: "Too many requests" }, origin);
+    if (!trackerRequestAllowed("identify", apiKey, requestIp(req.headers))) {
+        return cors(429, { error: "Too many requests" }, origin);
+    }
 
     const site = await db.query.trackerSites.findFirst({
         where: and(eq(trackerSites.apiKey, apiKey), eq(trackerSites.isActive, 1)),
@@ -53,6 +52,9 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return cors(400, { error: "Invalid payload" }, origin);
 
     const { visitor_id, email, name, phone, user_id } = parsed.data;
+    if (!trackerVisitorAllowed("identify", apiKey, visitor_id)) {
+        return cors(429, { error: "Too many requests" }, origin);
+    }
 
     try {
         const visitor = await db.query.trackerVisitors.findFirst({

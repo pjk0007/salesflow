@@ -27,8 +27,11 @@ export async function loadCandidates(conn: Connection, workspaceId: number, now:
                r.id AS record_id, r.integrated_code, r.data,
                l.recipient_email, l.subject, l.sent_at, c.clicked_at,
                s.id AS session_id, s.site_id, s.visitor_id, s.started_at, s.ended_at, s.duration, s.page_count, s.click_id,
+               -- 필드는 resolved-fields와 같은 단일 규칙: 파티션 타입 → 워크스페이스 기본 타입, 둘 다 없을 때만 워크스페이스 직속 필드.
+               -- 타입이 있는데 직속 필드를 함께 읽으면 현재 CRM에 없는 이전 필드가 연락처·ICP 근거에 섞인다 (UX-216)
                COALESCE((SELECT json_agg(json_build_object('key', f.key, 'label', f.label, 'field_type', f.field_type) ORDER BY f.sort_order, f.id)
-                   FROM field_definitions f WHERE f.workspace_id = w.id OR f.field_type_id = COALESCE(p.field_type_id, w.default_field_type_id)), '[]'::json) AS fields,
+                   FROM field_definitions f WHERE CASE WHEN COALESCE(p.field_type_id, w.default_field_type_id) IS NULL THEN f.workspace_id = w.id
+                       ELSE f.field_type_id = COALESCE(p.field_type_id, w.default_field_type_id) END), '[]'::json) AS fields,
                COALESCE((SELECT json_agg(json_build_object('event_type', a.event_type, 'event_name', a.event_name, 'label', a.label))
                    FROM tracker_event_aliases a WHERE a.site_id = site.id AND a.org_id = w.org_id), '[]'::json) AS labels,
                COALESCE((SELECT json_agg(json_build_object('sessionId', e.session_id, 'eventType', e.event_type, 'eventName', e.event_name,
