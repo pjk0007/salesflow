@@ -23,6 +23,8 @@ export interface AnalyticsSummary {
     alimtalk: ChannelSummary;
     email: ChannelSummary;
     newRecordsInPeriod: number;
+    /** 이메일 수치의 집계 기준 시각 (15분 집계표). null = 집계 준비 중 */
+    emailAsOf?: string | null;
 }
 
 export interface TemplatePerformance {
@@ -65,17 +67,17 @@ export function useAnalytics(period: Period = "30d", channel: string = "all") {
     const { data: trendsData, error: trendsError, isLoading: trendsLoading, mutate: mutateTrends } = useSWR<{
         success: boolean;
         data?: TrendItem[];
-    }>(trendsKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
+    }>(trendsKey, defaultFetcher, { refreshInterval: 900000 });
 
     const { data: summaryData, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<{
         success: boolean;
         data?: AnalyticsSummary;
-    }>(summaryKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
+    }>(summaryKey, defaultFetcher, { refreshInterval: 900000 });
 
     const { data: templatesData, error: templatesError, isLoading: templatesLoading, mutate: mutateTemplates } = useSWR<{
         success: boolean;
         data?: TemplatePerformance[];
-    }>(templatesKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
+    }>(templatesKey, defaultFetcher, { refreshInterval: 900000 });
 
     return {
         trends: trendsData?.data ?? [],
