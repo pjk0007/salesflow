@@ -3,6 +3,7 @@
 import { recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { Button } from "@/components/ui/button";
 import PartitionNav from "@/components/records/PartitionNav";
 import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
 import type { ReactNode } from "react";
@@ -175,7 +176,7 @@ export default function RecordsPage() {
         }
     }, [viewMode, partitionId, mutateRecords]);
 
-    useSSE({
+    const realtime = useSSE({
         partitionId,
         onAnyChange: handleSSEChange,
     });
@@ -612,6 +613,15 @@ export default function RecordsPage() {
                                 isMember={user?.role === "member"}
                                 onToggleColumn={handleToggleColumn}
                             />
+                            {realtime.disconnected && (
+                                // 다시 연결은 실시간 연결만 새로 열어 선택·필터·쪽은 그대로 둔다. 연결되면 놓친 변경을 다시 불러온다(UX-109)
+                                <div role="status" className="flex flex-wrap items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                    실시간 갱신이 끊겼습니다. 다른 사람의 변경이 바로 보이지 않을 수 있습니다.
+                                    <Button variant="outline" size="sm" className="h-7" onClick={realtime.reconnect}>
+                                        다시 연결
+                                    </Button>
+                                </div>
+                            )}
                             {recordsError ? (
                                 <QueryErrorState error={recordsError} onRetry={() => mutateRecords()} />
                             ) : viewMode === "grouped" && statusField && partitionId ? (
