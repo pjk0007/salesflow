@@ -30,7 +30,8 @@ async function fixture(t: TestContext, options: { lostResponse?: boolean; logFai
         if (posts === 2 && options.lostResponse) throw new Error("fake accepted then disconnected");
         return Response.json({ header: { isSuccessful: true, resultCode: 0, resultMessage: "접수" }, body: { data: { requestId: `fake-${posts}`, results: [{ resultCode: 0 }] } } });
     });
-    const token = generateToken({ userId, orgId, name: "가상", email: "staff@example.test", role: "admin", membershipId: 71, tokenVersion: 0 });
+    const session = { userId, orgId, name: "가상", email: "staff@example.test", role: "admin" as const, membershipId: 71, tokenVersion: 0 };
+    const token = generateToken(session);
     const run = () => POST(new NextRequest("https://example.test/api/email/send", { method: "POST", headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ templateLinkId: 7, recordIds: [1, 2, 3] }) }));
     return { run, calls, posts: () => posts };
 }
@@ -82,7 +83,8 @@ test("UX-139: 활성/중지/초안 수정 상태 전이", async t => {
     isolateEnv(t);
     const { db } = await import("./db"), { generateToken } = await import("./auth");
     const { PUT } = await import("../app/api/email/auto-personalized/[id]/route");
-    const token = generateToken({ userId, orgId, name: "가상", email: "staff@example.test", role: "admin", membershipId: 71, tokenVersion: 0 });
+    const session = { userId, orgId, name: "가상", email: "staff@example.test", role: "admin" as const, membershipId: 71, tokenVersion: 0 };
+    const token = generateToken(session);
     for (const [active, draft, body, expected] of [
         [0, 0, { prompt: "수정", isDraft: 0 }, undefined], [1, 0, { prompt: "수정", isDraft: 0 }, undefined],
         [0, 1, { prompt: "수정", isDraft: 1 }, 0], [0, 1, { isDraft: 0 }, 1],

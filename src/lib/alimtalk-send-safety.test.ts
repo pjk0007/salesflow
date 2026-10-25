@@ -142,7 +142,8 @@ test("UX-174: 처리 중은 pending 유지, terminal COMPLETED만 배달 성공�
             return [];
         });
         t.mock.method(globalThis, "fetch", async () => Response.json({ header, message: { messageStatus, resultCode, resultCodeName: "가상" } }));
-        const token = generateToken({ userId: "00000000-0000-4000-8000-000000000002", orgId, role: "admin", membershipId: 71, tokenVersion: 0, name: "가상", email: "fake@example.test" });
+        const session = { userId: "00000000-0000-4000-8000-000000000002", orgId, role: "admin" as const, membershipId: 71, tokenVersion: 0, name: "가상", email: "fake@example.test" };
+        const token = generateToken(session);
         const response = await POST(new NextRequest("https://example.test/api/alimtalk/logs/sync", { method: "POST", headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}" }));
         assert.equal(response.status, 200);
         assert.equal((calls.find(c => c.op === "update")?.set as { status?: string } | undefined)?.status, expected);
