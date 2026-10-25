@@ -26,6 +26,7 @@ import { useEmailConfig } from "@/hooks/useEmailConfig";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
 import AiCopyManager from "@/components/ai-copy/ui/AiCopyManager";
 import ExperimentManager from "@/components/email-experiments/ui/ExperimentManager";
+import { experimentHref } from "@/components/email-experiments/experiment-href";
 
 function EmailPageContent() {
     const router = useRouter();
@@ -33,6 +34,11 @@ function EmailPageContent() {
     const activeTab = searchParams.get("tab") || "dashboard";
     const setActiveTab = (tab: string) => {
         router.replace(`/email?tab=${tab}`);
+    };
+    // 실험 선택은 주소에 남긴다 — push라서 뒤로 가기로 이전에 본 실험으로 돌아간다 (UX-242)
+    const selectExperiment = (id: number) => {
+        if (searchParams.get("tab") === "experiments" && Number(searchParams.get("experimentId")) === id) return;
+        router.push(experimentHref(id, searchParams.toString()), { scroll: false });
     };
 
     const { config, isLoading: configLoading } = useEmailConfig();
@@ -147,7 +153,8 @@ function EmailPageContent() {
                         <TabsContent value="experiments" className="mt-6">
                             <ExperimentManager
                                 initialRuleId={Number(searchParams.get("ruleId")) || undefined}
-                                initialExperimentId={Number(searchParams.get("experimentId")) || undefined}
+                                experimentId={Number(searchParams.get("experimentId")) || undefined}
+                                onSelectExperiment={selectExperiment}
                             />
                         </TabsContent>
 

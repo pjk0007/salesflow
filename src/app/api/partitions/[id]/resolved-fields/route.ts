@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, fieldDefinitions } from "@/lib/db";
-import { eq, asc } from "drizzle-orm";
+import { asc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
+import { partitionFieldsWhere } from "@/lib/partition-fields";
 
 export async function GET(
     req: NextRequest,
@@ -21,24 +22,11 @@ export async function GET(
         return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
-    // 타입 결정: 파티션 fieldTypeId → 워크스페이스 defaultFieldTypeId
-    const resolvedTypeId = access.partition.fieldTypeId ?? access.workspace.defaultFieldTypeId;
-
-    if (!resolvedTypeId) {
-        // 타입이 없으면 기존 워크스페이스 기반으로 폴백
-        const fields = await db
-            .select()
-            .from(fieldDefinitions)
-            .where(eq(fieldDefinitions.workspaceId, access.workspace.id))
-            .orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
-
-        return NextResponse.json({ success: true, data: fields });
-    }
-
+    // 파티션 fieldTypeId → 워크스페이스 defaultFieldTypeId → 워크스페이스 필드
     const fields = await db
         .select()
         .from(fieldDefinitions)
-        .where(eq(fieldDefinitions.fieldTypeId, resolvedTypeId))
+        .where(partitionFieldsWhere(access.partition.fieldTypeId, access.workspace.defaultFieldTypeId, access.workspace.id))
         .orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
 
     return NextResponse.json({ success: true, data: fields });

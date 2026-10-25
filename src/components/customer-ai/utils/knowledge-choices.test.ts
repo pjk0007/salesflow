@@ -8,10 +8,14 @@ const options = [
     { id: 5, state: "draft" },
 ];
 
-test("차단한 지식은 승인 지식 선택지에서 빠진다", () => {
-    assert.deepEqual(supportKnowledgeChoices(options, null).map((k) => k.id), [4, 5]);
+test("승인 지식 선택지에는 승인된 지식만 나온다 — 차단·초안은 빠진다 (UX-238)", () => {
+    assert.deepEqual(supportKnowledgeChoices(options, null).map((k) => k.id), [4]);
 });
 
 test("이미 설정에 연결된 차단 지식은 남겨 차단 상태를 보여준다", () => {
-    assert.deepEqual(supportKnowledgeChoices(options, 3).map((k) => k.id), [3, 4, 5]);
+    assert.deepEqual(supportKnowledgeChoices(options, 3).map((k) => k.id), [3, 4]);
+});
+
+test("이미 설정에 연결된 초안 지식도 남겨 현재 연결을 보여준다", () => {
+    assert.deepEqual(supportKnowledgeChoices(options, 5).map((k) => k.id), [4, 5]);
 });

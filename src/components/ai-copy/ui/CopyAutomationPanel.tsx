@@ -18,6 +18,7 @@ import { KST_TIME_ZONE } from "@/lib/kst";
 import { copyRequest } from "../api/copy";
 import { controlClass, Field, plainTextFromHtml, purposeLabel } from "./Fields";
 import type { PolicySnapshot } from "../types";
+import { experimentHref } from "@/components/email-experiments/experiment-href";
 
 interface Cycle {
     id: number;
@@ -64,7 +65,6 @@ interface Setting {
 }
 /** 자동 준비 끄기·유지 종료 때 함께 닫히는 진행 중 상태(서버 configure·decline 조건과 같다) */
 const ACTIVE_EXPERIMENT_STATES = ["running", "observing", "enrollment_closed", "decision_ready"];
-const experimentHref = (id: number) => `/email?tab=experiments&experimentId=${id}`;
 const kstTime = (iso: string) =>
     new Date(iso).toLocaleString("ko-KR", {
         timeZone: KST_TIME_ZONE,

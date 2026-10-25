@@ -4,6 +4,8 @@ import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
+import { partitionFieldsWhere } from "@/lib/partition-fields";
+import { missingRequiredFields, requiredFieldMessage } from "@/lib/required-fields";
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { duplicateKeyOf, findDuplicateValues } from "@/lib/record-duplicates";
 
@@ -184,6 +186,17 @@ export async function POST(
         const access = await requirePartitionAccess(user, partitionId, "create");
         if (!access.ok) {
             return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+        }
+
+        // 필수 항목 — 추가 창과 같은 기준(공백만 든 값도 빈 값)으로 서버에서 다시 확인한다 (UX-036)
+        const fields = await db
+            .select({ key: fieldDefinitions.key, label: fieldDefinitions.label, fieldType: fieldDefinitions.fieldType, cellType: fieldDefinitions.cellType, isRequired: fieldDefinitions.isRequired })
+            .from(fieldDefinitions)
+            .where(partitionFieldsWhere(access.partition.fieldTypeId, access.workspace.defaultFieldTypeId, access.workspace.id))
+            .orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
+        const [missing] = missingRequiredFields(fields, recordData as Record<string, unknown>);
+        if (missing) {
+            return NextResponse.json({ success: false, error: requiredFieldMessage(missing), field: missing.key }, { status: 400 });
         }
 
         // 생성 공통 경로: 한도 → 중복 정책 → 발번·분배·기본값·insert(한 트랜잭션) → 커밋 후 후처리
