@@ -25,3 +25,33 @@ export function classifyEmailSubmission(result: {
         (result.header.isSuccessful && results?.length && results.every(r => isKnownEmailRejection(r.resultCode)))) return "failed";
     return "unknown";
 }
+
+type EmailResultLike = {
+    header: { isSuccessful: boolean; resultCode: number; resultMessage?: string | null };
+    /** 발송 응답이면 { results }, 조회·카테고리 응답이면 다른 모양 — results만 읽는다 */
+    data?: unknown;
+};
+type RecipientResult = { resultCode: number; resultMessage?: string | null };
+
+/**
+ * NHN 메일 API 실패를 사용자 안내 문구로 (UX-160). 'HTTP 401: Unauthorized' 같은 영문 내부 문구를 그대로 보내지 않는다.
+ * - HTTP 오류(nhn-email.ts request가 resultCode에 HTTP 상태를 담는다): 키·일시 장애를 구분해 안내
+ * - 수신 거부·확인 실패(email-send-guard, 음수 -71xx): 이미 한국어 문구라 그대로
+ * - NHN API 결과 코드: 수동 발송과 같은 "NHN이 … 받지 않았습니다" 형식에 코드와 NHN 원문을 괄호로 덧붙인다
+ * action: "발송" | "연결 확인" | "카테고리 조회" 등 — 문장의 대상
+ */
+export function nhnEmailFailureMessage(result: EmailResultLike, action = "발송"): string {
+    const results = (result.data as { results?: RecipientResult[] } | null | undefined)?.results;
+    const recipient = result.header.isSuccessful && Array.isArray(results) ? results.find((r) => r.resultCode !== 0) : undefined;
+    const code = recipient ? recipient.resultCode : result.header.resultCode;
+    const original = (recipient ? recipient.resultMessage : result.header.resultMessage)?.trim() ?? "";
+    if (!recipient && /^HTTP \d{3}/.test(original)) {
+        if (code === 401 || code === 403) return `NHN 인증에 실패해 ${action}하지 못했습니다. 이메일 설정의 App Key와 Secret Key를 확인해주세요.`;
+        if (code === 404) return `NHN에서 이 App Key의 서비스를 찾지 못해 ${action}하지 못했습니다. App Key를 확인해주세요.`;
+        if (code === 429) return `요청이 많아 NHN이 잠시 거절했습니다. 잠시 후 다시 ${action}해주세요.`;
+        if (code >= 500) return `NHN 서버에 일시적인 문제가 있어 ${action}하지 못했습니다. 잠시 후 다시 시도해주세요.`;
+        return `NHN이 요청을 받지 않아 ${action}하지 못했습니다 (HTTP ${code}).`;
+    }
+    if (code === EMAIL_SEND_BLOCKED || code === EMAIL_SEND_CHECK_FAILED || code === EMAIL_SEND_INVALID_CONTEXT) return original;
+    return `NHN이 ${action} 요청을 받지 않았습니다 (코드 ${code}${original ? `: ${original}` : ""}). 발신 주소가 NHN에 등록됐는지와 키 설정을 확인해주세요.`;
+}

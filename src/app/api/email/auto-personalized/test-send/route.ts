@@ -1,3 +1,4 @@
+import { classifyEmailSubmission, nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, products, records } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
@@ -184,7 +185,7 @@ export async function POST(req: NextRequest) {
         });
 
         const sendResult = nhnResult.data?.results?.[0];
-        const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+        const isSuccess = classifyEmailSubmission(nhnResult) === "sent";
 
         return NextResponse.json({
             success: isSuccess,
@@ -193,7 +194,7 @@ export async function POST(req: NextRequest) {
                 htmlBody: finalBody,
                 sentTo: testEmail,
             },
-            error: isSuccess ? undefined : (sendResult?.resultMessage ?? nhnResult.header.resultMessage),
+            error: isSuccess ? undefined : nhnEmailFailureMessage(nhnResult, "테스트 발송"),
         });
     } catch (error) {
         // 원래 오류 문구는 서버 로그에만 남긴다 — DB 오류 문구에는 쿼리 원문과 매개변수가 담겨 화면으로 나가면 안 된다

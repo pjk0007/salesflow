@@ -275,3 +275,29 @@ test("UX-155: 설정 조회 — member는 앱 키도 가려 받고, admin은 그
         });
     }
 });
+
+test("UX-160: 템플릿 테스트 발송 — NHN이 수신자를 거절하면 성공이 아니고 한국어, 연결 테스트 401도 한국어", async (t) => {
+    const { db, request, membership } = await staff(t);
+    const testSend = await import("../app/api/email/test-send/route");
+    const configTest = await import("../app/api/email/config/test/route");
+    installFakeDb(t, db, chain(membership, (c) => {
+        if (c.table === "email_configs") return [{ fromEmail: "sender@example.test", fromName: "가상", appKey: "fake", secretKey: "fake", isActive: 1 }];
+        if (c.op === "select" && c.table === "email_templates") return [{ id: 9, subject: "가상", htmlBody: "가상", orgId }];
+        return undefined;
+    }));
+    let reply: () => Response = () => Response.json({ header: { isSuccessful: true, resultCode: 0, resultMessage: "SUCCESS" }, body: { data: { requestId: "r1", results: [{ receiveMailAddr: "to@example.test", resultCode: -3001, resultMessage: "invalid receiver" }] } } });
+    t.mock.method(globalThis, "fetch", async () => reply());
+    const rejected = await (await testSend.POST(request("https://example.test/api/email/test-send", "POST", { templateId: 9, recipientEmail: "to@example.test" }))).json();
+    assert.equal(rejected.success, false);
+    assert.match(rejected.error, /^NHN이 테스트 발송 요청을 받지 않았습니다 \(코드 -3001/);
+
+    reply = () => Response.json({ header: { isSuccessful: true, resultCode: 0, resultMessage: "SUCCESS" }, body: { data: { requestId: "r2", results: [{ receiveMailAddr: "to@example.test", resultCode: 0, resultMessage: "" }] } } });
+    const ok = await (await testSend.POST(request("https://example.test/api/email/test-send", "POST", { templateId: 9, recipientEmail: "to@example.test" }))).json();
+    assert.equal(ok.success, true);
+
+    reply = () => new Response("", { status: 401, statusText: "Unauthorized" });
+    const unauthorized = await (await configTest.POST(request("https://example.test/api/email/config/test", "POST", { appKey: "bad", secretKey: "bad" }))).json();
+    assert.equal(unauthorized.success, false);
+    assert.doesNotMatch(unauthorized.error, /Unauthorized|HTTP 401/);
+    assert.match(unauthorized.error, /NHN 인증에 실패/);
+});
