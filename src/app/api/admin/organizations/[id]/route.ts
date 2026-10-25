@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { db, organizations, organizationMembers, users, workspaces, subscriptions, plans, payments, records, partitions, emailSendLogs, alimtalkSendLogs, aiUsageLogs } from "@/lib/db";
-import { eq, and, sql } from "drizzle-orm";
+import { desc, eq, and, sql } from "drizzle-orm";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = await getActiveUserFromNextRequest(req, { scope: "account" });
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         .select()
         .from(payments)
         .where(eq(payments.orgId, orgId))
-        .orderBy(payments.createdAt)
+        .orderBy(desc(payments.createdAt), desc(payments.id))
         .limit(20);
 
     // 활동 요약

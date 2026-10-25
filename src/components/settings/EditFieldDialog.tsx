@@ -126,16 +126,16 @@ export default function EditFieldDialog({
         try {
             const result = await onSubmit(field.id, {
                 label: label.trim(),
-                category: category.trim() || undefined,
+                category: category.trim(),
                 isRequired,
                 isSortable,
-                defaultValue: defaultValue.trim() || undefined,
+                defaultValue: defaultValue.trim(),
                 defaultWidth,
                 options: field.fieldType === "select" ? options : undefined,
                 optionColors: field.fieldType === "select" ? optionColors : undefined,
                 optionStyle: field.fieldType === "select" ? optionStyle : undefined,
                 isGroupable: field.fieldType === "select" ? isGroupable : undefined,
-                cellClassName: textColor || undefined,
+                cellClassName: textColor,
                 trackHistory: field.fieldType === "select" ? trackHistory : undefined,
             });
             if (result.success) {

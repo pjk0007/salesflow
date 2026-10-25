@@ -69,8 +69,8 @@ export function MemberScopeDialog({ open, onOpenChange, userId, userName }: Memb
                 <DialogHeader>
                     <DialogTitle>{userName}님의 접근 권한</DialogTitle>
                     <DialogDescription>
-                        체크하지 않은 곳은 <b>모든 멤버가 접근할 수 있습니다.</b> 체크하는 순간 그 대상은 권한을 받은
-                        멤버에게만 열립니다. 상위를 체크하면 하위가 모두 포함됩니다.
+                        권한은 이 멤버에게 추가로 부여됩니다. 다른 멤버의 기존 접근 권한을 제한하지 않습니다.
+                        상위를 체크하면 하위가 모두 포함됩니다.
                     </DialogDescription>
                 </DialogHeader>
 

@@ -27,7 +27,7 @@ import { toast } from "sonner";
 
 export function OrgSwitcher() {
     const router = useRouter();
-    const { user, switchOrg, createOrg } = useSession();
+    const { user, switchOrg, createOrg, isSessionChanging } = useSession();
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
     const [newOrgName, setNewOrgName] = useState("");
     const [creating, setCreating] = useState(false);
@@ -69,6 +69,7 @@ export function OrgSwitcher() {
                     <Button
                         variant="outline"
                         size="sm"
+                        disabled={isSessionChanging}
                         className="w-full justify-between gap-2"
                     >
                         <span className="flex items-center gap-2 truncate">
@@ -84,9 +85,10 @@ export function OrgSwitcher() {
                     {user.organizations.map((org) => (
                         <DropdownMenuItem
                             key={org.id}
-                            onClick={() => {
+                            onClick={async () => {
                                 if (org.id !== user.orgId) {
-                                    switchOrg(org.id);
+                                    const result = await switchOrg(org.id);
+                                    if (!result.success) toast.error(result.error || "조직 전환에 실패했습니다.");
                                 }
                             }}
                             className="flex items-center justify-between"

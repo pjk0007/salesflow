@@ -158,7 +158,7 @@ export async function DELETE(req: NextRequest) {
                 ...(user.isSuperAdmin && { isSuperAdmin: true }),
             };
             const response = NextResponse.json({ success: true, switchedTo: nextOrg.organizationId });
-            setSessionCookie(response, payload);
+            await setSessionCookie(response, payload);
             return response;
         } else {
             // 다른 조직 없음 — 쿠키 삭제

@@ -23,6 +23,7 @@ test("프록시 배포의 직원·고객 요청은 설정한 공개 출처만 �
             email: "test@example.test",
             name: "가상 직원",
             role: "admin" as const,
+            membershipId: 71,
         };
         const token = generateToken(actor);
         const request = (origin: string, authenticated = true) =>

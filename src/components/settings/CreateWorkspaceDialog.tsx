@@ -96,7 +96,7 @@ export default function CreateWorkspaceDialog({
                             body: JSON.stringify({ fields: template.fields }),
                         });
                         const result = await res.json();
-                        if (result.success) {
+                        if (res.ok && result.success) {
                             toast.success(`워크스페이스가 생성되었습니다. ${result.data.created}개 속성이 추가되었습니다.`);
                             const skippedItems: Array<{ key: string; reason: string }> = result.data.skippedItems ?? [];
                             if (skippedItems.length > 0) {
@@ -105,10 +105,14 @@ export default function CreateWorkspaceDialog({
                                     .map((item) => `${item.key || "(key 없음)"} — ${item.reason}`)
                                     .join(", ")}${skippedItems.length > 3 ? " 외" : ""}`);
                             }
+                        } else {
+                            toast.error(result.error || "템플릿을 적용하지 못했습니다. 속성 타입 관리에서 다시 추가할 수 있습니다.");
+                            return;
                         }
                     }
                 } catch {
-                    /* ignore */
+                    toast.error("템플릿 적용 결과를 확인하지 못했습니다. 입력을 유지했으니 속성 목록을 확인해주세요.");
+                    return;
                 } finally {
                     setIsSubmitting(false);
                 }

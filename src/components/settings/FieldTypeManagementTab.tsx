@@ -176,6 +176,7 @@ export default function FieldTypeManagementTab() {
     const handleCreateType = async () => {
         if (!newTypeName.trim()) return;
         setCreatingType(true);
+        try {
         const result = await createType({ name: newTypeName.trim(), description: newTypeDesc.trim() || undefined });
         if (result.success) {
             toast.success("속성 타입이 생성되었습니다.");
@@ -186,19 +187,21 @@ export default function FieldTypeManagementTab() {
         } else {
             toast.error(result.error || "생성에 실패했습니다.");
         }
-        setCreatingType(false);
+        } catch { toast.error("생성 요청을 처리하지 못했습니다. 연결을 확인해주세요."); }
+        finally { setCreatingType(false); }
     };
 
-    const handleEditTypeOpen = () => {
-        if (!selectedType) return;
-        setEditTypeName(selectedType.name);
-        setEditTypeDesc(selectedType.description || "");
+    const handleEditTypeOpen = (type: { id: number; name: string; description: string | null }) => {
+        setSelectedTypeId(type.id);
+        setEditTypeName(type.name);
+        setEditTypeDesc(type.description || "");
         setEditTypeOpen(true);
     };
 
     const handleEditType = async () => {
         if (!selectedTypeId || !editTypeName.trim()) return;
         setEditingType(true);
+        try {
         const result = await updateType(selectedTypeId, { name: editTypeName.trim(), description: editTypeDesc.trim() || undefined });
         if (result.success) {
             toast.success("속성 타입이 수정되었습니다.");
@@ -206,12 +209,14 @@ export default function FieldTypeManagementTab() {
         } else {
             toast.error(result.error || "수정에 실패했습니다.");
         }
-        setEditingType(false);
+        } catch { toast.error("수정 요청을 처리하지 못했습니다. 연결을 확인해주세요."); }
+        finally { setEditingType(false); }
     };
 
     const handleDeleteType = async () => {
         if (!selectedTypeId) return;
         setDeletingType(true);
+        try {
         const result = await deleteType(selectedTypeId);
         if (result.success) {
             toast.success("속성 타입이 삭제되었습니다.");
@@ -220,7 +225,8 @@ export default function FieldTypeManagementTab() {
         } else {
             toast.error(result.error || "삭제에 실패했습니다.");
         }
-        setDeletingType(false);
+        } catch { toast.error("삭제 요청을 처리하지 못했습니다. 연결을 확인해주세요."); }
+        finally { setDeletingType(false); }
     };
 
     const handleEdit = (field: FieldDefinition) => {
@@ -261,11 +267,11 @@ export default function FieldTypeManagementTab() {
                                     {type.description || "설명 없음"}
                                 </div>
                             </CardContent>
-                            <div className="absolute top-2 right-2 hidden group-hover:flex gap-1">
+                            <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                                 <button
                                     type="button"
                                     className="p-1 hover:bg-accent rounded"
-                                    onClick={(e) => { e.stopPropagation(); setSelectedTypeId(type.id); handleEditTypeOpen(); }}
+                                    onClick={(e) => { e.stopPropagation(); handleEditTypeOpen(type); }}
                                 >
                                     <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                                 </button>

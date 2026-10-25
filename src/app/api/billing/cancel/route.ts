@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, plans, subscriptions } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, plans, subscriptions, payments } from "@/lib/db";
+import { eq, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-admin";
 
 export async function POST(req: NextRequest) {
@@ -23,7 +23,16 @@ export async function POST(req: NextRequest) {
         }
 
         // 현재 구독을 Free로 다운그레이드
-        const [updated] = await db
+        const outcome = await db.transaction(async (tx) => {
+            const [sub] = await tx.select({ id: subscriptions.id }).from(subscriptions).where(and(
+                eq(subscriptions.orgId, user.orgId), inArray(subscriptions.status, ["active", "suspended"])
+            )).for("update");
+            if (!sub) return "missing" as const;
+            const [pending] = await tx.select({ id: payments.id }).from(payments).where(and(
+                eq(payments.subscriptionId, sub.id), eq(payments.status, "pending")
+            )).limit(1);
+            if (pending) return "pending" as const;
+            const [updated] = await tx
             .update(subscriptions)
             .set({
                 planId: freePlan.id,
@@ -31,17 +40,24 @@ export async function POST(req: NextRequest) {
                 canceledAt: new Date(),
                 currentPeriodStart: null,
                 currentPeriodEnd: null,
+                retryCount: 0,
+                nextRetryAt: null,
                 updatedAt: new Date(),
             })
             .where(
                 and(
                     eq(subscriptions.orgId, user.orgId),
-                    eq(subscriptions.status, "active")
+                    eq(subscriptions.id, sub.id)
                 )
             )
             .returning({ id: subscriptions.id });
+            return updated ? "done" as const : "missing" as const;
+        });
 
-        if (!updated) {
+        if (outcome === "pending") {
+            return NextResponse.json({ success: false, error: "확인 중인 결제가 있습니다. 다시 결제하거나 취소하지 말고 고객센터에 문의해주세요." }, { status: 409 });
+        }
+        if (outcome === "missing") {
             return NextResponse.json({ success: false, error: "활성 구독을 찾을 수 없습니다." }, { status: 404 });
         }
 

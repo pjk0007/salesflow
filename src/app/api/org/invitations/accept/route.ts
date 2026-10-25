@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, organizationInvitations, users, organizationMembers } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
-import { hashPassword, setSessionCookie } from "@/lib/auth";
+import { hashPassword, verifyPassword, setSessionCookie } from "@/lib/auth";
 import type { OrgRole } from "@/types";
 
 export async function GET(req: NextRequest) {
@@ -53,114 +53,66 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+    const fail = (error: string, status: number) => ({ response: NextResponse.json({ success: false, error }, { status }) });
     try {
-        const { token, name, password } = await req.json();
-
-        if (!token || !name || !password) {
-            return NextResponse.json({ success: false, error: "모든 필드를 입력해주세요." }, { status: 400 });
+        const { token, email, name, password } = await req.json();
+        if (typeof token !== "string" || !token || typeof password !== "string" || !password) {
+            return fail("초대 링크와 비밀번호를 확인해주세요.", 400).response;
         }
-
-        if (password.length < 6) {
-            return NextResponse.json({ success: false, error: "비밀번호는 6자 이상이어야 합니다." }, { status: 400 });
-        }
-
-        const [invitation] = await db
-            .select()
-            .from(organizationInvitations)
-            .where(
-                and(
-                    eq(organizationInvitations.token, token),
-                    eq(organizationInvitations.status, "pending"),
-                    gt(organizationInvitations.expiresAt, new Date())
-                )
-            );
-
-        if (!invitation) {
-            return NextResponse.json({ success: false, error: "만료되었거나 유효하지 않은 초대입니다." }, { status: 400 });
-        }
-
-        // 이미 가입한 계정이면 새 유저를 만들지 않는다.
-        // users에는 unique(org_id, email) 제약이 있어 그대로 insert하면 충돌하고,
-        // 충돌을 피해 만들어도 로그인이 이메일당 한 행만 집어가므로 접근 불가 계정이 생긴다.
-        const [existingUser] = await db
-            .select({ id: users.id })
-            .from(users)
-            .where(eq(users.email, invitation.email));
-
-        if (existingUser) {
-            const [existingMember] = await db
-                .select({ id: organizationMembers.id })
-                .from(organizationMembers)
-                .where(and(
-                    eq(organizationMembers.userId, existingUser.id),
-                    eq(organizationMembers.organizationId, invitation.orgId)
-                ));
-
-            if (existingMember) {
-                return NextResponse.json({ success: false, error: "이미 조직에 소속된 이메일입니다." }, { status: 400 });
+        // 일반 세션을 허용하지 않고, 유효 초대와 수신 계정의 비밀번호를 함께 재인증한다.
+        // 초대 행 잠금은 기존/신규 계정 모두 동시 수락을 한 번으로 제한한다.
+        const accepted = await db.transaction(async (tx) => {
+            const [invitation] = await tx.select().from(organizationInvitations).where(and(
+                eq(organizationInvitations.token, token),
+                eq(organizationInvitations.status, "pending"),
+                gt(organizationInvitations.expiresAt, new Date())
+            )).for("update");
+            if (!invitation || !["admin", "member"].includes(invitation.role)) {
+                return fail("만료되었거나 유효하지 않은 초대입니다.", 400);
             }
-
-            return NextResponse.json({
-                success: false,
-                error: "이미 가입된 이메일입니다. 로그인 후 초대를 수락해주세요.",
-                requiresLogin: true,
-            }, { status: 409 });
-        }
-
-        const hashedPassword = await hashPassword(password);
-
-        // 유저 생성 + 멤버 등록 + 초대 수락을 한 트랜잭션으로 묶는다.
-        // 따로 두면 중간 실패 시 멤버십 없는 유령 계정이 남아 재초대까지 막힌다.
-        const newUser = await db.transaction(async (tx) => {
-            const [created] = await tx
-                .insert(users)
-                .values({
-                    orgId: invitation.orgId,
-                    email: invitation.email,
-                    name: name.trim(),
-                    password: hashedPassword,
-                    role: invitation.role,
-                })
-                .returning({
-                    id: users.id,
-                    email: users.email,
-                    name: users.name,
-                    role: users.role,
-                });
-
-            await tx.insert(organizationMembers).values({
-                organizationId: invitation.orgId,
-                userId: created.id,
-                role: invitation.role,
-            });
-
-            await tx
-                .update(organizationInvitations)
-                .set({ status: "accepted" })
-                .where(eq(organizationInvitations.id, invitation.id));
-
-            return created;
+            const invitedEmail = invitation.email.trim().toLowerCase();
+            const [existingUser] = await tx.select().from(users).where(eq(users.email, invitedEmail)).for("update");
+            let account;
+            if (existingUser) {
+                if (typeof email !== "string" || email.trim().toLowerCase() !== invitedEmail) {
+                    return fail("초대받은 이메일과 입력한 계정 이메일이 일치하지 않습니다.", 403);
+                }
+                if (existingUser.isActive !== 1) return fail("비활성 계정입니다. 관리자에게 문의해주세요.", 403);
+                if (!await verifyPassword(password, existingUser.password)) {
+                    return fail("이메일 또는 비밀번호가 올바르지 않습니다.", 401);
+                }
+                account = existingUser;
+            } else {
+                if (typeof name !== "string" || !name.trim() || password.length < 6) {
+                    return fail("이름과 6자 이상의 비밀번호를 입력해주세요.", 400);
+                }
+                const [created] = await tx.insert(users).values({
+                    orgId: invitation.orgId, email: invitedEmail, name: name.trim(),
+                    password: await hashPassword(password), role: invitation.role,
+                }).returning();
+                account = created;
+            }
+            const [existingMember] = await tx.select().from(organizationMembers).where(and(
+                eq(organizationMembers.userId, account.id), eq(organizationMembers.organizationId, invitation.orgId)
+            ));
+            const member = existingMember ?? (await tx.insert(organizationMembers).values({
+                organizationId: invitation.orgId, userId: account.id, role: invitation.role,
+            }).onConflictDoNothing().returning())[0];
+            if (!member) return fail("이미 참여 중인 요청이 있습니다. 다시 확인해주세요.", 409);
+            await tx.update(organizationInvitations).set({ status: "accepted" }).where(eq(organizationInvitations.id, invitation.id));
+            return { account, member, orgId: invitation.orgId };
         });
-
-        const response = NextResponse.json({
-            success: true,
-            data: {
-                userId: newUser.id,
-                orgId: invitation.orgId,
-            },
-        });
-        setSessionCookie(response, {
-            userId: newUser.id,
-            orgId: invitation.orgId,
-            email: newUser.email,
-            name: newUser.name,
-            role: newUser.role as OrgRole,
-            // 새 멤버십이라 token_version은 DEFAULT 0. 별도 조회 불필요
-            tokenVersion: 0,
+        if ("response" in accepted) return accepted.response;
+        const { account, member, orgId } = accepted;
+        const response = NextResponse.json({ success: true, data: { userId: account.id, orgId } });
+        await setSessionCookie(response, {
+            userId: account.id, orgId, email: account.email, name: account.name,
+            role: member.role as OrgRole, membershipId: member.id, tokenVersion: member.tokenVersion,
+            ...(account.isSuperAdmin === 1 && { isSuperAdmin: true }),
         });
         return response;
     } catch (error) {
         console.error("Invitation accept error:", error);
-        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
+        return fail("초대 수락을 처리하지 못했습니다. 다시 시도해주세요.", 500).response;
     }
 }

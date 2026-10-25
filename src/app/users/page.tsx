@@ -7,7 +7,7 @@ export default function UsersRedirect() {
     const router = useRouter();
 
     useEffect(() => {
-        router.replace("/settings?tab=users");
+        router.replace("/settings/organization?tab=team");
     }, [router]);
 
     return null;

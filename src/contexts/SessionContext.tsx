@@ -38,7 +38,7 @@ interface SessionContextType {
     sessionError: string | null;
     logout: () => void;
     refreshSession: () => Promise<void>;
-    switchOrg: (orgId: string) => Promise<void>;
+    switchOrg: (orgId: string) => Promise<{ success: boolean; error?: string }>;
     createOrg: (name: string) => Promise<{ success: boolean; error?: string }>;
     isSessionChanging: boolean;
     sessionEpoch: number;
@@ -56,6 +56,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const sessionChanging = useRef(false);
     const [sessionEpoch, setSessionEpoch] = useState(0);
     const identity = useRef<string | null>(null);
+    // 세션 조회가 실패해 user를 숨겨도 기존 SWR 캐시의 소유 조직은 잊지 않는다.
+    const cacheIdentity = useRef<string | null>(null);
     const sessionRequest = useRef(0);
     const invalidationListeners = useRef(new Set<() => void>());
     const subscribeInvalidation = useCallback((listener: () => void) => {
@@ -85,8 +87,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
             if (data.success) {
                 const nextIdentity = `${data.user.orgId}:${data.user.userId}`;
-                if (identity.current && identity.current !== nextIdentity) { invalidate(); request = sessionRequest.current; }
+                if (cacheIdentity.current && cacheIdentity.current !== nextIdentity) {
+                    // 조직이 바뀌면 SWR 전역 캐시와 페이지 자체 상태를 함께 비운다.
+                    // 여러 소비자가 전역 mutate를 사용하므로 일부 화면만 새 provider로 감싸지 않는다.
+                    invalidate();
+                    identity.current = null;
+                    setUser(null);
+                    setIsLoading(true);
+                    window.location.replace("/");
+                    return;
+                }
                 identity.current = nextIdentity;
+                cacheIdentity.current = nextIdentity;
                 setUser({
                     id: data.user.userId,
                     orgId: data.user.orgId,
@@ -132,8 +144,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (isLatest() && !identity.current) router.push("/login");
     }), [fetchSession, router, transitions]);
 
-    const switchOrg = useCallback((orgId: string) => transitions.run(async (isLatest) => {
-        let switched = false;
+    const switchOrg = useCallback(async (orgId: string) => {
+        let result = { success: false, error: "조직을 전환하지 못했습니다. 다시 시도해주세요." };
+        await transitions.run(async (isLatest) => {
         try {
             const res = await fetch("/api/org/switch", {
                 method: "POST",
@@ -141,15 +154,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 body: JSON.stringify({ orgId }),
             });
             const data = await res.json();
-            switched = data.success === true;
+            result = { success: res.ok && data.success === true, error: data.error || "조직을 전환하지 못했습니다." };
         } catch (error) {
             console.error("Org switch error:", error);
         } finally {
             // Also reconcile intermediate successes and failed/ambiguous cookie responses.
             await fetchSession(true);
         }
-        if (switched && isLatest() && identity.current) router.push("/");
-    }), [fetchSession, router, transitions]);
+        if (result.success && isLatest() && identity.current) router.push("/");
+        });
+        return result;
+    }, [fetchSession, router, transitions]);
 
     const createOrg = useCallback(async (name: string) => {
         let result: { success: boolean; error?: string } = { success: false, error: "서버 오류가 발생했습니다." };

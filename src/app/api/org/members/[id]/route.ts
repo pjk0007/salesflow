@@ -51,6 +51,10 @@ export async function PATCH(
             return NextResponse.json({ success: false, error: "관리자의 역할을 변경할 수 없습니다." }, { status: 403 });
         }
 
+        if (user.role === "admin" && role !== "member") {
+            return NextResponse.json({ success: false, error: "관리자 역할은 소유자만 부여할 수 있습니다." }, { status: 403 });
+        }
+
         // organizationMembers에서 role 업데이트
         // role과 token_version을 같은 UPDATE에서 바꾼다. 문장을 나누면 사이에서 실패했을 때
         // role만 강등되고 옛 토큰이 살아남는 창이 생긴다.

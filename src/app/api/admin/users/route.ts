@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { db, users, organizationMembers } from "@/lib/db";
-import { sql, eq, ilike, or, count } from "drizzle-orm";
+import { sql, eq, ilike, or, count, desc } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req, { scope: "account" });
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
         })
         .from(users)
         .where(where)
-        .orderBy(users.createdAt)
+        .orderBy(desc(users.createdAt), desc(users.id))
         .limit(limit)
         .offset(offset);
 

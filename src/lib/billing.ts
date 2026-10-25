@@ -1,4 +1,5 @@
-import { db, plans, subscriptions, payments, workspaces, records, users, organizationMembers } from "@/lib/db";
+import { randomUUID } from "node:crypto";
+import { db, plans, subscriptions, payments, workspaces, records, organizationMembers } from "@/lib/db";
 import { eq, and, count, lte, gt, isNotNull, or } from "drizzle-orm";
 
 // 토스페이먼츠 API
@@ -6,6 +7,9 @@ const TOSS_API_BASE = "https://api.tosspayments.com/v1";
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY || "";
 const getAuthHeader = () =>
     `Basic ${Buffer.from(TOSS_SECRET_KEY + ":").toString("base64")}`;
+
+/** 공급자가 명시적으로 거절한 요청만 실패 확정으로 취급한다. 통신/서버 오류는 결과 미확인이다. */
+export class BillingProviderError extends Error {}
 
 export async function issueBillingKey(authKey: string, customerKey: string) {
     const res = await fetch(`${TOSS_API_BASE}/billing/authorizations/issue`, {
@@ -19,7 +23,7 @@ export async function issueBillingKey(authKey: string, customerKey: string) {
 
     if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "빌링키 발급 실패");
+        throw new BillingProviderError(err.message || "빌링키 발급 실패");
     }
 
     return res.json() as Promise<{
@@ -49,7 +53,10 @@ export async function executeBilling(
 
     if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || "결제 실행 실패");
+        if (res.status >= 400 && res.status < 500 && res.status !== 408) {
+            throw new BillingProviderError(err.message || "결제 실행 실패");
+        }
+        throw new Error("결제 결과를 확인할 수 없습니다.");
     }
 
     return res.json() as Promise<{
@@ -85,7 +92,7 @@ export async function getActiveSubscription(orgId: string) {
         .where(
             and(
                 eq(subscriptions.orgId, orgId),
-                eq(subscriptions.status, "active")
+                or(eq(subscriptions.status, "active"), eq(subscriptions.status, "suspended"))
             )
         );
 
@@ -103,18 +110,24 @@ export async function checkPlanLimit(
         return { allowed: false, limit: 0, plan: "none" };
     }
 
-    const limits = sub.planLimits as { workspaces: number; records: number; members: number };
+    // 정지된 구독도 Free 한도로 유입을 받는다. 과거 정지 행(planId=free)과 원 플랜을 보존한 행 모두 지원한다.
+    const [freePlan] = sub.status === "suspended"
+        ? await db.select().from(plans).where(eq(plans.slug, "free"))
+        : [];
+    if (sub.status === "suspended" && !freePlan) return { allowed: false, limit: 0, plan: "none" };
+    const limits = (freePlan?.limits ?? sub.planLimits) as { workspaces: number; records: number; members: number };
     const limit = limits[resource];
+    const planName = freePlan?.name ?? sub.planName;
 
     // -1 = 무제한
     if (limit === -1) {
-        return { allowed: true, limit: -1, plan: sub.planName };
+        return { allowed: true, limit: -1, plan: planName };
     }
 
     return {
         allowed: currentCount < limit,
         limit,
-        plan: sub.planName,
+        plan: planName,
     };
 }
 
@@ -154,228 +167,113 @@ export async function getResourceCount(
 // ============================================
 
 const RETRY_INTERVALS = [1, 3, 7]; // days
+const PAYMENT_UNCONFIRMED = "결제 결과를 확인 중입니다. 고객센터에서 결제 상태를 확인해야 합니다.";
 
-export async function processRenewals(): Promise<{
-    renewed: number;
-    failed: number;
-    errors: string[];
-}> {
+type ScheduledMode = "renew" | "retry";
+
+/** 수동 플랜 변경과 같은 구독 행 잠금/pending 계약. 외부 호출 전에 짧은 트랜잭션을 커밋한다. */
+async function claimScheduledPayment(id: number, mode: ScheduledMode, now: Date) {
+    return db.transaction(async (tx) => {
+        const [sub] = await tx.select().from(subscriptions).where(eq(subscriptions.id, id)).for("update");
+        if (!sub || sub.status !== "active" || !sub.tossBillingKey || !sub.tossCustomerKey) return null;
+        const due = mode === "renew" ? sub.currentPeriodEnd : sub.nextRetryAt;
+        if (!due || due > now || (mode === "renew" ? sub.retryCount !== 0 : sub.retryCount <= 0)) return null;
+        const [pending] = await tx.select({ id: payments.id }).from(payments).where(and(
+            eq(payments.subscriptionId, sub.id), eq(payments.status, "pending")
+        )).limit(1);
+        if (pending) return null;
+        const [plan] = await tx.select().from(plans).where(eq(plans.id, sub.planId));
+        if (!plan || plan.price === 0) return null;
+        const orderId = `${mode}_${randomUUID()}`;
+        const [attempt] = await tx.insert(payments).values({
+            orgId: sub.orgId, subscriptionId: sub.id, amount: plan.price,
+            status: "pending", tossOrderId: orderId,
+        }).returning({ id: payments.id });
+        if (!attempt) throw new Error("결제 요청을 저장하지 못했습니다.");
+        return { sub, plan, orderId, attemptId: attempt.id };
+    });
+}
+
+async function processScheduledPayments(mode: ScheduledMode) {
     const now = new Date();
-    const result = { renewed: 0, failed: 0, errors: [] as string[] };
-
-    // 만료 예정/만료된 active 구독 (빌링키 있고, 아직 재시도 진입 전)
-    const expiredSubs = await db
-        .select({
-            id: subscriptions.id,
-            orgId: subscriptions.orgId,
-            tossBillingKey: subscriptions.tossBillingKey,
-            tossCustomerKey: subscriptions.tossCustomerKey,
-            planId: subscriptions.planId,
-        })
-        .from(subscriptions)
-        .where(
-            and(
-                eq(subscriptions.status, "active"),
-                lte(subscriptions.currentPeriodEnd, now),
-                isNotNull(subscriptions.tossBillingKey),
-                eq(subscriptions.retryCount, 0)
-            )
-        );
-
-    for (const sub of expiredSubs) {
-        if (!sub.tossBillingKey || !sub.tossCustomerKey) continue;
-
-        const [plan] = await db.select().from(plans).where(eq(plans.id, sub.planId));
-        if (!plan || plan.price === 0) continue;
-
-        const orderId = `renew_${sub.orgId.replace(/-/g, "").slice(0, 8)}_${Date.now()}`;
-
+    const result = { succeeded: 0, failed: 0, suspended: 0, errors: [] as string[] };
+    const candidates = await db.select({ id: subscriptions.id }).from(subscriptions).where(and(
+        eq(subscriptions.status, "active"), isNotNull(subscriptions.tossBillingKey),
+        mode === "renew"
+            ? and(lte(subscriptions.currentPeriodEnd, now), eq(subscriptions.retryCount, 0))
+            : and(lte(subscriptions.nextRetryAt, now), gt(subscriptions.retryCount, 0))
+    ));
+    for (const candidate of candidates) {
+        const attempt = await claimScheduledPayment(candidate.id, mode, now);
+        if (!attempt) continue;
+        const { sub, plan, orderId, attemptId } = attempt;
         try {
-            const billingResult = await executeBilling(sub.tossBillingKey, {
-                customerKey: sub.tossCustomerKey,
-                amount: plan.price,
-                orderId,
-                orderName: `Sendb ${plan.name} 플랜 갱신`,
+            const approved = await executeBilling(sub.tossBillingKey!, {
+                customerKey: sub.tossCustomerKey!, amount: plan.price, orderId,
+                orderName: `Sendb ${plan.name} 플랜 갱신${mode === "retry" ? " (재시도)" : ""}`,
             });
-
+            if (approved.status !== "DONE" || approved.orderId !== orderId || !approved.paymentKey) {
+                throw new Error("결제 승인 응답 확인 실패");
+            }
             const periodStart = new Date();
-            const periodEnd = new Date();
+            const periodEnd = new Date(periodStart);
             periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-            await db
-                .update(subscriptions)
-                .set({
-                    currentPeriodStart: periodStart,
-                    currentPeriodEnd: periodEnd,
-                    updatedAt: new Date(),
-                })
-                .where(eq(subscriptions.id, sub.id));
-
-            await db.insert(payments).values({
-                orgId: sub.orgId,
-                subscriptionId: sub.id,
-                amount: plan.price,
-                status: "done",
-                tossPaymentKey: billingResult.paymentKey,
-                tossOrderId: billingResult.orderId,
-                paidAt: new Date(),
+            await db.transaction(async (tx) => {
+                const [updated] = await tx.update(subscriptions).set({
+                    currentPeriodStart: periodStart, currentPeriodEnd: periodEnd,
+                    retryCount: 0, nextRetryAt: null, updatedAt: periodStart,
+                }).where(eq(subscriptions.id, sub.id)).returning({ id: subscriptions.id });
+                if (!updated) throw new Error("구독 반영 실패");
+                const [payment] = await tx.update(payments).set({
+                    status: "done", tossPaymentKey: approved.paymentKey, paidAt: periodStart,
+                }).where(and(eq(payments.id, attemptId), eq(payments.status, "pending"))).returning({ id: payments.id });
+                if (!payment) throw new Error("결제 내역 반영 실패");
             });
-
-            result.renewed++;
+            result.succeeded++;
         } catch (error) {
-            const reason = error instanceof Error ? error.message : "결제 실패";
-            const nextRetry = new Date();
-            nextRetry.setDate(nextRetry.getDate() + RETRY_INTERVALS[0]);
-
-            await db
-                .update(subscriptions)
-                .set({
-                    retryCount: 1,
-                    nextRetryAt: nextRetry,
-                    updatedAt: new Date(),
-                })
-                .where(eq(subscriptions.id, sub.id));
-
-            await db.insert(payments).values({
-                orgId: sub.orgId,
-                subscriptionId: sub.id,
-                amount: plan.price,
-                status: "failed",
-                tossOrderId: orderId,
-                failReason: reason,
-            });
-
             result.failed++;
-            result.errors.push(`org ${sub.orgId}: ${reason}`);
+            if (!(error instanceof BillingProviderError)) {
+                // 승인 뒤 DB 오류/응답 유실을 실패 재결제로 바꾸지 않는다. pending으로 다음 자동·수동 시도를 막는다.
+                result.errors.push(`org ${sub.orgId}: ${PAYMENT_UNCONFIRMED}`);
+                continue;
+            }
+            const nextCount = mode === "renew" ? 1 : sub.retryCount + 1;
+            const suspended = nextCount >= 3;
+            try {
+                await db.transaction(async (tx) => {
+                    const nextRetry = new Date();
+                    nextRetry.setDate(nextRetry.getDate() + RETRY_INTERVALS[Math.min(nextCount - 1, RETRY_INTERVALS.length - 1)]);
+                    // 정지 전 플랜을 보존한다. checkPlanLimit이 suspended일 때 Free 한도를 적용한다.
+                    await tx.update(subscriptions).set({
+                        ...(suspended ? { status: "suspended" } : {}),
+                        retryCount: suspended ? 0 : nextCount, nextRetryAt: suspended ? null : nextRetry,
+                        updatedAt: new Date(),
+                    }).where(eq(subscriptions.id, sub.id));
+                    await tx.update(payments).set({ status: "failed", failReason: error.message })
+                        .where(and(eq(payments.id, attemptId), eq(payments.status, "pending")));
+                });
+                if (suspended) result.suspended++;
+                result.errors.push(`org ${sub.orgId}: ${error.message}`);
+            } catch {
+                result.errors.push(`org ${sub.orgId}: ${PAYMENT_UNCONFIRMED}`);
+            }
         }
     }
-
     return result;
 }
 
-export async function processRetries(): Promise<{
-    retried: number;
-    suspended: number;
-    errors: string[];
-}> {
-    const now = new Date();
-    const result = { retried: 0, suspended: 0, errors: [] as string[] };
+export async function processRenewals(): Promise<{ renewed: number; failed: number; errors: string[] }> {
+    const result = await processScheduledPayments("renew");
+    return { renewed: result.succeeded, failed: result.failed, errors: result.errors };
+}
 
-    const retrySubs = await db
-        .select({
-            id: subscriptions.id,
-            orgId: subscriptions.orgId,
-            tossBillingKey: subscriptions.tossBillingKey,
-            tossCustomerKey: subscriptions.tossCustomerKey,
-            planId: subscriptions.planId,
-            retryCount: subscriptions.retryCount,
-        })
-        .from(subscriptions)
-        .where(
-            and(
-                eq(subscriptions.status, "active"),
-                lte(subscriptions.nextRetryAt, now),
-                gt(subscriptions.retryCount, 0)
-            )
-        );
-
-    for (const sub of retrySubs) {
-        if (!sub.tossBillingKey || !sub.tossCustomerKey) continue;
-
-        const [plan] = await db.select().from(plans).where(eq(plans.id, sub.planId));
-        if (!plan || plan.price === 0) continue;
-
-        const orderId = `retry_${sub.orgId.replace(/-/g, "").slice(0, 8)}_${Date.now()}`;
-
-        try {
-            const billingResult = await executeBilling(sub.tossBillingKey, {
-                customerKey: sub.tossCustomerKey,
-                amount: plan.price,
-                orderId,
-                orderName: `Sendb ${plan.name} 플랜 갱신 (재시도)`,
-            });
-
-            const periodStart = new Date();
-            const periodEnd = new Date();
-            periodEnd.setMonth(periodEnd.getMonth() + 1);
-
-            await db
-                .update(subscriptions)
-                .set({
-                    currentPeriodStart: periodStart,
-                    currentPeriodEnd: periodEnd,
-                    retryCount: 0,
-                    nextRetryAt: null,
-                    updatedAt: new Date(),
-                })
-                .where(eq(subscriptions.id, sub.id));
-
-            await db.insert(payments).values({
-                orgId: sub.orgId,
-                subscriptionId: sub.id,
-                amount: plan.price,
-                status: "done",
-                tossPaymentKey: billingResult.paymentKey,
-                tossOrderId: billingResult.orderId,
-                paidAt: new Date(),
-            });
-
-            result.retried++;
-        } catch (error) {
-            const reason = error instanceof Error ? error.message : "결제 실패";
-            const nextCount = sub.retryCount + 1;
-
-            if (nextCount >= 3) {
-                await suspendSubscription(sub.id);
-                result.suspended++;
-            } else {
-                const nextRetry = new Date();
-                nextRetry.setDate(nextRetry.getDate() + RETRY_INTERVALS[nextCount]);
-
-                await db
-                    .update(subscriptions)
-                    .set({
-                        retryCount: nextCount,
-                        nextRetryAt: nextRetry,
-                        updatedAt: new Date(),
-                    })
-                    .where(eq(subscriptions.id, sub.id));
-            }
-
-            await db.insert(payments).values({
-                orgId: sub.orgId,
-                subscriptionId: sub.id,
-                amount: plan.price,
-                status: "failed",
-                tossOrderId: orderId,
-                failReason: reason,
-            });
-
-            result.errors.push(`org ${sub.orgId}: ${reason}`);
-        }
-    }
-
-    return result;
+export async function processRetries(): Promise<{ retried: number; suspended: number; errors: string[] }> {
+    const result = await processScheduledPayments("retry");
+    return { retried: result.succeeded, suspended: result.suspended, errors: result.errors };
 }
 
 export async function suspendSubscription(subscriptionId: number): Promise<void> {
-    const [freePlan] = await db
-        .select()
-        .from(plans)
-        .where(eq(plans.slug, "free"));
-
-    if (!freePlan) {
-        throw new Error("Free 플랜을 찾을 수 없습니다.");
-    }
-
-    await db
-        .update(subscriptions)
-        .set({
-            status: "suspended",
-            planId: freePlan.id,
-            retryCount: 0,
-            nextRetryAt: null,
-            updatedAt: new Date(),
-        })
-        .where(eq(subscriptions.id, subscriptionId));
+    await db.update(subscriptions).set({
+        status: "suspended", retryCount: 0, nextRetryAt: null, updatedAt: new Date(),
+    }).where(eq(subscriptions.id, subscriptionId));
 }

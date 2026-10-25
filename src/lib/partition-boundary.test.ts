@@ -16,7 +16,7 @@ async function load(t: TestContext) {
 }
 
 const member = (role: "owner" | "admin" | "member"): Responder => (call) =>
-    isMembershipLookup(call) ? [{ role, tokenVersion: 0, isSuperAdmin: 0 }] : undefined;
+    isMembershipLookup(call) ? [{ role, membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }] : undefined;
 /** 여러 응답기를 앞에서부터 시도한다(undefined면 다음, 끝까지 없으면 빈 결과). */
 const chain = (...responders: Responder[]): Responder => (call) => {
     for (const r of responders) {
@@ -54,7 +54,7 @@ function captureFetch(t: TestContext, reply: (url: string) => Response = () => R
 }
 
 const tokenFor = (generateToken: (p: never) => string, role: "owner" | "admin" | "member") =>
-    generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role, tokenVersion: 0 } as never);
+    generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role, membershipId: 71, tokenVersion: 0 } as never);
 
 test("웹 폼 생성: 다른 조직 파티션은 404, 워크스페이스는 파티션 것을 쓴다 (UX-042)", async (t) => {
     const { generateToken, db } = await load(t);

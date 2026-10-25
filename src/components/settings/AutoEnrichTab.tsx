@@ -42,9 +42,10 @@ import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 export default function AutoEnrichTab() {
     const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
-    const firstWorkspaceId = workspaces?.[0]?.id ?? null;
-    const { partitionTree, loadError: partitionsError, mutate: mutatePartitions } = usePartitions(firstWorkspaceId);
-    const { fields, loadError: fieldsError, mutate: mutateFields } = useFields(firstWorkspaceId);
+    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(null);
+    const workspaceId = selectedWorkspaceId ?? workspaces?.[0]?.id ?? null;
+    const { partitionTree, loadError: partitionsError, mutate: mutatePartitions } = usePartitions(workspaceId);
+    const { fields, loadError: fieldsError, mutate: mutateFields } = useFields(workspaceId);
 
     const partitions = useMemo(() => {
         if (!partitionTree) return [];
@@ -91,7 +92,7 @@ export default function AutoEnrichTab() {
     };
 
     const handleSubmit = async () => {
-        if (!searchField || targetFields.size === 0) {
+        if (!selectedPartitionId || !searchField || targetFields.size === 0) {
             toast.error("검색 필드와 대상 필드를 선택해주세요.");
             return;
         }
@@ -113,6 +114,8 @@ export default function AutoEnrichTab() {
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
             }
+        } catch {
+            toast.error("규칙을 저장하지 못했습니다. 입력을 유지했으니 연결을 확인해주세요.");
         } finally {
             setSubmitting(false);
         }
@@ -130,7 +133,10 @@ export default function AutoEnrichTab() {
     };
 
     const handleToggle = async (rule: RecordAutoEnrichRule) => {
-        await updateRule(rule.id, { isActive: rule.isActive === 1 ? 0 : 1 });
+        try {
+            const result = await updateRule(rule.id, { isActive: rule.isActive === 1 ? 0 : 1 });
+            if (!result.success) toast.error(result.error || "규칙 상태를 변경하지 못했습니다.");
+        } catch { toast.error("규칙 상태를 변경하지 못했습니다. 연결을 확인해주세요."); }
     };
 
     const toggleTargetField = (key: string) => {
@@ -167,6 +173,16 @@ export default function AutoEnrichTab() {
                     </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label>워크스페이스 선택</Label>
+                        <Select value={workspaceId?.toString() ?? ""} onValueChange={(value) => {
+                            setSelectedWorkspaceId(Number(value)); setSelectedPartitionId(null);
+                            setDialogOpen(false); resetForm();
+                        }}>
+                            <SelectTrigger className="w-full max-w-[300px]"><SelectValue placeholder="워크스페이스를 선택하세요" /></SelectTrigger>
+                            <SelectContent>{workspaces.map((workspace) => <SelectItem key={workspace.id} value={String(workspace.id)}>{workspace.name}</SelectItem>)}</SelectContent>
+                        </Select>
+                    </div>
                     {/* 파티션 선택 */}
                     <div className="space-y-2">
                         <Label>파티션 선택</Label>
@@ -174,7 +190,7 @@ export default function AutoEnrichTab() {
                             value={selectedPartitionId?.toString() ?? ""}
                             onValueChange={(v) => setSelectedPartitionId(Number(v))}
                         >
-                            <SelectTrigger className="w-[300px]">
+                            <SelectTrigger className="w-full max-w-[300px]">
                                 <SelectValue placeholder="파티션을 선택하세요" />
                             </SelectTrigger>
                             <SelectContent>

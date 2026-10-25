@@ -1,19 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { defaultFetcher } from "@/lib/swr-fetcher";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export default function AdminOrganizations() {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const lastSelected = useRef<string | null>(null);
+    useEffect(() => {
+        if (selectedId) lastSelected.current = selectedId;
+        else if (lastSelected.current) document.getElementById(`admin-org-${lastSelected.current}`)?.focus();
+    }, [selectedId]);
 
-    const { data, isLoading, error, mutate } = useSWR(`/api/admin/organizations?search=${search}&page=${page}&limit=20`, defaultFetcher);
+    const query = new URLSearchParams({ search, page: String(page), limit: "20" });
+    const { data, isLoading, error, mutate } = useSWR(`/api/admin/organizations?${query}`, defaultFetcher);
     const { data: detail, error: detailError, mutate: mutateDetail } = useSWR(selectedId ? `/api/admin/organizations/${selectedId}` : null, defaultFetcher);
 
     const orgs = data?.data || [];
@@ -45,7 +52,7 @@ export default function AdminOrganizations() {
 
                     {/* 활동 요약 */}
                     {d.activity && (
-                        <div className="grid grid-cols-4 gap-4 mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             <div className="text-center p-3 bg-slate-50 rounded-lg">
                                 <p className="text-2xl font-bold">{d.activity.recordCount.toLocaleString()}</p>
                                 <p className="text-xs text-muted-foreground">레코드</p>
@@ -116,45 +123,45 @@ export default function AdminOrganizations() {
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left">
-                        <tr>
-                            <th className="px-4 py-3 font-medium">조직명</th>
-                            <th className="px-4 py-3 font-medium">멤버</th>
-                            <th className="px-4 py-3 font-medium">플랜</th>
-                            <th className="px-4 py-3 font-medium">레코드</th>
-                            <th className="px-4 py-3 font-medium">이메일</th>
-                            <th className="px-4 py-3 font-medium">알림톡</th>
-                            <th className="px-4 py-3 font-medium">마지막 활동</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <Table className="w-full text-sm">
+                    <TableHeader className="bg-slate-50 text-left">
+                        <TableRow>
+                            <TableHead className="px-4 py-3 font-medium">조직명</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">멤버</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">플랜</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">레코드</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">이메일</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">알림톡</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">마지막 활동</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {isLoading ? (
-                            <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">로딩 중...</td></tr>
+                            <TableRow><TableCell colSpan={7} className="px-4 py-8 text-center text-muted-foreground">로딩 중...</TableCell></TableRow>
                         ) : orgs.length === 0 ? (
-                            <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">조직이 없습니다.</td></tr>
+                            <TableRow><TableCell colSpan={7} className="px-4 py-8 text-center text-muted-foreground">조직이 없습니다.</TableCell></TableRow>
                         ) : orgs.map((org: { id: string; name: string; slug: string; memberCount: number; planName: string | null; createdAt: string; recordCount: number; emailCount: number; alimtalkCount: number; lastActivity: string | null }) => (
-                            <tr key={org.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedId(org.id)}>
-                                <td className="px-4 py-3">
-                                    <div className="font-medium">{org.name}</div>
+                            <TableRow key={org.id} className="border-t hover:bg-slate-50 cursor-pointer" onClick={() => setSelectedId(org.id)}>
+                                <TableCell className="px-4 py-3">
+                                    <Button id={`admin-org-${org.id}`} variant="link" className="h-auto p-0 font-medium" onClick={(event) => { event.stopPropagation(); setSelectedId(org.id); }}>{org.name}</Button>
                                     <div className="text-xs text-muted-foreground">{org.slug}</div>
-                                </td>
-                                <td className="px-4 py-3">{org.memberCount}</td>
-                                <td className="px-4 py-3">
+                                </TableCell>
+                                <TableCell className="px-4 py-3">{org.memberCount}</TableCell>
+                                <TableCell className="px-4 py-3">
                                     <span className={`text-xs px-2 py-0.5 rounded ${org.planName ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-500"}`}>
                                         {org.planName || "Free"}
                                     </span>
-                                </td>
-                                <td className="px-4 py-3 text-muted-foreground">{org.recordCount.toLocaleString()}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{org.emailCount.toLocaleString()}</td>
-                                <td className="px-4 py-3 text-muted-foreground">{org.alimtalkCount.toLocaleString()}</td>
-                                <td className="px-4 py-3 text-muted-foreground text-xs">
+                                </TableCell>
+                                <TableCell className="px-4 py-3 text-muted-foreground">{org.recordCount.toLocaleString()}</TableCell>
+                                <TableCell className="px-4 py-3 text-muted-foreground">{org.emailCount.toLocaleString()}</TableCell>
+                                <TableCell className="px-4 py-3 text-muted-foreground">{org.alimtalkCount.toLocaleString()}</TableCell>
+                                <TableCell className="px-4 py-3 text-muted-foreground text-xs">
                                     {org.lastActivity ? new Date(org.lastActivity).toLocaleDateString("ko") : "—"}
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ))}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
             </div>
 
             {pagination && pagination.totalPages > 1 && (

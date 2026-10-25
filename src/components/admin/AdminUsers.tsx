@@ -7,35 +7,39 @@ import { Button } from "@/components/ui/button";
 import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-import { defaultFetcher } from "@/lib/swr-fetcher";
+import { defaultFetcher, apiRequest } from "@/lib/swr-fetcher";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export default function AdminUsers() {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
+    const [pendingId, setPendingId] = useState<string | null>(null);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
 
-    const { data, error, isLoading, mutate } = useSWR(`/api/admin/users?search=${search}&page=${page}&limit=20`, defaultFetcher);
+    const query = new URLSearchParams({ search, page: String(page), limit: "20" });
+    const { data, error, isLoading, mutate } = useSWR(`/api/admin/users?${query}`, defaultFetcher);
     const userList = data?.data || [];
     const pagination = data?.pagination;
 
     async function handleUpdate(userId: string, updates: { isActive?: number; isSuperAdmin?: number }) {
-        const res = await fetch(`/api/admin/users/${userId}`, {
+        setPendingId(userId);
+        try {
+        await apiRequest(`/api/admin/users/${userId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(updates),
         });
-        const data = await res.json();
-        if (data.success) {
-            toast.success("변경되었습니다.");
-            mutate();
-        } else {
-            toast.error(data.error || "변경 실패");
-        }
+        toast.success("변경되었습니다.");
+        void mutate();
+        } finally { setPendingId(null); }
     }
 
     if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">
+            {confirmationDialog}
             <div className="relative max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -47,46 +51,48 @@ export default function AdminUsers() {
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-50 text-left">
-                        <tr>
-                            <th className="px-4 py-3 font-medium">이름</th>
-                            <th className="px-4 py-3 font-medium">이메일</th>
-                            <th className="px-4 py-3 font-medium">조직 수</th>
-                            <th className="px-4 py-3 font-medium">상태</th>
-                            <th className="px-4 py-3 font-medium">관리</th>
-                        </tr>
-                    </thead>
-                    <tbody>
+                <Table className="w-full text-sm">
+                    <TableHeader className="bg-slate-50 text-left">
+                        <TableRow>
+                            <TableHead className="px-4 py-3 font-medium">이름</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">이메일</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">조직 수</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">상태</TableHead>
+                            <TableHead className="px-4 py-3 font-medium">관리</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
                         {isLoading ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">로딩 중...</td></tr>
+                            <TableRow><TableCell colSpan={5} className="px-4 py-8 text-center text-muted-foreground">로딩 중...</TableCell></TableRow>
                         ) : userList.length === 0 ? (
-                            <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">사용자가 없습니다.</td></tr>
+                            <TableRow><TableCell colSpan={5} className="px-4 py-8 text-center text-muted-foreground">사용자가 없습니다.</TableCell></TableRow>
                         ) : userList.map((u: { id: string; name: string; email: string; orgCount: number; isActive: number; isSuperAdmin: number; createdAt: string }) => (
-                            <tr key={u.id} className="border-t hover:bg-slate-50">
-                                <td className="px-4 py-3">
+                            <TableRow key={u.id} className="border-t hover:bg-slate-50">
+                                <TableCell className="px-4 py-3">
                                     <div className="flex items-center gap-2">
                                         <span className="font-medium">{u.name}</span>
                                         {u.isSuperAdmin === 1 && (
                                             <span className="text-[10px] bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded font-medium">SUPER</span>
                                         )}
                                     </div>
-                                </td>
-                                <td className="px-4 py-3 text-muted-foreground">{u.email}</td>
-                                <td className="px-4 py-3">{u.orgCount}</td>
-                                <td className="px-4 py-3">
+                                </TableCell>
+                                <TableCell className="px-4 py-3 text-muted-foreground">{u.email}</TableCell>
+                                <TableCell className="px-4 py-3">{u.orgCount}</TableCell>
+                                <TableCell className="px-4 py-3">
                                     <span className={`text-xs px-2 py-0.5 rounded ${u.isActive === 1 ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}>
                                         {u.isActive === 1 ? "활성" : "정지"}
                                     </span>
-                                </td>
-                                <td className="px-4 py-3">
+                                </TableCell>
+                                <TableCell className="px-4 py-3">
                                     <div className="flex items-center gap-1">
                                         <Button
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
                                             title={u.isActive === 1 ? "계정 정지" : "계정 활성화"}
-                                            onClick={() => handleUpdate(u.id, { isActive: u.isActive === 1 ? 0 : 1 })}
+                                            aria-label={u.isActive === 1 ? `${u.name} 계정 정지` : `${u.name} 계정 활성화`}
+                                            disabled={pendingId === u.id}
+                                            onClick={() => confirm({ title: u.isActive === 1 ? "계정을 정지하시겠습니까?" : "계정을 활성화하시겠습니까?", description: `${u.name} (${u.email}) 계정의 모든 조직 접근에 적용됩니다.`, confirmLabel: "변경", onConfirm: () => handleUpdate(u.id, { isActive: u.isActive === 1 ? 0 : 1 }) })}
                                         >
                                             {u.isActive === 1 ? <UserX className="h-4 w-4 text-red-500" /> : <UserCheck className="h-4 w-4 text-green-500" />}
                                         </Button>
@@ -95,16 +101,18 @@ export default function AdminUsers() {
                                             size="icon"
                                             className="h-8 w-8"
                                             title={u.isSuperAdmin === 1 ? "Super Admin 해제" : "Super Admin 지정"}
-                                            onClick={() => handleUpdate(u.id, { isSuperAdmin: u.isSuperAdmin === 1 ? 0 : 1 })}
+                                            aria-label={u.isSuperAdmin === 1 ? `${u.name} 운영자 해제` : `${u.name} 운영자 지정`}
+                                            disabled={pendingId === u.id}
+                                            onClick={() => confirm({ title: "운영자 권한을 변경하시겠습니까?", description: `${u.name} (${u.email}) 계정의 전체 조직 관리 권한을 ${u.isSuperAdmin === 1 ? "해제" : "부여"}합니다.`, confirmLabel: "변경", onConfirm: () => handleUpdate(u.id, { isSuperAdmin: u.isSuperAdmin === 1 ? 0 : 1 }) })}
                                         >
                                             {u.isSuperAdmin === 1 ? <ShieldOff className="h-4 w-4 text-violet-500" /> : <Shield className="h-4 w-4 text-slate-400" />}
                                         </Button>
                                     </div>
-                                </td>
-                            </tr>
+                                </TableCell>
+                            </TableRow>
                         ))}
-                    </tbody>
-                </table>
+                    </TableBody>
+                </Table>
             </div>
 
             {pagination && pagination.totalPages > 1 && (
