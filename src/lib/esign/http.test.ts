@@ -90,6 +90,25 @@ test("HTTP boundary rejects unauthorized scope, malformed input, unavailable cha
     } finally { await fixture.close(); }
 });
 
+test("UX-264: 수신거부 목록의 이메일 수신자는 요청 생성 전에 409로 알리고, 정상 주소·조회 실패는 막지 않는다", async () => {
+    const fixture = await createEsignQaFixture();
+    try {
+        const form = new FormData(); form.set("workspaceId", "101"); form.set("title", "가상 문서"); form.set("kind", "document"); form.set("file", new File([new Uint8Array(fixture.pdfBytes)], "fake.pdf", { type: "application/pdf" }));
+        let lookup: (orgId: string, emails: string[]) => Promise<string[]> = async (_org, emails) => emails.filter(email => email.startsWith("blocked"));
+        const dependencies = { ...fixture.dependencies, unsubscribedEmails: (orgId: string, emails: string[]) => lookup(orgId, emails) };
+        const call = async (route: string, body: unknown, method = "POST") => { const response = await handleEsignRequest(new Request(`http://127.0.0.1/api/esign${route}`, { method, ...(body instanceof FormData ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) }), dependencies); return { status: response.status, body: await response.json() }; };
+        const doc = (await call("/documents", form)).body.data as EsignDocument;
+        await call(`/documents/${doc.id}?workspaceId=101`, { version: doc.version, fields: [{ id: "s", recipientIndex: 0, type: "signature", pageIndex: 0, x: .2, y: .4, width: .2, height: .08, required: true }] }, "PATCH");
+        const envelope = (email: string, channels: string[]) => ({ documentId: doc.id, title: "가상 계약", order: "parallel", expiresAt: new Date(Date.now() + 86400000).toISOString(), recipients: [{ name: "가상 서명자", email, phone: "01000000001", channels }] });
+        const blocked = await call("/envelopes?workspaceId=101", envelope("blocked@isolated.example.test", ["email"]));
+        assert.equal(blocked.status, 409); assert.equal(blocked.body.code, "recipient_unsubscribed"); assert.match(blocked.body.error, /b\*\*\*@isolated\.example\.test/);
+        assert.equal((await call("/envelopes?workspaceId=101", envelope("blocked@isolated.example.test", ["sms"]))).status, 201, "이메일을 고르지 않으면 막지 않는다");
+        assert.equal((await call("/envelopes?workspaceId=101", envelope("ok@isolated.example.test", ["email"]))).status, 201);
+        lookup = async () => { throw new Error("fake-db-timeout"); };
+        assert.equal((await call("/envelopes?workspaceId=101", envelope("blocked@isolated.example.test", ["email"]))).status, 201, "조회 실패는 발송 가드에 맡긴다");
+    } finally { await fixture.close(); }
+});
+
 test("UX-261: 알림톡 상태 조회 일시 실패는 설정 안내가 아니라 재시도 안내(503 delivery_status_unavailable)이고 이메일·SMS는 영향 없다", async () => {
     const fixture = await createEsignQaFixture();
     try {

@@ -115,6 +115,11 @@ export const esignHttpDependencies: EsignHttpDependencies = {
         }
         return { enabled: cfg.enabled, emailReady, smsReady, alimtalkReady: alimtalk.ready, alimtalk, databaseReady, storageReady: cfg.storageReady && cfg.secret.length >= 32, issues };
     },
+    async unsubscribedEmails(orgId, emails) {
+        const { isOrganizationUnsubscribed } = await import("@/lib/email-unsubscribe");
+        const checked = await Promise.all(emails.map(async email => ({ email, blocked: await isOrganizationUnsubscribed(orgId, email) })));
+        return checked.filter(item => item.blocked).map(item => item.email);
+    },
     async prefill(request, actor: EsignActor, params) {
         const user = await userFrom(request);
         const { db, crmContacts, fieldDefinitions, workspaces } = await import("@/lib/db");

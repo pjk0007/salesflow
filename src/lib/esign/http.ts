@@ -7,6 +7,7 @@ import { artifactHash } from "./storage";
 import { inspectPdfInWorker } from "./pdf-worker";
 import { readEsignRendererAsset } from "./assets";
 import { EsignError, type EsignActor, type EsignRecipientInput, type EsignValue } from "./types";
+import { maskEmail } from "./rules";
 import type { EsignAlimtalkStatus } from "./alimtalk";
 
 export type EsignEngine = { service: EsignService; storage: EsignStorage; delivery: EsignDelivery; kick(): Promise<void> };
@@ -15,6 +16,8 @@ export type EsignHttpDependencies = {
     authorize(request: Request, workspaceId: number, capability: "read" | "respond"): Promise<EsignActor>;
     status(request: Request): Promise<{ enabled: boolean; emailReady: boolean; smsReady: boolean; alimtalkReady?: boolean; alimtalk?: EsignAlimtalkStatus; databaseReady: boolean; storageReady: boolean; issues: string[] }>;
     prefill(request: Request, actor: EsignActor, params: URLSearchParams): Promise<EsignRecipientInput>;
+    /** 조직 수신거부 목록에 있는 주소(입력 그대로). 공통 발송 가드가 막을 주소를 요청 생성 전에 알리기 위함. */
+    unsubscribedEmails?(orgId: string, emails: string[]): Promise<string[]>;
 };
 const HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 const result = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers: HEADERS });
@@ -58,6 +61,17 @@ async function assertDeliveryReady(delivery: EsignDelivery, channel: "email" | "
     if (await delivery.ready(channel, orgId)) return;
     if (audience === "signer") throw new EsignError(`${channel === "alimtalk" ? "알림톡 템플릿 승인과 연결" : channel === "sms" ? "SMS 발송 설정" : "이메일 발송 설정"}이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
     throw new EsignError(channel === "alimtalk" ? "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : `${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
+}
+/**
+ * 이메일 채널 수신자가 조직 수신거부 목록에 있으면 발송 가드가 메일을 막아 서명이 진행되지 않는다. 요청을 만들기 전에 알려 다른 채널을 고르게 한다.
+ * 조회 자체가 실패하면 막지 않는다(발송 시 가드가 실제 사유를 기록한다).
+ */
+async function assertNotUnsubscribed(dependencies: EsignHttpDependencies, orgId: string, recipients: { channels: string[]; email?: unknown }[]) {
+    const emails = recipients.filter(r => r.channels.includes("email") && typeof r.email === "string" && r.email.trim()).map(r => (r.email as string).trim());
+    if (!emails.length || !dependencies.unsubscribedEmails) return;
+    let blocked: string[];
+    try { blocked = await dependencies.unsubscribedEmails(orgId, emails); } catch { return; }
+    if (blocked.length) throw new EsignError(`수신거부 목록에 있는 이메일입니다(${blocked.map(email => maskEmail(email)).join(", ")}). 이메일로는 서명 요청이 전달되지 않으니 알림톡·SMS를 선택하거나 수신거부 내역을 확인해주세요.`, 409, "recipient_unsubscribed");
 }
 /** 목록 공통 쿼리: q(제목·서명자 검색), cursor(다음 페이지), limit(최대 100). */
 function listQuery(url: URL) {
@@ -177,6 +191,7 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
                 const input = body as unknown as Parameters<EsignService["createEnvelope"]>[1];
                 const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "alimtalk", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);
                 for (const channel of new Set(recipients.flatMap(r => r.channels))) await assertDeliveryReady(delivery, channel, actor.orgId, "staff");
+                await assertNotUnsubscribed(dependencies, actor.orgId, recipients);
                 const created = await service.createEnvelope(actor, input);
                 const detail = await service.dispatchEnvelope(actor, created.envelope.id); kick(engine); return result(detail, 201);
             }
