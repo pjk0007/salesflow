@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { db, records, partitions, workspaces, chatSpaces, fieldDefinitions } from "@/lib/db";
 import { and, asc, eq } from "drizzle-orm";
-import { chatRequestIdEnabled, postGoogleChatText, type GoogleChatResult } from "@/lib/google-chat";
+import { chatFixedMessageIdEnabled, chatMessageIdFor, postGoogleChatText, type GoogleChatResult } from "@/lib/google-chat";
 import { scrubWebhook } from "@/lib/deep-visitor-alert-delivery";
 import { insertRecordEvent } from "@/lib/record-events";
 import {
@@ -45,13 +45,13 @@ export interface ChatAlertDeliveryDeps {
     wait: (ms: number) => Promise<void>;
     /** 최종 실패 기록 (레코드 이력) */
     recordFailure: (failure: { error: string; status: number | null; attempts: number }) => Promise<void>;
-    /** requestId를 붙여 보내 같은 알림이 두 번 올라가지 않는다 — 시간 초과 뒤에도 다시 보낼 수 있다 */
+    /** 고정 messageId를 붙여 보내 같은 알림이 두 번 올라가지 않는다 — 시간 초과 뒤에도 다시 보낼 수 있다 */
     idempotent: boolean;
 }
 
 /**
  * 알림 한 건 보내기 — 일시 실패(429·5xx·연결)는 지연 재시도, 그래도 안 되거나 다시 보내도 소용없는 실패(웹훅 삭제·권한)는
- * 레코드 이력에 남긴다. 시간 초과는 이미 올라갔을 수 있어 requestId가 없으면 다시 보내지 않고 '확인 필요'로 남긴다.
+ * 레코드 이력에 남긴다. 시간 초과는 이미 올라갔을 수 있어 고정 messageId가 없으면 다시 보내지 않고 '확인 필요'로 남긴다.
  */
 export async function deliverRecordChatAlert(
     deps: ChatAlertDeliveryDeps,
@@ -116,14 +116,16 @@ export async function notifyRecordChatAlert(input: {
         recordUrl: `${baseUrl()}/records?id=${input.recordId}`,
     });
 
-    // 알림 한 건마다 requestId 하나 — 재시도해도 구글이 같은 메시지를 한 번만 만든다 (GOOGLE_CHAT_REQUEST_ID=on일 때)
-    const requestId = chatRequestIdEnabled(process.env) ? randomUUID() : undefined;
     const kind = input.kind ?? "created";
+    // 알림 한 건마다 고정 messageId 하나 — 재시도해도 구글이 같은 메시지를 한 번만 만든다 (GOOGLE_CHAT_REQUEST_ID=on일 때, UX-221 계약)
+    const messageId = chatFixedMessageIdEnabled(process.env)
+        ? chatMessageIdFor(process.env, "record", `${input.recordId}:${kind}:${randomUUID()}`)
+        : undefined;
     await deliverRecordChatAlert({
-        idempotent: requestId !== undefined,
+        idempotent: messageId !== undefined,
         post: () => postGoogleChatText(row.webhookUrl, text, fetch, {
             threadKey: recordThreadKey(input.recordId),
-            requestId,
+            messageId,
         }),
         wait: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         recordFailure: async ({ error, status, attempts }) => {
