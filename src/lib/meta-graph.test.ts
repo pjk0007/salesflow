@@ -94,6 +94,19 @@ test("UX-049·051 계정 동기화 — 토큰 만료는 '만료됨'+한국어 40
         assert.equal(updates.length, 1);
         assert.equal((updates[0].set as { status: string }).status, "expired");
     });
+    await t.test("정상 동기화", async (t) => {
+        const { calls } = installFakeDb(t, db, (c) => isMembershipLookup(c) ? [admin]
+            : c.table === "ad_platforms" && c.op === "select" ? [meta]
+            : c.table === "ad_accounts" && c.op === "insert" ? [{ id: 31 }] : []);
+        t.mock.method(globalThis, "fetch", async () => Response.json({ data: [{ id: "act_1", name: "가상 계정", account_status: 1, currency: "KRW", amount_spent: "0" }] }));
+        const response = await sync.POST(request(), ctx);
+        assert.equal(response.status, 200);
+        const body = await response.json();
+        assert.equal(body.success, true);
+        assert.equal(body.data.created, 1);
+        const platformUpdate = calls.find((c) => c.op === "update" && c.table === "ad_platforms");
+        assert.equal((platformUpdate?.set as { status?: string }).status, undefined, "정상 동기화는 상태를 바꾸지 않는다");
+    });
     await t.test("연결 실패", async (t) => {
         installFakeDb(t, db, (c) => isMembershipLookup(c) ? [admin] : c.table === "ad_platforms" && c.op === "select" ? [meta] : []);
         t.mock.method(globalThis, "fetch", async () => { throw new TypeError("fetch failed"); });
