@@ -15,11 +15,12 @@ function pageAfter<T extends { at: number; id: string }>(rows: T[], cursor: T | 
 }
 
 test("UX-087 (시각 desc, id desc) 커서는 같은 시각 묶음이 페이지 경계에 걸려도 중복·누락이 없다", async () => {
-    const rows = Array.from({ length: 250 }, (_, i) => ({ at: Math.floor(i / 7), id: `id-${String((i * 37) % 250).padStart(3, "0")}` }));
+    type Row = { at: number; id: string };
+    const rows: Row[] = Array.from({ length: 250 }, (_, i) => ({ at: Math.floor(i / 7), id: `id-${String((i * 37) % 250).padStart(3, "0")}` }));
     const seen: string[] = [];
-    let cursor: (typeof rows)[number] | null = null;
+    let cursor: Row | null = null;
     for (;;) {
-        const page = pageAfter(rows, cursor, 100);
+        const page: Row[] = pageAfter(rows, cursor, 100);
         seen.push(...page.map((r) => r.id));
         if (page.length < 100) break;
         cursor = page.at(-1)!;
