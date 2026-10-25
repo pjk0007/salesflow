@@ -1,5 +1,5 @@
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, type KeyboardEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -140,15 +140,28 @@ export default function WorkspaceSettingsTab() {
     const visibleWorkspaces = workspaces.filter((ws) => !ws.hiddenAt);
     const hiddenWorkspaces = workspaces.filter((ws) => ws.hiddenAt);
 
+    // 카드는 div라 Tab·Enter·Space로도 고를 수 있게 버튼 역할을 준다.
+    const pressable = (onPress: () => void) => ({
+        role: "button",
+        tabIndex: 0,
+        onClick: onPress,
+        onKeyDown: (e: KeyboardEvent) => {
+            if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onPress();
+            }
+        },
+    });
     const renderCard = (ws: (typeof workspaces)[number]) => (
         <Card
             key={ws.id}
             className={cn(
-                "cursor-pointer hover:border-primary/50 transition-colors",
+                "cursor-pointer hover:border-primary/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 ws.hiddenAt && "bg-muted/40",
                 selectedId === ws.id && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => setSelectedId(ws.id)}
+            aria-pressed={selectedId === ws.id}
+            {...pressable(() => setSelectedId(ws.id))}
         >
             <CardContent className="p-4">
                 <div className="flex items-center gap-2">
@@ -180,8 +193,9 @@ export default function WorkspaceSettingsTab() {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {visibleWorkspaces.map(renderCard)}
                     <Card
-                        className="cursor-pointer hover:border-primary/50 transition-colors border-dashed"
-                        onClick={() => setCreateOpen(true)}
+                        className="cursor-pointer hover:border-primary/50 transition-colors border-dashed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="워크스페이스 추가"
+                        {...pressable(() => setCreateOpen(true))}
                     >
                         <CardContent className="p-4 flex items-center justify-center text-muted-foreground gap-1">
                             <Plus className="h-4 w-4" />
