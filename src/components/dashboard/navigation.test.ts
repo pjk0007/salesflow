@@ -23,5 +23,6 @@ test("숫자·UUID 내부 식별자를 숨기고 이름 override 및 실제 상�
         assert.equal(getBreadcrumbItems(`/email/${segment}/45`)[1].href, `/email?tab=${segment}`);
     }
     assert.equal(getBreadcrumbItems("/alimtalk/links/new")[1].href, "/alimtalk?tab=links");
+    assert.deepEqual(getBreadcrumbItems("/records/45/journey").map(x => [x.label, x.href]), [["레코드", "/records"], ["상세", "/records?id=45"], ["고객 여정", "/records/45/journey"]]);
     assert.equal(getBreadcrumbItems("/email/templates/new").at(-1)?.label, "새로 만들기");
 });

@@ -54,8 +54,10 @@ export function getBreadcrumbItems(pathname: string, overrides: Record<string, s
     const segments = pathname.split("/").filter(Boolean);
     return segments.map((segment, index) => {
         const href = "/" + segments.slice(0, index + 1).join("/");
+        // 레코드 상세는 독립 페이지가 없고 목록의 ?id= 딥링크로 열린다.
+        const recordLink = segments[0] === "records" && index === 1 ? `/records?id=${encodeURIComponent(segment)}` : "";
         return {
-            href: ancestorLinks[href] || href,
+            href: ancestorLinks[href] || recordLink || href,
             label: overrides[segment] || routeLabels[href] || segmentLabels[segment] ||
                 (INTERNAL_ID.test(segment) ? "상세" : segment),
         };
