@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, alimtalkTemplateLinks, partitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { validateLinkConfig } from "@/lib/alimtalk/link-validation";
 
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);
@@ -110,6 +111,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
         }
 
+        // 수동 후속·반복 금지, 채널·템플릿 조합, 미매핑 변수 (공급자 조회 실패는 경고만)
+        const check = await validateLinkConfig({
+            orgId: user.orgId, triggerType, senderKey, templateCode,
+            variableMappings: variableMappings || null, repeatConfig: repeatConfig || null, followupConfig: followupConfig || null,
+        });
+        if (!check.ok) {
+            return NextResponse.json({ success: false, error: check.error }, { status: 400 });
+        }
+
         const [created] = await db
             .insert(alimtalkTemplateLinks)
             .values({
@@ -129,7 +139,7 @@ export async function POST(req: NextRequest) {
             })
             .returning({ id: alimtalkTemplateLinks.id });
 
-        return NextResponse.json({ success: true, data: { id: created.id } }, { status: 201 });
+        return NextResponse.json({ success: true, data: { id: created.id }, ...(check.warning && { warning: check.warning }) }, { status: 201 });
     } catch (error) {
         console.error("Template link create error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
