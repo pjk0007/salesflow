@@ -59,7 +59,7 @@ import { importDuplicatePolicy } from "@/components/records/utils/duplicate-poli
 import { apiRequest, requestErrorMessage } from "@/lib/swr-fetcher";
 import { useSession } from "@/contexts/SessionContext";
 import { useRecordListQuery } from "@/components/records/hooks/useRecordListQuery";
-import { recordsStorageKey, resolvePartitionSelection } from "@/components/records/utils/list-query";
+import { recordsStorageKey, resolvePartitionSelection, resolveWorkspaceSelection } from "@/components/records/utils/list-query";
 import PartitionHoldBanner from "@/components/email/send-health/ui/PartitionHoldBanner";
 
 export default function RecordsPage() {
@@ -191,13 +191,14 @@ export default function RecordsPage() {
         setRestoredOrgId(orgId);
     }, [orgId, restoredOrgId, resetListQuery]);
 
-    // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째)
+    // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째). 저장값이 없을 뿐이면 마지막 파티션은 유지한다
     useEffect(() => {
-        if (!restoredOrgId || workspaces.length === 0) return;
-        if (workspaceId && workspaces.some((w) => w.id === workspaceId)) return;
-        // 저장된 워크스페이스가 없거나 유효하지 않으면 첫 번째 선택
-        setWorkspaceId(workspaces[0].id);
-        setPartitionId(null);
+        if (!restoredOrgId) return;
+        const next = resolveWorkspaceSelection(workspaces.map((w) => w.id), workspaceId);
+        if (!next) return;
+        setWorkspaceId(next.workspaceId);
+        localStorage.setItem(recordsStorageKey("workspace", restoredOrgId), String(next.workspaceId));
+        if (!next.keepPartition) setPartitionId(null);
     }, [workspaces, workspaceId, restoredOrgId]);
 
     // 워크스페이스 변경 시 파티션 초기화
