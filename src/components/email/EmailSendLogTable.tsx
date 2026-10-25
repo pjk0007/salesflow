@@ -326,19 +326,27 @@ export default function EmailSendLogTable() {
 
                     {/* 상태 */}
                     <span className="text-xs font-medium text-muted-foreground w-10 shrink-0">상태</span>
-                    {STATUS_OPTIONS.map((opt) => (
-                        <button
-                            key={opt.value}
-                            onClick={() => toggleFilter(setStatus, status, opt.value)}
-                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                                status === opt.value
-                                    ? "bg-primary text-primary-foreground"
-                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
-                            }`}
-                        >
-                            {opt.label}
-                        </button>
-                    ))}
+                    {STATUS_OPTIONS.map((opt) => {
+                        // '미클릭'은 발송된 메일만 본다 — 다른 상태와 함께 고르면 늘 0건이라 고를 수 없게 한다 (UX-231)
+                        const blockedByUnclicked = isClicked === "0" && opt.value !== "sent";
+                        return (
+                            <button
+                                key={opt.value}
+                                type="button"
+                                aria-pressed={status === opt.value}
+                                disabled={blockedByUnclicked}
+                                title={blockedByUnclicked ? "'미클릭'은 발송된 메일만 봅니다. 미클릭 거르기를 풀면 고를 수 있습니다." : undefined}
+                                onClick={() => toggleFilter(setStatus, status, opt.value)}
+                                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                                    status === opt.value
+                                        ? "bg-primary text-primary-foreground"
+                                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}
+                            >
+                                {opt.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 {/* 방식 */}
@@ -364,7 +372,13 @@ export default function EmailSendLogTable() {
                     {CLICK_OPTIONS.map((opt) => (
                         <button
                             key={`click-${opt.value}`}
-                            onClick={() => toggleFilter(setIsClicked, isClicked, opt.value)}
+                            type="button"
+                            aria-pressed={isClicked === opt.value}
+                            onClick={() => {
+                                // 미클릭은 발송된 메일만 — 발송이 아닌 상태 거르기는 함께 쓸 수 없어 푼다 (UX-231)
+                                if (opt.value === "0" && isClicked !== "0" && status && status !== "sent") setStatus("");
+                                toggleFilter(setIsClicked, isClicked, opt.value);
+                            }}
                             className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
                                 isClicked === opt.value
                                     ? "bg-blue-600 text-white"
@@ -461,8 +475,19 @@ export default function EmailSendLogTable() {
                                         >
                                             <LogSenderCell log={log} />
                                         </TableCell>
-                                        <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                                            {log.subject}
+                                        <TableCell className="max-w-[200px] text-muted-foreground">
+                                            {/* 키보드로도 상세를 연다 — 행 클릭만으로는 Tab·Enter로 열 수 없었다 (UX-299) */}
+                                            <button
+                                                type="button"
+                                                className="block max-w-full truncate rounded-sm text-left hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                aria-label={`${log.recipientEmail}에 보낸 '${log.subject || "제목 없음"}' 상세 보기`}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSelectedLog(log);
+                                                }}
+                                            >
+                                                {log.subject || "(제목 없음)"}
+                                            </button>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex flex-wrap items-center gap-1">
