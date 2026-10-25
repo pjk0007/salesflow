@@ -386,8 +386,9 @@ export default function OrgTeamTab() {
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-1.5">
-                            <Label>이메일</Label>
+                            <Label htmlFor="member-invite-email">이메일</Label>
                             <Input
+                                id="member-invite-email"
                                 type="email"
                                 value={inviteEmail}
                                 onChange={(e) => setInviteEmail(e.target.value)}
@@ -395,9 +396,9 @@ export default function OrgTeamTab() {
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <Label>역할</Label>
+                            <Label htmlFor="member-invite-role">역할</Label>
                             <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as OrgRole)}>
-                                <SelectTrigger>
+                                <SelectTrigger id="member-invite-role">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>

@@ -76,11 +76,12 @@ export function getIconComponent(name: string): LucideIcon | null {
 }
 
 interface IconPickerProps {
+    id?: string;
     value: string;
     onChange: (icon: string) => void;
 }
 
-export default function IconPicker({ value, onChange }: IconPickerProps) {
+export default function IconPicker({ id, value, onChange }: IconPickerProps) {
     const [open, setOpen] = useState(false);
     const SelectedIcon = value ? getIconComponent(value) : null;
 
@@ -98,6 +99,7 @@ export default function IconPicker({ value, onChange }: IconPickerProps) {
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <Button
+                    id={id}
                     variant="outline"
                     className="w-full justify-start gap-2 font-normal"
                 >

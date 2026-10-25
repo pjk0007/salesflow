@@ -123,15 +123,16 @@ function InvitePageContent() {
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-1.5">
-                            <Label>이메일</Label>
-                            <Input value={inviteInfo?.email ?? ""} disabled />
+                            <Label htmlFor="invite-email">이메일</Label>
+                            <Input id="invite-email" value={inviteInfo?.email ?? ""} disabled />
                         </div>
 
                         {!inviteInfo?.hasAccount && <div className="space-y-1.5">
-                            <Label>
+                            <Label htmlFor="invite-name">
                                 이름 <span className="text-destructive">*</span>
                             </Label>
                             <Input
+                                id="invite-name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="이름"
@@ -139,10 +140,11 @@ function InvitePageContent() {
                         </div>}
 
                         <div className="space-y-1.5">
-                            <Label>
+                            <Label htmlFor="invite-password">
                                 비밀번호 <span className="text-destructive">*</span>
                             </Label>
                             <Input
+                                id="invite-password"
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
