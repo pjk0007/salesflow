@@ -82,6 +82,24 @@ export function extractAllTemplateVariables(
     return extractTemplateVariables(allText);
 }
 
+/**
+ * 미리보기용으로 문자열을 텍스트·#{변수} 조각으로 나눈다(변수 규칙은 extractTemplateVariables와 같다).
+ * 화면은 조각을 React 텍스트 노드로 렌더링한다 — 입력한 HTML 형태 문자열을 태그로 해석하지 않는다.
+ */
+export function splitTemplateVariables(content: string | null | undefined): Array<{ text: string; variable: boolean }> {
+    const parts: Array<{ text: string; variable: boolean }> = [];
+    if (!content) return parts;
+    let last = 0;
+    for (const match of content.matchAll(/#\{([^}]+)\}/g)) {
+        const index = match.index ?? 0;
+        if (index > last) parts.push({ text: content.slice(last, index), variable: false });
+        parts.push({ text: match[0], variable: true });
+        last = index + match[0].length;
+    }
+    if (last < content.length) parts.push({ text: content.slice(last), variable: false });
+    return parts;
+}
+
 /** 발송 API templateParameter 키(#{...}를 벗긴 이름) — 템플릿 모든 노출 영역 기준, 중복 제거 */
 export function extractTemplateParameterKeys(template: VariableExtractable | null | undefined): string[] {
     return extractAllTemplateVariables(template).map((v) => v.slice(2, -1));
