@@ -44,3 +44,14 @@ export function localDateTimeValue(value: Date | string | null | undefined): str
   const pad = (part: number) => String(part).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+/**
+ * datetime-local 입력값을 저장용 ISO로 바꾼다. 입력이 원래 값의 표시와 같으면(사용자가 건드리지 않음)
+ * 원래 순간을 그대로 돌려준다 — DST 종료 때 두 번 있는 지역 시각을 다시 해석해 한 시간 밀리는 일을 막는다.
+ */
+export function dateTimeInputToIso(input: string, original?: string | null): string | null {
+  if (!input) return null;
+  if (original && localDateTimeValue(original) === input) return new Date(original).toISOString();
+  const date = new Date(input);
+  return Number.isFinite(date.getTime()) ? date.toISOString() : null;
+}

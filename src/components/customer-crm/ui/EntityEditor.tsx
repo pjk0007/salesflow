@@ -1,5 +1,5 @@
 "use client";
-import { localDateTimeValue } from "@/lib/utils";
+import { dateTimeInputToIso, localDateTimeValue } from "@/lib/utils";
 import { AttributesEditor } from "@/components/customer-records/ui/AttributesEditor";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
@@ -10,6 +10,7 @@ import {
     DialogTitle,
     DialogDescription,
 } from "@/components/ui/dialog";
+import { InboxRequestError } from "@/components/inbox/api";
 import type { Editor, Pipeline, Deal, Task, Contact, Company } from "../types";
 const inputClass =
     "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
@@ -33,6 +34,7 @@ export function EntityEditor({
     onClose,
     onSave,
     onReload,
+    onOpenExisting,
     children,
 }: {
     editor: Editor;
@@ -45,6 +47,7 @@ export function EntityEditor({
     onClose: () => void;
     onSave: (body: unknown) => Promise<void>;
     onReload?: () => Promise<void>;
+    onOpenExisting?: (externalId: string) => Promise<void>;
     children?: ReactNode;
 }) {
     const { resource, item } = editor,
@@ -63,7 +66,8 @@ export function EntityEditor({
         ),
         [attributesError, setAttributesError] = useState("");
     const [busy, setBusy] = useState(false),
-        [error, setError] = useState("");
+        [error, setError] = useState(""),
+        [conflictExternalId, setConflictExternalId] = useState("");
     const [newExternalId] = useState(() => `manual:${crypto.randomUUID()}`);
     const [pipelineId, setPipeline] = useState(
         deal?.pipelineId ?? pipelines[0]?.id ?? "",
@@ -86,6 +90,7 @@ export function EntityEditor({
         }
         setBusy(true);
         setError("");
+        setConflictExternalId("");
         const data = new FormData(event.currentTarget),
             common = {
                 workspaceId,
@@ -122,9 +127,7 @@ export function EntityEditor({
                 companyId: text(data, "companyId") || null,
                 ownerId: text(data, "ownerId") || null,
                 dealId: task?.dealId ?? null,
-                dueAt: text(data, "dueAt")
-                    ? new Date(text(data, "dueAt")).toISOString()
-                    : null,
+                dueAt: dateTimeInputToIso(text(data, "dueAt"), task?.dueAt),
                 status: text(data, "status"),
             };
         else if (resource === "contacts")
@@ -163,6 +166,15 @@ export function EntityEditor({
             await onSave(body);
         } catch (e) {
             setError((e as Error).message);
+            if (
+                !item &&
+                (resource === "contacts" || resource === "companies") &&
+                e instanceof InboxRequestError &&
+                e.status === 409
+            )
+                setConflictExternalId(
+                    text(data, "externalId").trim() || newExternalId,
+                );
         } finally {
             setBusy(false);
         }
@@ -755,6 +767,17 @@ export function EntityEditor({
                             className="rounded-lg bg-red-50 p-3 text-sm text-red-700"
                         >
                             {error}
+                            {conflictExternalId && onOpenExisting && (
+                                <button
+                                    type="button"
+                                    className="ml-3 underline"
+                                    onClick={() =>
+                                        void onOpenExisting(conflictExternalId)
+                                    }
+                                >
+                                    기존 {title} 열기
+                                </button>
+                            )}
                         </p>
                     )}
                     <div className="flex gap-3">

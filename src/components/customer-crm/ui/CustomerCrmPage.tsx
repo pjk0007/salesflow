@@ -118,6 +118,25 @@ export function CustomerCrmPage({ role }: { role: string }) {
         await refresh();
         toast.success("저장했습니다.");
     }
+    async function openExisting(externalId: string) {
+        if (!editor || !workspaceId) return;
+        const kind = editor.resource;
+        if (kind !== "contacts" && kind !== "companies") return;
+        try {
+            const rows = await crmRequest<(Contact | Company)[]>(
+                `/api/customer-crm/${kind}?${new URLSearchParams({ workspaceId: String(workspaceId), q: externalId, archived: "all" })}`,
+            );
+            const found = rows.find((row) => row.externalId === externalId);
+            if (!found) {
+                toast.error(`기존 ${names[kind]}을 찾지 못했습니다. 외부 번호로 검색해주세요.`);
+                return;
+            }
+            if (found.archivedAt) setObjectView("all");
+            setEditor({ resource: kind, item: found });
+        } catch (e) {
+            toast.error((e as Error).message);
+        }
+    }
     async function quick(
         resource: "tasks" | "deals",
         item: Task | Deal,
@@ -588,6 +607,7 @@ export function CustomerCrmPage({ role }: { role: string }) {
                     }
                     onClose={() => setEditor(null)}
                     onSave={save}
+                    onOpenExisting={openExisting}
                     onReload={
                         editor.item &&
                         [
