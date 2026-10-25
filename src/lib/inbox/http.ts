@@ -4,6 +4,11 @@ import { getUserFromNextRequest } from "@/lib/auth";
 import { InboxError } from "./repository";
 import { rateLimit } from "@/lib/tracker/rate-limit";
 import { inputErrorMessage, sameApplicationOrigin } from "./rules";
+/**
+ * 상담·고객 업무 라우트의 신원(JWT 서명)과 요청 출처만 확인한다. DB의 멤버십·권한 확인은 하지 않는다.
+ * 계약: 이 결과를 받는 저장소 함수는 activeCustomerActor·requireCustomerAccess·requireCustomerChannel·ownedConversation 중
+ * 하나를 반드시 거친다. 새 라우트가 이 중 아무것도 거치지 않으면 제거·비활성 직원의 토큰이 통과한다.
+ */
 export function inboxActor(req: NextRequest) {
     const user = getUserFromNextRequest(req);
     if (!user) throw new InboxError("인증이 필요합니다.", 401);
