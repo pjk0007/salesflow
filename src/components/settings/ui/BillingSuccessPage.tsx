@@ -57,7 +57,8 @@ function BillingSuccessContent() {
                 }
 
                 setStatus("success");
-                toast.success("결제 수단이 등록되었습니다.");
+                // 카드만 등록한 경우(정지 구독 포함) 결제·복구가 된 것처럼 안내하지 않는다 (UX-019)
+                toast.success(planSlug && planSlug !== "free" ? "결제가 완료되어 플랜이 변경되었습니다." : "결제 수단이 등록되었습니다.");
 
                 // 3초 후 설정 페이지로 이동
                 setTimeout(() => {

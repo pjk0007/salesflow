@@ -200,9 +200,15 @@ export default function BillingTab() {
                                 )}
                             </div>
                             {data.subscription?.currentPeriodEnd && !isSuspended && (
-                                <p className="text-sm text-muted-foreground">
-                                    다음 결제일: {formatDate(data.subscription.currentPeriodEnd)}
-                                </p>
+                                isPaid && !data.subscription.hasBillingKey ? (
+                                    <p className="text-sm text-destructive">
+                                        등록된 카드가 없어 {formatDate(data.subscription.currentPeriodEnd)} 이용 기간이 끝나면 Free 플랜으로 전환됩니다.
+                                    </p>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">
+                                        다음 결제일: {formatDate(data.subscription.currentPeriodEnd)}
+                                    </p>
+                                )
                             )}
                             {isSuspended && (
                                 <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 space-y-2">
