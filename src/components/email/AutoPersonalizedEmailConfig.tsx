@@ -138,6 +138,12 @@ export default function AutoPersonalizedEmailConfig({
         if (pendingIds.has(link.id)) return;
         const nextActive = link.isActive === 1 ? 0 : 1;
         const doneLabel = nextActive ? "활성화되었습니다." : "자동 발송을 중지했습니다.";
+        // 켜진 규칙이 없어진 파티션의 대기 메일은 닫지 않고 보류한다 — 다시 켜면 원래 순서대로 나간다 (UX-228)
+        const notifyQueueWaiting = (waiting: unknown) => {
+            if (Number(waiting) > 0) {
+                toast.info(`대기 중인 메일 ${Number(waiting).toLocaleString("ko-KR")}통은 보류됩니다. 규칙을 다시 켜면 이어서 보냅니다.`);
+            }
+        };
         setPendingIds((prev) => new Set(prev).add(link.id));
         try {
             const result = await updateLink(link.id, { isActive: nextActive });
@@ -151,10 +157,12 @@ export default function AutoPersonalizedEmailConfig({
                             .catch(() => ({ success: false, error: "결과를 확인하지 못했습니다. 목록을 새로고침해 상태를 확인해주세요." }));
                         if (!confirmed.success) throw new Error(confirmed.error || "변경에 실패했습니다.");
                         toast.success(doneLabel);
+                        notifyQueueWaiting((confirmed as { queueWaiting?: unknown }).queueWaiting);
                     },
                 });
             } else if (result?.success) {
                 toast.success(doneLabel);
+                notifyQueueWaiting(result.queueWaiting);
             } else {
                 toast.error(result?.error || (nextActive ? "활성화에 실패했습니다." : "중지에 실패했습니다. 자동 발송이 계속될 수 있습니다."));
             }

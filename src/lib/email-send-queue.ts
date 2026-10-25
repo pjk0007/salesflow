@@ -2,7 +2,7 @@ import { db, queryClient, emailSendQueue, emailAutoPersonalizedLinks, emailSendL
 import { sql, eq, and, or, gt, gte, lt, inArray, like } from "drizzle-orm";
 import { addDaysYmd, kstParts, kstToDate } from "@/lib/kst";
 import type { SQL } from "drizzle-orm";
-import { processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
+import { hasOnlyInactiveRules, processAutoPersonalizedEmail } from "@/lib/auto-personalized-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { getAiClient, checkTokenQuota } from "@/lib/ai";
 import { getEmailConfig } from "@/lib/nhn-email";
@@ -131,8 +131,11 @@ export async function processEmailSendQueue(options: { deliveryOnly?: boolean } 
         }
 
         if (!options.deliveryOnly) stats.reclaimed = await reclaimStuck();
-        // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6)
-        await reviveOrphanHeldRows("send_queue");
+        // 처리 중에 보류가 풀려 주인 없이 held로 남은 줄을 되살린다 (F6).
+        // 규칙을 다시 켰거나(규칙 꺼짐 보류) 월 AI 한도가 풀린(한도 보류) 줄도 여기서 되살린다 (UX-228·259)
+        await reviveOrphanHeldRows("send_queue", {
+            quotaOpen: async (orgId) => (await checkTokenQuota(orgId)).allowed,
+        });
 
         const drainable = new Map<string, DrainGroup>();
         const startedAt = Date.now();
@@ -583,8 +586,8 @@ async function applyPlans(
             processed_at = CASE WHEN v.revivable AND q.requeue_at IS NOT NULL THEN NULL
                                 WHEN v.pending OR v.status = 'held' THEN q.processed_at
                                 ELSE NOW() END,
-            -- 보류는 last_error를 건드리지 않는다 (SND-14)
-            last_error = CASE WHEN v.status = 'held' THEN q.last_error ELSE v.last_error END,
+            -- 명단 보류는 last_error를 건드리지 않는다 (SND-14). 규칙 꺼짐·AI 한도 보류는 되살릴 조건이라 앞머리 held(…)를 남긴다 (UX-228·259)
+            last_error = CASE WHEN v.status = 'held' AND v.last_error NOT LIKE 'held(%' THEN q.last_error ELSE v.last_error END,
             requeue_at = NULL
         FROM jsonb_to_recordset(${JSON.stringify(writes)}::jsonb)
              AS v(id int, status varchar, attempts int, scheduled_at timestamptz, exhausted jsonb,
@@ -618,7 +621,7 @@ type AutoLink = typeof emailAutoPersonalizedLinks.$inferSelect;
  *
  * 줄마다 processAutoPersonalizedEmail을 부르는 대신, 그 함수가 읽는 값(레코드·규칙·쿨다운·중복 수신자·수신거부·
  * 워크스페이스·토큰 쿼터·메일 설정·발신 주소와 오늘 사용량)을 묶음마다 한 번씩 읽고 walkQueueRow로 같은 순서를 따라간다.
- * 결과가 미룸·건너뜀인 줄만 여기서 끝낸다 — 그 줄은 줄마다 처리했어도 같은 규칙별 결과가 나온다 (walkQueueRow 설명).
+ * 결과가 미룸·건너뜀·보류(규칙 꺼짐·AI 한도)인 줄만 여기서 끝낸다 — 그 줄은 줄마다 처리했어도 같은 규칙별 결과가 나온다 (walkQueueRow 설명).
  * 미룬 시각은 줄 순서대로 checkPoolsBlocked의 nextRetryAt()으로 받는다 — claimSender를 줄마다 부른 것과 같은 값이다
  * (간격 미룸 펼치기 포함). 시도 횟수·last_error·뺀 규칙도 planQueueRow·describePlan·applyPlans로 줄마다 처리와 같게 쓴다.
  * 보낼 수 있는 줄(주소가 열림)·판단할 수 없는 값이 있는 줄은 건드리지 않는다 — 잠금만 풀려 pending 그대로 남고
@@ -727,6 +730,8 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
         )
         .orderBy(emailAutoPersonalizedLinks.id);
     const linkById = new Map(links.map((l) => [l.id, l]));
+    // 켜진 규칙이 없으면 꺼진 규칙만 남았는지 본다 — 그러면 줄을 닫지 않고 held로 둔다 (UX-228)
+    const rulesInactive = links.length === 0 && (await hasOnlyInactiveRules(group.partitionId, normalizeTriggerType(group.triggerType)));
 
     const live = rows.filter((r) => r.record_exists);
     const dataOf = (row: DrainRow): Record<string, unknown> | null =>
@@ -805,7 +810,7 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
         walks = rows.map((row) =>
             row.record_exists
                 ? walkQueueRow(
-                      { data: row.record_data, links, skipLinkIds: parseLinkIdList(row.exhausted_link_ids) },
+                      { data: row.record_data, links, skipLinkIds: parseLinkIdList(row.exhausted_link_ids), rulesInactive },
                       lookupsFor(row)
                   )
                 : null
@@ -836,7 +841,7 @@ async function resolveDrainRows(group: DrainGroup, rows: DrainRow[]): Promise<Ma
             continue;
         }
         if (!walk) continue;
-        if (walk.kind === "skip") {
+        if (walk.kind === "skip" || walk.kind === "hold") {
             out.set(row.id, toProcessedRow(walk.result));
         } else if (walk.kind === "defer") {
             const state = blocks?.get(walk.linkId);

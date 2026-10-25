@@ -27,7 +27,7 @@ import {
 } from "@/lib/email-unsubscribe";
 import { substitutePromptVariables } from "@/lib/email-utils";
 import type { DbRecord } from "@/lib/db";
-import type { LinkOutcome, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
+import type { LinkOutcome, QueueWaitReason, RecordOutcome } from "@/lib/auto-personalized-email-outcome";
 import { findReplyStop } from "@/lib/email-reply-guard";
 import { acceptedOrPendingCondition, acceptedSendCondition } from "@/lib/email-send-log-status";
 import { getActiveHold } from "@/lib/partition-hold";
@@ -79,6 +79,19 @@ async function checkDuplicateRecipientForAiAuto(
         )
         .limit(1);
     return !existing;
+}
+
+/**
+ * 켜진 규칙이 없는 파티션·트리거에 규칙 자체는 남아 있다 (모두 꺼졌거나 임시저장, UX-228).
+ * 켜진 규칙을 찾지 못한 뒤에만 부른다 — 그래서 규칙이 하나라도 있으면 꺼진 규칙뿐이다. 삭제됐으면 false (그때만 줄을 닫는다)
+ */
+export async function hasOnlyInactiveRules(partitionId: number, triggerType: "on_create" | "on_update"): Promise<boolean> {
+    const [rule] = await db
+        .select({ id: emailAutoPersonalizedLinks.id })
+        .from(emailAutoPersonalizedLinks)
+        .where(and(eq(emailAutoPersonalizedLinks.partitionId, partitionId), eq(emailAutoPersonalizedLinks.triggerType, triggerType)))
+        .limit(1);
+    return !!rule;
 }
 
 // ============================================
@@ -134,6 +147,12 @@ export async function processAutoPersonalizedEmail(
         .orderBy(emailAutoPersonalizedLinks.id);
 
     if (links.length === 0) {
+        // 대기열 줄: 규칙을 잠시 끈 것뿐이면 닫지 않고 held로 둔다 — 다시 켜면 워커가 되살린다 (UX-228).
+        // 바로 보내는 경로(queueId 없음)는 예전처럼 아무것도 하지 않는다 — 끈 규칙으로 새 레코드를 쌓지 않는다
+        if (params.queueId && (await hasOnlyInactiveRules(partitionId, triggerType))) {
+            console.log(`[AutoEmail] All rules inactive — queue row held`);
+            return { noMatchingRules: false, outcomes, held: { waitReason: "rules_inactive" } };
+        }
         console.log(`[AutoEmail] No matching rules`);
         return { noMatchingRules: true, outcomes };
     }
@@ -148,6 +167,8 @@ export async function processAutoPersonalizedEmail(
     }
 
     const data = record.data as Record<string, unknown>;
+    // 대기열 줄이 월 AI 사용량 한도에 닿았다 — 줄을 held로 두고 한도가 풀리면 되살린다 (UX-259)
+    let wait: QueueWaitReason | null = null;
 
     for (const link of links) {
         if (skipLinkIds.has(link.id)) {
@@ -340,7 +361,7 @@ export async function processAutoPersonalizedEmail(
                                 .where(eq(records.id, record.id));
                             console.log(`[AutoEmail] Company research cache hit: ${companyName}`);
                         } else {
-                            if (!(await checkTokenQuota(orgId)).allowed) throw new CopyDeferredError(new Date(Date.now() + 3600_000), "회사 조사 사용량 한도", true);
+                            if (!(await checkTokenQuota(orgId)).allowed) throw new CopyDeferredError(new Date(Date.now() + 3600_000), "회사 조사 사용량 한도", true, "token_quota");
                             const research = await generateCompanyResearch(searchClient, { companyName, additionalContext: data });
                             recordData._companyResearch = {
                                 ...research,
@@ -601,6 +622,13 @@ export async function processAutoPersonalizedEmail(
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "delivery_uncertain" });
                 continue;
             }
+            if (err instanceof CopyDeferredError && !sendAttempted && err.code === "token_quota" && params.queueId) {
+                // 한도 동안 하루 발신 예약 자리를 붙잡지 않는다 — 되살아나면 그때 다시 잡는다 (UX-259)
+                if (purpose === "bulk") await cancelPreparedSend(params.queueId, link.id);
+                console.log(`[AutoEmail] Rule ${link.id}: AI quota exceeded — queue row held`);
+                wait = "quota_exceeded";
+                break;
+            }
             if (err instanceof CopyDeferredError && !sendAttempted) {
                 outcomes.push(err.reason === "작업 취소"
                     ? { kind: "skipped", linkId: link.id, reason: "copy_cancelled" }
@@ -621,5 +649,5 @@ export async function processAutoPersonalizedEmail(
         }
     }
 
-    return { noMatchingRules: false, outcomes };
+    return wait ? { noMatchingRules: false, outcomes, held: { waitReason: wait } } : { noMatchingRules: false, outcomes };
 }

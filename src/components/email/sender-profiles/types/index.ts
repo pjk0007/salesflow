@@ -69,6 +69,8 @@ export interface SendQueueRuleStats {
     pending: { total: number; inbound: number; bulk: number };
     /** 명단 보류(held, DESIGN-SND 6-2)로 멈춘 줄. 대기·3일치 경고에는 넣지 않는다. 0075 이전 서버 응답에는 없다 */
     held?: number;
+    /** 월 AI 사용량 한도로 멈춘 줄 (UX-259). 한도가 풀리면 이어서 나간다. 예전 서버 응답에는 없다 */
+    heldQuota?: number;
     /** 가장 오래 기다린 줄의 예정 시각 (ISO). 대기가 없으면 null */
     oldestScheduledAt: string | null;
     capacity: {
@@ -86,6 +88,8 @@ export interface SendQueueRuleStats {
     };
     /** 지금 쌓인 대기가 다 나가는 한국 날짜 "YYYY-MM-DD". 한도 없음이거나 14일 안에 못 끝나면 null */
     etaDate: string | null;
+    /** 같은 발신 주소를 대기가 있는 다른 명단도 쓴다 — 예상은 하루 한도를 나눠 센 값 (UX-195). 예전 서버 응답에는 없다 */
+    sharedPool?: boolean;
     /** 대기 ÷ 오늘~내일(보낼 수 있는 앞의 두 날) 평균 하루 용량. 한도 없음이거나 보낼 수 있는 날이 없으면 null */
     backlogDays: number | null;
     /** backlogDays > 3, 또는 대기가 있는데 보낼 수 있는 날이 없음 (backlogDays null) */
@@ -94,7 +98,17 @@ export interface SendQueueRuleStats {
 
 export interface SendQueueStats {
     rules: SendQueueRuleStats[];
-    totals: { pending: number; warnings: number; held?: number };
+    totals: {
+        pending: number;
+        warnings: number;
+        held?: number;
+        /** 월 AI 사용량 한도로 멈춘 줄 (UX-259) */
+        heldQuota?: number;
+        /** 켜진 규칙이 없어 멈춘 줄 — 규칙을 다시 켜면 나간다 (UX-228) */
+        heldRulesInactive?: number;
+        /** 처리 중 멈춰 접수 결과를 확인해야 하는 줄 (UX-194) */
+        needsCheck?: number;
+    };
 }
 
 /** 발송 이력 한 줄의 보낸 주소 (GET /api/email/logs). 프로필이 지워졌거나 기록이 없으면 null */

@@ -23,6 +23,7 @@ import type { EmailTemplate } from "@/lib/db";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { linkTemplateIds } from "@/hooks/useEmailTemplates";
 import { canSaveAsDraft, isSnapshotDirty, type TemplateSnapshot } from "@/components/email/utils/template-draft";
+import { sanitizeEmailHtml } from "@/components/email/utils/sanitizeEmailHtml";
 
 interface SaveData {
     name: string;
@@ -101,7 +102,8 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     // contenteditable 초기 로드
     useEffect(() => {
         if (editMode === "visual" && editorRef.current && htmlBody && !editorRef.current.innerHTML) {
-            editorRef.current.innerHTML = htmlBody;
+            // 앱 화면에 넣기 전에 이벤트 속성·스크립트를 뺀다 (UX-232)
+            editorRef.current.innerHTML = sanitizeEmailHtml(htmlBody);
         }
     }, [editMode, htmlBody]);
 
@@ -117,7 +119,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     // 모드 전환
     const handleModeChange = useCallback((mode: "visual" | "code") => {
         if (mode === "visual" && editorRef.current) {
-            editorRef.current.innerHTML = htmlBody;
+            editorRef.current.innerHTML = sanitizeEmailHtml(htmlBody);
         } else if (mode === "code" && editorRef.current) {
             setHtmlBody(editorRef.current.innerHTML);
         }
@@ -201,7 +203,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         setSubject(result.subject);
         setHtmlBody(result.htmlBody);
         if (editorRef.current && editMode === "visual") {
-            editorRef.current.innerHTML = result.htmlBody;
+            editorRef.current.innerHTML = sanitizeEmailHtml(result.htmlBody);
         }
     }, [editMode, clearStreaming]);
 
@@ -248,7 +250,8 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     useEffect(() => {
         const doc = iframeRef.current?.contentDocument;
         if (!doc?.body) return;
-        doc.body.innerHTML = previewBodyHtml;
+        // iframe은 스크립트를 막은 sandbox다. 정화는 한 번 더 막는 장치다 (UX-232)
+        doc.body.innerHTML = sanitizeEmailHtml(previewBodyHtml);
     }, [previewBodyHtml]);
 
     // Dirty 체크 — 저장 요청에 담는 필드 전부
@@ -590,6 +593,8 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     <div className="flex-1 min-h-0 bg-white">
                         <iframe
                             ref={iframeRef}
+                            // 스크립트 불허 — 같은 출처만 허용해 화면이 본문을 직접 넣을 수 있게 한다 (발송 이력 미리보기와 같은 원칙, UX-232)
+                            sandbox="allow-same-origin"
                             className="w-full h-full border-0"
                             title="이메일 미리보기"
                         />

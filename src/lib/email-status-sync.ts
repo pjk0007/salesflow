@@ -25,7 +25,9 @@ import {
     pairNhnRows,
     pairUpdatedMails,
     resolveStatusSyncConfig,
+    shrinkUpdateSpan,
     splitBudget,
+    UPDATE_WINDOW,
 } from "@/lib/email-status-sync-rules";
 import type { NhnFailureKind, NhnStatusWrite, StatusSyncConfig } from "@/lib/email-status-sync-rules";
 
@@ -57,6 +59,8 @@ export interface StatusSyncStats {
     skippedWindows: number;
     skippedAsLocked?: boolean;
     skipped?: "off";
+    /** 이번 회차에 남은 조회 실패 (키 오류가 있으면 그것). 문구는 상태 줄 last_error와 같은 failureText (UX-260) */
+    lastFailure?: { kind: NhnFailureKind; text: string };
 }
 
 export interface StatusSyncOptions {
@@ -98,6 +102,7 @@ interface GroupResult {
     fallbackCalls: number;
     errors: number;
     skippedWindows: number;
+    lastFailure?: { kind: NhnFailureKind; text: string };
 }
 
 const emptyStats = (): StatusSyncStats => ({
@@ -130,12 +135,24 @@ function failureText(kind: NhnFailureKind, httpStatus: number | null): string {
     return `NHN 조회 일시 오류${code}`;
 }
 
-/** 회차 질문 예산 (묶음 여럿이 나눠 쓴다) */
+/**
+ * 회차 질문 예산 (묶음 여럿이 나눠 쓴다). pool = 아직 누구에게도 주지 않은 몫(다 쓴 묶음이 돌려준 몫 포함) —
+ * 제 몫을 다 쓰면 거기서 하나씩 더 받는다. 밀린 창 수로 미리 나눈 몫이 실제 쪽 수보다 작아도 남는 예산을 쓴다 (UX-197)
+ */
 class CallBudget {
     used = 0;
-    constructor(private limit: number, private deadline: number) {}
+    constructor(private limit: number, private deadline: number, private pool?: { n: number }) {}
     canCall(): boolean {
-        return this.used < this.limit && Date.now() < this.deadline;
+        if (Date.now() >= this.deadline) return false;
+        if (this.used >= this.limit && this.pool && this.pool.n > 0) {
+            this.pool.n--;
+            this.limit++;
+        }
+        return this.used < this.limit;
+    }
+    /** 지금 더 물을 수 있는 수 (제 몫 + 나눠 받을 수 있는 몫) */
+    available(): number {
+        return this.left() + Math.max(0, this.pool?.n ?? 0);
     }
     use(): void {
         this.used++;
@@ -231,7 +248,7 @@ async function syncGroups(groups: SyncGroup[], config: StatusSyncConfig, opts: S
     const worker = async () => {
         while (next < groups.length) {
             const i = next++;
-            const budget = new CallBudget(shares[i] + takeSpare(spare, demands[i] - shares[i]), deadline);
+            const budget = new CallBudget(shares[i] + takeSpare(spare, demands[i] - shares[i]), deadline, spare);
             const r = await syncGroup(groups[i], states, config, budget, fallbackLeft, now, opts.trigger ?? "cron");
             // 다 못 쓴 몫은 뒤 묶음에 준다
             spare.n += budget.left();
@@ -244,6 +261,8 @@ async function syncGroups(groups: SyncGroup[], config: StatusSyncConfig, opts: S
             stats.fallbackCalls += r.fallbackCalls;
             stats.errors += r.errors;
             stats.skippedWindows += r.skippedWindows;
+            // 키 오류를 먼저 알린다 — 묶음 여럿이면 하나라도 키가 틀린 쪽이 사람이 고칠 일이다
+            if (r.lastFailure && (!stats.lastFailure || r.lastFailure.kind === "auth")) stats.lastFailure = r.lastFailure;
         }
     };
     await Promise.all(Array.from({ length: Math.min(GROUP_CONCURRENCY, groups.length) }, worker));
@@ -319,12 +338,19 @@ async function syncGroup(
     let failure: { kind: NhnFailureKind; status: number | null } | null = null;
     let consecutive = 0;
 
-    // ① 커서 창을 예산 안에서 이어 읽는다
+    // ① 커서 창을 예산 안에서 이어 읽는다. 쪽이 너무 많은 창은 남은 예산에 맞게 줄여 다시 묻는다 (UX-197)
+    let span = UPDATE_WINDOW.lengthMs;
     while (budget.canCall()) {
-        const win = nextUpdateWindow(cursor, now);
+        const win = nextUpdateWindow(cursor, now, span);
         if (!win) break;
         const read = await readWindow(client, win, config.pageSize, budget, now);
         if (!read.ok) {
+            if (read.kind === "too_many_pages") {
+                const shrunk = shrinkUpdateSpan(span, read.pages, budget.available());
+                if (shrunk === null) break;
+                span = shrunk;
+                continue;
+            }
             if (read.kind === "budget") break;
             if (read.kind === "rejected_window") {
                 // NHN이 오래된 기간을 거절했다 — 그 창은 건너뛰고 커서를 넘긴다 (그 기간은 보조 질문이 48시간 안 것만 메운다)
@@ -367,6 +393,7 @@ async function syncGroup(
     }
 
     r.calls = budget.used - callsBefore;
+    if (failure) r.lastFailure = { kind: failure.kind, text: failureText(failure.kind, failure.status) };
     await saveState(g, {
         cursor,
         initialFrom,
@@ -391,7 +418,9 @@ function addApplied(r: GroupResult, a: { updated: number; finalized: number; fai
 
 type ReadResult =
     | { ok: true; mails: NhnUpdatedMail[] }
-    | { ok: false; kind: NhnFailureKind | "budget"; status: number | null };
+    | { ok: false; kind: NhnFailureKind | "budget"; status: number | null }
+    /** 첫 쪽의 totalCount로 보니 남은 예산으로 창을 끝까지 못 읽는다 — 창을 줄여 다시 묻는다 (UX-197) */
+    | { ok: false; kind: "too_many_pages"; pages: number; status: null };
 
 /** 창 하나를 쪽 끝까지 읽는다. 예산이 모자라 끝까지 못 읽으면 budget — 커서를 옮기지 않는다 */
 async function readWindow(
@@ -423,6 +452,11 @@ async function readWindow(
         const page = res.data ?? [];
         mails.push(...page);
         if (page.length < pageSize || pageNum * pageSize >= res.totalCount) break;
+        if (pageNum === 1) {
+            // 끝까지 읽을 수 없는 창은 쪽마다 예산만 쓰고 커서를 못 옮긴다 — 첫 쪽에서 알아채고 창을 줄이게 한다
+            const pages = Math.ceil(res.totalCount / pageSize);
+            if (pages - 1 > budget.available()) return { ok: false, kind: "too_many_pages", pages, status: null };
+        }
     }
     return { ok: true, mails };
 }

@@ -119,7 +119,8 @@ export async function POST(req: NextRequest) {
                 triggerType,
                 triggerCondition: triggerCondition || null,
                 repeatConfig: repeatConfig || null,
-                followupConfig: followupConfig || null,
+                // 수동 발송은 후속 큐를 만들지 않는다 — 나가지 않을 후속 설정을 저장하지 않는다 (UX-229)
+                followupConfig: triggerType === "manual" ? null : followupConfig || null,
                 preventDuplicate: preventDuplicate ? 1 : 0,
                 createdBy: user.userId,
                 ...senderPool.value,

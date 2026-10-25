@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { syncOrgStatuses } from "@/lib/email-status-sync";
+import { syncWarning } from "@/lib/email-status-sync-rules";
 
 /**
  * 발송 이력 화면의 "동기화" 버튼 (DESIGN-SND 3-7).
@@ -35,6 +36,8 @@ export async function POST(req: NextRequest) {
                 windows: stats.windows,
                 unpaired: stats.unpaired,
                 errors: stats.errors,
+                // 조회가 실패했으면 성공 토스트 대신 경고를 보이게 한다 (UX-260). failureKind=auth면 키 확인
+                ...(syncWarning(stats) ? { warning: syncWarning(stats), failureKind: stats.lastFailure?.kind ?? "transient" } : {}),
             },
         });
     } catch (error) {
