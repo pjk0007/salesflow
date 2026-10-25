@@ -30,7 +30,7 @@ export async function POST(
         const result = await client.commentTemplate(senderKey, templateCode, comment);
 
         if (!result.header.isSuccessful) {
-            return NextResponse.json({ success: false, error: result.header.resultMessage });
+            return NextResponse.json({ success: false, error: `검수 요청을 처리하지 못했습니다: ${result.header.resultMessage}` }, { status: 400 });
         }
 
         return NextResponse.json({ success: true, message: "검수 요청이 완료되었습니다." });

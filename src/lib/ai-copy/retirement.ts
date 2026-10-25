@@ -14,13 +14,13 @@ export async function retireCopyVersion(
             AND ((${input.kind}='policy' AND ((config->>'policyAId')::int=${input.id} OR (config->>'policyBId')::int=${input.id})) OR (${input.kind}='knowledge' AND (config->>'knowledgeVersionId')::int=${input.id}))`;
         if (bound || experiment)
             throw new CopyActionError(
-                "연결이나 실험에서 사용 중인 버전입니다. 연결을 바꾸거나 실험을 종료한 뒤 보관해 주세요.",
+                "연결이나 실험에서 사용 중인 버전입니다. 연결을 바꾸거나 실험을 종료한 뒤 사용 종료해 주세요.",
             );
         const changed =
             input.kind === "policy"
                 ? await conn`UPDATE ai_copy_policy_versions SET state='retired',last_changed_by=${input.userId},last_changed_at=now(),state_reason='새 연결에서 사용 종료' WHERE id=${input.id} AND org_id=${input.orgId} AND state<>'blocked' RETURNING id`
                 : await conn`UPDATE ai_copy_knowledge_versions SET state='retired',last_changed_by=${input.userId},last_changed_at=now(),state_reason='새 연결에서 사용 종료' WHERE id=${input.id} AND org_id=${input.orgId} AND state<>'blocked' RETURNING id`;
-        if (!changed.length) throw new CopyActionError("보관할 버전을 찾을 수 없습니다.");
+        if (!changed.length) throw new CopyActionError("사용 종료할 버전을 찾을 수 없습니다.");
         return { retired: true, existingJobs: "preserved" };
     });
 }

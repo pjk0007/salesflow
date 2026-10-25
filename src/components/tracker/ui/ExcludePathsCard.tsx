@@ -17,10 +17,13 @@ export function ExcludePathsCard({
     siteId,
     excludePaths,
     onUpdated,
+    readOnly = false,
 }: {
     siteId: number;
     excludePaths: string[];
     onUpdated: () => void;
+    /** 일반 멤버 — 서버가 변경을 거절하므로 보기만 */
+    readOnly?: boolean;
 }) {
     const [text, setText] = useState(() => excludePaths.join("\n"));
     const [saving, setSaving] = useState(false);
@@ -64,10 +67,13 @@ export function ExcludePathsCard({
                     placeholder="/main/&#10;/login/"
                     rows={5}
                     className="font-mono text-xs"
+                    readOnly={readOnly}
                 />
-                <Button onClick={handleSave} disabled={saving || !dirty} size="sm">
-                    {saving ? "저장 중..." : "저장"}
-                </Button>
+                {!readOnly && (
+                    <Button onClick={handleSave} disabled={saving || !dirty} size="sm">
+                        {saving ? "저장 중..." : "저장"}
+                    </Button>
+                )}
             </CardContent>
         </Card>
     );

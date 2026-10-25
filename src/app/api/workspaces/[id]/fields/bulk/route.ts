@@ -1,3 +1,4 @@
+import { addVisibleFieldKeys } from "@/lib/visible-fields";
 import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, fieldDefinitions, partitions } from "@/lib/db";
 import { eq, and, max } from "drizzle-orm";
@@ -135,13 +136,13 @@ export async function POST(
             .where(eq(partitions.workspaceId, workspaceId));
 
         for (const p of partitionList) {
-            const current = (p.visibleFields as string[]) || [];
-            const newKeys = createdKeys.filter((k) => !current.includes(k));
-            if (newKeys.length > 0) {
+            // 전체 표시(null·빈 배열) 파티션은 그대로 둔다(UX-067)
+            const nextFields = addVisibleFieldKeys(p.visibleFields as string[] | null, createdKeys);
+            if (nextFields) {
                 await db
                     .update(partitions)
                     .set({
-                        visibleFields: [...current, ...newKeys],
+                        visibleFields: nextFields,
                         updatedAt: new Date(),
                     })
                     .where(eq(partitions.id, p.id));

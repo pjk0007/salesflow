@@ -17,8 +17,12 @@ export const GET = (req: NextRequest) =>
             .int()
             .nonnegative()
             .parse(req.nextUrl.searchParams.get("workspaceId") ?? 0);
+        // actor_valid: 작업기가 실행할 수 있는 관리자(활성·owner/admin)인지. 작업기 선택 조건과 같다(UX-248).
         const settings =
-            await conn`SELECT s.*,l.name AS rule_name FROM ai_copy_automation_settings s LEFT JOIN email_auto_personalized_links l ON l.id=s.rule_id AND l.org_id=s.org_id WHERE s.org_id=${user.orgId} AND (${workspaceId}=0 OR s.workspace_id=${workspaceId}) ORDER BY s.id`;
+            await conn`SELECT s.*,l.name AS rule_name,
+                (u.is_active=1 AND EXISTS(SELECT 1 FROM organization_members m WHERE m.organization_id=s.org_id AND m.user_id=s.actor_id AND m.role IN('owner','admin'))) IS TRUE AS actor_valid
+                FROM ai_copy_automation_settings s LEFT JOIN email_auto_personalized_links l ON l.id=s.rule_id AND l.org_id=s.org_id LEFT JOIN users u ON u.id=s.actor_id
+                WHERE s.org_id=${user.orgId} AND (${workspaceId}=0 OR s.workspace_id=${workspaceId}) ORDER BY s.id`;
         const cycles =
             await conn`SELECT c.*,a.snapshot AS baseline_snapshot,b.snapshot AS candidate_snapshot,k.snapshot AS knowledge_snapshot,e.state AS experiment_state,
         (SELECT COALESCE(jsonb_agg(x),'[]'::jsonb) FROM (SELECT s.arm,j.output FROM ai_copy_automation_samples s JOIN ai_copy_generation_jobs j ON j.id=s.job_id WHERE s.cycle_id=c.id AND s.sample_index<4 ORDER BY s.sample_index) x) AS sample_outputs
@@ -80,6 +84,7 @@ export const POST = (req: NextRequest) =>
             await conn`UPDATE ai_copy_automation_cycles SET stage='declined',reason='관리자가 기존 지침 유지를 선택했습니다.',updated_at=now() WHERE id=${cycle.id} AND stage<>'applied'`;
             return { declined: true };
         }
-        await conn`UPDATE ai_copy_automation_settings SET next_run_at=${actor.now.toISOString()} WHERE id=${cycle.setting_id}`;
+        // 다시 준비: 바로 실행하고, 보류된 회차라면 7일 대기 없이 새 회차를 열도록 last_error를 비운다(UX-246).
+        await conn`UPDATE ai_copy_automation_settings SET next_run_at=${actor.now.toISOString()},last_error=NULL WHERE id=${cycle.setting_id} AND org_id=${user.orgId}`;
         return { scheduled: true };
     });

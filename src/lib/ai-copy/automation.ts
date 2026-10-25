@@ -52,6 +52,22 @@ export interface AutomationSetting {
     experiment_mode: "auto" | "manual";
     actor_id: string;
     next_run_at: Date;
+    last_error?: string | null;
+}
+
+/** 보류된 회차 이후 첫 메일 규칙이 바뀌었는지(UX-246). 규칙을 읽을 수 없으면 바뀌지 않은 것으로 본다. */
+export async function automationRuleChanged(
+    conn: CopyConnection,
+    setting: AutomationSetting,
+    previousFingerprint: string | null,
+) {
+    if (setting.purpose !== "initial_email") return false;
+    try {
+        const rule = await loadExperimentRule(conn, setting.org_id, setting.workspace_id, setting.rule_id);
+        return fingerprint(ruleSnapshotOf(rule)) !== previousFingerprint;
+    } catch {
+        return false;
+    }
 }
 export interface AutomationCycle {
     id: number;

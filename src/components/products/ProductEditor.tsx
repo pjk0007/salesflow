@@ -7,6 +7,8 @@ import { ArrowLeft, Loader2, Sparkles, ImageIcon, X } from "lucide-react";
 import AiProductPanel from "./AiProductPanel";
 import { toast } from "sonner";
 import type { Product } from "@/lib/db";
+import { useSession } from "@/contexts/SessionContext";
+import { canEditProducts, productPayload } from "./utils/product-form";
 
 interface ProductEditorProps {
     product: Product | null;
@@ -33,6 +35,9 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
     const [saving, setSaving] = useState(false);
     const [showAiPanel, setShowAiPanel] = useState(false);
     const initialized = useRef(false);
+    // 일반 멤버는 입력 후 403으로 버려지지 않도록 처음부터 읽기 전용(UX-085)
+    const { user } = useSession();
+    const canEdit = canEditProducts(user?.role);
 
     useEffect(() => {
         if (initialized.current) return;
@@ -55,15 +60,9 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
         }
         setSaving(true);
         try {
-            const result = await onSave({
-                name: name.trim(),
-                summary: summary.trim() || undefined,
-                description: description.trim() || undefined,
-                category: category.trim() || undefined,
-                price: price.trim() || undefined,
-                url: url.trim() || undefined,
-                imageUrl: imageUrl.trim() || undefined,
-            });
+            const result = await onSave(
+                productPayload({ name, summary, description, category, price, url, imageUrl }, !!product),
+            );
             if (!result.success) {
                 toast.error(result.error || "저장에 실패했습니다.");
             }
@@ -85,7 +84,7 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
                     </h2>
                 </div>
                 <div className="flex items-center gap-2">
-                    {!product && (
+                    {!product && canEdit && (
                         <Button
                             variant={showAiPanel ? "default" : "outline"}
                             size="sm"
@@ -98,7 +97,7 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
                     <Button variant="outline" size="sm" onClick={onCancel}>
                         취소
                     </Button>
-                    <Button size="sm" onClick={handleSubmit} disabled={saving || !name.trim()}>
+                    <Button size="sm" onClick={handleSubmit} disabled={!canEdit || saving || !name.trim()}>
                         {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         {product ? "수정" : "추가"}
                     </Button>
@@ -107,7 +106,12 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
 
             {/* Body */}
             <div className="flex-1 overflow-auto">
-                <div className="max-w-2xl mx-auto p-6 space-y-6">
+                <fieldset disabled={!canEdit} className="max-w-2xl mx-auto p-6 space-y-6 min-w-0">
+                    {!canEdit && (
+                        <p role="note" className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                            제품 정보는 관리자만 추가·수정할 수 있습니다. 내용 확인만 가능합니다.
+                        </p>
+                    )}
                     {/* AI 패널 */}
                     {showAiPanel && !product && (
                         <AiProductPanel
@@ -226,7 +230,7 @@ export default function ProductEditor({ product, onSave, onCancel }: ProductEdit
                             </div>
                         </div>
                     </div>
-                </div>
+                </fieldset>
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import {
     DndContext,
     closestCenter,
@@ -31,6 +31,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { GripVertical, Plus, X, Trash2, ImagePlus } from "lucide-react";
 import type { FieldDefinition } from "@/types";
+import { toast } from "sonner";
 
 const COVER_COLORS = [
     { value: "#1e293b", label: "다크" },
@@ -126,6 +127,7 @@ function SortableFieldItem({
                 <button
                     type="button"
                     className="mt-1 cursor-grab text-muted-foreground hover:text-foreground"
+                    aria-label="질문 순서 변경"
                     {...attributes}
                     {...listeners}
                 >
@@ -145,7 +147,7 @@ function SortableFieldItem({
                             {FIELD_TYPES.find((ft) => ft.value === field.fieldType)?.label || field.fieldType}
                         </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                         <Select
                             value={field.linkedFieldKey || "_none"}
                             onValueChange={(v) => {
@@ -158,7 +160,7 @@ function SortableFieldItem({
                                 });
                             }}
                         >
-                            <SelectTrigger className="flex-1">
+                            <SelectTrigger className="min-w-0 flex-1" aria-label="연결 속성">
                                 <SelectValue placeholder="연결 속성 선택" />
                             </SelectTrigger>
                             <SelectContent>
@@ -186,6 +188,12 @@ function SortableFieldItem({
                             <span className="text-xs text-muted-foreground">필수</span>
                         </div>
                     </div>
+                    {!field.linkedFieldKey && (
+                        // 연결 속성이 없으면 답이 어디에도 저장되지 않는다 — 저장 전에 알 수 있게 표시 (UX-045)
+                        <p className="text-xs text-amber-700 dark:text-amber-400">
+                            연결 속성이 없어 이 질문의 답은 레코드에 저장되지 않습니다.
+                        </p>
+                    )}
                     <Input
                         value={field.placeholder}
                         onChange={(e) =>
@@ -245,6 +253,7 @@ function SortableFieldItem({
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 text-destructive"
+                    aria-label="질문 삭제"
                     onClick={() => onRemove(index)}
                 >
                     <Trash2 className="h-4 w-4" />
@@ -403,11 +412,17 @@ export default function FormBuilder({
                                                 if (!file) return;
                                                 const formData = new FormData();
                                                 formData.append("file", file);
+                                                // 실패·형식 오류를 조용히 넘기지 않는다 (UX-048)
                                                 try {
                                                     const res = await fetch("/api/upload", { method: "POST", body: formData });
                                                     const data = await res.json();
                                                     if (data.success) onCoverImageUrlChange(data.url);
-                                                } catch {}
+                                                    else toast.error(data.error || "이미지를 올리지 못했습니다.");
+                                                } catch {
+                                                    toast.error("이미지를 올리지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해주세요.");
+                                                } finally {
+                                                    e.target.value = "";
+                                                }
                                             }}
                                         />
                                         <div className="flex items-center gap-1 px-3 py-2 border rounded-md text-sm hover:bg-accent">
@@ -475,9 +490,12 @@ export default function FormBuilder({
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
-                                    navigator.clipboard.writeText(
-                                        `${window.location.origin}/f/${slug}`
-                                    );
+                                    navigator.clipboard
+                                        .writeText(`${window.location.origin}/f/${slug}`)
+                                        .then(
+                                            () => toast.success("링크가 복사되었습니다."),
+                                            () => toast.error("링크를 복사하지 못했습니다. 주소를 직접 선택해 복사해주세요.")
+                                        );
                                 }}
                             >
                                 복사

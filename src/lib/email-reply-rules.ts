@@ -78,6 +78,20 @@ export const GMAIL_CONCURRENCY = 4;
 export const OPS_ALERT_INTERVAL_MS = 6 * HOUR_MS;
 /** on인데 마지막 성공이 이보다 오래면 정체 (M7) */
 export const STALE_SYNC_MS = 6 * HOUR_MS;
+
+/**
+ * 회차가 아예 돌지 않아 오류도 남지 않은 정체 — on에서 마지막 성공(없으면 마지막 실행)이 STALE_SYNC_MS보다 오래됨.
+ * 한 번도 돈 적 없으면(둘 다 없음) 판단하지 않는다. off·dry_run은 자동 메일을 멈추지 않으므로 경고하지 않는다 (UX-137)
+ */
+export function isReplySyncIdleStale(
+    mode: string,
+    lastSuccessAt: Date | null,
+    lastRunAt: Date | null,
+    now: Date,
+): boolean {
+    const since = lastSuccessAt ?? lastRunAt;
+    return mode === "on" && since !== null && now.getTime() - since.getTime() > STALE_SYNC_MS;
+}
 /** 일시 오류(429·5xx·DB 연결)가 이만큼 이어지면 운영 알림 */
 export const TRANSIENT_ALERT_AFTER_MS = HOUR_MS;
 /** processing에 이만큼 머문 알림 줄은 되돌린다 */

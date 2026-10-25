@@ -1,7 +1,7 @@
 import type { CopyConnection } from "../ai-copy/types";
 import { normalizeEmail } from "../deep-visitor-alert-rules";
 import { evaluateCondition, type TriggerCondition } from "../automation-condition";
-import { capSchedule, DEFAULT_LIMIT_SETTINGS, toLimitSettings } from "../email-sender-limit-rules";
+import { previewCapacitySchedule } from "./capacity";
 import { kstParts } from "../kst";
 import { loadExperimentRule } from "./repository";
 import type { Experiment } from "./types";
@@ -182,26 +182,8 @@ export async function previewExperiment(
         : rule.sender_profile_id
           ? [Number(rule.sender_profile_id)]
           : null;
-    const selectedProfiles = configuredIds
-        ? allProfiles.filter((p) => configuredIds.includes(Number(p.id)))
-        : allProfiles;
-    const schedules = selectedProfiles.map((p) => {
-        const limits = toLimitSettings(
-            Object.fromEntries(
-                Object.keys(DEFAULT_LIMIT_SETTINGS).map((k) => [
-                    k,
-                    p[k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)],
-                ]),
-            ),
-        );
-        return { senderId: Number(p.id), days: capSchedule(limits, kstParts(input.now).date, 42) };
-    });
-    const days = Array.from({ length: 42 }, (_, i) => ({
-        date: schedules[0]?.days[i].date ?? "",
-        capacity: schedules.some((s) => s.days[i].cap === null)
-            ? null
-            : schedules.reduce((sum, s) => sum + (s.days[i].cap ?? 0), 0),
-    }));
+    // 실제 발송과 같은 주소 선택(묶음 → 기본 → 설정 발신자). 주소가 없으면 제한 없음(null)이다 (UX-159)
+    const days = previewCapacitySchedule(allProfiles, configuredIds, kstParts(input.now).date);
     const requiredTotal = experiment.config.plannedPerArm * 2;
     let cumulative = 0,
         requiredDays: number | null = null;

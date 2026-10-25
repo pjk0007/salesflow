@@ -15,6 +15,7 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import FilterBuilder from "./FilterBuilder";
+import { isFieldVisible } from "@/lib/visible-fields";
 import type { FieldDefinition, FilterCondition } from "@/types";
 
 interface RecordToolbarProps {
@@ -43,6 +44,8 @@ interface RecordToolbarProps {
     visibleFieldKeys: string[] | null;
     allFields: FieldDefinition[];
     onToggleColumn?: (fieldKey: string, visible: boolean) => void;
+    /** 일반 멤버면 열 설정 권한 안내를 함께 보여준다 */
+    isMember?: boolean;
 }
 
 export default function RecordToolbar({
@@ -69,6 +72,7 @@ export default function RecordToolbar({
     visibleFieldKeys,
     allFields,
     onToggleColumn,
+    isMember,
 }: RecordToolbarProps) {
     const [searchInput, setSearchInput] = useState("");
 
@@ -130,6 +134,7 @@ export default function RecordToolbar({
                     allFields={allFields}
                     visibleFieldKeys={visibleFieldKeys}
                     onToggleColumn={onToggleColumn}
+                    isMember={isMember}
                 />
             )}
 
@@ -257,10 +262,12 @@ function TableSettingsPopover({
     allFields,
     visibleFieldKeys,
     onToggleColumn,
+    isMember,
 }: {
     allFields: FieldDefinition[];
     visibleFieldKeys: string[] | null;
     onToggleColumn: (fieldKey: string, visible: boolean) => void;
+    isMember?: boolean;
 }) {
     const [view, setView] = useState<"menu" | "columns">("menu");
 
@@ -295,9 +302,14 @@ function TableSettingsPopover({
                             </button>
                             <p className="text-sm font-medium">속성 표시 여부</p>
                         </div>
+                        {/* 열 설정은 파티션 공용이다(UX-079) */}
+                        <p className="px-3 pt-2 text-xs text-muted-foreground">
+                            이 파티션을 보는 모든 사람의 화면에 함께 적용됩니다.
+                            {isMember && " 관리자나 파티션 수정 권한이 있는 사람만 바꿀 수 있습니다."}
+                        </p>
                         <div className="max-h-64 overflow-y-auto py-1">
                             {allFields.map((f) => {
-                                const isVisible = !visibleFieldKeys?.length || visibleFieldKeys.includes(f.key);
+                                const isVisible = isFieldVisible(visibleFieldKeys, f.key);
                                 return (
                                     <button
                                         key={f.key}

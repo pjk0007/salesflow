@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { unlinkedFields, webFormEditorSnapshot, type WebFormEditorValues } from "@/components/web-forms/utils/editor-snapshot";
 
 export default function EditWebFormPage() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
@@ -52,6 +53,8 @@ export default function EditWebFormPage() {
     const [defaultValues, setDefaultValues] = useState<{ field: string; value: string }[]>([]);
     const [formFields, setFormFields] = useState<FormFieldItem[]>([]);
     const [slug, setSlug] = useState("");
+    // 마지막으로 불러오거나 저장한 내용 — 현재 값과 다르면 미저장 변경이 있다 (UX-048)
+    const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
 
     // 임베드 다이얼로그
     const [embedOpen, setEmbedOpen] = useState(false);
@@ -73,21 +76,18 @@ export default function EditWebFormPage() {
                 const json = await res.json();
                 if (json.success) {
                     const form = json.data;
-                    setWsId(form.workspaceId);
-                    setPartitionId(form.partitionId);
-                    setFormName(form.name);
-                    setFormTitle(form.title);
-                    setFormDescription(form.description || "");
-                    setCompletionTitle(form.completionTitle || "제출이 완료되었습니다");
-                    setCompletionMessage(form.completionMessage || "");
-                    setCompletionButtonText(form.completionButtonText || "");
-                    setCompletionButtonUrl(form.completionButtonUrl || "");
-                    setCoverImageUrl(form.coverImageUrl || "");
-                    setCoverColor(form.coverColor || "");
-                    setDefaultValues(form.defaultValues || []);
-                    setSlug(form.slug);
-                    setFormFields(
-                        (form.fields || []).map((f: any) => ({
+                    const loaded: WebFormEditorValues = {
+                        name: form.name,
+                        title: form.title,
+                        description: form.description || "",
+                        completionTitle: form.completionTitle || "제출이 완료되었습니다",
+                        completionMessage: form.completionMessage || "",
+                        completionButtonText: form.completionButtonText || "",
+                        completionButtonUrl: form.completionButtonUrl || "",
+                        coverImageUrl: form.coverImageUrl || "",
+                        coverColor: form.coverColor || "",
+                        defaultValues: form.defaultValues || [],
+                        fields: (form.fields || []).map((f: any) => ({
                             tempId: crypto.randomUUID(),
                             id: f.id,
                             label: f.label,
@@ -97,8 +97,23 @@ export default function EditWebFormPage() {
                             linkedFieldKey: f.linkedFieldKey || "",
                             isRequired: !!f.isRequired,
                             options: f.options || [],
-                        }))
-                    );
+                        })),
+                    };
+                    setWsId(form.workspaceId);
+                    setPartitionId(form.partitionId);
+                    setFormName(loaded.name);
+                    setFormTitle(loaded.title);
+                    setFormDescription(loaded.description);
+                    setCompletionTitle(loaded.completionTitle);
+                    setCompletionMessage(loaded.completionMessage);
+                    setCompletionButtonText(loaded.completionButtonText);
+                    setCompletionButtonUrl(loaded.completionButtonUrl);
+                    setCoverImageUrl(loaded.coverImageUrl);
+                    setCoverColor(loaded.coverColor);
+                    setDefaultValues(loaded.defaultValues);
+                    setSlug(form.slug);
+                    setFormFields(loaded.fields);
+                    setSavedSnapshot(webFormEditorSnapshot(loaded));
                 } else {
                     toast.error("폼을 찾을 수 없습니다.");
                     router.push("/web-forms");
@@ -111,42 +126,64 @@ export default function EditWebFormPage() {
         })();
     }, [formId]);
 
-    const handleSave = useCallback(async () => {
+    const editorValues: WebFormEditorValues = {
+        name: formName, title: formTitle, description: formDescription,
+        completionTitle, completionMessage, completionButtonText, completionButtonUrl,
+        coverImageUrl, coverColor, defaultValues, fields: formFields,
+    };
+    const currentSnapshot = webFormEditorSnapshot(editorValues);
+    const dirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+
+    // 저장하지 않은 채 새로고침·탭 닫기를 하면 브라우저 확인을 띄운다 (UX-048)
+    useEffect(() => {
+        if (!dirty) return;
+        const warn = (e: BeforeUnloadEvent) => {
+            e.preventDefault();
+            e.returnValue = "";
+        };
+        window.addEventListener("beforeunload", warn);
+        return () => window.removeEventListener("beforeunload", warn);
+    }, [dirty]);
+
+    /** 저장 — 실패하면 한국어 안내를 던지고 입력 내용은 그대로 둔다 */
+    const persist = useCallback(async () => {
         if (!formId || savingRef.current) return;
         savingRef.current = true;
         setSaving(true);
+        const sentSnapshot = currentSnapshot;
         try {
-        const result = await updateForm(formId, {
-            name: formName,
-            title: formTitle,
-            description: formDescription,
-            completionTitle,
-            completionMessage,
-            completionButtonText,
-            completionButtonUrl,
-            coverImageUrl,
-            coverColor,
-            defaultValues,
-            fields: formFields.map((f) => ({
-                id: f.id,
-                label: f.label,
-                description: f.description,
-                placeholder: f.placeholder,
-                fieldType: f.fieldType,
-                linkedFieldKey: f.linkedFieldKey,
-                isRequired: f.isRequired,
-                options: f.options,
-            })),
-        });
-        if (result.success) {
+            let result;
+            try {
+                result = await updateForm(formId, {
+                    name: formName,
+                    title: formTitle,
+                    description: formDescription,
+                    completionTitle,
+                    completionMessage,
+                    completionButtonText,
+                    completionButtonUrl,
+                    coverImageUrl,
+                    coverColor,
+                    defaultValues,
+                    fields: formFields.map((f) => ({
+                        id: f.id,
+                        label: f.label,
+                        description: f.description,
+                        placeholder: f.placeholder,
+                        fieldType: f.fieldType,
+                        linkedFieldKey: f.linkedFieldKey,
+                        isRequired: f.isRequired,
+                        options: f.options,
+                    })),
+                });
+            } catch {
+                throw new Error("폼 저장에 실패했습니다. 입력 내용은 유지됩니다. 다시 시도해주세요.");
+            }
+            if (!result.success) throw new Error(result.error || "저장에 실패했습니다.");
             const ids = new Map(formFields.map((f, i) => [f.tempId, result.data.fields[i]?.id as number | undefined]));
             setFormFields((current) => current.map((f) => ({ ...f, id: ids.get(f.tempId) ?? f.id })));
+            setSavedSnapshot(sentSnapshot);
             toast.success("폼이 저장되었습니다.");
-        } else {
-            toast.error(result.error || "저장에 실패했습니다.");
-        }
-        } catch {
-            toast.error("폼 저장에 실패했습니다. 입력 내용은 유지됩니다. 다시 시도해주세요.");
         } finally {
             savingRef.current = false;
             setSaving(false);
@@ -154,8 +191,41 @@ export default function EditWebFormPage() {
     }, [
         formId, formName, formTitle, formDescription,
         completionTitle, completionMessage, completionButtonText, completionButtonUrl,
-        coverImageUrl, coverColor, defaultValues, formFields, updateForm,
+        coverImageUrl, coverColor, defaultValues, formFields, updateForm, currentSnapshot,
     ]);
+
+    const handleSave = useCallback(async () => {
+        // 연결 속성이 없는 질문의 답은 레코드에 저장되지 않으므로 저장 전에 알린다 (UX-045)
+        const unlinked = unlinkedFields(formFields);
+        if (unlinked.length > 0) {
+            const names = unlinked.map((f) => `"${f.label || "이름 없는 질문"}"`).join(", ");
+            confirm({
+                title: "연결 속성이 없는 질문",
+                description: `${names} 질문은 연결 속성이 없어 방문자가 입력한 답이 레코드에 저장되지 않습니다.\n그래도 저장할까요?`,
+                confirmLabel: "그대로 저장",
+                onConfirm: persist,
+            });
+            return;
+        }
+        try {
+            await persist();
+        } catch (cause) {
+            toast.error(cause instanceof Error ? cause.message : "저장에 실패했습니다.");
+        }
+    }, [formFields, confirm, persist]);
+
+    const leaveToList = useCallback(() => {
+        if (!dirty) {
+            router.push("/web-forms");
+            return;
+        }
+        confirm({
+            title: "저장하지 않은 변경",
+            description: "저장하지 않은 변경 내용(AI로 바꾼 질문 포함)이 사라집니다. 목록으로 나갈까요?",
+            confirmLabel: "나가기",
+            onConfirm: async () => { router.push("/web-forms"); },
+        });
+    }, [dirty, confirm, router]);
 
     const handleAiGenerate = useCallback(async () => {
         if (!aiPrompt.trim()) return;
@@ -230,20 +300,22 @@ export default function EditWebFormPage() {
             {confirmationDialog}
             <div className="flex flex-col h-[calc(100vh-64px)]">
                 {/* 헤더 */}
-                <div className="border-b px-6 py-3 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-3">
+                {/* 좁은 화면에서는 제목과 작업 버튼을 두 줄로 나누고 버튼은 줄바꿈한다 (UX-294) */}
+                <div className="border-b px-4 sm:px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between shrink-0">
+                    <div className="flex min-w-0 items-center gap-3">
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => router.push("/web-forms")}
+                            onClick={leaveToList}
                         >
                             <ArrowLeft className="h-4 w-4 mr-1" /> 목록
                         </Button>
-                        <span className="text-lg font-semibold">
+                        <span className="min-w-0 truncate text-lg font-semibold" title={formName || "새 폼"}>
                             {formName || "새 폼"}
                         </span>
+                        {dirty && <span className="shrink-0 text-xs text-muted-foreground">저장 안 됨</span>}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                         <Popover open={aiOpen} onOpenChange={setAiOpen}>
                             <PopoverTrigger asChild>
                                 <Button variant="outline" size="sm">
@@ -297,8 +369,9 @@ export default function EditWebFormPage() {
                 </div>
 
                 {/* 본문 */}
-                <div className="flex flex-1 overflow-hidden">
-                    <div className="flex-1 overflow-y-auto p-6">
+                {/* 넓은 화면: 편집기·미리보기 나란히, 좁은 화면: 같은 인스턴스를 위아래로 쌓고 함께 스크롤 (UX-294) */}
+                <div className="flex flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden">
+                    <div className="min-w-0 flex-1 p-4 sm:p-6 lg:overflow-y-auto">
                         <FormBuilder
                             name={formName}
                             onNameChange={setFormName}
@@ -326,7 +399,7 @@ export default function EditWebFormPage() {
                             slug={slug}
                         />
                     </div>
-                    <div className="w-[400px] border-l p-6 overflow-y-auto">
+                    <div className="w-full border-t p-4 sm:p-6 lg:w-[400px] lg:shrink-0 lg:border-l lg:border-t-0 lg:overflow-y-auto">
                         <h3 className="text-sm font-medium mb-3">미리보기</h3>
                         <FormPreview
                             title={formTitle}

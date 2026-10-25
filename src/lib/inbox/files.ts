@@ -69,6 +69,29 @@ export function attachmentQuotaBytes() {
         1024
     );
 }
+/** 상담창별 첨부 저장 한도 합산(업로드 한도 검사와 설정 화면 사용량 표시가 같은 조건을 쓴다). */
+function channelUsageQuery(exec: DbExec, channelId: number, ownerKey = "") {
+    return exec
+        .select({
+            bytes: sql<number>`coalesce(sum(${files.size}),0)`.mapWith(Number),
+            drafts: sql<number>`count(*) FILTER (WHERE ${files.ownerKey} = ${ownerKey} AND ${files.messageId} IS NULL)`.mapWith(
+                Number,
+            ),
+        })
+        .from(files)
+        .where(
+            and(
+                eq(files.channelId, channelId),
+                isNull(files.cancelledAt),
+                isNull(files.storageObjectKey),
+            ),
+        );
+}
+/** 사이트 상담창 설정에 보여줄 첨부 사용량. 호출부가 채널 관리 권한을 먼저 확인한다. */
+export async function channelAttachmentUsage(channelId: number, exec: DbExec = db) {
+    const [usage] = await channelUsageQuery(exec, channelId);
+    return { usedBytes: usage?.bytes ?? 0, quotaBytes: attachmentQuotaBytes() };
+}
 export async function uploadAttachment(
     scope: FileScope,
     raw: { clientId: string; kind: string; fileName: string; bytes: Buffer },
@@ -185,27 +208,14 @@ export async function uploadAttachment(
                     expired.map((f) => f.id),
                 ),
             );
-        const [usage] = await tx
-            .select({
-                bytes: sql<number>`coalesce(sum(${files.size}),0)`.mapWith(
-                    Number,
-                ),
-                drafts: sql<number>`count(*) FILTER (WHERE ${files.ownerKey} = ${scope.ownerKey} AND ${files.messageId} IS NULL)`.mapWith(
-                    Number,
-                ),
-            })
-            .from(files)
-            .where(
-                and(
-                    eq(files.channelId, scope.channelId),
-                    isNull(files.cancelledAt),
-                    isNull(files.storageObjectKey),
-                ),
-            );
+        const [usage] = await channelUsageQuery(tx, scope.channelId, scope.ownerKey);
         const quota = attachmentQuotaBytes();
         if (usage.bytes + raw.bytes.length > quota)
             throw new InboxError(
-                "이 사업의 상담 파일 저장 한도에 도달했습니다. 관리자에게 문의해주세요.",
+                // 고객에게는 운영 내부 사정 대신 지금 할 수 있는 일을, 직원에게는 확인 위치를 안내한다.
+                scope.publicOnly
+                    ? "지금은 파일을 보낼 수 없습니다. 파일 없이 메시지로 내용을 남겨주시면 상담원이 안내해드립니다."
+                    : "이 상담창의 파일 저장 한도에 도달했습니다. 사이트 상담창 설정에서 사용량을 확인하고 운영 관리자에게 한도 조정을 요청해주세요.",
                 413,
             );
         if (usage.drafts >= 20)

@@ -30,7 +30,8 @@ export async function GET(req: NextRequest) {
             success: true,
             data: {
                 id: config.id,
-                appKey: config.appKey,
+                // 멤버는 키를 바꿀 수 없으니 설정 여부만 보이면 된다 — 앱 키도 가린다 (UX-155)
+                appKey: user.role === "member" ? maskSecret(config.appKey) : config.appKey,
                 secretKey: maskSecret(config.secretKey),
                 fromName: config.fromName,
                 fromEmail: config.fromEmail,

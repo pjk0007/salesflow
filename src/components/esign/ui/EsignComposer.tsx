@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import type { EsignDocument, EsignField, EsignRecipientInput, StaffEsignDetail } from "@/lib/esign/types";
+import { unusableField, unusableFieldMessage } from "@/lib/esign/rules";
+import { fieldRasterSize } from "@/lib/esign/geometry";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, ArrowRight, Check, FileUp, Plus, Save, Send, Trash2 } from "lucide-react";
@@ -14,7 +16,7 @@ import { PdfViewer } from "./PdfViewer";
 const controlClass = "h-9 w-full rounded-md border bg-background px-3 text-sm focus-visible:outline-ring";
 const newRecipient = (): EsignRecipientInput => ({ name: "", email: "", phone: "", channels: ["email"] });
 
-export function EsignComposer({ workspaceId, templates, documentsLoading, status, initialRecipient, onClose, onSent, onDocumentSaved }: { workspaceId: number; templates: EsignDocument[]; documentsLoading?: boolean; status: EsignStatus; initialRecipient?: EsignRecipientInput; onClose: () => void; onSent: (detail: StaffEsignDetail) => void; onDocumentSaved: () => void }) {
+export function EsignComposer({ workspaceId, templates, documentsLoading, templateSearch = "", onTemplateSearch, templatesTotal = templates.length, hasMoreTemplates = false, loadingMoreTemplates = false, onMoreTemplates, status, initialRecipient, onClose, onSent, onDocumentSaved }: { workspaceId: number; templates: EsignDocument[]; documentsLoading?: boolean; templateSearch?: string; onTemplateSearch?: (value: string) => void; templatesTotal?: number; hasMoreTemplates?: boolean; loadingMoreTemplates?: boolean; onMoreTemplates?: () => void; status: EsignStatus; initialRecipient?: EsignRecipientInput; onClose: () => void; onSent: (detail: StaffEsignDetail) => void; onDocumentSaved: () => void }) {
     const [step, setStep] = useState(1);
     const [document, setDocument] = useState<EsignDocument | null>(null);
     const [fields, setFields] = useState<EsignField[]>([]);
@@ -49,6 +51,8 @@ export function EsignComposer({ workspaceId, templates, documentsLoading, status
         if (!title.trim()) return "문서 제목을 입력해 주세요.";
         if (!fields.length) return "서명자가 입력할 칸을 문서에 하나 이상 배치해 주세요.";
         for (let index = 0; index < recipients.length; index++) if (!fields.some(field => field.recipientIndex === index && field.required && (field.type === "signature" || field.type === "seal"))) return `${index + 1}번 서명자에게 필수 서명 또는 도장 칸을 하나 이상 배치해 주세요.`;
+        const thin = unusableField(document.pages, fields);
+        if (thin) { setSelectedId(thin.id); setPageIndex(thin.pageIndex); setRecipientIndex(thin.recipientIndex); if (step !== 1) setStep(1); return unusableFieldMessage(thin); }
         return "";
     }
     function recipientProblem() {
@@ -82,7 +86,8 @@ export function EsignComposer({ workspaceId, templates, documentsLoading, status
         setBusy(true); setError("");
         try { onSent(await esignApi.createEnvelope(workspaceId, { documentId: document.id, title: title.trim(), order, expiresAt: new Date(expiresAt).toISOString(), recipients: recipients.map(recipient => ({ ...recipient, name: recipient.name.trim(), email: recipient.email?.trim() || undefined, phone: recipient.phone?.replace(/[\s()-]/g, "") || undefined })) })); }
         catch (cause) {
-            if (cause instanceof EsignApiError && cause.status < 500 && cause.status !== 408) setError(cause.message);
+            // 발송 준비 확인(503 delivery_*)은 요청을 만들기 전에 거절된 것이라 결과 불명이 아니다.
+            if (cause instanceof EsignApiError && ((cause.status < 500 && cause.status !== 408) || cause.code === "delivery_unconfigured" || cause.code === "delivery_status_unavailable")) setError(cause.message);
             else { setOutcomeUnknown(true); setError("요청 생성 응답을 확인하지 못했습니다. 중복 발송을 피하기 위해 요청 목록에서 생성 여부를 먼저 확인해 주세요."); }
         }
         finally { setBusy(false); }
@@ -95,7 +100,7 @@ export function EsignComposer({ workspaceId, templates, documentsLoading, status
         {step === 1 && <div className="space-y-5">
             {!document ? <div className="grid gap-5 md:grid-cols-2">
                 <div className="flex min-h-60 flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-6 text-center"><FileUp className="size-8 text-primary" /><h3 className="font-semibold">PDF 직접 올리기</h3><p className="text-sm text-muted-foreground">최대 10MB · 30페이지</p><Button type="button" disabled={busy} onClick={() => inputRef.current?.click()}>{busy ? "문서 확인 중…" : "PDF 파일 선택"}</Button></div>
-                <div className="space-y-3 rounded-xl border p-5"><h3 className="font-semibold">저장된 템플릿 사용</h3><p className="text-sm text-muted-foreground">입력란 배치까지 불러옵니다. 원본 템플릿은 보존됩니다.</p>{documentsLoading ? <p className="py-7 text-sm text-muted-foreground">템플릿을 불러오고 있습니다.</p> : templates.length ? <ul className="max-h-64 space-y-2 overflow-auto">{templates.map(template => <li key={template.id}><Button type="button" variant="outline" className="h-auto w-full justify-between whitespace-normal py-3 text-left" disabled={busy} onClick={async () => { setBusy(true); setError(""); try { selectDocument(await esignApi.cloneDocument(workspaceId, template)); } catch (cause) { setError(cause instanceof Error ? cause.message : "템플릿을 불러오지 못했습니다."); } finally { setBusy(false); } }}><span>{template.title}</span><span className="ml-2 shrink-0 text-xs text-muted-foreground">{template.pages.length}쪽</span></Button></li>)}</ul> : <p className="py-7 text-sm text-muted-foreground">저장된 템플릿이 없습니다. PDF를 올린 뒤 템플릿으로 저장할 수 있습니다.</p>}</div>
+                <div className="space-y-3 rounded-xl border p-5"><h3 className="font-semibold">저장된 템플릿 사용</h3><p className="text-sm text-muted-foreground">입력란 배치까지 불러옵니다. 원본 템플릿은 보존됩니다.</p>{onTemplateSearch && <Input aria-label="템플릿 이름 검색" placeholder="템플릿 이름 검색" value={templateSearch} onChange={event => onTemplateSearch(event.target.value)} />}{documentsLoading ? <p className="py-7 text-sm text-muted-foreground">템플릿을 불러오고 있습니다.</p> : templates.length ? <ul className="max-h-64 space-y-2 overflow-auto">{templates.map(template => <li key={template.id}><Button type="button" variant="outline" className="h-auto w-full justify-between whitespace-normal py-3 text-left" disabled={busy} onClick={async () => { setBusy(true); setError(""); try { selectDocument(await esignApi.cloneDocument(workspaceId, template)); } catch (cause) { setError(cause instanceof Error ? cause.message : "템플릿을 불러오지 못했습니다."); } finally { setBusy(false); } }}><span>{template.title}</span><span className="ml-2 shrink-0 text-xs text-muted-foreground">{template.pages.length}쪽</span></Button></li>)}</ul> : <p className="py-7 text-sm text-muted-foreground">{templateSearch.trim() ? "검색한 이름의 템플릿이 없습니다." : "저장된 템플릿이 없습니다. PDF를 올린 뒤 템플릿으로 저장할 수 있습니다."}</p>}{templates.length > 0 && <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span>{templatesTotal.toLocaleString("ko-KR")}개 중 {templates.length.toLocaleString("ko-KR")}개</span>{hasMoreTemplates && onMoreTemplates && <Button type="button" size="sm" variant="ghost" disabled={loadingMoreTemplates} onClick={onMoreTemplates}>{loadingMoreTemplates ? "불러오는 중…" : "더 보기"}</Button>}</div>}</div>
             </div> : <>
                 <div className="flex flex-wrap items-end gap-3"><label className="min-w-56 flex-1 space-y-1.5 text-sm"><span className="font-medium">문서 제목</span><Input value={title} maxLength={120} onChange={event => setTitle(event.target.value)} /></label><Button type="button" variant="outline" disabled={busy} onClick={() => { setDocument(null); setFields([]); setNotice(""); }}>다른 문서 선택</Button><Button type="button" variant="outline" disabled={busy} onClick={() => void saveDocument(true)}><Save />템플릿으로 저장</Button></div>
                 <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_260px]">
@@ -114,7 +119,7 @@ export function EsignComposer({ workspaceId, templates, documentsLoading, status
                         {selectedField && <div className="space-y-3 border-t pt-4"><h4 className="text-sm font-semibold">선택한 {fieldLabels[selectedField.type]}</h4><label className="block space-y-1 text-xs"><span>입력란 이름</span><Input value={selectedField.label || ""} placeholder={fieldLabels[selectedField.type]} maxLength={40} onChange={event => replaceField({ ...selectedField, label: event.target.value })} /></label><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={selectedField.required} onChange={event => replaceField({ ...selectedField, required: event.target.checked })} />필수 입력</label><div className="grid grid-cols-2 gap-2">{([ ["x", "가로 위치"], ["y", "세로 위치"], ["width", "너비"], ["height", "높이"] ] as const).map(([key, label]) => <label key={key} className="space-y-1 text-xs"><span>{label} (%)</span><Input type="number" step="0.5" min={key === "width" || key === "height" ? 2 : 0} max={100} value={Math.round(selectedField[key] * 1000) / 10} onChange={event => {
                             const number = Number(event.target.value) / 100; if (!Number.isFinite(number)) return;
                             const next = { ...selectedField, [key]: clamp(number, key === "width" || key === "height" ? .02 : 0, 1) }; next.x = Math.min(next.x, 1 - next.width); next.y = Math.min(next.y, 1 - next.height); replaceField(next);
-                        }} /></label>)}</div><Button type="button" size="sm" variant="destructive" className="w-full" onClick={() => { setFields(items => items.filter(field => field.id !== selectedId)); setSelectedId(""); }}><Trash2 />입력란 삭제</Button></div>}
+                        }} /></label>)}</div>{document && !fieldRasterSize(document.pages[selectedField.pageIndex], selectedField).usable && <p role="alert" className="rounded bg-amber-50 p-2 text-xs text-amber-900">입력란이 너무 가늘거나 납작해 서명자가 입력할 수 없습니다. 너비·높이를 늘려 주세요.</p>}<Button type="button" size="sm" variant="destructive" className="w-full" onClick={() => { setFields(items => items.filter(field => field.id !== selectedId)); setSelectedId(""); }}><Trash2 />입력란 삭제</Button></div>}
                         <div className="space-y-2 border-t pt-4"><h4 className="text-sm font-medium">배치한 입력란 ({fields.length})</h4><ul className="max-h-48 space-y-1 overflow-auto">{fields.map(field => <li key={field.id}><button type="button" className={`w-full rounded p-2 text-left text-xs ${selectedId === field.id ? "bg-muted" : "hover:bg-muted/60"}`} onClick={() => { setSelectedId(field.id); setPageIndex(field.pageIndex); }}><span style={{ color: roleColors[field.recipientIndex] }}>{field.recipientIndex + 1}번</span> · {field.pageIndex + 1}쪽 · {field.label || fieldLabels[field.type]}{field.required && " *"}</button></li>)}</ul></div>
                     </aside>
                 </div>

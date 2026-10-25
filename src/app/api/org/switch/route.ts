@@ -5,17 +5,21 @@ import { getActiveUserFromNextRequest, setSessionCookie } from "@/lib/auth";
 import type { JWTPayload, OrgRole } from "@/types";
 
 export async function POST(req: NextRequest) {
-    const user = await getActiveUserFromNextRequest(req, { scope: "account" });
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
-    }
-
-    const { orgId } = await req.json();
-    if (!orgId || typeof orgId !== "string") {
-        return NextResponse.json({ success: false, error: "조직 ID가 필요합니다." }, { status: 400 });
-    }
-
     try {
+        const user = await getActiveUserFromNextRequest(req, { scope: "account" });
+        if (!user) {
+            return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+        }
+
+        const body = await req.json().catch(() => null);
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+            return NextResponse.json({ success: false, error: "요청 본문을 확인해주세요." }, { status: 400 });
+        }
+        const { orgId } = body;
+        if (!orgId || typeof orgId !== "string") {
+            return NextResponse.json({ success: false, error: "조직 ID가 필요합니다." }, { status: 400 });
+        }
+
         // 소속 확인
         const [membership] = await db
             .select({

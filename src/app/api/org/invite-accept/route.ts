@@ -5,11 +5,15 @@ import { getActiveUserFromNextRequest, setSessionCookie } from "@/lib/auth";
 import type { OrgRole } from "@/types";
 
 export async function POST(req: NextRequest) {
-    const user = await getActiveUserFromNextRequest(req, { scope: "account" });
-    if (!user) return NextResponse.json({ success: false, error: "로그인이 필요합니다." }, { status: 401 });
     const fail = (error: string, status: number) => ({ response: NextResponse.json({ success: false, error }, { status }) });
     try {
-        const { token } = await req.json();
+        const user = await getActiveUserFromNextRequest(req, { scope: "account" });
+        if (!user) return NextResponse.json({ success: false, error: "로그인이 필요합니다." }, { status: 401 });
+        const body = await req.json().catch(() => null);
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+            return NextResponse.json({ success: false, error: "요청 본문을 확인해주세요." }, { status: 400 });
+        }
+        const { token } = body;
         if (typeof token !== "string" || !token) return fail("초대 토큰이 필요합니다.", 400).response;
         const accepted = await db.transaction(async (tx) => {
             const [invitation] = await tx.select().from(organizationInvitations).where(and(

@@ -111,7 +111,8 @@ export async function DELETE(
         const result = await client.deleteTemplate(senderKey, templateCode);
 
         if (!result.header.isSuccessful) {
-            return NextResponse.json({ success: false, error: result.header.resultMessage });
+            // 공급자 원문은 영어일 수 있어 한국어 안내와 함께 돌려준다(화면이 원인을 보여 줄 수 있게)
+            return NextResponse.json({ success: false, error: `템플릿을 삭제하지 못했습니다: ${result.header.resultMessage}` }, { status: 400 });
         }
 
         return NextResponse.json({ success: true, message: "템플릿이 삭제되었습니다." });

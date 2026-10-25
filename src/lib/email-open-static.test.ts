@@ -36,7 +36,10 @@ test("B18: 모든 발송 insert는 openTracked를 명시", () => {
 test("B5: insert 뒤에만 픽셀을 입힌다", () => {
     for (const path of sendFiles) {
         const text = read(path);
-        const inserts = [...text.matchAll(/insert\(emailSendLogs\)|INSERT INTO email_send_logs/g)].map(match => match.index);
+        // 보내지 않은 건의 실패 이력(처음부터 status "failed"로 넣는 insert)은 발송이 아니라 픽셀 대상에서 뺀다 (UX-163)
+        const inserts = [...text.matchAll(/insert\(emailSendLogs\)|INSERT INTO email_send_logs/g)]
+            .filter(match => !/^[^;]*?status:\s*"failed"/.test(text.slice(match.index, match.index + 800).split(/\}\)\s*;/)[0]))
+            .map(match => match.index);
         const applies = [...text.matchAll(/\bapplyEmailTracking\(/g)].map(match => match.index);
         assert.equal(applies.length, inserts.length, path);
         for (let i = 0; i < applies.length; i++) assert.ok(applies[i] > inserts[i], path);

@@ -12,6 +12,19 @@ test("고객 원문 줄바꿈과 특수문자를 보존하고 멘션·HTML은 �
     assert.match(JSON.stringify(payload), /견적&lt;가상&gt;.pdf/);
     assert.ok(!JSON.stringify(payload).includes("<users/all>"));
 });
+test("UX-220 고객이 보낸 맨 URL·www 주소는 눌리지 않게 바꾸고 줄바꿈과 샌드비 상담 링크는 그대로 둔다", () => {
+    const body = "견적 보세요\nhttps://evil.example/login 또는 www.evil.example\nHTTP://Caps.example";
+    const [payload] = chatAlertMessages({ ...message, body, name: "https://name.example", attachments: ["www.file.example.pdf"] }, "https://sendb.kr");
+    const widgets = payload.cardsV2[0].card.sections[0].widgets;
+    assert.equal(widgets[0].textParagraph!.text, "견적 보세요<br>hxxps://evil.example/login 또는 www[.]evil.example<br>hxxp://Caps.example");
+    const json = JSON.stringify(payload);
+    assert.ok(!/https?:\/\/(evil|name|Caps)/i.test(json));
+    assert.ok(!json.includes("www.file"));
+    assert.match(payload.text, /hxxps:\/\/name\.example/);
+    assert.equal(payload.cardsV2[0].card.header.title, "hxxps://name.example");
+    // 시스템이 만든 상담 열기 링크는 그대로
+    assert.match(json, /"url":"https:\/\/sendb\.kr\/inbox\?/);
+});
 test("긴 원문은 잘리지 않고 Unicode 글자 단위로 나뉘며 카드 예산을 지킨다", () => {
     const body = "< & 한글🙂\n".repeat(3000), chunks = splitMessage(body);
     assert.equal(chunks.join(""), body); assert.ok(chunks.length > 2);

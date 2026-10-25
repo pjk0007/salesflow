@@ -1,4 +1,5 @@
 "use client";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useState } from "react";
 import { useOperationsReport } from "../hooks/useOperations";
 import { dayString, durationText, operationTime } from "../utils/display";
@@ -319,22 +320,18 @@ export function OperationsPanel({
 }) {
     const [tab, setTab] = useState("report");
     return (
-        <div
-            className="fixed inset-0 z-50 flex justify-end bg-black/30"
-            onClick={onClose}
-        >
-            <section
-                role="dialog"
-                aria-modal="true"
-                aria-label="상담 운영과 성과"
-                className="h-full w-full max-w-5xl space-y-6 overflow-y-auto bg-background p-6"
-                onClick={(e) => e.stopPropagation()}
+        <Sheet open onOpenChange={(next) => !next && onClose()}>
+            <SheetContent
+                side="right"
+                showCloseButton={false}
+                aria-describedby={undefined}
+                className="block h-full w-full space-y-6 overflow-y-auto bg-background p-6 sm:max-w-5xl"
             >
                 <header className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-semibold">
+                        <SheetTitle className="text-lg font-semibold">
                             상담 운영과 성과
-                        </h2>
+                        </SheetTitle>
                         <p className="text-sm text-muted-foreground">{name}</p>
                     </div>
                     <button aria-label="상담 운영 닫기" onClick={onClose}>
@@ -369,7 +366,7 @@ export function OperationsPanel({
                         canManage={canManage}
                     />
                 )}
-            </section>
-        </div>
+            </SheetContent>
+        </Sheet>
     );
 }

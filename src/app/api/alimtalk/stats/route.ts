@@ -37,12 +37,14 @@ export async function GET(req: NextRequest) {
         let sent = 0;
         let failed = 0;
         let pending = 0;
+        let unknown = 0;
 
         for (const row of statusCounts) {
             total += row.count;
             if (row.status === "sent") sent = row.count;
             else if (row.status === "failed") failed = row.count;
             else if (row.status === "pending") pending = row.count;
+            else if (row.status === "unknown") unknown = row.count;
         }
 
         // 최근 10건
@@ -55,7 +57,7 @@ export async function GET(req: NextRequest) {
 
         return NextResponse.json({
             success: true,
-            data: { total, sent, failed, pending, recentLogs },
+            data: { total, sent, failed, pending, unknown, recentLogs },
         });
     } catch (error) {
         console.error("Alimtalk stats error:", error);

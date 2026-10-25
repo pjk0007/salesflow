@@ -47,11 +47,18 @@ export function ActivityTimeline({
             {pages.error && (
                 <p role="alert" className="text-sm text-red-600">
                     {pages.error.message}
+                    <button
+                        type="button"
+                        className="ml-3 underline"
+                        onClick={() => void pages.mutate()}
+                    >
+                        다시 불러오기
+                    </button>
                 </p>
             )}
             {pages.isLoading ? (
                 <p className="text-sm text-muted-foreground">불러오는 중…</p>
-            ) : !rows.length ? (
+            ) : pages.error && !rows.length ? null : !rows.length ? (
                 <p className="text-sm text-muted-foreground">
                     아직 기록이 없습니다.
                 </p>
@@ -123,6 +130,10 @@ export function ActivityTimeline({
                                                           "메일 발송 실패",
                                                       "email.uncertain":
                                                           "메일 발송 확인 필요",
+                                                      "import.contact":
+                                                          "기존 자료 이전으로 연결",
+                                                      "import.corrected":
+                                                          "이전 기록 정정",
                                                   } as Record<string, string>
                                               )[row.name] ?? row.name)}{" "}
                                         <span className="text-xs text-muted-foreground">
@@ -133,6 +144,7 @@ export function ActivityTimeline({
                                                     deal: "딜",
                                                     task: "업무",
                                                     conversation: "상담",
+                                                    import: "자료 이전",
                                                 } as Record<string, string>
                                             )[row.source] ?? row.source}
                                         </span>

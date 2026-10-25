@@ -33,6 +33,7 @@ export function VisitorSessionTimeline({
     events,
     sessionEventTotals,
     aliases,
+    ownDomains = [],
 }: {
     visitorPk: number;
     sessions: TrackerSession[];
@@ -40,6 +41,8 @@ export function VisitorSessionTimeline({
     /** 세션 id → 세션 전체 이벤트 수. events보다 많으면 이전 행동을 이어 받는다 */
     sessionEventTotals: Record<number, number>;
     aliases: Record<string, string>;
+    /** 사이트 허용 도메인 — 자기 사이트에서 온 방문을 직접으로 본다 */
+    ownDomains?: readonly string[];
 }) {
     // 최신 세션은 기본으로 펼침
     const [open, setOpen] = useState<Set<number>>(
@@ -82,6 +85,7 @@ export function VisitorSessionTimeline({
                                 events={eventsBySession.get(s.id) ?? []}
                                 total={sessionEventTotals[s.id]}
                                 aliases={aliases}
+                                ownDomains={ownDomains}
                                 isOpen={open.has(s.id)}
                                 onToggle={() => toggle(s.id)}
                             />
@@ -101,6 +105,7 @@ function SessionItem({
     aliases,
     isOpen,
     onToggle,
+    ownDomains,
 }: {
     visitorPk: number;
     session: TrackerSession;
@@ -109,8 +114,9 @@ function SessionItem({
     aliases: Record<string, string>;
     isOpen: boolean;
     onToggle: () => void;
+    ownDomains: readonly string[];
 }) {
-    const inflow = parseInflowDetail(s.referrer, s.landingPage);
+    const inflow = parseInflowDetail(s.referrer, s.landingPage, ownDomains);
     // 상세 API는 세션마다 최신 행동만 보낸다 — 앞선 행동은 이 세션에서 이어 받아 앞에 붙인다
     const [older, setOlder] = useState<TrackerEvent[]>([]);
     const [olderHasMore, setOlderHasMore] = useState<boolean | null>(null);

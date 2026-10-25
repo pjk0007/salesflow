@@ -8,27 +8,47 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { MessageSquare, Mail, TrendingUp, BarChart3 } from "lucide-react";
+import { MessageSquare, Mail, TrendingUp, BarChart3, Loader2 } from "lucide-react";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import type { Period } from "@/hooks/useAnalytics";
 import TrendChart from "./TrendChart";
 import TemplateRanking from "./TemplateRanking";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { freshnessText } from "@/components/email/dashboard/utils/freshness";
+import { useEmailStatsRefresh } from "@/components/email/dashboard/hooks/useEmailStatsRefresh";
 
 export default function AnalyticsSection() {
     const [period, setPeriod] = useState<Period>("30d");
     const [channel, setChannel] = useState("all");
     const { trends, summary, templates, isLoading, loadError, mutate } = useAnalytics(period, channel);
+    // 이메일 합계·추이·규칙별 성과는 15분 집계표 — 위 '오늘' 카드(실시간)와 어긋날 수 있어 기준 시각을 함께 보인다
+    const refresh = useEmailStatsRefresh(() => mutate());
+    const emailFreshness = freshnessText(summary.emailAsOf ?? null, new Date());
 
     if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
 
     return (
         <div className="space-y-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    발송 분석
-                </h2>
+                <div className="space-y-1">
+                    <h2 className="text-lg font-semibold flex items-center gap-2">
+                        <BarChart3 className="h-5 w-5" />
+                        발송 분석
+                    </h2>
+                    {!isLoading && (
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" aria-live="polite">
+                            <span className={emailFreshness.isStale ? "text-amber-600 dark:text-amber-400" : undefined}>
+                                이메일 수치 {emailFreshness.text} · 15분마다 집계 (알림톡은 실시간)
+                            </span>
+                            {refresh.canRefresh && (
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs" disabled={refresh.isRefreshing} onClick={refresh.handleRefresh}>
+                                    {refresh.isRefreshing && <Loader2 className="size-3 animate-spin" />}지금 갱신
+                                </Button>
+                            )}
+                            {refresh.message && <span>{refresh.message}</span>}
+                        </div>
+                    )}
+                </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div className="flex gap-1">
                         {(["7d", "30d", "90d"] as const).map((p) => (

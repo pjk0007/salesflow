@@ -175,7 +175,9 @@ export async function queueEmailReply(
     );
     if (!decision.allowed)
         throw new InboxError(
-            decision.rejection.header.resultMessage,
+            decision.blockedRecipients?.length
+                ? `수신거부 목록에 등록된 주소가 있어 메일을 보내지 않았습니다. 받는 사람·참조에서 빼주세요: ${decision.blockedRecipients.join(", ")}`
+                : decision.rejection.header.resultMessage,
             decision.rejection.header.resultCode === EMAIL_SEND_BLOCKED
                 ? 409
                 : 503,

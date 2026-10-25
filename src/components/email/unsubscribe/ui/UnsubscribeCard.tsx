@@ -44,6 +44,7 @@ export function UnsubscribeCard() {
         setReasonDetail,
         reasonStatus,
         confirm,
+        retry,
         sendReason,
     } = useUnsubscribe(token);
 
@@ -72,6 +73,35 @@ export function UnsubscribeCard() {
                             <p className="mt-2.5 text-[14px] leading-relaxed text-[#78736d]">
                                 {status.message}
                             </p>
+                        </div>
+                    )}
+
+                    {/* 일시 오류 — 막다른 화면이 아니라 같은 요청을 다시 한다 (UX-152) */}
+                    {status.kind === "error" && (
+                        <div className="text-center">
+                            <h1 className="text-[19px] font-semibold text-[#1c1b1a] tracking-[-0.01em]">
+                                잠시 문제가 생겼습니다
+                            </h1>
+                            {status.email && (
+                                <p className="mt-5 text-[15px] font-medium text-[#1c1b1a] break-all">{status.email}</p>
+                            )}
+                            <p role="alert" className="mt-2.5 text-[14px] leading-relaxed text-[#78736d]">
+                                {status.message}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={retry}
+                                disabled={isSubmitting}
+                                className="mt-8 w-full h-11 rounded-xl bg-[#1c1b1a] text-white text-[14px] font-medium
+                                           inline-flex items-center justify-center gap-2
+                                           transition-colors duration-150
+                                           hover:bg-[#333130] active:bg-[#0f0e0e]
+                                           disabled:opacity-50 disabled:cursor-not-allowed
+                                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1c1b1a] focus-visible:ring-offset-2"
+                            >
+                                {isSubmitting && <Spinner className="w-4 h-4" />}
+                                다시 시도
+                            </button>
                         </div>
                     )}
 

@@ -1,5 +1,15 @@
 import { requireCustomerAccess } from "@/lib/customer-access/access";
-import { and, desc, eq, lt, or, inArray } from "drizzle-orm";
+import {
+    and,
+    desc,
+    eq,
+    getTableColumns,
+    lt,
+    notLike,
+    or,
+    inArray,
+    sql,
+} from "drizzle-orm";
 import { z } from "zod";
 import {
     db,
@@ -12,11 +22,14 @@ import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
 import { InboxError } from "@/lib/inbox/errors";
+import { inputErrorMessage } from "@/lib/inbox/rules";
+import { isForeignKeyViolation, isUniqueViolation } from "@/lib/db/errors";
 import {
     createImportInput,
     fingerprint,
     kinds,
     sourceUuid,
+    type ImportInput,
     type ImportPlanRow,
 } from "./rules";
 import { normalizeImport } from "./adapters";
@@ -32,7 +45,7 @@ import {
     refreshImportedConversations,
     type ImportMessageBatch,
 } from "./writer";
-import { applyImportBatch } from "./batch-writer";
+import { applyImportBatch, ImportRowError } from "./batch-writer";
 type Job = typeof jobs.$inferSelect;
 const scopeOf = (
     actor: SalesActor,
@@ -43,9 +56,18 @@ export async function importOwned(
     id: string,
     exec: DbExec = db,
     lock = false,
+    // 실행 묶음은 원본 본문(최대 500만자)이 필요 없다. DB에서 빼고 읽는다(UX-106).
+    withoutContent = false,
 ) {
     const query = exec
-        .select()
+        .select(
+            withoutContent
+                ? {
+                      ...getTableColumns(jobs),
+                      input: sql<ImportInput>`${jobs.input} - 'content'`,
+                  }
+                : getTableColumns(jobs),
+        )
         .from(jobs)
         .where(and(eq(jobs.id, id), eq(jobs.orgId, actor.orgId)));
     const [job] = lock ? await query.for("update") : await query;
@@ -89,6 +111,7 @@ export async function importPage(
             cursor: jobs.cursor,
             version: jobs.version,
             createdAt: jobs.createdAt,
+            updatedAt: jobs.updatedAt,
             reason: jobs.reason,
         })
         .from(jobs)
@@ -110,14 +133,17 @@ export async function importPage(
         .limit(50);
     return { rows, hasMore: rows.length === 50 };
 }
+/** 상세 화면 선택 사항: 오류·확인 사항이 있는 행만 보기(UX-091), 첨부 파일 이력 포함(UX-094). */
+export type ImportDetailView = { issues?: boolean; fileAudit?: boolean };
 export async function importDetail(
     actor: SalesActor,
     id: string,
     exec: DbExec = db,
     before?: number,
+    view: ImportDetailView = {},
 ) {
     const job = await importOwned(actor, id, exec);
-    return importDetailFromOwned(actor, job, exec, before);
+    return importDetailFromOwned(actor, job, exec, before, view);
 }
 /** Reuse the locked plan; keep the final current-role check and fresh result/audit reads. */
 async function importDetailFromOwned(
@@ -125,12 +151,16 @@ async function importDetailFromOwned(
     job: Job,
     exec: DbExec,
     before?: number,
+    view: ImportDetailView = {},
 ) {
     if (job.orgId !== actor.orgId)
         throw new InboxError("이전 작업을 찾을 수 없습니다.", 404);
     await requireCustomerAccess(actor, job.workspaceId, "manage", exec);
     const id = job.id;
-    const page = job.plan.slice(before ?? 0, (before ?? 0) + 100);
+    const rows = view.issues
+            ? job.plan.filter((r) => r.errors.length || r.warnings.length)
+            : job.plan,
+        page = rows.slice(before ?? 0, (before ?? 0) + 100);
     const saved = await exec
         .select()
         .from(results)
@@ -147,7 +177,13 @@ async function importDetailFromOwned(
     const history = await exec
         .select()
         .from(audit)
-        .where(eq(audit.jobId, id))
+        .where(
+            and(
+                eq(audit.jobId, id),
+                // 첨부 파일 기록이 수천 건이면 시작·중단 이력이 밀려 사라진다(UX-094).
+                view.fileAudit ? undefined : notLike(audit.action, "file.%"),
+            ),
+        )
         .orderBy(desc(audit.createdAt))
         .limit(100);
     const counts = Object.fromEntries(
@@ -160,7 +196,10 @@ async function importDetailFromOwned(
         counts,
         rows: page,
         results: saved,
-        hasMore: (before ?? 0) + 100 < plan.length,
+        hasMore: (before ?? 0) + 100 < rows.length,
+        issueRows: view.issues
+            ? rows.length
+            : plan.filter((r) => r.errors.length || r.warnings.length).length,
         audit: history,
         input: { ...input, content: undefined },
     };
@@ -501,7 +540,7 @@ export async function stepImport(
     try {
         return await exec.transaction(async (tx) => {
             await lockWorkflowWorkspace(actor.orgId, workspaceId, tx);
-            const job = await importOwned(actor, id, tx, true);
+            const job = await importOwned(actor, id, tx, true, true);
             if (job.state !== "running" || job.cursor !== input.cursor)
                 return importDetailFromOwned(actor, job, tx);
             const scope = scopeOf(actor, job.input);
@@ -539,15 +578,12 @@ export async function stepImport(
     } catch (error) {
         return exec.transaction(async (tx) => {
             await lockWorkflowWorkspace(actor.orgId, workspaceId, tx);
-            let current = await importOwned(actor, id, tx, true);
+            let current = await importOwned(actor, id, tx, true, true);
             if (
                 current.state === "running" &&
                 current.cursor === input.cursor
             ) {
-                const reason =
-                    error instanceof InboxError
-                        ? error.message
-                        : "자료 저장에 실패했습니다. 이번 묶음은 적용하지 않았습니다. 원인을 확인한 뒤 재개해주세요.";
+                const { reason, row } = importFailure(error);
                 const updatedAt = new Date();
                 await tx
                     .update(jobs)
@@ -562,7 +598,15 @@ export async function stepImport(
                     jobId: id,
                     actorName: actor.name,
                     action: "failed",
-                    detail: { cursor: current.cursor, reason },
+                    detail: {
+                        cursor: current.cursor,
+                        reason,
+                        ...(row && {
+                            position: row.index,
+                            kind: row.kind,
+                            sourceId: row.sourceId,
+                        }),
+                    },
                 });
                 current = {
                     ...current, state: "failed", reason, version: current.version + 1, updatedAt,
@@ -571,5 +615,26 @@ export async function stepImport(
             return importDetailFromOwned(actor, current, tx);
         });
     }
+}
+/** 실패 사유: 어느 행(번호·종류·원본 ID)에서 무엇 때문에 멈췄는지 한국어로 남긴다(UX-090). */
+export function importFailure(error: unknown) {
+    const row = error instanceof ImportRowError ? error.row : null,
+        cause = error instanceof ImportRowError ? error.cause : error,
+        message =
+            cause instanceof InboxError
+                ? cause.message
+                : cause instanceof z.ZodError
+                  ? inputErrorMessage(cause)
+                  : isUniqueViolation(cause)
+                    ? "같은 대상이 이미 저장돼 있습니다. 원본 연결을 확인한 뒤 미리보기를 다시 만들어주세요."
+                    : isForeignKeyViolation(cause)
+                      ? "연결할 관계 자료가 없습니다. 관계 자료를 먼저 가져왔는지 확인해주세요."
+                      : "자료 저장에 실패했습니다. 이번 묶음은 적용하지 않았습니다. 원인을 확인한 뒤 재개해주세요.";
+    return {
+        row,
+        reason: row
+            ? `자료 ${row.index + 1}행(${row.kind}/${row.sourceId})에서 멈췄습니다. ${message}`
+            : message,
+    };
 }
 export type ImportJob = Job;

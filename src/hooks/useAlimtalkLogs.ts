@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import type { AlimtalkSendLog } from "@/lib/db";
-import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
+import { apiRequest, blockingError, defaultFetcher, requestErrorMessage } from "@/lib/swr-fetcher";
 
 interface UseAlimtalkLogsParams {
     partitionId?: number | null;
@@ -41,15 +41,19 @@ export function useAlimtalkLogs(params: UseAlimtalkLogsParams = {}) {
         defaultFetcher
     );
 
-    const syncResults = async (logIds?: number[]) => {
-        const res = await fetch("/api/alimtalk/logs/sync", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ logIds }),
-        });
-        const result = await res.json();
-        if (result.success) mutate();
-        return result;
+    // 연결 끊김도 success:false로 돌려 '동기화 중' 상태가 풀리게 한다(UX-180). 동기화는 조회만 하므로 다시 눌러도 안전하다.
+    const syncResults = async (logIds?: number[]): Promise<{ success: boolean; data?: { synced: number; updated: number }; error?: string }> => {
+        try {
+            const result = await apiRequest<{ success: boolean; data: { synced: number; updated: number } }>("/api/alimtalk/logs/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ logIds }),
+            }, 60000);
+            mutate();
+            return result;
+        } catch (error) {
+            return { success: false, error: requestErrorMessage(error, "결과 동기화를 완료하지 못했습니다. 다시 시도해주세요.") };
+        }
     };
 
     return {

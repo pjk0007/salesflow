@@ -73,7 +73,7 @@ export async function createEsignPreviewRuntime(pdfBytes: Uint8Array) {
         seeds.set(key, task); try { await task; } catch (error) { seeds.delete(key); throw error; }
     }
     return { engine, seed, async outbox(actor: EsignActor) {
-        const ids = new Set((await service.listEnvelopes(actor)).map(item => item.envelope.id));
+        const ids = new Set((await service.listEnvelopes(actor, { limit: 100 })).items.map(item => item.envelope.id));
         return captured.filter(item => ids.has(item.message.envelopeId)).map(item => structuredClone(item.message)).slice(-100).reverse();
     },
         async codeForRecipient(token: string) {

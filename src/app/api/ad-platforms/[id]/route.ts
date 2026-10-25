@@ -4,22 +4,7 @@ import { adPlatforms, users } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db/errors";
-
-const UNMASK_KEYS = new Set(["type", "webhookVerifyToken"]);
-
-function maskCredentials(credentials: Record<string, unknown>): Record<string, unknown> {
-    const masked: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(credentials)) {
-        if (UNMASK_KEYS.has(key)) {
-            masked[key] = value;
-        } else if (typeof value === "string" && value.length > 8) {
-            masked[key] = value.substring(0, 4) + "****";
-        } else {
-            masked[key] = value;
-        }
-    }
-    return masked;
-}
+import { maskCredentials } from "@/lib/ad-platform-credentials";
 
 export async function GET(
     req: NextRequest,

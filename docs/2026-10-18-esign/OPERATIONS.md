@@ -49,7 +49,7 @@
 
 ### 실제 이메일·SMS를 켜려면
 
-- 이메일은 샌드비 **이메일 → 설정**(`/email?tab=settings`)의 조직 NHN Email 계정을 재사용한다. `ESIGN_EMAIL_SENDER`를 지정하면 해당 조직에 등록된 주소로 계약 메일만 보내고, 미지정 시 조직 기본 발신자를 사용한다. 지정한 주소가 해당 조직에 없으면 다른 주소로 대체하지 않는다. 사업별 발신자를 따로 선택하는 화면은 없다. 이미 사용하는 계정도 계약 요청·확인 코드·완료 알림의 실제 수신 검수는 따로 한다.
+- 이메일은 샌드비 **이메일 → 설정**(`/email?tab=settings`)의 조직 NHN Email 계정을 재사용한다. `ESIGN_EMAIL_SENDER`를 지정하면 그 주소를 등록한 조직은 그 주소로 계약 메일만 보내고, 미지정 시 또는 그 주소를 등록하지 않은 조직은 자기 조직 기본 발신자를 사용한다(다른 조직 주소로 대체하지 않는다, UX-265). 사업별 발신자를 따로 선택하는 화면은 없다. 이미 사용하는 계정도 계약 요청·확인 코드·완료 알림의 실제 수신 검수는 따로 한다.
 - SMS는 NHN Cloud의 **SMS 서비스**에서 명의자 인증과 발신번호 사전 등록을 마쳐 승인된 회사 번호를 준비한다. App Key·Secret Key·발신번호를 아래 `ESIGN_SMS_*` 설정에 등록한다. [NHN 공식 등록 절차](https://docs.nhncloud.com/ko/Notification/SMS/ko/console-guide/)를 따른다.
 - 두 채널 모두 계약용 DB·비공개 파일 저장소·전용 비밀 값과 worker가 필요하다. SMS 준비가 늦으면 이 공통 설정을 마친 뒤 이메일 단독으로 먼저 검수할 수 있다.
 - 실제 요청은 `/esign`에서 보낸다. `?preview=1` 체험은 위 설정을 넣더라도 계속 가상 발송함만 사용하며 실제 이메일·SMS로 전환되지 않는다.
@@ -82,7 +82,8 @@
 | `ESIGN_PUBLIC_ORIGIN` | 실제 서명 링크의 HTTPS origin. 운영 기본값 `https://sendb.kr` |
 | `ESIGN_SMS_APP_KEY`, `ESIGN_SMS_SECRET_KEY`, `ESIGN_SMS_SENDER` | NHN Cloud SMS 계정과 등록 발신번호. 기존 알림톡과 별도 |
 | `ESIGN_ALIMTALK=on` | 기존 조직 알림톡을 전자서명에 사용하는 전용 opt-in. 미지정 시 off |
-| `ESIGN_ALIMTALK_SENDER_KEY` | 기존 카카오 발신 채널 고정. 미지정 시 조직 기본 채널. 템플릿 3종 승인 필요 |
+| `ESIGN_ALIMTALK_SENDER_KEY` | 기존 카카오 발신 채널 고정. `ESIGN_ALIMTALK_SENDER_ORG_ID`로 지정한 소유 조직에만 적용하고 다른 조직은 자기 기본 채널을 쓴다(소유 조직 미지정 시 키가 기본 채널과 같은 조직에만 적용). 템플릿 3종 승인 필요 |
+| `ESIGN_ALIMTALK_SENDER_ORG_ID` | 선택 사항. 고정 발신 키를 쓸 조직 ID(UX-265) |
 | 기존 조직 이메일 설정 | 조직별 NHN Email 계정·발신 프로필을 재사용한다 |
 | `ESIGN_EMAIL_SENDER` | 선택 사항. 해당 조직에 등록된 전자서명 전용 발신 주소. 기존 전체 메일의 기본 발신자를 바꾸지 않는다 |
 | `ESIGN_WORKER=on` | 준비 완료 후 활성화. 재시작 때도 작은 전자서명 작업 배치를 이어 처리한다 |

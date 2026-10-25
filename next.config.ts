@@ -28,12 +28,9 @@ const nextConfig: NextConfig = {
                 ],
             },
             {
-                source: "/forms/:slug*",
+                // 공개 웹 폼(/f/[slug])은 고객 사이트에 iframe으로 넣는다 — 표준 CSP frame-ancestors로만 허용한다 (UX-053)
+                source: "/f/:slug*",
                 headers: [
-                    {
-                        key: "X-Frame-Options",
-                        value: "ALLOWALL",
-                    },
                     {
                         key: "Content-Security-Policy",
                         value: "frame-ancestors *",

@@ -10,6 +10,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import type { FieldDefinition } from "@/types";
+import type { ImportDuplicatePolicy } from "../utils/duplicate-policy";
 
 interface FieldMappingStepProps {
     csvHeaders: string[];
@@ -18,7 +19,8 @@ interface FieldMappingStepProps {
     mappableFields: FieldDefinition[];
     duplicateAction: "skip" | "error";
     onDuplicateActionChange: (action: "skip" | "error") => void;
-    duplicateCheckField?: string;
+    /** 파티션 중복 정책 안내(UX-070). 있으면 '거부'일 때만 건너뛰기/에러 표시 선택을 보여준다 */
+    duplicatePolicy?: ImportDuplicatePolicy;
     showDuplicateAction?: boolean;
 }
 
@@ -29,9 +31,10 @@ export default function FieldMappingStep({
     mappableFields,
     duplicateAction,
     onDuplicateActionChange,
-    duplicateCheckField,
+    duplicatePolicy,
     showDuplicateAction = true,
 }: FieldMappingStepProps) {
+    const askSkipOrError = duplicatePolicy ? duplicatePolicy.askSkipOrError : true;
     return (
         <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
@@ -71,21 +74,28 @@ export default function FieldMappingStep({
             </div>
             {showDuplicateAction && <div className="border-t pt-4 space-y-2">
                 <Label>중복 처리</Label>
-                <Select
-                    value={duplicateAction}
-                    onValueChange={(v) => onDuplicateActionChange(v as "skip" | "error")}
-                >
-                    <SelectTrigger className="w-[200px]">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="skip">건너뛰기</SelectItem>
-                        <SelectItem value="error">에러 표시</SelectItem>
-                    </SelectContent>
-                </Select>
-                {duplicateCheckField && (
+                {duplicatePolicy && (
+                    <p className="text-sm text-muted-foreground" role="note">
+                        {duplicatePolicy.notice}
+                    </p>
+                )}
+                {askSkipOrError && (
+                    <Select
+                        value={duplicateAction}
+                        onValueChange={(v) => onDuplicateActionChange(v as "skip" | "error")}
+                    >
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="skip">건너뛰기</SelectItem>
+                            <SelectItem value="error">에러 표시</SelectItem>
+                        </SelectContent>
+                    </Select>
+                )}
+                {duplicatePolicy?.fieldLabel && (
                     <p className="text-xs text-muted-foreground">
-                        중복 기준 필드: {duplicateCheckField}
+                        중복 기준 필드: {duplicatePolicy.fieldLabel}
                     </p>
                 )}
             </div>}

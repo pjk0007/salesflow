@@ -18,13 +18,20 @@ import type { Experiment } from "../types";
 import ExperimentForm from "./ExperimentForm";
 import ExperimentDetail, { experimentStateLabel } from "./ExperimentDetail";
 import AutomaticObservations from "@/components/ai-copy/ui/AutomaticObservations";
-export default function ExperimentManager({ initialRuleId }: { initialRuleId?: number }) {
+export default function ExperimentManager({
+    initialRuleId,
+    initialExperimentId,
+}: {
+    initialRuleId?: number;
+    /** 다른 화면의 '실험 #N 확인' 링크로 들어오면 그 실험을 바로 연다(UX-242). */
+    initialExperimentId?: number;
+}) {
     const { user, isLoading } = useSession();
     const enabled = !!user && user.role !== "member",
         manager = useCopyManager(enabled);
     const [cursor, setCursor] = useState(0),
-        [activeTab, setActiveTab] = useState("observations"),
-        [selected, setSelected] = useState<number | null>(null),
+        [activeTab, setActiveTab] = useState(initialExperimentId ? "experiments" : "observations"),
+        [selected, setSelected] = useState<number | null>(initialExperimentId ?? null),
         [creating, setCreating] = useState(false);
     const list = useSWR<{
         experiments: Experiment[];

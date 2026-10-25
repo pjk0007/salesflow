@@ -63,6 +63,8 @@ test("B11·B12·B15·B31: QA 읽기 API와 수동 갱신", { skip: !url }, async
             assert.equal((await homeTrends(org.orgId, query)).reduce((sum, row) => sum + row.sent, 0), kpi.current.sent);
             const [records] = await c`SELECT count(*)::int n FROM records WHERE org_id=${org.orgId} AND created_at >= '2026-09-22T00:00:00+09:00' AND created_at < '2026-10-22T00:00:00+09:00'`;
             assert.equal(summary.newRecordsInPeriod, records.n);
+            // UX-277: 홈 이메일 수치의 기준 시각은 이메일 통계 화면과 같은 집계 상태 값
+            assert.equal(summary.emailAsOf, kpi.asOf);
             const templates = await homeTemplates(org.orgId, query);
             assert.ok(templates.every(row => row.type === "ai_auto" || row.type === "link"));
             assert.ok(templates.length > 0);

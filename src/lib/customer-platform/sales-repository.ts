@@ -1,6 +1,16 @@
 import { customerAccessPredicate } from "@/lib/customer-access/access";
 import { enqueuePlatformEvent } from "./outbox";
-import { and, desc, eq, ilike, isNull, lt, or, sql } from "drizzle-orm";
+import {
+    and,
+    desc,
+    eq,
+    getTableColumns,
+    ilike,
+    isNull,
+    lt,
+    or,
+    sql,
+} from "drizzle-orm";
 import { isDeepStrictEqual } from "node:util";
 import {
     db,
@@ -17,6 +27,7 @@ import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
 import { InboxError } from "@/lib/inbox/errors";
 import { requirePlatformWorkspace } from "./repository";
+import { dueFirstAfter, newerFirstAfter } from "./list-cursor";
 import { appendActivity } from "./activities";
 import {
     pipelineInput,
@@ -50,14 +61,50 @@ export async function listSales(
     const input = salesListInput.parse(raw),
         table = tableFor(resource),
         pattern = `%${input.q.replace(/[\\%_]/g, "\\$&")}%`;
+    // 할 일은 마감이 가까운 순(마감 없음은 뒤), 나머지는 새 항목 먼저(UX-087). 커서는 기존처럼 마지막 행 id.
+    const [cursor] = input.before
+        ? await exec
+              .select({
+                  at: table.createdAt,
+                  id: table.id,
+                  due: resource === "tasks" ? crmTasks.dueAt : sql<null>`null`,
+              })
+              .from(table)
+              .where(
+                  and(
+                      eq(table.id, input.before),
+                      eq(table.orgId, actor.orgId),
+                      eq(table.workspaceId, workspaceId),
+                  ),
+              )
+        : [];
+    if (input.before && !cursor)
+        throw new InboxError("목록 위치를 확인해주세요. 새로고침 후 다시 시도해주세요.", 404);
+    // 딜·할 일 카드에 연결 고객·회사 이름을 함께 준다. 화면이 불러온 100건 밖이어도 '미연결'로 보이지 않게(UX-088).
+    const linked =
+        resource === "pipelines"
+            ? {}
+            : (() => {
+                  const owner = resource === "deals" ? crmDeals : crmTasks;
+                  return {
+                      contactName: sql<
+                          string | null
+                      >`(select ${crmContacts.name} from ${crmContacts} where ${crmContacts.id} = ${owner.contactId})`,
+                      companyName: sql<
+                          string | null
+                      >`(select ${crmCompanies.name} from ${crmCompanies} where ${crmCompanies.id} = ${owner.companyId})`,
+                  };
+              })();
     return exec
-        .select()
+        .select({ ...getTableColumns(table), ...linked })
         .from(table)
         .where(
             and(
                 eq(table.orgId, actor.orgId),
                 eq(table.workspaceId, workspaceId),
-                input.before ? lt(table.id, input.before) : undefined,
+                resource === "tasks"
+                    ? dueFirstAfter(crmTasks.dueAt, crmTasks.id, cursor)
+                    : newerFirstAfter(table.createdAt, table.id, cursor),
                 input.q
                     ? ilike(
                           resource === "pipelines"
@@ -81,7 +128,11 @@ export async function listSales(
                     : undefined,
             ),
         )
-        .orderBy(desc(table.id))
+        .orderBy(
+            ...(resource === "tasks"
+                ? [sql`${crmTasks.dueAt} asc nulls last`, crmTasks.id]
+                : [desc(table.createdAt), desc(table.id)]),
+        )
         .limit(100);
 }
 export async function ownedSales(

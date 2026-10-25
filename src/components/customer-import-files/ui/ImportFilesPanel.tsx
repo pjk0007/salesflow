@@ -51,7 +51,21 @@ function FileRow({
                 <p className="mt-2 text-amber-800">{row.error}</p>
             )}
             {oversized && row.active && row.state !== "ready" && (
-                <p className="mt-2 text-amber-800">20MB를 넘는 이전 첨부입니다. 관리자가 비공개 파일 저장소로 이전해야 합니다.</p>
+                <p className="mt-2 text-amber-800">
+                    20MB를 넘는 이전 첨부라 이 화면에서는 가져올 수 없습니다.
+                    개발 담당자에게 파일 이름과 원본 상담 번호를 전달해 비공개
+                    파일 저장소 이전 도구(관리자 CLI, 문서
+                    docs/2026-10-14-customer-inbox/IMPORT-FILES.md)로 옮겨달라고
+                    요청해주세요.
+                </p>
+            )}
+            {!row.metadataValid && row.active && row.state !== "ready" && (
+                <p className="mt-2 text-amber-800">
+                    원본의 크기·SHA-256 정보를 수정해서 자료를 다시
+                    가져와주세요. 원본 자료(JSON)에서 이 파일의 크기·SHA-256
+                    값을 고친 뒤 위의 &apos;원본 불러와 새 미리보기
+                    준비&apos;로 다시 가져오면 새 파일 목록이 만들어집니다.
+                </p>
             )}
             {row.active && row.state !== "ready" && (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -146,13 +160,13 @@ export function ImportFilesPanel({ jobId }: { jobId: string }) {
                     className={button}
                     disabled={
                         busy ||
-                        !page.data?.rows.some(
-                            (r) => r.active && r.state === "pending" && (r.expectedSize === null || r.expectedSize <= MAX_FILE_BYTES),
+                        !page.data?.counts.some(
+                            (c) => c.active && c.state === "pending" && c.count > 0,
                         )
                     }
                     onClick={() => void actions.batch()}
                 >
-                    현재 페이지의 대기 파일 가져오기
+                    대기 파일 모두 가져오기
                 </button>
                 <button
                     className={button}
@@ -166,6 +180,23 @@ export function ImportFilesPanel({ jobId }: { jobId: string }) {
                         현재 파일 후 중지
                     </button>
                 )}
+                <label className="flex items-center gap-2 text-xs">
+                    상태
+                    <select
+                        aria-label="첨부 상태 필터"
+                        className="rounded-lg border bg-background p-2 text-xs"
+                        value={actions.state}
+                        disabled={busy}
+                        onChange={(e) => actions.setState(e.target.value)}
+                    >
+                        <option value="">전체</option>
+                        {Object.entries(labels).map(([value, name]) => (
+                            <option key={value} value={value}>
+                                {name}
+                            </option>
+                        ))}
+                    </select>
+                </label>
             </div>
             <p className="text-xs text-muted-foreground">
                 화면을 닫으면 추가 파일 처리를 멈춥니다. 처리 중이던 요청과 이미
@@ -205,6 +236,13 @@ export function ImportFilesPanel({ jobId }: { jobId: string }) {
                             />
                         ))}
                     </ul>
+                    {!!page.data.total &&
+                        !page.data.rows.length &&
+                        actions.state && (
+                            <p className="text-sm">
+                                선택한 상태의 파일이 없습니다.
+                            </p>
+                        )}
                     {!page.data.total && (
                         <p className="text-sm">
                             이전한 상담에 등록된 첨부가 없습니다. 이전 버전에서

@@ -245,7 +245,25 @@ export class NhnAlimtalkClient {
         };
     }
 
-    async listSenders(params?: { pageNum?: number; pageSize?: number }) {
+    async listSenders(params?: { pageNum?: number; pageSize?: number }): Promise<{ header: NhnApiHeader; senders: NhnSenderProfile[]; totalCount: number }> {
+        // 쪽을 지정하지 않으면 전체를 모은다 — NHN 기본 pageSize가 15라 16번째부터 잘린다(listTemplates와 같은 규칙, UX-268)
+        if (!params?.pageNum && !params?.pageSize) {
+            const PAGE_SIZE = 1000; // 문서상 최대값
+            const all: NhnSenderProfile[] = [];
+            let pageNum = 1;
+            let totalCount = 0;
+            let header: NhnApiHeader | undefined;
+            do {
+                const page = await this.listSenders({ pageNum, pageSize: PAGE_SIZE });
+                header = page.header;
+                if (!page.header.isSuccessful) break;
+                all.push(...page.senders);
+                totalCount = page.totalCount;
+                if (page.senders.length === 0) break; // 빈 쪽이면 무한 반복 방지
+                pageNum++;
+            } while (all.length < totalCount);
+            return { header: header as NhnApiHeader, senders: all, totalCount: Math.max(totalCount, all.length) };
+        }
         const qs = new URLSearchParams();
         if (params?.pageNum) qs.set("pageNum", String(params.pageNum));
         if (params?.pageSize) qs.set("pageSize", String(params.pageSize));
@@ -510,9 +528,5 @@ export async function getAlimtalkClient(orgId: string): Promise<NhnAlimtalkClien
     return new NhnAlimtalkClient(config.appKey, config.secretKey);
 }
 
-export function normalizePhoneNumber(phone: string): string {
-    return phone.replace(/[^0-9]/g, "");
-}
-
-// 변수 추출 유틸은 client-safe 모듈로 분리됨
-export { extractTemplateVariables, extractAllTemplateVariables } from "./alimtalk-template-utils";
+// 변수 추출·번호 정규화 유틸은 client-safe 모듈로 분리됨(전자서명 규칙도 같은 번호 규칙을 쓴다)
+export { extractTemplateVariables, extractAllTemplateVariables, normalizePhoneNumber } from "./alimtalk-template-utils";

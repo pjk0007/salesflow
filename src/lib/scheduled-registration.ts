@@ -175,16 +175,29 @@ async function registerForPartition(
             duplicateAction: "skip",
         });
 
-        // 픽업한 큐 행 모두 consumed 처리 (중복 skip 포함 — 목록에서 제거)
-        const pickedIds = picked.map((p) => p.id);
-        await tx.execute(sql`
-            UPDATE scheduled_registrations
-            SET status = 'registered', registered_at = NOW()
-            WHERE id = ANY(${sql`ARRAY[${sql.join(pickedIds, sql`, `)}]::int[]`})
-        `);
+        // 픽업한 큐 행을 대기에서 뺀다 — 등록(병합 포함)은 'registered', 중복으로 건너뛴 행은 'skipped'로 남겨
+        // 대기 목록의 '건너뜀' 보기에서 어떤 행이 빠졌는지 확인할 수 있게 한다(UX-078)
+        const { registeredIds, skippedIds } = splitPickedByOutcome(picked.map((p) => p.id), result.skippedRows);
+        for (const [status, ids] of [["registered", registeredIds], ["skipped", skippedIds]] as const) {
+            if (ids.length === 0) continue;
+            await tx.execute(sql`
+                UPDATE scheduled_registrations
+                SET status = ${status}, registered_at = NOW()
+                WHERE id = ANY(${sql`ARRAY[${sql.join(ids, sql`, `)}]::int[]`})
+            `);
+        }
 
         await markRun;
 
         return { count: result.insertedCount, insertedRecords: result.insertedRecords };
     });
+}
+
+/** 픽업한 큐 id를 등록/건너뜀으로 나눈다 — skippedRows는 picked 순서의 위치(insertImportedRecords 결과) */
+export function splitPickedByOutcome(pickedIds: number[], skippedRows: number[]): { registeredIds: number[]; skippedIds: number[] } {
+    const skipped = new Set(skippedRows);
+    return {
+        registeredIds: pickedIds.filter((_, i) => !skipped.has(i)),
+        skippedIds: pickedIds.filter((_, i) => skipped.has(i)),
+    };
 }

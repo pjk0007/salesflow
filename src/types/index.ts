@@ -447,6 +447,8 @@ export interface MetaCredentials {
     appId: string;
     appSecret: string;
     pageAccessTokens: Record<string, string>; // { pageId: pageAccessToken }
+    /** 사용자 토큰 만료 시각(ISO). 장기 토큰도 약 60일 뒤 만료된다 (UX-049) */
+    tokenExpiresAt?: string | null;
     webhookVerifyToken: string; // 조직별 자동 생성, Meta Developer에 복사해서 등록
 }
 
@@ -503,6 +505,8 @@ export interface AdLeadIntegrationInfo {
     platform: AdPlatformType;
     partitionId: number | null;
     partitionName?: string;
+    /** 대상 파티션의 워크스페이스 — 연동 수정 화면이 파티션 선택을 채운다 (UX-052) */
+    partitionWorkspaceId?: number | null;
     formId: string;
     formName: string | null;
     fieldMappings: Record<string, string>;

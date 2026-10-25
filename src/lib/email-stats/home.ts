@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { StatCounts, StatsQuery } from "@/components/email/dashboard/types";
-import { readRows, statsWhere, sumColumns, totalCounts } from "./read-shared";
+import { readRows, readStatsState, statsWhere, sumColumns, totalCounts } from "./read-shared";
 import { comparisonNames } from "./names";
 import { emailSummary, templateSummary, triggerSummary } from "./home-map";
 import { isValidYmd } from "../tracker/date-range";
@@ -10,7 +10,7 @@ export function homeRange(from: string | null, to: string | null): StatsQuery | 
 }
 
 export async function homeSummary(orgId: string, query: StatsQuery) {
-    const [total, triggers, records] = await Promise.all([
+    const [total, triggers, records, state] = await Promise.all([
         totalCounts(orgId, query),
         readRows<StatCounts & {
             trigger: string;
@@ -20,9 +20,12 @@ export async function homeSummary(orgId: string, query: StatsQuery) {
             count: number;
         }>(sql`SELECT COALESCE(sum(total),0)::int count FROM home_stats_daily WHERE org_id=${orgId}::uuid AND stat_date BETWEEN
             ${query.from}::date AND ${query.to}::date AND source='records'`),
+        readStatsState(orgId),
     ]);
     return {
         email: emailSummary(total),
+        // 이메일 수치는 15분 집계표 기준 — 화면이 같은 기준 시각을 보여 실시간 '오늘' 카드와의 차이를 알린다 (UX-277)
+        emailAsOf: state?.recent_done_at ? new Date(state.recent_done_at).toISOString() : null,
         triggerBreakdown: triggers.map((row) => triggerSummary(row.trigger, row)),
         newRecordsInPeriod: records[0].count
     };

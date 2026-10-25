@@ -28,7 +28,7 @@ import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
 import { readableCustomerConversation } from "@/lib/inbox-customer-history/visibility";
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, gt, ilike, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import {
     db,
     inboxChannels,
@@ -405,37 +405,39 @@ export async function conversationCounts(
 ) {
     await requireCustomerChannel(actor, channelId, "read", exec);
     const input = conversationFiltersInput.parse(filters);
+    // 검색어가 있으면 상태 조건을 WHERE에서 빼고 집계 안에만 둔다 — 한 번의 집계로
+    // 현재 상태 결과와 상태별 검색 결과 건수(빈 결과 안내용)를 함께 얻는다(본문 검색 반복 없음).
+    const searching = !!input.q;
+    const statusCondition =
+        input.status && input.filter !== "history"
+            ? eq(inboxConversations.status, input.status)
+            : undefined;
+    const live = (condition?: SQL) =>
+        sql`NOT ${inboxConversations.historyOnly}${searching && statusCondition ? sql` AND ${statusCondition}` : sql``}${condition ? sql` AND ${condition}` : sql``}`;
+    const counted = (condition?: SQL) =>
+        sql<number>`count(*) FILTER (WHERE ${live(condition)})`.mapWith(Number);
+    const byStatus = (value: "open" | "snoozed" | "closed") =>
+        sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.status} = ${value})`.mapWith(Number);
     const counts = await exec
             .select({
-                all: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly})`.mapWith(
-                    Number,
-                ),
-                myTeams:
-                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${myTeamPredicate(actor.userId)})`.mapWith(
-                        Number,
-                    ),
+                all: counted(),
+                myTeams: counted(myTeamPredicate(actor.userId)),
                 history:
                     sql<number>`count(*) FILTER (WHERE ${inboxConversations.historyOnly})`.mapWith(
                         Number,
                     ),
-                mine: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.assigneeId} = ${actor.userId})`.mapWith(
-                    Number,
-                ),
-                unassigned:
-                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.assigneeId} IS NULL)`.mapWith(
-                        Number,
-                    ),
-                unread: sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0))`.mapWith(
-                    Number,
-                ),
-                priority:
-                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.priority})`.mapWith(
-                        Number,
-                    ),
-                mentioned:
-                    sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${mentionedConversation(actor.userId)})`.mapWith(
-                        Number,
-                    ),
+                mine: counted(sql`${inboxConversations.assigneeId} = ${actor.userId}`),
+                unassigned: counted(sql`${inboxConversations.assigneeId} IS NULL`),
+                unread: counted(sql`${inboxConversations.customerSeq} > coalesce(${inboxReads.customerSeq},0)`),
+                priority: counted(sql`${inboxConversations.priority}`),
+                mentioned: counted(mentionedConversation(actor.userId)),
+                ...(searching
+                    ? {
+                          searchOpen: byStatus("open"),
+                          searchSnoozed: byStatus("snoozed"),
+                          searchClosed: byStatus("closed"),
+                      }
+                    : {}),
             })
             .from(inboxConversations)
             .leftJoin(
@@ -452,10 +454,10 @@ export async function conversationCounts(
                     isNull(inboxConversations.mergedIntoId),
                     conversationSearch(input.q),
                     teamFilter(input.teamId),
-                    input.status && input.filter !== "history"
+                    statusCondition && !searching
                         ? or(
                               eq(inboxConversations.historyOnly, true),
-                              eq(inboxConversations.status, input.status),
+                              statusCondition,
                           )
                         : undefined,
                 ),
@@ -650,13 +652,38 @@ export async function conversationDetail(
         )),
     };
 }
+
+/** 통합코드를 이 상담 채널과 같은 사업의 레코드 번호로 바꾼다(레코드 번호 연결과 같은 조직·사업 조건). */
+export async function recordIdByCode(actor: Actor, conversationId: string, code: string, exec: DbExec) {
+    const found = await exec
+        .select({ id: records.id })
+        .from(records)
+        .innerJoin(partitions, eq(partitions.id, records.partitionId))
+        .innerJoin(inboxConversations, eq(inboxConversations.id, conversationId))
+        .innerJoin(inboxChannels, eq(inboxChannels.id, inboxConversations.channelId))
+        .where(
+            and(
+                eq(records.orgId, actor.orgId),
+                eq(inboxConversations.orgId, actor.orgId),
+                eq(partitions.workspaceId, inboxChannels.workspaceId),
+                sql`upper(${records.integratedCode}) = upper(${code})`,
+            ),
+        )
+        .limit(2);
+    if (!found.length)
+        throw new InboxError("이 사업에서 해당 통합코드의 CRM 고객을 찾을 수 없습니다. 레코드 화면의 통합코드를 확인해주세요.", 404);
+    if (found.length > 1)
+        throw new InboxError("같은 통합코드의 CRM 고객이 여러 명입니다. 레코드 번호로 연결해주세요.", 409);
+    return found[0].id;
+}
 export async function patchConversation(
     actor: Actor,
     id: string,
     raw: unknown,
     exec: DbExec = db,
 ) {
-    const { version, ...input } = patchInput.parse(raw);
+    const { version, recordCode, ...input } = patchInput.parse(raw);
+    if (recordCode) input.recordId = await recordIdByCode(actor, id, recordCode, exec);
     if (!Object.keys(input).length)
         throw new InboxError("변경할 내용을 선택해주세요.");
     return exec.transaction(async (tx) => {

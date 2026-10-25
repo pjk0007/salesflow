@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { NhnTemplate } from "@/lib/nhn-alimtalk";
+import { HighlightedTemplateText } from "./TemplatePreview";
 
 interface TemplateDetailDialogProps {
     open: boolean;
@@ -42,14 +43,6 @@ export default function TemplateDetailDialog({
             })
             .finally(() => setLoading(false));
     }, [open, senderKey, templateCode]);
-
-    // 변수 하이라이트
-    const highlightVariables = (content: string) => {
-        return content.replace(
-            /#\{([^}]+)\}/g,
-            '<span class="bg-yellow-200 text-yellow-800 px-1 rounded text-xs font-mono">#{$1}</span>'
-        );
-    };
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -113,17 +106,17 @@ export default function TemplateDetailDialog({
                                     {template.templateEmphasizeType === "TEXT" && (
                                         <div className="mb-2">
                                             {template.templateTitle && (
-                                                <div className="text-base font-bold leading-tight" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateTitle) }} />
+                                                <div className="text-base font-bold leading-tight"><HighlightedTemplateText text={template.templateTitle} /></div>
                                             )}
                                             {template.templateSubtitle && (
-                                                <div className="text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateSubtitle) }} />
+                                                <div className="text-xs text-muted-foreground"><HighlightedTemplateText text={template.templateSubtitle} /></div>
                                             )}
                                         </div>
                                     )}
 
                                     {/* 헤더 */}
                                     {template.templateHeader && (
-                                        <div className="text-xs text-muted-foreground mb-1" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateHeader) }} />
+                                        <div className="text-xs text-muted-foreground mb-1"><HighlightedTemplateText text={template.templateHeader} /></div>
                                     )}
 
                                     {/* 아이템 하이라이트 */}
@@ -132,10 +125,10 @@ export default function TemplateDetailDialog({
                                             <div className="mb-2 flex gap-2 items-start">
                                                 <div className="min-w-0 flex-1">
                                                     {template.templateItemHighlight.title && (
-                                                        <div className="text-sm font-bold leading-tight truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItemHighlight.title) }} />
+                                                        <div className="text-sm font-bold leading-tight truncate"><HighlightedTemplateText text={template.templateItemHighlight.title} /></div>
                                                     )}
                                                     {template.templateItemHighlight.description && (
-                                                        <div className="text-xs text-muted-foreground mt-0.5 truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItemHighlight.description) }} />
+                                                        <div className="text-xs text-muted-foreground mt-0.5 truncate"><HighlightedTemplateText text={template.templateItemHighlight.description} /></div>
                                                     )}
                                                 </div>
                                                 {template.templateItemHighlight.imageUrl && (
@@ -154,16 +147,16 @@ export default function TemplateDetailDialog({
                                             <div className="space-y-1">
                                                 {template.templateItem.list.map((item, i) => (
                                                     <div key={i} className="flex justify-between text-xs">
-                                                        <span className="text-muted-foreground truncate" dangerouslySetInnerHTML={{ __html: highlightVariables(item.title || `항목 ${i + 1}`) }} />
-                                                        <span className="font-medium truncate ml-2" dangerouslySetInnerHTML={{ __html: highlightVariables(item.description) }} />
+                                                        <span className="text-muted-foreground truncate"><HighlightedTemplateText text={item.title || `항목 ${i + 1}`} /></span>
+                                                        <span className="font-medium truncate ml-2"><HighlightedTemplateText text={item.description} /></span>
                                                     </div>
                                                 ))}
                                                 {template.templateItem.summary && (template.templateItem.summary.title || template.templateItem.summary.description) && (
                                                     <>
                                                         <div className="border-t my-1" />
                                                         <div className="flex justify-between text-xs font-bold">
-                                                            <span dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItem.summary.title || "") }} />
-                                                            <span dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateItem.summary.description || "") }} />
+                                                            <span><HighlightedTemplateText text={template.templateItem.summary.title || ""} /></span>
+                                                            <span><HighlightedTemplateText text={template.templateItem.summary.description || ""} /></span>
                                                         </div>
                                                     </>
                                                 )}
@@ -174,18 +167,12 @@ export default function TemplateDetailDialog({
 
                                     {/* 본문 */}
                                     <div
-                                        className="text-sm whitespace-pre-wrap leading-relaxed"
-                                        dangerouslySetInnerHTML={{
-                                            __html: highlightVariables(template.templateContent),
-                                        }}
-                                    />
+                                        className="text-sm whitespace-pre-wrap leading-relaxed"><HighlightedTemplateText text={template.templateContent} /></div>
 
                                     {/* 부가정보 */}
                                     {template.templateExtra && (
                                         <div
-                                            className="mt-2 pt-2 border-t text-xs text-muted-foreground whitespace-pre-wrap"
-                                            dangerouslySetInnerHTML={{ __html: highlightVariables(template.templateExtra) }}
-                                        />
+                                            className="mt-2 pt-2 border-t text-xs text-muted-foreground whitespace-pre-wrap"><HighlightedTemplateText text={template.templateExtra} /></div>
                                     )}
 
                                     {/* 버튼 */}

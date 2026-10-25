@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailAutoPersonalizedLinks, products, partitions, workspaces } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { db, emailAutoPersonalizedLinks, emailCopyExperiments, products, partitions, workspaces } from "@/lib/db";
+import { eq, and, inArray } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { resolveRuleSenderPool } from "@/lib/email-sender-resolver";
+import { fingerprint } from "@/lib/ai-copy/rules";
+import { ruleSnapshotOf } from "@/lib/email-experiments/repository";
+import { ACTIVE_EXPERIMENT_STATES } from "@/lib/email-experiments/rules";
 
 export async function PUT(
     req: NextRequest,
@@ -117,6 +120,28 @@ export async function PUT(
         }
         if (signatureId !== undefined) updateData.signatureId = signatureId || null;
         if (assetIds !== undefined) updateData.assetIds = Array.isArray(assetIds) && assetIds.length > 0 ? assetIds : null;
+
+        // 진행 중 문구 실험이 비교하는 규칙 항목이 바뀌면 다음 발송 준비 때 실험이 무효화되고 배정 메일이 보류된다.
+        // 실행 경로와 같은 ruleSnapshotOf·fingerprint로 판정하고, 사용자가 확인하기 전에는 저장하지 않는다 (UX-165)
+        if (body.confirmExperimentImpact !== true
+            && fingerprint(ruleSnapshotOf(existing)) !== fingerprint(ruleSnapshotOf({ ...existing, ...updateData }))) {
+            const experiments = await db
+                .select({ id: emailCopyExperiments.id, name: emailCopyExperiments.name, state: emailCopyExperiments.state })
+                .from(emailCopyExperiments)
+                .where(and(
+                    eq(emailCopyExperiments.orgId, user.orgId),
+                    eq(emailCopyExperiments.ruleId, linkId),
+                    inArray(emailCopyExperiments.state, ACTIVE_EXPERIMENT_STATES),
+                ));
+            if (experiments.length > 0) {
+                return NextResponse.json({
+                    success: false,
+                    code: "experiment_impact",
+                    error: "진행 중인 문구 실험의 비교 조건이 바뀝니다. 확인 후 다시 저장해주세요.",
+                    experiments,
+                }, { status: 409 });
+            }
+        }
 
         const [updated] = await db
             .update(emailAutoPersonalizedLinks)

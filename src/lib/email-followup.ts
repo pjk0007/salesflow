@@ -12,6 +12,7 @@ import {
 } from "@/lib/db";
 import { eq, and, ne, inArray, or, isNotNull, sql } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
+import { unmappedEmailVariables } from "@/lib/email-utils";
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveSignature } from "@/lib/email-sender-resolver";
 import { claimSender, releaseSenderSlot } from "@/lib/email-sender-limit";
@@ -35,8 +36,17 @@ import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
 import { visitAckConfig } from "./email-visit-ack-rules";
 import { handleVisitAcknowledgement } from "./email-visit-ack-delivery";
 
-/** 후속 줄의 stop_reason — 회신·반송 막기(RPL 7-4)와 원본 메일 실패(F4) */
-type FollowupStopReason = ReplyStopReason | "first_failed" | "site_visit" | "rule_inactive";
+/**
+ * 건너뛴 까닭 — 다음 단계도 잡히지 않으므로 화면에 이유를 보인다 (UX-162·163).
+ * quota: AI 토큰 한도 / config: AI 키·이메일 설정 없음 / send_failed: NHN이 받지 않음 / unmapped_variable: 변수 매핑 누락
+ */
+type FollowupSkipReason = "quota" | "config" | "send_failed" | "unmapped_variable";
+/** 일시 오류로 한 번 미룬 줄의 표시(화면에는 보이지 않는다). 다시 오류면 'error'로 닫는다 (UX-162) */
+const ERROR_RETRY_MARK = "error_retry";
+const ERROR_RETRY_DELAY_MS = 10 * 60 * 1000;
+
+/** 후속 줄의 stop_reason — 회신·반송 막기(RPL 7-4)와 원본 메일 실패(F4), 건너뛴 까닭, 처리 오류 */
+type FollowupStopReason = ReplyStopReason | "first_failed" | "site_visit" | "rule_inactive" | FollowupSkipReason | "error";
 
 // ============================================
 // 타입 정의
@@ -65,18 +75,19 @@ type FollowupConfig = TemplateFollowupStep | AiFollowupStep;
  */
 type FollowupHandlerResult =
     | { kind: "sent" }
-    | { kind: "skipped" }
+    | { kind: "skipped"; reason?: FollowupSkipReason }
     | { kind: "uncertain" }
     | { kind: "deferred"; retryAt: Date }
     | { kind: "stopped"; reason: ReplyStopReason | "site_visit" | "rule_inactive" };
 
 const SENT: FollowupHandlerResult = { kind: "sent" };
 const SKIPPED: FollowupHandlerResult = { kind: "skipped" };
+const skippedFor = (reason: FollowupSkipReason): FollowupHandlerResult => ({ kind: "skipped", reason });
 
 /** 처리에 필요한 큐 칸만. 선점 SQL의 RETURNING과 맞춘다 (시각 칸은 db.execute에서 문자열로 와서 받지 않는다) */
 type FollowupQueueItem = Pick<
     typeof emailFollowupQueue.$inferSelect,
-    "id" | "parentLogId" | "sourceType" | "sourceId" | "orgId" | "stepIndex"
+    "id" | "parentLogId" | "sourceType" | "sourceId" | "orgId" | "stepIndex" | "stopReason"
 >;
 
 export interface FollowupRunStats {
@@ -399,7 +410,7 @@ async function claimFollowupBatch(visitOnly = false): Promise<FollowupQueueItem[
             LIMIT ${FOLLOWUP_BATCH_SIZE}
             FOR UPDATE SKIP LOCKED
         )
-        RETURNING id, parent_log_id, source_type, source_id, org_id, step_index
+        RETURNING id, parent_log_id, source_type, source_id, org_id, step_index, stop_reason
     `)) as unknown as Array<{
         id: number;
         parent_log_id: number;
@@ -407,6 +418,7 @@ async function claimFollowupBatch(visitOnly = false): Promise<FollowupQueueItem[
         source_id: number;
         org_id: string;
         step_index: number | null;
+        stop_reason: string | null;
     }>;
     return rows.map((r) => ({
         id: r.id,
@@ -415,6 +427,7 @@ async function claimFollowupBatch(visitOnly = false): Promise<FollowupQueueItem[
         sourceId: r.source_id,
         orgId: r.org_id,
         stepIndex: r.step_index ?? 0,
+        stopReason: r.stop_reason,
     }));
 }
 
@@ -517,12 +530,19 @@ async function processFollowupItem(
             stats.sent++;
             return "sent";
         }
-        await updateQueueStatus(item.id, "skipped", result);
+        await updateQueueStatus(item.id, "skipped", result, outcome.kind === "skipped" ? outcome.reason ?? null : null);
         stats.skipped++;
         return "skipped";
     } catch (err) {
+        // 여기까지 던진 오류는 발송 전이다 (보낸 뒤의 오류는 처리기가 uncertain으로 돌려준다) — 일시 오류일 수 있어 한 번 미룬다.
+        // 미룬 뒤 또 오류면 사유 'error'로 닫는다. 사용자가 직접 취소한 줄과 구분된다 (UX-162)
         console.error(`[Followup] Error processing queue item ${item.id}:`, err);
-        await updateQueueStatus(item.id, "cancelled", null);
+        if (item.stopReason !== ERROR_RETRY_MARK) {
+            await deferQueueItem(item.id, new Date(Date.now() + ERROR_RETRY_DELAY_MS), ERROR_RETRY_MARK);
+            stats.deferred++;
+            return "deferred";
+        }
+        await updateQueueStatus(item.id, "cancelled", null, "error");
         stats.cancelled++;
         return "cancelled";
     }
@@ -551,7 +571,8 @@ async function updateQueueStatus(
 ) {
     await db
         .update(emailFollowupQueue)
-        .set({ status, result, processedAt: new Date(), ...(stopReason ? { stopReason } : {}) })
+        // null이면 비운다 — 한 번 미룬 표시(error_retry)가 끝난 줄에 남지 않게 (선점한 줄은 null 아니면 그 표시다)
+        .set({ status, result, processedAt: new Date(), stopReason })
         .where(eq(emailFollowupQueue.id, queueId));
 }
 
@@ -561,10 +582,10 @@ async function updateQueueStatus(
  * 그사이 사용자가 취소한 줄은 되살리지 않는다 (30분 회수 뒤 pending에서 취소된 경우) — 취소한 후속이 나가면 안 된다.
  * 상태를 processing으로 묶지 않는 것은 회수된 뒤에도 이 결과를 써야 해서다 (updateQueueStatus와 같은 이유).
  */
-async function deferQueueItem(queueId: number, retryAt: Date) {
+async function deferQueueItem(queueId: number, retryAt: Date, stopReason?: typeof ERROR_RETRY_MARK) {
     await db
         .update(emailFollowupQueue)
-        .set({ status: "pending", checkAt: retryAt, lockedAt: null })
+        .set({ status: "pending", checkAt: retryAt, lockedAt: null, ...(stopReason ? { stopReason } : {}) })
         .where(and(eq(emailFollowupQueue.id, queueId), ne(emailFollowupQueue.status, "cancelled")));
 }
 
@@ -640,8 +661,9 @@ async function handleTemplateFollowup(
     if (replyStop) return { kind: "stopped", reason: replyStop.reason };
     if (await findVisitFollowupStop(item.orgId, workspaceId, parentLog.recipientEmail)) return { kind: "stopped", reason: "site_visit" };
 
-    // 7. 변수 치환 + 서명
+    // 7. 변수 치환 + 서명. 매핑 없는 변수가 남으면 '##회사명##' 원문이 고객에게 나가므로 보내지 않는다 (UX-163)
     const mappings = (link.variableMappings as Record<string, string>) || {};
+    if (unmappedEmailVariables([template.subject, template.htmlBody], mappings).length > 0) return skippedFor("unmapped_variable");
     const subject = substituteVariables(template.subject, mappings, data);
     let body = substituteVariables(template.htmlBody, mappings, data);
     if (signatureJson) {
@@ -655,7 +677,7 @@ async function handleTemplateFollowup(
 
     // 8. NHN 발송
     const client = await getEmailClient(item.orgId);
-    if (!client) return SKIPPED;
+    if (!client) return skippedFor("config");
 
     // 8-1. 발신 주소 + 오늘 자리 — 원본 메일을 보낸 주소로만 보낸다 (같은 대화로 이어지게).
     // 막히면 다른 주소로 넘기지 않고 그 주소가 열릴 때로 미룬다.
@@ -685,6 +707,8 @@ async function handleTemplateFollowup(
     // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
     let slotReleased = false;
+    // 보내기 전에 던지면 이 로그를 실패로 닫는다 — pending으로 남으면 다시 시도할 때 '결과 미확인'으로 막힌다
+    let pendingLogId: number | undefined;
     try {
         // 9. 로그 먼저 insert → 트래킹 URL → 발송 → status 업데이트
         const [inserted] = await db.insert(emailSendLogs).values({
@@ -706,6 +730,7 @@ async function handleTemplateFollowup(
             // 보낼 때 쓴 주소 그대로 (DESIGN-3 4-1)
             senderEmail: senderFromEmail,
         }).returning({ id: emailSendLogs.id });
+        pendingLogId = inserted.id;
 
         const trackedBody = applyEmailTracking(body, inserted.id);
 
@@ -766,10 +791,15 @@ async function handleTemplateFollowup(
             }
         }
 
-        return isSuccess ? SENT : submissionStatus === "unknown" ? { kind: "uncertain" } : SKIPPED;
+        return isSuccess ? SENT : submissionStatus === "unknown" ? { kind: "uncertain" } : skippedFor("send_failed");
     } catch (err) {
         if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         if (sendAttempted) return { kind: "uncertain" };
+        if (pendingLogId !== undefined) {
+            await db.update(emailSendLogs).set({ status: "failed", resultMessage: "발송 전 오류로 보내지 않았습니다." })
+                .where(and(eq(emailSendLogs.id, pendingLogId), eq(emailSendLogs.status, "pending")))
+                .catch((logError) => console.error(`[Followup] 발송 로그 ${pendingLogId} 정리 실패:`, logError));
+        }
         throw err;
     }
 }
@@ -812,14 +842,14 @@ async function handleAiFollowup(
 
     // 4. AI 클라이언트 확인
     const aiClient = getAiClient(link.model || undefined);
-    if (!aiClient) return SKIPPED;
+    if (!aiClient) return skippedFor("config");
 
     const quota = await checkTokenQuota(item.orgId);
-    if (!quota.allowed) return SKIPPED;
+    if (!quota.allowed) return skippedFor("quota");
 
     // 이메일 클라이언트는 자리를 잡기 전에 본다 — 못 보낼 게 뻔한데 자리를 잡았다 돌려주지 않게
     const emailClient = await getEmailClient(item.orgId);
-    if (!emailClient) return SKIPPED;
+    if (!emailClient) return skippedFor("config");
 
     // 4-1. 발신 주소 + 오늘 자리 — 원본 메일을 보낸 주소 먼저 (같은 대화로 이어지게), 그 주소가 없을 때만 규칙 묶음 → 기본.
     // fixed 모드라 막히면 다른 주소로 넘기지 않고 그 주소가 열릴 때로 미룬다. AI 생성(토큰)보다 먼저 한다
@@ -847,6 +877,8 @@ async function handleAiFollowup(
     // sendEachMail을 부르기 전에(서명·AI 생성·로그 insert) 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
     let sendAttempted = false;
     let slotReleased = false;
+    // 보내기 전에 던지면 이 로그를 실패로 닫는다 — pending으로 남으면 다시 시도할 때 '결과 미확인'으로 막힌다
+    let pendingLogId: number | undefined;
     try {
         // DB의 null은 "미지정"이므로 undefined로 정규화 (HTTP body의 null과 의미가 다르다)
         const signatureJson = await resolveSignature(item.orgId, {
@@ -950,6 +982,7 @@ async function handleAiFollowup(
             // 보낼 때 쓴 주소 그대로 (DESIGN-3 4-1)
             senderEmail: senderFromEmail,
         }).returning({ id: emailSendLogs.id });
+        pendingLogId = inserted.id;
 
         const trackedBody = applyEmailTracking(finalBody, inserted.id);
 
@@ -1010,10 +1043,15 @@ async function handleAiFollowup(
             }
         }
 
-        return isSuccess ? SENT : submissionStatus === "unknown" ? { kind: "uncertain" } : SKIPPED;
+        return isSuccess ? SENT : submissionStatus === "unknown" ? { kind: "uncertain" } : skippedFor("send_failed");
     } catch (err) {
         if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
         if (sendAttempted) return { kind: "uncertain" };
+        if (pendingLogId !== undefined) {
+            await db.update(emailSendLogs).set({ status: "failed", resultMessage: "발송 전 오류로 보내지 않았습니다." })
+                .where(and(eq(emailSendLogs.id, pendingLogId), eq(emailSendLogs.status, "pending")))
+                .catch((logError) => console.error(`[Followup] 발송 로그 ${pendingLogId} 정리 실패:`, logError));
+        }
         throw err;
     }
 }

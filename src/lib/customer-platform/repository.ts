@@ -25,6 +25,7 @@ import {
     eventInput,
 } from "./rules";
 import { appendActivity } from "./activities";
+import { newerFirstAfter } from "./list-cursor";
 
 function definedValues<T extends object>(value: T): T {
     return Object.fromEntries(
@@ -362,6 +363,20 @@ export async function listPlatformObjects(
     const table = kind === "contacts" ? crmContacts : crmCompanies;
     archived = objectListInput.parse({ archived }).archived;
     const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+    const [cursor] = before
+        ? await exec
+              .select({ at: table.createdAt, id: table.id })
+              .from(table)
+              .where(
+                  and(
+                      eq(table.id, before),
+                      eq(table.orgId, orgId),
+                      eq(table.workspaceId, workspaceId),
+                  ),
+              )
+        : [];
+    if (before && !cursor)
+        throw new InboxError("목록 위치를 확인해주세요. 새로고침 후 다시 시도해주세요.", 404);
     const rows = await exec
         .select()
         .from(table)
@@ -374,7 +389,7 @@ export async function listPlatformObjects(
                     : archived === "true"
                       ? sql`${table.archivedAt} IS NOT NULL`
                       : sql`${table.archivedAt} IS NULL`,
-                before ? lt(table.id, before) : undefined,
+                newerFirstAfter(table.createdAt, table.id, cursor),
                 q
                     ? or(
                           ilike(table.name, pattern),
@@ -386,7 +401,7 @@ export async function listPlatformObjects(
                     : undefined,
             ),
         )
-        .orderBy(desc(table.id))
+        .orderBy(desc(table.createdAt), desc(table.id))
         .limit(100);
     if (kind === "companies" || !rows.length) return rows;
     const links = await exec

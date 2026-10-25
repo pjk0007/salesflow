@@ -12,7 +12,8 @@
  *     스페이스마다 한 줄로 서서 1.1초 간격을 지킨다 (CT-2). CloudType 인스턴스 하나라 프로세스 안 장치로 충분하다
  *   - 429·5xx·연결 오류는 무작위 지연을 더해 다시 보낸다 (429는 Retry-After를 따른다)
  *   - 응답 시간 초과는 구글이 이미 글을 올렸을 수 있다 — 바로 다시 보내지 않고 uncertain으로 돌려준다 (CT-1).
- *     다시 보낼지는 워커가 정한다 (requestId를 켜면 구글이 같은 요청을 한 번만 만든다)
+ *     다시 보낼지는 워커가 정한다 (고정 messageId를 붙이면 구글이 같은 ID를 409로 거절해 한 번만 올라간다).
+ *     수신 웹훅은 requestId를 400으로 거절한다 (실측, customer-journey HANDOFF) — requestId는 보내지 않는다
  *   - 사용자 본문의 멘션은 차단한다. 고객 여정의 검증된 담당자만 별도 옵션으로 멘션한다 (CT-4).
  */
 
@@ -38,8 +39,6 @@ export interface ChatPostOptions {
     random?: () => number;
     /** 같은 스레드로 모을 키 (GOOGLE_CHAT_THREADS=on일 때만 부른 쪽이 넘긴다) */
     threadKey?: string;
-    /** 같은 요청을 한 번만 만들게 하는 값 (GOOGLE_CHAT_REQUEST_ID=on일 때만 부른 쪽이 넘긴다) */
-    requestId?: string;
     /** 웹훅에서도 지원하는 client- 접두사의 고정 메시지 ID (최대 63자). */
     messageId?: string;
     /** 서버가 지정한 담당자 한 명. 본문에서 읽지 않는다. 숫자 Google Chat 사용자 ID만 허용한다. */
@@ -268,24 +267,23 @@ export function chatThreadsEnabled(env: Record<string, string | undefined>): boo
     return (env.GOOGLE_CHAT_THREADS ?? "").trim().toLowerCase() === "on";
 }
 
-/** 같은 요청을 한 번만 만들기 (GOOGLE_CHAT_REQUEST_ID=on) — 시간 초과 뒤 다시 보내도 글이 두 번 올라가지 않게 */
-export function chatRequestIdEnabled(env: Record<string, string | undefined>): boolean {
+/**
+ * 깊이·회신·건강 알림에 고정 메시지 ID를 붙이기 (GOOGLE_CHAT_REQUEST_ID=on — 예전 이름을 그대로 쓴다).
+ * 켜면 시간 초과 뒤 다시 보내도 같은 ID라 글이 두 번 올라가지 않으므로 시도 수를 다 쓴다. 고객 여정 카드는 늘 붙인다.
+ */
+export function chatFixedMessageIdEnabled(env: Record<string, string | undefined>): boolean {
     return (env.GOOGLE_CHAT_REQUEST_ID ?? "").trim().toLowerCase() === "on";
 }
 
 /**
- * 줄 하나의 requestId (UUID 꼴, 같은 입력이면 늘 같다). 서버 주소(origin)를 넣는다 — 개발·운영 DB의 줄 번호가 같아도
- * 같은 스페이스에서 서로의 글을 "이미 있음"으로 보지 않게
+ * 줄 하나의 고정 messageId (`client-<종류>-<해시 32자>`, 같은 입력이면 늘 같다). 서버 주소(origin)를 넣는다 —
+ * 개발·운영 DB의 줄 번호가 같아도 같은 스페이스에서 서로의 글을 "이미 있음"(409)으로 보지 않게
  */
-export function chatRequestIdFor(env: Record<string, string | undefined>, family: string, id: number | string): string | undefined {
-    if (!chatRequestIdEnabled(env)) return undefined;
+export function chatMessageIdFor(env: Record<string, string | undefined>, family: string, id: number | string): string {
     const origin = (env.NEXT_PUBLIC_BASE_URL ?? "").trim() || "https://sendb.kr";
-    return uuidFrom(`${origin}|${family}|${id}`);
-}
-
-function uuidFrom(input: string): string {
-    const hex = createHash("sha1").update(input, "utf8").digest("hex");
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+    const kind = family.toLowerCase().replace(/[^a-z0-9-]/g, "").slice(0, 16) || "alert";
+    const hex = createHash("sha256").update(`${origin}|${family}|${id}`, "utf8").digest("hex").slice(0, 32);
+    return `client-${kind}-${hex}`;
 }
 
 /** 사용자 값의 전체·개별 멘션은 항상 막는다. 신뢰한 담당자 멘션은 차단 후 별도로 붙인다. */
@@ -322,10 +320,9 @@ export async function postGoogleChatMessage(
         return { ok: false, status: null, error: "구글 챗 메시지 ID 형식이 올바르지 않습니다.", retryable: false };
     }
     let url = webhookUrl;
-    if (opts.threadKey || opts.requestId || opts.messageId) {
+    if (opts.threadKey || opts.messageId) {
         const u = new URL(webhookUrl);
         if (opts.threadKey) u.searchParams.set("messageReplyOption", "REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD");
-        if (opts.requestId) u.searchParams.set("requestId", opts.requestId);
         if (opts.messageId) u.searchParams.set("messageId", opts.messageId);
         url = u.toString();
     }
@@ -348,7 +345,7 @@ export async function postGoogleChatMessage(
     let retries = 0;
     for (;;) {
         await waitSpaceTurn(key, interval, sleep);
-        const r = await postOnce(url, body, fetchImpl, Boolean(opts.requestId || opts.messageId));
+        const r = await postOnce(url, body, fetchImpl, Boolean(opts.messageId));
         if (r.ok) return { ok: true };
         const { retryAfterMs, ...result } = r;
         if (!result.retryable || result.uncertain) return result;

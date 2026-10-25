@@ -35,6 +35,13 @@ export interface FollowupHistory {
     note: string;
     actorName: string;
 }
-export interface FollowupDetail { lead: AssessedLead | null; history: FollowupHistory[] }
+export interface FollowupDetail {
+    lead: AssessedLead | null;
+    history: FollowupHistory[];
+    /** 유효 판정이 없을 때 남아 있는 마지막 처리 상태 (읽기 전용) */
+    archivedFollowup?: LeadFollowup | null;
+    /** 유효 판정이 없는 이유 (완료·30일 경과·제외 조건 등) */
+    excludedReason?: string | null;
+}
 export interface FollowupPatch { status: FollowupStatus; dueAt: string | null; note: string; revision: number }
 import type { JourneyPriority } from "../../../lib/customer-journey-priority";

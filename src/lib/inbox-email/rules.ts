@@ -25,6 +25,7 @@ export const mailboxPatch = z
         version: z.number().int().positive(),
         enabled: z.boolean(),
         googleAccount: emailAddress.nullable().optional(),
+        name: header(100).min(1).optional(),
     })
     .strict();
 const sourceId = header(200).min(1);

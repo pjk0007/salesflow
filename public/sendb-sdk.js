@@ -323,8 +323,10 @@
         state.button.setAttribute("aria-expanded", "false");
         state.button.style.cssText =
             "position:fixed;right:24px;bottom:24px;z-index:2147483000;width:56px;height:56px;border:0;border-radius:50%;padding:0;background:#635BFF;color:white;font:600 14px system-ui;box-shadow:0 6px 24px #0002;cursor:pointer";
-        state.button.hidden = !!options.hideLauncher;
-        if (options.hideLauncher) state.button.style.display = "none";
+        // 연결이 확인되기 전에는 런처를 숨긴다(설치 도메인 미등록 등으로 동작하지 않는 버튼 방지).
+        state.launcherHidden = !!options.hideLauncher;
+        state.button.hidden = true;
+        state.button.style.display = "none";
         state.frame = document.createElement("iframe");
         state.frame.title = "Sendb 고객 상담";
         state.frame.style.cssText =
@@ -382,6 +384,12 @@
             ) {
                 state.ready = true;
                 state.hasConnected = true;
+                if (typeof data.color === "string" && /^#[0-9a-fA-F]{6}$/.test(data.color))
+                    state.button.style.background = data.color;
+                if (!state.launcherHidden) {
+                    state.button.hidden = false;
+                    state.button.style.display = "";
+                }
                 state.waiting = false;
                 state.awaitingReady = false;
                 clearTimeout(state.timer);
@@ -508,12 +516,15 @@
         },
         showLauncher: function () {
             if (current && current.button) {
+                current.launcherHidden = false;
+                if (!current.hasConnected) return;
                 current.button.hidden = false;
                 current.button.style.display = "";
             }
         },
         hideLauncher: function () {
             if (current && current.button) {
+                current.launcherHidden = true;
                 current.button.hidden = true;
                 current.button.style.display = "none";
             }
@@ -670,7 +681,10 @@
             boot({
                 apiBase: new URL(script.src).origin,
                 channelKey: script.dataset.channel,
-            }).catch(function () {});
+            }).catch(function (error) {
+                // 한 줄 설치 코드는 이벤트 구독자가 없으므로 원인을 콘솔에 남긴다.
+                console.warn("[Sendb 상담] " + (error && error.message ? error.message : "상담창을 연결하지 못했습니다."));
+            });
         };
         if (document.readyState === "loading")
             document.addEventListener("DOMContentLoaded", start, {

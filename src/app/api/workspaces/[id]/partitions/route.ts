@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, workspaces, folders, partitions, fieldDefinitions } from "@/lib/db";
+import { db, workspaces, folders, partitions } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { filterAccessiblePartitions, loadOrgScopes, requireWorkspaceCreateAccess } from "@/lib/partition-access";
@@ -129,14 +129,8 @@ export async function POST(
             }
         }
 
-        // 기본 visibleFields: 워크스페이스의 전체 필드 key 목록
-        const fieldList = await db
-            .select({ key: fieldDefinitions.key })
-            .from(fieldDefinitions)
-            .where(eq(fieldDefinitions.workspaceId, workspaceId))
-            .orderBy(asc(fieldDefinitions.sortOrder));
-
-        const visibleFields = fieldList.map((f) => f.key);
+        // 새 파티션은 전체 표시(null) — 속성 타입과 무관한 워크스페이스(레거시) key로 채우지 않는다(UX-067)
+        const visibleFields = null;
 
         const [created] = await db
             .insert(partitions)

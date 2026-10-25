@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import type { WorkflowStep } from "../types";
 import { ConditionEditor } from "./ConditionEditor";
+import { lifecycleStageNames } from "@/components/customer-crm/utils/labels";
 import type { RoutingTeam } from "@/components/inbox-routing/types";
 export type StepOptions = {
     members: { id: string; name: string }[];
@@ -368,10 +369,13 @@ export function StepEditor({
                             })
                         }
                     >
-                        <option value="lead">리드</option>
-                        <option value="prospect">잠재 고객</option>
-                        <option value="customer">고객</option>
-                        <option value="inactive">비활성</option>
+                        {Object.entries(lifecycleStageNames).map(
+                            ([stage, label]) => (
+                                <option key={stage} value={stage}>
+                                    {label}
+                                </option>
+                            ),
+                        )}
                     </select>,
                 )}
             {value.kind === "deal_stage" && (

@@ -2,6 +2,7 @@ import { isKnownEmailRejection } from "../nhn-submit-result";
 import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignChannel, type EsignJob } from "./types";
 import { OTP_TTL_MS } from "./rules";
 import type { EsignAlimtalkStatus } from "./alimtalk";
+import { formatKstDateTime } from "../kst";
 import { EMAIL_SEND_BLOCKED, EMAIL_SEND_CHECK_FAILED, EMAIL_SEND_INVALID_CONTEXT } from "../email-send-guard";
 
 export type MailSubmission = { senderAddress: string; senderName?: string; title: string; body: string; receiverList: { receiveMailAddr: string; receiveType: "MRT0" }[] };
@@ -25,8 +26,12 @@ export function esignMessage(job: Pick<EsignJob, "kind">, payload: DeliveryPaylo
     if (!/^[A-Za-z0-9_-]{40,128}$/.test(payload.token ?? "")) throw new EsignError("서명 링크를 확인해주세요.");
     const link = `${origin.origin}/sign/${payload.token}`;
     const completed = job.kind === "completed", title = completed ? "서명 완료 문서를 확인해주세요" : "서명을 요청드립니다";
-    const documentTitle = String(payload.title ?? "계약서").slice(0, 100), name = String(payload.name ?? "").slice(0, 50);
-    return { title: `[샌드비] ${title}`, text: `[샌드비] ${title}\n${documentTitle}\n${link}`, html: `<p>${escapeHtml(name)}님, ${title}.</p><p>${escapeHtml(documentTitle)}</p><p><a href="${escapeHtml(link)}">${completed ? "완료 문서 확인" : "문서 확인 및 서명"}</a></p>` };
+    const plain = (value: unknown, max: number) => String(value ?? "").replace(/[\r\n\t]/g, " ").trim().slice(0, max);
+    const documentTitle = plain(payload.title, 100) || "계약서", name = plain(payload.name, 50);
+    // UX-262: 누가 보낸 요청인지와 서명 기한을 함께 알린다. 이전에 저장된 작업(필드 없음)은 해당 줄을 생략한다.
+    const requester = plain(payload.orgName, 50), deadline = !completed && payload.expiresAt && Number.isFinite(Date.parse(payload.expiresAt)) ? `${formatKstDateTime(new Date(payload.expiresAt))}(한국 시간)까지` : "";
+    const lines = [documentTitle, ...(requester ? [`요청: ${requester}`] : []), ...(deadline ? [`서명 기한: ${deadline}`] : [])];
+    return { title: `[샌드비] ${title}`, text: `[샌드비] ${title}\n${lines.join("\n")}\n${link}`, html: `<p>${escapeHtml(name)}님, ${title}.</p>${lines.map(line => `<p>${escapeHtml(line)}</p>`).join("")}<p><a href="${escapeHtml(link)}">${completed ? "완료 문서 확인" : "문서 확인 및 서명"}</a></p>` };
 }
 
 /** Transport never retries a timeout: the provider might already have accepted it. */

@@ -9,6 +9,7 @@ import type { WebhookEndpoint, WebhookList } from "../types";
 import type { InboxBootstrap } from "@/components/inbox/types";
 import { WebhookEditor } from "./WebhookEditor";
 import { WebhookDeliveries } from "./WebhookDeliveries";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 export function WebhooksPage({ role }: { role: string }) {
     void role;
     const params = useSearchParams(),
@@ -38,6 +39,35 @@ export function WebhooksPage({ role }: { role: string }) {
         ),
         endpoint = list.data?.endpoints.find((e) => e.id === selected),
         canManage = workspaceAbilities(bootstrap.data, workspaceId).manage;
+    const { confirm, confirmationDialog } = useAsyncConfirm(),
+        [showSecret, setShowSecret] = useState(false);
+    // 서명 키 재발급은 기존 키를 즉시 무효화하고 대기 전달을 취소한다. 영향을 알린 뒤 실행(UX-097)
+    function confirmRotate() {
+        if (!endpoint) return;
+        const target = endpoint;
+        confirm({
+            title: "서명 키 새로 발급",
+            description: `'${target.name}'의 기존 서명 키가 즉시 무효가 되고, 대기·재시도 중인 전달은 모두 취소됩니다.\n수신 서버에 새 키를 저장하기 전까지 이 웹훅의 모든 전달이 서명 오류로 실패합니다. 새 키는 발급 직후 한 번만 표시됩니다.`,
+            confirmLabel: "새 키 발급",
+            onConfirm: async () => {
+                const result = await webhookWrite<{
+                    endpoint?: WebhookEndpoint;
+                    secret?: string;
+                }>(`/api/customer-platform/webhooks/${target.id}`, {
+                    action: "rotate",
+                    version: target.version,
+                });
+                if (result.secret) {
+                    setIssued({ id: target.id, secret: result.secret });
+                    setShowSecret(false);
+                }
+                await list.mutate();
+                toast.success(
+                    "새 서명 키를 발급했습니다. 복사해 수신 서버에 저장해주세요.",
+                );
+            },
+        });
+    }
     async function save(value: unknown) {
         setBusy(true);
         try {
@@ -152,9 +182,19 @@ export function WebhooksPage({ role }: { role: string }) {
                 <div className="space-y-2 rounded-xl border border-violet-200 bg-violet-50 p-4 text-sm">
                     <p className="font-medium">서명 키가 발급되었습니다.</p>
                     <p>
-                        이 창에서 한 번 복사해 수신 서버에 저장하세요. 나중에
-                        잃어버리면 새 키를 발급할 수 있습니다.
+                        이 창에서 한 번 복사해 수신 서버에 저장하세요. 다른 웹훅을
+                        고르거나 닫으면 다시 볼 수 없습니다. 잃어버리면 새 키를
+                        발급해야 합니다.
                     </p>
+                    {showSecret && (
+                        <input
+                            readOnly
+                            aria-label="발급한 서명 키"
+                            className="w-full rounded-lg border bg-white p-2 font-mono text-xs"
+                            value={issued.secret}
+                            onFocus={(e) => e.target.select()}
+                        />
+                    )}
                     <button
                         className="rounded-lg border bg-white px-3 py-2"
                         onClick={async () => {
@@ -164,8 +204,10 @@ export function WebhooksPage({ role }: { role: string }) {
                                 );
                                 toast.success("서명 키를 복사했습니다.");
                             } catch {
+                                // 복사가 막혀도 키를 잃지 않도록 직접 선택해 복사할 수 있게 보여 준다
+                                setShowSecret(true);
                                 toast.error(
-                                    "브라우저의 클립보드 접근을 허용한 뒤 다시 복사해주세요.",
+                                    "자동 복사를 하지 못했습니다. 표시된 키를 직접 선택해 복사해주세요.",
                                 );
                             }
                         }}
@@ -262,9 +304,7 @@ export function WebhooksPage({ role }: { role: string }) {
                                         <button
                                             className="rounded-lg border px-3 py-2 disabled:opacity-40"
                                             disabled={busy}
-                                            onClick={() =>
-                                                void action("rotate")
-                                            }
+                                            onClick={confirmRotate}
                                         >
                                             서명 키 새로 발급
                                         </button>
@@ -284,6 +324,7 @@ export function WebhooksPage({ role }: { role: string }) {
                     )}
                 </section>
             </div>
+            {confirmationDialog}
         </main>
     );
 }

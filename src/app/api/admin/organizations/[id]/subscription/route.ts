@@ -6,7 +6,7 @@ import { eq, and } from "drizzle-orm";
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user?.isSuperAdmin) {
-        return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+        return NextResponse.json({ success: false, error: "페이지를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const { id: orgId } = await params;

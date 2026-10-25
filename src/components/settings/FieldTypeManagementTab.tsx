@@ -271,6 +271,7 @@ export default function FieldTypeManagementTab() {
                                 <button
                                     type="button"
                                     className="p-1 hover:bg-accent rounded"
+                                    aria-label={`${type.name} 타입 수정`}
                                     onClick={(e) => { e.stopPropagation(); handleEditTypeOpen(type); }}
                                 >
                                     <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
@@ -278,6 +279,7 @@ export default function FieldTypeManagementTab() {
                                 <button
                                     type="button"
                                     className="p-1 hover:bg-destructive/10 rounded"
+                                    aria-label={`${type.name} 타입 삭제`}
                                     onClick={(e) => { e.stopPropagation(); setSelectedTypeId(type.id); setDeleteTypeOpen(true); }}
                                 >
                                     <Trash2 className="h-3.5 w-3.5 text-destructive" />

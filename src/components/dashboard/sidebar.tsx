@@ -9,23 +9,10 @@ import { SendbIcon } from "@/components/SendbLogo";
 import { useSidebar } from "./sidebar-context";
 import { useSession } from "@/contexts/SessionContext";
 import {
-    Home,
-    Table2,
-    MessageSquare,
-    Mail,
-    Package,
-    FileText,
-    FileSignature,
-    Building2,
-    CreditCard,
-    Layers,
     PanelLeftClose,
     PanelLeftOpen,
     X,
-    History,
     ShieldCheck,
-    Activity,
-    Ban,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,26 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 
-const navItems = [
-    { href: "/", label: "홈", icon: Home },
-    { href: "/records", label: "레코드", icon: Table2 },
-    { href: "/inbox", label: "고객 상담", icon: MessageSquare },
-    { href: "/customer-crm", label: "고객 관리", icon: Building2 },
-    { href: "/alimtalk", label: "알림톡", icon: MessageSquare },
-    { href: "/email", label: "이메일", icon: Mail },
-    { href: "/email/unsubscribes", label: "수신거부 목록", icon: Ban },
-    { href: "/esign", label: "전자서명", icon: FileSignature },
-    { href: "/products", label: "제품 관리", icon: Package },
-    { href: "/web-forms", label: "웹 폼", icon: FileText },
-    { href: "/tracker", label: "트래커", icon: Activity },
-    { href: "/logs", label: "발송 이력", icon: History },
-];
-
-const bottomNavItems = [
-    { href: "/settings/workspace", label: "워크스페이스", icon: Layers },
-    { href: "/settings/billing", label: "요금제", icon: CreditCard },
-    { href: "/settings/organization", label: "조직 설정", icon: Building2 },
-];
+import { navItems, bottomNavItems } from "./navigation";
 
 function NavLinks({
     collapsed,

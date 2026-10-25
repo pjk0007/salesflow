@@ -97,12 +97,14 @@ export function groupAdSessions(
     sessions: Array<{ visitorId: number | null; referrer: string | null; landingPage: string | null }>,
     channel: string | null,
     channelMode: "all" | "paid" | "organic",
+    /** 사이트 허용 도메인 — 개요 세션 필터와 같은 '직접' 판정(UX-275) */
+    ownDomains: readonly string[] = [],
 ): { groups: Map<string, AdGroup>; visitorsByGroup: Map<string, Set<number>> } {
     const groups = new Map<string, AdGroup>();
     const visitorsByGroup = new Map<string, Set<number>>();
     for (const s of sessions) {
         if (s.visitorId == null) continue;
-        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage), channel, channelMode)) continue;
+        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage, ownDomains), channel, channelMode)) continue;
         const g = classifyAdGroup(s.referrer, s.landingPage);
         if (!g) continue;
         if (!groups.has(g.key)) {

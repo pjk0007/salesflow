@@ -4,7 +4,8 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { uploadToR2 } from "@/lib/r2";
 import { decodeCsvText } from "@/lib/csv-text";
-import { enqueueScheduledRows } from "@/lib/scheduled-registration-upload";
+import { enqueueScheduledRows, mapScheduledRow } from "@/lib/scheduled-registration-upload";
+import { partitionCheckboxKeys } from "@/lib/apply-field-defaults";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
@@ -101,13 +102,10 @@ export async function POST(
 
         // 매핑 적용: header index → fieldKey
         const colKey: Array<string | null> = headers.map((h) => mapping[h] ?? null);
+        const checkboxKeys = await partitionCheckboxKeys(db, partitionId);
 
         const queueValues = dataRows.map((row) => {
-            const data: Record<string, unknown> = {};
-            for (let c = 0; c < colKey.length; c++) {
-                const key = colKey[c];
-                if (key) data[key] = row[c] ?? "";
-            }
+            const data = mapScheduledRow(row, colKey, checkboxKeys);
             return {
                 orgId: user.orgId,
                 workspaceId: partition.workspaceId,

@@ -1,3 +1,4 @@
+import { classifyEmailSubmission, nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailAutoPersonalizedLinks, emailSendLogs, emailClickLogs, records } from "@/lib/db";
 import { eq, and, desc, isNotNull, inArray } from "drizzle-orm";
@@ -230,13 +231,14 @@ export async function POST(req: NextRequest) {
     });
 
     const sendResult = nhnResult.data?.results?.[0];
-    const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+    const submission = classifyEmailSubmission(nhnResult);
+    const isSuccess = submission === "sent";
 
     await db
         .update(emailSendLogs)
         .set({
             requestId: nhnResult.data?.requestId,
-            status: isSuccess ? "sent" : "failed",
+            status: submission,
             resultCode: sendResult ? String(sendResult.resultCode) : null,
             resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
         })
@@ -246,7 +248,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
             {
                 success: false,
-                error: sendResult?.resultMessage ?? nhnResult.header.resultMessage ?? "발송 실패",
+                error: nhnEmailFailureMessage(nhnResult, "테스트 후속 발송"),
             },
             { status: 500 }
         );

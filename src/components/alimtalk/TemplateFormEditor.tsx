@@ -19,6 +19,8 @@ import QuickReplyEditor from "./QuickReplyEditor";
 import ImageUpload from "./ImageUpload";
 import { Plus, Trash2 } from "lucide-react";
 import type { NhnTemplateButton, NhnTemplateQuickReply } from "@/lib/nhn-alimtalk";
+import { toast } from "sonner";
+import { templateFieldVisibility } from "@/lib/alimtalk-template-utils";
 
 export interface TemplateFormState {
     templateCode: string;
@@ -90,6 +92,18 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
             }
         }
 
+        // 유형을 바꿔 숨겨지는 값이 있으면 알린다 — 값은 지우지 않지만(임시저장 보존) 검수 요청에는 실리지 않는다(UX-257)
+        if (partial.templateMessageType !== undefined || partial.templateEmphasizeType !== undefined) {
+            const before = templateFieldVisibility(value), after = templateFieldVisibility(next);
+            const hidden = [
+                before.extra && !after.extra && value.templateExtra && "부가정보",
+                before.emphasizeText && !after.emphasizeText && (value.templateTitle || value.templateSubtitle) && "강조 타이틀",
+                before.image && !after.image && value.templateImageUrl && "이미지",
+                before.itemList && !after.itemList && (value.templateItem?.list?.length || value.templateItemHighlight?.title) && "아이템 리스트",
+            ].filter(Boolean);
+            if (hidden.length > 0) toast.info(`${hidden.join(", ")} 입력값은 이 유형에서 검수 요청에 포함되지 않습니다.`);
+        }
+
         // 버튼 ↔ 빠른응답 전환 시 반대쪽 초기화
         if (partial.interactionType === "buttons") {
             next.quickReplies = [];
@@ -100,10 +114,11 @@ export default function TemplateFormEditor({ value, onChange, mode }: TemplateFo
         onChange(next);
     };
 
-    const showExtra = value.templateMessageType === "EX" || value.templateMessageType === "MI";
-    const showEmphasize = value.templateEmphasizeType === "TEXT";
+    const visibility = templateFieldVisibility(value);
+    const showExtra = visibility.extra;
+    const showEmphasize = visibility.emphasizeText;
     const showImage = value.templateEmphasizeType === "IMAGE";
-    const showItemList = value.templateEmphasizeType === "ITEM_LIST";
+    const showItemList = visibility.itemList;
 
 
     return (

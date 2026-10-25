@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
             device && ["desktop", "mobile", "tablet"].includes(device) ? eq(trackerVisitors.deviceType, device) : undefined,
         ));
 
-    const { groups: groupMeta, visitorsByGroup } = groupAdSessions(sessions, channel, channelMode);
+    const { groups: groupMeta, visitorsByGroup } = groupAdSessions(sessions, channel, channelMode, site.domains ?? []);
 
     // 2) 전환 단계 도달 visitor 집합 — funnel 마지막 단계 기준.
     //    getStageVisitorIds 는 ctx.meaningfulVisitorIdsSql IN 절로 코호트를 거르는데,

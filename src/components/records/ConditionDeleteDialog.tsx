@@ -15,6 +15,7 @@ import { AlertTriangle, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { FieldDefinition, FilterCondition } from "@/types";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { isCompleteRecordFilter } from "@/lib/record-filter-input";
 
 const NO_VALUE_OPS = new Set(["is_empty", "is_not_empty", "is_true", "is_false"]);
 const OP_LABEL: Record<string, string> = {
@@ -25,12 +26,6 @@ const OP_LABEL: Record<string, string> = {
     is_true: "체크됨", is_false: "체크 안됨",
 };
 
-function isComplete(c: FilterCondition): boolean {
-    if (NO_VALUE_OPS.has(c.operator)) return true;
-    if (c.value === null || c.value === undefined || c.value === "") return false;
-    if (c.operator === "between") return c.valueTo !== undefined && c.valueTo !== null && c.valueTo !== "";
-    return true;
-}
 
 interface Props {
     open: boolean;
@@ -47,7 +42,8 @@ export default function ConditionDeleteDialog({ open, onOpenChange, partitionId,
     const [counting, setCounting] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
-    const completeFilters = useMemo(() => filters.filter(isComplete), [filters]);
+    // 목록 필터·서버 조건 삭제와 같은 완성 판정
+    const completeFilters = useMemo(() => filters.filter(isCompleteRecordFilter), [filters]);
     const filtersKey = useMemo(() => JSON.stringify(completeFilters), [completeFilters]);
 
     const labelOf = useCallback(

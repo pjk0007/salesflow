@@ -13,7 +13,8 @@ import {
 import { eq, and, sql } from "drizzle-orm";
 import { collectEventSchema, collectBatchSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
-import { rateLimit } from "@/lib/tracker/rate-limit";
+import { trackerRequestAllowed, trackerVisitorAllowed } from "@/lib/tracker/rate-limit";
+import { requestIp } from "@/lib/request-ip";
 import { issueJourneyContext } from "@/lib/inbox-journey/context";
 
 function corsHeaders(origin: string) {
@@ -43,11 +44,10 @@ export async function POST(req: NextRequest) {
 
     if (!apiKey) return cors(401, { error: "API key required" }, origin);
 
-    const { allowed } = rateLimit(`tracker:${apiKey}`, {
-        maxRequests: 200,
-        windowMs: 60_000,
-    });
-    if (!allowed) return cors(429, { error: "Too many requests" }, origin);
+    // 사이트 키 하나에 작은 한도를 걸면 동시 방문자가 늘 때 모두 함께 막힌다 — 사이트 전체·IP·방문자로 나눈다
+    if (!trackerRequestAllowed("collect", apiKey, requestIp(req.headers))) {
+        return cors(429, { error: "Too many requests" }, origin);
+    }
 
     const site = await db.query.trackerSites.findFirst({
         where: and(eq(trackerSites.apiKey, apiKey), eq(trackerSites.isActive, 1)),
@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
     const batchParsed = collectBatchSchema.safeParse(rawBody);
     if (batchParsed.success) {
         const { visitor_id: vid, session_key: skey, events } = batchParsed.data;
+        if (!trackerVisitorAllowed("collect", apiKey, vid)) return cors(429, { error: "Too many requests" }, origin);
         try {
             await db.transaction(async (tx) => {
                 const visitor = await tx.query.trackerVisitors.findFirst({
@@ -113,6 +114,9 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) return cors(400, { error: "Invalid payload" }, origin);
 
     const { visitor_id, session_key, click_id, event, session, device } = parsed.data;
+    if (!trackerVisitorAllowed("collect", apiKey, visitor_id, event.type)) {
+        return cors(429, { error: "Too many requests" }, origin);
+    }
 
     try {
         const result = await db.transaction(async (tx) => {

@@ -161,6 +161,7 @@ export async function GET(
             dailyActivity: dailyRows,
             hourlyActivity: hourlyRows,
             aliases,
+            siteDomains: access.siteDomains,
         },
     });
 }

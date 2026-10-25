@@ -13,9 +13,11 @@ interface ProductCardProps {
     product: Product;
     onEdit: (product: Product) => void;
     onDelete: (product: Product) => void;
+    /** 관리자만 수정·삭제 메뉴를 보인다(UX-085) */
+    canEdit?: boolean;
 }
 
-export default function ProductCard({ product, onEdit, onDelete }: ProductCardProps) {
+export default function ProductCard({ product, onEdit, onDelete, canEdit = true }: ProductCardProps) {
     return (
         <div
             className="group relative flex flex-col rounded-xl border bg-card overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-primary/30"
@@ -48,13 +50,15 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
                     )}
                 </div>
 
-                {/* Menu */}
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/* Menu — 터치 기기에서는 항상, hover 가능한 기기에서만 마우스를 올리거나 초점이 오면 보인다(UX-293) */}
+                {canEdit && (
+                <div className="absolute top-2 right-2 opacity-100 transition-opacity [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100 [@media(hover:hover)]:group-focus-within:opacity-100">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button
                                 variant="secondary"
                                 size="icon"
+                                aria-label={`${product.name} 관리 메뉴(수정·삭제)`}
                                 className="h-7 w-7 bg-background/80 backdrop-blur-sm"
                                 onClick={(e) => e.stopPropagation()}
                             >
@@ -76,6 +80,7 @@ export default function ProductCard({ product, onEdit, onDelete }: ProductCardPr
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
+                )}
             </div>
 
             {/* Content */}

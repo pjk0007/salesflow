@@ -9,3 +9,11 @@ export function safeNextPath(raw: string | null | undefined): string | null {
     if (v === "/login" || v.startsWith("/login?") || v.startsWith("/login/")) return null;
     return v.slice(0, 2000);
 }
+
+/**
+ * 로그인 화면 주소 — 보던 경로·쿼리·앵커(#lead-followup 등)를 next로 넘긴다. 홈이면 next 없이.
+ * 구글 챗 카드의 '처리 상태 관리' 링크처럼 앵커가 붙은 주소도 로그인 뒤 같은 자리로 돌아온다 (UX-273)
+ */
+export function loginPathFor(here: string): string {
+    return here && here !== "/" && safeNextPath(here) ? `/login?next=${encodeURIComponent(here)}` : "/login";
+}

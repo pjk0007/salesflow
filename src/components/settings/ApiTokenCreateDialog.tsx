@@ -230,8 +230,9 @@ export default function ApiTokenCreateDialog({
 
                 <div className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label>토큰 이름 <span className="text-destructive">*</span></Label>
+                        <Label htmlFor="api-token-name">토큰 이름 <span className="text-destructive">*</span></Label>
                         <Input
+                            id="api-token-name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="예: 웹사이트 연동"
@@ -241,9 +242,9 @@ export default function ApiTokenCreateDialog({
 
                     {mode === "create" && (
                         <div className="space-y-1.5">
-                            <Label>만료 기간</Label>
+                            <Label htmlFor="api-token-expiry">만료 기간</Label>
                             <Select value={expiresIn} onValueChange={setExpiresIn}>
-                                <SelectTrigger>
+                                <SelectTrigger id="api-token-expiry">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -268,8 +269,9 @@ export default function ApiTokenCreateDialog({
                                 </PopoverTrigger>
                                 <PopoverContent className="w-72 space-y-3" align="end">
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs">범위 유형</Label>
+                                        <Label id="api-token-scope-type" className="text-xs">범위 유형</Label>
                                         <RadioGroup
+                                            aria-labelledby="api-token-scope-type"
                                             value={newScopeType}
                                             onValueChange={(v) => {
                                                 setNewScopeType(v as ScopeType);
@@ -302,12 +304,12 @@ export default function ApiTokenCreateDialog({
                                         </p>
                                     ) : newScopeType === "workspace" ? (
                                         <div className="space-y-1.5">
-                                            <Label className="text-xs">워크스페이스</Label>
+                                            <Label htmlFor="api-token-workspace-scope" className="text-xs">워크스페이스</Label>
                                             <Select
                                                 value={selectedScopeId?.toString() ?? ""}
                                                 onValueChange={(v) => setSelectedScopeId(Number(v))}
                                             >
-                                                <SelectTrigger>
+                                                <SelectTrigger id="api-token-workspace-scope">
                                                     <SelectValue placeholder="선택" />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -322,7 +324,7 @@ export default function ApiTokenCreateDialog({
                                     ) : (
                                         <>
                                             <div className="space-y-1.5">
-                                                <Label className="text-xs">워크스페이스</Label>
+                                                <Label htmlFor="api-token-parent-workspace" className="text-xs">워크스페이스</Label>
                                                 <Select
                                                     value={selectedWorkspaceId?.toString() ?? ""}
                                                     onValueChange={(v) => {
@@ -330,7 +332,7 @@ export default function ApiTokenCreateDialog({
                                                         setSelectedScopeId(null);
                                                     }}
                                                 >
-                                                    <SelectTrigger>
+                                                    <SelectTrigger id="api-token-parent-workspace">
                                                         <SelectValue placeholder="선택" />
                                                     </SelectTrigger>
                                                     <SelectContent>
@@ -345,14 +347,14 @@ export default function ApiTokenCreateDialog({
 
                                             {selectedWorkspaceId && partitionTree && (
                                                 <div className="space-y-1.5">
-                                                    <Label className="text-xs">
+                                                    <Label htmlFor="api-token-target-scope" className="text-xs">
                                                         {newScopeType === "folder" ? "폴더" : "파티션"}
                                                     </Label>
                                                     <Select
                                                         value={selectedScopeId?.toString() ?? ""}
                                                         onValueChange={(v) => setSelectedScopeId(Number(v))}
                                                     >
-                                                        <SelectTrigger>
+                                                        <SelectTrigger id="api-token-target-scope">
                                                             <SelectValue placeholder="선택" />
                                                         </SelectTrigger>
                                                         <SelectContent>

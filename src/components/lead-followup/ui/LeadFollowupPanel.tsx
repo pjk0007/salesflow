@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useLeadFollowup } from "../hooks/useLeadFollowup";
-import { FOLLOWUP_LABELS, type FollowupPatch, type FollowupStatus, type FollowupDetail } from "../types";
+import { FOLLOWUP_LABELS, type FollowupPatch, type FollowupStatus, type FollowupDetail, type FollowupHistory } from "../types";
 import { fromKstInput, journeyPriorityLabel, kstDisplay, toKstInput } from "../utils/labels";
 
 function FollowupForm({ detail, save }: { detail: FollowupDetail; save: (patch: FollowupPatch) => Promise<void> }) {
@@ -38,13 +38,34 @@ function FollowupForm({ detail, save }: { detail: FollowupDetail; save: (patch: 
     </form>;
 }
 
+function FollowupHistoryList({ history }: { history: FollowupHistory[] }) {
+    if (!history.length) return null;
+    return <details><summary className="cursor-pointer text-sm">처리 이력 ({history.length}건)</summary><ol className="mt-2 space-y-2 text-xs">
+        {history.map((h, i) => <li key={`${h.at}-${i}`} className="border-l pl-3"><p>{FOLLOWUP_LABELS[h.status]} · {h.actorName} · {kstDisplay(h.at)}</p>{h.dueAt && <p>연락 예정 {kstDisplay(h.dueAt)}</p>}{h.note && <p className="whitespace-pre-wrap text-muted-foreground">{h.note}</p>}</li>)}
+    </ol></details>;
+}
+
+/** 유효 판정이 없을 때 — 제외 이유와 남아 있는 처리 상태·이력을 읽기 전용으로 */
+function ArchivedFollowup({ detail }: { detail: FollowupDetail }) {
+    const kept = detail.archivedFollowup;
+    return <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">현재 유효한 메일 유입 여정 판정이 없습니다.{detail.excludedReason ? ` 이유: ${detail.excludedReason}` : ""}</p>
+        {kept || detail.history.length ? <>
+            {kept && <p className="text-sm">마지막 처리 상태: <strong>{FOLLOWUP_LABELS[kept.status]}</strong>{kept.updatedBy && <span className="text-xs text-muted-foreground"> · 수정 {kept.updatedBy}</span>}{kept.updatedAt && <span className="text-xs text-muted-foreground"> · {kstDisplay(kept.updatedAt)}</span>}</p>}
+            {kept?.note && <p className="whitespace-pre-wrap rounded-md bg-muted/40 p-2 text-xs">{kept.note}</p>}
+            <FollowupHistoryList history={detail.history} />
+            <p className="text-xs text-muted-foreground">판정이 없는 동안은 읽기 전용입니다. 새 방문으로 다시 판정되면 이어서 저장할 수 있습니다.</p>
+        </> : <p className="text-xs text-muted-foreground">새 방문의 마지막 활동 후 10분이 지나면 판정합니다. 내부·공유·완료 고객과 3초 미만 방문은 제외합니다.</p>}
+    </div>;
+}
+
 export function LeadFollowupPanel({ recordId }: { recordId: number }) {
     const { detail, error, isLoading, reload, save } = useLeadFollowup(recordId);
     const lead = detail?.lead;
     return <section id="lead-followup" className="scroll-mt-6 rounded-lg border bg-card p-4 space-y-3" aria-label="고객 여정 리드와 후속 대응">
         <h2 className="text-sm font-semibold">리드 판정 · 후속 대응</h2>
         {isLoading ? <p className="text-sm text-muted-foreground">불러오는 중…</p> : error ? <div role="alert"><p className="text-sm text-destructive">{error}</p><Button variant="outline" size="sm" onClick={() => void reload()}>다시 불러오기</Button></div>
-            : !lead ? <p className="text-sm text-muted-foreground">현재 유효한 메일 유입 여정 판정이 없습니다. 새 방문의 마지막 활동 후 10분이 지나면 판정합니다. 내부·공유·완료 고객과 3초 미만 방문은 제외합니다.</p> : <>
+            : !lead ? (detail ? <ArchivedFollowup detail={detail} /> : null) : <>
                 <div className={`rounded-md border p-3 space-y-1 ${lead.priority.tier === "urgent" ? "border-red-300 bg-red-50 dark:bg-red-950/30" : lead.priority.tier === "highlight" ? "border-orange-300 bg-orange-50 dark:bg-orange-950/30" : "bg-muted/30"}`}>
                     <p className="text-sm font-semibold">{journeyPriorityLabel(lead.priority)} · {lead.priority.score}점</p>
                     <p className="text-xs">{lead.businessName} · 담당자 {lead.ownerName || "연결 전"}</p>
@@ -55,9 +76,7 @@ export function LeadFollowupPanel({ recordId }: { recordId: number }) {
                 <FollowupForm key={`${lead.workspaceId}-${lead.customerKey}-${lead.followup.revision}`} detail={detail!} save={save} />
                 <p className="text-xs text-muted-foreground">강한 핵심 리드만 미확인 24시간 후 또는 연락 기한 이후 재알림합니다. 평일 09~18시, 고객별 하루 1회·최대 3회이며 연락 완료·상담 진행이면 멈춥니다. 재방문해도 처리 상태를 유지합니다.</p>
                 {lead.followup.lastRemindedAt && <p className="text-xs text-muted-foreground">최근 재알림 시도 {kstDisplay(lead.followup.lastRemindedAt)} · {lead.followup.reminderCount}/3회</p>}
-                {!!detail?.history.length && <details><summary className="cursor-pointer text-sm">처리 이력 ({detail.history.length}건)</summary><ol className="mt-2 space-y-2 text-xs">
-                    {detail.history.map((h, i) => <li key={`${h.at}-${i}`} className="border-l pl-3"><p>{FOLLOWUP_LABELS[h.status]} · {h.actorName} · {kstDisplay(h.at)}</p>{h.dueAt && <p>연락 예정 {kstDisplay(h.dueAt)}</p>}{h.note && <p className="whitespace-pre-wrap text-muted-foreground">{h.note}</p>}</li>)}
-                </ol></details>}
+                <FollowupHistoryList history={detail?.history ?? []} />
             </>}
     </section>;
 }

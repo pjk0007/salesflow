@@ -16,15 +16,16 @@ type Exec = { execute: (query: ReturnType<typeof sql>) => Promise<unknown> };
 
 /**
  * 방문자 + (record로 식별됐으면) 같은 record의 모든 기기 방문자. 사이트가 요청 조직 것이 아니면 forbidden.
+ * siteDomains는 유입 '직접' 판정용 사이트 허용 도메인(UX-275).
  */
 export async function loadVisitorGroup(visitorPk: number, orgId: string): Promise<
-    | { ok: true; visitor: TrackerVisitor; group: TrackerVisitor[] }
+    | { ok: true; visitor: TrackerVisitor; group: TrackerVisitor[]; siteDomains: string[] }
     | { ok: false; status: 403 | 404; error: string }
 > {
     const visitor = await db.query.trackerVisitors.findFirst({ where: eq(trackerVisitors.id, visitorPk) });
     if (!visitor) return { ok: false, status: 404, error: "방문자를 찾을 수 없습니다." };
     const [site] = await db
-        .select({ id: trackerSites.id })
+        .select({ id: trackerSites.id, domains: trackerSites.domains })
         .from(trackerSites)
         .where(and(eq(trackerSites.id, visitor.siteId), eq(trackerSites.orgId, orgId)));
     if (!site) return { ok: false, status: 403, error: "권한이 없습니다." };
@@ -34,7 +35,7 @@ export async function loadVisitorGroup(visitorPk: number, orgId: string): Promis
             .from(trackerVisitors)
             .where(and(eq(trackerVisitors.siteId, visitor.siteId), eq(trackerVisitors.recordId, visitor.recordId)))
         : [visitor];
-    return { ok: true, visitor, group };
+    return { ok: true, visitor, group, siteDomains: site.domains ?? [] };
 }
 
 const EVENT_COLUMNS = sql.raw(`id, site_id AS "siteId", session_id AS "sessionId", visitor_id AS "visitorId",

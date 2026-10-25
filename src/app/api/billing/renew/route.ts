@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
             data: {
                 renewed: renewResult.renewed,
                 renewFailed: renewResult.failed,
+                downgraded: renewResult.downgraded,
                 retried: retryResult.retried,
                 suspended: retryResult.suspended,
                 errors: [...renewResult.errors, ...retryResult.errors],

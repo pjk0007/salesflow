@@ -90,7 +90,12 @@ test("encryption marker, unsupported rotation and nonstandard UserUnit are rejec
   await assert.rejects(inspectPdf(await document.save()), /배율/);
   page.node.delete(PDFName.of("UserUnit"));
   document.context.trailerInfo.Encrypt = document.context.register(document.context.obj({ Filter: "Standard", V: 2, R: 3, Length: 128 }) as PDFDict);
-  await assert.rejects(inspectPdf(await document.save()), /암호/);
+  await assert.rejects(inspectPdf(await document.save()), (e: Error) => /^암호화된 PDF/.test(e.message) && /권한 제한/.test(e.message) && !/손상/.test(e.message));
+});
+
+test("UX-263: 손상·비표준 PDF는 암호 해제를 요구하지 않는 별도 문구이고, 정상 PDF는 그대로 통과한다", async () => {
+  await assert.rejects(inspectPdf(Buffer.from("%PDF-1.7\nnot a PDF\n%%EOF")), (e: Error) => /손상되었거나 지원하지 않는/.test(e.message) && !/암호/.test(e.message));
+  assert.equal((await inspectPdf(await sourcePdf())).pageCount, 1);
 });
 
 test("PNG validation decodes real filters and supports packed palette, RGB and 16-bit grayscale", () => {

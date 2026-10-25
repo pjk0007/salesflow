@@ -25,6 +25,8 @@ interface SendAlimtalkDialogProps {
     onOpenChange: (open: boolean) => void;
     partitionId: number;
     recordIds: number[];
+    /** 결과의 레코드별 제외·실패 사유에서 그 레코드 상세를 연다(UX-181) */
+    onEditRecord?: (recordId: number) => void;
 }
 
 interface SendResult {
@@ -43,6 +45,7 @@ export default function SendAlimtalkDialog({
     onOpenChange,
     partitionId,
     recordIds,
+    onEditRecord,
 }: SendAlimtalkDialogProps) {
     const { templateLinks } = useAlimtalkTemplateLinks(partitionId);
     const { sendAlimtalk } = useAlimtalkSend();
@@ -122,8 +125,13 @@ export default function SendAlimtalkDialog({
                         </div>
                         <p className="text-sm">제외 {result.excludedCount ?? 0}건 · 확인 필요 {result.unknownCount ?? 0}건</p>
                         {result.warning && <p role="alert" className="text-sm text-amber-700">{result.warning}</p>}
-                        {result.errors?.length ? <ul className="max-h-40 overflow-y-auto text-sm space-y-1">{result.errors.map((error, index) =>
-                            <li key={index}>{error.recordId ? `레코드 #${error.recordId}: ` : ""}{error.error}</li>)}</ul> : null}
+                        {result.errors?.length ? <ul className="max-h-40 overflow-y-auto text-sm space-y-1">{result.errors.map((error, index) => {
+                            const recordId = error.recordId;
+                            return <li key={index}>{recordId && onEditRecord ? <><button type="button" className="underline"
+                                aria-label={`레코드 #${recordId} 상세 열기`}
+                                onClick={() => { handleClose(); onEditRecord(recordId); }}>레코드 #{recordId}</button>: </>
+                                : recordId ? `레코드 #${recordId}: ` : ""}{error.error}</li>;
+                        })}</ul> : null}
                         <p className="text-xs text-center text-muted-foreground">
                             {result.requestId ? `요청 ID: ${result.requestId}` : "요청 ID 미확인"} · 최종 수신 결과는 발송 이력에서 확인해주세요.
                         </p>

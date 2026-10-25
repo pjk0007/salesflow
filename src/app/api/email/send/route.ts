@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requirePartitionAccess } from "@/lib/partition-access";
-import { extractEmailVariables } from "@/lib/email-utils";
+import { unmappedEmailVariables, unmappedVariablesMessage } from "@/lib/email-utils";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
@@ -202,15 +202,16 @@ export async function POST(req: NextRequest) {
             const slotFromEmail = slotSender.fromEmail;
 
             // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
-                const substitutedSubject = substituteVariables(template.subject, mappings, data);
-                let finalBody = substituteVariables(template.htmlBody, mappings, data);
-                if (extractEmailVariables(substitutedSubject + finalBody).length) {
+                const unmapped = unmappedEmailVariables([template.subject, template.htmlBody], mappings);
+                if (unmapped.length) {
                     failCount++;
-                    notSent("변수 매핑이 누락되어 발송하지 않았습니다.");
+                    notSent(unmappedVariablesMessage(unmapped));
                     slotReleased = true;
                     await releaseSenderSlot(slot);
                     continue;
                 }
+                const substitutedSubject = substituteVariables(template.subject, mappings, data);
+                let finalBody = substituteVariables(template.htmlBody, mappings, data);
                 if (signatureJson) {
                     finalBody = appendSignature(finalBody, signatureJson);
                 }

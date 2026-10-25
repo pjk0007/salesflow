@@ -1089,7 +1089,7 @@ function ownText(map: Record<string, string> | null | undefined, key: string): s
 export type ContactKind = "name" | "phone" | "email" | "company";
 
 const NAME_KEY_RE = /^(contact_?name|customer_?name|manager_?name|person_?name|full_?name|name|ceo_?name|representative)$/i;
-const NAME_LABEL_RE = /^(담당자|담당자명|담당자 이름|담당자 성함|고객명|고객 이름|이름|성함|성명|대표자|대표자명|대표|신청자|신청자명)$/;
+export const NAME_LABEL_RE = /^(담당자|담당자명|담당자 이름|담당자 성함|고객명|고객 이름|이름|성함|성명|대표자|대표자명|대표|신청자|신청자명)$/;
 const COMPANY_KEY_RE = /^(company|company_?name|corp_?name|corporation|business_?name|org_?name|organization|brand_?name)$/i;
 const COMPANY_LABEL_RE = /^(회사|회사명|회사 이름|업체|업체명|기업|기업명|상호|상호명|법인명|브랜드|브랜드명)$/;
 const PHONE_HINT_RE = /(전화|연락처|휴대|핸드폰|phone|mobile|tel)/i;

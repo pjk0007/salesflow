@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PUBLIC_API_CORS_HEADERS as CORS_HEADERS } from "@/lib/public-api-cors";
 import { db, records } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import {
@@ -12,19 +13,12 @@ import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 // 외부 고객사(디하 server 등)가 record에 비즈니스 이벤트(단계 변경 등)를
 // append-only로 기록할 때 호출. record_events 테이블에 한 줄 INSERT.
 
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400",
-};
-
 async function handlePost(req: NextRequest, recordId: number) {
     const tokenStr = getApiTokenFromNextRequest(req);
     const tokenInfo = tokenStr ? await resolveApiToken(tokenStr) : null;
     if (!tokenInfo) {
         return NextResponse.json(
-            { success: false, error: "Invalid or missing API token." },
+            { success: false, error: "API 토큰이 없거나 올바르지 않습니다." },
             { status: 401 }
         );
     }
@@ -36,7 +30,7 @@ async function handlePost(req: NextRequest, recordId: number) {
     // 다른 org의 record는 존재 여부조차 노출하지 않음
     if (!record || record.orgId !== tokenInfo.orgId) {
         return NextResponse.json(
-            { success: false, error: "Record not found." },
+            { success: false, error: "레코드를 찾을 수 없습니다." },
             { status: 404 }
         );
     }
@@ -44,7 +38,7 @@ async function handlePost(req: NextRequest, recordId: number) {
     const hasAccess = await checkTokenAccess(tokenInfo, record.partitionId, "create");
     if (!hasAccess) {
         return NextResponse.json(
-            { success: false, error: "Access denied for this record." },
+            { success: false, error: "이 레코드에 접근할 권한이 없습니다." },
             { status: 403 }
         );
     }
@@ -85,7 +79,7 @@ export async function POST(
     let res: NextResponse;
     if (!recordId) {
         res = NextResponse.json(
-            { success: false, error: "Invalid record id." },
+            { success: false, error: "레코드 ID가 올바르지 않습니다." },
             { status: 400 }
         );
     } else {
@@ -94,7 +88,7 @@ export async function POST(
         } catch (error) {
             console.error("Record event create error:", error);
             res = NextResponse.json(
-                { success: false, error: "Internal server error." },
+                { success: false, error: "서버 오류가 발생했습니다." },
                 { status: 500 }
             );
         }

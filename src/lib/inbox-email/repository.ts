@@ -79,7 +79,13 @@ export async function listMailboxes(
     if (!space) throw new InboxError("사업을 찾을 수 없습니다.", 404);
     await requireCustomerAccess(actor, workspaceId, "read", exec);
     const rows = await exec
-        .select({ ...getTableColumns(boxes), connectionStatus: googleConnections.status, connectionErrorCode: googleConnections.errorCode })
+        .select({
+            ...getTableColumns(boxes),
+            connectionStatus: googleConnections.status,
+            connectionErrorCode: googleConnections.errorCode,
+            // 이 주소를 로그인 계정으로 쓰는 다른 사업 메일함 수. 주소는 내리지 않는다(권한 밖 사업 노출 방지).
+            aliasMailboxCount: sql<number>`(SELECT count(*) FROM inbox_mailboxes alias WHERE alias.org_id = ${boxes.orgId} AND alias.google_account = ${boxes.address} AND alias.id <> ${boxes.id})`.mapWith(Number),
+        })
         .from(boxes)
         .leftJoin(googleConnections, eq(googleConnections.mailboxId, boxes.id))
         .where(
@@ -184,12 +190,30 @@ export async function changeMailbox(
                     409,
                 );
         }
-        if (box.enabled === input.enabled && !accountChanged) return box;
+        if (box.enabled === input.enabled && !accountChanged) {
+            if (input.name === undefined || input.name === box.name) return box;
+            // 보내는 이름만 바꾸면 발송 대기 답장을 취소하지 않도록 버전을 올리지 않는다(다음 발송부터 새 이름).
+            const [renamed] = await tx
+                .update(boxes)
+                .set({ name: input.name })
+                .where(eq(boxes.id, id))
+                .returning();
+            await appendInboxAudit(tx, {
+                orgId: actor.orgId,
+                channelId: box.channelId,
+                actorId: actor.userId,
+                actorName: actor.name,
+                action: "email.mailbox.updated",
+                changes: { name: { before: box.name, after: input.name } },
+            });
+            return renamed;
+        }
         const [next] = await tx
             .update(boxes)
             .set({
                 enabled: input.enabled,
                 googleAccount,
+                ...(input.name !== undefined ? { name: input.name } : {}),
                 version: box.version + 1,
             })
             .where(eq(boxes.id, id))
@@ -217,6 +241,9 @@ export async function changeMailbox(
             action: "email.mailbox.updated",
             changes: {
                 enabled: { before: box.enabled, after: input.enabled },
+                ...(input.name !== undefined && input.name !== box.name
+                    ? { name: { before: box.name, after: input.name } }
+                    : {}),
                 ...(accountChanged
                     ? {
                           googleAccount: {

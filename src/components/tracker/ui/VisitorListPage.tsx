@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Users, UserCheck, Eye, Settings, BarChart3, Megaphone, Activity } from "lucide-react";
 import type { TrackerSite } from "../types";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { useSession } from "@/contexts/SessionContext";
 
 const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
 
@@ -50,6 +51,9 @@ export function VisitorListPage() {
         router.replace(`${pathname}${sp.toString() ? "?" + sp.toString() : ""}`, { scroll: false });
     };
 
+    const { user } = useSession();
+    // 사이드바의 조직 설정과 같은 기준 — 일반 멤버는 트래커를 만들거나 설정을 바꿀 수 없다(서버 403)
+    const canManage = user?.role !== "member";
     const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | null>(() => {
         if (typeof window === "undefined") return null;
@@ -118,7 +122,13 @@ export function VisitorListPage() {
         return (
             <div className="space-y-4">
                 {workspaceSelector}
-                <TrackerSetupForm workspaceId={workspaceId} onCreated={() => mutateSite()} />
+                {canManage ? (
+                    <TrackerSetupForm workspaceId={workspaceId} onCreated={() => mutateSite()} />
+                ) : (
+                    <p className="rounded-md border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground">
+                        이 워크스페이스에는 아직 트래커가 없습니다. 트래커는 관리자만 만들 수 있으니 조직 관리자에게 요청하세요.
+                    </p>
+                )}
             </div>
         );
     }
@@ -177,7 +187,7 @@ export function VisitorListPage() {
                 </TabsContent>
 
                 <TabsContent value="settings" className="mt-4">
-                    <TrackerSettingsPanel site={site} onUpdated={() => mutateSite()} />
+                    <TrackerSettingsPanel site={site} onUpdated={() => mutateSite()} readOnly={!canManage} />
                 </TabsContent>
             </Tabs>
         </div>
@@ -267,7 +277,7 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
                     <p className="text-right text-[11px] text-muted-foreground">
                         * 유입은 첫 방문 기준이며, <span className="font-medium">-</span> 표기는 직접 방문(referrer 없음)을 의미합니다.
                     </p>
-                    <VisitorListTable visitors={items} />
+                    <VisitorListTable visitors={items} ownDomains={site.domains} />
                     <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">총 {total.toLocaleString()}명</p>
                         <TrackerPagination page={page} totalPages={totalPages} onChange={setPage} />

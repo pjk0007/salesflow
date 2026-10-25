@@ -71,3 +71,23 @@ test("UX-126 메일함 연결 상태는 요청한 조직·사업 조건으로만
     assert.ok(lookup.params.includes(1));
     assert.ok(lookup.joins.includes("inbox_google_connections"));
 });
+
+test("UX-127 재연결로 넓힌 범위에서 이미 받은 메일을 다시 받아도 상담·메시지를 새로 만들지 않는다", async (t) => {
+    isolateEnv(t);
+    const { db } = await import("../db");
+    const { receiveEmail } = await import("./repository");
+    const { emailFingerprint, inboundInput } = await import("./rules");
+    const direct = { ...input, to: [base.address], autoSubmitted: "no" };
+    const { calls } = installFakeDb(t, db, call => {
+        if (isMembershipLookup(call)) return [{ role: "owner", tokenVersion: 0 }];
+        if (call.table === "workspaces") return [{ id: 1 }];
+        if (call.table === "inbox_mailboxes") return [base];
+        if (call.table === "inbox_email_receipts")
+            return [{ id: "receipt-old", messageId: null, ignoredReason: null, envelope: direct, fingerprint: emailFingerprint(inboundInput.parse(direct)) }];
+        return [];
+    });
+    const result = await receiveEmail({ orgId: base.orgId, userId: "00000000-0000-4000-8000-000000000002", name: "가상 직원", role: "owner" }, "base", direct);
+    assert.equal(result.duplicate, true);
+    assert.equal(result.receiptId, "receipt-old");
+    assert.equal(calls.filter(c => c.op !== "select").length, 0, "상담·메시지·영수증 쓰기 0회");
+});

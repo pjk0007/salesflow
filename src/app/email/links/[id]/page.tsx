@@ -31,10 +31,12 @@ import {
 } from "@/components/ui/tooltip";
 import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useEmailTemplates } from "@/hooks/useEmailTemplates";
+import { linkTemplateIds, useEmailTemplateOptions } from "@/hooks/useEmailTemplates";
+import TemplateSelectField from "@/components/email/template-links/ui/TemplateSelectField";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
-import { extractEmailVariables } from "@/lib/email-utils";
+import { linkTemplateTexts, linkVariableStatus } from "@/components/email/template-links/utils/linkVariables";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
@@ -72,8 +74,6 @@ function EditLinkPageContent() {
     const partitionId = Number(searchParams.get("partitionId"));
 
     const { data: allPartitionsData, error: partitionsError, mutate: mutatePartitions } = useSWR("/api/partitions", defaultFetcher);
-    const { templates: allTemplates } = useEmailTemplates();
-    const templates = allTemplates.filter((t) => t.status !== "draft");
     const { templateLinks, isLoading, updateLink } = useEmailTemplateLinks(partitionId || null);
     const { fields } = useResolvedFields(partitionId || null);
     const link = templateLinks.find((l) => l.id === linkId);
@@ -95,6 +95,10 @@ function EditLinkPageContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
     const [preventDuplicate, setPreventDuplicate] = useState(0);
+    // 선택지: 발행 템플릿 검색 결과(최대 100) + 이 연결이 이미 쓰는 템플릿(목록 밖·초안이어도) (UX-146)
+    const [templateSearch, setTemplateSearch] = useState("");
+    const templateOptions = useEmailTemplateOptions(templateSearch, linkTemplateIds(emailTemplateId, followupConfig));
+    const templates = templateOptions.templates;
 
     useEffect(() => {
         if (link && !loaded) {
@@ -113,37 +117,53 @@ function EditLinkPageContent() {
     }, [link, loaded]);
 
     const selectedTemplate = templates.find((t) => t.id === emailTemplateId);
-    const variables = selectedTemplate
-        ? extractEmailVariables(selectedTemplate.subject + " " + selectedTemplate.htmlBody)
-        : [];
+    // 첫 메일과 후속 단계 템플릿의 변수 모두 — 후속 템플릿에만 있는 변수도 여기서 매핑한다 (UX-163)
+    const { all: variables, unmapped: unmappedVariables, mappedCount } = linkVariableStatus(
+        linkTemplateTexts(templates, emailTemplateId, followupConfig),
+        variableMappings
+    );
+    const { confirm, confirmationDialog } = useAsyncConfirm();
 
-    const mappedCount = Object.values(variableMappings).filter(Boolean).length;
+    const save = async () => {
+        if (!emailTemplateId) throw new Error("필수 항목을 입력해주세요.");
+        const result = await updateLink(linkId, {
+            name,
+            emailTemplateId,
+            recipientField,
+            variableMappings: Object.keys(variableMappings).length > 0 ? variableMappings : undefined,
+            triggerType,
+            triggerCondition: triggerType !== "manual" ? triggerCondition : null,
+            repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
+            followupConfig: followupConfig || null,
+            preventDuplicate,
+            ...templateLinkSenderBody(triggerType, sender.ids),
+        });
+        if (!result.success) throw new Error(result.error || "저장에 실패했습니다.");
+        toast.success("연결이 수정되었습니다.");
+        router.push("/email?tab=links");
+    };
 
     const handleSave = async () => {
         if (!name || !emailTemplateId || !recipientField) {
             toast.error("필수 항목을 입력해주세요.");
             return;
         }
+        // 매핑 안 된 변수가 있으면 그 변수가 든 메일은 보내지 않는다 — 저장 전에 알린다 (UX-163)
+        if (unmappedVariables.length > 0) {
+            confirm({
+                title: "매핑되지 않은 변수가 있습니다",
+                description: `${unmappedVariables.join(", ")} 변수가 레코드 필드와 연결되지 않았습니다.\n이대로 저장하면 이 변수가 든 메일(첫 메일·후속)은 발송되지 않고 발송 이력에 '변수 매핑 누락'으로 남습니다.`,
+                confirmLabel: "그래도 저장",
+                pendingLabel: "저장 중...",
+                onConfirm: save,
+            });
+            return;
+        }
         setSaving(true);
         try {
-            const result = await updateLink(linkId, {
-                name,
-                emailTemplateId,
-                recipientField,
-                variableMappings: Object.keys(variableMappings).length > 0 ? variableMappings : undefined,
-                triggerType,
-                triggerCondition: triggerType !== "manual" ? triggerCondition : null,
-                repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
-                followupConfig: followupConfig || null,
-                preventDuplicate,
-                ...templateLinkSenderBody(triggerType, sender.ids),
-            });
-            if (result.success) {
-                toast.success("연결이 수정되었습니다.");
-                router.push("/email?tab=links");
-            } else {
-                toast.error(result.error || "저장에 실패했습니다.");
-            }
+            await save();
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "저장에 실패했습니다.");
         } finally {
             setSaving(false);
         }
@@ -176,6 +196,7 @@ function EditLinkPageContent() {
     return (
         <WorkspaceLayout>
             <TooltipProvider>
+                {confirmationDialog}
                 <PageContainer>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -221,21 +242,14 @@ function EditLinkPageContent() {
                                             이메일 템플릿
                                             <HelpTip text="발송할 이메일 템플릿을 선택하세요. 임시저장(draft) 상태는 제외됩니다." />
                                         </Label>
-                                        <Select
-                                            value={emailTemplateId ? String(emailTemplateId) : ""}
-                                            onValueChange={(v) => setEmailTemplateId(Number(v))}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="템플릿 선택" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {templates.map((t) => (
-                                                    <SelectItem key={t.id} value={String(t.id)}>
-                                                        {t.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <TemplateSelectField
+                                            value={emailTemplateId}
+                                            onChange={setEmailTemplateId}
+                                            templates={templates}
+                                            onSearchChange={setTemplateSearch}
+                                            truncated={templateOptions.truncated}
+                                            total={templateOptions.total}
+                                        />
                                     </div>
 
                                     <div className="space-y-2">

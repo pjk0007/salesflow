@@ -1,3 +1,4 @@
+import { removeVisibleFieldKey } from "@/lib/visible-fields";
 import { NextRequest, NextResponse } from "next/server";
 import { db, fieldDefinitions, workspaces, partitions } from "@/lib/db";
 import { fieldTypes } from "@/lib/db/schema";
@@ -167,12 +168,12 @@ export async function DELETE(
             .where(eq(partitions.workspaceId, workspaceId));
 
         for (const p of partitionList) {
-            const currentFields = (p.visibleFields as string[]) || [];
-            if (currentFields.includes(fieldKey)) {
+            const nextFields = removeVisibleFieldKey(p.visibleFields as string[] | null, fieldKey);
+            if (nextFields !== undefined) {
                 await db
                     .update(partitions)
                     .set({
-                        visibleFields: currentFields.filter((k) => k !== fieldKey),
+                        visibleFields: nextFields,
                         updatedAt: new Date(),
                     })
                     .where(eq(partitions.id, p.id));
