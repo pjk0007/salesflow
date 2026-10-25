@@ -1,6 +1,6 @@
 import { requireCustomerAccess } from "@/lib/customer-access/access";
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, lt, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
     db,
@@ -355,6 +355,74 @@ export async function webhookDeliveryDetail(
             .orderBy(desc(attempts.attempt))
             .limit(100);
     return { delivery, payload: event.payload, attempts: history };
+}
+/** 한 번에 다시 보낼 수 있는 실패 전달 수(UX-098). */
+export const BULK_RETRY_LIMIT = 100;
+/**
+ * 같은 웹훅의 실패·재시도 대기·취소 전달을 오래된 순으로 최대 100건 다시 대기열에 넣는다(UX-098).
+ * 단건 재전달(retryWebhook)과 같은 잠금 순서·상태 조건·감사 기록을 쓴다. 상태 조건으로 이미 대기·전달 중·완료인
+ * 전달은 바꾸지 않으므로 두 번 눌러도 중복 발송하지 않는다.
+ */
+export async function retryWebhookDeliveries(
+    actor: SalesActor,
+    endpointId: string,
+    state: "retry" | "dead" | "cancelled",
+    exec: DbExec = db,
+) {
+    return exec.transaction(async (tx) => {
+        const endpoint = await ownedWebhook(actor, endpointId, tx, true);
+        await requireCustomerAccess(actor, endpoint.workspaceId, "manage", tx);
+        if (!endpoint.enabled)
+            throw new InboxError("웹훅을 켠 뒤 재시도해주세요.", 409);
+        const scope = and(
+            eq(deliveries.endpointId, endpoint.id),
+            eq(deliveries.orgId, actor.orgId),
+            eq(deliveries.state, state),
+        );
+        const targets = await tx
+            .select({ id: deliveries.id })
+            .from(deliveries)
+            .where(scope)
+            .orderBy(asc(deliveries.createdAt), asc(deliveries.id))
+            .limit(BULK_RETRY_LIMIT)
+            .for("update");
+        if (!targets.length) return { retried: 0, remaining: false };
+        const saved = await tx
+            .update(deliveries)
+            .set({
+                state: "pending",
+                endpointVersion: endpoint.generation,
+                cycleAttempts: 0,
+                availableAt: new Date(),
+                leaseId: null,
+                leaseUntil: null,
+                lastError: null,
+                lastStatus: null,
+            })
+            .where(
+                and(
+                    scope,
+                    inArray(
+                        deliveries.id,
+                        targets.map((t) => t.id),
+                    ),
+                ),
+            )
+            .returning({ id: deliveries.id });
+        if (saved.length)
+            await tx.insert(audit).values(
+                saved.map(() => ({
+                    endpointId: endpoint.id,
+                    actorName: actor.name,
+                    action: "delivery.retried",
+                    version: endpoint.version,
+                })),
+            );
+        return {
+            retried: saved.length,
+            remaining: targets.length === BULK_RETRY_LIMIT,
+        };
+    });
 }
 export async function retryWebhook(
     actor: SalesActor,

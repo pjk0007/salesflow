@@ -6,6 +6,7 @@ import {
     webhookDetail,
     updateWebhook,
     testWebhook,
+    retryWebhookDeliveries,
 } from "@/lib/customer-platform/webhook-repository";
 type C = { params: Promise<{ id: string }> };
 export async function GET(req: NextRequest, c: C) {
@@ -46,6 +47,12 @@ export async function POST(req: NextRequest, c: C) {
                 actor,
                 id,
                 z.string().uuid().parse(body.clientId),
+            );
+        if (body.action === "retry_deliveries")
+            return retryWebhookDeliveries(
+                actor,
+                id,
+                z.enum(["retry", "dead", "cancelled"]).parse(body.state),
             );
         z.literal("rotate").parse(body.action);
         return updateWebhook(actor, id, { version: body.version }, true);
