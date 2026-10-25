@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, trackerSites, trackerVisitors, records } from "@/lib/db";
+import { db, trackerSites, trackerVisitors } from "@/lib/db";
 import { eq, and, sql } from "drizzle-orm";
 import { identifyPayloadSchema } from "@/lib/tracker/validations";
 import { matchesDomain } from "@/lib/tracker/domain-match";
@@ -90,10 +90,11 @@ export async function POST(req: NextRequest) {
 
         // 2) email fallback — recordId 없을 때만. (이메일은 거의 고유)
         if (!recordId && email) {
+            // 역매칭(rematchVisitorsByRecord)과 같이 대소문자·앞뒤 공백을 무시한다 (UX-284)
             const matched = (await db.execute(sql`
                 SELECT id FROM records
                 WHERE workspace_id = ${site.workspaceId}
-                  AND data->>'email' = ${email}
+                  AND lower(trim(data->>'email')) = ${email.trim().toLowerCase()}
                 LIMIT 1
             `)) as unknown as Array<{ id: number }>;
             if (matched[0]) {

@@ -6,6 +6,7 @@ import { requireRecordAccess } from "@/lib/partition-access";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { broadcastToPartition } from "@/lib/sse";
 import { insertRecordEvent } from "@/lib/record-events";
+import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 
 export async function GET(
     req: NextRequest,
@@ -127,6 +128,14 @@ export async function PATCH(
             partitionId: updated.partitionId,
             recordId: updated.id,
         }, req.headers.get("x-session-id") as string);
+
+        // 화면 수정으로 이메일·식별값이 채워지면 이미 식별된 방문자를 연결한다 (UX-284, v1 수정과 같은 후처리 — 응답을 기다리게 하지 않는다)
+        rematchVisitorsByRecord({
+            orgId: updated.orgId,
+            workspaceId: updated.workspaceId,
+            recordId: updated.id,
+            data: updated.data as Record<string, unknown>,
+        }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
 
         return NextResponse.json({ success: true, data: updated });
     } catch (error) {
