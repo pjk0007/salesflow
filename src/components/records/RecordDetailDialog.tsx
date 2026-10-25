@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Mail, Route, FileSignature } from "lucide-react";
 import CellRenderer from "./CellRenderer";
+import { recordFieldValue } from "./utils/field-value";
 import CompanyResearchSection from "./CompanyResearchSection";
 import MemoSection from "./ui/MemoSection";
 import { RecordVisitorActivity } from "@/components/tracker/ui/RecordVisitorActivity";
@@ -102,7 +103,7 @@ export default function RecordDetailDialog({
                                         {field.label}
                                     </span>
                                     <span className="col-span-2 text-sm">
-                                        <CellRenderer field={field} value={data[field.key]} fullText />
+                                        <CellRenderer field={field} value={recordFieldValue(record, field)} fullText />
                                     </span>
                                 </div>
                             ))}
