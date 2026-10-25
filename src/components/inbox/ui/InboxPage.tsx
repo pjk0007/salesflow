@@ -171,7 +171,8 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
     const error = initial.bootstrap.error || list.error || detail.error;
     return (
         <div className="flex h-full min-h-[600px] flex-col bg-background">
-            <header className="flex min-h-16 shrink-0 flex-wrap items-center gap-2 border-b px-5 py-3">
+            {/* 좁은 화면에서 상담을 열면 대화 공간을 위해 페이지 머리를 접는다(목록으로 돌아오면 다시 보임) */}
+            <header className={`min-h-16 shrink-0 flex-wrap items-center gap-2 border-b px-5 py-3 ${selected ? "hidden lg:flex" : "flex"}`}>
                 <div className="flex items-center gap-3">
                     <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#635BFF] text-white">
                         <MessageCircle size={19} />

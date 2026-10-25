@@ -366,7 +366,7 @@ ${body}` : body, key);
                             <h2 className="truncate font-semibold">
                                 {chat.name}
                             </h2>
-                            <p className="text-xs text-muted-foreground">
+                            <p className="truncate text-xs text-muted-foreground">
                                 {chat.historyOnly
                                     ? "이전 상담"
                                     : chat.medium === "email"
@@ -394,7 +394,7 @@ ${body}` : body, key);
                             />
                         </button>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex shrink-0 gap-2">
                         {!chat.historyOnly && canRespond && (
                             <>
                                 {chat.status !== "closed" ? (
@@ -421,7 +421,7 @@ ${body}` : body, key);
                                                 change({ status: "closed" })
                                             }
                                             disabled={changing}
-                                            className="flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
+                                            className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
                                         >
                                             <Check size={16} />
                                             종료
@@ -429,7 +429,7 @@ ${body}` : body, key);
                                     </>
                                 ) : (
                                     <button
-                                        className="rounded-xl border px-3 py-2 text-sm"
+                                        className="whitespace-nowrap rounded-xl border px-3 py-2 text-sm"
                                         onClick={() =>
                                             change({ status: "open" })
                                         }
@@ -513,7 +513,7 @@ ${body}` : body, key);
                                     el.clientHeight <
                                 100;
                     }}
-                    className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5"
+                    className="min-h-[160px] flex-1 space-y-4 overflow-y-auto px-5 py-5 lg:min-h-0"
                     role="log"
                     aria-label="상담 메시지"
                 >
