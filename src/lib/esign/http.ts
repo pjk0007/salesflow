@@ -44,6 +44,21 @@ function requireWorkspace(url: URL, body?: { workspaceId?: unknown }) {
     if (!Number.isSafeInteger(id) || id < 1) throw new EsignError("사업을 선택해주세요.");
     return id;
 }
+/**
+ * 발송 채널 준비 확인. 알림톡은 상태 사유를 그대로 쓰고, 공급자 조회 실패는 설정 문제가 아니라 일시 오류(delivery_status_unavailable)로 구분한다.
+ * 서명자에게는 직원 설정 사유를 보여 주지 않는다.
+ */
+async function assertDeliveryReady(delivery: EsignDelivery, channel: "email" | "alimtalk" | "sms", orgId: string, audience: "staff" | "signer") {
+    if (channel === "alimtalk" && delivery.alimtalkStatus) {
+        const status = await delivery.alimtalkStatus(orgId);
+        if (status.ready) return;
+        if (status.unavailable) throw new EsignError(audience === "staff" ? "알림톡 승인 상태를 잠시 확인하지 못했습니다. 설정 문제는 아니니 잠시 후 다시 보내주세요." : "알림톡 발송 상태를 잠시 확인하지 못했습니다. 잠시 후 다시 시도하거나 다른 방법으로 확인 코드를 받아주세요.", 503, "delivery_status_unavailable");
+        throw new EsignError(audience === "staff" ? status.reason || "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : "알림톡 템플릿 승인과 연결이 준비되지 않았습니다. 요청자에게 문의해주세요.", 503, "delivery_unconfigured");
+    }
+    if (await delivery.ready(channel, orgId)) return;
+    if (audience === "signer") throw new EsignError(`${channel === "alimtalk" ? "알림톡 템플릿 승인과 연결" : channel === "sms" ? "SMS 발송 설정" : "이메일 발송 설정"}이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
+    throw new EsignError(channel === "alimtalk" ? "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : `${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
+}
 /** 목록 공통 쿼리: q(제목·서명자 검색), cursor(다음 페이지), limit(최대 100). */
 function listQuery(url: URL) {
     const limit = url.searchParams.get("limit");
@@ -85,7 +100,8 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
             if (action === "otp") {
                 const channel = z.enum(["email", "alimtalk", "sms"]).parse(body.channel), session = await service.publicSession(token);
                 const aggregate = await service.repository.read(session.envelope.id);
-                if (!aggregate || !await delivery.ready(channel, aggregate.envelope.orgId)) throw new EsignError(`${channel === "alimtalk" ? "알림톡 템플릿 승인과 연결" : channel === "sms" ? "SMS 발송 설정" : "이메일 발송 설정"}이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
+                if (!aggregate) throw new EsignError("서명 요청을 찾을 수 없습니다.", 404);
+                await assertDeliveryReady(delivery, channel, aggregate.envelope.orgId, "signer");
                 const queued = await service.requestOtp(token, channel); kick(engine);
                 return result(queued);
             }
@@ -160,7 +176,7 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
             if (!id && method === "POST") {
                 const input = body as unknown as Parameters<EsignService["createEnvelope"]>[1];
                 const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "alimtalk", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);
-                for (const channel of new Set(recipients.flatMap(r => r.channels))) if (!await delivery.ready(channel, actor.orgId)) throw new EsignError(channel === "alimtalk" ? "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : `${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
+                for (const channel of new Set(recipients.flatMap(r => r.channels))) await assertDeliveryReady(delivery, channel, actor.orgId, "staff");
                 const created = await service.createEnvelope(actor, input);
                 const detail = await service.dispatchEnvelope(actor, created.envelope.id); kick(engine); return result(detail, 201);
             }

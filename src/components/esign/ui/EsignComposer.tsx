@@ -86,7 +86,8 @@ export function EsignComposer({ workspaceId, templates, documentsLoading, templa
         setBusy(true); setError("");
         try { onSent(await esignApi.createEnvelope(workspaceId, { documentId: document.id, title: title.trim(), order, expiresAt: new Date(expiresAt).toISOString(), recipients: recipients.map(recipient => ({ ...recipient, name: recipient.name.trim(), email: recipient.email?.trim() || undefined, phone: recipient.phone?.replace(/[\s()-]/g, "") || undefined })) })); }
         catch (cause) {
-            if (cause instanceof EsignApiError && cause.status < 500 && cause.status !== 408) setError(cause.message);
+            // 발송 준비 확인(503 delivery_*)은 요청을 만들기 전에 거절된 것이라 결과 불명이 아니다.
+            if (cause instanceof EsignApiError && ((cause.status < 500 && cause.status !== 408) || cause.code === "delivery_unconfigured" || cause.code === "delivery_status_unavailable")) setError(cause.message);
             else { setOutcomeUnknown(true); setError("요청 생성 응답을 확인하지 못했습니다. 중복 발송을 피하기 위해 요청 목록에서 생성 여부를 먼저 확인해 주세요."); }
         }
         finally { setBusy(false); }

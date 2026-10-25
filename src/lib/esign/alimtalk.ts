@@ -4,6 +4,8 @@ import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignJob }
 export type EsignAlimtalkKind = "invitation" | "otp" | "completed";
 export type EsignAlimtalkStatus = {
     ready: boolean; channelName?: string; reason?: string;
+    /** 공급자 상태 조회 자체가 실패(시간 초과·5xx)했다. 설정 문제와 구분해 재시도를 안내한다. */
+    unavailable?: boolean;
     templates: { kind: string; code: string; label: string; state: string }[];
 };
 export type EsignAlimtalkConfig = { appKey: string; secretKey: string; senderKey: string };
@@ -51,7 +53,7 @@ export function createEsignAlimtalk(options: { enabled: boolean; config(orgId: s
                 const { senderReady, channelName, results } = await inspect(config, templates.map(t => t.kind));
                 const ready = senderReady && results.length === 3 && results.every(t => t.ready);
                 return { ready, channelName, templates: results.map(({ kind, code, label, state }) => ({ kind, code, label, state })), ...(!ready ? { reason: senderReady ? "전자서명 템플릿 3종 승인 후 알림톡을 사용할 수 있습니다." : "카카오 발신 채널 상태를 확인해주세요." } : {}) };
-            } catch { return { ready: false, reason: "알림톡 템플릿 승인 상태를 확인하지 못했습니다. 잠시 후 새로고침해주세요.", templates: [] }; }
+            } catch { return { ready: false, unavailable: true, reason: "알림톡 템플릿 승인 상태를 확인하지 못했습니다. 잠시 후 새로고침해주세요.", templates: [] }; }
         },
         async send(job: EsignJob, orgId: string, payload: DeliveryPayload): Promise<DeliveryOutcome> {
             if (!options.enabled) return { state: "failed", error: "전자서명 알림톡 연결이 꺼져 있습니다." };
