@@ -3,6 +3,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { MessengerSettingsFields } from "@/components/customer-messenger/ui/MessengerSettingsFields";
 import { defaultMessengerSettings } from "@/lib/customer-messenger/rules";
 import { InboxAudit } from "./InboxAudit";
+import { AttachmentUsage } from "./AttachmentUsage";
 import { useState } from "react";
 import { Copy, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
@@ -89,6 +90,7 @@ export function ChannelSettings({
                         고객 자동화 설정 ↗
                     </a>
                 )}
+                {channel && <AttachmentUsage channelId={channel.id} />}
                 <form
                     className="space-y-5"
                     onSubmit={async (e) => {
