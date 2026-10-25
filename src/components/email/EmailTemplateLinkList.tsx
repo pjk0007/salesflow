@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
 
 interface Partition {
     id: number;
@@ -149,10 +150,19 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                                 중복방지
                                             </Badge>
                                         )}
-                                        {link.followupConfig && (
-                                            <Badge variant="outline">
-                                                후속 {(link.followupConfig as { delayDays: number }).delayDays}일
-                                            </Badge>
+                                        {followupBadgeLabel(link.followupConfig) && (
+                                            link.triggerType === "manual" ? (
+                                                // 예전에 저장된 수동 연결의 후속 설정 — 수동 발송은 후속을 보내지 않는다 (UX-229)
+                                                <Badge
+                                                    variant="outline"
+                                                    className="text-muted-foreground"
+                                                    title="수동 발송 연결은 후속 메일을 보내지 않습니다. 연결을 열어 저장하면 후속 설정이 정리됩니다."
+                                                >
+                                                    후속 미적용(수동)
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline">{followupBadgeLabel(link.followupConfig)}</Badge>
+                                            )
                                         )}
                                         <RuleReplyBadge kind="template" ruleId={link.id} />
                                     </div>

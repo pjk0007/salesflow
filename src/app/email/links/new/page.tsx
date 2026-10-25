@@ -119,7 +119,8 @@ function NewLinkPageContent() {
                 triggerType,
                 triggerCondition: triggerType !== "manual" ? triggerCondition : null,
                 repeatConfig: triggerType !== "manual" && useRepeat ? repeatConfig : null,
-                followupConfig: followupConfig || null,
+                // 수동 발송은 후속 큐를 만들지 않는다 — 저장해도 나가지 않을 후속 설정을 남기지 않는다 (UX-229)
+                followupConfig: triggerType === "manual" ? null : followupConfig || null,
                 preventDuplicate,
                 ...templateLinkSenderBody(triggerType, sender.ids),
             });
@@ -358,16 +359,22 @@ function NewLinkPageContent() {
                             </Card>
 
                             {/* Card 3: 후속 발송 */}
-                            <Card id="section-followup" className={useRepeat ? "opacity-60" : ""}>
+                            <Card id="section-followup" className={useRepeat || triggerType === "manual" ? "opacity-60" : ""}>
                                 <CardHeader>
                                     <CardTitle>
                                         후속 발송
-                                        {useRepeat && <span className="text-xs font-normal text-muted-foreground ml-2">(반복 발송과 동시 사용 불가)</span>}
+                                        {useRepeat && triggerType !== "manual" && <span className="text-xs font-normal text-muted-foreground ml-2">(반복 발송과 동시 사용 불가)</span>}
+                                        {triggerType === "manual" && <span className="text-xs font-normal text-muted-foreground ml-2">(수동 발송에는 적용되지 않음)</span>}
                                     </CardTitle>
                                     <CardDescription>일정 기간 후 읽음 여부에 따라 후속 이메일 발송</CardDescription>
                                 </CardHeader>
                                 <CardContent>
-                                    {useRepeat ? (
+                                    {triggerType === "manual" ? (
+                                        <p className="text-sm text-muted-foreground">
+                                            수동 발송 연결은 후속 메일을 보내지 않습니다. 발송 시점을 &apos;생성 시&apos;나 &apos;수정 시&apos;로 바꾸면 후속 발송을 설정할 수 있습니다.
+                                            {followupConfig ? " 저장하면 기존 후속 설정은 지워집니다." : ""}
+                                        </p>
+                                    ) : useRepeat ? (
                                         <p className="text-sm text-muted-foreground">반복 발송 사용 중에는 후속 발송을 설정할 수 없습니다.</p>
                                     ) : (
                                         <FollowupConfigForm
@@ -435,7 +442,7 @@ function NewLinkPageContent() {
                                         )}
                                         <div className="flex justify-between items-center">
                                             <span className="text-muted-foreground">후속 발송</span>
-                                            {followupConfig ? (
+                                            {followupConfig && triggerType !== "manual" ? (
                                                 <Badge>
                                                     {Array.isArray(followupConfig)
                                                         ? `${followupConfig.length}단계`
