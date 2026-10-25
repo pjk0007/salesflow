@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StageMatch, FunnelOptions } from "../../types/funnel";
 import { CUSTOM } from "./constants";
+import { showsManualEntry } from "./utils";
 
 interface Props {
     // 사이트의 추적 ON 필드 + 발생한 record_events 평탄화 옵션
@@ -35,7 +36,7 @@ export function FieldValueSelector({ eventTypes, current, onChange }: Props) {
         ? `${current.field}::${current.value}`
         : "";
     const matchedOption = options.find((o) => o.value === currentValue);
-    const isCustom = manual || ((current.field !== "" || current.value !== "") && !matchedOption);
+    const isCustom = showsManualEntry(manual, current.field !== "" || current.value !== "", Boolean(matchedOption));
 
     return (
         <>

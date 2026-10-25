@@ -35,7 +35,10 @@ export type VisitorDetailResponse =
               visitor: TrackerVisitor;
               summary: VisitorSummary;
               sessions: TrackerSession[];
+              /** 세션마다 최신 이벤트(시간순). 세션 전체보다 적으면 sessionEventTotals로 알 수 있다 */
               events: TrackerEvent[];
+              /** 세션 id → 세션의 전체 이벤트 수 */
+              sessionEventTotals: Record<number, number>;
               engagement: VisitorEngagement;
               dailyActivity: VisitorDailyActivity[];
               hourlyActivity: VisitorHourlyActivity[];
@@ -45,4 +48,9 @@ export type VisitorDetailResponse =
               siteDomains?: string[];
           };
       }
+    | { success: false; error: string };
+
+/** GET /api/tracker/visitors/{id}/events — 세션의 이전 행동 이어 받기 */
+export type VisitorSessionEventsResponse =
+    | { success: true; data: { events: TrackerEvent[]; hasMore: boolean } }
     | { success: false; error: string };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -12,7 +13,11 @@ import {
     Zap,
     LogOut,
     MapPin,
+    History,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { requestErrorMessage } from "@/lib/swr-fetcher";
+import { fetchOlderSessionEvents } from "../../api/visitorSessionEvents";
 import { KST_TIME_ZONE } from "@/lib/kst";
 import type { TrackerSession, TrackerEvent } from "../../types";
 import { parseInflowDetail } from "../../utils/inflowDetail";
@@ -23,13 +28,18 @@ import { formatDateTime, formatDuration, formatDwellMs, urlPath } from "../../ut
  * 시간순으로 보인다. 착륙 → … → 탈주.
  */
 export function VisitorSessionTimeline({
+    visitorPk,
     sessions,
     events,
+    sessionEventTotals,
     aliases,
     ownDomains = [],
 }: {
+    visitorPk: number;
     sessions: TrackerSession[];
     events: TrackerEvent[];
+    /** 세션 id → 세션 전체 이벤트 수. events보다 많으면 이전 행동을 이어 받는다 */
+    sessionEventTotals: Record<number, number>;
     aliases: Record<string, string>;
     /** 사이트 허용 도메인 — 자기 사이트에서 온 방문을 직접으로 본다 */
     ownDomains?: readonly string[];
@@ -70,8 +80,10 @@ export function VisitorSessionTimeline({
                         {sessions.map((s) => (
                             <SessionItem
                                 key={s.id}
+                                visitorPk={visitorPk}
                                 session={s}
                                 events={eventsBySession.get(s.id) ?? []}
+                                total={sessionEventTotals[s.id]}
                                 aliases={aliases}
                                 ownDomains={ownDomains}
                                 isOpen={open.has(s.id)}
@@ -86,21 +98,49 @@ export function VisitorSessionTimeline({
 }
 
 function SessionItem({
+    visitorPk,
     session: s,
-    events,
+    events: latestEvents,
+    total,
     aliases,
     isOpen,
     onToggle,
     ownDomains,
 }: {
+    visitorPk: number;
     session: TrackerSession;
     events: TrackerEvent[];
+    total: number | undefined;
     aliases: Record<string, string>;
     isOpen: boolean;
     onToggle: () => void;
     ownDomains: readonly string[];
 }) {
     const inflow = parseInflowDetail(s.referrer, s.landingPage, ownDomains);
+    // 상세 API는 세션마다 최신 행동만 보낸다 — 앞선 행동은 이 세션에서 이어 받아 앞에 붙인다
+    const [older, setOlder] = useState<TrackerEvent[]>([]);
+    const [olderHasMore, setOlderHasMore] = useState<boolean | null>(null);
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    // 상세가 다시 조회돼 최신 묶음이 바뀌어도 같은 이벤트를 두 번 그리지 않는다
+    const latestIds = new Set(latestEvents.map((e) => e.id));
+    const events = older.length ? [...older.filter((e) => !latestIds.has(e.id)), ...latestEvents] : latestEvents;
+    const remaining = Math.max(0, (total ?? events.length) - events.length);
+    const hasMore = (olderHasMore ?? true) && remaining > 0;
+
+    const loadOlder = async () => {
+        const first = events[0];
+        if (!first || loadingOlder) return;
+        setLoadingOlder(true);
+        try {
+            const page = await fetchOlderSessionEvents(visitorPk, s.id, first.id);
+            setOlder((prev) => [...page.events, ...prev]);
+            setOlderHasMore(page.hasMore);
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "이전 행동을 불러오지 못했습니다."));
+        } finally {
+            setLoadingOlder(false);
+        }
+    };
 
     return (
         <li className="rounded border">
@@ -161,6 +201,21 @@ function SessionItem({
                             icon={<MapPin className="size-3.5 text-emerald-600" />}
                             label={`착륙 · ${urlPath(s.landingPage)}`}
                         />
+                        {hasMore && (
+                            <li className="py-1 pl-12">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={loadingOlder}
+                                    onClick={loadOlder}
+                                >
+                                    <History className="mr-1 size-3.5" />
+                                    {loadingOlder ? "불러오는 중…" : `이전 행동 ${remaining.toLocaleString()}건 더 보기`}
+                                </Button>
+                            </li>
+                        )}
                         {events.map((e) => (
                             <EventRow key={e.id} event={e} aliases={aliases} />
                         ))}
@@ -198,7 +253,8 @@ function EventRow({ event: e, aliases }: { event: TrackerEvent; aliases: Record<
     }
     if (e.eventType === "SECTION_VIEW") {
         const dwell = typeof props.dwell_ms === "number" ? props.dwell_ms : Number(props.dwell_ms) || 0;
-        const label = (e.eventName && aliases[`SECTION_VIEW:${e.eventName}`]) ?? e.eventName ?? "섹션";
+        // 별칭이 없거나 빈 값이면 원래 이벤트 이름을 쓴다
+        const label = (e.eventName && aliases[`SECTION_VIEW:${e.eventName}`]) || e.eventName || "섹션";
         return (
             <TimelineRow
                 icon={<Eye className="size-3.5 text-indigo-500" />}
@@ -209,9 +265,9 @@ function EventRow({ event: e, aliases }: { event: TrackerEvent; aliases: Record<
     }
     if (e.eventType === "CLICK") {
         const label =
-            (e.eventName && aliases[`CLICK:${e.eventName}`]) ??
-            (typeof props.text === "string" && props.text.trim() ? props.text : null) ??
-            e.eventName ??
+            (e.eventName && aliases[`CLICK:${e.eventName}`]) ||
+            (typeof props.text === "string" && props.text.trim() ? props.text : null) ||
+            e.eventName ||
             "클릭";
         return (
             <TimelineRow
@@ -226,7 +282,7 @@ function EventRow({ event: e, aliases }: { event: TrackerEvent; aliases: Record<
         <TimelineRow
             icon={<Zap className="size-3.5 text-violet-500" />}
             time={time}
-            label={e.eventName ?? e.eventType}
+            label={(e.eventName && aliases[`CUSTOM:${e.eventName}`]) || e.eventName || e.eventType}
         />
     );
 }

@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { FunnelStageEditor } from "./FunnelStageEditor";
+import { incompleteStageIndex } from "./funnel-stage/utils";
 import { createFunnel, updateFunnel } from "../hooks/useTrackerFunnels";
 import { useFunnelOptions } from "../hooks/useFunnelOptions";
 import type { FunnelDefinition, FunnelKind, FunnelStage } from "../types/funnel";
@@ -38,6 +39,8 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, initialKind, onSaved }
     const [name, setName] = useState(funnel?.name ?? "");
     const [kind, setKind] = useState<FunnelKind>(startKind);
     const [stages, setStages] = useState<FunnelStage[]>(funnel?.stages ?? [emptyStage(startKind)]);
+    // 단계 행의 고정 id — 이동·삭제 뒤에도 각 단계의 "직접 입력" 상태가 다른 단계로 옮겨 가지 않게 key로 쓴다
+    const [rowIds, setRowIds] = useState<number[]>(() => (funnel?.stages ?? [null]).map((_, i) => i));
     const [isDefault, setIsDefault] = useState(Boolean(funnel?.isDefault));
     const [saving, setSaving] = useState(false);
     const { options } = useFunnelOptions(siteId);
@@ -65,14 +68,29 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, initialKind, onSaved }
         const arr = [...stages];
         [arr[i], arr[j]] = [arr[j], arr[i]];
         setStages(arr);
+        const ids = [...rowIds];
+        [ids[i], ids[j]] = [ids[j], ids[i]];
+        setRowIds(ids);
     };
-    const removeStage = (i: number) => setStages(stages.filter((_, idx) => idx !== i));
-    const addStage = () => setStages([...stages, emptyStage(kind)]);
+    const removeStage = (i: number) => {
+        setStages(stages.filter((_, idx) => idx !== i));
+        setRowIds(rowIds.filter((_, idx) => idx !== i));
+    };
+    const addStage = () => {
+        setStages([...stages, emptyStage(kind)]);
+        setRowIds([...rowIds, Math.max(-1, ...rowIds) + 1]);
+    };
 
     const handleSave = async () => {
         const cleaned = stages.filter((s) => s.label.trim() !== "");
         if (cleaned.length === 0) {
             toast.error("최소 1개 단계가 필요합니다.");
+            return;
+        }
+        // 직접 입력을 비워 둔 단계는 서버 검증에서 막히므로 먼저 알려 주고 입력값을 그대로 둔다
+        const incomplete = incompleteStageIndex(stages);
+        if (incomplete >= 0) {
+            toast.error(`${incomplete + 3}단계의 매칭 값을 입력해주세요.`);
             return;
         }
         // key 자동 부여(빈 경우 label 기반 + 충돌 시 인덱스)
@@ -183,7 +201,7 @@ function FunnelEditorBody({ onOpenChange, siteId, funnel, initialKind, onSaved }
                         )}
                         {stages.map((s, i) => (
                             <FunnelStageEditor
-                                key={i}
+                                key={rowIds[i] ?? `row-${i}`}
                                 index={i}
                                 stage={s}
                                 options={options}

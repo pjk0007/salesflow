@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StageMatch } from "../../types/funnel";
 import { CUSTOM } from "./constants";
+import { showsManualEntry } from "./utils";
 
 interface Props {
     customEvents: Array<{ eventName: string; label: string }>;
@@ -16,7 +17,7 @@ interface Props {
 /** CUSTOM 이벤트 — 정의된 이벤트(이름+라벨) 드롭다운 + 직접 입력 */
 export function CustomEventSelector({ customEvents, current, onChange }: Props) {
     const [manual, setManual] = useState(false);
-    const isCustom = manual || (current.eventName !== "" && !customEvents.some((e) => e.eventName === current.eventName));
+    const isCustom = showsManualEntry(manual, current.eventName !== "", customEvents.some((e) => e.eventName === current.eventName));
 
     return (
         <>

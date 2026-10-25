@@ -4,10 +4,9 @@ import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { rangeBounds, resolveRange } from "@/lib/tracker/date-range";
 import { getStageVisitorIds } from "@/lib/tracker/funnel-analytics";
-import { classifyAdGroup, type AdGroup } from "@/components/journey/utils/ad-group";
+import { groupAdSessions } from "@/components/journey/utils/ad-group";
 import type { AdPerformanceRow } from "@/components/tracker/types/ad-performance";
 import type { StageMatch } from "@/components/tracker/types/funnel";
-import { classifyInflow, matchesChannelFilter } from "@/components/journey/utils/referrer";
 import { idArraySql } from "@/lib/tracker/sql-filters";
 
 
@@ -61,19 +60,7 @@ export async function GET(req: NextRequest) {
             device && ["desktop", "mobile", "tablet"].includes(device) ? eq(trackerVisitors.deviceType, device) : undefined,
         ));
 
-    const groupMeta = new Map<string, AdGroup>();
-    const visitorsByGroup = new Map<string, Set<number>>();
-    for (const s of sessions) {
-        if (s.visitorId == null) continue;
-        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage, site.domains), channel, channelMode)) continue;
-        const g = classifyAdGroup(s.referrer, s.landingPage);
-        if (!g) continue;
-        if (!groupMeta.has(g.key)) {
-            groupMeta.set(g.key, g);
-            visitorsByGroup.set(g.key, new Set());
-        }
-        visitorsByGroup.get(g.key)!.add(s.visitorId);
-    }
+    const { groups: groupMeta, visitorsByGroup } = groupAdSessions(sessions, channel, channelMode, site.domains ?? []);
 
     // 2) 전환 단계 도달 visitor 집합 — funnel 마지막 단계 기준.
     //    getStageVisitorIds 는 ctx.meaningfulVisitorIdsSql IN 절로 코호트를 거르는데,

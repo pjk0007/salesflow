@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, trackerSites, trackerEventAliases } from "@/lib/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { eventAliasCreateSchema } from "@/lib/tracker/event-alias-validations";
+import { clampEventAliasPage, eventAliasCountSql, eventAliasPageSql, parseEventAliasListQuery } from "@/lib/tracker/event-alias-list";
+import type { EventAliasRow } from "@/components/tracker/types/event-alias";
 
 /**
- * GET /api/tracker/event-aliases?siteId=N
+ * GET /api/tracker/event-aliases?siteId=N&type=&q=&page=&pageSize=
  *
- * 사이트의 실제 발생 (event_type, event_name) 목록 + 등록된 alias label을 LEFT JOIN으로 반환.
- * 발생수 desc 정렬 + 200건 LIMIT (Design 결정대로 전체 기간).
+ * 사이트의 실제 발생 (event_type, event_name) 목록 + 등록된 alias label을 LEFT JOIN으로 반환(전체 기간).
+ * 타입·검색(이름·라벨) 필터 후 타입 → 발생수 desc → 이름 순으로 페이지 응답(PaginatedResponse).
  */
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);
@@ -24,41 +26,20 @@ export async function GET(req: NextRequest) {
     // 발생한 이벤트(SECTION_VIEW/CLICK/CUSTOM) + 등록된 모든 alias의 합집합.
     // 등록된 alias는 아직 발생 안 했어도(occurrences=0) 노출 — CUSTOM 이벤트를 미리 정의하고
     // 사이트에 심기 전이라도 퍼널/코드 안내에서 쓸 수 있게.
-    const rows = (await db.execute(sql`
-        WITH occ AS (
-            SELECT event_type, event_name, COUNT(*)::int AS occurrences
-            FROM tracker_events
-            WHERE site_id = ${siteId}
-              AND event_type IN ('SECTION_VIEW', 'CLICK', 'CUSTOM')
-              AND event_name IS NOT NULL
-            GROUP BY event_type, event_name
-        ),
-        keys AS (
-            SELECT event_type, event_name FROM occ
-            UNION
-            SELECT event_type, event_name FROM tracker_event_aliases WHERE site_id = ${siteId}
-        )
-        SELECT
-            a.id,
-            k.event_type AS "eventType",
-            k.event_name AS "eventName",
-            a.label,
-            COALESCE(o.occurrences, 0) AS occurrences
-        FROM keys k
-        LEFT JOIN occ o ON o.event_type = k.event_type AND o.event_name = k.event_name
-        LEFT JOIN tracker_event_aliases a
-            ON a.site_id = ${siteId} AND a.event_type = k.event_type AND a.event_name = k.event_name
-        ORDER BY k.event_type, occurrences DESC
-        LIMIT 200
-    `)) as unknown as Array<{
-        id: number | null;
-        eventType: "SECTION_VIEW" | "CLICK" | "CUSTOM";
-        eventName: string;
-        label: string | null;
-        occurrences: number;
-    }>;
+    // 타입·검색을 먼저 적용하고 페이지로 나눠 저빈도·등록 별칭도 모두 찾아 수정·삭제할 수 있게 한다.
+    const requested = parseEventAliasListQuery(req.nextUrl.searchParams);
+    const [{ total }] = (await db.execute(eventAliasCountSql(siteId, requested))) as unknown as Array<{ total: number }>;
+    const query = clampEventAliasPage(requested, total);
+    const rows = (await db.execute(eventAliasPageSql(siteId, query))) as unknown as EventAliasRow[];
 
-    return NextResponse.json({ success: true, data: rows });
+    return NextResponse.json({
+        success: true,
+        data: rows,
+        total,
+        page: query.page,
+        pageSize: query.pageSize,
+        totalPages: Math.ceil(total / query.pageSize),
+    });
 }
 
 /**

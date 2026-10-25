@@ -2,7 +2,7 @@
 // 메타는 광고 ID(utm_term)까지, 구글 cpc는 검색 키워드, 구글 pmax는 퉁침, 네이버는 content+키워드.
 // classifyInflow 와 동일 정책을 공유 — paid 채널만 광고 그룹으로 본다.
 
-import { classifyInflow, isPaidChannel } from "./referrer";
+import { classifyInflow, isPaidChannel, matchesChannelFilter } from "./referrer";
 
 export interface AdGroup {
     key: string;        // 동일 광고를 식별하는 안정적 키 (집계 GROUP BY 용)
@@ -86,4 +86,32 @@ export function classifyAdGroup(referrer: string | null, landingPage: string | n
     }
 
     return null;
+}
+
+/**
+ * 기간 세션을 광고 그룹별 방문자 집합으로 묶는다 (광고 성과 표).
+ * 채널·광고/자연 조건은 트래커 개요의 세션 필터(getSessionIdsByChannel)와 같은 matchesChannelFilter로 거른다.
+ * 기기 조건은 호출부 SQL에서 이미 걸러 둔다.
+ */
+export function groupAdSessions(
+    sessions: Array<{ visitorId: number | null; referrer: string | null; landingPage: string | null }>,
+    channel: string | null,
+    channelMode: "all" | "paid" | "organic",
+    /** 사이트 허용 도메인 — 개요 세션 필터와 같은 '직접' 판정(UX-275) */
+    ownDomains: readonly string[] = [],
+): { groups: Map<string, AdGroup>; visitorsByGroup: Map<string, Set<number>> } {
+    const groups = new Map<string, AdGroup>();
+    const visitorsByGroup = new Map<string, Set<number>>();
+    for (const s of sessions) {
+        if (s.visitorId == null) continue;
+        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage, ownDomains), channel, channelMode)) continue;
+        const g = classifyAdGroup(s.referrer, s.landingPage);
+        if (!g) continue;
+        if (!groups.has(g.key)) {
+            groups.set(g.key, g);
+            visitorsByGroup.set(g.key, new Set());
+        }
+        visitorsByGroup.get(g.key)!.add(s.visitorId);
+    }
+    return { groups, visitorsByGroup };
 }

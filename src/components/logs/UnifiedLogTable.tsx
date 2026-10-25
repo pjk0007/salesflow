@@ -87,6 +87,19 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
         if (e.key === "Enter") handleSearch();
     };
 
+    // 화면에서 고른 필터·검색만 본다 (레코드 상세 compact 모드의 recordId는 필터가 아니다)
+    const hasFilter = !compact && Boolean(channel || status || triggerType || startDate || endDate || search);
+    const resetFilters = () => {
+        setChannel("");
+        setStatus("");
+        setTriggerType("");
+        setStartDate("");
+        setEndDate("");
+        setSearch("");
+        setSearchInput("");
+        setPage(1);
+    };
+
     return (
         <div className="space-y-4">
             {!compact && (
@@ -108,10 +121,9 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">전체</SelectItem>
-                            <SelectItem value="pending">대기</SelectItem>
-                            <SelectItem value="sent">성공</SelectItem>
-                            <SelectItem value="failed">실패</SelectItem>
-                            <SelectItem value="rejected">거부</SelectItem>
+                            {Object.entries(STATUS_MAP).map(([value, { label }]) => (
+                                <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
 
@@ -121,9 +133,9 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">전체</SelectItem>
-                            <SelectItem value="manual">수동</SelectItem>
-                            <SelectItem value="auto">자동</SelectItem>
-                            <SelectItem value="repeat">반복</SelectItem>
+                            {Object.entries(TRIGGER_TYPE_MAP).map(([value, { label }]) => (
+                                <SelectItem key={value} value={value}>{label}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
 
@@ -164,8 +176,18 @@ export default function UnifiedLogTable({ recordId, compact }: UnifiedLogTablePr
                 </div>
             ) : logs.length === 0 ? (
                 <div className="flex flex-col items-center justify-center p-12 text-muted-foreground border rounded-lg border-dashed">
-                    <p className="text-lg mb-1">발송 이력이 없습니다</p>
-                    <p className="text-sm">알림톡/이메일을 발송하면 이력이 표시됩니다.</p>
+                    {hasFilter ? (
+                        <>
+                            <p className="text-lg mb-1">조건에 맞는 발송 이력이 없습니다</p>
+                            <p className="text-sm mb-3">필터나 검색어를 바꾸거나 초기화해 보세요.</p>
+                            <Button variant="outline" size="sm" onClick={resetFilters}>필터 초기화</Button>
+                        </>
+                    ) : (
+                        <>
+                            <p className="text-lg mb-1">발송 이력이 없습니다</p>
+                            <p className="text-sm">알림톡/이메일을 발송하면 이력이 표시됩니다.</p>
+                        </>
+                    )}
                 </div>
             ) : (
                 <>

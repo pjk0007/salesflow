@@ -40,7 +40,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
         return <p className="text-sm text-muted-foreground">방문자를 찾을 수 없습니다.</p>;
     }
 
-    const { visitor, summary, sessions, events, engagement, dailyActivity, hourlyActivity, aliases, siteDomains = [] } =
+    const { visitor, summary, sessions, events, sessionEventTotals, engagement, dailyActivity, hourlyActivity, aliases, siteDomains = [] } =
         data.data;
     const totalDuration = summary.totalDuration;
 
@@ -73,7 +73,14 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
             )}
 
             <VisitorActivityChart daily={dailyActivity} />
-            <VisitorSessionTimeline sessions={sessions} events={events} aliases={aliases} ownDomains={siteDomains} />
+            <VisitorSessionTimeline
+                visitorPk={visitorPk}
+                sessions={sessions}
+                events={events}
+                sessionEventTotals={sessionEventTotals}
+                aliases={aliases}
+                ownDomains={siteDomains}
+            />
         </div>
     );
 }

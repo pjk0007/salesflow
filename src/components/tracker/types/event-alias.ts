@@ -1,5 +1,7 @@
 // 이벤트 별칭 관리 응답 타입
 
+import type { PaginatedResponse } from "@/types";
+
 export type EventAliasType = "SECTION_VIEW" | "CLICK" | "CUSTOM";
 
 /**
@@ -15,7 +17,7 @@ export interface EventAliasRow {
 }
 
 export type EventAliasListResponse =
-    | { success: true; data: EventAliasRow[] }
+    | ({ success: true } & PaginatedResponse<EventAliasRow>)
     | { success: false; error: string };
 
 // CRUD 응답
