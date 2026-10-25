@@ -14,16 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AsyncAlertDialog, useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Loader2, Plus, Pencil, Trash2, Copy, Send, Repeat2 } from "lucide-react";
 import AiAutoTestSendDialog from "./AiAutoTestSendDialog";
@@ -62,6 +53,9 @@ export default function AutoPersonalizedEmailConfig({
     const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
+    // 활성 전환 요청 중인 규칙 — 같은 행 중복 조작을 막는다 (UX-148)
+    const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set());
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
     const [followupTestTarget, setFollowupTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
@@ -139,14 +133,53 @@ export default function AutoPersonalizedEmailConfig({
         }
     };
 
+    // 서버 거부·응답 유실을 모두 안내한다. 진행 중 문구 실험이 걸리면 확인 후 다시 보낸다 (UX-148·165)
     const handleToggleActive = async (link: AutoPersonalizedLink) => {
-        await updateLink(link.id, { isActive: link.isActive === 1 ? 0 : 1 });
+        if (pendingIds.has(link.id)) return;
+        const nextActive = link.isActive === 1 ? 0 : 1;
+        const doneLabel = nextActive ? "활성화되었습니다." : "자동 발송을 중지했습니다.";
+        setPendingIds((prev) => new Set(prev).add(link.id));
+        try {
+            const result = await updateLink(link.id, { isActive: nextActive });
+            if (result?.code === "experiment_impact") {
+                confirm({
+                    title: nextActive ? "규칙을 켤까요?" : "규칙을 중지할까요?",
+                    description: "이 규칙에 진행 중인 문구 실험이 있어, 바꾸면 다음 발송 준비 때 실험이 무효화되고 이미 배정된 미발송 메일은 실험을 종료할 때까지 보류됩니다.",
+                    confirmLabel: nextActive ? "켜기" : "중지",
+                    onConfirm: async () => {
+                        const confirmed = await updateLink(link.id, { isActive: nextActive, confirmExperimentImpact: true })
+                            .catch(() => ({ success: false, error: "결과를 확인하지 못했습니다. 목록을 새로고침해 상태를 확인해주세요." }));
+                        if (!confirmed.success) throw new Error(confirmed.error || "변경에 실패했습니다.");
+                        toast.success(doneLabel);
+                    },
+                });
+            } else if (result?.success) {
+                toast.success(doneLabel);
+            } else {
+                toast.error(result?.error || (nextActive ? "활성화에 실패했습니다." : "중지에 실패했습니다. 자동 발송이 계속될 수 있습니다."));
+            }
+        } catch {
+            toast.error("결과를 확인하지 못했습니다. 목록을 새로고침해 실제 상태를 확인해주세요.");
+            void mutate();
+        } finally {
+            setPendingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(link.id);
+                return next;
+            });
+        }
     };
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
-        await deleteLink(deleteTarget.id);
-        setDeleteTarget(null);
+        let result;
+        try {
+            result = await deleteLink(deleteTarget.id);
+        } catch {
+            throw new Error("삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.");
+        }
+        if (!result?.success) throw new Error(result?.error || "삭제에 실패했습니다.");
+        toast.success("규칙이 삭제되었습니다.");
     };
 
     if (loadError) return <QueryErrorState error={loadError} onRetry={() => mutate()} />;
@@ -250,7 +283,8 @@ export default function AutoPersonalizedEmailConfig({
                                     <Switch
                                         checked={link.isActive === 1}
                                         onCheckedChange={() => handleToggleActive(link)}
-                                        disabled={link.isDraft === 1}
+                                        disabled={link.isDraft === 1 || pendingIds.has(link.id)}
+                                        aria-label={link.isActive === 1 ? "자동 발송 중지" : "자동 발송 켜기"}
                                     />
                                     <Button
                                         variant="ghost"
@@ -302,20 +336,15 @@ export default function AutoPersonalizedEmailConfig({
             </CardContent>
 
             {/* 삭제 확인 */}
-            <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>규칙 삭제</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            이 자동 발송 규칙을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* 실패하면 창을 닫지 않고 오류를 보여준다 (UX-148) */}
+            <AsyncAlertDialog
+                open={!!deleteTarget}
+                onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+                title="규칙 삭제"
+                description="이 자동 발송 규칙을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+                onConfirm={handleDelete}
+            />
+            {confirmationDialog}
 
             {/* 테스트 발송 */}
             {testTarget && (

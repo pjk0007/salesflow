@@ -83,7 +83,8 @@ interface UpdateInput {
     ctaUrl?: string;
     prompt?: string;
     tone?: string;
-    model?: string;
+    /** null = 모델 미지정(기본 모델) */
+    model?: string | null;
     format?: string;
     triggerType?: string;
     triggerCondition?: { field: string; operator: string; value: string } | null;
@@ -103,6 +104,15 @@ interface UpdateInput {
     senderProfileIds?: number[] | null;
     signatureId?: number | null;
     assetIds?: number[];
+    /** 진행 중 문구 실험이 무효화되는 변경임을 사용자가 확인했다 (없으면 서버가 409 experiment_impact로 멈춘다) */
+    confirmExperimentImpact?: boolean;
+}
+
+/** 규칙 저장이 바꾸게 될 진행 중 문구 실험 (PUT 409 code=experiment_impact) */
+export interface ImpactedExperiment {
+    id: number;
+    name: string;
+    state: string;
 }
 
 export function useAutoPersonalizedEmail(partitionId: number | null | "all") {

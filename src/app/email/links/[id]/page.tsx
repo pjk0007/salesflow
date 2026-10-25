@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/tooltip";
 import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useEmailTemplates } from "@/hooks/useEmailTemplates";
+import { linkTemplateIds, useEmailTemplateOptions } from "@/hooks/useEmailTemplates";
+import TemplateSelectField from "@/components/email/template-links/ui/TemplateSelectField";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { extractEmailVariables } from "@/lib/email-utils";
@@ -72,8 +73,6 @@ function EditLinkPageContent() {
     const partitionId = Number(searchParams.get("partitionId"));
 
     const { data: allPartitionsData, error: partitionsError, mutate: mutatePartitions } = useSWR("/api/partitions", defaultFetcher);
-    const { templates: allTemplates } = useEmailTemplates();
-    const templates = allTemplates.filter((t) => t.status !== "draft");
     const { templateLinks, isLoading, updateLink } = useEmailTemplateLinks(partitionId || null);
     const { fields } = useResolvedFields(partitionId || null);
     const link = templateLinks.find((l) => l.id === linkId);
@@ -95,6 +94,10 @@ function EditLinkPageContent() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [followupConfig, setFollowupConfig] = useState<any>(null);
     const [preventDuplicate, setPreventDuplicate] = useState(0);
+    // 선택지: 발행 템플릿 검색 결과(최대 100) + 이 연결이 이미 쓰는 템플릿(목록 밖·초안이어도) (UX-146)
+    const [templateSearch, setTemplateSearch] = useState("");
+    const templateOptions = useEmailTemplateOptions(templateSearch, linkTemplateIds(emailTemplateId, followupConfig));
+    const templates = templateOptions.templates;
 
     useEffect(() => {
         if (link && !loaded) {
@@ -221,21 +224,14 @@ function EditLinkPageContent() {
                                             이메일 템플릿
                                             <HelpTip text="발송할 이메일 템플릿을 선택하세요. 임시저장(draft) 상태는 제외됩니다." />
                                         </Label>
-                                        <Select
-                                            value={emailTemplateId ? String(emailTemplateId) : ""}
-                                            onValueChange={(v) => setEmailTemplateId(Number(v))}
-                                        >
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="템플릿 선택" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {templates.map((t) => (
-                                                    <SelectItem key={t.id} value={String(t.id)}>
-                                                        {t.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <TemplateSelectField
+                                            value={emailTemplateId}
+                                            onChange={setEmailTemplateId}
+                                            templates={templates}
+                                            onSearchChange={setTemplateSearch}
+                                            truncated={templateOptions.truncated}
+                                            total={templateOptions.total}
+                                        />
                                     </div>
 
                                     <div className="space-y-2">

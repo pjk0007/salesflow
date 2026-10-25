@@ -35,10 +35,16 @@ export default function EmailConfigForm() {
             return;
         }
         setTestStatus("testing");
-        const result = await testConnection({ appKey, secretKey });
-        setTestStatus(result.success ? "success" : "fail");
-        if (result.success) toast.success("연결 성공!");
-        else toast.error(result.error || "연결 테스트에 실패했습니다.");
+        try {
+            const result = await testConnection({ appKey, secretKey });
+            setTestStatus(result.success ? "success" : "fail");
+            if (result.success) toast.success("연결 성공!");
+            else toast.error(result.error || "연결 테스트에 실패했습니다.");
+        } catch {
+            // 네트워크·비JSON 응답에서도 테스트 중 상태에 묶이지 않게 한다 (UX-144)
+            setTestStatus("fail");
+            toast.error("연결 테스트 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요.");
+        }
     };
 
     const handleSave = async () => {
@@ -47,17 +53,22 @@ export default function EmailConfigForm() {
             return;
         }
         setSaving(true);
-        const result = await saveConfig({
-            appKey,
-            secretKey,
-            fromName: config?.fromName || undefined,
-            fromEmail: config?.fromEmail || undefined,
-            signature: config?.signature || undefined,
-            signatureEnabled: config?.signatureEnabled,
-        });
-        setSaving(false);
-        if (result.success) toast.success("API 설정이 저장되었습니다.");
-        else toast.error(result.error || "저장에 실패했습니다.");
+        try {
+            const result = await saveConfig({
+                appKey,
+                secretKey,
+                fromName: config?.fromName || undefined,
+                fromEmail: config?.fromEmail || undefined,
+                signature: config?.signature || undefined,
+                signatureEnabled: config?.signatureEnabled,
+            });
+            if (result.success) toast.success("API 설정이 저장되었습니다.");
+            else toast.error(result.error || "저장에 실패했습니다.");
+        } catch {
+            toast.error("저장 결과를 확인하지 못했습니다. 새로고침해 반영 여부를 확인한 뒤 다시 시도해주세요.");
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (configLoading || profilesLoading || signaturesLoading) {

@@ -50,7 +50,8 @@ export default function AssetPickerField({ value, onChange }: AssetPickerFieldPr
                                 <button
                                     type="button"
                                     onClick={() => removeOne(id)}
-                                    className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    aria-label={`${asset?.name ?? `에셋 #${id}`} 선택 해제`}
+                                    className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
                                 >
                                     <X className="h-3 w-3" />
                                 </button>

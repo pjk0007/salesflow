@@ -12,6 +12,7 @@ import {
     DEFAULT_WARMUP_STEP,
     hasAnyLimit,
     nextSendableAt,
+    shiftWarmupStart,
     type SenderLimitSettings,
 } from "@/lib/email-sender-limit-rules";
 import { isWeekdayYmd, kstParts } from "@/lib/kst";
@@ -50,6 +51,8 @@ interface SenderLimitSectionProps {
     health?: {
         pausedSource: string | null;
         pausedReason: string | null;
+        /** 멈춘 시각 — 정지를 끌 때 웜업을 미루는 미리보기에 쓴다 */
+        pausedAt?: string | null;
         isDefault: boolean;
         healthAction: "auto" | "alert";
         onHealthActionChange: (v: "auto" | "alert") => void;
@@ -181,7 +184,12 @@ export default function SenderLimitSection({
             ? "하루 최대 발송 수를 정하면 쓸 수 있습니다."
             : null;
 
-    const merged = check.ok ? check.value : null;
+    // 정지를 끄면 서버가 멈춘 기간만큼 웜업 시작일을 미룬다(자동·손 같은 규칙) — 미리보기·웜업 일차도 그 값으로 보여 준다 (UX-138)
+    const checked = check.ok ? check.value : null;
+    const releasePausedOn = health?.pausedAt ? kstParts(new Date(health.pausedAt)).date : null;
+    const merged = checked && stored.isPaused && !checked.isPaused && checked.warmupStartedOn === stored.warmupStartedOn
+        ? { ...checked, warmupStartedOn: shiftWarmupStart(checked, releasePausedOn, today) }
+        : checked;
     const gapLabel = merged && merged.spreadEvenly ? spreadGapLabel(merged, today) : null;
     const autoFill = warmupAutoFillNote(value);
 
@@ -232,6 +240,11 @@ export default function SenderLimitSection({
                         {health?.pausedSource === "auto" && stored.isPaused && (
                             <p className="text-xs text-orange-700">
                                 자동으로 멈춤 — {health.pausedReason || "발송 실패가 많음"}. 정지를 끄면 풀기로 기록되고, 웜업 중이면 멈춘 날의 한도로 다시 시작합니다.
+                            </p>
+                        )}
+                        {health && health.pausedSource !== "auto" && stored.isPaused && stored.warmupEnabled && (
+                            <p className="text-xs text-muted-foreground">
+                                정지를 끄면 정지한 기간만큼 웜업을 미뤄, 멈춘 날의 한도로 다시 시작합니다.
                             </p>
                         )}
                     </ToggleRow>

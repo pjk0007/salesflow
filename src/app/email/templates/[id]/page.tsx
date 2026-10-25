@@ -2,17 +2,19 @@
 
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import EmailTemplateEditor from "@/components/email/EmailTemplateEditor";
-import { useEmailTemplates } from "@/hooks/useEmailTemplates";
+import { useEmailTemplate, useEmailTemplates } from "@/hooks/useEmailTemplates";
 import { useRouter, useParams } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 export default function EditTemplatePage() {
     const router = useRouter();
     const params = useParams();
     const id = params.id;
-    const { templates, isLoading, updateTemplate } = useEmailTemplates();
-    const template = templates.find((t) => t.id === Number(id)) ?? null;
+    // 목록(20건 페이지)이 아니라 단건 조회로 연다 — 오래된 템플릿도 편집할 수 있다 (UX-146)
+    const { template, isLoading, loadError, mutate } = useEmailTemplate(Number(id) || null);
+    const { updateTemplate } = useEmailTemplates();
 
     const handleSave = async (data: {
         name: string;
@@ -38,6 +40,14 @@ export default function EditTemplatePage() {
                 <div className="flex items-center justify-center h-64">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                 </div>
+            </WorkspaceLayout>
+        );
+    }
+
+    if (loadError && (loadError as { status?: number }).status !== 404) {
+        return (
+            <WorkspaceLayout>
+                <QueryErrorState error={loadError} onRetry={() => mutate()} />
             </WorkspaceLayout>
         );
     }
