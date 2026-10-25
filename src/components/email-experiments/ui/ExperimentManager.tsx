@@ -20,19 +20,28 @@ import ExperimentDetail, { experimentStateLabel } from "./ExperimentDetail";
 import AutomaticObservations from "@/components/ai-copy/ui/AutomaticObservations";
 export default function ExperimentManager({
     initialRuleId,
-    initialExperimentId,
+    experimentId,
+    onSelectExperiment,
 }: {
     initialRuleId?: number;
-    /** 다른 화면의 '실험 #N 확인' 링크로 들어오면 그 실험을 바로 연다(UX-242). */
-    initialExperimentId?: number;
+    /** 주소의 experimentId — 고른 실험은 주소가 정한다. '실험 #N 확인' 링크·새로고침·뒤로 가기에도 같은 실험이 열린다(UX-242). */
+    experimentId?: number;
+    /** 실험을 고르면 주소를 바꾼다(기록을 남겨 뒤로 가기로 이전 실험에 돌아간다) */
+    onSelectExperiment: (id: number) => void;
 }) {
     const { user, isLoading } = useSession();
     const enabled = !!user && user.role !== "member",
         manager = useCopyManager(enabled);
     const [cursor, setCursor] = useState(0),
-        [activeTab, setActiveTab] = useState(initialExperimentId ? "experiments" : "observations"),
-        [selected, setSelected] = useState<number | null>(initialExperimentId ?? null),
+        [activeTab, setActiveTab] = useState(experimentId ? "experiments" : "observations"),
         [creating, setCreating] = useState(false);
+    const selected = experimentId ?? null;
+    // 뒤로 가기 등으로 주소의 실험이 바뀌면 그 실험이 보이게 '실험과 결과' 탭으로 옮긴다
+    const [shownExperimentId, setShownExperimentId] = useState(experimentId);
+    if (shownExperimentId !== experimentId) {
+        setShownExperimentId(experimentId);
+        if (experimentId) setActiveTab("experiments");
+    }
     const list = useSWR<{
         experiments: Experiment[];
         nextCursor: number | null;
@@ -78,7 +87,7 @@ export default function ExperimentManager({
                         workspaces={catalog.workspaces}
                         mode="outcomes"
                         onOpenExperiment={(id) => {
-                            setSelected(id);
+                            onSelectExperiment(id);
                             setActiveTab("experiments");
                         }}
                     />
@@ -104,7 +113,7 @@ export default function ExperimentManager({
                                 <button
                                     key={e.id}
                                     type="button"
-                                    onClick={() => setSelected(e.id)}
+                                    onClick={() => onSelectExperiment(e.id)}
                                     className={`space-y-2 rounded-md border p-4 text-left ${selected === e.id ? "border-primary bg-muted" : "hover:bg-muted/50"}`}
                                 >
                                     <p className="font-medium">
@@ -168,7 +177,7 @@ export default function ExperimentManager({
                             const e = await act<Experiment>("/api/email/experiments", value);
                             if (e) {
                                 setCreating(false);
-                                setSelected(e.id);
+                                onSelectExperiment(e.id);
                             }
                         }}
                     />
