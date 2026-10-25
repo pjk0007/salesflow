@@ -398,7 +398,7 @@ export default function DistributionSettingsDialog({
 
                                 <div className="flex items-center gap-3">
                                     <Switch checked={dupHighlight} onCheckedChange={setDupHighlight} />
-                                    <Label className="text-sm">중복 행 색상 표시</Label>
+                                    <Label className="text-sm">중복 행 색상 표시 (파티션 전체 기준)</Label>
                                     {dupHighlight && (
                                         <input
                                             type="color"

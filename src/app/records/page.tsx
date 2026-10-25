@@ -1,6 +1,6 @@
 "use client";
 
-import { kstParts } from "@/lib/kst";
+import { recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
@@ -439,28 +439,20 @@ export default function RecordsPage() {
     // 폴더 목록 (CreatePartitionDialog용)
     const folderList = partitionTree?.folders.map((f) => ({ id: f.id, name: f.name })) ?? [];
 
-    // 중복 레코드 하이라이트 계산
+    // 중복 레코드 하이라이트 — 서버가 파티션 전체 기준으로 표시한 isDuplicate를 쓴다(UX-081)
     const duplicateHighlight = useMemo(() => {
         const dc = currentPartition?.duplicateConfig as { field: string; highlightEnabled: boolean; highlightColor: string } | null | undefined;
         if (!dc?.highlightEnabled || !dc.field || !records.length) return null;
-        const valueMap = new Map<string, number[]>();
-        for (const record of records) {
-            const val = String((record.data as Record<string, unknown>)?.[dc.field] ?? "");
-            if (!val) continue;
-            const ids = valueMap.get(val) || [];
-            ids.push(record.id);
-            valueMap.set(val, ids);
-        }
-        const dupIds = new Set<number>();
-        for (const ids of valueMap.values()) {
-            if (ids.length > 1) ids.forEach((id) => dupIds.add(id));
-        }
+        const dupIds = new Set(
+            records.filter((r) => (r as DbRecord & { isDuplicate?: boolean }).isDuplicate).map((r) => r.id),
+        );
         return dupIds.size > 0 ? { color: dc.highlightColor || "#FEF3C7", ids: dupIds } : null;
     }, [records, currentPartition?.duplicateConfig]);
 
-    const handleExport = useCallback(async () => {
+    // 내보내기 — 목록과 같은 조건(검색·필터·분배순서·정렬). 총 건수가 상한을 넘으면 먼저 확인(UX-072)
+    const runExport = useCallback(async () => {
         try {
-            const blob = await exportCsv({
+            const { blob, filename } = await exportCsv({
                 search: search || undefined,
                 distributionOrder,
                 filters: filters.length > 0 ? filters : undefined,
@@ -470,14 +462,31 @@ export default function RecordsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `${currentPartition?.name || "records"}_${kstParts(new Date()).date.replace(/-/g, "")}.csv`;
+            a.download = filename ?? recordExportFileName(currentPartition?.name);
             a.click();
             URL.revokeObjectURL(url);
-            toast.success("CSV 내보내기가 완료되었습니다.");
-        } catch {
-            toast.error("CSV 내보내기에 실패했습니다.");
+            toast.success(
+                total > RECORD_EXPORT_LIMIT
+                    ? `${total.toLocaleString()}건 중 앞 ${RECORD_EXPORT_LIMIT.toLocaleString()}건을 내보냈습니다.`
+                    : "CSV 내보내기가 완료되었습니다.",
+            );
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "CSV 내보내기에 실패했습니다."));
         }
-    }, [exportCsv, search, distributionOrder, filters, sortField, sortOrder, currentPartition]);
+    }, [exportCsv, search, distributionOrder, filters, sortField, sortOrder, currentPartition, total]);
+
+    const handleExport = useCallback(() => {
+        if (total <= RECORD_EXPORT_LIMIT) {
+            void runExport();
+            return;
+        }
+        confirmAction({
+            title: "내보내기 건수 제한",
+            description: `현재 조건의 ${total.toLocaleString()}건 중 앞 ${RECORD_EXPORT_LIMIT.toLocaleString()}건만 내보냅니다.\n나머지는 검색·필터·분배순서로 나눠 내보내주세요.`,
+            confirmLabel: `${RECORD_EXPORT_LIMIT.toLocaleString()}건 내보내기`,
+            onConfirm: runExport,
+        });
+    }, [total, runExport, confirmAction]);
 
     const mobilePartitionNav = useMemo(
         () => (
