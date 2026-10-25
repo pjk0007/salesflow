@@ -125,6 +125,26 @@ async function checkCooldown(
 // 단건 자동 발송
 // ============================================
 
+/** 자동·반복·후속 발송이 공급자 접수 전에 멈춘 사유를 발송 이력에 남긴다(쿨다운·중복 판정은 failed를 보지 않는다). */
+async function recordAutomationFailure(
+    link: Pick<AlimtalkTemplateLink, "id" | "partitionId" | "senderKey" | "templateCode" | "templateName">,
+    recordId: number,
+    orgId: string,
+    triggerType: "auto" | "repeat" | "followup",
+    stepIndex: number,
+    recipientNo: string,
+    message: string,
+) {
+    try {
+        await db.insert(alimtalkSendLogs).values({ orgId, templateLinkId: link.id, partitionId: link.partitionId,
+            recordId, senderKey: link.senderKey, templateCode: link.templateCode,
+            templateName: link.templateName, recipientNo, status: "failed", resultMessage: message,
+            triggerType, stepIndex });
+    } catch (err) {
+        console.error(`[alimtalk] link ${link.id} record ${recordId}: 실패 사유 기록 실패 — ${message}`, err);
+    }
+}
+
 async function sendSingle(
     link: AlimtalkTemplateLink,
     record: DbRecord,
@@ -153,16 +173,27 @@ async function sendSingle(
         }
     }
 
-    const result = await sendAlimtalkForOrg({
-        orgId, senderKey: link.senderKey, templateCode: link.templateCode, triggerType, dedupeSince,
-        recipients: [{ phoneNumber: recipientNo, templateParameter, recordId: record.id,
-            templateLinkId: link.id, partitionId: link.partitionId, stepIndex }],
-    });
+    let result: Awaited<ReturnType<typeof sendAlimtalkForOrg>>;
+    try {
+        result = await sendAlimtalkForOrg({
+            orgId, senderKey: link.senderKey, templateCode: link.templateCode, triggerType, dedupeSince,
+            recipients: [{ phoneNumber: recipientNo, templateParameter, recordId: record.id,
+                templateLinkId: link.id, partitionId: link.partitionId, stepIndex }],
+        });
+    } catch (err) {
+        // 공급자 발송 호출 자체는 send-service 안에서 잡힌다 — 여기 오는 예외는 접수 전(설정·템플릿 조회·이력 준비) 단계다.
+        console.error(`[alimtalk] link ${link.id} record ${record.id}: 발송 준비 실패`, err);
+        await recordAutomationFailure(link, record.id, orgId, triggerType, stepIndex, recipientNo,
+            "발송 준비 중 오류가 발생해 발송하지 않았습니다. 알림톡 설정과 템플릿을 확인해주세요.");
+        return null;
+    }
     if (!result.ok) {
-        await db.insert(alimtalkSendLogs).values({ orgId, templateLinkId: link.id, partitionId: link.partitionId,
-            recordId: record.id, senderKey: link.senderKey, templateCode: link.templateCode,
-            templateName: link.templateName, recipientNo, status: "failed", resultMessage: result.error,
-            triggerType, stepIndex });
+        // 이미 접수·미확인 이력이 있어 막힌 경우는 그 이력이 사유다. 실패 줄을 덧붙이지 않는다.
+        if (result.code !== "duplicate") {
+            const preError = result.errors?.[0]?.error;
+            await recordAutomationFailure(link, record.id, orgId, triggerType, stepIndex, recipientNo,
+                preError ? `${preError} (수신번호 필드: ${link.recipientField})` : result.error);
+        }
         return null;
     }
     // 후속 체인은 최종 배달이 아닌 공급자 개별 접수 확인을 기준으로 한다.
@@ -507,8 +538,8 @@ export async function processAlimtalkFollowupQueue(): Promise<FollowupQueueStats
     }
 }
 
-// 단건 처리
-async function processFollowupItem(
+// 단건 처리 (큐 선점은 processAlimtalkFollowupQueue가 한다 — 시험은 이 함수를 직접 부른다)
+export async function processFollowupItem(
     item: typeof alimtalkFollowupQueue.$inferSelect,
     stats: FollowupQueueStats
 ): Promise<void> {
@@ -536,6 +567,14 @@ async function processFollowupItem(
         if (!link?.followupConfig || link.isActive !== 1) {
             await closeQueueItem(item.id, "failed");
             stats.failed++;
+            // 비활성화로 멈춘 대기 후속은 이력에 사유를 남긴다. 재활성화해도 닫힌 큐는 다시 열지 않는다.
+            if (link && link.isActive !== 1) {
+                const step = normalizeFollowupConfig(link.followupConfig)[item.stepIndex];
+                await recordAutomationFailure(
+                    { ...link, senderKey: step?.senderKey || link.senderKey, templateCode: step?.templateCode || link.templateCode, templateName: step?.templateName || null },
+                    parentLog.recordId, item.orgId, "followup", item.stepIndex + 1, "",
+                    "연결이 비활성화되어 후속 발송을 중단했습니다. 다시 활성화해도 이 단계는 발송되지 않습니다.");
+            }
             return;
         }
 
