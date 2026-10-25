@@ -99,6 +99,7 @@ export function CustomerAiPage({ role }: { role: string }) {
                         <div className="rounded-xl border p-5">
                             <SupportSettingsForm
                                 key={`settings:${workspaceId}`}
+                                workspaceId={workspaceId}
                                 catalog={catalog.data}
                                 members={bootstrap.data.members.filter((member) => member.workspaceIds.includes(workspaceId))}
                                 canManage={canManage}
