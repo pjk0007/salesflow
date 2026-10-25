@@ -16,7 +16,7 @@ import {
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { KST_TIME_ZONE } from "@/lib/kst";
 import { copyRequest } from "../api/copy";
-import { controlClass, Field, purposeLabel } from "./Fields";
+import { controlClass, Field, plainTextFromHtml, purposeLabel } from "./Fields";
 import type { PolicySnapshot } from "../types";
 
 interface Cycle {
@@ -518,7 +518,7 @@ function QualityEvidence({ cycle }: { cycle: Cycle }) {
                                 </strong>
                                 <p className="mt-2 font-medium">{s.output.subject}</p>
                                 <p className="whitespace-pre-wrap mt-2">
-                                    {s.output.htmlBody.replace(/<[^>]*>/g, "\n").trim()}
+                                    {plainTextFromHtml(s.output.htmlBody)}
                                 </p>
                             </div>
                         ),
