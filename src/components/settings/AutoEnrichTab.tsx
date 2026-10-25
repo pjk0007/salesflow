@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useAutoEnrichRules } from "@/hooks/useAutoEnrich";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
@@ -67,6 +67,8 @@ export default function AutoEnrichTab() {
     const [searchField, setSearchField] = useState("");
     const [targetFields, setTargetFields] = useState<Set<string>>(new Set());
     const [submitting, setSubmitting] = useState(false);
+    // 같은 순간 두 번 눌러도(렌더 전 연속 호출) 요청이 한 번만 나가게 동기 가드를 둔다 (UX-031)
+    const savingRef = useRef(false);
 
     const fieldMap = useMemo(
         () => new Map(fields.map((f) => [f.key, f.label])),
@@ -92,11 +94,12 @@ export default function AutoEnrichTab() {
     };
 
     const handleSubmit = async () => {
-        if (submitting) return;
+        if (savingRef.current) return;
         if (!selectedPartitionId || !searchField || targetFields.size === 0) {
             toast.error("검색 필드와 대상 필드를 선택해주세요.");
             return;
         }
+        savingRef.current = true;
         setSubmitting(true);
         try {
             const data = {
@@ -118,6 +121,7 @@ export default function AutoEnrichTab() {
         } catch {
             toast.error("저장 결과를 확인하지 못했습니다. 입력은 유지되었으니 규칙 목록을 확인한 뒤 다시 시도해주세요.");
         } finally {
+            savingRef.current = false;
             setSubmitting(false);
         }
     };
