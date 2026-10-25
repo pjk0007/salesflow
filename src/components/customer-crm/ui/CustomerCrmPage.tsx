@@ -51,6 +51,8 @@ export function CustomerCrmPage({ role }: { role: string }) {
         ),
         [query, setQuery] = useState(params.get("q") ?? ""),
         [archived, setArchived] = useState(false),
+        // 할 일은 기본으로 진행 중만 마감 순으로 본다(서버 status 필터, UX-087).
+        [taskStatus, setTaskStatus] = useState("open"),
         [objectView, setObjectView] = useState(
             params.get("archived") === "all"
                 ? "all"
@@ -77,6 +79,9 @@ export function CustomerCrmPage({ role }: { role: string }) {
         resource,
         {
             q: query,
+            ...(resource === "tasks" && taskStatus !== "all"
+                ? { status: taskStatus }
+                : {}),
             ...(resource === "deals"
                 ? { archived: String(archived) }
                 : resource === "contacts" || resource === "companies"
@@ -291,6 +296,21 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                     보관된 딜
                                 </label>
                             )}
+                            {resource === "tasks" && (
+                                <select
+                                    aria-label="할 일 상태 필터"
+                                    className="rounded-lg border bg-background p-2 text-sm"
+                                    value={taskStatus}
+                                    onChange={(e) =>
+                                        setTaskStatus(e.target.value)
+                                    }
+                                >
+                                    <option value="open">진행중 · 마감 순</option>
+                                    <option value="done">완료</option>
+                                    <option value="cancelled">취소</option>
+                                    <option value="all">전체</option>
+                                </select>
+                            )}
                         </div>
                         {(resource === "contacts" ||
                             resource === "companies") && (
@@ -406,12 +426,15 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                                             )}
                                                         </p>
                                                         <p className="text-xs text-muted-foreground">
-                                                            {contacts.rows.find(
-                                                                (c) =>
-                                                                    c.id ===
-                                                                    d.contactId,
-                                                            )?.name ??
-                                                                "고객 미연결"}{" "}
+                                                            {d.contactName ??
+                                                                contacts.rows.find(
+                                                                    (c) =>
+                                                                        c.id ===
+                                                                        d.contactId,
+                                                                )?.name ??
+                                                                (d.contactId
+                                                                    ? "연결 고객"
+                                                                    : "고객 미연결")}{" "}
                                                             ·{" "}
                                                             {bootstrap.data?.members.find(
                                                                 (m) =>
@@ -437,6 +460,10 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                                                                     d.contactId,
                                                                                 companyId:
                                                                                     d.companyId,
+                                                                                contactName:
+                                                                                    d.contactName,
+                                                                                companyName:
+                                                                                    d.companyName,
                                                                                 ownerId:
                                                                                     d.ownerId,
                                                                             },

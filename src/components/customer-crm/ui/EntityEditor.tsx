@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { InboxRequestError } from "@/components/inbox/api";
 import type { Editor, Pipeline, Deal, Task, Contact, Company } from "../types";
+import { EntityPicker } from "./EntityPicker";
+import { lifecycleStageNames } from "../utils/labels";
 const inputClass =
     "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -180,80 +182,44 @@ export function EntityEditor({
         }
     }
     function relationFields() {
+        const contactId = deal?.contactId ?? task?.contactId,
+            companyId = deal?.companyId ?? task?.companyId,
+            contactName = deal?.contactName ?? task?.contactName,
+            companyName = deal?.companyName ?? task?.companyName;
         return (
             <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="고객">
-                    <select
+                <div className="block text-xs font-medium">
+                    고객
+                    <EntityPicker
+                        kind="contacts"
+                        workspaceId={workspaceId}
                         name="contactId"
-                        className={inputClass}
-                        defaultValue={deal?.contactId ?? task?.contactId ?? ""}
-                    >
-                        <option value="">연결 없음</option>
-                        {(deal?.contactId ?? task?.contactId) &&
-                            !contacts.some(
-                                (c) =>
-                                    c.id ===
-                                    (deal?.contactId ?? task?.contactId),
-                            ) && (
-                                <option
-                                    value={
-                                        deal?.contactId ?? task?.contactId ?? ""
-                                    }
-                                >
-                                    기존 연결 고객
-                                </option>
-                            )}
-                        {contacts
-                            .filter(
-                                (c) =>
-                                    !c.archivedAt ||
-                                    c.id ===
-                                        (deal?.contactId ?? task?.contactId),
-                            )
-                            .map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                    {c.archivedAt ? " · 보관됨" : ""}
-                                </option>
-                            ))}
-                    </select>
-                </Field>
-                <Field label="회사">
-                    <select
+                        label="고객"
+                        initial={contactId ? [contactId] : []}
+                        known={[
+                            ...contacts,
+                            ...(contactId && contactName
+                                ? [{ id: contactId, name: contactName }]
+                                : []),
+                        ]}
+                    />
+                </div>
+                <div className="block text-xs font-medium">
+                    회사
+                    <EntityPicker
+                        kind="companies"
+                        workspaceId={workspaceId}
                         name="companyId"
-                        className={inputClass}
-                        defaultValue={deal?.companyId ?? task?.companyId ?? ""}
-                    >
-                        <option value="">연결 없음</option>
-                        {(deal?.companyId ?? task?.companyId) &&
-                            !companies.some(
-                                (c) =>
-                                    c.id ===
-                                    (deal?.companyId ?? task?.companyId),
-                            ) && (
-                                <option
-                                    value={
-                                        deal?.companyId ?? task?.companyId ?? ""
-                                    }
-                                >
-                                    기존 연결 회사
-                                </option>
-                            )}
-                        {companies
-                            .filter(
-                                (c) =>
-                                    !c.archivedAt ||
-                                    c.id ===
-                                        (deal?.companyId ?? task?.companyId),
-                            )
-                            .map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                    {c.archivedAt ? " · 보관됨" : ""}
-                                </option>
-                            ))}
-                    </select>
-                </Field>
+                        label="회사"
+                        initial={companyId ? [companyId] : []}
+                        known={[
+                            ...companies,
+                            ...(companyId && companyName
+                                ? [{ id: companyId, name: companyName }]
+                                : []),
+                        ]}
+                    />
+                </div>
                 <Field label="담당자">
                     <select
                         name="ownerId"
@@ -665,56 +631,15 @@ export function EntityEditor({
                                     <legend className="text-xs">
                                         연결 회사
                                     </legend>
-                                    <div className="max-h-40 space-y-2 overflow-y-auto">
-                                        {companies
-                                            .filter(
-                                                (c) =>
-                                                    !c.archivedAt ||
-                                                    contact?.companyIds.includes(
-                                                        c.id,
-                                                    ),
-                                            )
-                                            .map((c) => (
-                                                <label
-                                                    key={c.id}
-                                                    className="flex gap-2 text-sm"
-                                                >
-                                                    <input
-                                                        type="checkbox"
-                                                        name="companyIds"
-                                                        value={c.id}
-                                                        defaultChecked={contact?.companyIds.includes(
-                                                            c.id,
-                                                        )}
-                                                    />
-                                                    {c.name}
-                                                    {c.archivedAt
-                                                        ? " · 보관됨"
-                                                        : ""}
-                                                </label>
-                                            ))}
-                                        {contact?.companyIds
-                                            .filter(
-                                                (id) =>
-                                                    !companies.some(
-                                                        (c) => c.id === id,
-                                                    ),
-                                            )
-                                            .map((id) => (
-                                                <input
-                                                    key={id}
-                                                    type="hidden"
-                                                    name="companyIds"
-                                                    value={id}
-                                                />
-                                            ))}
-                                        {!companies.length && (
-                                            <p className="text-xs text-muted-foreground">
-                                                회사를 먼저 등록하면 연결할 수
-                                                있습니다.
-                                            </p>
-                                        )}
-                                    </div>
+                                    <EntityPicker
+                                        kind="companies"
+                                        workspaceId={workspaceId}
+                                        name="companyIds"
+                                        label="연결 회사"
+                                        initial={contact?.companyIds ?? []}
+                                        known={companies}
+                                        multiple
+                                    />
                                 </fieldset>
                                 <Field label="고객 단계">
                                     <select
@@ -724,10 +649,13 @@ export function EntityEditor({
                                             contact?.lifecycleStage ?? "lead"
                                         }
                                     >
-                                        <option value="lead">리드</option>
-                                        <option value="prospect">상담중</option>
-                                        <option value="customer">고객</option>
-                                        <option value="inactive">비활성</option>
+                                        {Object.entries(
+                                            lifecycleStageNames,
+                                        ).map(([stage, label]) => (
+                                            <option key={stage} value={stage}>
+                                                {label}
+                                            </option>
+                                        ))}
                                     </select>
                                 </Field>
                                 <label className="flex gap-2 text-sm">

@@ -1,3 +1,4 @@
+import { lifecycleStageNames } from "@/components/customer-crm/utils/labels";
 export const eventLabels: Record<string, string> = {
     "contact.created": "고객 등록",
     "contact.updated": "고객 정보 변경",
@@ -13,6 +14,16 @@ export const eventLabels: Record<string, string> = {
     "task.created": "후속 업무 생성",
     "task.updated": "후속 업무 변경",
     "ai.handoff": "AI에서 사람 응대로 전환",
+};
+export const auditLabels: Record<string, string> = {
+    "draft.saved": "새 버전 저장",
+    published: "게시",
+    disabled: "중단",
+    enabled: "다시 켜기",
+    "run.cancel": "실행 중단",
+    "run.retry": "재시도 요청",
+    "run.retry_scheduled": "재시도 예약",
+    "run.failed": "실행 실패",
 };
 export const runLabels: Record<string, string> = {
     queued: "실행 대기",
@@ -70,12 +81,7 @@ export const conditionFields: Record<string, string> = {
 };
 export const conditionChoices: Record<string, Record<string, string>> = {
     "event.data.message.kind": { customer: "고객", reply: "상담원·자동 안내" },
-    "contact.lifecycleStage": {
-        lead: "리드",
-        prospect: "잠재 고객",
-        customer: "고객",
-        inactive: "비활성",
-    },
+    "contact.lifecycleStage": lifecycleStageNames,
     "conversation.status": {
         open: "진행중",
         snoozed: "보류중",
