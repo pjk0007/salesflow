@@ -12,7 +12,12 @@ import type {
 } from "../types";
 import { controlClass, Field, plainTextFromHtml, purposeLabel, stateLabel } from "./Fields";
 import { VersionSelect } from "./VersionSelect";
-type Action = <T>(url: string, body: unknown) => Promise<T | undefined>;
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+type Action = <T>(
+    url: string,
+    body: unknown,
+    options?: { success?: string | ((data: T) => string); rethrow?: boolean },
+) => Promise<T | undefined>;
 const percent = (n: number | null | undefined) =>
     n == null ? "미측정" : `${(n * 100).toFixed(1)}%`;
 const seconds = (n: number | null | undefined) =>
@@ -221,11 +226,27 @@ function EvaluationDetail({ id, act, pending }: { id: number; act: Action; pendi
     } | null>(`/api/ai/copy-evaluations/${id}/benchmark`, copyRequest, { refreshInterval: 15000 });
     const [region, setRegion] = useState("CloudType sel5"),
         [reviewsOpen, setReviewsOpen] = useState(false);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
+    // 취소하면 생성 작업까지 멈추고 되돌릴 수 없다. 다른 파괴 작업처럼 영향을 알린 뒤 실행한다.
+    const confirmCancel = () =>
+        confirm({
+            title: "비교 평가 취소",
+            description: `평가 #${id}을(를) 취소합니다. 진행 중인 가상 평가 생성이 멈추고 사람 평가도 더 받을 수 없습니다.
+취소한 평가는 되돌릴 수 없습니다. 다시 비교하려면 새 비교 평가를 만들어야 합니다.`,
+            confirmLabel: "평가 취소",
+            onConfirm: () =>
+                act(
+                    `/api/ai/copy-evaluations/${id}`,
+                    { action: "cancel" },
+                    { success: "평가를 취소했습니다.", rethrow: true },
+                ),
+        });
     if (detail.error) return <p role="alert">평가 상세를 불러오지 못했습니다.</p>;
     if (!detail.data) return <p>평가 결과를 불러오는 중입니다.</p>;
     const { report, run } = detail.data;
     return (
         <section className="space-y-4 rounded-md border p-5">
+            {confirmationDialog}
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-semibold">
                     평가 #{id} <Badge variant="secondary">{stateLabel(run.state)}</Badge>
@@ -248,9 +269,7 @@ function EvaluationDetail({ id, act, pending }: { id: number; act: Action; pendi
                         <Button
                             variant="ghost"
                             disabled={pending}
-                            onClick={() =>
-                                void act(`/api/ai/copy-evaluations/${id}`, { action: "cancel" })
-                            }
+                            onClick={confirmCancel}
                         >
                             평가 취소
                         </Button>
