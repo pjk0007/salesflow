@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { mutate as globalMutate } from "swr";
 import { Skeleton } from "@/components/ui/skeleton";
 import RecordGroup from "./RecordGroup";
+import RecordEmptyState from "./ui/RecordEmptyState";
 import { useGroupCounts } from "./hooks/useGroupCounts";
 import type { FieldDefinition, FilterCondition } from "@/types";
 import type { DbRecord } from "@/lib/db";
@@ -31,6 +32,8 @@ interface GroupedRecordViewProps {
     sortOrder: "asc" | "desc";
     onSortChange: (field: string, order: "asc" | "desc") => void;
     onCreateWithStatus?: (statusValue: string) => void;
+    hasConditions?: boolean;
+    onClearConditions?: () => void;
 }
 
 const DEFAULT_COLORS = [
@@ -54,6 +57,8 @@ export default function GroupedRecordView({
     sortOrder,
     onSortChange,
     onCreateWithStatus,
+    hasConditions,
+    onClearConditions,
 }: GroupedRecordViewProps) {
     const {
         counts,
@@ -130,14 +135,7 @@ export default function GroupedRecordView({
     }
 
     if (total === 0) {
-        return (
-            <div className="flex-1 flex items-center justify-center p-12">
-                <div className="text-center text-muted-foreground">
-                    <p className="text-lg mb-1">레코드가 없습니다</p>
-                    <p className="text-sm">새 레코드를 추가해보세요.</p>
-                </div>
-            </div>
-        );
+        return <RecordEmptyState hasConditions={hasConditions} onClearConditions={onClearConditions} />;
     }
 
     return (
