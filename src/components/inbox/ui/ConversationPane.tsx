@@ -11,6 +11,7 @@ import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
 import type { StaffDraftSession } from "../hooks/staff-draft-session";
 import { AttachmentDrafts } from "./AttachmentDrafts";
 import { MessageHistory } from "./MessageHistory";
+import { inboxDraftStorageKey } from "../utils/draft-storage";
 import { InboxAudit } from "./InboxAudit";
 import { StaffReplyContact } from "@/components/customer-messenger/ui/StaffReplyContact";
 import { CustomerCrmContext } from "./CustomerCrmContext";
@@ -76,7 +77,7 @@ export function ConversationPane({
     const canRespond =
         workspaceAbilities(bootstrap, workspaceId).respond &&
         sharedDrafts.active;
-    const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
+    const draftStorageKey = inboxDraftStorageKey(userId, chat.id);
     const emailReply = useEmailReply(chat.emailContext, draftStorageKey);
     const noteMentions = useNoteMentions(
         draftStorageKey,

@@ -34,6 +34,7 @@ import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { connectionResultMessage, connectionSucceeded } from "@/components/inbox-email/utils/connection-result";
+import { moveInboxDraft } from "../utils/draft-storage";
 const listDate = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" });
 export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
     const params = useSearchParams();
@@ -111,6 +112,16 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         status,
         filter,
         teamId: channelId ? (teamFilters[channelId] ?? "") : "",
+    }, (fromId, toId, toChannelId) => {
+        // 보고 있던 비회원 상담이 회원 상담으로 합쳐지면 서버가 돌려준 대상으로 따라간다(초안도 옮김).
+        if (toChannelId !== channelId) return;
+        const moved = moveInboxDraft(localStorage, userId, fromId, toId);
+        setSelectedState((current) => (current === fromId ? toId : current));
+        toast.info(
+            moved
+                ? "비회원 상담이 회원 상담으로 합쳐져 이어서 보여드립니다. 작성 중이던 초안도 옮겼습니다."
+                : "비회원 상담이 회원 상담으로 합쳐져 이어서 보여드립니다.",
+        );
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const mailboxes = useEmailMailboxes(channel?.workspaceId ?? null);

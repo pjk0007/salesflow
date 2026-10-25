@@ -21,6 +21,8 @@ export function useInbox(
         filter: ConversationFilter;
         teamId?: string;
     } = { q: "", status: "open", filter: "all" },
+    /** 요청한 상담이 다른 상담으로 합쳐져 서버가 대상 상담을 돌려줬을 때 */
+    onMerged?: (fromId: string, toId: string, channelId: number) => void,
 ) {
     const { mutate } = useSWRConfig();
     const bootstrap = useSWR<InboxBootstrap>("/api/inbox", inboxRequest, {
@@ -74,7 +76,15 @@ export function useInbox(
     }>(
         conversationId ? `/api/inbox/conversations/${conversationId}` : null,
         inboxRequest,
-        { refreshInterval: 3000, refreshWhenHidden: false },
+        {
+            refreshInterval: 3000,
+            refreshWhenHidden: false,
+            onSuccess: (data, key) => {
+                const requested = key.split("/").at(-1);
+                if (requested && data.conversation.id !== requested)
+                    onMerged?.(requested, data.conversation.id, data.conversation.channelId);
+            },
+        },
     );
     async function patch(data: unknown) {
         const updated = await inboxWrite<Conversation>(
