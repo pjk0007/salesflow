@@ -1,5 +1,5 @@
 import { and, eq, inArray } from "drizzle-orm";
-import { db, emailTemplates } from "@/lib/db";
+import { db, emailTemplateLinks, emailTemplates, partitions, workspaces } from "@/lib/db";
 import { collectLinkTemplateIds } from "@/lib/email-template-link-rules";
 
 /**
@@ -26,4 +26,25 @@ export async function checkLinkTemplatesOwned(
         return { ok: false, error: "선택한 이메일 템플릿을 찾을 수 없습니다." };
     }
     return { ok: true };
+}
+
+/**
+ * 이 템플릿을 첫 메일 또는 후속 단계로 쓰는 이 조직의 템플릿 연결(자동 발송 규칙).
+ * 템플릿을 지우면 첫 메일로 쓰는 연결은 DB CASCADE로 함께 지워지고, 후속으로 쓰는 연결은 그 단계가 조용히 멈춘다 —
+ * 삭제 전에 이 목록이 비어 있는지 확인한다 (UX-157).
+ */
+export async function findLinksUsingTemplate(orgId: string, templateId: number): Promise<Array<{ id: number; name: string }>> {
+    const links = await db
+        .select({ id: emailTemplateLinks.id, name: emailTemplateLinks.name, emailTemplateId: emailTemplateLinks.emailTemplateId, followupConfig: emailTemplateLinks.followupConfig })
+        .from(emailTemplateLinks)
+        .innerJoin(partitions, eq(partitions.id, emailTemplateLinks.partitionId))
+        .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+        .where(eq(workspaces.orgId, orgId));
+    return links
+        .filter((link) => {
+            if (link.emailTemplateId === templateId) return true;
+            const followup = collectLinkTemplateIds({ followupConfig: link.followupConfig });
+            return followup.ok && followup.ids.includes(templateId);
+        })
+        .map(({ id, name }) => ({ id, name }));
 }

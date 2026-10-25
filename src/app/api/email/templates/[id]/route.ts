@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplates } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { findLinksUsingTemplate } from "@/lib/email-template-ownership";
 
 
 export async function GET(
@@ -111,6 +112,17 @@ export async function DELETE(
     }
 
     try {
+        // 쓰는 연결이 있으면 지우지 않는다 — 연결(자동 발송·반복·후속)이 CASCADE로 함께 사라지고 되살릴 수 없다 (UX-157)
+        const usedBy = await findLinksUsingTemplate(user.orgId, id);
+        if (usedBy.length > 0) {
+            const names = usedBy.slice(0, 3).map((link) => `'${link.name}'`).join(", ");
+            const more = usedBy.length > 3 ? ` 외 ${usedBy.length - 3}개` : "";
+            return NextResponse.json({
+                success: false,
+                error: `이 템플릿을 쓰는 연결 ${usedBy.length}개가 있습니다(${names}${more}). 연결의 템플릿을 먼저 바꾸거나 연결을 삭제해주세요.`,
+            }, { status: 409 });
+        }
+
         const [deleted] = await db
             .delete(emailTemplates)
             .where(and(eq(emailTemplates.id, id), eq(emailTemplates.orgId, user.orgId)))
