@@ -3,6 +3,8 @@ import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { useApprovedKnowledge } from "../hooks/useApprovedKnowledge";
 import type { SupportCatalog, SupportSettings } from "../types";
+import { stateLabel } from "@/components/ai-copy/ui/Fields";
+import { supportKnowledgeChoices } from "../utils/knowledge-choices";
 export function SupportSettingsForm({
     workspaceId,
     catalog,
@@ -106,14 +108,17 @@ export function SupportSettingsForm({
                         }}
                     >
                         <option value="">지식 선택</option>
-                        {knowledgeOptions.map((k) => (
+                        {supportKnowledgeChoices(
+                            knowledgeOptions,
+                            draft.knowledgeVersionId,
+                        ).map((k) => (
                             <option
                                 key={k.id}
                                 value={k.id}
                                 disabled={k.state !== "approved" || !k.claims}
                             >
                                 {k.name} · #{k.id} ·{" "}
-                                {k.state === "approved" ? "승인" : "미승인"} ·
+                                {stateLabel(k.state)} ·
                                 상담 근거 {k.claims}개
                             </option>
                         ))}
