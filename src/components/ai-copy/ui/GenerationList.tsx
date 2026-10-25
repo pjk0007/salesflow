@@ -4,9 +4,22 @@ import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { copyRequest } from "../api/copy";
 import type { GenerationRow } from "../types";
-import { Field, controlClass, purposeLabel, reasonLabel, stateLabel } from "./Fields";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import {
+    Field,
+    controlClass,
+    plainTextFromHtml,
+    purposeLabel,
+    reasonLabel,
+    resultLabel,
+    stateLabel,
+} from "./Fields";
 import ReplacementForm from "./ReplacementForm";
-type Action = <T>(url: string, body: unknown) => Promise<T | undefined>;
+type Action = <T>(
+    url: string,
+    body: unknown,
+    options?: { success?: string | ((data: T) => string); rethrow?: boolean },
+) => Promise<T | undefined>;
 const origins = [
     { value: "operational", label: "발송 준비" },
     { value: "replacement", label: "선택 재작성" },
@@ -177,6 +190,7 @@ function GenerationDetail({
     onSelect: (id: number) => void;
 }) {
     const [replacing, setReplacing] = useState(false);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const { data, error } = useSWR<{
         job: GenerationRow & {
             output: { subject: string; htmlBody: string } | null;
@@ -202,6 +216,7 @@ function GenerationDetail({
     const { job, attempts } = data;
     return (
         <section className="space-y-3 rounded-md border p-4">
+            {confirmationDialog}
             <h3 className="font-semibold">
                 작업 #{id} · {stateLabel(job.state)}
             </h3>
@@ -219,14 +234,14 @@ function GenerationDetail({
                 <div className="rounded-md bg-muted p-3">
                     <p className="mb-2 text-sm font-medium">{job.output.subject}</p>
                     <pre className="whitespace-pre-wrap break-words font-sans text-sm">
-                        {job.output.htmlBody}
+                        {plainTextFromHtml(job.output.htmlBody)}
                     </pre>
                 </div>
             )}
             <ul className="space-y-2 text-sm">
                 {attempts.map((a, index) => (
                     <li key={a.id} className="rounded-md bg-muted p-3">
-                        시도 {index + 1} · {a.result} ·{" "}
+                        시도 {index + 1} · {resultLabel(a.result)} ·{" "}
                         {a.duration_ms === null
                             ? "진행 중"
                             : `${(a.duration_ms / 1000).toFixed(1)}초`}{" "}
@@ -244,7 +259,27 @@ function GenerationDetail({
                     <Button
                         variant="outline"
                         disabled={pending}
-                        onClick={() => void act(`/api/ai/generations/${id}`, { action: "cancel" })}
+                        onClick={() =>
+                            // 고객 메일이 나가지 않게 되는 되돌릴 수 없는 동작이라 영향을 먼저 확인한다(UX-236).
+                            confirm({
+                                title: "이 생성 작업을 취소할까요?",
+                                description:
+                                    "이 고객에게 이 메일은 발송되지 않습니다. 되돌릴 수 없습니다.\n재작성으로 이어진 작업이 있으면 함께 취소되며, 취소한 작업은 재개·재작성할 수 없습니다.",
+                                confirmLabel: "작업 취소",
+                                onConfirm: () =>
+                                    act<{ cancelledJobs?: number }>(
+                                        `/api/ai/generations/${id}`,
+                                        { action: "cancel" },
+                                        {
+                                            success: (r) =>
+                                                (r?.cancelledJobs ?? 1) > 1
+                                                    ? `재작성 작업을 포함해 ${r.cancelledJobs}건을 취소했습니다.`
+                                                    : "작업을 취소했습니다.",
+                                            rethrow: true,
+                                        },
+                                    ),
+                            })
+                        }
                     >
                         이 작업 취소
                     </Button>

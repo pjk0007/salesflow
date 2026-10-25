@@ -29,7 +29,7 @@ export function useCopyManager(enabled = true) {
     async function act<T>(
         url: string,
         body: unknown,
-        options: { success?: string; rethrow?: boolean } = {},
+        options: { success?: string | ((data: T) => string); rethrow?: boolean } = {},
     ): Promise<T | undefined> {
         setPending(true);
         setActionError(null);
@@ -40,7 +40,11 @@ export function useCopyManager(enabled = true) {
                     typeof key === "string" &&
                     (key.startsWith("/api/ai/") || key.startsWith("/api/email/experiments")),
             );
-            toast.success(options.success ?? "저장했습니다.");
+            toast.success(
+                typeof options.success === "function"
+                    ? options.success(data)
+                    : (options.success ?? "저장했습니다."),
+            );
             return data;
         } catch (error) {
             if (options.rethrow) throw error;

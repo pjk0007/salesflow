@@ -48,14 +48,4 @@ export const stateLabel = (value: string) =>
         passed: "기준 통과",
         completed: "측정 완료",
     })[value] ?? value;
-export const reasonLabel = (value: string | null) =>
-    ({
-        token_quota: "AI 사용량 한도",
-        preparation_deadline: "30분 준비 기한 경과",
-        provider_not_configured: "AI 연결 확인 필요",
-        provider_timeout: "생성 시간 초과",
-        blocked_version: "차단된 버전",
-        provider_network: "AI 연결 오류",
-    })[value ?? ""] ??
-    value ??
-    "—";
+export { reasonLabel, resultLabel, plainTextFromHtml } from "../utils/labels";

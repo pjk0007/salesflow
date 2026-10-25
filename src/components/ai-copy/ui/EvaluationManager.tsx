@@ -10,7 +10,7 @@ import type {
     EvaluationReport,
     EvaluationRow,
 } from "../types";
-import { controlClass, Field, purposeLabel, stateLabel } from "./Fields";
+import { controlClass, Field, plainTextFromHtml, purposeLabel, stateLabel } from "./Fields";
 import { VersionSelect } from "./VersionSelect";
 type Action = <T>(url: string, body: unknown) => Promise<T | undefined>;
 const percent = (n: number | null | undefined) =>
@@ -484,13 +484,7 @@ function HumanReviewItem({
             </details>
             <p className="text-sm">{item.output.subject}</p>
             <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7">
-                {item.output.htmlBody
-                    .replace(/<[^>]*>/g, "\n")
-                    .replace(/\n+/g, "\n")
-                    .replace(/&amp;/g, "&")
-                    .replace(/&quot;/g, '"')
-                    .replace(/&#39;/g, "'")
-                    .trim()}
+                {plainTextFromHtml(item.output.htmlBody)}
             </pre>
             {item.reviewed_at && (
                 <p className="text-sm text-muted-foreground">
