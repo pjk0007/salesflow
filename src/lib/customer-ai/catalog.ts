@@ -329,7 +329,7 @@ export async function manageSupportKnowledge(
     const conn = provided ?? (await queryClient.reserve());
     try {
         if (input.action === "create")
-            return createKnowledgeVersion(conn, {
+            return await createKnowledgeVersion(conn, {
                 orgId: actor.orgId,
                 workspaceId,
                 userId: actor.userId,
@@ -345,7 +345,7 @@ export async function manageSupportKnowledge(
             });
             return { approved: true };
         }
-        return blockVersion(conn, {
+        return await blockVersion(conn, {
             orgId: actor.orgId,
             userId: actor.userId,
             id: input.id!,
