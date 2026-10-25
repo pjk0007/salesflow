@@ -21,6 +21,8 @@ import ProductCard from "@/components/products/ProductCard";
 import DeleteProductDialog from "@/components/products/DeleteProductDialog";
 import { toast } from "sonner";
 import type { Product } from "@/lib/db";
+import { useSession } from "@/contexts/SessionContext";
+import { canEditProducts, productCategoryOptions } from "@/components/products/utils/product-form";
 
 export default function ProductsPage() {
     const router = useRouter();
@@ -33,13 +35,14 @@ export default function ProductsPage() {
         category: categoryFilter || undefined,
     });
 
-    const categories = useMemo(() => {
-        const cats = new Set<string>();
-        products.forEach((p) => {
-            if (p.category) cats.add(p.category);
-        });
-        return Array.from(cats).sort();
-    }, [products]);
+    // 카테고리 선택지는 필터 없는 전체 목록(같은 SWR 키 /api/products)에서 만든다(UX-084)
+    const { products: allProducts } = useProducts();
+    const categories = useMemo(
+        () => productCategoryOptions(allProducts, categoryFilter),
+        [allProducts, categoryFilter],
+    );
+    const { user } = useSession();
+    const canEdit = canEditProducts(user?.role);
 
     const handleDelete = useCallback(async () => {
         if (!deleteTarget) return;
@@ -60,10 +63,14 @@ export default function ProductsPage() {
                     title="제품/서비스"
                     description="홍보할 제품과 서비스를 관리합니다. AI 이메일 작성 시 이 정보를 참고합니다."
                     actions={
-                        <Button onClick={() => router.push("/products/new")}>
-                            <Plus className="h-4 w-4 mr-1.5" />
-                            제품 추가
-                        </Button>
+                        canEdit ? (
+                            <Button onClick={() => router.push("/products/new")}>
+                                <Plus className="h-4 w-4 mr-1.5" />
+                                제품 추가
+                            </Button>
+                        ) : (
+                            <p className="text-sm text-muted-foreground">관리자만 편집할 수 있습니다.</p>
+                        )
                     }
                 />
 
@@ -78,7 +85,7 @@ export default function ProductsPage() {
                             className="pl-9"
                         />
                     </div>
-                    {categories.length > 0 && (
+                    {(categories.length > 0 || categoryFilter) && (
                         <Select
                             value={categoryFilter}
                             onValueChange={(v) => setCategoryFilter(v === "all" ? "" : v)}
@@ -124,7 +131,12 @@ export default function ProductsPage() {
                                 ? "다른 검색어로 시도해보세요."
                                 : "홍보할 제품이나 서비스를 추가해보세요."}
                         </p>
-                        {!search && !categoryFilter && (
+                        {(search || categoryFilter) && (
+                            <Button variant="outline" onClick={() => { setSearch(""); setCategoryFilter(""); }}>
+                                검색 조건 초기화
+                            </Button>
+                        )}
+                        {!search && !categoryFilter && canEdit && (
                             <Button onClick={() => router.push("/products/new")} variant="outline">
                                 <Plus className="h-4 w-4 mr-1.5" />
                                 첫 제품 추가하기
@@ -139,6 +151,7 @@ export default function ProductsPage() {
                                 product={product}
                                 onEdit={(p) => router.push(`/products/${p.id}`)}
                                 onDelete={setDeleteTarget}
+                                canEdit={canEdit}
                             />
                         ))}
                     </div>
