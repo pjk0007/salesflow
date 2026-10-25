@@ -4,19 +4,7 @@ import { adPlatforms, users } from "@/lib/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db/errors";
-
-const UNMASK_KEYS = new Set(["type", "webhookVerifyToken"]);
-
-function maskSecret(value: unknown): unknown {
-    if (typeof value === "string") return value ? (value.length > 8 ? value.substring(0, 4) + "****" : "****") : "";
-    if (Array.isArray(value)) return value.map(maskSecret);
-    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, maskSecret(item)]));
-    return value;
-}
-
-function maskCredentials(credentials: Record<string, unknown>): Record<string, unknown> {
-    return Object.fromEntries(Object.entries(credentials).map(([key, value]) => [key, UNMASK_KEYS.has(key) ? value : maskSecret(value)]));
-}
+import { maskCredentials } from "@/lib/ad-platform-credentials";
 
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);

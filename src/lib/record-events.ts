@@ -20,24 +20,24 @@ export type ParseEventResult =
  */
 export function parseEventInput(raw: unknown): ParseEventResult {
     if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-        return { ok: false, error: "event must be an object." };
+        return { ok: false, error: "event는 객체여야 합니다." };
     }
     const e = raw as Record<string, unknown>;
 
     const type = typeof e.type === "string" ? e.type.trim() : "";
     const label = typeof e.label === "string" ? e.label.trim() : "";
     if (!type || type.length > 50) {
-        return { ok: false, error: "event.type is required (max 50 chars)." };
+        return { ok: false, error: "event.type이 필요합니다. (최대 50자)" };
     }
     if (!label || label.length > 100) {
-        return { ok: false, error: "event.label is required (max 100 chars)." };
+        return { ok: false, error: "event.label이 필요합니다. (최대 100자)" };
     }
 
     let occurredAt = new Date();
     if (e.occurredAt !== undefined && e.occurredAt !== null) {
         const parsed = new Date(e.occurredAt as string | number | Date);
         if (isNaN(parsed.getTime())) {
-            return { ok: false, error: "event.occurredAt is invalid." };
+            return { ok: false, error: "event.occurredAt 형식이 올바르지 않습니다." };
         }
         occurredAt = parsed;
     }
@@ -45,7 +45,7 @@ export function parseEventInput(raw: unknown): ParseEventResult {
     let meta: Record<string, unknown> | null = null;
     if (e.meta !== undefined && e.meta !== null) {
         if (typeof e.meta !== "object" || Array.isArray(e.meta)) {
-            return { ok: false, error: "event.meta must be an object." };
+            return { ok: false, error: "event.meta는 객체여야 합니다." };
         }
         meta = e.meta as Record<string, unknown>;
     }

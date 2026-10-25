@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, partitions, folders, workspaces } from "@/lib/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getApiTokenFromNextRequest, resolveApiToken, tokenScopeCovers } from "@/lib/auth";
 import type { ApiTokenInfo } from "@/lib/auth";
 
@@ -8,11 +8,11 @@ import type { ApiTokenInfo } from "@/lib/auth";
 export async function GET(req: NextRequest) {
     const tokenStr = getApiTokenFromNextRequest(req);
     if (!tokenStr) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
     const tokenInfo: ApiTokenInfo | null = await resolveApiToken(tokenStr);
     if (!tokenInfo) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
 
     try {
@@ -58,6 +58,6 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: true, data });
     } catch (error) {
         console.error("External partitions fetch error:", error);
-        return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }

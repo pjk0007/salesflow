@@ -4,6 +4,14 @@ import { adPlatforms, adAccounts } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import type { MetaCredentials } from "@/types";
+import { isMetaTokenError, markMetaPlatformExpired, metaErrorMessage, type MetaGraphError } from "@/lib/meta-graph";
+
+/** 사용자에게 그대로 보여줄 한국어 동기화 실패 (UX-051). 그 밖의 예외는 500 고정 문구 */
+class SyncFailure extends Error {
+    constructor(message: string, readonly status: number) {
+        super(message);
+    }
+}
 
 const META_ACCOUNT_STATUS_MAP: Record<number, string> = {
     1: "active",
@@ -27,14 +35,28 @@ function mapMetaAccountStatus(accountStatus: number): "active" | "paused" | "dis
 async function syncMetaAccounts(platform: { id: number; credentials: unknown }) {
     const credentials = platform.credentials as MetaCredentials;
     const accessToken = credentials.accessToken;
+    if (!accessToken) {
+        throw new SyncFailure("Meta 인증이 아직 완료되지 않았습니다. '다시 연결'로 Meta 계정을 인증해주세요.", 409);
+    }
 
-    const response = await fetch(
-        `https://graph.facebook.com/v21.0/me/adaccounts?access_token=${accessToken}&fields=id,name,account_status,currency,amount_spent`
-    );
+    let response: Response;
+    try {
+        response = await fetch(
+            `https://graph.facebook.com/v21.0/me/adaccounts?access_token=${accessToken}&fields=id,name,account_status,currency,amount_spent`
+        );
+    } catch {
+        throw new SyncFailure("Meta 서버에 연결하지 못했습니다. 잠시 뒤 다시 시도해주세요.", 502);
+    }
 
     if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Meta API 오류: ${error.error?.message || "알 수 없는 오류"}`);
+        const body = (await response.json().catch(() => null)) as { error?: MetaGraphError } | null;
+        console.error("[ad-platform sync] Meta 오류:", body?.error?.code, body?.error?.message);
+        // 토큰 만료·취소면 상태를 '만료됨'으로 바꿔 다시 인증 안내가 보이게 한다 (UX-049)
+        if (isMetaTokenError(body?.error)) {
+            await markMetaPlatformExpired(platform.id);
+            throw new SyncFailure(metaErrorMessage(body?.error), 409);
+        }
+        throw new SyncFailure(metaErrorMessage(body?.error), 502);
     }
 
     const result = await response.json();
@@ -138,8 +160,8 @@ export async function POST(
         if (platform.platform === "meta") {
             syncResult = await syncMetaAccounts(platform);
         } else {
-            // Google/Naver 플랫폼은 추후 구현
-            syncResult = { synced: 0, created: 0, updated: 0, accounts: [] };
+            // Google/Naver 동기화는 아직 없다 — 아무것도 하지 않고 '완료'라고 답하지 않는다 (UX-051)
+            return NextResponse.json({ success: false, error: "아직 계정 동기화를 지원하지 않는 광고 플랫폼입니다." }, { status: 400 });
         }
 
         await db
@@ -156,8 +178,10 @@ export async function POST(
             },
         });
     } catch (error) {
+        if (error instanceof SyncFailure) {
+            return NextResponse.json({ success: false, error: error.message }, { status: error.status });
+        }
         console.error("Ad platform sync error:", error);
-        const message = error instanceof Error ? error.message : "서버 오류가 발생했습니다.";
-        return NextResponse.json({ success: false, error: message }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }

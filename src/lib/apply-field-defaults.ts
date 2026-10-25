@@ -56,3 +56,19 @@ export async function partitionFieldLabel(exec: Executor, partitionId: number, k
         .limit(1);
     return field?.label || key;
 }
+
+/** 파티션의 체크박스 필드 key — 파일 업로드 값을 boolean으로 정규화할 때 쓴다 (UX-046) */
+export async function partitionCheckboxKeys(exec: Executor, partitionId: number): Promise<Set<string>> {
+    const resolved = await resolvePartitionFieldType(exec, partitionId);
+    if (!resolved) return new Set();
+    const rows = await exec
+        .select({ key: fieldDefinitions.key })
+        .from(fieldDefinitions)
+        .where(and(
+            resolved.typeId
+                ? eq(fieldDefinitions.fieldTypeId, resolved.typeId)
+                : eq(fieldDefinitions.workspaceId, resolved.workspaceId),
+            eq(fieldDefinitions.fieldType, "checkbox")
+        ));
+    return new Set(rows.map((r) => r.key));
+}

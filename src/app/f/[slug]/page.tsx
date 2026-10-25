@@ -299,6 +299,7 @@ function renderField(
             return (
                 <div className="flex items-center gap-2">
                     <Checkbox
+                        aria-required={!!field.isRequired}
                         checked={val === "true"}
                         onCheckedChange={(checked) =>
                             onChange(id, checked ? "true" : "false")

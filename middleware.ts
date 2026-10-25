@@ -1,11 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400",
-};
+import { PUBLIC_API_CORS_HEADERS as CORS_HEADERS } from "@/lib/public-api-cors";
 
 export function middleware(req: NextRequest) {
     // Preflight OPTIONS 요청 처리

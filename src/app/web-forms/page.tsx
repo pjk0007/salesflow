@@ -24,6 +24,7 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Link2, Trash2, Eye, EyeOff } from "lucide-react";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
@@ -32,9 +33,11 @@ export default function WebFormsPage() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const router = useRouter();
     const [workspaceId, setWorkspaceId] = useState<number | null>(null);
-    const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
+    const { workspaces, isLoading: workspacesLoading, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
     const { partitionTree } = usePartitions(workspaceId);
-    const { forms, updateForm, deleteForm, loadError: formsError, mutate: mutateForms } = useWebForms(workspaceId);
+    const { forms, isLoading: formsLoading, updateForm, deleteForm, loadError: formsError, mutate: mutateForms } = useWebForms(workspaceId);
+    // 목록을 받기 전에는 빈 상태 대신 자리표시를 보인다 (UX-047)
+    const listLoading = formsLoading || (!workspaceId && (workspacesLoading || workspaces.length > 0));
 
     // 임베드 다이얼로그
     const [embedSlug, setEmbedSlug] = useState<string | null>(null);
@@ -65,15 +68,34 @@ export default function WebFormsPage() {
     );
 
     const handleToggleActive = useCallback(
-        async (id: number, currentActive: number) => {
-            const result = await updateForm(id, {
-                isActive: currentActive ? 0 : 1,
-            });
-            if (result.success) {
-                toast.success(currentActive ? "폼이 비활성화되었습니다." : "폼이 활성화되었습니다.");
+        async (id: number, name: string, currentActive: number) => {
+            const change = async () => {
+                let result;
+                try {
+                    result = await updateForm(id, { isActive: currentActive ? 0 : 1 });
+                } catch {
+                    throw new Error("서버에 연결할 수 없습니다. 공개 상태가 바뀌었는지 목록에서 확인해주세요.");
+                }
+                if (!result.success) throw new Error(result.error || "공개 상태를 바꾸지 못했습니다.");
+                toast.success(currentActive ? "폼 공개를 중지했습니다." : "폼을 공개했습니다.");
+            };
+            // 공개 중지는 웹사이트의 리드 수집을 바로 멈추므로 확인을 받는다 (UX-047)
+            if (currentActive) {
+                confirm({
+                    title: "폼 공개 중지",
+                    description: `"${name}" 폼의 공개를 중지하면 웹사이트에 넣은 폼으로 더 이상 제출을 받지 않습니다.`,
+                    confirmLabel: "공개 중지",
+                    onConfirm: change,
+                });
+                return;
+            }
+            try {
+                await change();
+            } catch (cause) {
+                toast.error(cause instanceof Error ? cause.message : "공개 상태를 바꾸지 못했습니다.");
             }
         },
-        [updateForm]
+        [updateForm, confirm]
     );
 
     if (workspacesError) {
@@ -114,6 +136,12 @@ export default function WebFormsPage() {
 
                 {formsError ? (
                     <QueryErrorState error={formsError} onRetry={() => mutateForms()} />
+                ) : listLoading ? (
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-busy="true" aria-label="웹 폼 목록을 불러오는 중">
+                        {[0, 1, 2].map((i) => (
+                            <Skeleton key={i} className="h-40 w-full" />
+                        ))}
+                    </div>
                 ) : forms.length === 0 ? (
                     <div className="text-center py-20 text-muted-foreground">
                         <p className="text-lg mb-1">아직 웹 폼이 없습니다</p>
@@ -166,8 +194,10 @@ export default function WebFormsPage() {
                                     <Button
                                         variant="ghost"
                                         size="sm"
+                                        aria-label={form.isActive ? "공개 중지" : "공개"}
+                                        title={form.isActive ? "공개 중지" : "공개"}
                                         onClick={() =>
-                                            handleToggleActive(form.id, form.isActive)
+                                            handleToggleActive(form.id, form.name, form.isActive)
                                         }
                                     >
                                         {form.isActive ? (
@@ -180,6 +210,8 @@ export default function WebFormsPage() {
                                         variant="ghost"
                                         size="sm"
                                         className="text-destructive"
+                                        aria-label="삭제"
+                                        title="삭제"
                                         onClick={() => handleDelete(form.id)}
                                     >
                                         <Trash2 className="h-3 w-3" />
