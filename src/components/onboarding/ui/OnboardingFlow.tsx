@@ -12,7 +12,21 @@ import FieldsStep from "@/components/onboarding/FieldsStep";
 import InviteStep from "@/components/onboarding/InviteStep";
 import CompleteStep from "@/components/onboarding/CompleteStep";
 import { Loader2 } from "lucide-react";
-import { apiRequest } from "@/lib/swr-fetcher";
+import { requestErrorMessage } from "@/lib/swr-fetcher";
+import {
+    applyOnboardingTemplate,
+    completeOnboarding,
+    createOnboardingInvites,
+    saveOnboardingOrg,
+    saveOnboardingWorkspace,
+} from "@/components/onboarding/api";
+
+const STEP_ERRORS: Record<number, string> = {
+    1: "조직 정보를 저장하지 못했습니다. 다시 시도해주세요.",
+    2: "워크스페이스를 저장하지 못했습니다. 다시 시도해주세요.",
+    3: "속성 템플릿을 적용하지 못했습니다. 다시 시도해주세요.",
+    4: "초대를 보내지 못했습니다. 다시 시도해주세요.",
+};
 
 const TOTAL_STEPS = 5;
 
@@ -37,13 +51,15 @@ export default function OnboardingPage() {
     // Step 3
     const [templateId, setTemplateId] = useState<string | null>(null);
     const [fieldsCreated, setFieldsCreated] = useState(0);
+    // 이미 적용한 템플릿은 뒤로 갔다 와도 다시 적용하지 않는다
+    const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
 
     // Step 4
     const [emails, setEmails] = useState(["", "", ""]);
     const [invitesSent, setInvitesSent] = useState(0);
     const [invitesUnsent, setInvitesUnsent] = useState(0);
     const [inviteFailures, setInviteFailures] = useState(0);
-    const invitationResults = useRef(new Map<string, boolean>());
+    const invitationResults = useRef<ReadonlyMap<string, boolean>>(new Map());
 
     // 이미 온보딩 완료된 사용자는 홈으로
     useEffect(() => {
@@ -75,11 +91,11 @@ export default function OnboardingPage() {
         submitPending.current = true;
         setIsLoading(true);
         try {
-            await apiRequest("/api/org/onboarding-complete", { method: "POST" });
+            await completeOnboarding();
             await refreshSession();
             router.push("/");
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "완료 처리에 실패했습니다.");
+            toast.error(requestErrorMessage(error, "완료 처리에 실패했습니다. 다시 시도해주세요."));
         } finally {
             submitPending.current = false;
             setIsLoading(false);
@@ -94,90 +110,46 @@ export default function OnboardingPage() {
         setIsLoading(true);
         try {
             if (step === 1) {
-                // 조직 정보 저장
-                await apiRequest("/api/org", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        name: orgName.trim() || undefined,
-                        industry: industry || undefined,
-                        companySize: companySize || undefined,
-                    }),
-                });
+                await saveOnboardingOrg({ name: orgName, industry, companySize });
                 setStep(2);
             } else if (step === 2) {
-                // 워크스페이스 생성
                 if (!workspaceName.trim()) {
                     toast.error("워크스페이스 이름을 입력해주세요.");
                     return;
                 }
-                const data = await apiRequest<{ success: boolean; data: { id: number }; error?: string }>(workspaceId ? `/api/workspaces/${workspaceId}/settings` : "/api/workspaces", {
-                    method: workspaceId ? "PATCH" : "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        name: workspaceName.trim(),
-                        icon: workspaceIcon,
-                    }),
-                });
-                if (data.success) {
-                    setWorkspaceId(data.data.id);
-                    setStep(3);
-                } else {
-                    toast.error(data.error || "워크스페이스 생성에 실패했습니다.");
-                }
+                // 이미 만든 워크스페이스면 이름·아이콘만 고친다(뒤로→다음 중복 생성 방지)
+                setWorkspaceId(await saveOnboardingWorkspace({ workspaceId, name: workspaceName, icon: workspaceIcon }));
+                setStep(3);
             } else if (step === 3) {
-                // 필드 템플릿 적용
-                if (templateId && workspaceId) {
-                    const template = FIELD_TEMPLATES.find((t) => t.id === templateId);
-                    if (template) {
-                        const data = await apiRequest<{ success: boolean; data: { created: number; skippedItems?: Array<{ key: string; reason: string }> } }>(`/api/workspaces/${workspaceId}/fields/bulk`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ fields: template.fields }),
-                        });
-                        if (data.success) {
-                            setFieldsCreated((previous) => previous + data.data.created);
-                            if (data.data.skippedItems?.length) {
-                                toast.info(data.data.skippedItems.map((item) => `${item.key}: ${item.reason}`).join(" · "));
-                            }
-                        }
+                const template = FIELD_TEMPLATES.find((t) => t.id === templateId);
+                if (template && workspaceId && template.id !== appliedTemplateId) {
+                    const result = await applyOnboardingTemplate(workspaceId, template.fields);
+                    setAppliedTemplateId(template.id);
+                    setFieldsCreated((previous) => previous + result.created);
+                    if (result.skippedItems.length) {
+                        toast.info(result.skippedItems.map((item) => `${item.key}: ${item.reason}`).join(" · "));
                     }
                 }
                 setStep(4);
             } else if (step === 4) {
-                // 멤버 초대
-                const validEmails = emails.filter(
-                    (e) => e.trim() && e.includes("@")
-                );
-                let failed = 0;
-                for (const email of validEmails) {
-                    const normalized = email.trim().toLowerCase();
-                    if (invitationResults.current.has(normalized)) continue;
-                    try {
-                    const data = await apiRequest<{ success: boolean; data: { emailSent: boolean } }>("/api/org/invitations", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ email: normalized, role: "member" }),
-                    });
-                    if (data.success) invitationResults.current.set(normalized, data.data.emailSent === true);
-                    } catch (error) {
-                        failed++;
-                        toast.error(`${normalized}: ${error instanceof Error ? error.message : "초대를 만들지 못했습니다."}`);
-                    }
+                const { created, failures } = await createOnboardingInvites(emails, invitationResults.current);
+                invitationResults.current = created;
+                for (const failure of failures) {
+                    toast.error(`${failure.email}: ${requestErrorMessage(failure.error, "초대를 만들지 못했습니다.")}`);
                 }
-                setInvitesSent(invitationResults.current.size);
-                setInvitesUnsent([...invitationResults.current.values()].filter((sent) => !sent).length);
-                setInviteFailures(failed);
+                setInvitesSent(created.size);
+                setInvitesUnsent([...created.values()].filter((sent) => !sent).length);
+                setInviteFailures(failures.length);
                 setStep(5);
             }
         } catch (error) {
-            toast.error(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+            toast.error(requestErrorMessage(error, STEP_ERRORS[step] ?? "요청을 처리하지 못했습니다."));
             if (step === 3) toast.info("속성은 워크스페이스 설정 > 속성 타입 관리에서도 추가할 수 있습니다.");
         } finally {
             submitPending.current = false;
             setIsLoading(false);
         }
-    }, [step, orgName, industry, companySize, workspaceName, workspaceIcon, templateId, workspaceId, emails]);
+    }, [step, orgName, industry, companySize, workspaceName, workspaceIcon, templateId, appliedTemplateId, workspaceId, emails]);
 
     const handleEmailChange = useCallback((index: number, value: string) => {
         setEmails((prev) => {
