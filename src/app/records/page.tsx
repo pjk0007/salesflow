@@ -1,6 +1,6 @@
 "use client";
 
-import { kstParts } from "@/lib/kst";
+import { recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
@@ -52,33 +52,46 @@ import { useSSE } from "@/hooks/useSSE";
 import { mutate as globalMutate } from "swr";
 import { toast } from "sonner";
 import type { DbRecord } from "@/lib/db";
-import type { FilterCondition } from "@/types";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { updatePartitionSettings } from "@/components/records/api/partition-settings";
+import { toggleVisibleField } from "@/lib/visible-fields";
+import { importDuplicatePolicy } from "@/components/records/utils/duplicate-policy";
+import { requestErrorMessage } from "@/lib/swr-fetcher";
+import { useSession } from "@/contexts/SessionContext";
+import { useRecordListQuery } from "@/components/records/hooks/useRecordListQuery";
+import { recordsStorageKey, resolvePartitionSelection } from "@/components/records/utils/list-query";
 import PartitionHoldBanner from "@/components/email/send-health/ui/PartitionHoldBanner";
 
 export default function RecordsPage() {
-    const [workspaceId, setWorkspaceId] = useState<number | null>(() => {
-        if (typeof window === "undefined") return null;
-        const saved = localStorage.getItem("records_last_workspace");
-        return saved ? Number(saved) : null;
-    });
-    const [partitionId, setPartitionId] = useState<number | null>(() => {
-        if (typeof window === "undefined") return null;
-        const saved = localStorage.getItem("records_last_partition");
-        return saved ? Number(saved) : null;
-    });
-    const [page, setPage] = useState(1);
-    const [search, setSearch] = useState("");
-    const [distributionOrder, setDistributionOrder] = useState<number | undefined>();
-    const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-    const [filters, setFilters] = useState<FilterCondition[]>([]);
-    const [sortField, setSortField] = useState("registeredAt");
-    const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+    const { user } = useSession();
+    const orgId = user?.orgId ?? null;
+    const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+    const [partitionId, setPartitionId] = useState<number | null>(null);
+    // 조직별로 저장한 마지막 워크스페이스·파티션을 복원한 조직 — 복원 전에는 자동 선택하지 않는다
+    const [restoredOrgId, setRestoredOrgId] = useState<string | null>(null);
+    const listQuery = useRecordListQuery();
+    const {
+        page,
+        search,
+        distributionOrder,
+        selectedIds,
+        filters,
+        sortField,
+        sortOrder,
+        resetCount,
+        hasConditions,
+        reset: resetListQuery,
+        setSelectedIds,
+        clearSelection,
+    } = listQuery;
     const [viewMode, setViewMode] = useState<"flat" | "grouped">(() => {
         if (typeof window === "undefined") return "flat";
         const saved = localStorage.getItem("records_view_mode") as "flat" | "grouped" | null;
         return saved || "flat";
     });
     const [createDialogOpen, setCreateDialogOpen] = useState(false);
+    // 그룹 뷰 '이 상태로 추가'에서 미리 채울 값(UX-080)
+    const [createInitialData, setCreateInitialData] = useState<Record<string, unknown> | undefined>();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [alimtalkDialogOpen, setAlimtalkDialogOpen] = useState(false);
     const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -167,31 +180,41 @@ export default function RecordsPage() {
         onAnyChange: handleSSEChange,
     });
 
+    // 조직이 정해지면 그 조직에서 마지막으로 본 워크스페이스·파티션을 복원한다(UX-082)
+    useEffect(() => {
+        if (!orgId || restoredOrgId === orgId) return;
+        const savedWorkspace = localStorage.getItem(recordsStorageKey("workspace", orgId));
+        const savedPartition = localStorage.getItem(recordsStorageKey("partition", orgId));
+        setWorkspaceId(savedWorkspace ? Number(savedWorkspace) : null);
+        setPartitionId(savedPartition ? Number(savedPartition) : null);
+        resetListQuery();
+        setRestoredOrgId(orgId);
+    }, [orgId, restoredOrgId, resetListQuery]);
+
     // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째)
     useEffect(() => {
-        if (workspaces.length === 0) return;
+        if (!restoredOrgId || workspaces.length === 0) return;
         if (workspaceId && workspaces.some((w) => w.id === workspaceId)) return;
         // 저장된 워크스페이스가 없거나 유효하지 않으면 첫 번째 선택
         setWorkspaceId(workspaces[0].id);
         setPartitionId(null);
-    }, [workspaces, workspaceId]);
+    }, [workspaces, workspaceId, restoredOrgId]);
 
     // 워크스페이스 변경 시 파티션 초기화
     const handleWorkspaceChange = useCallback((id: number) => {
         setWorkspaceId(id);
         setPartitionId(null);
-        setPage(1);
-        setSearch("");
-        setDistributionOrder(undefined);
-        setSelectedIds(new Set());
-        localStorage.setItem("records_last_workspace", String(id));
-        localStorage.removeItem("records_last_partition");
-    }, []);
+        resetListQuery();
+        localStorage.setItem(recordsStorageKey("workspace", orgId), String(id));
+        localStorage.removeItem(recordsStorageKey("partition", orgId));
+    }, [resetListQuery, orgId]);
 
     // URL ?id= 로 진입 시 해당 레코드 자동 열기 (트래커 → 레코드 점프 등)
     const deeplinkHandledRef = useRef(false);
+    // 딥링크 레코드를 불러오는 동안에는 저장된 파티션 검증·자동 선택을 미룬다
+    const [deeplinkPending, setDeeplinkPending] = useState(false);
     useEffect(() => {
-        if (deeplinkHandledRef.current) return;
+        if (deeplinkHandledRef.current || !restoredOrgId) return;
         const params = new URLSearchParams(window.location.search);
         const idParam = params.get("id");
         if (!idParam) {
@@ -199,6 +222,7 @@ export default function RecordsPage() {
             return;
         }
         deeplinkHandledRef.current = true;
+        setDeeplinkPending(true);
 
         (async () => {
             try {
@@ -212,74 +236,48 @@ export default function RecordsPage() {
                 // 해당 레코드의 워크스페이스/파티션으로 전환
                 setWorkspaceId(rec.workspaceId);
                 setPartitionId(rec.partitionId);
-                localStorage.setItem("records_last_workspace", String(rec.workspaceId));
-                localStorage.setItem("records_last_partition", String(rec.partitionId));
+                localStorage.setItem(recordsStorageKey("workspace", orgId), String(rec.workspaceId));
+                localStorage.setItem(recordsStorageKey("partition", orgId), String(rec.partitionId));
                 setDetailRecord(rec);
             } catch {
                 toast.error("레코드를 불러오지 못했습니다.");
+            } finally {
+                setDeeplinkPending(false);
             }
         })();
-    }, []);
-
-    // 파티션 미선택 시 첫 번째 파티션 자동 선택
-    useEffect(() => {
-        if (partitionId || !partitionTree) return;
-        // 딥링크 진입 시엔 자동 선택 건너뜀 (위 effect가 파티션 지정)
-        if (new URLSearchParams(window.location.search).get("id")) return;
-        const allPartitions = [
-            ...partitionTree.ungrouped,
-            ...partitionTree.folders.flatMap((f) => f.partitions),
-        ];
-        if (allPartitions.length > 0) {
-            handlePartitionSelect(allPartitions[0].id);
-        }
-    }, [partitionId, partitionTree]);
+    }, [restoredOrgId, orgId]);
 
     // 파티션 변경 시 초기화
     const handlePartitionSelect = useCallback((id: number) => {
         setPartitionId(id);
-        setPage(1);
-        setSearch("");
-        setDistributionOrder(undefined);
-        localStorage.setItem("records_last_partition", String(id));
-        setSelectedIds(new Set());
-        setFilters([]);
-        setSortField("registeredAt");
-        setSortOrder("desc");
-    }, []);
+        resetListQuery();
+        localStorage.setItem(recordsStorageKey("partition", orgId), String(id));
+    }, [resetListQuery, orgId]);
 
-    const handleSearch = useCallback((keyword: string) => {
-        setSearch(keyword);
-        setSelectedIds(new Set());
-        setPage(1);
-    }, []);
+    // 선택한(복원한) 파티션이 현재 트리에 없으면(삭제됨·다른 조직) 첫 파티션으로, 미선택이면 첫 파티션 자동 선택
+    useEffect(() => {
+        if (!partitionTree || deeplinkPending) return;
+        const next = resolvePartitionSelection(partitionTree, partitionId);
+        if (next === partitionId) return;
+        if (next === null) {
+            setPartitionId(null);
+            localStorage.removeItem(recordsStorageKey("partition", orgId));
+        } else {
+            handlePartitionSelect(next);
+        }
+    }, [partitionId, partitionTree, deeplinkPending, handlePartitionSelect, orgId]);
 
-    const handlePageChange = useCallback((nextPage: number) => {
-        setSelectedIds(new Set());
-        setPage(nextPage);
-    }, []);
+    const {
+        setSearch: handleSearch,
+        setPage: handlePageChange,
+        setDistributionOrder: handleDistributionOrderChange,
+        setFilters: handleFiltersChange,
+        setSort: handleSortChange,
+        clearConditions,
+    } = listQuery;
 
     const handleRecordClick = useCallback((record: DbRecord) => {
         setDetailRecord(record);
-    }, []);
-
-    const handleDistributionOrderChange = useCallback((order: number | undefined) => {
-        setDistributionOrder(order);
-        setSelectedIds(new Set());
-        setPage(1);
-    }, []);
-
-    const handleFiltersChange = useCallback((newFilters: FilterCondition[]) => {
-        setFilters(newFilters);
-        setSelectedIds(new Set());
-        setPage(1);
-    }, []);
-
-    const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
-        setSortField(field);
-        setSelectedIds(new Set());
-        setSortOrder(order);
-        setPage(1);
     }, []);
 
     const handleUpdateRecord = useCallback(
@@ -331,13 +329,13 @@ export default function RecordsPage() {
         const result = await bulkDelete(ids);
         if (result.success) {
             toast.success(result.message);
-            setSelectedIds(new Set());
+            clearSelection();
             setDeleteDialogOpen(false);
             if (viewMode === "grouped") handleSSEChange();
         } else {
             toast.error(result.error || "삭제에 실패했습니다.");
         }
-    }, [selectedIds, bulkDelete, viewMode, handleSSEChange]);
+    }, [selectedIds, bulkDelete, viewMode, handleSSEChange, clearSelection]);
 
     // 파티션/폴더 관리 핸들러
     const handleRenameSubmit = useCallback(async (name: string) => {
@@ -372,14 +370,27 @@ export default function RecordsPage() {
         }
     }, [movePartition]);
 
-    const handleDeleteFolder = useCallback(async (folderId: number) => {
-        const result = await deleteFolder(folderId);
-        if (result.success) {
-            toast.success("폴더가 삭제되었습니다. 하위 파티션은 미분류로 이동됩니다.");
-        } else {
-            toast.error(result.error || "삭제에 실패했습니다.");
-        }
-    }, [deleteFolder]);
+    // 폴더 삭제는 확인 후 실행한다 — 하위 파티션 수·권한 영향 안내(UX-074)
+    const { confirm: confirmAction, confirmationDialog } = useAsyncConfirm();
+    const handleDeleteFolder = useCallback((folderId: number) => {
+        const folder = partitionTree?.folders.find((f) => f.id === folderId);
+        const partitionCount = folder?.partitions.length ?? 0;
+        confirmAction({
+            title: "폴더 삭제",
+            description: [
+                `'${folder?.name ?? "폴더"}' 폴더를 삭제합니다.`,
+                partitionCount > 0
+                    ? `하위 파티션 ${partitionCount}개는 미분류로 이동하고 레코드는 그대로 남습니다.`
+                    : "하위 파티션이 없습니다.",
+                "이 폴더 단위로 준 멤버 권한은 함께 사라지며 폴더는 되돌릴 수 없습니다.",
+            ].join("\n"),
+            onConfirm: async () => {
+                const result = await deleteFolder(folderId);
+                if (!result.success) throw new Error(result.error || "폴더를 삭제하지 못했습니다.");
+                toast.success("폴더가 삭제되었습니다. 하위 파티션은 미분류로 이동됩니다.");
+            },
+        });
+    }, [partitionTree, deleteFolder, confirmAction]);
 
     // 그룹 기준 필드 탐색 (isGroupable이 켜진 select 필드)
     const statusField = useMemo(() =>
@@ -396,9 +407,9 @@ export default function RecordsPage() {
 
     const handleViewModeChange = useCallback((mode: "flat" | "grouped") => {
         setViewMode(mode);
-        setSelectedIds(new Set());
+        clearSelection();
         localStorage.setItem("records_view_mode", mode);
-    }, []);
+    }, [clearSelection]);
 
     // 현재 선택된 파티션 정보
     const currentPartition = partitionTree
@@ -410,55 +421,39 @@ export default function RecordsPage() {
 
 
     // 컬럼 표시/숨기기 토글
+    // 컬럼 표시/숨기기 — 전체 표시(null)·마지막 열 규칙은 lib/visible-fields.ts(UX-067), 실패는 안내(UX-079)
     const handleToggleColumn = useCallback(async (fieldKey: string, visible: boolean) => {
         if (!partitionId || !currentPartition) return;
-        // null(전체 표시) 상태에서 처음 토글하면 모든 필드를 명시적으로 풀어둔다
-        const currentFields =
-            currentPartition.visibleFields?.length
-                ? currentPartition.visibleFields
-                : fields.map((f) => f.key);
-        const newFields = visible
-            ? [...currentFields, fieldKey]
-            : currentFields.filter(k => k !== fieldKey);
+        const next = toggleVisibleField(currentPartition.visibleFields, fields.map((f) => f.key), fieldKey, visible);
+        if (next === undefined) {
+            toast.info("열은 하나 이상 표시해야 합니다.");
+            return;
+        }
         try {
-        const res = await fetch(`/api/partitions/${partitionId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json", "x-session-id": sessionIdRef.current },
-            body: JSON.stringify({ visibleFields: newFields }),
-        });
-        const json = await res.json();
-        if (json.success) mutatePartitions();
-        else toast.error(json.error || "열 표시 설정을 저장하지 못했습니다.");
-        } catch {
-            toast.error("열 표시 설정을 저장하지 못했습니다. 다시 시도해주세요.");
+            await updatePartitionSettings(partitionId, { visibleFields: next }, sessionIdRef.current);
+            mutatePartitions();
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "열 표시 설정을 저장하지 못했습니다. 다시 시도해주세요."));
         }
     }, [partitionId, currentPartition, fields, mutatePartitions]);
 
     // 폴더 목록 (CreatePartitionDialog용)
     const folderList = partitionTree?.folders.map((f) => ({ id: f.id, name: f.name })) ?? [];
 
-    // 중복 레코드 하이라이트 계산
+    // 중복 레코드 하이라이트 — 서버가 파티션 전체 기준으로 표시한 isDuplicate를 쓴다(UX-081)
     const duplicateHighlight = useMemo(() => {
         const dc = currentPartition?.duplicateConfig as { field: string; highlightEnabled: boolean; highlightColor: string } | null | undefined;
         if (!dc?.highlightEnabled || !dc.field || !records.length) return null;
-        const valueMap = new Map<string, number[]>();
-        for (const record of records) {
-            const val = String((record.data as Record<string, unknown>)?.[dc.field] ?? "");
-            if (!val) continue;
-            const ids = valueMap.get(val) || [];
-            ids.push(record.id);
-            valueMap.set(val, ids);
-        }
-        const dupIds = new Set<number>();
-        for (const ids of valueMap.values()) {
-            if (ids.length > 1) ids.forEach((id) => dupIds.add(id));
-        }
+        const dupIds = new Set(
+            records.filter((r) => (r as DbRecord & { isDuplicate?: boolean }).isDuplicate).map((r) => r.id),
+        );
         return dupIds.size > 0 ? { color: dc.highlightColor || "#FEF3C7", ids: dupIds } : null;
     }, [records, currentPartition?.duplicateConfig]);
 
-    const handleExport = useCallback(async () => {
+    // 내보내기 — 목록과 같은 조건(검색·필터·분배순서·정렬). 총 건수가 상한을 넘으면 먼저 확인(UX-072)
+    const runExport = useCallback(async () => {
         try {
-            const blob = await exportCsv({
+            const { blob, filename } = await exportCsv({
                 search: search || undefined,
                 distributionOrder,
                 filters: filters.length > 0 ? filters : undefined,
@@ -468,14 +463,31 @@ export default function RecordsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `${currentPartition?.name || "records"}_${kstParts(new Date()).date.replace(/-/g, "")}.csv`;
+            a.download = filename ?? recordExportFileName(currentPartition?.name);
             a.click();
             URL.revokeObjectURL(url);
-            toast.success("CSV 내보내기가 완료되었습니다.");
-        } catch {
-            toast.error("CSV 내보내기에 실패했습니다.");
+            toast.success(
+                total > RECORD_EXPORT_LIMIT
+                    ? `${total.toLocaleString()}건 중 앞 ${RECORD_EXPORT_LIMIT.toLocaleString()}건을 내보냈습니다.`
+                    : "CSV 내보내기가 완료되었습니다.",
+            );
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "CSV 내보내기에 실패했습니다."));
         }
-    }, [exportCsv, search, distributionOrder, filters, sortField, sortOrder, currentPartition]);
+    }, [exportCsv, search, distributionOrder, filters, sortField, sortOrder, currentPartition, total]);
+
+    const handleExport = useCallback(() => {
+        if (total <= RECORD_EXPORT_LIMIT) {
+            void runExport();
+            return;
+        }
+        confirmAction({
+            title: "내보내기 건수 제한",
+            description: `현재 조건의 ${total.toLocaleString()}건 중 앞 ${RECORD_EXPORT_LIMIT.toLocaleString()}건만 내보냅니다.\n나머지는 검색·필터·분배순서로 나눠 내보내주세요.`,
+            confirmLabel: `${RECORD_EXPORT_LIMIT.toLocaleString()}건 내보내기`,
+            onConfirm: runExport,
+        });
+    }, [total, runExport, confirmAction]);
 
     const mobilePartitionNav = useMemo(
         () => (
@@ -551,11 +563,14 @@ export default function RecordsPage() {
                         <>
                             <PartitionHoldBanner partitionId={partitionId} />
                             <RecordToolbar
-                                key={`${workspaceId}:${partitionId}`}
+                                key={`${workspaceId}:${partitionId}:${resetCount}`}
                                 distributionOrder={distributionOrder}
                                 onSearch={handleSearch}
                                 onDistributionOrderChange={handleDistributionOrderChange}
-                                onCreateClick={() => setCreateDialogOpen(true)}
+                                onCreateClick={() => {
+                                    setCreateInitialData(undefined);
+                                    setCreateDialogOpen(true);
+                                }}
                                 onBulkDelete={() => setDeleteDialogOpen(true)}
                                 onExportClick={handleExport}
                                 onImportClick={() => setImportDialogOpen(true)}
@@ -578,6 +593,7 @@ export default function RecordsPage() {
                                 hasStatusField={!!statusField}
                                 visibleFieldKeys={currentPartition?.visibleFields ?? null}
                                 allFields={fields}
+                                isMember={user?.role === "member"}
                                 onToggleColumn={handleToggleColumn}
                             />
                             {recordsError ? (
@@ -598,10 +614,12 @@ export default function RecordsPage() {
                                     sortField={sortField}
                                     sortOrder={sortOrder}
                                     onSortChange={handleSortChange}
-                                    onCreateWithStatus={() => {
-                                        // TODO: CreateRecordDialog에 기본 상태값 전달
+                                    onCreateWithStatus={(statusValue) => {
+                                        setCreateInitialData(statusValue ? { [statusField.key]: statusValue } : undefined);
                                         setCreateDialogOpen(true);
                                     }}
+                                    hasConditions={hasConditions}
+                                    onClearConditions={clearConditions}
                                 />
                             ) : (
                                 <RecordTable
@@ -623,6 +641,8 @@ export default function RecordsPage() {
                                     onPageChange={handlePageChange}
                                     duplicateHighlight={duplicateHighlight}
                                     onMemoChange={() => mutateRecords()}
+                                    hasConditions={hasConditions}
+                                    onClearConditions={clearConditions}
                                 />
                             )}
                         </>
@@ -642,6 +662,8 @@ export default function RecordsPage() {
             {/* 레코드 다이얼로그 */}
             {partitionId && (
                 <CreateRecordDialog
+                    key={JSON.stringify(createInitialData ?? {})}
+                    initialData={createInitialData}
                     open={createDialogOpen}
                     onOpenChange={setCreateDialogOpen}
                     partitionId={partitionId}
@@ -674,7 +696,7 @@ export default function RecordsPage() {
                 open={importDialogOpen}
                 onOpenChange={setImportDialogOpen}
                 fields={fields}
-                duplicateCheckField={currentPartition?.duplicateCheckField ?? undefined}
+                duplicatePolicy={importDuplicatePolicy(currentPartition, fields)}
                 onImport={handleBulkImport}
             />
             <ScheduledRegistrationDialog
@@ -688,7 +710,7 @@ export default function RecordsPage() {
                 onOpenChange={setConditionDeleteOpen}
                 partitionId={partitionId}
                 fields={fields}
-                onDeleted={() => { handleSSEChange(); setSelectedIds(new Set()); }}
+                onDeleted={() => { handleSSEChange(); clearSelection(); }}
             />
             <RecordDetailDialog
                 open={detailRecord !== null}
@@ -736,20 +758,19 @@ export default function RecordsPage() {
                         open={true}
                         onOpenChange={(open) => { if (!open) setDistributionSettingsPartitionId(null); }}
                         partition={pt}
-                        fields={fields}
                         onSave={async (data) => {
-                            const res = await fetch(`/api/partitions/${pt.id}`, {
-                                method: "PATCH",
-                                headers: { "Content-Type": "application/json", "x-session-id": sessionIdRef.current },
-                                body: JSON.stringify(data),
-                            });
-                            const json = await res.json();
-                            if (json.success) mutatePartitions();
-                            return json;
+                            try {
+                                await updatePartitionSettings(pt.id, data, sessionIdRef.current);
+                                mutatePartitions();
+                                return { success: true };
+                            } catch (error) {
+                                return { success: false, error: requestErrorMessage(error, "설정을 저장하지 못했습니다. 다시 시도해주세요.") };
+                            }
                         }}
                     />
                 );
             })()}
+            {confirmationDialog}
         </WorkspaceLayout>
     );
 }

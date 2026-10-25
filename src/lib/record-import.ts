@@ -44,6 +44,8 @@ export interface InsertImportedRecordsResult {
     insertedCount: number;
     skippedCount: number;
     mergedCount: number;
+    /** 중복으로 건너뛴 행의 dataRows 위치(0부터) — 예약 등록이 큐 행을 'skipped'로 남길 때 쓴다 */
+    skippedRows: number[];
     errors: Array<{ row: number; message: string }>;
     insertedRecords: DbRecord[];
 }
@@ -140,6 +142,7 @@ export async function insertImportedRecords(
     const errors: Array<{ row: number; message: string }> = [];
     const insertedRecords: DbRecord[] = [];
     let skippedCount = 0;
+    const skippedRows: number[] = [];
     let mergedCount = 0;
 
     for (let i = 0; i < dataRows.length; i++) {
@@ -148,6 +151,7 @@ export async function insertImportedRecords(
 
         if (plan.kind === "skip") {
             skippedCount++;
+            skippedRows.push(i);
             continue;
         }
         if (plan.kind === "error") {
@@ -178,7 +182,7 @@ export async function insertImportedRecords(
 
     if (onProgress) onProgress(dataRows.length, dataRows.length);
 
-    return { totalCount: dataRows.length, insertedCount: insertedRecords.length, skippedCount, mergedCount, errors, insertedRecords };
+    return { totalCount: dataRows.length, insertedCount: insertedRecords.length, skippedCount, mergedCount, skippedRows, errors, insertedRecords };
 }
 
 /**

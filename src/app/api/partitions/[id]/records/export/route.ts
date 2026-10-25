@@ -1,42 +1,10 @@
-import { parseCheckboxValue } from "@/lib/checkbox-value";
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
-import { formatKstDateTime, kstParts } from "@/lib/kst";
-import { isValidYmd } from "@/lib/tracker/date-range";
+import { buildRecordsCsv, recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
-
-const EXCLUDED_TYPES = ["file", "formula", "user_select"];
-const MAX_EXPORT = 10000;
-
-function formatValue(value: unknown, fieldType: string): string {
-    if (value === null || value === undefined) return "";
-    switch (fieldType) {
-        // 날짜·일시는 화면과 같은 KST로 쓴다 — 서버(UTC) 시간대와 무관
-        case "date": {
-            if (typeof value === "string" && isValidYmd(value)) return value;
-            const d = value instanceof Date ? value : new Date(String(value));
-            return Number.isNaN(d.getTime()) ? String(value) : kstParts(d).date;
-        }
-        case "datetime": {
-            const d = value instanceof Date ? value : new Date(String(value));
-            return Number.isNaN(d.getTime()) ? String(value) : formatKstDateTime(d);
-        }
-        case "checkbox":
-            return parseCheckboxValue(value) ? "TRUE" : "FALSE";
-        default:
-            return String(value);
-    }
-}
-
-function escapeCsv(val: string): string {
-    if (val.includes(",") || val.includes('"') || val.includes("\n")) {
-        return `"${val.replace(/"/g, '""')}"`;
-    }
-    return val;
-}
 
 export async function GET(
     req: NextRequest,
@@ -73,8 +41,6 @@ export async function GET(
                     : eq(fieldDefinitions.workspaceId, partition.workspaceId)
             )
             .orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
-
-        const exportFields = allFields.filter(f => !EXCLUDED_TYPES.includes(f.fieldType));
 
         // 쿼리 파라미터
         const searchParams = req.nextUrl.searchParams;
@@ -125,30 +91,11 @@ export async function GET(
             .from(records)
             .where(whereClause)
             .orderBy(orderBy, sortOrder === "asc" ? asc(records.id) : desc(records.id))
-            .limit(MAX_EXPORT);
+            .limit(RECORD_EXPORT_LIMIT);
 
-        // CSV 생성
-        const BOM = "\uFEFF";
-        const headers = ["통합코드", ...exportFields.map(f => f.label)];
-
-        const rows = data.map(record => {
-            const d = record.data as Record<string, unknown>;
-            return [
-                record.integratedCode || "",
-                // 시스템 항목(등록일·수정일)은 data가 아니라 레코드 컬럼을 읽는다 — RecordTable과 같은 규칙
-                ...exportFields.map(f => formatValue(
-                    f.systemColumn ? (record as unknown as Record<string, unknown>)[f.systemColumn] : d[f.key],
-                    f.fieldType,
-                )),
-            ].map(escapeCsv).join(",");
-        });
-
-        const csv = BOM + [headers.map(escapeCsv).join(","), ...rows].join("\n");
-
-        // 응답
-        const partitionName = partition.name || "records";
-        const dateStr = kstParts(new Date()).date.replace(/-/g, "");
-        const filename = `${partitionName}_${dateStr}.csv`;
+        // CSV 생성 — 값 형식·시스템 항목·파일 이름 규칙은 lib/record-export.ts
+        const csv = buildRecordsCsv(data, allFields);
+        const filename = recordExportFileName(partition.name);
 
         return new NextResponse(csv, {
             status: 200,

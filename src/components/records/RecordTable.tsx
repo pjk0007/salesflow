@@ -6,6 +6,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink } from "lucide-react";
 import InlineEditCell from "./InlineEditCell";
 import MemoPopover from "./MemoPopover";
+import RecordEmptyState from "./ui/RecordEmptyState";
+import { toggleAllSelection } from "./utils/list-query";
+import { isFieldVisible } from "@/lib/visible-fields";
 import type { FieldDefinition } from "@/types";
 import type { DbRecord } from "@/lib/db";
 
@@ -34,6 +37,9 @@ interface RecordTableProps {
     compact?: boolean;
     // 댓글 변경 시 목록 리프레시
     onMemoChange?: () => void;
+    // 검색·필터·분배순서가 걸려 있으면 빈 목록 문구와 초기화 버튼을 바꾼다
+    hasConditions?: boolean;
+    onClearConditions?: () => void;
 }
 
 export default function RecordTable({
@@ -56,14 +62,12 @@ export default function RecordTable({
     duplicateHighlight,
     compact,
     onMemoChange,
+    hasConditions,
+    onClearConditions,
 }: RecordTableProps) {
     // 표시할 필드 결정 (순서는 fields의 sortOrder 기준)
     const displayFields = useMemo(() => {
-        if (visibleFieldKeys && visibleFieldKeys.length > 0) {
-            const keySet = new Set(visibleFieldKeys);
-            return fields.filter((f) => keySet.has(f.key));
-        }
-        return fields;
+        return fields.filter((f) => isFieldVisible(visibleFieldKeys, f.key));
     }, [fields, visibleFieldKeys]);
 
     // 열기 버튼이 들어갈 첫 번째 text 필드 key
@@ -74,13 +78,9 @@ export default function RecordTable({
 
     const allSelected = records.length > 0 && records.every((r) => selectedIds.has(r.id));
 
+    // 이 표(그룹)의 행만 더하거나 빼고 다른 그룹 선택은 유지
     const toggleAll = () => {
-        const next = new Set(selectedIds);
-        for (const record of records) {
-            if (allSelected) next.delete(record.id);
-            else next.add(record.id);
-        }
-        onSelectionChange(next);
+        onSelectionChange(toggleAllSelection(selectedIds, records.map((r) => r.id)));
     };
 
     const toggleOne = (id: number) => {
@@ -121,14 +121,7 @@ export default function RecordTable({
     }
 
     if (records.length === 0 && !compact) {
-        return (
-            <div className="flex-1 flex items-center justify-center p-12">
-                <div className="text-center text-muted-foreground">
-                    <p className="text-lg mb-1">레코드가 없습니다</p>
-                    <p className="text-sm">새 레코드를 추가해보세요.</p>
-                </div>
-            </div>
-        );
+        return <RecordEmptyState hasConditions={hasConditions} onClearConditions={onClearConditions} />;
     }
 
     return (

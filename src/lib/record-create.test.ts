@@ -175,6 +175,7 @@ test("UX-071 가져오기가 범위를 예약하는 사이 들어온 단건 리�
             codeExecutor: codeExecutor as never,
         });
         assert.deepEqual([result.insertedCount, result.mergedCount, result.skippedCount], [2, 1, 1]);
+        assert.deepEqual(result.skippedRows, [2], "예약 등록이 skipped로 남길 행 위치(UX-078)");
         const codes = (await rows(pg, 20)).map((r) => r.integrated_code);
         // 기존 0012, 가져오기 예약 0013·0014(생성 2건만), 끼어든 리드 0015
         assert.deepEqual(codes.sort(), ["SALES-0012", "SALES-0013", "SALES-0014", "SALES-0015"]);

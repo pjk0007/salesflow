@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records } from "@/lib/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { records } from "@/lib/db";
+import { inArray } from "drizzle-orm";
+import { deleteRecordsWhere } from "@/lib/record-delete";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { broadcastToPartition } from "@/lib/sse";
 
@@ -16,10 +17,8 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-        const deleted = await db
-            .delete(records)
-            .where(and(inArray(records.id, ids), eq(records.orgId, user.orgId)))
-            .returning({ id: records.id, partitionId: records.partitionId });
+        // 삭제 + 방문자 연결 해제(UX-064)
+        const deleted = await deleteRecordsWhere(user.orgId, [inArray(records.id, ids)]);
 
         // 파티션별로 그룹핑하여 broadcast
         const partitionIds = [...new Set(deleted.map((d) => d.partitionId))];

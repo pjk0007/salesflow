@@ -3,16 +3,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { useSession } from "@/contexts/SessionContext";
+import { canDeleteMemo } from "@/lib/memo-permissions";
+import { isMemoSubmitKey, MEMO_DELETE_CONFIRM } from "../utils/memo-input";
 import { Send, Trash2, User } from "lucide-react";
 import { toast } from "sonner";
 import { useMemos, type MemoItem } from "../hooks/useMemos";
@@ -26,7 +20,8 @@ export default function MemoSection({ recordId, onMemoChange }: MemoSectionProps
     const { memos, isLoading, addMemo, deleteMemo } = useMemos(recordId);
     const [content, setContent] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [deleteTarget, setDeleteTarget] = useState<MemoItem | null>(null);
+    const { user } = useSession();
+    const { confirm, confirmationDialog } = useAsyncConfirm();
 
     const handleSubmit = async () => {
         if (!content.trim() || isSubmitting) return;
@@ -43,16 +38,16 @@ export default function MemoSection({ recordId, onMemoChange }: MemoSectionProps
         }
     };
 
-    const handleDelete = async () => {
-        if (!deleteTarget) return;
-        try {
-            await deleteMemo(deleteTarget.id);
-            setDeleteTarget(null);
-            toast.success("메모가 삭제되었습니다.");
-            onMemoChange?.();
-        } catch {
-            toast.error("메모 삭제에 실패했습니다.");
-        }
+    // 확인 후 삭제 — 실패하면 확인창이 열린 채 서버 안내를 보여준다
+    const handleDelete = (memo: MemoItem) => {
+        confirm({
+            ...MEMO_DELETE_CONFIRM,
+            onConfirm: async () => {
+                await deleteMemo(memo.id);
+                toast.success("메모가 삭제되었습니다.");
+                onMemoChange?.();
+            },
+        });
     };
 
     const formatDateTime = (dateStr: string) => {
@@ -81,7 +76,7 @@ export default function MemoSection({ recordId, onMemoChange }: MemoSectionProps
                         placeholder="메모를 입력하세요... (Enter로 저장)"
                         className="min-h-[72px] text-sm resize-none pr-12 bg-muted/30"
                         onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                            if (isMemoSubmitKey(e)) {
                                 e.preventDefault();
                                 handleSubmit();
                             }
@@ -117,14 +112,17 @@ export default function MemoSection({ recordId, onMemoChange }: MemoSectionProps
                                     <span className="text-xs text-muted-foreground">
                                         {formatDateTime(memo.createdAt)}
                                     </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="ml-auto h-6 w-6 opacity-0 group-hover/memo:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                                        onClick={() => setDeleteTarget(memo)}
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </Button>
+                                    {user && canDeleteMemo(memo, { userId: user.id, role: user.role }) && (
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            aria-label="메모 삭제"
+                                            className="ml-auto h-6 w-6 opacity-0 group-hover/memo:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                            onClick={() => handleDelete(memo)}
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                    )}
                                 </div>
                                 <div className="pl-6 border-l ml-3 whitespace-pre-wrap text-sm">
                                     {memo.content}
@@ -135,19 +133,7 @@ export default function MemoSection({ recordId, onMemoChange }: MemoSectionProps
                 )}
             </div>
 
-            {/* 삭제 확인 */}
-            <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>메모를 삭제하시겠습니까?</AlertDialogTitle>
-                        <AlertDialogDescription>삭제된 메모는 복구할 수 없습니다.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {confirmationDialog}
         </>
     );
 }

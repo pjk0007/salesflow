@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, memos } from "@/lib/db";
+import { db, memos } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requireRecordAccess } from "@/lib/partition-access";
+import { canDeleteMemo, MEMO_DELETE_FORBIDDEN } from "@/lib/memo-permissions";
 
 // DELETE: 메모 삭제
 export async function DELETE(
@@ -21,17 +23,24 @@ export async function DELETE(
         return NextResponse.json({ success: false, error: "잘못된 요청입니다." }, { status: 400 });
     }
 
-    // 레코드 소유 검증
-    const [record] = await db
-        .select({ id: records.id })
-        .from(records)
-        .where(and(eq(records.id, recordId), eq(records.orgId, user.orgId)));
-
-    if (!record) {
-        return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
+    // 레코드 소유·파티션 접근 검증
+    const access = await requireRecordAccess(user, recordId, "read");
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
-    // 메모 삭제
+    const [memo] = await db
+        .select({ id: memos.id, createdBy: memos.createdBy })
+        .from(memos)
+        .where(and(eq(memos.id, memoIdNum), eq(memos.recordId, recordId)));
+    if (!memo) {
+        return NextResponse.json({ success: false, error: "메모를 찾을 수 없습니다." }, { status: 404 });
+    }
+    // 동료의 상담 기록을 실수로 지우지 않도록 작성자 본인 또는 관리자만
+    if (!canDeleteMemo(memo, user)) {
+        return NextResponse.json({ success: false, error: MEMO_DELETE_FORBIDDEN }, { status: 403 });
+    }
+
     const [deleted] = await db
         .delete(memos)
         .where(and(eq(memos.id, memoIdNum), eq(memos.recordId, recordId)))

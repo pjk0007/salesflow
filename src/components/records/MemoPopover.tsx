@@ -5,7 +5,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Textarea } from "@/components/ui/textarea";
 import { MessageSquareText, Trash2, ArrowUp } from "lucide-react";
 import { toast } from "sonner";
-import { useMemos } from "./hooks/useMemos";
+import { useMemos, type MemoItem } from "./hooks/useMemos";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { useSession } from "@/contexts/SessionContext";
+import { canDeleteMemo } from "@/lib/memo-permissions";
+import { isMemoSubmitKey, MEMO_DELETE_CONFIRM } from "./utils/memo-input";
 
 interface MemoPopoverProps {
     recordId: number;
@@ -23,6 +27,8 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
     const { memos, addMemo, deleteMemo } = useMemos(open ? recordId : null);
     const [content, setContent] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const { user } = useSession();
+    const { confirm, confirmationDialog } = useAsyncConfirm();
 
     const handleSubmit = async () => {
         if (!content.trim() || isSubmitting) return;
@@ -32,19 +38,22 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
             setContent("");
             onMemoChange?.();
         } catch {
-            toast.error("댓글 추가에 실패했습니다.");
+            toast.error("메모 추가에 실패했습니다.");
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const handleDelete = async (memoId: number) => {
-        try {
-            await deleteMemo(memoId);
-            onMemoChange?.();
-        } catch {
-            toast.error("댓글 삭제에 실패했습니다.");
-        }
+    // 확인 후 삭제 — 실패하면 확인창이 열린 채 서버 안내(예: 작성자·관리자만)를 보여준다
+    const handleDelete = (memo: MemoItem) => {
+        confirm({
+            ...MEMO_DELETE_CONFIRM,
+            onConfirm: async () => {
+                await deleteMemo(memo.id);
+                toast.success("메모가 삭제되었습니다.");
+                onMemoChange?.();
+            },
+        });
     };
 
     const formatDate = (dateStr: string) => {
@@ -74,7 +83,7 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
                 <div className="max-h-72 overflow-y-auto">
                     {memos.length === 0 ? (
                         <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                            댓글이 없습니다
+                            메모가 없습니다
                         </div>
                     ) : (
                         <div className="py-2">
@@ -94,13 +103,16 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
                                                 <span className="text-xs text-muted-foreground">
                                                     {formatDate(memo.createdAt)}
                                                 </span>
-                                                <button
-                                                    type="button"
-                                                    className="ml-auto opacity-0 group-hover/memo:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                                                    onClick={() => handleDelete(memo.id)}
-                                                >
-                                                    <Trash2 className="h-3 w-3" />
-                                                </button>
+                                                {user && canDeleteMemo(memo, { userId: user.id, role: user.role }) && (
+                                                    <button
+                                                        type="button"
+                                                        aria-label="메모 삭제"
+                                                        className="ml-auto opacity-0 group-hover/memo:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                                                        onClick={() => handleDelete(memo)}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </button>
+                                                )}
                                             </div>
                                             {/* 본문 */}
                                             <p className="text-sm mt-0.5 whitespace-pre-wrap text-foreground/90">
@@ -121,10 +133,10 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
                             <Textarea
                                 value={content}
                                 onChange={(e) => setContent(e.target.value)}
-                                placeholder="댓글 추가"
+                                placeholder="메모 추가 (Enter 저장, Shift+Enter 줄바꿈)"
                                 className="min-h-9 max-h-20 text-sm resize-none pr-10 rounded-lg border-muted-foreground/20"
                                 onKeyDown={(e) => {
-                                    if (e.key === "Enter" && !e.shiftKey) {
+                                    if (isMemoSubmitKey(e)) {
                                         e.preventDefault();
                                         handleSubmit();
                                     }
@@ -145,6 +157,7 @@ export default function MemoPopover({ recordId, memoCount, onMemoChange }: MemoP
                         </div>
                     </div>
                 </div>
+                {confirmationDialog}
             </PopoverContent>
         </Popover>
     );
