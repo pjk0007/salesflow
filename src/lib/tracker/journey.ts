@@ -185,7 +185,7 @@ export async function buildRecordJourney(args: JourneyArgs): Promise<JourneyResu
             source: "email",
             channel: "메일",
             type: s.status === "sent" ? "email_sent" : `email_${s.status}`,
-            label: `${s.status === "sent" ? "메일 발송" : s.status === "pending" ? "메일 발송 대기" : ["failed", "rejected"].includes(s.status) ? "메일 발송 실패" : "메일 미발송"}: ${s.subject ?? "(제목 없음)"}`,
+            label: `${s.status === "sent" ? "메일 발송" : s.status === "pending" ? "메일 발송 대기" : ["failed", "rejected"].includes(s.status) ? "메일 발송 실패" : s.status === "cancelled" ? "메일 발송 취소" : "메일 결과 미확인"}: ${s.subject ?? "(제목 없음)"}`,
             meta: { subject: s.subject, status: s.status },
         });
     }

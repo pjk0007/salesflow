@@ -34,6 +34,8 @@ export interface AggregateRangeArgs {
     excludes: string[];
     device: string | null;
     sessionIds: number[] | null;
+    /** 시작일 기준 세션 카드에만 별도 채널 집합을 전달한다. */
+    startedSessionIds?: number[] | null;
 }
 
 export interface AggregateRangeResult {
@@ -88,7 +90,7 @@ export async function aggregateRange(args: AggregateRangeArgs): Promise<Aggregat
     const notExcluded = notExcludedExpr(excludes);
     const devFilterTv = deviceFilterSql(device, "tv");
     const sessFilterEv = sessionInFilterSql(sessionIds, "ev.session_id");
-    const sessFilterTs = sessionInFilterSql(sessionIds, "ts.id");
+    const sessFilterTs = sessionInFilterSql(args.startedSessionIds === undefined ? sessionIds : args.startedSessionIds, "ts.id");
 
     // 의미있는 PV가 1+회 있는 visitor 집합
     const meaningfulVisitorIds = meaningfulVisitorIdsSql(args);

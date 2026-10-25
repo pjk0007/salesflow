@@ -64,20 +64,22 @@ export async function GET(req: NextRequest) {
 
     try {
         // 채널 필터 있으면 매칭 세션 ID 사전 추출 (현재/직전 기간 각각)
-        const [sessionIdsCurr, sessionIdsPrev] = await Promise.all([
+        const [sessionIdsCurr, sessionIdsPrev, activeSessionIdsCurr, activeSessionIdsPrev] = await Promise.all([
             getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode }),
             getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode }),
+            getSessionIdsByChannel({ siteId, fromIso, toIso, channel, channelMode, activity: { excludes, device } }),
+            getSessionIdsByChannel({ siteId, fromIso: prevFromIso, toIso: prevToIso, channel, channelMode, activity: { excludes, device } }),
         ]);
 
         const devFilterTv = deviceFilterSql(device, "tv");
         const sessFilterTs = sessionInFilterSql(sessionIdsCurr, "ts.id");
-        const sessFilterEv = sessionInFilterSql(sessionIdsCurr, "ev.session_id");
-        const activeArgs = { siteId, fromIso, toIso, excludes, device, sessionIds: sessionIdsCurr };
+        const sessFilterEv = sessionInFilterSql(activeSessionIdsCurr, "ev.session_id");
+        const activeArgs = { siteId, fromIso, toIso, excludes, device, sessionIds: activeSessionIdsCurr };
         const activeVisitorIds = meaningfulVisitorIdsSql(activeArgs);
 
         const [curr, prev, daily, channelConv, dailyConv, popular, exitsRows, recent, channelsRaw, adContentsRows, devTypes, browsers, oss] = await Promise.all([
-            aggregateRange({ siteId, fromIso, toIso, excludes, device, sessionIds: sessionIdsCurr }),
-            aggregateRange({ siteId, fromIso: prevFromIso, toIso: prevToIso, excludes, device, sessionIds: sessionIdsPrev }),
+            aggregateRange({ ...activeArgs, startedSessionIds: sessionIdsCurr }),
+            aggregateRange({ siteId, fromIso: prevFromIso, toIso: prevToIso, excludes, device, sessionIds: activeSessionIdsPrev, startedSessionIds: sessionIdsPrev }),
             // 일별 페이지뷰
             db.execute(sql`
                 SELECT (occurred_at AT TIME ZONE 'Asia/Seoul')::date::text AS date, COUNT(*)::int AS count
