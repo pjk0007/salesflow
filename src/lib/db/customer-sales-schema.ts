@@ -83,6 +83,8 @@ export const crmDeals = pgTable(
             t.pipelineId,
             t.stageId,
         ),
+        // 최근 순 목록(UX-087) — drizzle/0126
+        index("crm_deal_recent").on(t.orgId, t.workspaceId, t.createdAt.desc(), t.id.desc()),
         check("crm_deal_amount", sql`${t.amount} >= 0`),
     ],
 );
