@@ -92,6 +92,7 @@ export default function AutoEnrichTab() {
     };
 
     const handleSubmit = async () => {
+        if (submitting) return;
         if (!selectedPartitionId || !searchField || targetFields.size === 0) {
             toast.error("검색 필드와 대상 필드를 선택해주세요.");
             return;
@@ -115,7 +116,7 @@ export default function AutoEnrichTab() {
                 toast.error(result.error || "저장에 실패했습니다.");
             }
         } catch {
-            toast.error("규칙을 저장하지 못했습니다. 입력을 유지했으니 연결을 확인해주세요.");
+            toast.error("저장 결과를 확인하지 못했습니다. 입력은 유지되었으니 규칙 목록을 확인한 뒤 다시 시도해주세요.");
         } finally {
             setSubmitting(false);
         }
