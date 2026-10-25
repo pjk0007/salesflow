@@ -202,6 +202,8 @@ test("UX-168 클라이언트 중지 → 상류 호출이 한 번 끊기고 사�
             const body = response.text();
             await upstreamStarted;
             client.abort();
+            // 중지 전파는 동기라 응답을 기다리기 전에 이미 1회여야 한다 — 시간 초과만 남은 회귀는 여기서 바로 실패한다 (Fable REVIEW-2 E1)
+            assert.equal(aborts, 1, "중지 즉시 상류 abort");
             assert.doesNotMatch(await body, /event: done|event: chunk/);
             assert.equal(requests, 1, "중지 후 재시도하지 않는다");
             assert.equal(aborts, 1, "상류 abort 1회");
