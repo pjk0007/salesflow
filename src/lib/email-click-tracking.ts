@@ -1,4 +1,4 @@
-import { appendOpenPixel } from "@/lib/email-open-pixel";
+import { appendOpenPixel, clickSignature, parseOpenId, verifyClickSignature } from "@/lib/email-open-pixel";
 import { db, emailClickLogs, emailSendLogs } from "@/lib/db";
 import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 import { nanoid } from "nanoid";
@@ -28,6 +28,9 @@ function decodeHtmlEntities(s: string): string {
  * sendLogId가 필요하므로 로그 insert 후에 호출해야 합니다.
  */
 export function wrapTrackingUrls(html: string, sendLogId: number): string {
+    // 링크마다 발송 id+도착 주소 서명을 붙인다 — 서명 없는 주소로 아무 곳에나 보내는 열린 이동을 막는다 (UX-271)
+    const secret = process.env.JWT_SECRET;
+    if (!secret) throw new Error("JWT_SECRET 환경 변수가 설정되지 않았습니다.");
     // <a ... href="URL" ...> 패턴에서 URL 추출 및 치환
     return html.replace(
         /(<a\s[^>]*href\s*=\s*["'])([^"']+)(["'][^>]*>)/gi,
@@ -43,10 +46,61 @@ export function wrapTrackingUrls(html: string, sendLogId: number): string {
             }
             // HTML 엔티티 디코딩 (&amp; → &)
             const decoded = decodeHtmlEntities(url);
-            const trackingUrl = `${BASE_URL}/api/track/click?id=${sendLogId}&url=${encodeURIComponent(decoded)}`;
+            const trackingUrl =
+                `${BASE_URL}/api/track/click?id=${sendLogId}&url=${encodeURIComponent(decoded)}` +
+                `&s=${clickSignature(sendLogId, decoded, secret)}`;
             return `${prefix}${trackingUrl}${suffix}`;
         }
     );
+}
+
+/** 서명 없는 예전 클릭 링크를 받아 주는 기간 (발송 시각부터). 그 뒤에는 이동하지 않는다 (UX-271, DECISIONS 참고) */
+export const UNSIGNED_CLICK_GRACE_MS = 180 * 24 * 60 * 60 * 1000;
+
+function isWebUrl(url: string): boolean {
+    try {
+        const u = new URL(url);
+        return u.protocol === "https:" || u.protocol === "http:";
+    } catch {
+        return false;
+    }
+}
+
+/** 본문 <a href>의 웹 주소 호스트 (소문자). 서명 없는 예전 링크가 그 메일에 실제로 있던 곳으로만 가는지 본다 */
+function bodyLinkHosts(html: string): Set<string> {
+    const hosts = new Set<string>();
+    for (const m of html.matchAll(/<a\s[^>]*href\s*=\s*["']([^"']+)["']/gi)) {
+        const href = decodeHtmlEntities(m[1]);
+        if (!isWebUrl(href)) continue;
+        hosts.add(new URL(href).host.toLowerCase());
+    }
+    return hosts;
+}
+
+/**
+ * 클릭 추적 주소(/api/track/click?id&url&s)가 이동해도 되는 곳인지 (UX-271). 안 되면 null.
+ *   서명 있음  → 발송 id·도착 주소 서명이 맞아야 한다 (오픈 픽셀과 같은 방식)
+ *   서명 없음  → 이 변경 전에 보낸 메일의 링크. 발송 기록이 있고, 보낸 지 UNSIGNED_CLICK_GRACE_MS 안이며,
+ *               도착 호스트가 그 메일 본문에 있던 링크 호스트일 때만 (아무 외부 주소로나 보내지 않는다)
+ * http(s)가 아닌 주소(javascript: 등)는 언제나 거절한다.
+ */
+export async function verifiedClickTarget(
+    params: URLSearchParams,
+    now: Date = new Date()
+): Promise<{ sendLogId: number; url: string } | null> {
+    const sendLogId = parseOpenId(params.get("id"));
+    const url = params.get("url");
+    if (sendLogId === null || !url || !isWebUrl(url)) return null;
+    const signature = params.get("s");
+    if (signature !== null) return verifyClickSignature(sendLogId, url, signature) ? { sendLogId, url } : null;
+
+    const [log] = await db
+        .select({ body: emailSendLogs.body, sentAt: emailSendLogs.sentAt })
+        .from(emailSendLogs)
+        .where(eq(emailSendLogs.id, sendLogId))
+        .limit(1);
+    if (!log?.sentAt || now.getTime() - log.sentAt.getTime() > UNSIGNED_CLICK_GRACE_MS) return null;
+    return bodyLinkHosts(log.body ?? "").has(new URL(url).host.toLowerCase()) ? { sendLogId, url } : null;
 }
 
 /**
