@@ -7,6 +7,7 @@ import {
     submitUnsubscribeReason,
 } from "../api/unsubscribe";
 import type { UnsubscribeStatus, UnsubscribeReason, ReasonStatus } from "../types";
+import { unsubscribeFailureStatus } from "../utils/failure";
 
 export function useUnsubscribe(token: string | null) {
     const [status, setStatus] = useState<UnsubscribeStatus>({ kind: "loading" });
@@ -16,6 +17,8 @@ export function useUnsubscribe(token: string | null) {
     const [selectedReason, setSelectedReason] = useState<UnsubscribeReason | null>(null);
     const [reasonDetail, setReasonDetail] = useState("");
     const [reasonStatus, setReasonStatus] = useState<ReasonStatus>("idle");
+    // 조회를 다시 할 때 올린다
+    const [loadAttempt, setLoadAttempt] = useState(0);
 
     useEffect(() => {
         if (!token) {
@@ -37,29 +40,42 @@ export function useUnsubscribe(token: string | null) {
             })
             .catch((err: unknown) => {
                 if (cancelled) return;
-                const message = err instanceof Error ? err.message : "수신거부 정보를 불러오지 못했습니다.";
-                setStatus({ kind: "invalid", message });
+                setStatus(unsubscribeFailureStatus(err, "load"));
             });
 
         return () => {
             cancelled = true;
         };
-    }, [token]);
+    }, [token, loadAttempt]);
 
-    const confirm = useCallback(async () => {
-        if (!token || status.kind !== "confirm") return;
-
+    const submit = useCallback(async (email: string) => {
+        if (!token) return;
         setIsSubmitting(true);
         try {
             await submitUnsubscribe(token);
-            setStatus({ kind: "done", email: status.email });
+            setStatus({ kind: "done", email });
         } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : "수신거부 처리에 실패했습니다.";
-            setStatus({ kind: "invalid", message });
+            setStatus(unsubscribeFailureStatus(err, "submit", email));
         } finally {
             setIsSubmitting(false);
         }
-    }, [token, status]);
+    }, [token]);
+
+    const confirm = useCallback(async () => {
+        if (status.kind !== "confirm" || isSubmitting) return;
+        await submit(status.email);
+    }, [status, isSubmitting, submit]);
+
+    /** 일시 오류 뒤 같은 요청을 다시 한다. 제출은 서버가 이미 거부한 주소도 성공으로 답해 중복되지 않는다 */
+    const retry = useCallback(async () => {
+        if (status.kind !== "error" || isSubmitting) return;
+        if (status.retry === "submit" && status.email) {
+            await submit(status.email);
+            return;
+        }
+        setStatus({ kind: "loading" });
+        setLoadAttempt((n) => n + 1);
+    }, [status, isSubmitting, submit]);
 
     const sendReason = useCallback(async () => {
         if (!token || !selectedReason) return;
@@ -86,6 +102,7 @@ export function useUnsubscribe(token: string | null) {
         setReasonDetail,
         reasonStatus,
         confirm,
+        retry,
         sendReason,
     };
 }

@@ -16,6 +16,8 @@ export type UnsubscribeReason = (typeof UNSUBSCRIBE_REASONS)[number];
 export type UnsubscribeStatus =
     | { kind: "loading" }
     | { kind: "invalid"; message: string }
+    /** 일시 오류 — 같은 조회(load) 또는 같은 제출(submit)을 다시 할 수 있다 (UX-152) */
+    | { kind: "error"; message: string; retry: "load" | "submit"; email?: string }
     | { kind: "confirm"; email: string }
     | { kind: "done"; email: string };
 
