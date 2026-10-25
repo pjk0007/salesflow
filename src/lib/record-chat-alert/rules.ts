@@ -4,6 +4,7 @@
  * 고객 행동(웹폼·외부 API·광고 리드)으로 레코드가 생기면 파티션이 고른 스페이스에 알린다.
  * 리드 1건 = 새 메시지 1개. 같은 리드가 다시 접수(중복 병합)되면 그 메시지의 스레드 답글로 붙는다.
  */
+import { chatSafe, clipChars } from "@/lib/chat-text";
 
 export type RecordAlertSource = "web_form" | "api" | "meta_ad";
 export type RecordAlertKind = "created" | "merged";
@@ -38,7 +39,8 @@ function formatValue(value: unknown, fieldType: string): string | null {
     if (typeof value === "object") return null;
     const text = String(value).replace(/\s+/g, " ").trim();
     if (!text) return null;
-    return text.length > MAX_VALUE_LENGTH ? `${text.slice(0, MAX_VALUE_LENGTH - 1)}…` : text;
+    // 코드 포인트로 자른다 — 이모지를 반으로 가르지 않게
+    return Array.from(text).length > MAX_VALUE_LENGTH ? clipChars(text, MAX_VALUE_LENGTH - 1) : text;
 }
 
 /** 필드 정의 순서대로 값이 있는 필드만 고른다. 시스템 필드(등록일 등)와 정의에 없는 키는 뺀다 */
@@ -66,11 +68,14 @@ export function buildRecordAlertText(input: {
     fields: { label: string; value: string }[];
     recordUrl: string;
 }): string {
+    // 사업명·파티션명·통합코드·필드 라벨/값은 사용자 값이다 — 링크·멘션·굵게 문법이 해석되지 않고 맨 URL이 눌리지 않게
+    // (깊이·회신 알림과 같은 chatSafe 규칙). 우리가 만든 굵게 머리말과 "샌드비에서 보기" 링크만 꾸밈을 쓴다.
+    const safe = (v: unknown) => chatSafe(v, { defangUrls: true });
     const head = input.kind === "merged" ? "재접수" : "신규 접수";
-    const code = input.integratedCode ? ` · ${input.integratedCode}` : "";
+    const code = input.integratedCode ? ` · ${safe(input.integratedCode)}` : "";
     const lines = [
-        `*[${input.workspaceName} > ${input.partitionName}] ${head}* · ${SOURCE_LABELS[input.source]}${code}`,
-        ...input.fields.map((f) => `${f.label}: ${f.value}`),
+        `*[${safe(input.workspaceName)} > ${safe(input.partitionName)}] ${head}* · ${SOURCE_LABELS[input.source]}${code}`,
+        ...input.fields.map((f) => `${safe(f.label)}: ${safe(f.value)}`),
         `<${input.recordUrl}|샌드비에서 보기>`,
     ];
     return lines.join("\n");
