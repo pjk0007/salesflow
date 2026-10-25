@@ -40,6 +40,10 @@ function spyEffects() {
             broadcastToPartition: (_partitionId: number, event: string, data: { recordId?: number }) => {
                 calls.push({ effect: "sse", recordId: data.recordId ?? 0, detail: event });
             },
+            rematchVisitorsByRecord: async (p: { orgId: string; workspaceId: number; recordId: number; data: Record<string, unknown> }) => {
+                calls.push({ effect: "rematch", recordId: p.recordId, detail: `${p.orgId === ORG}:${p.workspaceId}:${String(p.data.name ?? "")}` });
+                return { linked: 0 };
+            },
         },
     };
 }
@@ -101,7 +105,11 @@ test("T10 경로별(화면·웹 폼·v1·Meta·MCP·가져오기) 생성이 통�
             assert.equal(spy.calls.filter((c) => c.recordId === id && c.effect === "automation").length, 1);
             assert.equal(spy.calls.filter((c) => c.recordId === id && c.effect === "enrich").length, 1);
             assert.equal(spy.calls.filter((c) => c.recordId === id && c.effect === "sse" && c.detail === "record:created").length, 1);
+            // 방문자 역매칭은 v1뿐 아니라 화면·웹 폼·Meta·MCP 생성에서도 한 번씩 돈다 (UX-284)
+            assert.equal(spy.calls.filter((c) => c.recordId === id && c.effect === "rematch").length, 1);
         }
+        assert.deepEqual(spy.calls.filter((c) => c.effect === "rematch").map((c) => c.detail),
+            ["true:1:화면", "true:1:웹폼", "true:1:API", "true:1:Meta", "true:1:MCP"]);
         assert.deepEqual(spy.calls.filter((c) => c.effect === "chat").map((c) => c.detail), ["web_form:created", "api:created", "meta_ad:created"]);
     } finally {
         await pg.close();
@@ -204,7 +212,7 @@ test("UX-043·066 중복 정책: 거부는 필드 이름으로 알리고, 병합
         assert.equal(merged.status, "merged");
         assert.equal(merged.status === "merged" && merged.record.id, seedId);
         assert.deepEqual(merged.status === "merged" && merged.record.data, { phone: "010-1234-5678", name: "재접수", memo: "남김", status: "신규" });
-        assert.deepEqual(spy.calls.map((c) => `${c.effect}:${c.detail ?? ""}`), ["chat:web_form:merged", "sse:record:updated"]);
+        assert.deepEqual(spy.calls.map((c) => `${c.effect}:${c.detail ?? ""}`), ["chat:web_form:merged", "rematch:true:1:재접수", "sse:record:updated"]);
         assert.equal((await rows(pg, 20)).length, 1);
 
         // 교체: 같은 트랜잭션 안에서 생성이 실패하면 기존 레코드가 그대로 남는다
