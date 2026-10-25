@@ -14,7 +14,9 @@ async function harness() {
     let current = { orgId: 'A', userId: 'staff', membershipId: 1, tokenVersion: 0, role: 'owner', organizations: [] };
     let failMe = false, onLogout = async () => { current = null; }, onSwitch = async () => {};
     let cursor = 0, mounted = false;
-    const slots = [], effects = [], events = [], navigations = [];
+    const slots = [], effects = [], events = [], navigations = [], announcements = [];
+    const listeners = new Map();
+    const emit = (type, extra = {}) => { for (const listener of listeners.get(type) ?? []) listener({ type, ...extra }); };
     const state = initial => {
         const index = cursor++;
         if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
@@ -30,7 +32,13 @@ async function harness() {
         const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
         const exports = {};
         vm.runInNewContext('(function(require,exports){' + js + '})', {
-            console: { error() {} }, window: { location: { replace: url => { navigations.push(['replace', url]); events.push('replace:' + url); } } },
+            console: { error() {} },
+            window: {
+                location: { replace: url => { navigations.push(['replace', url]); events.push('replace:' + url); } },
+                addEventListener: (type, listener) => { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(listener); },
+                removeEventListener: (type, listener) => { listeners.get(type)?.delete(listener); },
+            },
+            localStorage: { setItem: (key, value) => { announcements.push([key, value]); } },
             fetch: async (url, options) => {
                 if (url === '/api/org/switch') {
                     const id = JSON.parse(options.body).orgId;
@@ -46,10 +54,12 @@ async function harness() {
         return exports;
     };
     const queue = compile('components/inbox/hooks/session-transition-queue.ts', {});
+    const sessionSync = compile('lib/session-sync.ts', {});
     const provider = compile('contexts/SessionContext.tsx', {
         react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
         'next/navigation': { useRouter: () => ({ push: url => navigations.push(['push', url]) }) },
         '@/components/inbox/hooks/session-transition-queue': queue,
+        '@/lib/session-sync': sessionSync,
         '@/lib/session-request': { fetchSessionResponse: async () => {
             if (failMe) { events.push('me:error'); throw Error('세션 조회 실패'); }
             events.push('me:' + (current?.orgId ?? 'null'));
@@ -59,7 +69,7 @@ async function harness() {
     const render = () => { cursor = 0; const value = provider.SessionProvider({ children: null }).props.value; mounted = true; return value; };
     render(); effects.forEach(f => f()); await tick();
     return {
-        render, events, navigations, setCurrent: value => { current = value; },
+        render, events, navigations, announcements, emit, setCurrent: value => { current = value; },
         changeRole: role => { current = { ...current, role }; }, failMe: value => { failMe = value; },
         onLogout: f => { onLogout = f; }, onSwitch: f => { onSwitch = f; },
     };
@@ -121,4 +131,49 @@ for (const same of [true, false]) test(`refresh 오류 뒤 ${same ? '동일' : '
     await h.render().refreshSession();
     assert.deepEqual(h.navigations, same ? [] : [['replace', '/']]);
     assert.equal(h.render().user?.orgId ?? null, same ? 'A' : null);
+});
+
+// UX-010 같은 계정의 다른 탭이 세션 쿠키를 바꾼 경우
+const settle = async () => { for (let i = 0; i < 6; i++) await tick(); };
+test('다른 탭의 조직 전환 알림을 받으면 캐시를 숨기고 새 세션 확인 뒤 홈을 한 번 다시 연다', async () => {
+    const h = await harness();
+    assert.equal(h.render().user?.orgId, 'A');
+    h.setCurrent({ orgId: 'B', userId: 'staff', membershipId: 2, tokenVersion: 0, role: 'owner', organizations: [] });
+    h.emit('storage', { key: 'other-key' }); await settle();
+    assert.deepEqual(h.navigations, []);
+    h.emit('storage', { key: 'sendb:session-changed' }); await settle();
+    assert.deepEqual(h.navigations, [['replace', '/']]);
+    assert.equal(h.render().user, null);
+    assert.deepEqual(h.announcements, [], '다른 탭이 바꾼 변경을 되알리지 않는다');
+});
+
+test('탭 복귀 때 세션이 그대로면 화면을 유지하고, 확인 실패도 화면을 숨기지 않는다', async () => {
+    const h = await harness();
+    h.emit('focus'); await settle();
+    assert.deepEqual(h.navigations, []);
+    assert.equal(h.render().user?.orgId, 'A');
+    assert.equal(h.render().isSessionChanging, false);
+    h.failMe(true);
+    h.emit('storage', { key: 'sendb:session-changed' }); await settle();
+    assert.deepEqual(h.navigations, []);
+    assert.equal(h.render().user?.orgId, 'A');
+    assert.equal(h.render().sessionError, null);
+});
+
+test('다른 탭 로그아웃 뒤 탭 복귀는 로그인으로 보낸다', async () => {
+    const h = await harness();
+    h.setCurrent(null);
+    h.emit('focus'); await settle();
+    assert.deepEqual(h.navigations, [['replace', '/login']]);
+});
+
+test('이 탭의 조직 전환이 세션을 바꿨을 때만 다른 탭에 알린다', async () => {
+    const h = await harness();
+    await h.render().switchOrg('B');
+    assert.equal(h.announcements.length, 1);
+    assert.equal(h.announcements[0][0], 'sendb:session-changed');
+    const same = await harness();
+    same.onSwitch(async () => { throw Error('응답 불명'); });
+    await same.render().switchOrg('B');
+    assert.deepEqual(same.announcements, []);
 });
