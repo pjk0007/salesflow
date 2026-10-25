@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { defaultFetcher, apiRequest } from "@/lib/swr-fetcher";
@@ -15,6 +15,7 @@ export default function AdminUsers() {
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [pendingId, setPendingId] = useState<string | null>(null);
+    const pendingRef = useRef(false);
     const { confirm, confirmationDialog } = useAsyncConfirm();
 
     const query = new URLSearchParams({ search, page: String(page), limit: "20" });
@@ -23,16 +24,21 @@ export default function AdminUsers() {
     const pagination = data?.pagination;
 
     async function handleUpdate(userId: string, updates: { isActive?: number; isSuperAdmin?: number }) {
+        if (pendingRef.current) return;
+        pendingRef.current = true;
         setPendingId(userId);
         try {
-        await apiRequest(`/api/admin/users/${userId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updates),
-        });
-        toast.success("변경되었습니다.");
-        void mutate();
-        } finally { setPendingId(null); }
+            await apiRequest(`/api/admin/users/${userId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updates),
+            });
+            toast.success("변경되었습니다.");
+            void mutate();
+        } finally {
+            pendingRef.current = false;
+            setPendingId(null);
+        }
     }
 
     if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
@@ -51,7 +57,7 @@ export default function AdminUsers() {
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
-                <Table className="w-full text-sm">
+                <Table tabIndex={0} aria-label="사용자 목록" className="w-full text-sm">
                     <TableHeader className="bg-slate-50 text-left">
                         <TableRow>
                             <TableHead className="px-4 py-3 font-medium">이름</TableHead>
@@ -107,6 +113,7 @@ export default function AdminUsers() {
                                         >
                                             {u.isSuperAdmin === 1 ? <ShieldOff className="h-4 w-4 text-violet-500" /> : <Shield className="h-4 w-4 text-slate-400" />}
                                         </Button>
+                                        {pendingId === u.id && <span role="status" className="inline-flex items-center gap-1 text-xs"><Loader2 className="h-4 w-4 animate-spin" />처리 중...</span>}
                                     </div>
                                 </TableCell>
                             </TableRow>
