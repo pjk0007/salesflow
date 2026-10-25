@@ -140,7 +140,17 @@ export default function AutoPersonalizedEmailConfig({
     };
 
     const handleToggleActive = async (link: AutoPersonalizedLink) => {
-        await updateLink(link.id, { isActive: link.isActive === 1 ? 0 : 1 });
+        const result = await updateLink(link.id, { isActive: link.isActive === 1 ? 0 : 1 });
+        if (!result.success) {
+            toast.error(result.error || "규칙 상태를 바꾸지 못했습니다.");
+            return;
+        }
+        // 켜진 규칙이 없어진 파티션의 대기 메일은 닫지 않고 보류한다 — 다시 켜면 원래 순서대로 나간다 (UX-228)
+        if (result.queueWaiting > 0) {
+            toast.info(
+                `대기 중인 메일 ${Number(result.queueWaiting).toLocaleString("ko-KR")}통은 보류됩니다. 규칙을 다시 켜면 이어서 보냅니다.`
+            );
+        }
     };
 
     const handleDelete = async () => {

@@ -103,3 +103,11 @@ test("대시보드 경고 목록: 경고 규칙만, 밀린 일수가 많은 순,
         { linkId: 1, partitionId: 10, name: "제휴 문의", pending: 12, backlog: "3.5일치", eta: "10/7(수)까지" },
     ]);
 });
+
+test("UX-259: AI 한도 보류 줄은 '예약' 대기와 따로 빨간 배지로 — 대기가 없어도 붙는다", () => {
+    assert.deepEqual(texts(stats({ heldQuota: 3 })), ["대기 12통 · 10/7(수)까지 다 나감", "AI 한도 보류 3통"]);
+    const onlyHeld = queueBadges(stats({ pending: { total: 0, inbound: 0, bulk: 0 }, heldQuota: 1200 }), NOW);
+    assert.deepEqual(onlyHeld.map((b) => [b.key, b.text, b.tone]), [["quota", "AI 한도 보류 1,200통", "warning"]]);
+    assert.match(onlyHeld[0].title, /한도가 풀리면/);
+    assert.deepEqual(texts(stats({ pending: { total: 0, inbound: 0, bulk: 0 } })), []);
+});

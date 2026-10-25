@@ -330,3 +330,27 @@ test("buildSendQueueStats: 15:00 뒤 오늘 용량은 문의 몫이 풀린 한�
     assert.equal(afternoon.capacity.schedule[0].cap, 4);
     assert.equal(afternoon.capacity.schedule[0].total, 5);
 });
+
+test("UX-228·259: 보류 줄을 까닭별로 나눈다 — 명단 보류만 held, AI 한도는 heldQuota, 규칙 꺼짐은 합계로만", () => {
+    const stats = buildSendQueueStats({
+        rules: [rule(11, { senderProfileIds: [1] })],
+        groups: [],
+        senders: [sender(1, { dailyLimit: 10 })],
+        now: at("2026-10-05T08:00"),
+        heldGroups: [
+            { partitionId: 1, triggerType: "on_create", count: 4, reason: "partition_hold" },
+            { partitionId: 1, triggerType: "on_create", count: 6, reason: "quota_exceeded" },
+            { partitionId: 9, triggerType: "on_create", count: 2, reason: "rules_inactive" },
+            // 까닭이 없는 예전 모양은 명단 보류로 센다
+            { partitionId: 1, triggerType: "on_create", count: 1 },
+        ],
+    });
+    assert.equal(stats.rules[0].held, 5);
+    assert.equal(stats.rules[0].heldQuota, 6);
+    assert.equal(stats.totals.held, 13);
+    assert.equal(stats.totals.heldQuota, 6);
+    assert.equal(stats.totals.heldRulesInactive, 2);
+    // 보류는 대기량·경고에 섞지 않는다
+    assert.equal(stats.rules[0].pending.total, 0);
+    assert.equal(stats.rules[0].warning, false);
+});

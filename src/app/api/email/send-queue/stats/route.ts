@@ -4,6 +4,14 @@ import { db, emailAutoPersonalizedLinks, emailSendQueue, partitions, workspaces 
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { loadSendersWithUsage } from "@/lib/email-sender-limit";
 import { buildSendQueueStats } from "@/lib/email-send-queue-stats";
+import type { HeldReason } from "@/lib/email-send-queue-stats";
+import { QUEUE_WAIT_PREFIX } from "@/lib/auto-personalized-email-outcome";
+
+// 앞머리는 코드 상수라 글자 그대로 넣는다 — 매개변수로 넘기면 SELECT와 GROUP BY의 식이 서로 다른 $n이 되어 묶이지 않는다
+const heldReasonSql = sql<HeldReason>`CASE
+    WHEN ${emailSendQueue.lastError} LIKE ${sql.raw(`'${QUEUE_WAIT_PREFIX.quota_exceeded}%'`)} THEN 'quota_exceeded'
+    WHEN ${emailSendQueue.lastError} LIKE ${sql.raw(`'${QUEUE_WAIT_PREFIX.rules_inactive}%'`)} THEN 'rules_inactive'
+    ELSE 'partition_hold' END`;
 
 /**
  * 발송 대기열 통계 (조직 범위). docs/2026-10-02-sender-warmup/DESIGN-2-queue-policy.md 3절.
@@ -53,16 +61,18 @@ export async function GET(req: NextRequest) {
                 .where(and(eq(emailSendQueue.orgId, user.orgId), eq(emailSendQueue.status, "pending")))
                 .groupBy(emailSendQueue.partitionId, emailSendQueue.triggerType, emailSendQueue.priority),
             loadSendersWithUsage(user.orgId, now),
-            // 명단 보류(held) 줄 — 대기량·3일치 경고에 섞지 않고 "보류 N통"으로 따로 준다 (DESIGN-SND 6-2)
+            // 보류(held) 줄 — 대기량·3일치 경고에 섞지 않고 "보류 N통"으로 따로 준다 (DESIGN-SND 6-2).
+            // 까닭(명단 보류·AI 한도·규칙 꺼짐)은 last_error 앞머리로 나눈다 (UX-228·259)
             db
                 .select({
                     partitionId: emailSendQueue.partitionId,
                     triggerType: emailSendQueue.triggerType,
+                    reason: heldReasonSql,
                     count: sql<number>`count(*)::int`,
                 })
                 .from(emailSendQueue)
                 .where(and(eq(emailSendQueue.orgId, user.orgId), eq(emailSendQueue.status, "held")))
-                .groupBy(emailSendQueue.partitionId, emailSendQueue.triggerType),
+                .groupBy(emailSendQueue.partitionId, emailSendQueue.triggerType, heldReasonSql),
         ]);
 
         const data = buildSendQueueStats({

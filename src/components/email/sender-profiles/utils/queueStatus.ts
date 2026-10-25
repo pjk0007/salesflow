@@ -55,7 +55,7 @@ export function warningDetail(s: SendQueueRuleStats): string {
 }
 
 export interface QueueBadge {
-    key: "pending" | "warning";
+    key: "pending" | "warning" | "quota";
     text: string;
     tone: "info" | "warning";
     /** 마우스를 올리면 보이는 설명 */
@@ -68,20 +68,30 @@ export interface QueueBadge {
  * - 3일치를 넘으면 빨간 "대기 3일치 넘음"을 하나 더
  */
 export function queueBadges(s: SendQueueRuleStats | undefined, now: Date): QueueBadge[] {
-    if (!s || s.pending.total <= 0) return [];
-    const eta = etaPhrase(s, now);
-    const out: QueueBadge[] = [
-        {
+    if (!s) return [];
+    const out: QueueBadge[] = [];
+    if (s.pending.total > 0) {
+        const eta = etaPhrase(s, now);
+        out.push({
             key: "pending",
             text: `대기 ${count(s.pending.total)}통${eta ? ` · ${eta}` : ""}`,
             tone: "info",
             title: s.capacity.unlimited
                 ? `${pendingBreakdown(s)}. 발신 묶음에 한도가 없어 대기열 차례대로 나갑니다.`
                 : `${pendingBreakdown(s)}. 지금 쌓인 양만 센 예상입니다 (새로 들어오는 메일은 빼고).`,
-        },
-    ];
-    if (s.warning) {
-        out.push({ key: "warning", text: `대기 ${BACKLOG_WARNING_DAYS}일치 넘음`, tone: "warning", title: warningDetail(s) });
+        });
+        if (s.warning) {
+            out.push({ key: "warning", text: `대기 ${BACKLOG_WARNING_DAYS}일치 넘음`, tone: "warning", title: warningDetail(s) });
+        }
+    }
+    // 월 AI 사용량 한도로 멈춘 메일 — 예약(대기)과 섞지 않고 까닭을 보인다. 대기가 없어도 붙인다 (UX-259)
+    if ((s.heldQuota ?? 0) > 0) {
+        out.push({
+            key: "quota",
+            text: `AI 한도 보류 ${count(s.heldQuota ?? 0)}통`,
+            tone: "warning",
+            title: "이번 달 AI 사용량 한도에 닿아 멈춘 메일입니다. 한도가 풀리면(다음 달·플랜 상향) 원래 순서대로 이어서 나갑니다.",
+        });
     }
     return out;
 }

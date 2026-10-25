@@ -508,6 +508,8 @@ export type QueueWalk =
     | { kind: "skip"; result: RecordOutcome }
     /** 앞 규칙들은 건너뛰고(skipped) linkId 규칙이 막힌 묶음에서 미뤄진다. retryAt은 부른 쪽이 줄 순서대로 채운다 */
     | { kind: "defer"; skipped: LinkOutcome[]; linkId: number; reason: SlotDeferReason }
+    /** 규칙이 모두 꺼졌거나 AI 사용량 한도에 닿았다 — 줄을 held로 두고 까닭이 풀리면 되살린다 (UX-228·259) */
+    | { kind: "hold"; result: RecordOutcome }
     /** 이 값을 읽어야 이어 갈 수 있다 (원래 흐름에서 그 조회를 하는 자리에 닿았다) */
     | { kind: "need"; need: "quota" | "emailClient" | "pool" }
     /** 묶어서 판단하지 않는다 — 줄마다 processAutoPersonalizedEmail로 처리한다 (보낼 수 있다·판단할 수 없는 값) */
@@ -522,17 +524,23 @@ export type QueueWalk =
  *   2 조건 불충족 → skipped(condition_not_met)               6 수신거부 → skipped(unsubscribed)
  *                                                            6-1 회신·hard 반송 막기 → skipped(replied·bounced)
  *   3 쿨다운 → skipped(cooldown)                             7 AI 클라이언트 없음 → skipped(no_ai_client)
- *   3-1 중복 수신자(preventDuplicate) → skipped(duplicate)    8 토큰 쿼터 → skipped(quota_exceeded)
- *   4 받는 주소가 메일 모양이 아님 → skipped(invalid_email)   9 메일 클라이언트 없음 → skipped(no_email_client)
+ *   3-1 중복 수신자(preventDuplicate) → skipped(duplicate)
+ *   4 받는 주소가 메일 모양이 아님 → skipped(invalid_email)   8 토큰 쿼터 → hold(quota_exceeded), 뒤 규칙은 보지 않는다 (UX-259)
+ *                                                            9 메일 클라이언트 없음 → skipped(no_email_client)
  *   10 claimSender가 막힘 → deferred, 뒤 규칙은 보지 않는다(break). 막히지 않으면 자리를 잡고 보낸다 → 여기서는 process
  * 그 함수에서 던져 failed가 되는 값(문자열이 아닌 중복 확인 값, 던지는 조건식, 객체가 아닌 data)도 process로 돌린다 —
+ * 켜진 규칙이 없을 때 규칙이 꺼져(임시저장 포함) 있기만 하면(rulesInactive) hold, 아예 없으면 skip이다 (UX-228).
  * 실패 처리는 그쪽 몫이다. 그 함수의 검사 순서를 바꾸면 여기도 같이 바꿔야 한다 (email-send-queue-rules.test.ts가 순서를 고정한다).
  */
 export function walkQueueRow(
-    input: { data: unknown; links: readonly QueueWalkLink[]; skipLinkIds: readonly number[] },
+    input: { data: unknown; links: readonly QueueWalkLink[]; skipLinkIds: readonly number[]; rulesInactive?: boolean },
     lookups: QueueWalkLookups
 ): QueueWalk {
-    if (input.links.length === 0) return { kind: "skip", result: { noMatchingRules: true, outcomes: [] } };
+    if (input.links.length === 0) {
+        return input.rulesInactive
+            ? { kind: "hold", result: { noMatchingRules: false, outcomes: [], held: { waitReason: "rules_inactive" } } }
+            : { kind: "skip", result: { noMatchingRules: true, outcomes: [] } };
+    }
     if (typeof input.data !== "object" || input.data === null || Array.isArray(input.data)) {
         return { kind: "process", why: "record_data_not_object" };
     }
@@ -598,8 +606,8 @@ export function walkQueueRow(
         }
         if (lookups.quotaAllowed === undefined) return { kind: "need", need: "quota" };
         if (!lookups.quotaAllowed) {
-            outcomes.push({ kind: "skipped", linkId: link.id, reason: "quota_exceeded" });
-            continue;
+            // 한도는 다음 달·플랜 상향으로 풀린다 — skipped로 닫으면 (record, trigger) 고유 키 때문에 다시 넣을 수도 없다 (UX-259)
+            return { kind: "hold", result: { noMatchingRules: false, outcomes, held: { waitReason: "quota_exceeded" } } };
         }
         if (lookups.emailClientReady === undefined) return { kind: "need", need: "emailClient" };
         if (!lookups.emailClientReady) {
