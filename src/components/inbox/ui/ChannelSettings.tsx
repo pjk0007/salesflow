@@ -1,4 +1,5 @@
 "use client";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { MessengerSettingsFields } from "@/components/customer-messenger/ui/MessengerSettingsFields";
 import { defaultMessengerSettings } from "@/lib/customer-messenger/rules";
 import { InboxAudit } from "./InboxAudit";
@@ -48,25 +49,18 @@ export function ChannelSettings({
         : "";
     const field = "w-full rounded-xl border bg-background px-3 py-2 text-sm";
     return (
-        <div
-            className="fixed inset-0 z-50 flex justify-end bg-black/30"
-            onClick={onClose}
-        >
-            <section
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="inbox-settings"
-                className="h-full w-full max-w-lg overflow-auto bg-background p-7 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
+        <Sheet open onOpenChange={(next) => !next && onClose()}>
+            <SheetContent
+                side="right"
+                showCloseButton={false}
+                aria-describedby={undefined}
+                className="block h-full w-full overflow-auto bg-background p-7 shadow-2xl sm:max-w-lg"
             >
                 <header className="mb-6 flex items-center justify-between">
                     <div>
-                        <h2
-                            id="inbox-settings"
-                            className="text-xl font-semibold"
-                        >
+                        <SheetTitle className="text-xl font-semibold">
                             사이트 상담창
-                        </h2>
+                        </SheetTitle>
                         <p className="mt-1 text-sm text-muted-foreground">
                             사이트에 설치하면 문의가 수신함으로 들어옵니다.
                         </p>
@@ -265,7 +259,7 @@ export function ChannelSettings({
                         )}
                     </div>
                 )}
-            </section>
-        </div>
+            </SheetContent>
+        </Sheet>
     );
 }
