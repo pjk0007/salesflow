@@ -6,7 +6,7 @@ import { sql, eq, ilike, or, count, desc } from "drizzle-orm";
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user?.isSuperAdmin) {
-        return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+        return NextResponse.json({ success: false, error: "페이지를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const { searchParams } = new URL(req.url);
