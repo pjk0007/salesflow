@@ -83,6 +83,35 @@ test("신청 완료 기록이 있으면 이탈로 표시하지 않는다", () =>
     assert.match(s.recommendation, /온보딩/);
 });
 
+test("UX-222 신청 화면만 보고 입력 행동이 없으면 '입력 시작 후 막힘'으로 안내하지 않는다 — 카드·저장 근거가 같은 뜻", () => {
+    const f = fixture();
+    f.events = f.events.filter((e) => e.eventName !== "subscribe_step_1");
+    const s = summarizeJourney(f, at(1000));
+    assert.equal(s.priority.inputStarted, false);
+    assert.ok(s.priority.evidence.includes("신청 화면 확인 (입력 시작은 미확인)"));
+    assert.equal(s.stage, "신청 화면 확인 (입력 시작 미확인)");
+    assert.match(s.recommendation, /입력을 시작한 기록은 없습니다/);
+    const card = buildJourneyCard(f, at(1000));
+    assert.doesNotMatch(JSON.stringify(card), /신청을 시작한 뒤 완료하지 않았습니다/);
+    assert.doesNotMatch(card.text, /· 신청 시작/);
+});
+
+test("UX-222 명시적 입력 시작·AI 신청 시작·체험 쿠폰은 기존처럼 '신청 시작 뒤 미완료'로 안내한다", () => {
+    const explicit = summarizeJourney(fixture(), at(1000));
+    assert.equal(explicit.priority.inputStarted, true);
+    assert.ok(explicit.priority.evidence.includes("신청 입력·AI 신청 시작 행동"));
+    assert.equal(explicit.stage, "신청 시작");
+    assert.match(explicit.recommendation, /신청을 시작한 뒤 완료하지 않았습니다/);
+
+    for (const [eventType, eventName] of [["CLICK", "ai_entry_click"], ["CLICK", "hero-free-trial"]] as const) {
+        const f = fixture();
+        f.events = f.events.filter((e) => e.eventName !== "subscribe_step_1");
+        f.events.push({ sessionId: 52, eventType, eventName, pageUrl: "https://site.test/signup", pageTitle: null, occurredAt: at(130), properties: null });
+        const s = summarizeJourney(f, at(1000));
+        assert.match(s.recommendation, /신청을 시작한 뒤 완료하지 않았습니다/, eventName);
+    }
+});
+
 test("구매 완료도 완료로 표시한다", () => {
     const f = fixture();
     f.events.push({ ...f.events[4], eventType: "PURCHASE", eventName: "order", occurredAt: at(185) });
