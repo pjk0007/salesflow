@@ -1,6 +1,8 @@
 import { parseCheckboxValue } from "@/lib/checkbox-value";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { inlineEditKeyAction } from "./utils/inline-edit-keys";
 import {
     Select,
     SelectContent,
@@ -29,7 +31,9 @@ interface InlineEditCellProps {
 export default function InlineEditCell({ field, value, onSave, readOnly }: InlineEditCellProps) {
     const [editing, setEditing] = useState(false);
     const [editValue, setEditValue] = useState(String(value ?? ""));
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+    // 긴 텍스트는 여러 줄 입력칸으로 편집해 줄바꿈을 보존한다(UX-058)
+    const multiline = field.fieldType === "textarea";
 
     useEffect(() => {
         if (editing && inputRef.current) {
@@ -49,9 +53,11 @@ export default function InlineEditCell({ field, value, onSave, readOnly }: Inlin
     }, [editValue, field.fieldType, onSave, value]);
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter") {
+        const action = inlineEditKeyAction(multiline, e);
+        if (action === "save") {
+            e.preventDefault();
             handleSave();
-        } else if (e.key === "Escape") {
+        } else if (action === "cancel") {
             setEditing(false);
             setEditValue(String(value ?? ""));
         }
@@ -130,6 +136,21 @@ export default function InlineEditCell({ field, value, onSave, readOnly }: Inlin
     }
 
     // 편집 모드
+    if (editing && multiline) {
+        return (
+            <Textarea
+                ref={inputRef}
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onBlur={handleSave}
+                onKeyDown={handleKeyDown}
+                rows={3}
+                aria-label={`${field.label} (Ctrl/⌘+Enter 저장, Esc 취소)`}
+                title="Ctrl/⌘+Enter 저장, Esc 취소"
+                className={`min-h-16 text-sm shadow-none focus-visible:ring-1 px-1 ${field.cellClassName || ""}`}
+            />
+        );
+    }
     if (editing) {
         return (
             <Input

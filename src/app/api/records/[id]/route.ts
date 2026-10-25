@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, fieldDefinitions, workspaces, trackerVisitors } from "@/lib/db";
+import { db, records, fieldDefinitions, workspaces } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
+import { deleteRecordsWhere } from "@/lib/record-delete";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireRecordAccess } from "@/lib/partition-access";
 import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
@@ -157,14 +158,8 @@ export async function DELETE(
         }
         const existing = access.record;
 
-        // 트래커 visitor 연결 해제(익명으로 되돌림) — 방문 기록은 record와 수명이 다르므로 보존.
-        // record_events / visitor_record_links / memos는 FK CASCADE로 자동 정리됨.
-        await db
-            .update(trackerVisitors)
-            .set({ recordId: null })
-            .where(and(eq(trackerVisitors.recordId, recordId), eq(trackerVisitors.orgId, user.orgId)));
-
-        await db.delete(records).where(eq(records.id, recordId));
+        // 삭제 + 트래커 visitor 연결 해제(방문 기록 보존)를 한 트랜잭션으로 — 일괄·조건 삭제와 같은 함수
+        await deleteRecordsWhere(user.orgId, [eq(records.id, recordId)]);
 
         broadcastToPartition(existing.partitionId, "record:deleted", {
             partitionId: existing.partitionId,
