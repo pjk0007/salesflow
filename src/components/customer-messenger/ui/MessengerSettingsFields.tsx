@@ -31,7 +31,7 @@ export function MessengerSettingsFields({
                     value={value.tagline}
                     onChange={(e) => update({ tagline: e.target.value })}
                     maxLength={120}
-                    placeholder="시간제 전담 디자이너 구독, 디하"
+                    placeholder="고객에게 전할 서비스 소개를 입력해주세요"
                 />
             </label>
             <label className="block space-y-2">
@@ -44,7 +44,7 @@ export function MessengerSettingsFields({
                     onChange={(e) =>
                         update({ consultationUrl: e.target.value })
                     }
-                    placeholder="https://designer-hire.com/consulting/"
+                    placeholder="https://example.com/consulting/"
                 />
             </label>
             <p className="text-xs leading-5 text-muted-foreground">

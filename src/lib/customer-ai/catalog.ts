@@ -1,3 +1,4 @@
+import { isUsableSupportClaim } from "./knowledge-validity";
 import {
     requireCustomerAccess,
     customerAccessPredicate,
@@ -86,9 +87,7 @@ export async function chatKnowledge(
     if (!version || version.state !== "approved")
         return { version: null, sources: [] as AiSource[] };
     const sources = version.snapshot.claims.flatMap((c, index) =>
-        c.purposes.includes("customer_chat") &&
-        Date.parse(c.checkedAt) <= now.getTime() &&
-        now.getTime() - Date.parse(c.checkedAt) <= 90 * 86400000
+        isUsableSupportClaim(c, now.getTime())
             ? [
                   {
                       id: `knowledge:${version.id}:claim:${index}`,
@@ -158,9 +157,7 @@ export async function supportCatalog(
             fingerprint: v.fingerprint,
             claims: v.snapshot.claims.filter(
                 (c) =>
-                    c.purposes.includes("customer_chat") &&
-                    Date.parse(c.checkedAt) <= now &&
-                    now - Date.parse(c.checkedAt) <= 90 * 86400000,
+                    isUsableSupportClaim(c, now),
             ).length,
             approvedAt: v.approvedAt,
         })),
@@ -233,7 +230,7 @@ export async function saveSupportSettings(
                     ),
                 );
             if (!member)
-                throw new InboxError("같은 조직의 활성 담당자를 선택해주세요.");
+                throw new InboxError("이 사업의 상담 권한이 있는 활성 담당자를 선택해주세요.");
         }
         const snapshot = { ...input, version: current.version + 1 };
         await tx

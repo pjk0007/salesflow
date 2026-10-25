@@ -10,7 +10,8 @@ import {
     EMAIL_SEND_BLOCKED,
 } from "@/lib/email-send-guard";
 import { randomBytes, randomUUID, createHash } from "node:crypto";
-import { and, eq, inArray, lte, or, sql, asc } from "drizzle-orm";
+import { and, eq, inArray, lte, or, sql, asc, getTableColumns } from "drizzle-orm";
+import { googleMailWorkerEnabled } from "./google-config";
 import { z } from "zod";
 import {
     db,
@@ -28,7 +29,7 @@ import {
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
 import { InboxError } from "@/lib/inbox/errors";
-import { googleAccountAddress } from "./google-identity";
+import { googleAccountAddress, isOtherMailboxRecipient, OtherMailboxRecipientError } from "./google-identity";
 import { appendMessage } from "@/lib/inbox/repository";
 import { seedEmailFiles } from "./files";
 import { inboxAttachments } from "@/lib/db";
@@ -77,9 +78,10 @@ export async function listMailboxes(
         );
     if (!space) throw new InboxError("사업을 찾을 수 없습니다.", 404);
     await requireCustomerAccess(actor, workspaceId, "read", exec);
-    return exec
-        .select()
+    const rows = await exec
+        .select({ ...getTableColumns(boxes), connectionStatus: googleConnections.status, connectionErrorCode: googleConnections.errorCode })
         .from(boxes)
+        .leftJoin(googleConnections, eq(googleConnections.mailboxId, boxes.id))
         .where(
             and(
                 eq(boxes.orgId, actor.orgId),
@@ -87,6 +89,8 @@ export async function listMailboxes(
             ),
         )
         .orderBy(boxes.createdAt);
+    const workerEnabled = googleMailWorkerEnabled();
+    return rows.map((row) => ({ ...row, workerEnabled }));
 }
 export async function createMailbox(
     actor: Actor,
@@ -254,6 +258,16 @@ export async function receiveEmail(
                 "이 메일함으로 수신한 메일만 연결할 수 있습니다.",
                 409,
             );
+        // Delivered-To는 Google 로그인 계정일 뿐 사업 수신처의 증명이 아니다.
+        // 다른 사업 원문을 저장하기 전에 조직 안에 등록된 별칭만 확인한다.
+        if (box.address === googleAccountAddress(box) && ![...input.to, ...input.cc].includes(box.address)) {
+            const aliases = await tx.select({ address: boxes.address }).from(boxes).where(and(
+                eq(boxes.orgId, box.orgId),
+                eq(boxes.googleAccount, box.address),
+            ));
+            if (isOtherMailboxRecipient(box, input, aliases.map((row) => row.address)))
+                throw new OtherMailboxRecipientError();
+        }
         const fingerprint = emailFingerprint(input);
         const [previous] = await tx
             .select()

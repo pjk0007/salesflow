@@ -15,7 +15,7 @@ import {
     decodePartData,
     parseContentType,
 } from "@/lib/email-reply-rules";
-import { googleAccountAddress, assertGoogleAlias } from "./google-identity";
+import { googleAccountAddress, assertGoogleAlias, OtherMailboxRecipientError } from "./google-identity";
 import { inboundInput, emailAddress, rfcId } from "./rules";
 import { createHash } from "node:crypto";
 import { MAX_FILE_BYTES, MAX_MESSAGE_FILES } from "@/lib/inbox/file-rules";
@@ -750,6 +750,11 @@ export async function receiveGmailMessage(
         )
     )
         return { skippedReason: "other_recipient" };
-    const receipt = await client.receiveEmail(options.mailboxId, input);
-    return { receipt };
+    try {
+        const receipt = await client.receiveEmail(options.mailboxId, input);
+        return { receipt };
+    } catch (error) {
+        if (error instanceof OtherMailboxRecipientError) return { skippedReason: "other_recipient" };
+        throw error;
+    }
 }

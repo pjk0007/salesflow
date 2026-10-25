@@ -63,15 +63,17 @@ export function useReplyGuard(
                 .catch(() => {});
         };
         const visibility = () => {
-            if (document.visibilityState !== "visible") release();
-            else void mutate().catch(() => {});
+            // 다른 탭에서 자료를 확인하는 동안은 갱신만 멈추고 서버 TTL을 유지한다.
+            if (document.visibilityState === "visible") void mutate().catch(() => {});
         };
         document.addEventListener("visibilitychange", visibility);
+        window.addEventListener("pagehide", release);
         const timer = window.setInterval(() => void renew(), 20000);
         return () => {
             disposed = true;
             window.clearInterval(timer);
             document.removeEventListener("visibilitychange", visibility);
+            window.removeEventListener("pagehide", release);
             release();
         };
     }, [

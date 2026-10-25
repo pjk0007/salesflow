@@ -25,8 +25,8 @@ export function ReplyGuardStatus({
                       : "답변 작성을 시작하면 이 창에서 전송할 수 있습니다."}
             </p>
             <p className="text-muted-foreground">
-                내부 메모는 함께 작성할 수 있습니다. 창을 떠나면 해제하며 연결이
-                끊기면 최대90초 후 만료됩니다.
+                내부 메모는 함께 작성할 수 있습니다. 다른 탭으로 이동하거나 연결이
+                끊기면 최대 90초 후 만료되며, 상담 페이지를 닫으면 해제됩니다.
             </p>
             {guard.error && (
                 <p role="alert" className="text-red-700">

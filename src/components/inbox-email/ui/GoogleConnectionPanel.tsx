@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { controlGoogleConnection } from "../api";
 import { useGoogleConnection } from "../hooks/useGoogleConnection";
 import type { EmailMailbox } from "../types";
+import { reconnectWindow } from "../utils/reconnect-window";
 const displayTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString("ko-KR") : "아직 없음";
 export function GoogleConnectionPanel({
@@ -14,8 +15,10 @@ export function GoogleConnectionPanel({
     onChange: () => Promise<unknown>;
 }) {
     const { data, error, mutate } = useGoogleConnection(box.id),
-        [days, setDays] = useState(0),
+        [chosenDays, setDays] = useState<number | null>(null),
         [busy, setBusy] = useState(false);
+    const recovery = reconnectWindow(data?.connection.lastPollAt);
+    const days = chosenDays ?? recovery.days;
     const act = async (action: "connect" | "disconnect" | "retry") => {
         setBusy(true);
         try {
@@ -84,6 +87,13 @@ export function GoogleConnectionPanel({
                             <option value={30}>최근 30일부터</option>
                         </select>
                     </label>
+                    {data.connection.lastPollAt && (
+                        <p className="text-xs text-muted-foreground">
+                            연결이 끊긴 동안의 메일도 가져오도록 마지막 확인 시점에 맞춰 범위를 선택했습니다.
+                            이미 받은 메일은 중복으로 상담을 만들지 않습니다.
+                            {recovery.beyondWindow && " 마지막 확인 후 30일이 지났습니다. 30일보다 오래된 누락 메일은 별도로 확인해주세요."}
+                        </p>
+                    )}
                     <button
                         className="rounded-lg border px-3 py-2"
                         disabled={busy}

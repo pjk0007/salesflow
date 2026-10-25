@@ -40,7 +40,7 @@ export function SupportNotifications({
                 .filter((r, i, a) => a.findIndex((x) => x.id === r.id) === i) ??
             [],
         count = pages.data?.[0]?.unread ?? 0;
-    async function read(ids: string[]) {
+    async function read(ids: string[], quiet = false) {
         if (!ids.length) return;
         setBusy(true);
         try {
@@ -48,7 +48,7 @@ export function SupportNotifications({
                 await readSupportNotifications(ids.slice(i, i + 100));
             await pages.mutate();
         } catch (e) {
-            toast.error((e as Error).message);
+            if (!quiet) toast.error((e as Error).message);
             throw e;
         } finally {
             setBusy(false);
@@ -137,15 +137,11 @@ export function SupportNotifications({
                         {rows.map((row) => (
                             <button
                                 key={row.id}
-                                disabled={busy}
                                 className={`block w-full space-y-2 rounded-xl border p-4 text-left ${!row.readAt ? "border-violet-200 bg-violet-50/40" : ""}`}
                                 onClick={() => {
-                                    void read([row.id])
-                                        .then(() => {
-                                            setOpen(false);
-                                            onSelect(row);
-                                        })
-                                        .catch(() => {});
+                                    setOpen(false);
+                                    onSelect(row);
+                                    if (!row.readAt) void read([row.id], true).catch(() => {});
                                 }}
                             >
                                 <span className="flex justify-between gap-2 text-xs">
