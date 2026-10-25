@@ -232,6 +232,7 @@ function DialogBody({
                                 ? {
                                       pausedSource: editing.pausedSource ?? null,
                                       pausedReason: editing.pausedReason ?? null,
+                                      pausedAt: editing.pausedAt ?? null,
                                       isDefault: editing.isDefault,
                                       healthAction,
                                       onHealthActionChange: setHealthAction,
