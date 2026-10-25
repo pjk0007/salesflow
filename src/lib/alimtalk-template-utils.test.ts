@@ -58,3 +58,21 @@ test("UX-257: 검수 요청 본문은 유형별로 보이는 입력란만 싣는
         assert.equal(payload.templateContent, "본문", label);
     }
 });
+test("UX-187: 30·75·120분, 일+시간 합산, legacy 단일 객체·배열을 열고 저장해도 총 지연 보존, 단위만 실제 변경 시 바뀜", async () => {
+    const { loadAlimtalkFollowupSteps, saveAlimtalkFollowupSteps } = await import("./alimtalk-template-utils");
+    const minutes = (s: { delayDays?: number; delayHours?: number; delayMinutes?: number }) => (s.delayDays ?? 0) * 1440 + (s.delayHours ?? 0) * 60 + (s.delayMinutes ?? 0);
+    const cases = [
+        { templateCode: "A", delayMinutes: 30 }, { templateCode: "A", delayMinutes: 75 }, { templateCode: "A", delayMinutes: 120 },
+        { templateCode: "A", delayDays: 1, delayHours: 6 }, { templateCode: "A", delayHours: 3 },
+    ];
+    // 배열 전체 왕복
+    const restored = saveAlimtalkFollowupSteps(loadAlimtalkFollowupSteps(cases));
+    assert.deepEqual(restored.map(minutes), cases.map(minutes));
+    // 단일 객체(legacy)
+    assert.equal(minutes(saveAlimtalkFollowupSteps(loadAlimtalkFollowupSteps({ templateCode: "A", delayMinutes: 75 }))[0]), 75);
+    // 75분은 시간 단위로 반올림하지 않는다(이전: 1시간으로 바뀜)
+    assert.deepEqual(loadAlimtalkFollowupSteps({ templateCode: "A", delayMinutes: 75 })[0].delayUnit, "minutes");
+    // 사용자가 값을 바꾼 경우에만 바뀐다
+    const [step] = loadAlimtalkFollowupSteps({ templateCode: "A", delayMinutes: 120 });
+    assert.equal(minutes(saveAlimtalkFollowupSteps([{ ...step, delayValue: 3 }])[0]), 180);
+});
