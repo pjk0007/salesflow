@@ -184,7 +184,6 @@ export async function POST(req: NextRequest) {
             receiverList: [{ receiveMailAddr: testEmail, receiveType: "MRT0" }],
         });
 
-        const sendResult = nhnResult.data?.results?.[0];
         const isSuccess = classifyEmailSubmission(nhnResult) === "sent";
 
         return NextResponse.json({
