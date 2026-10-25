@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StageMatch } from "../../types/funnel";
 import { CUSTOM } from "./constants";
+import { showsManualEntry } from "./utils";
 
 interface Props {
     popularPaths: string[];
@@ -16,7 +17,7 @@ interface Props {
 /** 페이지 경로 — 인기 페이지 드롭다운 + 직접 입력 */
 export function PageSelector({ popularPaths, current, onChange }: Props) {
     const [manual, setManual] = useState(false);
-    const isCustom = manual || (current.pathPrefix !== "" && !popularPaths.includes(current.pathPrefix));
+    const isCustom = showsManualEntry(manual, current.pathPrefix !== "", popularPaths.includes(current.pathPrefix));
 
     return (
         <>
