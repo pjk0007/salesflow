@@ -26,7 +26,7 @@ function copyRuntimeMigrations(root = process.cwd()) {
     const journal = JSON.parse(fs.readFileSync(path.join(source, "meta", "_journal.json"), "utf8"));
     validateJournal(journal);
     // Next standalone excludes these unless they are copied for self-hosting.
-    for (const relative of [".next/static", "public"]) {
+    for (const relative of [".next/static", "public", "dev-preview-assets"]) {
         const assetDirectory = path.join(root, relative);
         if (fs.existsSync(assetDirectory))
             fs.cpSync(assetDirectory, path.join(standalone, relative), { recursive: true });

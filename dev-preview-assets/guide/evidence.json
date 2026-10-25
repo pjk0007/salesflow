@@ -4,7 +4,7 @@
   "referenceHead": "055be37e437d4283ec643a957138506fbd9f6f0d",
   "currentHead": "055be37e437d4283ec643a957138506fbd9f6f0d",
   "branch": "codex/sendb-development-review",
-  "sourceRoot": "F:/Dev/sendb-development-review",
+  "sourceRoot": ".",
   "scope": {
     "developmentOnly": true,
     "fictionalScreensOnly": true,
@@ -33,151 +33,151 @@
   },
   "sourceReferences": {
     "access": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/ACCESS.md",
+      "path": "docs/2026-10-14-customer-inbox/ACCESS.md",
       "line": 7,
       "sha256": "92ebd4ebd6fd6ef6350086073b35de5edb28b8e8ade745d03fbe71457c04476c",
       "matchesReferenceHead": true
     },
     "reply": {
-      "path": "F:/Dev/sendb-development-review/src/components/inbox/ui/ConversationPane.tsx",
+      "path": "src/components/inbox/ui/ConversationPane.tsx",
       "line": 71,
       "sha256": "97fc4444e5687ff7aec4e6e12ef0c4e8f867a7a25023dbfd46786201ff91f11c",
       "matchesReferenceHead": true
     },
     "replySend": {
-      "path": "F:/Dev/sendb-development-review/src/components/inbox/ui/ConversationPane.tsx",
+      "path": "src/components/inbox/ui/ConversationPane.tsx",
       "line": 680,
       "sha256": "97fc4444e5687ff7aec4e6e12ef0c4e8f867a7a25023dbfd46786201ff91f11c",
       "matchesReferenceHead": true
     },
     "drafts": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/STAFF-DRAFTS.md",
+      "path": "docs/2026-10-14-customer-inbox/STAFF-DRAFTS.md",
       "line": 5,
       "sha256": "f0ca4d42c91bb048f7e9dee46ba3957efa386e41ccb05cc1a2d6a75610a1a00f",
       "matchesReferenceHead": true
     },
     "guard": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/REPLY-GUARD.md",
+      "path": "docs/2026-10-14-customer-inbox/REPLY-GUARD.md",
       "line": 7,
       "sha256": "4744c8e37a52b2ca6b5dfebf616ec4cbf08973a9095d921cc621e86a413bf359",
       "matchesReferenceHead": true
     },
     "crm": {
-      "path": "F:/Dev/sendb-development-review/src/components/customer-crm/ui/CustomerCrmPage.tsx",
+      "path": "src/components/customer-crm/ui/CustomerCrmPage.tsx",
       "line": 31,
       "sha256": "3a3a289f8cfd10ac7b279dcfdae2216721b4bd6c1bca2eeb4f0ad0ef882242bc",
       "matchesReferenceHead": true
     },
     "sales": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/SALES.md",
+      "path": "docs/2026-10-14-customer-inbox/SALES.md",
       "line": 9,
       "sha256": "419db2ff6f619506e3afeba65b0f9bbeb56b3c8df1a1dcfa178a4cdfb9ffd668",
       "matchesReferenceHead": false
     },
     "records": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/CUSTOMER-RECORDS.md",
+      "path": "docs/2026-10-14-customer-inbox/CUSTOMER-RECORDS.md",
       "line": 5,
       "sha256": "2bf2d5fca3ff62ba6336663c751c0932a324fc21367e08a7efa911577581838e",
       "matchesReferenceHead": true
     },
     "team": {
-      "path": "F:/Dev/sendb-development-review/src/components/inbox-routing/ui/TeamAssignment.tsx",
+      "path": "src/components/inbox-routing/ui/TeamAssignment.tsx",
       "line": 44,
       "sha256": "44ee18330d498547b68e0b1a519ad4923e23be3ce6500eb5e9465dcdd337b907",
       "matchesReferenceHead": true
     },
     "routing": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/ROUTING.md",
+      "path": "docs/2026-10-14-customer-inbox/ROUTING.md",
       "line": 7,
       "sha256": "c6b10619f7c5a7eca32e0ac02e6b3f54a694e5cef1c24775d6c610028e912029",
       "matchesReferenceHead": true
     },
     "mentions": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/MENTIONS.md",
+      "path": "docs/2026-10-14-customer-inbox/MENTIONS.md",
       "line": 7,
       "sha256": "ec07adbc0828a63a51c30c0e3cb3d0cb81885823401dbb0327020a775116a801",
       "matchesReferenceHead": true
     },
     "ai": {
-      "path": "F:/Dev/sendb-development-review/src/components/customer-ai/ui/SupportDraftPanel.tsx",
+      "path": "src/components/customer-ai/ui/SupportDraftPanel.tsx",
       "line": 104,
       "sha256": "e7793b9ca386df6e883b27a629f7b5038355f8bb8befa947f271edc2fc3de933",
       "matchesReferenceHead": true
     },
     "aiContract": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/AI-SUPPORT.md",
+      "path": "docs/2026-10-14-customer-inbox/AI-SUPPORT.md",
       "line": 9,
       "sha256": "4d5b75e0bab9e8d427ead70e225827ce7e24ba007fcd187bf41ed2d46875482b",
       "matchesReferenceHead": true
     },
     "oldAi": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/MERGED-AI-HISTORY.md",
+      "path": "docs/2026-10-14-customer-inbox/MERGED-AI-HISTORY.md",
       "line": 7,
       "sha256": "3ca4d715eba6a4355744117f7568f0a7f8d25fd7df3c60078d067ea008721500",
       "matchesReferenceHead": true
     },
     "workflows": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/WORKFLOWS.md",
+      "path": "docs/2026-10-14-customer-inbox/WORKFLOWS.md",
       "line": 9,
       "sha256": "35f958759fce9d769a7bf7b0fd487e0de07d6eb147a82a5bdc581d6894597c23",
       "matchesReferenceHead": true
     },
     "workflowEditor": {
-      "path": "F:/Dev/sendb-development-review/src/components/customer-workflows/ui/WorkflowEditor.tsx",
+      "path": "src/components/customer-workflows/ui/WorkflowEditor.tsx",
       "line": 391,
       "sha256": "809fcbbc2a7e1927fbe9e6b355d88912869f6cd3a0886b757f46c126efa00c80",
       "matchesReferenceHead": true
     },
     "workflowRuns": {
-      "path": "F:/Dev/sendb-development-review/src/components/customer-workflows/ui/WorkflowRuns.tsx",
+      "path": "src/components/customer-workflows/ui/WorkflowRuns.tsx",
       "line": 206,
       "sha256": "b39c24b90c867c3bfae655b35b4198fcf57678f333dcdbf6dcbb0c0b81d989be",
       "matchesReferenceHead": true
     },
     "imports": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/IMPORTS.md",
+      "path": "docs/2026-10-14-customer-inbox/IMPORTS.md",
       "line": 16,
       "sha256": "815aa551aa08915a3aad77795c6e3dbe6d386d0b8650960fb2362af4a6e9240d",
       "matchesReferenceHead": true
     },
     "importUi": {
-      "path": "F:/Dev/sendb-development-review/src/components/customer-imports/ui/ImportsPage.tsx",
+      "path": "src/components/customer-imports/ui/ImportsPage.tsx",
       "line": 233,
       "sha256": "c48cb52050bf1c9b94bcc6be42709f10e8384d1857391e9b23236809ee28f768",
       "matchesReferenceHead": true
     },
     "importFiles": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/IMPORT-FILES.md",
+      "path": "docs/2026-10-14-customer-inbox/IMPORT-FILES.md",
       "line": 12,
       "sha256": "e8540e1b9a3e0ef536efb46f4a0747b4755e8804775c30cd66bfca83dda9cf21",
       "matchesReferenceHead": true
     },
     "importFileUi": {
-      "path": "F:/Dev/sendb-development-review/src/components/customer-import-files/ui/ImportFilesPanel.tsx",
+      "path": "src/components/customer-import-files/ui/ImportFilesPanel.tsx",
       "line": 124,
       "sha256": "1b5e935e1c449c2450ce78f8798884f117ad4d597eacb5d70ec9f03929bbf8cd",
       "matchesReferenceHead": true
     },
     "fileTransfer": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/FILE-TRANSFER.md",
+      "path": "docs/2026-10-14-customer-inbox/FILE-TRANSFER.md",
       "line": 27,
       "sha256": "667c4ce2f74ca4a280c3c55ca50017b8156abdae8dd0a007117fd6aba076c2f3",
       "matchesReferenceHead": true
     },
     "operations": {
-      "path": "F:/Dev/sendb-development-review/docs/2026-10-14-customer-inbox/OPERATIONS.md",
+      "path": "docs/2026-10-14-customer-inbox/OPERATIONS.md",
       "line": 9,
       "sha256": "8419c7b99871c735537ea9c939baf194f782d6d34fee126b152749cae5caebf7",
       "matchesReferenceHead": true
     },
     "operationSettings": {
-      "path": "F:/Dev/sendb-development-review/src/components/inbox-operations/ui/OperationsSettingsEditor.tsx",
+      "path": "src/components/inbox-operations/ui/OperationsSettingsEditor.tsx",
       "line": 67,
       "sha256": "03a34703097b41be908055d43c67e9a5c9837975b1538648cd6841d71f6cacc3",
       "matchesReferenceHead": true
     },
     "operationReports": {
-      "path": "F:/Dev/sendb-development-review/src/components/inbox-operations/ui/OperationsPanel.tsx",
+      "path": "src/components/inbox-operations/ui/OperationsPanel.tsx",
       "line": 344,
       "sha256": "97211d630a9f048462a58b6254490efb7f88e2a714655cdf088898f297977038",
       "matchesReferenceHead": true
@@ -186,7 +186,7 @@
   "imageEvidence": [
     {
       "id": "staff",
-      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/staff-draft-session-qa/v2-q1-a-roundtrip.png",
+      "original": "artifacts/staff-draft-session-qa/v2-q1-a-roundtrip.png",
       "copy": "assets/staff-draft.png",
       "sha256": "1b557e86d0dcaa482e3f3c141a326082261645bf072aee57d859055fa2c2cda3",
       "caption": "상담별로 답변과 첨부 초안을 준비하는 예시입니다.",
@@ -194,7 +194,7 @@
     },
     {
       "id": "crm",
-      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/inbox-crm-shared-timeline-qa.png",
+      "original": "artifacts/sendb-replacement-20261014/inbox-crm-shared-timeline-qa.png",
       "copy": "assets/crm-timeline.png",
       "sha256": "e24ff538d1c2772436653f36757372a2abeaf75227fe036f6f3c4b2a29e9373d",
       "caption": "고객 대화 옆에서 거래·후속 업무·활동 이력을 함께 확인합니다.",
@@ -202,7 +202,7 @@
     },
     {
       "id": "customerList",
-      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/03-inquiry-list.png",
+      "original": "artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/03-inquiry-list.png",
       "copy": "assets/customer-list.png",
       "sha256": "711351cc08e7622d603ce1172d9f96a081787f6cb68c4649fe7c5db8c3ab41e7",
       "caption": "고객은 기존 문의를 다시 열거나 새 문의를 시작할 수 있습니다.",
@@ -210,7 +210,7 @@
     },
     {
       "id": "customerFiles",
-      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/05-sent-attachments.png",
+      "original": "artifacts/sendb-master-review-20261015/customer-attachment-default-smoke/05-sent-attachments.png",
       "copy": "assets/customer-files.png",
       "sha256": "c856d74be8af05e810f04281187a859d405a20ee7246c1ed7655beba80bd0c0d",
       "caption": "문의 메시지에 PDF와 이미지를 함께 보내고 확인하는 예시입니다.",
@@ -218,7 +218,7 @@
     },
     {
       "id": "ai",
-      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-merged-ai-history-20261015/ui-dh-history.jpg",
+      "original": "artifacts/sendb-merged-ai-history-20261015/ui-dh-history.jpg",
       "copy": "assets/merged-ai-history.jpg",
       "sha256": "ec16a1c21ed755e1a688097f5bdd4886475ba05e2bbc6f74ca53aa98a6af4303",
       "caption": "회원 이력에 연결된 과거 AI 기록은 확인용으로만 열람합니다.",
@@ -226,7 +226,7 @@
     },
     {
       "id": "imports",
-      "original": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-replacement-20261014/import-designerhire-completed-qa.png",
+      "original": "artifacts/sendb-replacement-20261014/import-designerhire-completed-qa.png",
       "copy": "assets/import-completed.png",
       "sha256": "739db8c4b56993448d101bb064591e2ab62759a337fbfa0e66bdcb749b97095a",
       "caption": "자료를 미리 검토한 뒤 항목별 처리 결과를 확인하는 예시입니다.",
@@ -241,7 +241,7 @@
     "unitFailures": 0,
     "types": "passed",
     "webpackBuild": "passed",
-    "provenance": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-master-review-20261015/development-combination-independent.json",
+    "provenance": "artifacts/sendb-master-review-20261015/development-combination-independent.json",
     "notRerunForThisGuide": true
   },
   "limitations": [
@@ -252,7 +252,7 @@
   ],
   "browserQa": {
     "status": "completed_with_recorded_observation",
-    "path": "C:/Users/PW1234/Documents/ChatGPT/이삭/artifacts/sendb-employee-ux-guide-20261015/browser-qa.json",
+    "path": "artifacts/sendb-employee-ux-guide-20261015/browser-qa.json",
     "sha256": "0417fa7999b17fcd11b5d359da6f4e8d4a48d19eef46c126df7c313bf1d45556",
     "desktopSteps": 28,
     "desktopTaskCount": 6,
