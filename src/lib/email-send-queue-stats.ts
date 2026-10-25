@@ -278,6 +278,8 @@ export interface SendQueueStatsView {
         heldQuota: number;
         /** 그중 켜진 규칙이 없어 멈춘 줄 — 꺼진 규칙은 rules에 없으므로 여기로만 보인다 (UX-228) */
         heldRulesInactive: number;
+        /** 처리 중 멈춰 접수 결과를 확인해야 하는 줄 (자동 재발송하지 않는다, UX-194) */
+        needsCheck: number;
         oldestScheduledAt: string | null;
         /** 경고 규칙 수 */
         warnings: number;
@@ -318,6 +320,8 @@ export function buildSendQueueStats(input: {
     days?: number;
     /** 명단 보류(held) 줄을 (파티션, 트리거)로 묶은 수 — 대기량과 따로 센다 (DESIGN-SND 6-2) */
     heldGroups?: ReadonlyArray<{ partitionId: number; triggerType: string; count: number; reason?: HeldReason }>;
+    /** 접수 결과 확인이 필요한 failed 줄 수 (UX-194) */
+    needsCheck?: number;
 }): SendQueueStatsView {
     const { rules, groups, senders, now } = input;
     const days = input.days ?? QUEUE_STATS_DAYS;
@@ -415,6 +419,7 @@ export function buildSendQueueStats(input: {
             held: heldTotal,
             heldQuota,
             heldRulesInactive,
+            needsCheck: Math.max(0, Math.floor(Number(input.needsCheck) || 0)),
             oldestScheduledAt: all.oldest !== null ? new Date(all.oldest).toISOString() : null,
             warnings: warned.length,
             warningLinkIds: warned,

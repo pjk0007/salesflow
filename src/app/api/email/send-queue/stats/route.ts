@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, like, or, sql } from "drizzle-orm";
 import { db, emailAutoPersonalizedLinks, emailSendQueue, partitions, workspaces } from "@/lib/db";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { loadSendersWithUsage } from "@/lib/email-sender-limit";
 import { buildSendQueueStats } from "@/lib/email-send-queue-stats";
 import type { HeldReason } from "@/lib/email-send-queue-stats";
 import { QUEUE_WAIT_PREFIX } from "@/lib/auto-personalized-email-outcome";
+import { STUCK_LIMIT_PREFIX, STUCK_NEEDS_CHECK_PREFIX } from "@/lib/email-send-queue-rules";
 
 // 앞머리는 코드 상수라 글자 그대로 넣는다 — 매개변수로 넘기면 SELECT와 GROUP BY의 식이 서로 다른 $n이 되어 묶이지 않는다
 const heldReasonSql = sql<HeldReason>`CASE
@@ -31,7 +32,7 @@ export async function GET(req: NextRequest) {
 
     try {
         const now = new Date();
-        const [rules, groups, senders, heldGroups] = await Promise.all([
+        const [rules, groups, senders, heldGroups, needsCheckRows] = await Promise.all([
             // 규칙 목록 API와 같은 조직 범위 (파티션 → 워크스페이스의 조직). 꺼진 규칙은 대기열 워커가 돌리지 않으므로 뺀다
             db
                 .select({
@@ -73,6 +74,20 @@ export async function GET(req: NextRequest) {
                 .from(emailSendQueue)
                 .where(and(eq(emailSendQueue.orgId, user.orgId), eq(emailSendQueue.status, "held")))
                 .groupBy(emailSendQueue.partitionId, emailSendQueue.triggerType, heldReasonSql),
+            // 처리 중 멈춰 접수 결과를 알 수 없거나 마지막 재시도에서 끊긴 줄 — 자동으로 다시 보내지 않으므로 사람이 확인한다 (UX-194)
+            db
+                .select({ count: sql<number>`count(*)::int` })
+                .from(emailSendQueue)
+                .where(
+                    and(
+                        eq(emailSendQueue.orgId, user.orgId),
+                        eq(emailSendQueue.status, "failed"),
+                        or(
+                            like(emailSendQueue.lastError, `${STUCK_NEEDS_CHECK_PREFIX}%`),
+                            like(emailSendQueue.lastError, `${STUCK_LIMIT_PREFIX}%`)
+                        )
+                    )
+                ),
         ]);
 
         const data = buildSendQueueStats({
@@ -85,6 +100,7 @@ export async function GET(req: NextRequest) {
             senders,
             now,
             heldGroups: heldGroups.map((g) => ({ ...g, count: Number(g.count) || 0 })),
+            needsCheck: Number(needsCheckRows[0]?.count) || 0,
         });
         return NextResponse.json({ success: true, data });
     } catch (error) {

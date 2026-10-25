@@ -96,7 +96,17 @@ export interface SendQueueRuleStats {
 
 export interface SendQueueStats {
     rules: SendQueueRuleStats[];
-    totals: { pending: number; warnings: number; held?: number; heldQuota?: number; heldRulesInactive?: number };
+    totals: {
+        pending: number;
+        warnings: number;
+        held?: number;
+        /** 월 AI 사용량 한도로 멈춘 줄 (UX-259) */
+        heldQuota?: number;
+        /** 켜진 규칙이 없어 멈춘 줄 — 규칙을 다시 켜면 나간다 (UX-228) */
+        heldRulesInactive?: number;
+        /** 처리 중 멈춰 접수 결과를 확인해야 하는 줄 (UX-194) */
+        needsCheck?: number;
+    };
 }
 
 /** 발송 이력 한 줄의 보낸 주소 (GET /api/email/logs). 프로필이 지워졌거나 기록이 없으면 null */

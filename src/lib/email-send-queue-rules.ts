@@ -18,9 +18,13 @@ export const MAX_ATTEMPTS = 3;
 export const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
 
 /** 중단된 회차에 접수 흔적이 있으면 성공/실패 추측으로 자동 재발송하지 않는다. */
+/** 멈춘 줄을 failed로 닫을 때 last_error 앞머리 — 대기열 통계가 '확인 필요' 수로 센다 (UX-194) */
+export const STUCK_NEEDS_CHECK_PREFIX = "stuck: 접수 결과 확인 필요";
+export const STUCK_LIMIT_PREFIX = "stuck: 재시도 상한";
+
 export function recoverStuckQueueRow(attempts: number, deliveryEvidence: boolean): { status: "pending" | "failed"; lastError: string } {
-    if (deliveryEvidence) return { status: "failed", lastError: "stuck: 접수 결과 확인 필요. 발송 이력을 대조하기 전에는 다시 보내지 마세요." };
-    if (attempts >= MAX_ATTEMPTS) return { status: "failed", lastError: "stuck: 재시도 상한에서 처리가 중단되었습니다. 발송 전 상태를 확인해주세요." };
+    if (deliveryEvidence) return { status: "failed", lastError: `${STUCK_NEEDS_CHECK_PREFIX}. 발송 이력을 대조하기 전에는 다시 보내지 마세요.` };
+    if (attempts >= MAX_ATTEMPTS) return { status: "failed", lastError: `${STUCK_LIMIT_PREFIX}에서 처리가 중단되었습니다. 발송 전 상태를 확인해주세요.` };
     return { status: "pending", lastError: "stuck: 발송 접수 흔적 없이 중단되어 재시도 대기" };
 }
 

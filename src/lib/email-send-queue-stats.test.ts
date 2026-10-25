@@ -354,3 +354,9 @@ test("UX-228·259: 보류 줄을 까닭별로 나눈다 — 명단 보류만 hel
     assert.equal(stats.rules[0].pending.total, 0);
     assert.equal(stats.rules[0].warning, false);
 });
+
+test("UX-194: 접수 결과 확인이 필요한 줄 수를 합계에 싣는다 (없으면 0)", () => {
+    const base = { rules: [], groups: [], senders: [], now: at("2026-10-05T08:00") };
+    assert.equal(buildSendQueueStats(base).totals.needsCheck, 0);
+    assert.equal(buildSendQueueStats({ ...base, needsCheck: 3 }).totals.needsCheck, 3);
+});
