@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
     db,
-    trackerSites,
-    trackerVisitors,
     trackerSessions,
     trackerEvents,
     trackerEventAliases,
 } from "@/lib/db";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import {
+    VISITOR_SESSION_LIMIT,
+    labelVisitorEngagement,
+    loadLatestSessionEvents,
+    loadTotalDuration,
+    loadVisitorGroup,
+} from "@/lib/tracker/visitor-detail";
 
 export async function GET(
     req: NextRequest,
@@ -25,57 +30,26 @@ export async function GET(
         return NextResponse.json({ success: false, error: "잘못된 ID" }, { status: 400 });
     }
 
-    const visitor = await db.query.trackerVisitors.findFirst({
-        where: eq(trackerVisitors.id, visitorPk),
-    });
-    if (!visitor) {
-        return NextResponse.json({ success: false, error: "방문자를 찾을 수 없습니다." }, { status: 404 });
+    const access = await loadVisitorGroup(visitorPk, user.orgId);
+    if (!access.ok) {
+        return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
-
-    // 해당 site가 user의 org에 속하는지 검증
-    const [site] = await db
-        .select()
-        .from(trackerSites)
-        .where(and(eq(trackerSites.id, visitor.siteId), eq(trackerSites.orgId, user.orgId)));
-    if (!site) {
-        return NextResponse.json({ success: false, error: "권한이 없습니다." }, { status: 403 });
-    }
-
     // record로 식별된 사람이면 같은 record의 모든 visitor를 묶어서 본다
-    let groupVisitors = [visitor];
-    if (visitor.recordId) {
-        groupVisitors = await db
-            .select()
-            .from(trackerVisitors)
-            .where(
-                and(
-                    eq(trackerVisitors.siteId, visitor.siteId),
-                    eq(trackerVisitors.recordId, visitor.recordId),
-                ),
-            );
-    }
+    const { visitor, group: groupVisitors } = access;
     const visitorIds = groupVisitors.map((v) => v.id);
 
     const sessions = await db
         .select()
         .from(trackerSessions)
         .where(inArray(trackerSessions.visitorId, visitorIds))
-        .orderBy(desc(trackerSessions.startedAt))
-        .limit(30);
+        .orderBy(desc(trackerSessions.startedAt), desc(trackerSessions.id))
+        .limit(VISITOR_SESSION_LIMIT);
 
-    // 세션 타임라인용 — 가져온 세션에 속한 이벤트 전체 (시간순)
-    const sessionIds = sessions.map((s) => s.id);
-    const events = sessionIds.length
-        ? await db
-            .select()
-            .from(trackerEvents)
-            .where(inArray(trackerEvents.sessionId, sessionIds))
-            .orderBy(trackerEvents.occurredAt)
-            .limit(1000)
-        : [];
+    // 세션 타임라인용 — 세션마다 최신 이벤트(시간순)와 세션별 전체 이벤트 수
+    const { events, sessionTotals: sessionEventTotals } = await loadLatestSessionEvents(sessions.map((s) => s.id));
 
     // 관심도 집계 (전체 기간, 이벤트 limit 무관)
-    const [sectionRows, clickRows, pageRows, dailyRows, hourlyRows, aliasRows, durationRows] = await Promise.all([
+    const [sectionRows, clickRows, pageRows, dailyRows, hourlyRows, aliasRows, totalDuration] = await Promise.all([
         db
             .select({
                 name: trackerEvents.eventName,
@@ -136,26 +110,20 @@ export async function GET(
             })
             .from(trackerEventAliases)
             .where(eq(trackerEventAliases.siteId, visitor.siteId)),
-        db.select({ total: sql<number>`COALESCE(SUM(${trackerSessions.duration}), 0)::bigint` })
-            .from(trackerSessions)
-            .where(inArray(trackerSessions.visitorId, visitorIds)),
+        loadTotalDuration(visitorIds),
     ]);
 
-    // 별칭 라벨 머지 (섹션/클릭 이름 → 사람이 읽는 라벨)
-    const aliasMap = new Map(aliasRows.filter((a) => a.label?.trim()).map((a) => [`${a.eventType}:${a.eventName}`, a.label.trim()]));
+    // 별칭 라벨 머지 (섹션/클릭 이름 → 사람이 읽는 라벨, 빈 라벨은 원래 이름)
+    const labeled = labelVisitorEngagement(sectionRows, clickRows, aliasRows);
     const engagement = {
-        sections: sectionRows
-            .filter((r) => r.name)
-            .map((r) => ({ ...r, name: r.name!, label: aliasMap.get(`SECTION_VIEW:${r.name}`) ?? null })),
-        clicks: clickRows
-            .filter((r) => r.name)
-            .map((r) => ({ ...r, name: r.name!, label: aliasMap.get(`CLICK:${r.name}`) ?? null })),
+        sections: labeled.sections,
+        clicks: labeled.clicks,
         pages: pageRows.filter((r) => r.url).map((r) => ({ ...r, url: r.url! })),
     };
 
-    // 그룹 합산 요약
+    // 그룹 합산 요약 — 체류시간도 방문수·페이지뷰처럼 전체 세션 합계
     const summary = {
-        totalDuration: Number(durationRows[0]?.total ?? 0),
+        totalDuration,
         totalVisits: groupVisitors.reduce((s, v) => s + v.totalVisits, 0),
         totalPageviews: groupVisitors.reduce((s, v) => s + v.totalPageviews, 0),
         totalEvents: groupVisitors.reduce((s, v) => s + v.totalEvents, 0),
@@ -179,7 +147,7 @@ export async function GET(
     };
 
     // 타임라인에서 이벤트명 → 라벨 치환용 ("TYPE:name" 키)
-    const aliases = Object.fromEntries(aliasMap);
+    const aliases = labeled.aliases;
 
     return NextResponse.json({
         success: true,
@@ -188,6 +156,7 @@ export async function GET(
             summary,
             sessions,
             events,
+            sessionEventTotals,
             engagement,
             dailyActivity: dailyRows,
             hourlyActivity: hourlyRows,
