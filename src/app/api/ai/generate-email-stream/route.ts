@@ -5,6 +5,7 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireRecordAccess } from "@/lib/partition-access";
 import { getAiClient, buildEmailSystemPrompt, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import type { AiClient, GenerateEmailInput } from "@/lib/ai";
+import { callClaudeEmail } from "@/lib/ai/claude";
 
 type Usage = { promptTokens: number; completionTokens: number };
 
@@ -63,26 +64,35 @@ export async function POST(req: NextRequest) {
         };
         const systemPrompt = buildEmailSystemPrompt(input);
 
+        let cancelled = false;
         const stream = new ReadableStream({
+            cancel() { cancelled = true; },
             async start(controller) {
                 const encoder = new TextEncoder();
 
                 const sendEvent = (event: string, data: unknown) => {
+                    if (cancelled) return;
                     controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
                 };
 
                 try {
-                    const usage = client.provider === "deepseek"
-                        ? await streamDeepseek(client, systemPrompt, input.prompt, sendEvent)
-                        : await streamGemini(client, systemPrompt, input.prompt, sendEvent);
-
-                    sendEvent("done", { usage });
-                    controller.close();
+                    let usage: Usage;
+                    if (client.provider === "claude") {
+                        // 기존 Anthropic 어댑터의 JSON·사용량 변환을 재사용한다.
+                        // 이 공급자는 완료한 초안을 한 번의 chunk로 보낸다.
+                        const result = await callClaudeEmail(client, systemPrompt, input.prompt);
+                        usage = result.usage;
+                        sendEvent("chunk", { text: JSON.stringify({ subject: result.subject, htmlBody: result.htmlBody }) });
+                    } else if (client.provider === "deepseek") {
+                        usage = await streamDeepseek(client, systemPrompt, input.prompt, sendEvent);
+                    } else {
+                        usage = await streamGemini(client, systemPrompt, input.prompt, sendEvent);
+                    }
 
                     const totalTokens = usage.promptTokens + usage.completionTokens;
                     await updateTokenUsage(user.orgId, totalTokens);
 
-                    logAiUsage({
+                    await logAiUsage({
                         orgId: user.orgId,
                         userId: user.userId,
                         provider: client.provider,
@@ -90,12 +100,13 @@ export async function POST(req: NextRequest) {
                         promptTokens: usage.promptTokens,
                         completionTokens: usage.completionTokens,
                         purpose: "email_generation",
-                    }).catch((err) => console.error("AI usage log error:", err));
+                    });
+                    sendEvent("done", { usage });
                 } catch (error) {
                     console.error("AI email stream error:", error);
-                    const message = error instanceof Error ? error.message : "AI 이메일 생성에 실패했습니다.";
-                    sendEvent("error", { error: message });
-                    controller.close();
+                    sendEvent("error", { error: "AI 이메일 생성에 실패했습니다. 잠시 후 다시 시도하거나 조직 AI 연결을 확인해주세요." });
+                } finally {
+                    if (!cancelled) controller.close();
                 }
             },
         });
@@ -109,8 +120,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (error) {
         console.error("AI email stream error:", error);
-        const message = error instanceof Error ? error.message : "AI 이메일 생성에 실패했습니다.";
-        return NextResponse.json({ success: false, error: message }, { status: 500 });
+        return NextResponse.json({ success: false, error: "AI 이메일 생성에 실패했습니다." }, { status: 500 });
     }
 }
 
@@ -139,6 +149,7 @@ async function streamDeepseek(
             stream: true,
             stream_options: { include_usage: true },
         }),
+        signal: AbortSignal.timeout(120000),
     });
 
     if (!response.ok) {
@@ -150,23 +161,26 @@ async function streamDeepseek(
     const decoder = new TextDecoder();
     let buffer = "";
     const usage: Usage = { promptTokens: 0, completionTokens: 0 };
+    let complete = false;
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
 
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: ")) continue;
-            const data = trimmed.slice(6);
-            if (data === "[DONE]") continue;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith("data:")) continue;
+                const data = trimmed.slice(5).trimStart();
+                if (data === "[DONE]") { complete = true; continue; }
 
-            try {
                 const parsed = JSON.parse(data);
+                if (parsed.error || (parsed.choices?.[0]?.finish_reason && parsed.choices[0].finish_reason !== "stop"))
+                    throw new Error("AI 응답이 완료되지 않았습니다.");
                 const text = parsed.choices?.[0]?.delta?.content;
                 if (text) {
                     sendEvent("chunk", { text });
@@ -175,12 +189,14 @@ async function streamDeepseek(
                     usage.promptTokens = parsed.usage.prompt_tokens ?? 0;
                     usage.completionTokens = parsed.usage.completion_tokens ?? 0;
                 }
-            } catch {
-                // ignore
             }
         }
+    } finally {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
     }
 
+    if (!complete) throw new Error("AI 응답이 완료되기 전에 연결이 끊겼습니다.");
     return usage;
 }
 
@@ -199,6 +215,7 @@ async function streamGemini(
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
             }),
+            signal: AbortSignal.timeout(120000),
         }
     );
 
@@ -211,23 +228,27 @@ async function streamGemini(
     const decoder = new TextDecoder();
     let buffer = "";
     const usage: Usage = { promptTokens: 0, completionTokens: 0 };
+    let complete = false;
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    try {
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() || "";
 
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed.startsWith("data: ")) continue;
-            const data = trimmed.slice(6);
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith("data:")) continue;
+                const data = trimmed.slice(5).trimStart();
 
-            try {
                 const parsed = JSON.parse(data);
                 const candidate = parsed.candidates?.[0];
+                if (parsed.error || (candidate?.finishReason && candidate.finishReason !== "STOP"))
+                    throw new Error("AI 응답이 완료되지 않았습니다.");
+                if (candidate?.finishReason === "STOP") complete = true;
                 const text = candidate?.content?.parts?.[0]?.text;
 
                 if (text) {
@@ -238,11 +259,13 @@ async function streamGemini(
                     usage.promptTokens = parsed.usageMetadata.promptTokenCount ?? 0;
                     usage.completionTokens = parsed.usageMetadata.candidatesTokenCount ?? 0;
                 }
-            } catch {
-                // ignore
             }
         }
+    } finally {
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
     }
 
+    if (!complete) throw new Error("AI 응답이 완료되기 전에 연결이 끊겼습니다.");
     return usage;
 }

@@ -15,6 +15,7 @@ import {
 import { Loader2, Sparkles, Square, Link } from "lucide-react";
 import { toast } from "sonner";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
+import { useSession } from "@/contexts/SessionContext";
 
 const TONE_OPTIONS = [
     { value: "default", label: "기본" },
@@ -32,7 +33,8 @@ interface AiEmailPanelProps {
 }
 
 export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultProductId }: AiEmailPanelProps) {
-    const { generateEmailStream, isGenerating, cancelStream } = useAiEmail();
+    const { user, sessionEpoch, isSessionChanging, subscribeInvalidation } = useSession();
+    const { generateEmailStream, isGenerating, cancelStream } = useAiEmail(`${user?.orgId}:${user?.id}:${sessionEpoch}:${recordId}`, subscribeInvalidation);
     const { products } = useProducts({ activeOnly: true });
     const [prompt, setPrompt] = useState("");
     const [productId, setProductId] = useState<number | undefined>(defaultProductId);
@@ -59,6 +61,7 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
     };
 
     const handleGenerate = async () => {
+        if (isSessionChanging) return;
         if (!prompt.trim()) {
             toast.error("프롬프트를 입력해주세요.");
             return;
@@ -159,7 +162,7 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
                 <Button
                     className="flex-1"
                     onClick={handleGenerate}
-                    disabled={isGenerating || !prompt.trim()}
+                    disabled={isGenerating || isSessionChanging || !prompt.trim()}
                 >
                     {isGenerating ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />

@@ -59,7 +59,11 @@ export async function POST(req: NextRequest) {
         });
     } catch (error) {
         console.error("AI company research error:", error);
-        const message = error instanceof Error ? error.message : "AI 회사 조사에 실패했습니다.";
-        return NextResponse.json({ success: false, error: message }, { status: 500 });
+        const cause = error instanceof Error ? error.message : "";
+        const connectionIssue = /\b(?:401|403)\b|credit|api.?key|auth|billing/i.test(cause);
+        const message = connectionIssue
+            ? "조직 AI 연결 확인이 필요합니다. 관리자에게 인증·이용 한도를 확인해주세요."
+            : "회사 정보를 조회하지 못했습니다. 잠시 후 다시 시도해주세요.";
+        return NextResponse.json({ success: false, error: message }, { status: 503 });
     }
 }
