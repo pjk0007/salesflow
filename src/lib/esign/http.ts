@@ -19,7 +19,7 @@ export type EsignHttpDependencies = {
 const HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 const result = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers: HEADERS });
 function fail(error: unknown) {
-    if (error instanceof EsignError) return Response.json({ success: false, error: error.message, code: error.code }, { status: error.status, headers: HEADERS });
+    if (error instanceof EsignError) return Response.json({ success: false, error: error.message, code: error.code, ...error.details }, { status: error.status, headers: HEADERS });
     if (error instanceof z.ZodError || error instanceof SyntaxError) return Response.json({ success: false, error: "입력 내용을 확인해주세요." }, { status: 400, headers: HEADERS });
     return Response.json({ success: false, error: "전자서명 요청을 처리하지 못했습니다. 잠시 후 다시 확인해주세요." }, { status: 503, headers: HEADERS });
 }
@@ -166,8 +166,12 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
             }
             if (id && !action && method === "GET") return result(await service.getEnvelope(actor, id));
             if (id && action === "action" && method === "POST") {
-                const input = z.object({ action: z.enum(["cancel", "retry_finalize"]) }).strict().parse(body);
+                const input = z.object({ action: z.enum(["cancel", "retry_finalize", "resend"]), jobId: z.string().uuid().optional(), confirmUnknown: z.boolean().optional() }).strict().parse(body);
                 if (input.action === "cancel") return result(await service.cancelEnvelope(actor, id));
+                if (input.action === "resend") {
+                    const detail = await service.resendInvitation(actor, id, { jobId: z.string().uuid().parse(input.jobId), confirmUnknown: input.confirmUnknown });
+                    kick(engine); return result(detail);
+                }
                 const detail = await service.retryFinalization(actor, id);
                 kick(engine); return result(detail);
             }

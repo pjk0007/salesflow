@@ -45,6 +45,9 @@ for (const contentAddressedStorage of [false, true]) for (const phoneChannel of 
             tokens.push(token);
             await api(`/public/${token}/otp`, { channel: i === 0 ? phoneChannel : "email" }); await fixture.flush();
             await api(`/public/${token}/otp`, { channel: "email" }, { expected: 429 });
+            // UX-304: 재요청 제한 응답은 화면 카운트다운용 retryAt을 함께 준다.
+            const cooldown = await (await handleEsignRequest(new Request(`http://127.0.0.1/api/esign/public/${token}/otp`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channel: "email" }) }), fixture.dependencies)).json();
+            assert.equal(cooldown.code, "cooldown"); assert.ok(Date.parse(cooldown.retryAt) > Date.now());
             const code = fixture.outbox.filter(j => j.kind === "otp" && j.recipientId === detail.recipients[i].id).at(-1)!.payload.code!;
             const verified = await api<{ verificationToken: string }>(`/public/${token}/verify`, { code }); verifications.push(verified.verificationToken);
             const input = { verificationToken: verified.verificationToken, idempotencyKey: `qa-submission-${i}`, consent: true, values: [{ fieldId: `signature-${i}`, pngDataUrl: png }] };

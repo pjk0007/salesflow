@@ -60,5 +60,6 @@ export type SignatureInput = { verificationToken: string; idempotencyKey: string
 export type DeliveryOutcome = { state: "accepted" | "failed" | "unknown"; providerId?: string; error?: string };
 export type FinalizedArtifact = { artifact: EsignArtifact; verified: true };
 export class EsignError extends Error {
-    constructor(message: string, readonly status = 400, readonly code = "invalid") { super(message); this.name = "EsignError"; }
+    /** details는 응답 최상위에 함께 실린다(예: retryAt·remainingAttempts). 비밀값을 넣지 않는다. */
+    constructor(message: string, readonly status = 400, readonly code = "invalid", readonly details?: { retryAt?: string; remainingAttempts?: number }) { super(message); this.name = "EsignError"; }
 }
