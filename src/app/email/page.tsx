@@ -143,7 +143,10 @@ function EmailPageContent() {
                             <AiCopyManager />
                         </TabsContent>
                         <TabsContent value="experiments" className="mt-6">
-                            <ExperimentManager initialRuleId={Number(searchParams.get("ruleId")) || undefined} />
+                            <ExperimentManager
+                                initialRuleId={Number(searchParams.get("ruleId")) || undefined}
+                                initialExperimentId={Number(searchParams.get("experimentId")) || undefined}
+                            />
                         </TabsContent>
 
                         <TabsContent value="assets" className="mt-6">

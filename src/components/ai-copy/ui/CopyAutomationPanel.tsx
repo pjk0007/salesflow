@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import useSWR, { useSWRConfig } from "swr";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,8 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { KST_TIME_ZONE } from "@/lib/kst";
 import { copyRequest } from "../api/copy";
 import { controlClass, Field, purposeLabel } from "./Fields";
 import type { PolicySnapshot } from "../types";
@@ -25,6 +28,9 @@ interface Cycle {
     cursor: number;
     reason: string | null;
     experiment_id: number | null;
+    /** 자동 준비가 직접 개설한 실험인지(종료 시 함께 닫힘) */
+    experiment_owned: boolean;
+    experiment_state: string | null;
     baseline_policy_id: number;
     candidate_policy_id: number | null;
     baseline_snapshot: PolicySnapshot;
@@ -52,7 +58,21 @@ interface Setting {
     purpose: string;
     rule_id: number;
     last_error: string | null;
+    next_run_at: string | null;
+    /** 실행 관리자가 아직 활성 owner/admin인지(UX-248) */
+    actor_valid: boolean;
 }
+/** 자동 준비 끄기·유지 종료 때 함께 닫히는 진행 중 상태(서버 configure·decline 조건과 같다) */
+const ACTIVE_EXPERIMENT_STATES = ["running", "observing", "enrollment_closed", "decision_ready"];
+const experimentHref = (id: number) => `/email?tab=experiments&experimentId=${id}`;
+const kstTime = (iso: string) =>
+    new Date(iso).toLocaleString("ko-KR", {
+        timeZone: KST_TIME_ZONE,
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 const stages: Record<string, string> = {
     candidate: "후보 작성 중",
     generating: "가상 문구 생성·검증 중",
@@ -79,6 +99,8 @@ export default function CopyAutomationPanel({
         [busy, setBusy] = useState(false),
         [review, setReview] = useState<Cycle | null>(null);
     const { mutate } = useSWRConfig();
+    const router = useRouter();
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const { data, error, isLoading } = useSWR<{
         settings: Setting[];
         cycles: Cycle[];
@@ -88,8 +110,57 @@ export default function CopyAutomationPanel({
         refreshInterval: 15000,
     });
     const enabled = data?.settings.some((s) => s.enabled) ?? false;
+    // 자동 준비를 켠 관리자가 비활성·강등되면 작업기가 조용히 멈춘다 — 화면에서 알린다(UX-248).
+    const orphaned = data?.settings.filter((s) => s.enabled && !s.actor_valid) ?? [];
+    const failing = data?.settings.filter((s) => s.enabled && s.last_error) ?? [];
+    const runningOwned =
+        data?.cycles.filter(
+            (c) =>
+                c.experiment_id &&
+                c.experiment_owned &&
+                ACTIVE_EXPERIMENT_STATES.includes(c.experiment_state ?? ""),
+        ) ?? [];
+    // 설정마다 가장 최근 회차(목록은 최신순). 보류된 최근 회차만 '다시 준비'를 보여 준다.
+    const latestCycleIds = new Set<number>(),
+        seenSettings = new Set<number>();
+    for (const c of data?.cycles ?? [])
+        if (!seenSettings.has(c.setting_id)) {
+            seenSettings.add(c.setting_id);
+            latestCycleIds.add(c.id);
+        }
+    const confirmDisable = () =>
+        confirm({
+            title: "이 사업의 자동 준비를 끌까요?",
+            description: runningOwned.length
+                ? `자동으로 개설한 진행 중 실험 ${runningOwned.length}개(${runningOwned.map((c) => `#${c.experiment_id}`).join(", ")})가 즉시 종료되어 신규 모집과 관찰이 멈춥니다. 종료한 실험은 되돌릴 수 없습니다.\n사람이 직접 만든 실험과 이미 적용한 지침은 그대로입니다.`
+                : "새 후보 준비를 멈춥니다. 진행 중인 자동 개설 실험은 없으며, 사람이 직접 만든 실험과 이미 적용한 지침은 그대로입니다.",
+            confirmLabel: "자동 준비 끄기",
+            onConfirm: () =>
+                act(
+                    { action: "configure", workspaceId: workspace, enabled: false, experimentMode },
+                    { success: "자동 준비를 껐습니다.", rethrow: true },
+                ),
+        });
+    const confirmDecline = (c: Cycle) =>
+        confirm({
+            title: "기존 지침을 유지하고 이 준비를 종료할까요?",
+            description: `${purposeLabel(c.purpose)}${c.rule_id ? ` · 규칙 #${c.rule_id}` : ""}의 후보 준비를 끝내고 현재 지침을 그대로 씁니다. 이 준비 기록은 다시 이어갈 수 없습니다.${
+                c.experiment_id
+                    ? c.experiment_owned
+                        ? `\n자동으로 개설한 실험 #${c.experiment_id}도 함께 종료되어 모은 결과로 더 이상 판단할 수 없습니다.`
+                        : `\n사람이 직접 만든 실험 #${c.experiment_id}은 그대로 둡니다.`
+                    : ""
+            }`,
+            confirmLabel: "유지하고 종료",
+            onConfirm: () =>
+                act(
+                    { action: "decline", cycleId: c.id },
+                    { success: "기존 지침을 유지하고 종료했습니다.", rethrow: true },
+                ),
+        });
     const experimentMode = mode ?? data?.settings[0]?.experiment_mode ?? "auto";
-    async function act(body: unknown) {
+    /** rethrow: 확인창 안에서 부를 때 오류를 던져 확인창이 열린 채 안내하게 한다. */
+    async function act(body: unknown, options: { success?: string; rethrow?: boolean } = {}) {
         setBusy(true);
         try {
             const result = await copyRequest<{ experimentId?: number }>(
@@ -101,10 +172,15 @@ export default function CopyAutomationPanel({
                     typeof key === "string" &&
                     (key.startsWith("/api/ai/") || key.startsWith("/api/email/experiments")),
             );
-            toast.success("저장했습니다.");
-            if (result.experimentId) onOpenExperiment?.(result.experimentId);
+            toast.success(options.success ?? "저장했습니다.");
+            // 만든 실험을 바로 연다. 이 패널이 실험 화면 밖(AI 품질 관리)에 있으면 실험 탭으로 이동한다(UX-242).
+            if (result.experimentId) {
+                if (onOpenExperiment) onOpenExperiment(result.experimentId);
+                else router.push(experimentHref(result.experimentId));
+            }
             return true;
         } catch (e) {
+            if (options.rethrow) throw e;
             toast.error(e instanceof Error ? e.message : "처리하지 못했습니다.");
             return false;
         } finally {
@@ -113,6 +189,7 @@ export default function CopyAutomationPanel({
     }
     return (
         <section className="space-y-4 rounded-md border p-5">
+            {confirmationDialog}
             <div className="flex flex-wrap gap-2 items-center">
                 <h3 className="font-semibold">자동 후보 준비와 실험</h3>
                 <Badge variant="secondary">최종 적용은 사람</Badge>
@@ -170,18 +247,7 @@ export default function CopyAutomationPanel({
                     {enabled ? "설정 저장" : "이 사업 자동 준비 켜기"}
                 </Button>
                 {enabled && (
-                    <Button
-                        variant="outline"
-                        disabled={busy}
-                        onClick={() =>
-                            void act({
-                                action: "configure",
-                                workspaceId: workspace,
-                                enabled: false,
-                                experimentMode,
-                            })
-                        }
-                    >
+                    <Button variant="outline" disabled={busy} onClick={confirmDisable}>
                         자동 준비 끄기
                     </Button>
                 )}
@@ -194,6 +260,24 @@ export default function CopyAutomationPanel({
                 감사 메일에 적용합니다. 방문 감사 메일은 AI 검토 후 적용 대기로 남습니다. AI 검토는
                 사람 검수·통제 부하 시험과 구분합니다. 사용량 한도에 도달하면 다음 회차로 미룹니다.
             </p>
+            {orphaned.length > 0 && (
+                <p className="rounded-md bg-destructive/10 p-3 text-sm" role="alert">
+                    자동 준비를 켠 관리자의 계정이 비활성화되었거나 관리자 권한이 없어 자동 준비가
+                    멈춰 있습니다. 위의 &lsquo;설정 저장&rsquo;을 누르면 내 계정으로 이어받아 다시
+                    진행합니다.
+                </p>
+            )}
+            {failing.length > 0 && (
+                <ul className="space-y-1 rounded-md border border-dashed p-3 text-sm" aria-label="자동 준비 최근 오류">
+                    {failing.map((s) => (
+                        <li key={s.id}>
+                            {purposeLabel(s.purpose)}
+                            {s.rule_id ? ` · ${s.rule_name ?? `규칙 #${s.rule_id}`}` : ""}: {s.last_error}
+                            {s.next_run_at && ` · 다음 실행 ${kstTime(s.next_run_at)}`}
+                        </li>
+                    ))}
+                </ul>
+            )}
             {error ? (
                 <p role="alert">자동 준비 정보를 불러오지 못했습니다.</p>
             ) : isLoading ? (
@@ -298,18 +382,30 @@ export default function CopyAutomationPanel({
                                             ) : (
                                                 <a
                                                     className="text-sm underline self-center"
-                                                    href="/email?tab=experiments"
+                                                    href={experimentHref(c.experiment_id)}
                                                 >
                                                     실험 #{c.experiment_id} 확인
                                                 </a>
                                             ))}
+                                        {c.stage === "blocked" && latestCycleIds.has(c.id) && (
+                                            <Button
+                                                variant="outline"
+                                                disabled={busy}
+                                                onClick={() =>
+                                                    void act(
+                                                        { action: "refresh", cycleId: c.id },
+                                                        { success: "곧 새 준비를 시작합니다." },
+                                                    )
+                                                }
+                                            >
+                                                다시 준비
+                                            </Button>
+                                        )}
                                         {!["applied", "declined", "blocked"].includes(c.stage) && (
                                             <Button
                                                 variant="ghost"
                                                 disabled={busy}
-                                                onClick={() =>
-                                                    void act({ action: "decline", cycleId: c.id })
-                                                }
+                                                onClick={() => confirmDecline(c)}
                                             >
                                                 기존 지침 유지하고 종료
                                             </Button>
