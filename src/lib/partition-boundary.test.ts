@@ -353,3 +353,37 @@ test("Meta 연동: 페이지 토큰 미노출·관리자 전용, OAuth state 봉
         assert.equal((saved?.set as { credentials: { pageAccessTokens: Record<string, string> } }).credentials.pageAccessTokens.p1, "PAGE-SECRET");
     });
 });
+
+test("레코드 일괄 삭제: 레코드의 파티션마다 삭제 권한을 확인하고 하나라도 막히면 아무것도 지우지 않는다 (D 요청, UX-014 계열)", async (t) => {
+    const { generateToken, db } = await load(t);
+    const { POST } = await import("../app/api/records/bulk-delete/route");
+    const token = tokenFor(generateToken, "member");
+    const url = "http://localhost/api/records/bulk-delete";
+    const recordPartitions = (...ids: number[]): Responder => (c) =>
+        c.op === "select" && c.table === "records" ? ids.map((partitionId) => ({ partitionId })) : undefined;
+
+    await t.test("잘못된 본문·ID는 400이고 DB를 읽지 않는다", async (t) => {
+        const { calls } = installFakeDb(t, db, member("member"));
+        for (const body of [{ ids: [] }, { ids: ["1"] }, { ids: [0] }, { ids: [1.5] }, null]) {
+            const res = await POST(bearer(token, url, { method: "POST", body }));
+            assert.equal(res.status, 400, JSON.stringify(body));
+        }
+        assert.equal(calls.filter((c) => !isMembershipLookup(c)).length, 0);
+    });
+    await t.test("조직 밖 파티션이 섞이면 404, 삭제 0회", async (t) => {
+        const { calls } = installFakeDb(t, db, chain(member("member"), recordPartitions(11, 12), ownPartition(11)));
+        const res = await POST(bearer(token, url, { method: "POST", body: { ids: [1, 2] } }));
+        assert.equal(res.status, 404);
+        assert.equal(calls.filter((c) => c.op === "delete").length, 0);
+    });
+    await t.test("모두 확인되면 확인한 파티션 조건으로만 지운다", async (t) => {
+        const { calls } = installFakeDb(t, db, chain(member("member"), recordPartitions(11), ownPartition(11),
+            (c) => (c.op === "delete" ? [{ id: 1, partitionId: 11 }] : undefined)));
+        const res = await POST(bearer(token, url, { method: "POST", body: { ids: [1] } }));
+        assert.equal(res.status, 200);
+        assert.equal((await res.json()).deletedCount, 1);
+        const del = calls.find((c) => c.op === "delete" && c.table === "records");
+        assert.match(del?.sql ?? "", /"records"\."partition_id" in/);
+        assert.ok(del?.params.includes(11));
+    });
+});
