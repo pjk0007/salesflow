@@ -27,6 +27,14 @@ interface VariableExtractable {
     }>;
 }
 
+/**
+ * 알림톡·SMS 수신번호 정규화: 숫자만 남기고 국가번호 형식 휴대폰(+82 10…, 82 010…)은 국내 번호(010…)로 바꾼다.
+ * NHN 국내 발송은 국내 번호를 기대한다(전자서명 rules와 같은 규칙, UX-270).
+ */
+export function normalizePhoneNumber(phone: string): string {
+    return phone.replace(/[^0-9]/g, "").replace(/^820?(1[016789])/, "0$1");
+}
+
 /** 단순 문자열에서 #{변수} 패턴 추출 (중복 제거) */
 export function extractTemplateVariables(content: string): string[] {
     const matches = content.match(/#\{([^}]+)\}/g);

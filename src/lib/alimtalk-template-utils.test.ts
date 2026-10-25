@@ -28,3 +28,9 @@ test("UX-178: 테스트 발송 입력 키 — 본문 밖(버튼·퀵리플라이
     assert.deepEqual(extractTemplateParameterKeys({ templateContent: "변수 없음" }), []);
     assert.deepEqual(extractTemplateParameterKeys(null), []);
 });
+test("UX-270: 국가번호 형식 휴대폰은 국내 번호로, 국내 형식은 그대로", async () => {
+    const { normalizePhoneNumber } = await import("./alimtalk-template-utils");
+    for (const phone of ["+82 10-1234-5678", "+821012345678", "82 010 1234 5678", "+82-10-1234-5678"]) assert.equal(normalizePhoneNumber(phone), "01012345678");
+    assert.equal(normalizePhoneNumber("+82 11 123 4567"), "0111234567");
+    for (const [phone, expected] of [["010-1234-5678", "01012345678"], ["01012345678", "01012345678"], ["02-1234-5678", "0212345678"], ["+82 2 1234 5678", "82212345678"]]) assert.equal(normalizePhoneNumber(phone), expected);
+});
