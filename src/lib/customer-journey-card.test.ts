@@ -198,7 +198,7 @@ test("카드는 저장한 판정·현재 처리 상태·관리 링크를 표시�
     assert.doesNotMatch(JSON.stringify(card), /챗에 보내지 않을 대응 메모/);
 });
 
-test("cardsV2 전송은 기존 스레드·요청 ID·429 재시도를 함께 쓴다", async () => {
+test("cardsV2 전송은 기존 스레드·고정 메시지 ID·429 재시도를 함께 쓴다", async () => {
     const calls: { url: string; body: Record<string, unknown> }[] = [];
     const post: typeof fetch = async (url, init) => {
         calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
@@ -206,10 +206,11 @@ test("cardsV2 전송은 기존 스레드·요청 ID·429 재시도를 함께 쓴
     };
     const message = buildJourneyCard(fixture(), at(1000));
     const result = await postGoogleChatMessage("https://chat.googleapis.com/v1/spaces/demo/messages?key=fake&token=fake", message, post,
-        { spaceIntervalMs: 0, retryDelayMs: 0, threadKey: "record-42", requestId: "00000000-0000-5000-a000-000000000042" });
+        { spaceIntervalMs: 0, retryDelayMs: 0, threadKey: "record-42", messageId: "client-journey-42" });
     assert.equal(result.ok, true);
     assert.equal(calls.length, 2);
     assert.deepEqual(calls[0].body.cardsV2, message.cardsV2);
     assert.deepEqual(calls[0].body.thread, { threadKey: "record-42" });
-    assert.match(calls[0].url, /requestId=/);
+    assert.match(calls[0].url, /messageId=client-journey-42/);
+    assert.doesNotMatch(calls[0].url, /requestId=/);
 });

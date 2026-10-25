@@ -236,7 +236,7 @@
 
 | 이름 | 없을 때 | 운영 권장값 | 비고 |
 |---|---|---|---|
-| `GOOGLE_CHAT_REQUEST_ID` | 꺼짐 | 개발 스페이스에서 확인한 뒤 **`on`** | 보낼 때 줄마다 고정 `requestId`를 붙여, 응답이 10초를 넘겨 다시 보내도 같은 글이 두 번 올라가지 않게 합니다. 꺼져 있으면 시간 초과는 그 회차에 다시 보내지 않고 두 번째 시간 초과에서 멈춥니다(같은 카드 최대 2통). 웹훅이 이 값을 받는지는 공식 문서에 없어 **개발 스페이스에서 먼저 확인** (CHAT-QA 4절) |
+| `GOOGLE_CHAT_REQUEST_ID` | 꺼짐 | 개발 스페이스에서 확인한 뒤 **`on`** | (이름은 그대로) 깊이·회신·건강 알림에 줄마다 고정 `messageId`(`client-…`)를 붙여, 응답이 10초를 넘겨 다시 보내도 같은 글이 두 번 올라가지 않게 합니다(같은 ID는 구글이 409로 거절). 예전처럼 `requestId`를 붙이지 않습니다 — 수신 웹훅이 `requestId`를 400으로 거절함을 실측했습니다(customer-journey HANDOFF). 꺼져 있으면 시간 초과는 그 회차에 다시 보내지 않고 두 번째 시간 초과에서 멈춥니다(같은 카드 최대 2통). 고객 여정·상담 알림은 플래그와 무관하게 늘 고정 `messageId`를 씁니다. 예전 설정으로 `failed`가 된 카드는 일괄 재발송하지 말고, 스페이스에 이미 올라갔는지 대상별로 확인한 뒤 필요한 것만 다시 보냅니다 |
 | `GOOGLE_CHAT_THREADS` | 꺼짐 | 대표가 스페이스 모양을 본 뒤 정함 | 같은 레코드의 깊이 카드·같은 고객 회신·같은 운영 문제를 한 스레드로 모읍니다 (`thread.threadKey` + `messageReplyOption=REPLY_MESSAGE_FALLBACK_TO_NEW_THREAD`). 이것도 개발 스페이스에서 먼저 확인 |
 | `DEEP_ALERT_TEST_SERVER_LIVE` | 꺼짐 | **운영·개발 서버 모두 넣지 않음** | `NEXT_PUBLIC_BASE_URL`이 `https://sendb.kr`가 아닌 서버(개발·시험)에서는 `DEEP_ALERT_MODE=live`여도 `dry_run`으로 돕니다 (개발 DB의 실제 고객 카드가 사업 스페이스로 나가지 않게, 검토 DV-4). 시험 스페이스로 일부러 보낼 때만 `1` |
 
@@ -284,7 +284,7 @@
 5. 이틀: 회신 탭(이어짐·미분류·뺀 주소), 발송 건강 카드(결과 맞추기 "마지막 성공", 판정 숫자) 확인
 6. `REPLY_SYNC_MODE=on` → 하루 뒤 `REPLY_ALERT_MODE=live`. `SEND_HEALTH_MODE=alert` 1주 → 대표 확인 뒤 `enforce`
 7. 개발 서버 `sendb-dev`는 회신 읽기 `off` (한 메일함은 한 환경만 `on`)
-8. 구글 챗 (CHAT-QA 4절): 개발 서버 환경 변수에 `DEEP_ALERT_MODE=live`가 있어도 이제 `dry_run`으로 도는지 로그(`[deep-alert] mode=dry_run …`과 경고 `[deep-alert] 시험 서버 — 운영 주소(NEXT_PUBLIC_BASE_URL)가 아니라 live를 dry_run으로 돌립니다 …`)로 확인. 개발 스페이스 하나에 `GOOGLE_CHAT_REQUEST_ID=on`·`GOOGLE_CHAT_THREADS=on`으로 같은 글을 두 번 보내 1통만 남는지·답글로 달리는지 본 뒤 운영에 켬
+8. 구글 챗 (CHAT-QA 4절): 개발 서버 환경 변수에 `DEEP_ALERT_MODE=live`가 있어도 이제 `dry_run`으로 도는지 로그(`[deep-alert] mode=dry_run …`과 경고 `[deep-alert] 시험 서버 — 운영 주소(NEXT_PUBLIC_BASE_URL)가 아니라 live를 dry_run으로 돌립니다 …`)로 확인. 개발 스페이스 하나에 `GOOGLE_CHAT_REQUEST_ID=on`(고정 `messageId`)·`GOOGLE_CHAT_THREADS=on`으로 같은 글을 두 번 보내 1통만 남는지·답글로 달리는지 본 뒤 운영에 켬
 9. 발송 건강 카드의 "알림 전달 (구글 챗)" 칸(관리자만)에서 "연결 확인 보내기"를 눌러 모든 받는 곳이 "정상"인지 확인 (점검 글이 각 스페이스에 한 통씩 갑니다)
 
 ### 8-7. 끄는 법 (9절 표에 더함)
