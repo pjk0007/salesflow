@@ -192,6 +192,44 @@ interface AsyncAlertDialogProps {
   children?: React.ReactNode
 }
 
+interface ConfirmFlowHandlers {
+  onConfirm: () => Promise<unknown>
+  onOpenChange: (open: boolean) => void
+  setPending: (pending: boolean) => void
+  setError: (error: string | null) => void
+}
+
+/**
+ * AsyncAlertDialog의 닫기·확인 흐름. DOM 없이 시험할 수 있게 컴포넌트 밖에 둔다.
+ * busy는 렌더와 무관한 동기 플래그(useRef)라 연타·진행 중 닫기를 같은 틱에서 막는다. 이벤트 처리기에서만 부른다.
+ */
+function changeConfirmOpen(busy: { current: boolean }, handlers: ConfirmFlowHandlers, next: boolean) {
+  if (busy.current) return
+  handlers.setError(null)
+  handlers.onOpenChange(next)
+}
+
+async function runConfirm(busy: { current: boolean }, handlers: ConfirmFlowHandlers) {
+  if (busy.current) return
+  busy.current = true
+  handlers.setPending(true)
+  handlers.setError(null)
+  try {
+    const result = await handlers.onConfirm()
+    if (result && typeof result === "object" && "success" in result && result.success === false) {
+      throw new Error("error" in result && typeof result.error === "string"
+        ? result.error : "요청을 처리하지 못했습니다.")
+    }
+    handlers.onOpenChange(false)
+  } catch (cause) {
+    handlers.setError(cause instanceof Error && /[가-힣]/.test(cause.message)
+      ? cause.message : "요청을 처리하지 못했습니다. 다시 시도해주세요.")
+  } finally {
+    busy.current = false
+    handlers.setPending(false)
+  }
+}
+
 /** 실패는 throw 또는 success:false로 전달한다. 성공 시에만 닫힌다. */
 function AsyncAlertDialog({
   open, onOpenChange, title, description, onConfirm,
@@ -201,11 +239,8 @@ function AsyncAlertDialog({
   const openerRef = React.useRef<HTMLElement | null>(null)
   const [pending, setPending] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
-  const changeOpen = (next: boolean) => {
-    if (busyRef.current) return
-    setError(null)
-    onOpenChange(next)
-  }
+  const handlers = { onConfirm, onOpenChange, setPending, setError }
+  const changeOpen = (next: boolean) => changeConfirmOpen(busyRef, handlers, next)
   return (
     <AlertDialog open={open} onOpenChange={changeOpen}>
       <AlertDialogContent aria-busy={pending}
@@ -232,26 +267,10 @@ function AsyncAlertDialog({
             disabled={confirmDisabled}
             aria-disabled={pending}
             className={cn(pending && "pointer-events-none opacity-50")}
-            onClick={async (event) => {
+            onClick={(event) => {
               event.preventDefault()
-              if (busyRef.current || confirmDisabled) return
-              busyRef.current = true
-              setPending(true)
-              setError(null)
-              try {
-                const result = await onConfirm()
-                if (result && typeof result === "object" && "success" in result && result.success === false) {
-                  throw new Error("error" in result && typeof result.error === "string"
-                    ? result.error : "요청을 처리하지 못했습니다.")
-                }
-                onOpenChange(false)
-              } catch (cause) {
-                setError(cause instanceof Error && /[가-힣]/.test(cause.message)
-                  ? cause.message : "요청을 처리하지 못했습니다. 다시 시도해주세요.")
-              } finally {
-                busyRef.current = false
-                setPending(false)
-              }
+              if (confirmDisabled) return
+              void runConfirm(busyRef, handlers)
             }}
           >
             {pending ? pendingLabel : confirmLabel}
@@ -284,6 +303,8 @@ function useAsyncConfirm() {
 }
 
 export {
+  changeConfirmOpen,
+  runConfirm,
   AsyncAlertDialog,
   useAsyncConfirm,
   AlertDialog,
