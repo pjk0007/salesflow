@@ -110,3 +110,63 @@ test("UX-168 Claude 엄격 이메일은 정상 종료와 완성 JSON을 모두 �
         assert.equal(result.htmlBody, "<p>잘린 본문");
     });
 });
+
+test("UX-168 Gemini 키는 주소가 아니라 헤더로 보내고, 실패한 호출도 쓴 토큰을 기록한다", async t => {
+    isolateEnv(t, { ANTHROPIC_API_KEY: "fake-anthropic", DEEPSEEK_API_KEY: "fake-deepseek", GEMINI_API_KEY: "fake-gemini" });
+    const { db } = await import("../db");
+    const { generateToken } = await import("../auth");
+    const { POST } = await import("../../app/api/ai/generate-email-stream/route");
+    const { callGeminiEmail } = await import("./gemini");
+    const token = generateToken({ userId: "00000000-0000-4000-8000-000000000002", orgId: ORG, email: "test@example.test", name: "가상", role: "owner", tokenVersion: 0, membershipId: 71 });
+    const request = (model?: string) => new NextRequest("http://localhost/api/ai/generate-email-stream", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ prompt: "안내", model }) });
+    const fakeDb = (t: Parameters<Parameters<typeof test>[1]>[0]) => installFakeDb(t, db, call => {
+        if (isMembershipLookup(call)) return [{ role: "owner", tokenVersion: 0, membershipId: 71 }];
+        if (call.table === "ai_usage_quotas") return [{ id: 1, totalTokens: 0, quotaLimit: 100000 }];
+        return [];
+    });
+
+    await t.test("스트림·단발 Gemini 호출 모두 주소에 키가 없다", async t => {
+        fakeDb(t);
+        const sent: { url: string; key: string | null }[] = [];
+        t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+            sent.push({ url: String(input), key: new Headers(init?.headers).get("x-goog-api-key") });
+            return String(input).includes("alt=sse")
+                ? new Response(`data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(mail) }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 } })}\n\n`)
+                : Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(mail) }] }, finishReason: "STOP" }] });
+        });
+        await (await POST(request("gemini-3.5-flash-lite"))).text();
+        await callGeminiEmail({ provider: "gemini", model: "gemini-3.5-flash-lite", apiKey: "fake-gemini" }, "가상", "가상");
+        assert.equal(sent.length, 2);
+        for (const s of sent) {
+            assert.doesNotMatch(s.url, /key=|fake-gemini/);
+            assert.equal(s.key, "fake-gemini");
+        }
+    });
+
+    for (const [name, model, reply] of [
+        ["Claude max_tokens", undefined, () => Response.json({ id: "msg_fake", type: "message", role: "assistant", content: [{ type: "text", text: JSON.stringify(mail) }], model: "claude-haiku-4-5", stop_reason: "max_tokens", stop_sequence: null, usage: { input_tokens: 12, output_tokens: 8 } })],
+        ["Claude 잘못된 JSON", undefined, () => Response.json({ id: "msg_fake", type: "message", role: "assistant", content: [{ type: "text", text: "{오류" }], model: "claude-haiku-4-5", stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 12, output_tokens: 8 } })],
+        ["DeepSeek 잘림", "deepseek-v4-flash", () => new Response(`data: ${JSON.stringify({ choices: [{ delta: { content: "{" } }], usage: { prompt_tokens: 12, completion_tokens: 8 } })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] })}\n\n`)],
+    ] as const) await t.test(`실패 사용량 기록: ${name}`, async t => {
+        t.mock.method(console, "error", () => {});
+        const { calls } = fakeDb(t);
+        t.mock.method(globalThis, "fetch", async () => reply());
+        const body = await (await POST(request(model))).text();
+        assert.match(body, /event: error/);
+        assert.doesNotMatch(body, /event: done/);
+        const logs = calls.filter(c => c.table === "ai_usage_logs" && c.op === "insert");
+        assert.equal(logs.length, 1, "실패해도 사용 기록 1건");
+        assert.equal((logs[0].values as { promptTokens: number }).promptTokens, 12);
+        assert.equal((logs[0].values as { completionTokens: number }).completionTokens, 8);
+        assert.equal(calls.filter(c => c.table === "ai_usage_quotas" && c.op === "update").length, 1, "한도 누적 1회");
+    });
+
+    await t.test("토큰을 쓰기 전 연결 실패는 기록하지 않는다", async t => {
+        t.mock.method(console, "error", () => {});
+        const { calls } = fakeDb(t);
+        t.mock.method(globalThis, "fetch", async () => Response.json({ error: { message: "가상 거절" } }, { status: 401 }));
+        const body = await (await POST(request("deepseek-v4-flash"))).text();
+        assert.match(body, /event: error/);
+        assert.equal(calls.filter(c => c.table === "ai_usage_logs").length, 0);
+    });
+});

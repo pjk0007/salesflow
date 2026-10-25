@@ -142,6 +142,14 @@ async function runSearchLoop(
     return { text: extractText(blocks), blocks, usage, truncated, pausedOut };
 }
 
+/** 응답은 받았지만 완성된 이메일로 쓸 수 없는 경우. usage는 이미 쓴 토큰. */
+export class EmailResponseError extends Error {
+    constructor(message: string, readonly usage: TokenUsage) {
+        super(message);
+        this.name = "EmailResponseError";
+    }
+}
+
 export async function callClaudeEmail(
     client: AiClient,
     systemPrompt: string,
@@ -153,12 +161,18 @@ export async function callClaudeEmail(
     if (options.strict) {
         // 스트림 완료 계약에서는 잘림·복구 결과를 완성된 초안으로 내보내지 않는다.
         // 다른 이메일/검색 호출의 기존 복구 계약은 기본 옵션으로 유지한다.
-        if (stopReason !== "end_turn") throw new Error("AI 응답이 완료되지 않았습니다.");
-        const value: unknown = JSON.parse(text);
+        // 실패해도 공급자는 이미 토큰을 썼으므로 사용량을 오류에 담아 호출자가 기록하게 한다.
+        if (stopReason !== "end_turn") throw new EmailResponseError("AI 응답이 완료되지 않았습니다.", usage);
+        let value: unknown;
+        try {
+            value = JSON.parse(text);
+        } catch {
+            throw new EmailResponseError("AI 응답이 올바른 JSON이 아닙니다.", usage);
+        }
         if (!value || typeof value !== "object" || Array.isArray(value) ||
             !("subject" in value) || typeof value.subject !== "string" || !value.subject.trim() ||
             !("htmlBody" in value) || typeof value.htmlBody !== "string" || !value.htmlBody.trim()) {
-            throw new Error("AI 응답에 완성된 이메일 제목과 본문이 없습니다.");
+            throw new EmailResponseError("AI 응답에 완성된 이메일 제목과 본문이 없습니다.", usage);
         }
         parsed = value as Record<string, unknown>;
     } else {
