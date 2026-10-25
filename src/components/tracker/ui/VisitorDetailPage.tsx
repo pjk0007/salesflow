@@ -40,7 +40,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
         return <p className="text-sm text-muted-foreground">방문자를 찾을 수 없습니다.</p>;
     }
 
-    const { visitor, summary, sessions, events, engagement, dailyActivity, hourlyActivity, aliases } =
+    const { visitor, summary, sessions, events, engagement, dailyActivity, hourlyActivity, aliases, siteDomains = [] } =
         data.data;
     const totalDuration = summary.totalDuration;
 
@@ -53,7 +53,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
         cards.push((cls) => <VisitorHourlyChart key="hourly" hourly={hourlyActivity} className={cls} />);
     }
     if (sessions.length > 0) {
-        cards.push((cls) => <VisitorChannelCard key="channel" sessions={sessions} className={cls} />);
+        cards.push((cls) => <VisitorChannelCard key="channel" sessions={sessions} className={cls} ownDomains={siteDomains} />);
     }
     if (engagement.sections.length > 0) {
         cards.push((cls) => <SectionDwellCard key="sections" sections={engagement.sections} className={cls} />);
@@ -73,7 +73,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
             )}
 
             <VisitorActivityChart daily={dailyActivity} />
-            <VisitorSessionTimeline sessions={sessions} events={events} aliases={aliases} />
+            <VisitorSessionTimeline sessions={sessions} events={events} aliases={aliases} ownDomains={siteDomains} />
         </div>
     );
 }

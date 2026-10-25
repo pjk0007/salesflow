@@ -277,7 +277,7 @@ function VisitorsBody({ site }: { site: TrackerSite }) {
                     <p className="text-right text-[11px] text-muted-foreground">
                         * 유입은 첫 방문 기준이며, <span className="font-medium">-</span> 표기는 직접 방문(referrer 없음)을 의미합니다.
                     </p>
-                    <VisitorListTable visitors={items} />
+                    <VisitorListTable visitors={items} ownDomains={site.domains} />
                     <div className="flex items-center justify-between">
                         <p className="text-sm text-muted-foreground">총 {total.toLocaleString()}명</p>
                         <TrackerPagination page={page} totalPages={totalPages} onChange={setPage} />

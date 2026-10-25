@@ -1,9 +1,16 @@
 import { db } from "@/lib/db";
-import { trackerSessions } from "@/lib/db/schema";
+import { trackerSessions, trackerSites } from "@/lib/db/schema";
 import { eq, and, gte, lte, sql } from "drizzle-orm";
 import { classifyInflow, matchesChannelFilter } from "@/components/journey/utils/referrer";
 import { notExcludedExpr } from "./analytics-queries";
 import { deviceFilterSql } from "./sql-filters";
+
+/** 사이트 허용 도메인 — 유입 '직접' 판정용. 호출부가 이미 읽었으면 넘기고, 아니면 여기서 한 번 읽는다 */
+async function ownDomainsOf(siteId: number, given?: readonly string[]): Promise<readonly string[]> {
+    if (given) return given;
+    const [site] = await db.select({ domains: trackerSites.domains }).from(trackerSites).where(eq(trackerSites.id, siteId));
+    return site?.domains ?? [];
+}
 
 /**
  * 채널 필터(상위 그룹 + 광고/자연 모드)에 매칭되는 세션 ID 목록.
@@ -19,6 +26,8 @@ export async function getSessionIdsByChannel(args: {
     channelMode?: "all" | "paid" | "organic";
     /** 활성 집계 전용: 시작일 대신 기간 내 유효 PV로 세션을 선택한다. 생략 시 기존 시작일 기준. */
     activity?: { excludes: string[]; device: string | null };
+    /** 사이트 허용 도메인 (없으면 siteId로 읽는다) */
+    domains?: readonly string[];
 }): Promise<number[] | null> {
     const mode = args.channelMode ?? "all";
     // 필터 조건이 모두 비어 있으면 적용 안 함
@@ -50,8 +59,9 @@ export async function getSessionIdsByChannel(args: {
             ),
         );
 
+    const ownDomains = await ownDomainsOf(args.siteId, args.domains);
     return rows
-        .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landingPage), args.channel, mode))
+        .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landingPage, ownDomains), args.channel, mode))
         .map((r) => r.id);
 }
 
@@ -65,6 +75,7 @@ export async function getVisitorIdsByChannel(args: {
     siteId: number;
     channel: string | null;
     channelMode?: "all" | "paid" | "organic";
+    domains?: readonly string[];
 }): Promise<number[] | null> {
     const mode = args.channelMode ?? "all";
     if (!args.channel && mode === "all") return null;
@@ -80,7 +91,8 @@ export async function getVisitorIdsByChannel(args: {
         landing_page: string | null;
     }>;
 
+    const ownDomains = await ownDomainsOf(args.siteId, args.domains);
     return rows
-        .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landing_page), args.channel, mode))
+        .filter((r) => matchesChannelFilter(classifyInflow(r.referrer, r.landing_page, ownDomains), args.channel, mode))
         .map((r) => r.visitor_id);
 }
