@@ -29,7 +29,7 @@
 ## 서버 설정과 영향
 
 - `ESIGN_ALIMTALK=on`: 전자서명 알림톡 전용 opt-in. 미지정 시 off다.
-- `ESIGN_ALIMTALK_SENDER_KEY`: 선택한 기존 발신 채널 고정. 미지정 시 해당 조직의 기본 채널을 사용한다. 값은 서버 비밀 설정에만 둔다.
+- `ESIGN_ALIMTALK_SENDER_KEY`: 선택한 기존 발신 채널 고정. `ESIGN_ALIMTALK_SENDER_ORG_ID`(소유 조직)에만 적용하며 다른 조직과 미지정 시에는 각 조직의 기본 채널을 사용한다. 값은 서버 비밀 설정에만 둔다.
 - 기존 `alimtalk_configs`에서 인증된 조직의 계정만 읽는다. 기존 조직 활성화 상태도 존중한다. 기존 설정·영업 자동화·발송 큐는 변경하지 않는다.
 - `ESIGN_EMAIL_SENDER=ceo@matchesplan.com`은 유지한다. 기존 영업 이메일 기본 발신자는 바꾸지 않는다.
 - 기존 `esign` 작업 대기열과 15초 worker를 재사용한다. 새 스키마·외부 서비스·파일 저장 방식 변경은 없다.

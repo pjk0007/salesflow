@@ -5,7 +5,7 @@ import { EsignService } from "./core";
 import { createPostgresEsignSql, PostgresEsignRepository } from "./postgres-repository";
 import { createEsignStorage, localEsignBlobStore, s3EsignBlobStore } from "./storage";
 import { createEsignDelivery } from "./delivery";
-import { selectEsignEmailSender } from "./sender";
+import { selectEsignAlimtalkSenderKey, selectEsignEmailSender } from "./sender";
 import { createEsignAlimtalk, type EsignAlimtalkStatus } from "./alimtalk";
 import { createEsignJobRunner } from "./worker";
 import { EsignError, type EsignActor, type EsignRecipientInput } from "./types";
@@ -55,7 +55,7 @@ function runtime(): Runtime {
             async config(orgId) {
                 const [{ db, alimtalkConfigs }, { and, eq }] = await Promise.all([import("@/lib/db"), import("drizzle-orm")]);
                 const [config] = await db.select().from(alimtalkConfigs).where(and(eq(alimtalkConfigs.orgId, orgId), eq(alimtalkConfigs.isActive, 1))).limit(1);
-                const senderKey = process.env.ESIGN_ALIMTALK_SENDER_KEY || config?.defaultSenderKey;
+                const senderKey = selectEsignAlimtalkSenderKey({ fixedKey: process.env.ESIGN_ALIMTALK_SENDER_KEY, fixedOrgId: process.env.ESIGN_ALIMTALK_SENDER_ORG_ID, orgId, defaultSenderKey: config?.defaultSenderKey });
                 return config && senderKey ? { appKey: config.appKey, secretKey: config.secretKey, senderKey } : null;
             },
         }),
@@ -70,6 +70,8 @@ function runtime(): Runtime {
             return { address: sender.fromEmail, name: sender.fromName, submit: request => client.sendEachMail(request) };
         },
     });
+    if (process.env.ESIGN_ALIMTALK_SENDER_KEY && !process.env.ESIGN_ALIMTALK_SENDER_ORG_ID)
+        console.warn("[esign] ESIGN_ALIMTALK_SENDER_KEY는 ESIGN_ALIMTALK_SENDER_ORG_ID(소유 조직)와 함께 지정해야 그 조직에 적용됩니다. 지금은 키가 기본 채널과 같은 조직에만 적용합니다.");
     const kick = createEsignJobRunner(service, storage, delivery);
     const value: Runtime = { service, storage, delivery, kick, async databaseReady() { const result = await sql.query<{ ready: boolean }>("SELECT to_regclass('esign.envelopes') IS NOT NULL AS ready"); return Boolean(result.rows[0]?.ready); } };
     shared.__sendbEsignRuntime = value;
