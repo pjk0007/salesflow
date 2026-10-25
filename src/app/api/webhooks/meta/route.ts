@@ -8,34 +8,42 @@ import { createMetaLeadRecord, hasProcessedMetaLead } from "@/lib/meta-lead-reco
 
 // GET: Meta Webhook 검증
 export async function GET(req: NextRequest) {
-    const mode = req.nextUrl.searchParams.get("hub.mode");
-    const token = req.nextUrl.searchParams.get("hub.verify_token");
-    const challenge = req.nextUrl.searchParams.get("hub.challenge");
+    try {
+        const mode = req.nextUrl.searchParams.get("hub.mode");
+        const token = req.nextUrl.searchParams.get("hub.verify_token");
+        const challenge = req.nextUrl.searchParams.get("hub.challenge");
 
-    if (mode !== "subscribe" || !token) {
+        if (mode !== "subscribe" || !token) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+
+        // DB에서 해당 verify token을 가진 플랫폼이 있는지 확인
+        const allMetaPlatforms = await db
+            .select({ credentials: adPlatforms.credentials })
+            .from(adPlatforms)
+            .where(and(eq(adPlatforms.platform, "meta"), eq(adPlatforms.status, "connected")));
+
+        const matched = allMetaPlatforms.some((p) => {
+            const creds = p.credentials as MetaCredentials;
+            return creds.webhookVerifyToken === token;
+        });
+
+        if (matched) {
+            return new Response(challenge || "", { status: 200 });
+        }
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    } catch (error) {
+        console.error("Meta webhook verification failed:", error);
+        return NextResponse.json({ success: false, error: "연동 확인을 처리하지 못했습니다." }, { status: 500 });
     }
-
-    // DB에서 해당 verify token을 가진 플랫폼이 있는지 확인
-    const allMetaPlatforms = await db
-        .select({ credentials: adPlatforms.credentials })
-        .from(adPlatforms)
-        .where(and(eq(adPlatforms.platform, "meta"), eq(adPlatforms.status, "connected")));
-
-    const matched = allMetaPlatforms.some((p) => {
-        const creds = p.credentials as MetaCredentials;
-        return creds.webhookVerifyToken === token;
-    });
-
-    if (matched) {
-        return new Response(challenge || "", { status: 200 });
-    }
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 // POST: Meta 리드 이벤트 수신
 export async function POST(req: NextRequest) {
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object" || Array.isArray(body) || (body.entry !== undefined && !Array.isArray(body.entry))) {
+        return NextResponse.json({ success: false, error: "요청 본문을 확인해주세요." }, { status: 400 });
+    }
 
     // 즉시 200 응답 (Meta 타임아웃 방지)
     // 비동기로 리드 처리
