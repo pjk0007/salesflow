@@ -93,6 +93,13 @@ export async function listSales(
                       companyName: sql<
                           string | null
                       >`(select ${crmCompanies.name} from ${crmCompanies} where ${crmCompanies.id} = ${owner.companyId})`,
+                      // 보관된 기존 연결에 '보관됨'을 표시하려면 보관 시각도 필요하다(100건 밖 연결 포함).
+                      contactArchivedAt: sql<
+                          string | null
+                      >`(select ${crmContacts.archivedAt} from ${crmContacts} where ${crmContacts.id} = ${owner.contactId})`,
+                      companyArchivedAt: sql<
+                          string | null
+                      >`(select ${crmCompanies.archivedAt} from ${crmCompanies} where ${crmCompanies.id} = ${owner.companyId})`,
                   };
               })();
     return exec

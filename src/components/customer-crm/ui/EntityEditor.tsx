@@ -14,6 +14,7 @@ import { InboxRequestError } from "@/components/inbox/api";
 import type { Editor, Pipeline, Deal, Task, Contact, Company } from "../types";
 import { EntityPicker } from "./EntityPicker";
 import { lifecycleStageNames } from "../utils/labels";
+import { linkedOptions } from "../utils/linked-options";
 const inputClass =
     "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -185,7 +186,11 @@ export function EntityEditor({
         const contactId = deal?.contactId ?? task?.contactId,
             companyId = deal?.companyId ?? task?.companyId,
             contactName = deal?.contactName ?? task?.contactName,
-            companyName = deal?.companyName ?? task?.companyName;
+            companyName = deal?.companyName ?? task?.companyName,
+            contactArchivedAt =
+                deal?.contactArchivedAt ?? task?.contactArchivedAt,
+            companyArchivedAt =
+                deal?.companyArchivedAt ?? task?.companyArchivedAt;
         return (
             <div className="grid gap-4 sm:grid-cols-2">
                 <div className="block text-xs font-medium">
@@ -196,12 +201,11 @@ export function EntityEditor({
                         name="contactId"
                         label="고객"
                         initial={contactId ? [contactId] : []}
-                        known={[
-                            ...contacts,
-                            ...(contactId && contactName
-                                ? [{ id: contactId, name: contactName }]
-                                : []),
-                        ]}
+                        known={linkedOptions(contacts, {
+                            id: contactId,
+                            name: contactName,
+                            archivedAt: contactArchivedAt,
+                        })}
                     />
                 </div>
                 <div className="block text-xs font-medium">
@@ -212,12 +216,11 @@ export function EntityEditor({
                         name="companyId"
                         label="회사"
                         initial={companyId ? [companyId] : []}
-                        known={[
-                            ...companies,
-                            ...(companyId && companyName
-                                ? [{ id: companyId, name: companyName }]
-                                : []),
-                        ]}
+                        known={linkedOptions(companies, {
+                            id: companyId,
+                            name: companyName,
+                            archivedAt: companyArchivedAt,
+                        })}
                     />
                 </div>
                 <Field label="담당자">
