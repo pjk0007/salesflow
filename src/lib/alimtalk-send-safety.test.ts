@@ -136,13 +136,13 @@ test("UX-174: 처리 중은 pending 유지, terminal COMPLETED만 배달 성공�
     const orgId = "00000000-0000-4000-8000-000000000001";
     for (const [messageStatus, resultCode, expected] of [["SENDING", "1000", undefined], ["COMPLETED", "1000", "sent"], ["FAILED", "3000", "failed"], ["CANCEL", "0", "failed"]] as const) await t.test(messageStatus, async t => {
         const { calls } = installFakeDb(t, db, c => {
-            if (isMembershipLookup(c)) return [{ role: "admin", tokenVersion: 0, isSuperAdmin: 0 }];
+            if (isMembershipLookup(c)) return [{ role: "admin", membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }];
             if (c.table === "alimtalk_configs") return [{ appKey: "fake", secretKey: "fake" }];
             if (c.op === "select" && c.table === "alimtalk_send_logs") return [{ id: 1, orgId, requestId: "fake", recipientSeq: 1, status: "pending" }];
             return [];
         });
         t.mock.method(globalThis, "fetch", async () => Response.json({ header, message: { messageStatus, resultCode, resultCodeName: "가상" } }));
-        const token = generateToken({ userId: "00000000-0000-4000-8000-000000000002", orgId, role: "admin", tokenVersion: 0, name: "가상", email: "fake@example.test" });
+        const token = generateToken({ userId: "00000000-0000-4000-8000-000000000002", orgId, role: "admin", membershipId: 71, tokenVersion: 0, name: "가상", email: "fake@example.test" });
         const response = await POST(new NextRequest("https://example.test/api/alimtalk/logs/sync", { method: "POST", headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}" }));
         assert.equal(response.status, 200);
         assert.equal((calls.find(c => c.op === "update")?.set as { status?: string } | undefined)?.status, expected);

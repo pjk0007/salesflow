@@ -11,7 +11,7 @@ async function fixture(t: TestContext, options: { lostResponse?: boolean; logFai
     const { POST } = await import("../app/api/email/send/route");
     let posts = 0, nextLog = 0;
     const { calls } = installFakeDb(t, db, (c: FakeCall) => {
-        if (isMembershipLookup(c)) return [{ role: "admin", tokenVersion: 0, isSuperAdmin: 0 }];
+        if (isMembershipLookup(c)) return [{ role: "admin", membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }];
         if (c.table === "email_configs") return [{ fromEmail: "sender@example.test", fromName: "가상", appKey: "fake", secretKey: "fake", isActive: 1 }];
         if (c.op === "select" && c.table === "email_template_links") return [{ email_template_links: { id: 7, partitionId: 3, emailTemplateId: 9, recipientField: "email", variableMappings: {} }, workspaces: { id: 2 } }];
         if (c.op === "select" && c.table === "partitions") return [{ partition: { id: 3, workspaceId: 2 }, workspace: { id: 2, orgId } }];
@@ -30,7 +30,7 @@ async function fixture(t: TestContext, options: { lostResponse?: boolean; logFai
         if (posts === 2 && options.lostResponse) throw new Error("fake accepted then disconnected");
         return Response.json({ header: { isSuccessful: true, resultCode: 0, resultMessage: "접수" }, body: { data: { requestId: `fake-${posts}`, results: [{ resultCode: 0 }] } } });
     });
-    const token = generateToken({ userId, orgId, name: "가상", email: "staff@example.test", role: "admin", tokenVersion: 0 });
+    const token = generateToken({ userId, orgId, name: "가상", email: "staff@example.test", role: "admin", membershipId: 71, tokenVersion: 0 });
     const run = () => POST(new NextRequest("https://example.test/api/email/send", { method: "POST", headers: { authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ templateLinkId: 7, recordIds: [1, 2, 3] }) }));
     return { run, calls, posts: () => posts };
 }
@@ -82,14 +82,14 @@ test("UX-139: 활성/중지/초안 수정 상태 전이", async t => {
     isolateEnv(t);
     const { db } = await import("./db"), { generateToken } = await import("./auth");
     const { PUT } = await import("../app/api/email/auto-personalized/[id]/route");
-    const token = generateToken({ userId, orgId, name: "가상", email: "staff@example.test", role: "admin", tokenVersion: 0 });
+    const token = generateToken({ userId, orgId, name: "가상", email: "staff@example.test", role: "admin", membershipId: 71, tokenVersion: 0 });
     for (const [active, draft, body, expected] of [
         [0, 0, { prompt: "수정", isDraft: 0 }, undefined], [1, 0, { prompt: "수정", isDraft: 0 }, undefined],
         [0, 1, { prompt: "수정", isDraft: 1 }, 0], [0, 1, { isDraft: 0 }, 1],
         [0, 1, { isDraft: 0, isActive: 0 }, 0], [1, 0, { isDraft: 1 }, 0],
     ] as const) await t.test(JSON.stringify([active, draft, body]), async t => {
         const { calls } = installFakeDb(t, db, c => {
-            if (isMembershipLookup(c)) return [{ role: "admin", tokenVersion: 0, isSuperAdmin: 0 }];
+            if (isMembershipLookup(c)) return [{ role: "admin", membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }];
             if (c.op === "select" && c.table === "email_auto_personalized_links") return [{ id: 7, orgId, partitionId: 3, isActive: active, isDraft: draft }];
             if (c.op === "update") return [{ id: 7 }];
             return [];
