@@ -5,7 +5,6 @@ export const envelopeLabels: Record<EnvelopeState, string> = { draft: "작성 �
 export const deliveryLabels: Record<JobState, string> = { blocked: "순서 대기", pending: "발송 대기", processing: "처리 중", accepted: "접수됨", failed: "실패", unknown: "확인 필요", cancelled: "취소됨" };
 export const roleColors = ["#2563eb", "#9333ea", "#c2410c", "#15803d", "#be185d"];
 export function displayDate(value: string) { return new Date(value).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short" }); }
-export function localDateTimeValue(days: number) { const date = new Date(Date.now() + days * 86400000); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`; }
 export function clamp(value: number, min: number, max: number) { return Math.max(min, Math.min(max, value)); }
 
 export const channelLabels: Record<EsignChannel, string> = { email: "이메일", alimtalk: "알림톡", sms: "SMS" };

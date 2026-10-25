@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, ArrowRight, Check, FileUp, Plus, Save, Send, Trash2 } from "lucide-react";
 import { esignApi, EsignApiError, type EsignStatus } from "../api/client";
-import { clamp, displayDate, fieldLabels, localDateTimeValue, roleColors } from "../utils/presentation";
+import { clamp, displayDate, fieldLabels, roleColors } from "../utils/presentation";
+import { localDateTimeValue } from "@/lib/utils";
 import { AlimtalkReadiness } from "./AlimtalkReadiness";
 import { PdfViewer } from "./PdfViewer";
 
@@ -24,7 +25,7 @@ export function EsignComposer({ workspaceId, templates, documentsLoading, status
     const [selectedId, setSelectedId] = useState("");
     const [pageIndex, setPageIndex] = useState(0);
     const [order, setOrder] = useState<"parallel" | "sequential">("parallel");
-    const [expiresAt, setExpiresAt] = useState(localDateTimeValue(7));
+    const [expiresAt, setExpiresAt] = useState(() => localDateTimeValue(new Date(Date.now() + 7 * 86400000)));
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
