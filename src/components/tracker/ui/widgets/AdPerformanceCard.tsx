@@ -49,6 +49,8 @@ export function AdPerformanceCard({ siteId, range, filters }: Props) {
 
     const { data, isLoading, error, mutate } = useAdPerformance({ siteId, from: range.from, to: range.to, funnelId, ...filters });
 
+    const segmentActive = Boolean(filters && (filters.device || filters.channel || filters.channelMode !== "all"));
+
     const rows = useMemo(() => {
         const filtered = (data?.rows ?? []).filter((r) => platform === "all" || r.platform === platform);
         const dir = sortDesc ? -1 : 1;
@@ -118,9 +120,9 @@ export function AdPerformanceCard({ siteId, range, filters }: Props) {
 
             {data && rows.length === 0 && (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4 text-[12px] text-muted-foreground">
-                    {platform === "all"
-                        ? "이 기간에 광고 유입(구글·메타·네이버)이 없습니다."
-                        : `이 기간에 ${PLATFORM_FILTERS.find((f) => f.value === platform)?.label} 광고 유입이 없습니다.`}
+                    {filters?.channelMode === "organic"
+                        ? "‘자연만’ 조건에서는 광고 유입이 집계되지 않습니다. 광고 성과는 ‘전체’ 또는 ‘광고만’에서 확인하세요."
+                        : `${segmentActive ? "선택한 기기·채널 조건으로 " : ""}이 기간에 ${platform === "all" ? "광고 유입(구글·메타·네이버)" : `${PLATFORM_FILTERS.find((f) => f.value === platform)?.label} 광고 유입`}이 없습니다.`}
                 </div>
             )}
 
