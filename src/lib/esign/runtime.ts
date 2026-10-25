@@ -118,6 +118,11 @@ export const esignHttpDependencies: EsignHttpDependencies = {
         }
         return { enabled: cfg.enabled, emailReady, smsReady, alimtalkReady: alimtalk.ready, alimtalk, databaseReady, storageReady: cfg.storageReady && cfg.secret.length >= 32, issues };
     },
+    async organizationName(orgId) {
+        const [{ db, organizations }, { eq }] = await Promise.all([import("@/lib/db"), import("drizzle-orm")]);
+        const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+        return org?.name || undefined;
+    },
     async unsubscribedEmails(orgId, emails) {
         const { isOrganizationUnsubscribed } = await import("@/lib/email-unsubscribe");
         const checked = await Promise.all(emails.map(async email => ({ email, blocked: await isOrganizationUnsubscribed(orgId, email) })));

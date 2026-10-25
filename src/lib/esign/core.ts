@@ -114,7 +114,7 @@ export class EsignService {
         input.recipients.forEach((rawRecipient, index) => {
             const token = randomToken(), recipient: EsignRecipient = { ...rawRecipient, id: randomUUID(), envelopeId: id, index, state: "pending", tokenHash: tokenHash(token), otpAttempts: 0 };
             value.recipients.push(recipient);
-            for (const channel of recipient.channels) this.job(value, now, { kind: "invitation", state: "blocked", key: `invitation:${recipient.id}:${channel}`, recipientId: recipient.id, channel }, { token, email: recipient.email, phone: recipient.phone, name: recipient.name, title: input.title, expiresAt: value.envelope.expiresAt });
+            for (const channel of recipient.channels) this.job(value, now, { kind: "invitation", state: "blocked", key: `invitation:${recipient.id}:${channel}`, recipientId: recipient.id, channel }, { token, email: recipient.email, phone: recipient.phone, name: recipient.name, title: input.title, expiresAt: value.envelope.expiresAt, ...(actor.orgName?.trim() ? { orgName: actor.orgName.trim().slice(0, 50) } : {}) });
         });
         event(value, "envelope.created", now, { actorId: actor.userId }, { sourceSha256: document.artifact.sha256, documentVersion: document.version });
         await this.repository.create(value); return detail(value);

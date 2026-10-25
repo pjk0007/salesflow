@@ -5,7 +5,8 @@ export type EnvelopeState = "draft" | "pending" | "finalizing" | "completed" | "
 export type RecipientState = "pending" | "signed" | "rejected";
 export type JobState = "blocked" | "pending" | "processing" | "accepted" | "failed" | "unknown" | "cancelled";
 export type JobKind = "invitation" | "otp" | "finalize" | "completed";
-export type EsignActor = { orgId: string; workspaceId: number; userId: string; name: string };
+/** orgName은 서명 요청 안내의 '요청한 곳' 표시용(요청 생성 경로에서만 채운다). */
+export type EsignActor = { orgId: string; workspaceId: number; userId: string; name: string; orgName?: string };
 export type EsignArtifact = { key: string; sha256: string; size: number; contentType: "application/pdf" | "image/png" };
 export type EsignPage = PdfPage;
 export type EsignField = {
@@ -43,7 +44,7 @@ export type EsignJob = {
     state: JobState; key: string; encryptedPayload?: string; attempts: number; availableAt: string;
     leaseId?: string; leaseUntil?: string; providerId?: string; error?: string; createdAt: string; updatedAt: string;
 };
-export type DeliveryPayload = { token?: string; code?: string; otpChallenge?: string; email?: string; phone?: string; name?: string; title?: string; expiresAt?: string };
+export type DeliveryPayload = { token?: string; code?: string; otpChallenge?: string; email?: string; phone?: string; name?: string; title?: string; expiresAt?: string; orgName?: string };
 export type PublicRecipient = Pick<EsignRecipient, "id" | "index" | "name" | "state" | "channels" | "signedAt"> & { maskedEmail?: string; maskedPhone?: string };
 export type PublicEsignSession = {
     envelope: Pick<EsignEnvelope, "id" | "title" | "state" | "order" | "expiresAt" | "completedAt">;

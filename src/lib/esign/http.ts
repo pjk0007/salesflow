@@ -18,6 +18,8 @@ export type EsignHttpDependencies = {
     prefill(request: Request, actor: EsignActor, params: URLSearchParams): Promise<EsignRecipientInput>;
     /** 조직 수신거부 목록에 있는 주소(입력 그대로). 공통 발송 가드가 막을 주소를 요청 생성 전에 알리기 위함. */
     unsubscribedEmails?(orgId: string, emails: string[]): Promise<string[]>;
+    /** 서명 요청 안내의 '요청한 곳'(조직 표시명). 실패하면 생략한다. */
+    organizationName?(orgId: string): Promise<string | undefined>;
 };
 const HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 const result = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers: HEADERS });
@@ -192,7 +194,8 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
                 const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "alimtalk", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);
                 for (const channel of new Set(recipients.flatMap(r => r.channels))) await assertDeliveryReady(delivery, channel, actor.orgId, "staff");
                 await assertNotUnsubscribed(dependencies, actor.orgId, recipients);
-                const created = await service.createEnvelope(actor, input);
+                const orgName = await dependencies.organizationName?.(actor.orgId).catch(() => undefined);
+                const created = await service.createEnvelope({ ...actor, ...(orgName ? { orgName } : {}) }, input);
                 const detail = await service.dispatchEnvelope(actor, created.envelope.id); kick(engine); return result(detail, 201);
             }
             if (id && !action && method === "GET") return result(await service.getEnvelope(actor, id));

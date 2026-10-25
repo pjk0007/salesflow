@@ -452,3 +452,14 @@ test("UX-226: 서명을 마친 서명자·만료·완료 요청은 다시 보내
     late.advance(2 * 86400000);
     await assert.rejects(late.service.resendInvitation(actor, late.id, { jobId: lateJob.id }), (e: EsignError) => e.status === 410);
 });
+
+test("UX-262: 초대 작업 payload에 요청 조직명과 기한을 담고, 조직명을 모르면 생략한다", async () => {
+    const repository = new MemoryEsignRepository(), service = new EsignService({ repository, secret, clock: () => new Date("2026-10-18T01:00:00.000Z") });
+    const doc = await service.createDocument(actor, documentInput());
+    const request = { documentId: doc.id, title: "가상 계약", order: "parallel" as const, expiresAt: "2026-10-19T01:00:00.000Z", recipients: [{ name: "가상 고객", email: "fake@example.invalid", channels: ["email" as const] }] };
+    const named = await service.createEnvelope({ ...actor, orgName: " 가상 상사 " }, request);
+    const payload = service.decodeJob((await repository.read(named.envelope.id))!.jobs[0]);
+    assert.equal(payload.orgName, "가상 상사"); assert.equal(payload.expiresAt, "2026-10-19T01:00:00.000Z");
+    const unnamed = await service.createEnvelope(actor, request);
+    assert.equal(service.decodeJob((await repository.read(unnamed.envelope.id))!.jobs[0]).orgName, undefined);
+});
