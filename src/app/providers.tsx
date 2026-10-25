@@ -6,6 +6,7 @@ import { SWRConfig, useSWRConfig } from "swr";
 import { ThemeProvider } from "next-themes";
 import { SessionProvider, useSession } from "@/contexts/SessionContext";
 import { createSwrErrorHandlers } from "@/lib/swr-fetcher";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function SwrErrorConfig({ children }: { children: React.ReactNode }) {
     const { cache } = useSWRConfig();
@@ -21,13 +22,19 @@ function SwrErrorConfig({ children }: { children: React.ReactNode }) {
     return <SWRConfig value={value}>{children}</SWRConfig>;
 }
 
+// 좁은 화면에서는 위쪽 전체 폭 토스트가 헤더·[건너뛰기]·발송 버튼을 몇 초간 덮어 클릭이 막힌다 — 아래로 내린다 (UX-004, 화면 확인 R5)
+function AppToaster() {
+    const isMobile = useIsMobile();
+    return <Toaster position={isMobile ? "bottom-center" : "top-right"} richColors />;
+}
+
 export default function Providers({ children }: { children: React.ReactNode }) {
     return (
         <SessionProvider>
             <SwrErrorConfig>
                 <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
                     {children}
-                    <Toaster position="top-right" richColors />
+                    <AppToaster />
                 </ThemeProvider>
             </SwrErrorConfig>
         </SessionProvider>
