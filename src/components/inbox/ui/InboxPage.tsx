@@ -35,6 +35,7 @@ import { toast } from "sonner";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { connectionResultMessage, connectionSucceeded } from "@/components/inbox-email/utils/connection-result";
 import { moveInboxDraft } from "../utils/draft-storage";
+import { mailboxAlert } from "@/components/inbox-email/utils/mailbox-alert";
 const listDate = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" });
 export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
     const params = useSearchParams();
@@ -125,8 +126,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const mailboxes = useEmailMailboxes(channel?.workspaceId ?? null);
-    const reconnectCount = mailboxes.data?.filter((box) => box.connectionStatus === "reconnect").length ?? 0;
-    const mailWorkerStopped = mailboxes.data?.some((box) => box.connectionStatus === "connected" && box.enabled && box.workerEnabled === false);
+    const { reconnectCount, workerStopped: mailWorkerStopped } = mailboxAlert(mailboxes.data);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
     const accessDenied = [
         initial.bootstrap.error,

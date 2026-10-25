@@ -30,6 +30,7 @@ import {
 } from "@/components/customer-conversations/utils/presentation";
 import { mergeCustomerDraftText } from "@/components/customer-conversations/utils/draft-text";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { isWidgetAccessDenied } from "../utils/widget-errors";
 type PendingMessage = { body: string; id: string; files: string };
 type ConversationDraft = {
     text: string;
@@ -267,15 +268,13 @@ export function ChatWidget({
         {
             refreshInterval: opened ? 3000 : 15000,
             refreshWhenHidden: false,
-            shouldRetryOnError: (error) => !(error instanceof InboxRequestError && [401, 403, 404].includes(error.status)),
+            shouldRetryOnError: (error) => !isWidgetAccessDenied(error),
         },
     );
     const currentResolved =
         data.data?.sessionToken === token &&
         data.data?.configurationNonce === (configuration?.nonce ?? 0);
-    const detailAccessDenied =
-        data.error instanceof InboxRequestError &&
-        [401, 403, 404].includes(data.error.status);
+    const detailAccessDenied = isWidgetAccessDenied(data.error);
     const detailResolved =
         currentResolved &&
         !detailAccessDenied &&
