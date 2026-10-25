@@ -5,7 +5,7 @@ import { NextRequest } from "next/server";
 import { installFakeDb, isolateEnv, isMembershipLookup } from "./auth-fake-db.test-helper";
 const orgId = "00000000-0000-4000-8000-000000000001", userId = "00000000-0000-4000-8000-000000000002";
 
-test("UX-155: 현재 member/manager는 설정 쓰기 금지, admin/owner만 허용", async t => {
+test("UX-155: member는 쓰기 금지, 미정의 역할은 인증 거부, admin/owner만 허용", async t => {
     for (const role of ["member", "manager", "admin", "owner"] as const) for (const existing of [true, false]) await t.test(`${role}/${existing ? "변경" : "생성"}`, async t => {
         isolateEnv(t);
         const { db } = await import("./db"), { generateToken } = await import("./auth");
@@ -23,10 +23,12 @@ test("UX-155: 현재 member/manager는 설정 쓰기 금지, admin/owner만 허�
         const headers = { authorization: `Bearer ${token}`, "Content-Type": "application/json" };
         const response = await POST(new NextRequest("https://example.test/api/email/config", { method: "POST", headers, body: JSON.stringify({ appKey: "fake-replacement", secretKey: "fake-replacement-secret" }) }));
         const allowed = role === "admin" || role === "owner";
-        assert.equal(response.status, allowed ? (existing ? 200 : 201) : 403);
+        // 공통 인증 계약에서 manager는 OrgRole이 아니므로 세션 자체가 무효다.
+        const invalidRole = role === "manager";
+        assert.equal(response.status, allowed ? (existing ? 200 : 201) : invalidRole ? 401 : 403);
         assert.equal(calls.filter(c => c.op === "update" || c.op === "insert").length, allowed ? 1 : 0);
-        if (!allowed) assert.match((await response.json()).error, /관리자/);
-        assert.equal((await GET(new NextRequest("https://example.test/api/email/config", { headers }))).status, 200);
+        if (role === "member") assert.match((await response.json()).error, /관리자/);
+        assert.equal((await GET(new NextRequest("https://example.test/api/email/config", { headers }))).status, invalidRole ? 401 : 200);
     });
 });
 
