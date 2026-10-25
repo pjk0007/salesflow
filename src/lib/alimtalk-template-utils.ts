@@ -82,6 +82,11 @@ export function extractAllTemplateVariables(
     return extractTemplateVariables(allText);
 }
 
+/** 발송 API templateParameter 키(#{...}를 벗긴 이름) — 템플릿 모든 노출 영역 기준, 중복 제거 */
+export function extractTemplateParameterKeys(template: VariableExtractable | null | undefined): string[] {
+    return extractAllTemplateVariables(template).map((v) => v.slice(2, -1));
+}
+
 export interface AlimtalkFollowupStep {
     delayDays?: number; delayHours?: number; delayMinutes?: number;
     senderKey?: string; templateCode: string; variableMappings?: Record<string, string>;

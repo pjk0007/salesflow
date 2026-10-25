@@ -111,11 +111,7 @@ export default function TemplateList() {
     } | null>(null);
 
     // 테스트 발송
-    const [testSendTemplate, setTestSendTemplate] = useState<{
-        senderKey: string;
-        templateCode: string;
-        templateContent: string;
-    } | null>(null);
+    const [testSendTemplate, setTestSendTemplate] = useState<NhnTemplate | null>(null);
 
     // 삭제 확인
     const [deleteTarget, setDeleteTarget] = useState<{ senderKey: string; templateCode: string; templateName: string } | null>(null);
@@ -348,11 +344,7 @@ export default function TemplateList() {
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             disabled={!isApproved}
-                                                            onClick={() => setTestSendTemplate({
-                                                                senderKey: tpl.senderKey,
-                                                                templateCode: tpl.templateCode,
-                                                                templateContent: tpl.templateContent,
-                                                            })}
+                                                            onClick={() => setTestSendTemplate(tpl)}
                                                         >
                                                             <SendHorizontal className="h-4 w-4 mr-2" /> 테스트 발송
                                                         </DropdownMenuItem>
@@ -383,9 +375,7 @@ export default function TemplateList() {
                 <TestSendDialog
                     open={!!testSendTemplate}
                     onOpenChange={() => setTestSendTemplate(null)}
-                    senderKey={testSendTemplate.senderKey}
-                    templateCode={testSendTemplate.templateCode}
-                    templateContent={testSendTemplate.templateContent}
+                    template={testSendTemplate}
                 />
             )}
 
