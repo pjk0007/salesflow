@@ -86,7 +86,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             if (request !== sessionRequest.current) return;
 
             if (data.success) {
-                const nextIdentity = `${data.user.orgId}:${data.user.userId}`;
+                // 같은 조직에 다시 참여하거나 권한이 바뀐 세션도 이전 권한의 캐시를 재사용하지 않는다.
+                const nextIdentity = [data.user.orgId, data.user.userId, data.user.membershipId,
+                    data.user.tokenVersion, data.user.role, data.user.isSuperAdmin === true].join(":");
                 if (cacheIdentity.current && cacheIdentity.current !== nextIdentity) {
                     // 조직이 바뀌면 SWR 전역 캐시와 페이지 자체 상태를 함께 비운다.
                     // 여러 소비자가 전역 mutate를 사용하므로 일부 화면만 새 provider로 감싸지 않는다.
