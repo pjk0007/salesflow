@@ -282,7 +282,17 @@ export class EsignService {
                 const recipient = value.recipients.find((r) => r.id === stored.recipientId);
                 if (valid && stored.kind === "invitation") valid = value.envelope.state === "pending" && recipient?.state === "pending" && !recipientWaiting(value.envelope, value.recipients, recipient);
                 if (valid && stored.kind === "otp") {
-                    const payload = this.decodeJob(stored);
+                    let payload: DeliveryPayload;
+                    try { payload = this.decodeJob(stored); }
+                    catch {
+                        // claim 단계는 공급자 호출 전이다. 손상된 OTP는 불명 발송으로 복구하지 않는다.
+                        stored.state = "failed";
+                        stored.error = "확인 코드 내용을 확인하지 못해 보내지 않았습니다.";
+                        stored.updatedAt = at(now);
+                        delete stored.encryptedPayload; delete stored.leaseId; delete stored.leaseUntil;
+                        event(value, "delivery.result", now, { recipientId: stored.recipientId }, { jobId: stored.id, channel: stored.channel, state: stored.state });
+                        return false;
+                    }
                     valid = !!recipient?.otpExpiresAt && new Date(recipient.otpExpiresAt) > now && recipient.otpChallenge === payload.otpChallenge;
                 }
                 if (!valid && stored.state === "processing") {
@@ -343,6 +353,24 @@ export class EsignService {
             }
             for (const invitation of value.jobs) if (invitation.kind === "invitation") delete invitation.encryptedPayload;
             event(value, "envelope.completed", now, {}, { sourceSha256: value.envelope.document.artifact.sha256, finalSha256: artifact.sha256 }); return detail(value);
+        });
+    }
+    async retryFinalization(actor: EsignActor, envelopeId: string) {
+        const now = this.clock();
+        return this.repository.mutate(envelopeId, (value) => {
+            authorize(actor, value);
+            // 저장 뒤 응답을 잃은 재시도는 이미 완료된 결과를 그대로 반환한다.
+            if (value.envelope.state === "completed" && value.envelope.finalArtifact) return detail(value);
+            if (value.envelope.state !== "finalizing" || value.envelope.finalArtifact || !value.recipients.every(r => r.state === "signed"))
+                throw new EsignError("완료 PDF를 다시 생성할 수 없는 요청입니다.", 409);
+            const job = value.jobs.find(j => j.kind === "finalize");
+            if (!job) throw new EsignError("완료 PDF 작업을 찾을 수 없습니다.", 409);
+            if (["pending", "processing"].includes(job.state)) return detail(value);
+            if (job.state !== "failed") throw new EsignError("완료 PDF 작업의 상태를 확인해주세요.", 409);
+            job.state = "pending"; job.attempts = 0; job.availableAt = at(now); job.updatedAt = at(now);
+            delete job.error; delete job.leaseId; delete job.leaseUntil;
+            event(value, "envelope.finalization_retried", now, { actorId: actor.userId });
+            return detail(value);
         });
     }
     async failFinalization(jobId: string, envelopeId: string, leaseId: string) {

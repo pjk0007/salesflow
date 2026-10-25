@@ -139,6 +139,7 @@ export interface NhnMessageResult {
     createDate: string;
     resultCode: string;
     resultCodeName: string;
+    messageStatus?: string;
     buttons?: NhnTemplateButton[];
 }
 
@@ -199,7 +200,7 @@ export class NhnAlimtalkClient {
     private appKey: string;
     private secretKey: string;
 
-    constructor(appKey: string, secretKey: string) {
+    constructor(appKey: string, secretKey: string, private options: { timeoutMs?: number } = {}) {
         this.appKey = appKey;
         this.secretKey = secretKey;
     }
@@ -212,6 +213,7 @@ export class NhnAlimtalkClient {
         const url = `${this.baseUrl}${path.replace("{appkey}", this.appKey)}`;
         const res = await fetch(url, {
             method,
+            signal: AbortSignal.timeout(this.options.timeoutMs ?? 10_000),
             headers: {
                 "Content-Type": "application/json",
                 "X-Secret-Key": this.secretKey,

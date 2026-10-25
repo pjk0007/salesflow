@@ -66,6 +66,7 @@ export function DomainEditor({
             <CardContent>
                 <p className="text-sm text-muted-foreground mb-3">
                     이 도메인에서만 트래커 데이터 수집이 허용됩니다.
+                    하위 도메인(shop.example.com 등)은 각각 추가하세요. www는 함께 허용됩니다.
                 </p>
                 <div className="space-y-2">
                     {domains.map((d) => (

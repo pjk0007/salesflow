@@ -1,4 +1,21 @@
 import { emailAddress } from "./rules";
+import { InboxError } from "@/lib/inbox/errors";
+
+/** 다른 사업의 봉투·본문을 기본 메일함에 저장하기 전에 거부한다. */
+export class OtherMailboxRecipientError extends InboxError {
+    constructor() { super("다른 사업 문의 주소로 수신한 메일입니다.", 409); }
+}
+
+export function isOtherMailboxRecipient(
+    box: { address: string; googleAccount?: string | null },
+    input: { to: string[]; cc: string[]; deliveredTo?: string[] },
+    otherAddresses: string[],
+) {
+    if (box.address !== googleAccountAddress(box)) return false;
+    const explicit = [...input.to, ...input.cc];
+    return !explicit.includes(box.address) &&
+        explicit.some((address) => otherAddresses.includes(address));
+}
 
 export function googleAccountAddress(box: {
     address: string;

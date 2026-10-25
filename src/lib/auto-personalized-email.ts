@@ -1,3 +1,4 @@
+import { classifyEmailSubmission } from "./nhn-submit-result";
 import { db, emailAutoPersonalizedLinks, emailAssets, emailSendLogs, records, products } from "@/lib/db";
 import { eq, and, gte, inArray } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, appendSignature } from "@/lib/nhn-email";
@@ -158,7 +159,7 @@ export async function processAutoPersonalizedEmail(
         // 잡은 발신 자리. sendEachMail을 부르기 전에 끝나면 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
         let slot: SenderSlot | null = null;
         let sendAttempted = false;
-        let sendCompleted = false;
+        let submissionStatus: "sent" | "failed" | "unknown" | null = null;
         let preparedLogId: number | null = null;
         let createdLogId: number | null = null;
         let planned: Extract<PreparationReservation, { kind: "reserved" }> | null = null;
@@ -169,6 +170,12 @@ export async function processAutoPersonalizedEmail(
                 outcomes.push({ kind: "skipped", linkId: link.id, reason: "condition_not_met" });
                 continue;
             }
+
+            const [unresolved] = await db.select({ id: emailSendLogs.id }).from(emailSendLogs).where(and(
+                eq(emailSendLogs.orgId, orgId), eq(emailSendLogs.recordId, record.id), eq(emailSendLogs.autoPersonalizedLinkId, link.id),
+                inArray(emailSendLogs.status, ["pending", "unknown", "uncertain"]),
+            )).limit(1);
+            if (unresolved) { outcomes.push({ kind: "skipped", linkId: link.id, reason: "delivery_uncertain" }); continue; }
 
             // 3. 쿨다운 체크
             const canSend = await checkCooldown(record.id);
@@ -530,18 +537,18 @@ export async function processAutoPersonalizedEmail(
                     ? { customHeaders: buildListUnsubscribeHeaders(unsubscribeToken) }
                     : {}),
             });
-            sendCompleted = true;
 
             const sendResult = nhnResult.data?.results?.[0];
-            const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+            submissionStatus = classifyEmailSubmission(nhnResult);
+            const isSuccess = submissionStatus === "sent";
             // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다. 로그 갱신보다 먼저 해야 갱신이 던져도 돌려준다
-            if (!isSuccess) await releaseSenderSlot(slot);
-            if (planned) await finishPreparedDelivery(planned.row.id, isSuccess ? "sent" : "ready");
+            if (submissionStatus === "failed") await releaseSenderSlot(slot);
+            if (planned) await finishPreparedDelivery(planned.row.id, isSuccess ? "sent" : submissionStatus === "failed" ? "ready" : "uncertain");
 
             await db.update(emailSendLogs)
                 .set({
                     requestId: nhnResult.data?.requestId,
-                    status: isSuccess ? "sent" : "failed",
+                    status: submissionStatus,
                     resultCode: sendResult ? String(sendResult.resultCode) : null,
                     resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
                 })
@@ -551,6 +558,8 @@ export async function processAutoPersonalizedEmail(
             console.log(`[AutoEmail] Rule ${link.id}: ${isSuccess ? "sent" : "failed"} to ${email}`);
             if (isSuccess) {
                 outcomes.push({ kind: "sent", linkId: link.id });
+            } else if (submissionStatus === "unknown") {
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "delivery_uncertain" });
             } else {
                 outcomes.push({
                     kind: "failed",
@@ -584,7 +593,14 @@ export async function processAutoPersonalizedEmail(
                     .where(eq(emailSendLogs.id, preparedLogId));
                 await finishPreparedDelivery(planned.row.id, "ready");
             }
-            if (planned && sendAttempted && !sendCompleted) await finishPreparedDelivery(planned.row.id, "uncertain");
+            if (sendAttempted && submissionStatus !== "failed") {
+                try {
+                    if (createdLogId) await db.update(emailSendLogs).set({ status: "unknown", resultMessage: "접수 결과 확인 필요. 자동 재발송하지 않았습니다." }).where(eq(emailSendLogs.id, createdLogId));
+                    if (planned) await finishPreparedDelivery(planned.row.id, "uncertain");
+                } catch { /* 기존 pending/sending을 보존해 다음 진입에서 재발송을 막는다. */ }
+                outcomes.push({ kind: "skipped", linkId: link.id, reason: "delivery_uncertain" });
+                continue;
+            }
             if (err instanceof CopyDeferredError && !sendAttempted) {
                 outcomes.push(err.reason === "작업 취소"
                     ? { kind: "skipped", linkId: link.id, reason: "copy_cancelled" }

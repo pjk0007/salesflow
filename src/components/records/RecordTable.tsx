@@ -75,11 +75,12 @@ export default function RecordTable({
     const allSelected = records.length > 0 && records.every((r) => selectedIds.has(r.id));
 
     const toggleAll = () => {
-        if (allSelected) {
-            onSelectionChange(new Set());
-        } else {
-            onSelectionChange(new Set(records.map((r) => r.id)));
+        const next = new Set(selectedIds);
+        for (const record of records) {
+            if (allSelected) next.delete(record.id);
+            else next.add(record.id);
         }
+        onSelectionChange(next);
     };
 
     const toggleOne = (id: number) => {

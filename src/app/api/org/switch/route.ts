@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         };
 
         const response = NextResponse.json({ success: true, user: payload });
-        setSessionCookie(response, payload);
+        await setSessionCookie(response, payload);
         return response;
     } catch (error) {
         console.error("Org switch error:", error);

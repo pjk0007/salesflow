@@ -13,10 +13,13 @@ import { useAdPerformance } from "../../hooks/useAdPerformance";
 import { useTrackerFunnels } from "../../hooks/useTrackerFunnels";
 import { PlatformIcon } from "./PlatformIcon";
 import type { AdPerformanceRow } from "../../types/ad-performance";
+import type { SegmentFilters } from "../../types/overview";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 interface Props {
     siteId: number;
     range: { from: string; to: string };
+    filters?: SegmentFilters;
 }
 
 type Platform = AdPerformanceRow["platform"];
@@ -37,14 +40,14 @@ function formatPct(rate: number): string {
  * 광고 그룹별 전환 성과 — 광고 단위(플랫폼별 최대 해상도)로 방문자·전환·전환율.
  * 전환 = 선택한 퍼널의 마지막 단계 도달. 플랫폼 필터 + 컬럼 정렬 지원.
  */
-export function AdPerformanceCard({ siteId, range }: Props) {
+export function AdPerformanceCard({ siteId, range, filters }: Props) {
     const { funnels } = useTrackerFunnels(siteId);
     const [funnelId, setFunnelId] = useState<number | null>(null);
     const [platform, setPlatform] = useState<Platform | "all">("all");
     const [sortKey, setSortKey] = useState<SortKey>("visitors");
     const [sortDesc, setSortDesc] = useState(true);
 
-    const { data, isLoading } = useAdPerformance({ siteId, from: range.from, to: range.to, funnelId });
+    const { data, isLoading, error, mutate } = useAdPerformance({ siteId, from: range.from, to: range.to, funnelId, ...filters });
 
     const rows = useMemo(() => {
         const filtered = (data?.rows ?? []).filter((r) => platform === "all" || r.platform === platform);
@@ -111,6 +114,7 @@ export function AdPerformanceCard({ siteId, range }: Props) {
             </div>
 
             {isLoading && !data && <p className="text-xs text-muted-foreground">불러오는 중…</p>}
+            {error && !data && <QueryErrorState error={error} onRetry={() => mutate()} />}
 
             {data && rows.length === 0 && (
                 <div className="rounded-md border border-dashed bg-muted/30 p-4 text-[12px] text-muted-foreground">
@@ -121,7 +125,7 @@ export function AdPerformanceCard({ siteId, range }: Props) {
             )}
 
             {data && rows.length > 0 && (
-                <div className="rounded-md border text-xs">
+                <div className="overflow-x-auto rounded-md border text-xs">
                     <table className="w-full">
                         <thead className="bg-muted/50">
                             <tr>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
@@ -35,6 +35,7 @@ export default function EditWebFormPage() {
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const savingRef = useRef(false);
     const [wsId, setWsId] = useState<number | null>(null);
     const [partitionId, setPartitionId] = useState<number | null>(null);
 
@@ -88,6 +89,7 @@ export default function EditWebFormPage() {
                     setFormFields(
                         (form.fields || []).map((f: any) => ({
                             tempId: crypto.randomUUID(),
+                            id: f.id,
                             label: f.label,
                             description: f.description || "",
                             placeholder: f.placeholder || "",
@@ -110,8 +112,10 @@ export default function EditWebFormPage() {
     }, [formId]);
 
     const handleSave = useCallback(async () => {
-        if (!formId) return;
+        if (!formId || savingRef.current) return;
+        savingRef.current = true;
         setSaving(true);
+        try {
         const result = await updateForm(formId, {
             name: formName,
             title: formTitle,
@@ -124,6 +128,7 @@ export default function EditWebFormPage() {
             coverColor,
             defaultValues,
             fields: formFields.map((f) => ({
+                id: f.id,
                 label: f.label,
                 description: f.description,
                 placeholder: f.placeholder,
@@ -134,11 +139,18 @@ export default function EditWebFormPage() {
             })),
         });
         if (result.success) {
+            const ids = new Map(formFields.map((f, i) => [f.tempId, result.data.fields[i]?.id as number | undefined]));
+            setFormFields((current) => current.map((f) => ({ ...f, id: ids.get(f.tempId) ?? f.id })));
             toast.success("폼이 저장되었습니다.");
         } else {
             toast.error(result.error || "저장에 실패했습니다.");
         }
-        setSaving(false);
+        } catch {
+            toast.error("폼 저장에 실패했습니다. 입력 내용은 유지됩니다. 다시 시도해주세요.");
+        } finally {
+            savingRef.current = false;
+            setSaving(false);
+        }
     }, [
         formId, formName, formTitle, formDescription,
         completionTitle, completionMessage, completionButtonText, completionButtonUrl,

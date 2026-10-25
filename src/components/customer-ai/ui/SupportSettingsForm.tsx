@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { toast } from "sonner";
 import type { SupportCatalog, SupportSettings } from "../types";
 export function SupportSettingsForm({
     catalog,
@@ -17,18 +18,24 @@ export function SupportSettingsForm({
         [error, setError] = useState("");
     const field =
         "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
+    const saving = useRef(false);
     return (
         <form
             className="space-y-4"
             onSubmit={async (e) => {
                 e.preventDefault();
+                if (saving.current || !canManage) return;
+                saving.current = true;
                 setBusy(true);
                 setError("");
                 try {
-                    setDraft(await onSave(draft));
+                    const saved = await onSave(draft);
+                    setDraft(saved);
+                    toast.success(`AI 응대 설정 v${saved.version}을 적용했습니다.`);
                 } catch (e) {
                     setError((e as Error).message);
                 } finally {
+                    saving.current = false;
                     setBusy(false);
                 }
             }}
@@ -102,6 +109,9 @@ export function SupportSettingsForm({
                         ))}
                     </select>
                 </label>
+                {draft.knowledgeVersionId && !catalog.knowledge.find((knowledge) => knowledge.id === draft.knowledgeVersionId)?.claims && (
+                    <p role="alert" className="text-sm text-amber-800">선택한 지식에 현재 사용할 수 있는 상담 근거가 없습니다. 확인일과 승인 상태를 검토해주세요.</p>
+                )}
                 <label className="block text-xs">
                     AI 모델
                     <select
@@ -152,6 +162,9 @@ export function SupportSettingsForm({
                         <option value="">
                             담당자 미지정 · 수신함에서 확인
                         </option>
+                        {draft.handoffAssigneeId && !members.some((member) => member.id === draft.handoffAssigneeId) && (
+                            <option value={draft.handoffAssigneeId} disabled>기존 담당자 (권한 없음)</option>
+                        )}
                         {members.map((m) => (
                             <option key={m.id} value={m.id}>
                                 {m.name}

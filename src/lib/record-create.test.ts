@@ -8,11 +8,11 @@ process.env.DATABASE_URL ??= "postgresql://test:test@127.0.0.1:1/test";
 const ORG = "00000000-0000-4000-8000-0000000000f4";
 const OTHER_ORG = "00000000-0000-4000-8000-0000000000f5";
 
-async function setup() {
+async function setup(queries?: Array<{ query: string; params: unknown[] }>) {
     const schema = await import("./db/schema");
     const { openPglite, insertRow } = await import("./db/pglite-harness.test-helper");
     const { drizzle } = await import("drizzle-orm/pglite");
-    const pg = await openPglite([schema.organizations, schema.workspaces, schema.partitions, schema.records, schema.fieldDefinitions]);
+    const pg = await openPglite([schema.organizations, schema.workspaces, schema.partitions, schema.records, schema.fieldDefinitions, schema.adLeadLogs]);
     await insertRow(pg, "organizations", { id: ORG, name: "가상 조직", slug: "f4-org", integrated_code_prefix: "SALES", integrated_code_seq: 11 });
     await insertRow(pg, "organizations", { id: OTHER_ORG, name: "다른 조직", slug: "f4-other", integrated_code_prefix: "OTHER", integrated_code_seq: 0 });
     await insertRow(pg, "workspaces", { id: 1, org_id: ORG, name: "가상 워크스페이스", default_field_type_id: 7 });
@@ -23,7 +23,7 @@ async function setup() {
     await insertRow(pg, "partitions", { id: 20, workspace_id: 1, name: "분배 끈 파티션", use_distribution_order: 0 });
     await insertRow(pg, "field_definitions", { field_type_id: 7, key: "status", label: "상태", field_type: "select", default_value: "신규" });
     await insertRow(pg, "field_definitions", { field_type_id: 7, key: "phone", label: "전화번호", field_type: "phone" });
-    const db = drizzle(pg, { schema });
+    const db = drizzle(pg, { schema, logger: queries ? { logQuery(query, params) { queries.push({ query, params }); } } : undefined });
     return { pg, db, schema };
 }
 
@@ -314,10 +314,85 @@ test("UX-046 체크박스 값 해석은 true·1·'true'·'1'만 참이다", asyn
     for (const v of [false, 0, "false", "FALSE", "0", "", null, undefined, "no"]) assert.equal(parseCheckboxValue(v), false, String(v));
 });
 
+test("UX-038 Meta 동시 재전송은 로그·레코드·후처리를 한 번만 만들고 실패 이력은 재처리를 허용한다", async () => {
+    const { pg, db } = await setup();
+    try {
+        const { createMetaLeadRecord, hasProcessedMetaLead } = await import("./meta-lead-record");
+        const { insertRow } = await import("./db/pglite-harness.test-helper");
+        const spy = spyEffects();
+        const deps = { db: db as never, effects: spy.effects as never };
+        const input = { orgId: ORG, partition: partitionInfo(20), data: { name: "Meta 재전송" } };
+        const lead = { integrationId: 7, leadgenId: "same-event", rawData: { name: "가상" } };
+        await insertRow(pg, "ad_lead_logs", { integration_id: 7, external_lead_id: lead.leadgenId, status: "failed" });
+        assert.equal(await hasProcessedMetaLead(db as never, 7, lead.leadgenId), false);
+        const outcomes = await Promise.all(Array.from({ length: 4 }, () => createMetaLeadRecord(input, lead, deps)));
+        assert.equal(outcomes.filter((r) => r?.status === "created").length, 1);
+        assert.equal(outcomes.filter((r) => r === null).length, 3);
+        assert.equal((await rows(pg, 20)).length, 1);
+        assert.equal(spy.calls.filter((c) => c.effect === "automation").length, 1);
+        assert.equal(spy.calls.filter((c) => c.effect === "chat").length, 1);
+        const { rows: logs } = await pg.query("SELECT id FROM ad_lead_logs WHERE status = 'success'");
+        assert.equal(logs.length, 1);
+        assert.equal(await hasProcessedMetaLead(db as never, 8, lead.leadgenId), false);
+    } finally { await pg.close(); }
+});
+
+test("UX-038 Meta 성공 로그 저장 실패는 생성도 롤백하고 재처리 시 후처리가 한 번만 실행된다", async () => {
+    const { pg, db } = await setup();
+    try {
+        const { createMetaLeadRecord } = await import("./meta-lead-record");
+        const spy = spyEffects();
+        const deps = { db: db as never, effects: spy.effects as never };
+        const input = { orgId: ORG, partition: partitionInfo(20), data: { name: "가상" } };
+        await assert.rejects(createMetaLeadRecord(input, { integrationId: 7, leadgenId: "log-failure", rawData: { invalid: BigInt(1) } as never }, deps));
+        assert.equal((await rows(pg, 20)).length, 0);
+        assert.equal(spy.calls.length, 0);
+        const retry = await createMetaLeadRecord(input, { integrationId: 7, leadgenId: "log-failure", rawData: {} }, deps);
+        assert.equal(retry?.status, "created");
+        assert.equal(spy.calls.filter((c) => c.effect === "automation").length, 1);
+    } finally { await pg.close(); }
+});
+
+test("UX-043 중복 기준이 숫자 0 또는 false여도 빈 값으로 건너뛰지 않는다", async () => {
+    const { pg, db } = await setup();
+    try {
+        const { createRecord } = await import("./record-create");
+        const spy = spyEffects();
+        const deps = { db: db as never, effects: spy.effects as never };
+        for (const value of [0, false]) {
+            const input = { orgId: ORG, partition: partitionInfo(20, { field: "key", action: "reject" }), data: { key: value }, source: "web_form" as const };
+            assert.equal((await createRecord(input, deps)).status, "created");
+            assert.equal((await createRecord(input, deps)).status, "duplicate");
+        }
+    } finally { await pg.close(); }
+});
+
 test("T10 기본값 병합 규칙: 입력 > 폼·연동 기본값 > 분배 기본값 > 필드 기본값, 빈 값은 채움 대상", async () => {
     const { buildCreateData } = await import("./record-create");
     assert.deepEqual(
         buildCreateData({ a: "입력", b: "", c: null }, { b: "폼", d: "폼" }, { b: "분배", c: "분배", d: "분배", e: "" }, { e: "필드", a: "필드" }),
         { a: "입력", b: "폼", c: "분배", d: "폼", e: "필드" }
     );
+});
+
+
+test("UX-071 가져오기 중복 조회는 입력값 2개만 반환하고 0·false를 병합하며 다른 필드는 유지한다", async () => {
+    const queries: Array<{ query: string; params: unknown[] }> = [];
+    const { pg, db } = await setup(queries);
+    try {
+        const { insertImportedRecords } = await import("./record-import");
+        await pg.query("INSERT INTO records (org_id,workspace_id,partition_id,data) SELECT $1,1,20,jsonb_build_object('key','unrelated-' || n) FROM generate_series(1,300) AS n", [ORG]);
+        for (const value of [0, false]) await pg.query("INSERT INTO records (org_id,workspace_id,partition_id,data) VALUES ($1,1,20,$2)", [ORG, JSON.stringify({ key: value, memo: "유지", name: "기존" })]);
+        queries.length = 0;
+        const result = await db.transaction((tx) => insertImportedRecords(tx as never, {
+            orgId: ORG, partition: partitionInfo(20, { field: "key", action: "merge" }),
+            dataRows: [{ key: 0, name: "수정0" }, { key: false, name: "수정false" }, { key: "new", name: "신규" }], codeExecutor: tx as never,
+        }));
+        assert.deepEqual([result.insertedCount, result.mergedCount], [1,2]);
+        const lookup = queries.find((q) => q.query.startsWith('select') && q.query.includes('from "records"'))!;
+        assert.equal((await pg.query(lookup.query, lookup.params)).rows.length, 3); // 새 행 1개 포함, 기존 중복 조회 당시에는 2개
+        assert.equal((await rows(pg,20)).length, 303);
+        const merged = (await rows(pg,20)).filter((r) => r.data.key === 0 || r.data.key === false);
+        assert.ok(merged.every((r) => r.data.memo === "유지" && String(r.data.name).startsWith("수정")));
+    } finally { await pg.close(); }
 });

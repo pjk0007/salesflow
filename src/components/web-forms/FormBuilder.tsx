@@ -42,6 +42,7 @@ const COVER_COLORS = [
 ];
 
 export interface FormFieldItem {
+    id?: number;
     tempId: string;
     label: string;
     description: string;

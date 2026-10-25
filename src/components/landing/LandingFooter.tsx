@@ -21,7 +21,7 @@ export default function LandingFooter() {
                 <div>
                     <h5 className="font-bold text-slate-900 mb-4">고객지원</h5>
                     <ul className="space-y-2">
-                        <li><Link href="/contact" className="text-sm text-slate-500 hover:text-blue-600 transition-colors">문의하기</Link></li>
+                        <li><Link href="mailto:support@sendb.com" className="text-sm text-slate-500 hover:text-blue-600 transition-colors">문의하기</Link></li>
                     </ul>
                 </div>
                 <div>

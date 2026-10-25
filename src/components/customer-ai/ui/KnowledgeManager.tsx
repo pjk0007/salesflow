@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { KnowledgeForm } from "@/components/ai-copy/ui/VersionForms";
 import { stateLabel } from "@/components/ai-copy/ui/Fields";
 import { kstParts } from "@/lib/kst";
+import { isUsableSupportClaim } from "@/lib/customer-ai/knowledge-validity";
 import { supportRequest, supportWrite } from "../api";
 import type { SupportKnowledge } from "../types";
 export function KnowledgeManager({
@@ -70,9 +71,11 @@ export function KnowledgeManager({
             </p>
             {data.error && (
                 <p role="alert" className="text-red-600">
-                    {data.error.message}
+                    {data.error.message}{" "}
+                    <button onClick={() => void data.mutate()}>다시 불러오기</button>
                 </p>
             )}
+            {data.isLoading && <p role="status" className="text-sm text-muted-foreground">지식을 불러오는 중…</p>}
             <label className="flex items-center gap-2 text-xs text-muted-foreground">
                 <input
                     type="checkbox"
@@ -143,7 +146,7 @@ export function KnowledgeManager({
                                         {claim.purposes.includes(
                                             "customer_chat",
                                         )
-                                            ? "상담에 사용 가능"
+                                            ? isUsableSupportClaim(claim) ? "상담에 사용 가능" : "확인일 만료 또는 미래 날짜 · 상담에서 제외"
                                             : "메일용 · 상담에서 제외"}
                                     </p>
                                 </div>
@@ -173,6 +176,7 @@ export function KnowledgeManager({
                                 )}
                                 {version.state !== "blocked" && (
                                     <button
+                                        disabled={busy}
                                         className="text-red-600"
                                         onClick={() => {
                                             setBlock(version);
@@ -194,12 +198,13 @@ export function KnowledgeManager({
             )}
             <div className="flex gap-3 text-xs">
                 {before && (
-                    <button onClick={() => setBefore(null)}>
+                    <button disabled={data.isLoading} onClick={() => setBefore(null)}>
                         최신 버전으로
                     </button>
                 )}
                 {data.data?.hasMore && (
                     <button
+                        disabled={data.isLoading}
                         onClick={() => setBefore(data.data!.rows.at(-1)!.id)}
                     >
                         이전 버전 보기
@@ -290,12 +295,14 @@ export function KnowledgeManager({
                         </p>
                         <textarea
                             aria-label="지식 차단 사유"
+                            aria-describedby="support-knowledge-block-reason"
                             className="w-full rounded-lg border p-3"
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
                             minLength={10}
                             maxLength={1000}
                         />
+                        <p id="support-knowledge-block-reason" className="text-xs text-muted-foreground">{reason.trim().length}/10자 이상 · 차단 이유를 10자 이상 입력해주세요.</p>
                         <div className="flex gap-3">
                             <button
                                 disabled={busy || reason.trim().length < 10}

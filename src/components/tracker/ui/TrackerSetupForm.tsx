@@ -178,6 +178,7 @@ export function TrackerSetupForm({
                         </div>
                         <p className="text-xs text-muted-foreground">
                             추적할 사이트의 도메인을 입력하세요. 여러 개 등록할 수 있습니다.
+                            하위 도메인(shop.example.com 등)은 각각 추가하세요. www는 함께 허용됩니다.
                         </p>
                     </div>
 

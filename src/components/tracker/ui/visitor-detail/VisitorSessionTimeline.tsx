@@ -13,6 +13,7 @@ import {
     LogOut,
     MapPin,
 } from "lucide-react";
+import { KST_TIME_ZONE } from "@/lib/kst";
 import type { TrackerSession, TrackerEvent } from "../../types";
 import { parseInflowDetail } from "../../utils/inflowDetail";
 import { formatDateTime, formatDuration, formatDwellMs, urlPath } from "../../utils/format";
@@ -176,6 +177,7 @@ function EventRow({ event: e, aliases }: { event: TrackerEvent; aliases: Record<
     const time = new Date(e.occurredAt).toLocaleTimeString("ko-KR", {
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: KST_TIME_ZONE,
     });
 
     if (e.eventType === "PAGE_VIEW") {

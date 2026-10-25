@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Download, ImageIcon } from "lucide-react";
 import type { ChatAttachment } from "../types";
-import { messengerApiUrl } from "@/components/customer-messenger/api-origin";
+import { loadInboxAttachment } from "../api/attachment";
 function Attachment({
     file,
     url,
@@ -15,6 +15,12 @@ function Attachment({
     const [preview, setPreview] = useState(""),
         [busy, setBusy] = useState(false),
         [error, setError] = useState("");
+    const request = useRef<AbortController | null>(null);
+    const credential = headers?.Authorization ?? headers?.authorization;
+    useEffect(() => () => {
+        request.current?.abort();
+        request.current = null;
+    }, [url, credential]);
     useEffect(
         () => () => {
             if (preview) URL.revokeObjectURL(preview);
@@ -22,16 +28,13 @@ function Attachment({
         [preview],
     );
     async function load(show: boolean) {
+        if (request.current) return;
+        const controller = new AbortController();
+        request.current = controller;
         setBusy(true);
         setError("");
         try {
-            const target = messengerApiUrl(url);
-            const response = await fetch(target, { headers, cache: "no-store", ...(target !== url ? { credentials: "omit", redirect: "error" } : {}) });
-            if (!response.ok) {
-                const data = await response.json();
-                throw new Error(data.error ?? "파일을 불러오지 못했습니다.");
-            }
-            const blob = await response.blob(),
+            const blob = await loadInboxAttachment(url, headers, controller.signal),
                 objectUrl = URL.createObjectURL(blob);
             if (show) setPreview(objectUrl);
             else {
@@ -42,9 +45,12 @@ function Attachment({
                 setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
             }
         } catch (e) {
-            setError((e as Error).message);
+            if (!controller.signal.aborted) setError((e as Error).message);
         } finally {
-            setBusy(false);
+            if (request.current === controller) {
+                request.current = null;
+                setBusy(false);
+            }
         }
     }
     return (
@@ -110,7 +116,7 @@ export function AttachmentList({
         <ul className="mt-2 space-y-2">
             {files.map((file) => (
                 <Attachment
-                    key={file.id}
+                    key={`${file.id}:${url(file.id)}:${headers?.Authorization ?? headers?.authorization ?? ""}`}
                     file={file}
                     url={url(file.id)}
                     headers={headers}

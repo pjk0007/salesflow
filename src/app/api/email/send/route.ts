@@ -1,6 +1,9 @@
+import { isKnownEmailRejection } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplateLinks, emailTemplates, emailSendLogs, records, partitions, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
+import { requirePartitionAccess } from "@/lib/partition-access";
+import { extractEmailVariables } from "@/lib/email-utils";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { resolveSender, resolveSignature } from "@/lib/email-sender-resolver";
@@ -88,6 +91,10 @@ export async function POST(req: NextRequest) {
 
         const templateLink = linkRow.email_template_links;
         const workspaceId = linkRow.workspaces.id;
+        const access = await requirePartitionAccess(user, templateLink.partitionId, "read");
+        if (!access.ok) return NextResponse.json({ success: false, error: access.error }, { status: access.status });
+        const ids = [...new Set(recordIds.map(Number))];
+        if (ids.some(id => !Number.isSafeInteger(id) || id <= 0)) return NextResponse.json({ success: false, error: "발송 대상 레코드 ID를 확인해주세요." }, { status: 400 });
 
         // 이메일 템플릿 조회 — 이 조직 템플릿만. 연결이 이 조직 것이어도 연결이 가리키는 템플릿 id는 따로 확인해야 한다
         // (예전 연결 API가 남의 템플릿 id를 그대로 저장했다 — 조건이 없으면 다른 조직 템플릿 내용이 발송된다)
@@ -105,7 +112,9 @@ export async function POST(req: NextRequest) {
         const recordList = await db
             .select()
             .from(records)
-            .where(and(inArray(records.id, recordIds), eq(records.orgId, user.orgId)));
+            .where(and(inArray(records.id, ids), eq(records.orgId, user.orgId), eq(records.partitionId, templateLink.partitionId)));
+
+        if (recordList.length !== ids.length) return NextResponse.json({ success: false, error: "이 연결의 파티션에서 찾을 수 없는 발송 대상이 있습니다." }, { status: 404 });
 
         // 명단 보류 (DESIGN-SND 6-2, SND-16) — 레코드마다 레코드의 명단으로 본다 (템플릿 연결의 명단이 아니라).
         // 레코드가 2건 이상이면 대량이다 — 그중 보류 명단의 레코드가 있으면 보내지 않는다. 1건은 사람이 한 명에게 쓰는 메일이라 막지 않는다
@@ -124,6 +133,7 @@ export async function POST(req: NextRequest) {
         const errors: Array<{ recordId: number; error: string; email: string | null; code: string | null }> = [];
         let successCount = 0;
         let failCount = 0;
+        let unknownCount = 0;
         // 발신 프로필 한도(하루 최대·시간대·정지·간격)에 걸려 보내지 않은 건수
         let limitedCount = 0;
         // 남은 레코드도 똑같이 막히는 이유로 막혔으면 그 문구. 이후 레코드는 자리 잡기를 다시 하지 않는다
@@ -143,6 +153,11 @@ export async function POST(req: NextRequest) {
                 });
             };
 
+            let slot: SenderSlot | undefined;
+            let sendAttempted = false;
+            let slotReleased = false;
+            let logId: number | undefined;
+            try {
             if (!email || typeof email !== "string" || !email.includes("@")) {
                 notSent("유효하지 않은 이메일");
                 continue;
@@ -175,10 +190,11 @@ export async function POST(req: NextRequest) {
                 if (blocksRestOfBatch(claim.reason)) batchBlockedMessage = message;
                 continue;
             }
-            const slot: SenderSlot = claim.slot;
+            slot = claim.slot;
             const slotSender = slot.sender;
             if (!slotSender.fromEmail) {
                 // 요청 처음에 확인한 주소가 그사이 지워진 경우
+                slotReleased = true;
                 await releaseSenderSlot(slot);
                 notSent("발신 이메일 주소를 설정해주세요.");
                 continue;
@@ -186,10 +202,15 @@ export async function POST(req: NextRequest) {
             const slotFromEmail = slotSender.fromEmail;
 
             // sendEachMail을 부르기 전에 던지면 자리를 돌려준다 — 부른 뒤에는 나갔을 수 있어 돌려주지 않는다
-            let sendAttempted = false;
-            try {
                 const substitutedSubject = substituteVariables(template.subject, mappings, data);
                 let finalBody = substituteVariables(template.htmlBody, mappings, data);
+                if (extractEmailVariables(substitutedSubject + finalBody).length) {
+                    failCount++;
+                    notSent("변수 매핑이 누락되어 발송하지 않았습니다.");
+                    slotReleased = true;
+                    await releaseSenderSlot(slot);
+                    continue;
+                }
                 if (signatureJson) {
                     finalBody = appendSignature(finalBody, signatureJson);
                 }
@@ -220,6 +241,7 @@ export async function POST(req: NextRequest) {
                     senderEmail: slotFromEmail,
                 }).returning({ id: emailSendLogs.id });
 
+                logId = logEntry.id;
                 const trackedBody = applyEmailTracking(finalBody, logEntry.id);
 
                 sendAttempted = true;
@@ -235,14 +257,16 @@ export async function POST(req: NextRequest) {
                 });
 
                 const sendResult = nhnResult.data?.results?.[0];
-                const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+                const isSuccess = nhnResult.header.isSuccessful && Boolean(nhnResult.data?.requestId) && sendResult?.resultCode === 0;
+                const rejected = (!nhnResult.header.isSuccessful && isKnownEmailRejection(nhnResult.header.resultCode)) ||
+                    (nhnResult.header.isSuccessful && isKnownEmailRejection(sendResult?.resultCode));
                 // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다
-                if (!isSuccess) await releaseSenderSlot(slot);
+                if (rejected) { slotReleased = true; await releaseSenderSlot(slot); }
 
                 await db.update(emailSendLogs)
                     .set({
                         requestId: nhnResult.data?.requestId,
-                        status: isSuccess ? "sent" : "failed",
+                        status: isSuccess ? "sent" : rejected ? "failed" : "unknown",
                         resultCode: sendResult ? String(sendResult.resultCode) : null,
                         resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
                     })
@@ -250,15 +274,25 @@ export async function POST(req: NextRequest) {
 
                 if (isSuccess) {
                     successCount++;
+                } else if (!rejected) {
+                    unknownCount++;
+                    notSent("접수 결과 확인 필요. 중복 발송 전에 발송 이력을 확인해주세요.");
                 } else {
                     failCount++;
                     // NHN이 받지 않은 레코드도 "보내지 않은 레코드"에 넣어 화면이 누구인지 보이게 한다
                     const reason = sendResult?.resultMessage ?? nhnResult.header.resultMessage;
                     notSent(`NHN이 발송을 받지 않았습니다${reason ? ` (${reason})` : ""}.`);
                 }
-            } catch (err) {
-                if (!sendAttempted) await releaseSenderSlot(slot);
-                throw err;
+            } catch {
+                if (!sendAttempted && slot && !slotReleased) await releaseSenderSlot(slot).catch(() => undefined);
+                const message = sendAttempted ? "접수 결과 확인 필요. 중복 발송 전에 발송 이력을 확인해주세요." : "발송 준비 중 오류가 발생해 보내지 않았습니다.";
+                if (logId) {
+                    try { await db.update(emailSendLogs).set({ status: sendAttempted ? "unknown" : "failed", resultMessage: message })
+                        .where(eq(emailSendLogs.id, logId)); }
+                    catch { /* 이미 남긴 로그를 보존하고 앞선 접수를 전체 실패로 되돌리지 않는다. */ }
+                }
+                if (sendAttempted) unknownCount++; else failCount++;
+                notSent(message);
             }
         }
 
@@ -268,6 +302,7 @@ export async function POST(req: NextRequest) {
                 totalCount: recordList.length,
                 successCount,
                 failCount,
+                unknownCount,
                 limitedCount,
                 errors: errors.length > 0 ? errors : undefined,
             },

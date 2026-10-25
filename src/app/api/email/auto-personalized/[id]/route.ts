@@ -105,9 +105,9 @@ export async function PUT(
         if (isActive !== undefined) updateData.isActive = isActive;
         if (isDraft !== undefined) {
             updateData.isDraft = isDraft ? 1 : 0;
-            // draft 전환 시 자동 비활성화, draft 해제 시는 isActive를 명시적으로 받지 않으면 1로
+            // draft 전환 시 자동 비활성화, 기존 draft를 해제할 때만 기본 활성화. 일반 편집은 기존 활성 상태 유지
             if (isDraft) updateData.isActive = 0;
-            else if (isActive === undefined) updateData.isActive = 1;
+            else if (isActive === undefined && existing.isDraft === 1) updateData.isActive = 1;
         }
         if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
         if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;

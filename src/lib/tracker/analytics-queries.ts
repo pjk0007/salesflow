@@ -34,6 +34,8 @@ export interface AggregateRangeArgs {
     excludes: string[];
     device: string | null;
     sessionIds: number[] | null;
+    /** 시작일 기준 세션 카드에만 별도 채널 집합을 전달한다. */
+    startedSessionIds?: number[] | null;
 }
 
 export interface AggregateRangeResult {
@@ -46,6 +48,39 @@ export interface AggregateRangeResult {
     signups: number;
 }
 
+/** 선택 기간에 유효 PAGE_VIEW가 있는 활성 방문자. 신규 코호트 퍼널과 구분한다. */
+export function meaningfulVisitorIdsSql(args: AggregateRangeArgs) {
+    const { siteId, fromIso, toIso, excludes, device, sessionIds } = args;
+    return sql`(
+        SELECT DISTINCT tv.id
+        FROM tracker_visitors tv
+        JOIN tracker_events ev ON ev.visitor_id = tv.id
+        WHERE tv.site_id = ${siteId} AND ev.site_id = ${siteId}
+          AND ev.event_type = 'PAGE_VIEW'
+          AND ev.occurred_at >= ${fromIso} AND ev.occurred_at <= ${toIso}
+          AND ${notExcludedExpr(excludes)}
+          ${deviceFilterSql(device, "tv")}
+          ${sessionInFilterSql(sessionIds, "ev.session_id")}
+    )`;
+}
+
+/** KPI와 같은 활성 방문자 단위의 일별 전환. 같은 날 중복 이력은 한 번만 센다. */
+export function dailyConversionsSql(args: AggregateRangeArgs, conversionStage: string | null) {
+    return sql`
+        SELECT (re.occurred_at AT TIME ZONE 'Asia/Seoul')::date::text AS date,
+               COUNT(DISTINCT tv.id) FILTER (WHERE re.type = 'signup')::int AS signups,
+               COUNT(DISTINCT tv.id) FILTER (
+                   WHERE re.type = 'match_stage' AND re.label = ${conversionStage ?? ""}
+               )::int AS paid
+        FROM record_events re
+        JOIN tracker_visitors tv ON tv.record_id = re.record_id
+        WHERE tv.id IN ${meaningfulVisitorIdsSql(args)}
+          AND re.occurred_at >= ${args.fromIso} AND re.occurred_at <= ${args.toIso}
+          AND (re.type = 'signup' OR re.type = 'match_stage')
+        GROUP BY 1 ORDER BY 1
+    `;
+}
+
 /**
  * 한 기간의 핵심 집계 (KPI 7종 raw + 직전기간 비교용).
  * 세그먼트 필터: device(visitor), sessionIds(channel로 거른 세션 ID, null이면 미적용)
@@ -55,21 +90,10 @@ export async function aggregateRange(args: AggregateRangeArgs): Promise<Aggregat
     const notExcluded = notExcludedExpr(excludes);
     const devFilterTv = deviceFilterSql(device, "tv");
     const sessFilterEv = sessionInFilterSql(sessionIds, "ev.session_id");
-    const sessFilterTs = sessionInFilterSql(sessionIds, "ts.id");
+    const sessFilterTs = sessionInFilterSql(args.startedSessionIds === undefined ? sessionIds : args.startedSessionIds, "ts.id");
 
     // 의미있는 PV가 1+회 있는 visitor 집합
-    const meaningfulVisitorIds = sql`(
-        SELECT DISTINCT tv.id
-        FROM tracker_visitors tv
-        JOIN tracker_events ev ON ev.visitor_id = tv.id
-        WHERE tv.site_id = ${siteId}
-          AND tv.first_seen_at >= ${fromIso} AND tv.first_seen_at <= ${toIso}
-          AND ev.event_type = 'PAGE_VIEW'
-          AND ev.occurred_at >= ${fromIso} AND ev.occurred_at <= ${toIso}
-          AND ${notExcluded}
-          ${devFilterTv}
-          ${sessFilterEv}
-    )`;
+    const meaningfulVisitorIds = meaningfulVisitorIdsSql(args);
 
     const [v] = (await db.execute(sql`
         SELECT

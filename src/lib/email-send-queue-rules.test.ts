@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import {
     nextStatus,
+    recoverStuckQueueRow,
     isStuck,
     isDeadlineExceeded,
     parseLinkIdList,
@@ -861,4 +862,12 @@ test("sortPickedRows: 배치 안에서는 예정 시각이 아니라 들어온 �
         sortPickedRows(batch).map((r) => r.id),
         [2, 3]
     );
+});
+
+test("UX-194: 상한 회차도 종료하며 접수 증거가 있으면 횟수와 무관하게 재발송 차단", () => {
+    for (const attempts of [1, 2, 3, 4]) {
+        assert.equal(recoverStuckQueueRow(attempts, false).status, attempts < 3 ? "pending" : "failed");
+        const unknown = recoverStuckQueueRow(attempts, true);
+        assert.equal(unknown.status, "failed"); assert.match(unknown.lastError, /확인 필요/);
+    }
 });

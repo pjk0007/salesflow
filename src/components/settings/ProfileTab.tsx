@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useSession } from "@/contexts/SessionContext";
 import { Loader2, CreditCard, RefreshCw, Trash2 } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 
 interface ProfileData {
     id: string;
@@ -42,6 +43,7 @@ export default function ProfileTab() {
     const [profile, setProfile] = useState<ProfileData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     // 프로필 폼
     const [name, setName] = useState("");
@@ -58,16 +60,19 @@ export default function ProfileTab() {
     const [paymentLoading, setPaymentLoading] = useState(false);
 
     const fetchProfile = useCallback(async () => {
+        setLoadError(null);
         try {
             const res = await fetch("/api/auth/profile");
             const json = await res.json();
-            if (json.success) {
+            if (res.ok && json.success) {
                 setProfile(json.data);
                 setName(json.data.name);
                 setPhone(json.data.phone ?? "");
+            } else {
+                setLoadError(json.error || "프로필을 불러올 수 없습니다.");
             }
         } catch {
-            toast.error("프로필을 불러올 수 없습니다.");
+            setLoadError("프로필을 불러올 수 없습니다.");
         } finally {
             setIsLoading(false);
         }
@@ -90,8 +95,8 @@ export default function ProfileTab() {
 
     useEffect(() => {
         fetchProfile();
-        fetchPaymentMethod();
-    }, [fetchProfile, fetchPaymentMethod]);
+        if (user?.role && user.role !== "member") fetchPaymentMethod();
+    }, [fetchProfile, fetchPaymentMethod, user?.role]);
 
     const handleSaveProfile = async () => {
         if (!name.trim()) {
@@ -106,7 +111,7 @@ export default function ProfileTab() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     name: name.trim(),
-                    phone: phone.trim() || undefined,
+                    phone: phone.trim(),
                 }),
             });
             const json = await res.json();
@@ -218,12 +223,13 @@ export default function ProfileTab() {
         );
     }
 
-    if (!profile) return null;
+    if (!profile) return <QueryErrorState error={loadError || "프로필을 불러올 수 없습니다."} onRetry={fetchProfile} />;
 
     const profileChanged = name.trim() !== profile.name || (phone.trim() || "") !== (profile.phone ?? "");
 
     return (
         <div className="space-y-6">
+            {loadError && <QueryErrorState error={loadError} onRetry={fetchProfile} />}
             {/* 기본 정보 */}
             <Card>
                 <CardHeader>
@@ -329,6 +335,7 @@ export default function ProfileTab() {
                 </CardContent>
             </Card>
 
+            {user && user.role !== "member" && <>
             <Separator />
 
             {/* 결제 수단 */}
@@ -412,6 +419,7 @@ export default function ProfileTab() {
                     )}
                 </CardContent>
             </Card>
+            </>}
         </div>
     );
 }

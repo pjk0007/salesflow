@@ -77,6 +77,8 @@ export interface SendbEmailReplySelection {
     cc?: string[];
 }
 export interface SendbEmailContext {
+    connectionStatus?: string | null;
+    workerEnabled?: boolean;
     subject: string;
     recipient: string;
     from: string;

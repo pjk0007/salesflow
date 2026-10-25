@@ -64,6 +64,7 @@ import { defaultFetcher } from "@/lib/swr-fetcher";
 import type { AdPlatformInfo, AdLeadIntegrationInfo } from "@/types";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
+    disconnected: { label: "연결 대기", className: "bg-gray-100 text-gray-700" },
     connected: { label: "연결됨", className: "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" },
     expired: { label: "만료됨", className: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-300" },
     error: { label: "오류", className: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300" },
@@ -96,6 +97,23 @@ function formatDateTime(dateStr: string): string {
 export default function MetaPlatformSection() {
     const { platforms, isLoading, mutate: mutatePlatforms, createPlatform, deletePlatform, syncAccounts } = useAdPlatforms();
 
+    // OAuth 콜백 수신
+    useEffect(() => {
+        const handler = (event: MessageEvent) => {
+            if (event.origin === window.location.origin && event.data?.type === "meta-oauth-callback") {
+                if (event.data.status === "success") {
+                    toast.success(event.data.message);
+                    mutatePlatforms();
+                } else {
+                    toast.error(event.data.message);
+                }
+            }
+        };
+        window.addEventListener("message", handler);
+        return () => window.removeEventListener("message", handler);
+    }, [mutatePlatforms]);
+
+
     const metaPlatform = platforms.find((p) => p.platform === "meta");
 
     if (isLoading) {
@@ -112,17 +130,29 @@ export default function MetaPlatformSection() {
     return metaPlatform ? (
         <MetaConnected platform={metaPlatform} onMutate={mutatePlatforms} onDisconnect={deletePlatform} onSync={syncAccounts} />
     ) : (
-        <MetaConnectForm onMutate={mutatePlatforms} onCreate={createPlatform} />
+        <MetaConnectForm onCreate={createPlatform} />
     );
+}
+
+async function openMetaOAuth(platformId: number, popup: Window | null) {
+    if (!popup) { toast.error("팝업이 차단되었습니다. 팝업을 허용한 뒤 다시 연결해주세요."); return; }
+    try {
+        const res = await fetch(`/api/meta/auth-url?platformId=${platformId}`);
+        const result = await res.json();
+        if (!res.ok || !result.success || typeof result.data?.authUrl !== "string") throw new Error("auth-url");
+        popup.location.href = result.data.authUrl;
+        toast.info("Meta 로그인 창에서 권한을 승인해주세요.");
+    } catch {
+        popup.close();
+        toast.error("Meta 연결 요청에 실패했습니다. 다시 연결해주세요.");
+    }
 }
 
 // ─── 연결 안됨: App ID/Secret 입력 폼 ───
 
 function MetaConnectForm({
-    onMutate,
     onCreate,
 }: {
-    onMutate: () => void;
     onCreate: (params: { platform: "meta"; name: string; credentials: { type: "meta"; accessToken: string; appId: string; appSecret: string; pageAccessTokens: Record<string, string>; webhookVerifyToken: string } }) => Promise<{ success: boolean; error?: string; data?: { id: number } }>;
 }) {
     const [appId, setAppId] = useState("");
@@ -135,6 +165,8 @@ function MetaConnectForm({
             return;
         }
 
+        const popup = window.open("", "meta-oauth", "width=600,height=700");
+        if (!popup) { toast.error("팝업을 허용한 뒤 다시 연결해주세요."); return; }
         setSaving(true);
         try {
             // Webhook verify token 자동 생성
@@ -154,42 +186,21 @@ function MetaConnectForm({
                 },
             });
 
-            if (!result.success) {
+            if (!result.success || !result.data?.id) {
+                popup.close();
                 toast.error(result.error || "플랫폼 저장에 실패했습니다.");
                 return;
             }
 
-            // 2. OAuth 시작
-            const res = await fetch(`/api/meta/auth-url?platformId=${result.data?.id || ""}`);
-            const authResult = await res.json();
-            if (authResult.success) {
-                window.open(authResult.data.authUrl, "meta-oauth", "width=600,height=700");
-                toast.success("Meta 로그인 창이 열렸습니다. 권한을 승인해주세요.");
-            } else {
-                toast.error(authResult.error || "OAuth URL 생성에 실패했습니다.");
-            }
+            await openMetaOAuth(result.data.id, popup);
         } catch {
+            popup.close();
             toast.error("연결 중 오류가 발생했습니다.");
         } finally {
             setSaving(false);
         }
     };
 
-    // OAuth 콜백 수신
-    useEffect(() => {
-        const handler = (event: MessageEvent) => {
-            if (event.data?.type === "meta-oauth-callback") {
-                if (event.data.status === "success") {
-                    toast.success(event.data.message);
-                    onMutate();
-                } else {
-                    toast.error(event.data.message);
-                }
-            }
-        };
-        window.addEventListener("message", handler);
-        return () => window.removeEventListener("message", handler);
-    }, [onMutate]);
 
     return (
         <Card>
@@ -368,7 +379,8 @@ function MetaConnected({
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
-                        <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing}>
+                        <Button variant="outline" size="sm" onClick={() => openMetaOAuth(platform.id, window.open("", "meta-oauth", "width=600,height=700"))}>다시 연결</Button>
+                        <Button variant="outline" size="sm" onClick={handleSync} disabled={syncing || platform.status !== "connected"}>
                             {syncing ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
                             계정 동기화
                         </Button>

@@ -1,9 +1,11 @@
+import { isKnownEmailRejection } from "../nhn-submit-result";
 import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignChannel, type EsignJob } from "./types";
 import { OTP_TTL_MS } from "./rules";
 import type { EsignAlimtalkStatus } from "./alimtalk";
+import { EMAIL_SEND_BLOCKED, EMAIL_SEND_CHECK_FAILED, EMAIL_SEND_INVALID_CONTEXT } from "../email-send-guard";
 
 export type MailSubmission = { senderAddress: string; senderName?: string; title: string; body: string; receiverList: { receiveMailAddr: string; receiveType: "MRT0" }[] };
-export type EmailSender = { address: string; name?: string; submit(request: MailSubmission): Promise<{ header: { isSuccessful: boolean; resultCode: number }; data: { requestId?: string; results?: { resultCode: number }[] } | null }> };
+export type EmailSender = { address: string; name?: string; submit(request: MailSubmission): Promise<{ header: { isSuccessful: boolean; resultCode: number; resultMessage?: string }; data: { requestId?: string; results?: { resultCode: number }[] } | null }> };
 export type SmsConfig = { appKey: string; secretKey: string; sender: string };
 export interface EsignDelivery {
     ready(channel: EsignChannel, orgId: string): Promise<boolean>;
@@ -37,9 +39,15 @@ export function createEsignDelivery(options: { publicOrigin: string; emailSender
         async send(job, orgId, payload) {
             if (!job.channel) return { state: "failed", error: "발송 채널이 없습니다." };
             if (job.channel === "alimtalk") return options.alimtalk?.send(job, orgId, payload) ?? { state: "failed", error: "전자서명 알림톡 연결이 필요합니다." };
-            const message = esignMessage(job, payload, options.publicOrigin);
+            let message: ReturnType<typeof esignMessage>;
+            let sender: EmailSender | null = null;
+            try {
+                message = esignMessage(job, payload, options.publicOrigin);
+                if (job.channel === "email") sender = await options.emailSender(orgId);
+            } catch (error) {
+                return { state: "failed", error: error instanceof EsignError ? error.message : "발송 설정을 확인하지 못해 보내지 않았습니다. 잠시 후 다시 확인해주세요." };
+            }
             if (job.channel === "email") {
-                const sender = await options.emailSender(orgId);
                 if (!sender || !payload.email) return { state: "failed", error: "이메일 발신 설정을 확인해주세요." };
                 let timer: ReturnType<typeof setTimeout> | undefined;
                 try {
@@ -49,7 +57,11 @@ export function createEsignDelivery(options: { publicOrigin: string; emailSender
                     ]);
                     if (result.header.isSuccessful && result.data?.requestId && result.data.results?.length && result.data.results.every(r => r.resultCode === 0))
                         return { state: "accepted", providerId: result.data.requestId };
-                    return { state: result.header.resultCode >= 500 ? "unknown" : "failed", error: "이메일 접수 결과를 확인해주세요." };
+                    if ([EMAIL_SEND_BLOCKED, EMAIL_SEND_CHECK_FAILED, EMAIL_SEND_INVALID_CONTEXT].includes(result.header.resultCode))
+                        return { state: "failed", error: result.header.resultMessage || "발송 전 확인에서 메일을 보내지 않았습니다." };
+                    if (result.header.isSuccessful && (!result.data?.requestId || !result.data.results?.length || result.data.results.some(r => !Number.isFinite(r.resultCode))))
+                        return { state: "unknown", providerId: result.data?.requestId, error: "이메일 수신자별 접수 결과를 확인해주세요. 중복 발송 전에 확인이 필요합니다." };
+                    return { state: isKnownEmailRejection(result.header.resultCode) || (result.header.isSuccessful && result.data?.results?.every(r => isKnownEmailRejection(r.resultCode))) ? "failed" : "unknown", error: "이메일 접수 결과를 확인해주세요." };
                 } catch { return { state: "unknown", error: "이메일 접수 여부를 확인할 수 없습니다. 중복 발송 전에 확인해주세요." }; }
                 finally { if (timer) clearTimeout(timer); }
             }

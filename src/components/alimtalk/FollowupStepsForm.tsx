@@ -14,17 +14,11 @@ import {
 } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
-import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
+import { extractAllTemplateVariables, type FollowupStepUI } from "@/lib/alimtalk-template-utils";
 
 const MAX_STEPS = 5;
 
-export interface FollowupStepUI {
-    delayValue: number;
-    delayUnit: "hours" | "days";
-    senderKey: string;
-    templateCode: string;
-    variableMappings: Record<string, string>;
-}
+export type { FollowupStepUI } from "@/lib/alimtalk-template-utils";
 
 interface SenderOption {
     senderKey: string;
@@ -151,7 +145,7 @@ function StepCard({
                     <Input
                         type="number"
                         min={1}
-                        max={step.delayUnit === "hours" ? 720 : 30}
+                        max={step.delayUnit === "minutes" ? 43200 : step.delayUnit === "hours" ? 720 : 30}
                         value={step.delayValue}
                         onChange={(e) => onChange({ delayValue: Number(e.target.value) })}
                         className="w-24"
@@ -159,17 +153,18 @@ function StepCard({
                     <ToggleGroup
                         type="single"
                         value={step.delayUnit}
-                        onValueChange={(v) => v && onChange({ delayUnit: v as "hours" | "days" })}
+                        onValueChange={(v) => v && onChange({ delayUnit: v as FollowupStepUI["delayUnit"] })}
                         variant="outline"
                         size="sm"
                     >
+                        <ToggleGroupItem value="minutes" className="px-4">분</ToggleGroupItem>
                         <ToggleGroupItem value="hours" className="px-4">시간</ToggleGroupItem>
                         <ToggleGroupItem value="days" className="px-4">일</ToggleGroupItem>
                     </ToggleGroup>
                 </div>
                 <p className="text-xs text-muted-foreground">
                     {index === 0 ? "자동발송 후" : `Step ${index} 발송 후`} {step.delayValue}
-                    {step.delayUnit === "hours" ? "시간" : "일"} 뒤 발송
+                    {step.delayUnit === "minutes" ? "분" : step.delayUnit === "hours" ? "시간" : "일"} 뒤 발송
                 </p>
             </div>
 

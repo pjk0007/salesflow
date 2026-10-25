@@ -107,10 +107,14 @@ export default function ApiTokensTab() {
     };
 
     const handleToggleActive = async (id: number, currentActive: number) => {
+        try {
         const result = await updateToken(id, { isActive: currentActive === 1 ? 0 : 1 });
         if (result.success) {
             toast.success(currentActive === 1 ? "토큰이 비활성화되었습니다." : "토큰이 활성화되었습니다.");
+        } else {
+            toast.error(result.error || "토큰 상태를 변경하지 못했습니다.");
         }
+        } catch { toast.error("토큰 상태를 변경하지 못했습니다. 연결을 확인해주세요."); }
     };
 
     const handleCopy = async (text: string) => {
@@ -672,7 +676,7 @@ function McpGuideCard() {
 
                 <Collapsible>
                     <CollapsibleTrigger className="flex w-full items-center gap-2 text-sm font-semibold hover:text-foreground/80 group">
-                        사용 가능한 도구 (10개)
+                        사용 가능한 도구 (17개)
                         <ChevronDown className="size-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-2">
@@ -696,6 +700,13 @@ function McpGuideCard() {
                                         { name: "list_email_logs", desc: "이메일 발송 이력 조회" },
                                         { name: "list_alimtalk_logs", desc: "알림톡 발송 이력 조회" },
                                         { name: "get_analytics", desc: "오늘의 발송 통계 조회" },
+                                        { name: "list_tracker_sites", desc: "접근 가능한 트래커 사이트 목록" },
+                                        { name: "list_funnels", desc: "퍼널 목록 조회" },
+                                        { name: "get_funnel_analytics", desc: "퍼널 단계별 방문자·전환율 조회" },
+                                        { name: "get_record_journey", desc: "레코드 고객 여정 조회" },
+                                        { name: "get_tracker_overview", desc: "방문자·세션·페이지뷰 집계" },
+                                        { name: "get_page_analytics", desc: "페이지별 방문 분석" },
+                                        { name: "list_tracker_events", desc: "트래커 이벤트 목록 조회" },
                                     ].map((t) => (
                                         <tr key={t.name} className="border-b last:border-0">
                                             <td className="px-2 py-1.5 font-mono font-medium whitespace-nowrap">{t.name}</td>

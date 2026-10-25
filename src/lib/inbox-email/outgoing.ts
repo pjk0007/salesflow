@@ -6,6 +6,7 @@ import {
     inboxEmailDeliveries as deliveries,
     inboxEmailReceipts as receipts,
     inboxMessages,
+    inboxGoogleConnections,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { InboxError } from "@/lib/inbox/errors";
@@ -24,6 +25,7 @@ import {
     EMAIL_SEND_BLOCKED,
 } from "@/lib/email-send-guard";
 import { isOrganizationUnsubscribed } from "@/lib/email-unsubscribe";
+import { googleMailWorkerEnabled } from "./google-config";
 export function replyRequestFingerprint(selection?: EmailReplySelection) {
     return createHash("sha256")
         .update(
@@ -67,9 +69,10 @@ export async function assertEmailReplyDuplicate(
 }
 async function replySource(exec: DbExec, conversationId: string) {
     const [row] = await exec
-        .select({ thread: threads, mailbox: boxes })
+        .select({ thread: threads, mailbox: boxes, connectionStatus: inboxGoogleConnections.status })
         .from(threads)
         .innerJoin(boxes, eq(boxes.id, threads.mailboxId))
+        .leftJoin(inboxGoogleConnections, eq(inboxGoogleConnections.mailboxId, boxes.id))
         .where(eq(threads.conversationId, conversationId));
     if (!row) throw new InboxError("메일 상담 정보를 찾을 수 없습니다.", 404);
     const lookup = (messageId?: number) =>
@@ -115,6 +118,8 @@ export async function emailConversationContext(
         recipient: reply.to[0] ?? row.thread.correspondent,
         from: row.mailbox.address,
         enabled: row.mailbox.enabled,
+        connectionStatus: row.connectionStatus,
+        workerEnabled: row.connectionStatus ? googleMailWorkerEnabled() : undefined,
         sourceMessageId: row.sourceMessageId,
         sender: row.envelope.from,
         primarySender: row.thread.correspondent,

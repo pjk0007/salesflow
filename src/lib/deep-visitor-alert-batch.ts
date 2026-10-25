@@ -72,19 +72,11 @@ export function eventLabelsOf(
     funnels: readonly SiteFunnel[],
     orgId: string
 ): Record<string, string> {
-    const labels: Record<string, string> = {};
-    for (const a of aliases) {
-        if (a.orgId !== orgId || (a.eventType !== "SECTION_VIEW" && a.eventType !== "CLICK")) continue;
-        if (a.label?.trim()) labels[`${a.eventType}:${a.eventName}`] = a.label.trim();
-    }
     const maps = buildTrackerLabelMaps(
         funnels,
-        aliases.filter((a) => a.eventType === "CUSTOM")
+        aliases.filter((a) => a.eventType === "CUSTOM" || (a.orgId === orgId && ["SECTION_VIEW", "CLICK"].includes(a.eventType)))
     );
-    for (const [name, label] of maps.customEventLabels) {
-        if (label.trim()) labels[`CUSTOM:${name}`] = label.trim();
-    }
-    return labels;
+    return Object.fromEntries(maps.eventLabels);
 }
 
 /** 메일 칸 키 — 예전 loadEmailFieldKeys처럼 'email'을 맨 앞에 늘 넣고 중복을 뺀다 */

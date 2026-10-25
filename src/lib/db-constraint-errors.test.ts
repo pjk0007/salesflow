@@ -19,7 +19,7 @@ async function load(t: TestContext) {
     const { db } = await import("./db");
     return { ...auth, db };
 }
-const member = (role: string): Responder => (c) => (isMembershipLookup(c) ? [{ role, tokenVersion: 0, isSuperAdmin: 0 }] : undefined);
+const member = (role: string): Responder => (c) => (isMembershipLookup(c) ? [{ role, membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }] : undefined);
 const chain = (...responders: Responder[]): Responder => (call) => {
     for (const r of responders) {
         const result = r(call);
@@ -44,7 +44,7 @@ test("SQLSTATE 판별은 drizzle의 cause까지 본다", () => {
 test("속성 추가: 같은 key는 409 '이미 존재하는 key', 다른 오류는 500 (UX-033)", async (t) => {
     const { generateToken, db } = await load(t);
     const { POST } = await import("../app/api/workspaces/[id]/fields/route");
-    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "admin", tokenVersion: 0 });
+    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "admin", membershipId: 71, tokenVersion: 0 });
     const call = () => POST(bearer(token, "http://localhost/api/workspaces/3/fields", "POST", { key: "company", label: "회사", fieldType: "text" }), { params: Promise.resolve({ id: "3" }) });
     const respond = (insertError: Error | null): Responder => chain(member("admin"), (c) => {
         if (c.op === "insert") return insertError ?? [{ id: 1, key: "company", label: "회사" }];
@@ -71,7 +71,7 @@ test("속성 추가: 같은 key는 409 '이미 존재하는 key', 다른 오류�
 test("속성 일괄 추가: 요청 안 중복·형식 오류를 이유와 함께 건너뛰고 나머지는 만든다 (UX-035)", async (t) => {
     const { generateToken, db } = await load(t);
     const { POST } = await import("../app/api/workspaces/[id]/fields/bulk/route");
-    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "admin", tokenVersion: 0 });
+    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "admin", membershipId: 71, tokenVersion: 0 });
     const { calls } = installFakeDb(t, db, chain(member("admin"), (c) => {
         if (c.table === "workspaces") return [{ id: 3 }];
         if (c.table === "field_definitions" && c.op === "select") return c.params.length === 1 && calls.filter((x) => x.table === "field_definitions").length === 1 ? [{ key: "existing" }] : [{ maxSort: 4 }];
@@ -99,7 +99,7 @@ test("속성 일괄 추가: 요청 안 중복·형식 오류를 이유와 함께
 test("워크스페이스 삭제: 상담·메일 기록 FK 위반은 409 한국어 안내 (UX-034)", async (t) => {
     const { generateToken, db } = await load(t);
     const { DELETE } = await import("../app/api/workspaces/[id]/route");
-    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "admin", tokenVersion: 0 });
+    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "admin", membershipId: 71, tokenVersion: 0 });
     installFakeDb(t, db, chain(member("admin"), (c) => {
         if (c.op === "delete") return pgError("23503");
         if (c.table === "workspaces") return c.params.includes(7) ? [{ id: 7 }] : [{ count: 3 }];
@@ -113,11 +113,11 @@ test("워크스페이스 삭제: 상담·메일 기록 FK 위반은 409 한국�
 test("조직 삭제: 다른 조직에도 속한 사용자의 기본 조직을 먼저 옮기고, FK 위반은 409 (UX-013·034)", async (t) => {
     const { generateToken, verifyToken, db } = await load(t);
     const { DELETE } = await import("../app/api/org/settings/route");
-    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "owner", tokenVersion: 0 });
+    const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "owner", membershipId: 71, tokenVersion: 0 });
 
     await t.test("users.org_id 이동 → 조직 삭제 순서, 다음 조직으로 전환", async (t) => {
         const { calls } = installFakeDb(t, db, chain(member("owner"), (c) =>
-            c.table === "organization_members" ? [{ organizationId: ORG_A, role: "owner", tokenVersion: 0 }, { organizationId: ORG_B, role: "admin", tokenVersion: 2 }] : undefined));
+            c.table === "organization_members" ? [{ organizationId: ORG_A, role: "owner", membershipId: 71, tokenVersion: 0 }, { organizationId: ORG_B, role: "admin", membershipId: 71, tokenVersion: 2 }] : undefined));
         const res = await DELETE(bearer(token, "http://localhost/api/org/settings", "DELETE"));
         assert.equal(res.status, 200);
         const writes = calls.filter((c) => c.op === "execute" || c.op === "delete");
@@ -135,7 +135,7 @@ test("조직 삭제: 다른 조직에도 속한 사용자의 기본 조직을 �
         assert.match((await res.json()).error, /삭제할 수 없습니다/);
     });
     await t.test("남은 조직이 없으면 쿠키를 지운다", async (t) => {
-        installFakeDb(t, db, chain(member("owner"), (c) => (c.table === "organization_members" ? [{ organizationId: ORG_A, role: "owner", tokenVersion: 0 }] : undefined)));
+        installFakeDb(t, db, chain(member("owner"), (c) => (c.table === "organization_members" ? [{ organizationId: ORG_A, role: "owner", membershipId: 71, tokenVersion: 0 }] : undefined)));
         const res = await DELETE(bearer(token, "http://localhost/api/org/settings", "DELETE"));
         assert.equal((await res.json()).noOrgsLeft, true);
         assert.equal(res.cookies.get("token")?.value, "");
@@ -168,6 +168,7 @@ test("가입·조직 생성: 한 트랜잭션, 동시 중복 가입 409, Free �
     });
     await t.test("정상 가입은 트랜잭션 안에서 조직→구독→계정→멤버십", async (t) => {
         const { calls } = installFakeDb(t, db, (c) => {
+            if (isMembershipLookup(c)) return [{ membershipId: 71, role: "owner", tokenVersion: 0, isSuperAdmin: 0 }];
             if (c.table === "plans") return [{ id: 1 }];
             if (c.op === "insert" && c.table === "users") return [{ id: USER, email: "new@example.test", name: "새사람", role: "owner" }];
             if (c.op === "insert") return [{ id: ORG_A }];
@@ -180,8 +181,8 @@ test("가입·조직 생성: 한 트랜잭션, 동시 중복 가입 409, Free �
         assert.ok(res.cookies.get("token")?.value);
     });
     await t.test("새 조직 만들기도 Free 요금제가 없으면 503", async (t) => {
-        const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "owner", tokenVersion: 0 });
-        const { calls } = installFakeDb(t, db, (c) => (c.table === "users" ? [{ isSuperAdmin: 0 }] : []));
+        const token = generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role: "owner", membershipId: 71, tokenVersion: 0 });
+        const { calls } = installFakeDb(t, db, chain(member("owner")));
         const res = await create.POST(bearer(token, "http://localhost/api/org/create", "POST", { name: "둘째 조직" }));
         assert.equal(res.status, 503);
         assert.equal(calls.filter((c) => c.op === "insert").length, 0);

@@ -21,7 +21,18 @@ export function deviceFilterSql(device: string | null, visitorAlias = "tv") {
  * null이면 미적용, 빈 배열이면 매칭 0이므로 전부 제외한다.
  */
 export function sessionInFilterSql(sessionIds: number[] | null, sessionCol: string) {
-    if (sessionIds === null) return sql``;
-    if (sessionIds.length === 0) return sql.raw(`AND FALSE`);
-    return sql`AND ${sql.raw(sessionCol)} IN (${sql.join(sessionIds.map((id) => sql`${id}`), sql`, `)})`;
+    const predicate = idInFilterSql(sessionIds, sessionCol);
+    return predicate ? sql`AND ${predicate}` : sql``;
+}
+
+/** 배열을 SQL 조각으로 펼치지 않고 PostgreSQL 배열 문자열 한 개로 바인드한다. */
+export function idArraySql(ids: number[]) {
+    return sql`${`{${ids.join(",")}}`}::int[]`;
+}
+
+/** null은 미적용, []는 결과 없음. col은 코드가 정한 컬럼명만 전달한다. */
+export function idInFilterSql(ids: number[] | null, col: string) {
+    if (ids === null) return null;
+    if (ids.length === 0) return sql`FALSE`;
+    return sql`${sql.raw(col)} = ANY(${idArraySql(ids)})`;
 }

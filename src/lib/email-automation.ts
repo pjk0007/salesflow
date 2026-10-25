@@ -1,5 +1,6 @@
+import { classifyEmailSubmission } from "./nhn-submit-result";
 import { db, queryClient, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
-import { eq, ne, and, gt, gte, lte, asc, inArray, notInArray, sql } from "drizzle-orm";
+import { eq, ne, and, or, gt, gte, lte, asc, inArray, notInArray, sql } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSignature } from "@/lib/email-sender-resolver";
@@ -121,6 +122,11 @@ async function sendEmailSingle(
         purpose?: SendPurpose;
     } = {}
 ): Promise<TemplateSendResult> {
+    const [unresolved] = await db.select({ id: emailSendLogs.id }).from(emailSendLogs).where(and(
+        eq(emailSendLogs.orgId, orgId), eq(emailSendLogs.recordId, record.id), eq(emailSendLogs.templateLinkId, link.id),
+        inArray(emailSendLogs.status, ["pending", "unknown", "uncertain"]),
+    )).limit(1);
+    if (unresolved) return { success: false };
     const purpose: SendPurpose = opts.purpose ?? templatePurpose(triggerType);
     const client = await getEmailClient(orgId);
     if (!client) return { success: false };
@@ -190,25 +196,54 @@ async function sendEmailSingle(
             finalBody = appendUnsubscribeFooter(finalBody, buildUnsubscribeUrl(unsubscribeToken));
         }
 
-        const [inserted] = await db.insert(emailSendLogs).values({
-            openTracked: true,
-            orgId,
-            templateLinkId: link.id,
-            partitionId: link.partitionId,
-            recordId: record.id,
-            emailTemplateId: template.id,
-            recipientEmail: email,
-            subject: substitutedSubject,
-            body: finalBody,
-            status: "pending",
-            triggerType,
-            sentAt: new Date(),
-            unsubscribeToken,
-            // 후속 메일이 첫 메일을 보낸 주소를 이어 쓰게 남긴다 (예전 로그는 null → 후속은 그때의 기본 주소)
-            senderProfileId: sender.profileId,
-            // 보낼 때 쓴 주소 그대로 (DESIGN-3 4-1)
-            senderEmail: senderFromEmail,
-        }).returning({ id: emailSendLogs.id });
+        const accepted = await acceptedSendCondition();
+        const inserted = await db.transaction(async tx => {
+            // 확인과 pending 생성은 같은 잠금 안에서 한다. 외부 발송은 커밋 뒤에만 한다.
+            const normalizedEmail = email.trim().toLowerCase();
+            const keys = [`${orgId}:${link.id}:record:${record.id}`];
+            if (triggerType === "auto") keys.push(`${orgId}:${link.id}:recipient:${normalizedEmail}`);
+            for (const key of keys.sort()) await tx.execute(sql`SELECT pg_advisory_xact_lock(1331144461, hashtext(${key}))`);
+            const [currentLink] = await tx.select({ isActive: emailTemplateLinks.isActive, preventDuplicate: emailTemplateLinks.preventDuplicate })
+                .from(emailTemplateLinks).where(and(eq(emailTemplateLinks.id, link.id), eq(emailTemplateLinks.partitionId, link.partitionId))).limit(1);
+            if (!currentLink?.isActive) return null;
+            const unresolved = inArray(emailSendLogs.status, ["pending", "unknown", "uncertain"]);
+            const [existing] = await tx.select({ id: emailSendLogs.id }).from(emailSendLogs).where(and(
+                eq(emailSendLogs.orgId, orgId), eq(emailSendLogs.templateLinkId, link.id),
+                or(
+                    and(eq(emailSendLogs.recordId, record.id), or(unresolved,
+                        triggerType === "auto" ? and(gte(emailSendLogs.sentAt, new Date(Date.now() - 3600000)), accepted) : undefined)),
+                    triggerType === "auto" && currentLink.preventDuplicate
+                        ? and(sql`lower(trim(${emailSendLogs.recipientEmail})) = ${normalizedEmail}`, or(accepted, unresolved)) : undefined,
+                ),
+            )).limit(1);
+            if (existing) return null;
+            const [created] = await tx.insert(emailSendLogs).values({
+                openTracked: true,
+                orgId,
+                templateLinkId: link.id,
+                partitionId: link.partitionId,
+                recordId: record.id,
+                emailTemplateId: template.id,
+                recipientEmail: email,
+                subject: substitutedSubject,
+                body: finalBody,
+                status: "pending",
+                triggerType,
+                sentAt: new Date(),
+                unsubscribeToken,
+                // 후속 메일이 첫 메일을 보낸 주소를 이어 쓰게 남긴다 (예전 로그는 null → 후속은 그때의 기본 주소)
+                senderProfileId: sender.profileId,
+                // 보낼 때 쓴 주소 그대로 (DESIGN-3 4-1)
+                senderEmail: senderFromEmail,
+            }).returning({ id: emailSendLogs.id });
+            if (!created) throw new Error("발송 이력을 저장하지 못했습니다.");
+            return created;
+        });
+        if (!inserted) {
+            slotReleased = true;
+            await releaseSenderSlot(slot);
+            return { success: false };
+        }
 
         const trackedBody = applyEmailTracking(finalBody, inserted.id);
 
@@ -232,14 +267,15 @@ async function sendEmailSingle(
         });
 
         const sendResult = nhnResult.data?.results?.[0];
-        const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+        const submissionStatus = classifyEmailSubmission(nhnResult);
+        const isSuccess = submissionStatus === "sent";
         // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다
-        if (!isSuccess) await releaseSenderSlot(slot);
+        if (submissionStatus === "failed") { slotReleased = true; await releaseSenderSlot(slot); }
 
         await db.update(emailSendLogs)
             .set({
                 requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
+                status: submissionStatus,
                 resultCode: sendResult ? String(sendResult.resultCode) : null,
                 resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
             })

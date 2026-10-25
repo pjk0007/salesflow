@@ -1,3 +1,4 @@
+import { readImportResponse } from "@/components/records/api/import-response";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition, ImportResult } from "@/types";
@@ -114,11 +115,13 @@ export function useRecords(params: UseRecordsParams) {
 
     const exportCsv = async (exportParams: {
         search?: string;
+        distributionOrder?: number;
         filters?: FilterCondition[];
         sortField?: string;
         sortOrder?: string;
     }) => {
         const qs = new URLSearchParams();
+        if (exportParams.distributionOrder !== undefined) qs.set("distributionOrder", String(exportParams.distributionOrder));
         if (exportParams.search) qs.set("search", exportParams.search);
         if (exportParams.filters && exportParams.filters.length > 0)
             qs.set("filters", JSON.stringify(exportParams.filters));
@@ -146,33 +149,8 @@ export function useRecords(params: UseRecordsParams) {
             }
         );
 
-        // 검증 실패 등은 일반 JSON 에러
-        if (!res.ok || !res.body) {
-            return await res.json();
-        }
-
-        // 서버가 적재 진행률을 NDJSON으로 스트리밍 (progress… → done|error)
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let buf = "";
-        let result: ImportResult = { success: false, totalCount: 0, insertedCount: 0, skippedCount: 0, errors: [] };
-        let finished = false;
-        while (!finished) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            buf += decoder.decode(value, { stream: true });
-            const lines = buf.split("\n");
-            buf = lines.pop() ?? "";
-            for (const line of lines) {
-                if (!line.trim()) continue;
-                const msg = JSON.parse(line);
-                if (msg.type === "progress") onProgress?.({ processed: msg.processed, total: msg.total });
-                else if (msg.type === "done") { result = msg.result; finished = true; }
-                else if (msg.type === "error") { result = { success: false, totalCount: 0, insertedCount: 0, skippedCount: 0, errors: [], error: msg.error } as ImportResult; finished = true; }
-            }
-        }
-
-        if (result.success && result.insertedCount > 0) mutate();
+        const result = await readImportResponse(res, onProgress);
+        if (result.success && (result.insertedCount > 0 || (result.mergedCount ?? 0) > 0)) mutate();
         return result;
     };
 

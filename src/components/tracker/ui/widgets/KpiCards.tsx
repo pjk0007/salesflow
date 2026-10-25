@@ -64,7 +64,8 @@ function Card({
 export function KpiCards({ kpi, comparison }: { kpi: OverviewData["kpi"]; comparison: ComparisonPeriod }) {
     return (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
-            <Card icon={Users} label="방문자" formatValue={formatCount} metric={kpi.visitors} comparison={comparison} />
+            <p className="col-span-full text-xs text-muted-foreground">선택 기간에 유효 페이지를 방문한 브라우저 기준입니다. 재방문을 포함하며 여러 기기는 각각 집계합니다.</p>
+            <Card icon={Users} label="활성 방문자" formatValue={formatCount} metric={kpi.visitors} comparison={comparison} />
             <Card icon={MousePointer} label="세션" formatValue={formatCount} metric={kpi.sessions} comparison={comparison} />
             <Card icon={Eye} label="페이지뷰" formatValue={formatCount} metric={kpi.pageviews} comparison={comparison} />
             <Card icon={Clock} label="평균 체류" formatValue={formatDwell} metric={kpi.avgDwellSec} comparison={comparison} />

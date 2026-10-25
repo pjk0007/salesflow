@@ -8,6 +8,8 @@ export interface JWTPayload {
   email: string;
   name: string;
   role: OrgRole;
+  /** 발급 당시 멤버십 행의 고유 ID. 없는 이전 세션은 다시 로그인해야 한다. */
+  membershipId?: number;
   /** 발급 시점의 organization_members.token_version. 도입 이전 토큰엔 없다 — 없으면 0으로 취급. */
   tokenVersion?: number;
   isSuperAdmin?: boolean;

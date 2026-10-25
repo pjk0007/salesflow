@@ -100,7 +100,7 @@ export function CustomerAiPage({ role }: { role: string }) {
                             <SupportSettingsForm
                                 key={`settings:${workspaceId}`}
                                 catalog={catalog.data}
-                                members={bootstrap.data.members}
+                                members={bootstrap.data.members.filter((member) => member.workspaceIds.includes(workspaceId))}
                                 canManage={canManage}
                                 onSave={async (value) => {
                                     try {

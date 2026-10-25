@@ -1,3 +1,4 @@
+import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, partitions, workspaces, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
@@ -63,55 +64,7 @@ export async function GET(req: NextRequest) {
         }
 
         const offset = (page - 1) * pageSize;
-        const conditions = [eq(records.partitionId, partitionId)];
-
-        if (search) {
-            conditions.push(sql`${records.data}::text ILIKE ${"%" + search + "%"}`);
-        }
-
-        for (const f of filters) {
-            const key = f.field;
-            const val = f.value;
-            switch (f.operator) {
-                case "contains":
-                    conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
-                    break;
-                case "equals":
-                    conditions.push(sql`${records.data}->>${key} = ${String(val)}`);
-                    break;
-                case "not_equals":
-                    conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
-                    break;
-                case "gt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric > ${Number(val)}`);
-                    break;
-                case "gte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric >= ${Number(val)}`);
-                    break;
-                case "lt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric < ${Number(val)}`);
-                    break;
-                case "lte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
-                    break;
-                case "before":
-                    conditions.push(sql`(${records.data}->>${key})::date < ${String(val)}::date`);
-                    break;
-                case "after":
-                    conditions.push(sql`(${records.data}->>${key})::date > ${String(val)}::date`);
-                    break;
-                case "between":
-                    conditions.push(sql`(${records.data}->>${key})::date >= ${String(val)}::date`);
-                    conditions.push(sql`(${records.data}->>${key})::date <= ${String(f.valueTo)}::date`);
-                    break;
-                case "is_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);
-                    break;
-                case "is_not_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NOT NULL AND ${records.data}->>${key} != '')`);
-                    break;
-            }
-        }
+        const conditions = buildRecordConditions(partitionId, { orgId: tokenInfo.orgId, search, filters });
 
         const whereClause = and(...conditions);
 
@@ -131,9 +84,9 @@ export async function GET(req: NextRequest) {
             let jsonField;
             const ft = fieldDef?.fieldType;
             if (ft === "number" || ft === "currency") {
-                jsonField = sql`(${records.data}->>${sortField})::numeric`;
+                jsonField = recordNumberSql(sortField);
             } else if (ft === "date" || ft === "datetime") {
-                jsonField = sql`(${records.data}->>${sortField})::timestamptz`;
+                jsonField = recordDateTimeSql(sortField);
             } else {
                 jsonField = sql`${records.data}->>${sortField}`;
             }
@@ -150,7 +103,7 @@ export async function GET(req: NextRequest) {
             .select()
             .from(records)
             .where(whereClause)
-            .orderBy(orderBy)
+            .orderBy(orderBy, sortOrder === "asc" ? asc(records.id) : desc(records.id))
             .limit(pageSize)
             .offset(offset);
 

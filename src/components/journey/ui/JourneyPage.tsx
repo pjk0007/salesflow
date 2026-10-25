@@ -45,7 +45,7 @@ export function JourneyPage({ recordId, visitorId }: { recordId?: number; visito
             <div className="flex items-center gap-2">
                 <button
                     type="button"
-                    onClick={() => router.back()}
+                    onClick={() => window.history.length > 1 ? router.back() : router.push(recordId ? "/records" : "/tracker")}
                     className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
                 >
                     <ArrowLeft className="h-4 w-4" />

@@ -7,15 +7,15 @@ import {
     recordAutoEnrichRules,
     type DbRecord,
 } from "@/lib/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { enqueueSends, wakeSendQueue } from "@/lib/email-send-queue";
-import { reserveIntegratedCodes, type RecordDb } from "@/lib/record-create";
+import { reserveIntegratedCodes, isBlankValue, type RecordDb } from "@/lib/record-create";
 
 // db 트랜잭션 / db 둘 다 받을 수 있는 최소 실행기 타입
-type DbExecutor = Pick<typeof db, "select" | "insert" | "update" | "delete">;
+type DbExecutor = Pick<typeof db, "select" | "insert" | "update" | "delete" | "execute">;
 
 export interface ImportPartitionInfo {
     id: number;
@@ -50,7 +50,7 @@ export interface InsertImportedRecordsResult {
 
 type ImportRowPlan =
     | { kind: "insert"; deleteExistingId?: number }
-    | { kind: "merge"; existingId: number; mergedData: Record<string, unknown> }
+    | { kind: "merge"; existingId: number }
     | { kind: "skip" }
     | { kind: "error"; message: string };
 
@@ -60,24 +60,22 @@ type ImportRowPlan =
  */
 export function planImportRows(
     dataRows: Array<Record<string, unknown>>,
-    existing: Array<{ id: number; val: string | null; data: unknown }>,
+    existing: Array<{ id: number; val: string | null }>,
     duplicateField: string | null,
     dupAction: string,
     duplicateAction: "skip" | "error",
 ): ImportRowPlan[] {
     // 기존 레코드 값 → ID 매핑 (merge/delete_old용)
     const existingMap = new Map<string, number>();
-    const existingDataMap = new Map<string, Record<string, unknown>>();
     for (const r of existing) {
         if (r.val) {
             existingMap.set(r.val, r.id);
-            existingDataMap.set(r.val, r.data as Record<string, unknown>);
         }
     }
     const batchValues = new Set<string>();
 
     return dataRows.map((data): ImportRowPlan => {
-        if (!duplicateField || !data[duplicateField]) return { kind: "insert" };
+        if (!duplicateField || isBlankValue(data[duplicateField])) return { kind: "insert" };
 
         const val = String(data[duplicateField]);
         const isDupExisting = existingMap.has(val);
@@ -88,13 +86,10 @@ export function planImportRows(
             if (dupAction === "allow") {
                 // 그대로 진행 (중복 허용)
             } else if (dupAction === "merge" && isDupExisting) {
-                const mergedData = { ...(existingDataMap.get(val) || {}), ...data };
-                existingDataMap.set(val, mergedData);
-                return { kind: "merge", existingId: existingMap.get(val)!, mergedData };
+                return { kind: "merge", existingId: existingMap.get(val)! };
             } else if (dupAction === "delete_old" && isDupExisting) {
                 plan = { kind: "insert", deleteExistingId: existingMap.get(val)! };
                 existingMap.delete(val);
-                existingDataMap.delete(val);
             } else if (duplicateAction === "skip") {
                 return { kind: "skip" };
             } else {
@@ -123,11 +118,20 @@ export async function insertImportedRecords(
     const duplicateField = dupConfig?.field || partition.duplicateCheckField;
     const dupAction = dupConfig?.action || "reject"; // reject=skip/error, allow/merge/delete_old
 
-    const existing = duplicateField
+    const duplicateValues = duplicateField
+        ? [...new Set(dataRows.filter((data) => !isBlankValue(data[duplicateField])).map((data) => String(data[duplicateField])))]
+        : [];
+    if (duplicateField && duplicateValues.length) {
+        // 단건 생성과 같은 키를 한 번의 SQL에서 정렬해 잠근다. 동시에 들어온 같은 값도 중복 조회 이후 끼어들지 못한다.
+        const keys = sql.join(duplicateValues.map((value) => sql`${`${duplicateField}:${value}`}`), sql`, `);
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${partitionId}::int4, k)
+            FROM (SELECT DISTINCT hashtext(value) AS k FROM unnest(ARRAY[${keys}]::text[]) AS input(value) ORDER BY k) AS locks`);
+    }
+    const existing = duplicateField && duplicateValues.length
         ? await tx
-            .select({ id: records.id, data: records.data, val: sql<string>`${records.data}->>${duplicateField}` })
+            .select({ id: records.id, val: sql<string>`${records.data}->>${duplicateField}` })
             .from(records)
-            .where(and(eq(records.partitionId, partitionId), eq(records.orgId, orgId)))
+            .where(and(eq(records.partitionId, partitionId), eq(records.orgId, orgId), inArray(sql`${records.data}->>${duplicateField}`, duplicateValues)))
         : [];
 
     const plans = planImportRows(dataRows, existing, duplicateField, dupAction, duplicateAction);
@@ -153,7 +157,7 @@ export async function insertImportedRecords(
         if (plan.kind === "merge") {
             await tx
                 .update(records)
-                .set({ data: plan.mergedData, updatedAt: new Date() })
+                .set({ data: sql`COALESCE(${records.data}, '{}'::jsonb) || ${JSON.stringify(dataRows[i])}::jsonb`, updatedAt: new Date() })
                 .where(eq(records.id, plan.existingId));
             mergedCount++;
             continue;

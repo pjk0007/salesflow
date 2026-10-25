@@ -1,8 +1,9 @@
 import { db, queryClient, alimtalkTemplateLinks, alimtalkSendLogs, alimtalkAutomationQueue, alimtalkFollowupQueue, records } from "@/lib/db";
 import { eq, and, gte, lte, inArray, sql } from "drizzle-orm";
-import { getAlimtalkClient, normalizePhoneNumber } from "@/lib/nhn-alimtalk";
+import { normalizePhoneNumber } from "@/lib/nhn-alimtalk";
 import type { DbRecord, AlimtalkTemplateLink } from "@/lib/db";
 import { evaluateCondition, type TriggerCondition } from "./automation-condition";
+import { sendAlimtalkForOrg } from "./alimtalk/send-service";
 export { evaluateCondition } from "./automation-condition";
 
 // ============================================
@@ -51,6 +52,7 @@ interface FollowupStep {
     delayHours?: number;
     delayMinutes?: number;
     templateCode: string;
+    senderKey?: string;
     templateName?: string;
     variableMappings?: Record<string, string>;
 }
@@ -111,7 +113,7 @@ async function checkCooldown(
                 eq(alimtalkSendLogs.recordId, recordId),
                 eq(alimtalkSendLogs.templateLinkId, templateLinkId),
                 gte(alimtalkSendLogs.sentAt, since),
-                inArray(alimtalkSendLogs.status, ["sent", "pending"])
+                inArray(alimtalkSendLogs.status, ["sent", "pending", "unknown"])
             )
         )
         .limit(1);
@@ -128,23 +130,12 @@ async function sendSingle(
     record: DbRecord,
     orgId: string,
     triggerType: "auto" | "repeat" | "followup",
-    stepIndex: number = 0
+    stepIndex: number = 0,
+    dedupeSince?: Date
 ): Promise<number | null> {
-    const client = await getAlimtalkClient(orgId);
-    if (!client) {
-        console.log(`[alimtalk] sendSingle failed: no NHN client for org ${orgId}`);
-        return null;
-    }
-
     const data = record.data as Record<string, unknown>;
     const phone = data[link.recipientField];
-    if (!phone || typeof phone !== "string") {
-        console.log(`[alimtalk] sendSingle failed: no phone in field "${link.recipientField}", got: ${JSON.stringify(phone)}`);
-        return null;
-    }
-
-    const recipientNo = normalizePhoneNumber(phone);
-    if (recipientNo.length < 10) return null;
+    const recipientNo = typeof phone === "string" ? normalizePhoneNumber(phone) : "";
 
     // 변수 매핑
     let templateParameter: Record<string, string> | undefined;
@@ -162,45 +153,21 @@ async function sendSingle(
         }
     }
 
-    // 템플릿 본문 조회 + 변수 치환
-    const templateDetail = await client.getTemplate(link.senderKey, link.templateCode);
-    let content = templateDetail?.template?.templateContent || "";
-    if (templateParameter) {
-        for (const [key, value] of Object.entries(templateParameter)) {
-            content = content.replaceAll(`#{${key}}`, value);
-        }
-    }
-
-    const nhnResult = await client.sendMessages({
-        senderKey: link.senderKey,
-        templateCode: link.templateCode,
-        recipientList: [{ recipientNo, templateParameter }],
+    const result = await sendAlimtalkForOrg({
+        orgId, senderKey: link.senderKey, templateCode: link.templateCode, triggerType, dedupeSince,
+        recipients: [{ phoneNumber: recipientNo, templateParameter, recordId: record.id,
+            templateLinkId: link.id, partitionId: link.partitionId, stepIndex }],
     });
-
-    const isSuccess = nhnResult.header.isSuccessful;
-    const sendResult = nhnResult.message?.sendResults?.[0];
-
-    const [log] = await db.insert(alimtalkSendLogs).values({
-        orgId,
-        templateLinkId: link.id,
-        partitionId: link.partitionId,
-        recordId: record.id,
-        senderKey: link.senderKey,
-        templateCode: link.templateCode,
-        templateName: link.templateName || "",
-        recipientNo,
-        requestId: nhnResult.message?.requestId,
-        recipientSeq: sendResult?.recipientSeq,
-        status: isSuccess ? "sent" : "failed",
-        resultCode: sendResult ? String(sendResult.resultCode) : null,
-        resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
-        content,
-        triggerType,
-        stepIndex,
-        sentAt: new Date(),
-    }).returning({ id: alimtalkSendLogs.id });
-
-    return isSuccess ? log.id : null;
+    if (!result.ok) {
+        await db.insert(alimtalkSendLogs).values({ orgId, templateLinkId: link.id, partitionId: link.partitionId,
+            recordId: record.id, senderKey: link.senderKey, templateCode: link.templateCode,
+            templateName: link.templateName, recipientNo, status: "failed", resultMessage: result.error,
+            triggerType, stepIndex });
+        return null;
+    }
+    // 후속 체인은 최종 배달이 아닌 공급자 개별 접수 확인을 기준으로 한다.
+    const accepted = result.data.results.find(r => r.status === "pending");
+    return accepted?.logId ?? null;
 }
 
 // ============================================
@@ -235,6 +202,7 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
+        try {
         // 조건 평가
         if (!evaluateCondition(link.triggerCondition as TriggerCondition | null, data)) {
             console.log(`[alimtalk] skip link ${link.id} (${link.name}): condition not met`);
@@ -250,7 +218,7 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
                     and(
                         eq(alimtalkSendLogs.recordId, record.id),
                         eq(alimtalkSendLogs.templateLinkId, link.id),
-                        inArray(alimtalkSendLogs.status, ["sent", "pending"])
+                        inArray(alimtalkSendLogs.status, ["sent", "pending", "unknown"])
                     )
                 )
                 .limit(1);
@@ -304,6 +272,9 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
                 nextRunAt,
                 status: "pending",
             });
+        }
+        } catch {
+            console.error(`[alimtalk] link ${link.id}: 처리 결과를 이력에서 확인해주세요.`);
         }
     }
 }
@@ -376,7 +347,7 @@ export async function processRepeatQueue(): Promise<{
 
         // 중단 조건 평가
         const data = record.data as Record<string, unknown>;
-        if (evaluateCondition(config.stopCondition, data)) {
+        if (config.stopCondition?.field && evaluateCondition(config.stopCondition, data)) {
             await db
                 .update(alimtalkAutomationQueue)
                 .set({ status: "completed", updatedAt: now })
@@ -386,7 +357,7 @@ export async function processRepeatQueue(): Promise<{
         }
 
         // 발송
-        const success = await sendSingle(link, record, item.orgId, "repeat");
+        const success = await sendSingle(link, record, item.orgId, "repeat", 0, item.nextRunAt);
 
         const newCount = item.repeatCount + 1;
         const isMaxReached = newCount >= config.maxRepeat;
@@ -562,7 +533,7 @@ async function processFollowupItem(
             .from(alimtalkTemplateLinks)
             .where(eq(alimtalkTemplateLinks.id, item.templateLinkId));
 
-        if (!link?.followupConfig) {
+        if (!link?.followupConfig || link.isActive !== 1) {
             await closeQueueItem(item.id, "failed");
             stats.failed++;
             return;
@@ -592,7 +563,7 @@ async function processFollowupItem(
                     eq(alimtalkSendLogs.triggerType, "followup"),
                     eq(alimtalkSendLogs.stepIndex, targetStepIndex),
                     gte(alimtalkSendLogs.sentAt, idempotencyCutoff),
-                    inArray(alimtalkSendLogs.status, ["sent", "pending"])
+                    inArray(alimtalkSendLogs.status, ["sent", "pending", "unknown"])
                 )
             )
             .limit(1);
@@ -619,13 +590,14 @@ async function processFollowupItem(
         // [6] 후속발송용 링크 가공 (현재 step의 templateCode/매핑 사용)
         const followupLink = {
             ...link,
+            senderKey: currentStep.senderKey || link.senderKey,
             templateCode: currentStep.templateCode,
             templateName: currentStep.templateName || null,
             variableMappings: currentStep.variableMappings || link.variableMappings,
         };
 
         // [7] 발송 (send_logs.stepIndex = item.stepIndex + 1)
-        const logId = await sendSingle(followupLink, record, item.orgId, "followup", targetStepIndex);
+        const logId = await sendSingle(followupLink, record, item.orgId, "followup", targetStepIndex, item.sendAt);
         await closeQueueItem(item.id, logId ? "sent" : "failed");
 
         if (logId) {

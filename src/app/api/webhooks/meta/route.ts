@@ -3,7 +3,8 @@ import { db } from "@/lib/db";
 import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, partitions, workspaces } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
-import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
+import { toRecordCreatePartition } from "@/lib/record-create";
+import { createMetaLeadRecord, hasProcessedMetaLead } from "@/lib/meta-lead-record";
 
 // GET: Meta Webhook 검증
 export async function GET(req: NextRequest) {
@@ -98,21 +99,8 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
         return;
     }
 
-    // 2. 중복 체크
-    const [existing] = await db
-        .select()
-        .from(adLeadLogs)
-        .where(eq(adLeadLogs.externalLeadId, leadgenId))
-        .limit(1);
-
-    if (existing) {
-        await db.insert(adLeadLogs).values({
-            integrationId: integration.id,
-            externalLeadId: leadgenId,
-            status: "duplicate",
-        });
-        return;
-    }
+    // 이미 성공한 이벤트만 생략한다. 실패·미설정 이력은 복구 후 재처리할 수 있다.
+    if (await hasProcessedMetaLead(db, integration.id, leadgenId)) return;
 
     // 3. 액세스 토큰 조회
     const [accountRow] = await db
@@ -246,38 +234,12 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
 
     // 8. 생성 공통 경로 — 중복 정책·통합코드 발번·분배·기본값·자동화·자동 보강·실시간 갱신이 다른 유입 경로와 같다
     try {
-        const created = await createRecord({
+        await createMetaLeadRecord({
             orgId: integration.orgId,
             partition: toRecordCreatePartition(partitionRow.partition),
             data: recordData,
             sourceDefaults,
-            source: "meta_ad",
-        });
-
-        if (created.status === "duplicate") {
-            await db.insert(adLeadLogs).values({
-                integrationId: integration.id,
-                externalLeadId: leadgenId,
-                recordId: created.existingRecordId,
-                rawData: leadData,
-                status: "duplicate",
-                errorMessage: `파티션 중복 설정(거부)으로 등록하지 않았습니다. (${created.fieldLabel}: ${created.value})`,
-            });
-            return;
-        }
-        if (created.status === "plan_limit") {
-            throw new Error("Meta 리드는 레코드 한도를 강제하지 않는다 — plan_limit가 올 수 없음");
-        }
-
-        // 9. 성공 로그 (병합이면 합친 기존 레코드를 가리킨다)
-        await db.insert(adLeadLogs).values({
-            integrationId: integration.id,
-            externalLeadId: leadgenId,
-            recordId: created.record.id,
-            rawData: leadData,
-            status: "success",
-            errorMessage: created.status === "merged" ? "파티션 중복 설정(병합)으로 기존 레코드에 합쳤습니다." : null,
-        });
+        }, { integrationId: integration.id, leadgenId, rawData: leadData });
     } catch (err) {
         await db.insert(adLeadLogs).values({
             integrationId: integration.id,

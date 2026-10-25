@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users, organizationMembers } from "@/lib/db";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-admin";
 
 export async function PATCH(
@@ -56,23 +56,12 @@ export async function PATCH(
             }, { status: 403 });
         }
 
-        // users.is_active는 계정 전체(모든 조직) 로그인을 막는 전역 값이다. 다른 조직에도 속한 사람을
-        // 이 조직 관리자가 바꾸면 그 조직 업무까지 막히므로, 이 조직에서의 사용 중지는 멤버 제거로 안내한다.
+        // 조직 관리자는 계정 전체 활성 상태를 바꾸지 않는다. 소속 수 확인 뒤 새 조직에 가입하는 경합도 막는다.
         if (isActive !== undefined && isActive !== targetUser.isActive) {
-            const [otherMembership] = await db
-                .select({ id: organizationMembers.id })
-                .from(organizationMembers)
-                .where(and(
-                    eq(organizationMembers.userId, targetId),
-                    ne(organizationMembers.organizationId, currentUser.orgId)
-                ))
-                .limit(1);
-            if (otherMembership) {
-                return NextResponse.json({
-                    success: false,
-                    error: "다른 조직에도 속한 사용자는 계정 전체를 비활성화할 수 없습니다. 이 조직에서만 사용을 중지하려면 멤버에서 제거해주세요.",
-                }, { status: 409 });
-            }
+            return NextResponse.json({
+                success: false,
+                error: "계정 전체 활성 상태는 운영자만 변경할 수 있습니다. 이 조직에서 사용을 중지하려면 멤버에서 제거해주세요.",
+            }, { status: 409 });
         }
 
         // admin은 member만 수정 가능
@@ -92,7 +81,7 @@ export async function PATCH(
         }
 
         // 역할 유효성 검증
-        if (role && !["owner", "admin", "member"].includes(role)) {
+        if (role !== undefined && (typeof role !== "string" || !["owner", "admin", "member"].includes(role))) {
             return NextResponse.json({
                 success: false,
                 error: "유효하지 않은 역할입니다.",
@@ -105,7 +94,6 @@ export async function PATCH(
         };
         if (name !== undefined) userUpdateData.name = name;
         if (phone !== undefined) userUpdateData.phone = phone || null;
-        if (isActive !== undefined) userUpdateData.isActive = isActive;
 
         const [updated] = await db
             .update(users)

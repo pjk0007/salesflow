@@ -27,7 +27,7 @@ interface CreateRecordDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     partitionId: number | null;
-    onSubmit: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string }>;
+    onSubmit: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string; merged?: boolean }>;
 }
 
 export default function CreateRecordDialog({
@@ -75,7 +75,7 @@ export default function CreateRecordDialog({
         try {
             const result = await onSubmit(formData);
             if (result.success) {
-                toast.success("레코드가 등록되었습니다.");
+                toast.success(result.merged ? "같은 값의 기존 레코드에 내용을 합쳤습니다." : "레코드가 등록되었습니다.");
                 setFormData({});
                 setErrors({});
                 onOpenChange(false);
@@ -147,7 +147,7 @@ export default function CreateRecordDialog({
                     <Input
                         type="number"
                         value={String(value ?? "")}
-                        onChange={(e) => setValue(field.key, e.target.value ? Number(e.target.value) : "")}
+                        onChange={(e) => setValue(field.key, e.target.value ? Number(e.target.value) : null)}
                         placeholder={field.label}
                     />
                 );

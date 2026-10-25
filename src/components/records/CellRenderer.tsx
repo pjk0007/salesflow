@@ -1,3 +1,4 @@
+import { parseCheckboxValue } from "@/lib/checkbox-value";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { FieldDefinition } from "@/types";
@@ -76,7 +77,7 @@ export default function CellRenderer({ field, value, fullText }: CellRendererPro
         case "checkbox":
             return (
                 <Checkbox
-                    checked={Boolean(value)}
+                    checked={parseCheckboxValue(value)}
                     disabled
                     className="pointer-events-none"
                 />

@@ -38,6 +38,13 @@ test("worker still sends an active claimed request exactly once", async () => {
     const f = await fixture(); await processEsignJobs(f.service, f.storage, f.delivery); await processEsignJobs(f.service, f.storage, f.delivery);
     assert.equal(f.sends(), 1); assert.equal((await f.service.repository.read(f.id))!.jobs[0].state, "accepted");
 });
+test("UX-266: payload decode failure is recorded as failed before transport", async () => {
+    const f = await fixture();
+    f.service.decodeJob = () => { throw new Error("fake damaged ciphertext"); };
+    await processEsignJobs(f.service, f.storage, f.delivery);
+    assert.equal(f.sends(), 0);
+    assert.equal((await f.service.repository.read(f.id))!.jobs[0].state, "failed");
+});
 test("worker does not deliver a code superseded after its claim", async () => {
     const f = await fixture(), stored = (await f.service.repository.read(f.id))!;
     const token = f.service.decodeJob(stored.jobs.find(job => job.kind === "invitation")!).token!;
@@ -55,4 +62,50 @@ test("worker does not deliver a code superseded after its claim", async () => {
     await processEsignJobs(f.service, f.storage, f.delivery, 1);
     assert.equal(injected, true); assert.equal(f.sends(), 0);
     assert.equal((await f.service.repository.read(f.id))!.jobs.find(job => job.kind === "otp")!.state, "failed");
+});
+
+
+test("UX-266: 손상 OTP는 claim에서 failed로 종결하고 lease 만료 후에도 공급자 호출 0회", async () => {
+    const f = await fixture(), stored = (await f.service.repository.read(f.id))!;
+    const token = f.service.decodeJob(stored.jobs.find(job => job.kind === "invitation")!).token!;
+    await f.service.requestOtp(token, "email");
+    await f.service.repository.mutate(f.id, value => {
+        value.jobs.find(job => job.kind === "otp")!.encryptedPayload = "corrupt-test-ciphertext";
+        value.jobs.find(job => job.kind === "invitation")!.state = "accepted";
+    });
+    await processEsignJobs(f.service, f.storage, f.delivery, 1);
+    const aggregate = (await f.service.repository.read(f.id))!, job = aggregate.jobs.find(job => job.kind === "otp")!;
+    assert.equal(job.state, "failed"); assert.match(job.error!, /보내지 않았습니다/);
+    assert.equal(job.leaseId, undefined); assert.equal(job.leaseUntil, undefined); assert.equal(job.encryptedPayload, undefined);
+    assert.equal(aggregate.events.filter(e => e.type === "delivery.result").length, 1);
+    assert.equal(await f.service.repository.claimJob(new Date(Date.now() + 120001).toISOString(), new Date(Date.now() + 240001).toISOString(), "fake-next-lease"), null);
+    await processEsignJobs(f.service, f.storage, f.delivery, 1);
+    assert.equal(f.sends(), 0);
+    assert.equal((await f.service.repository.read(f.id))!.jobs.find(job => job.kind === "otp")!.state, "failed");
+});
+
+
+test("손상 OTP 다음 유효 초대 작업도 같은 배치에서 진행", async () => {
+    const f = await fixture(), stored = (await f.service.repository.read(f.id))!;
+    await f.service.requestOtp(f.service.decodeJob(stored.jobs[0]).token!, "email");
+    await f.service.repository.mutate(f.id, value => { value.jobs.find(job => job.kind === "otp")!.encryptedPayload = "corrupt"; });
+    await processEsignJobs(f.service, f.storage, f.delivery, 1);
+    const jobs = (await f.service.repository.read(f.id))!.jobs;
+    assert.equal(jobs.find(j => j.kind === "otp")!.state, "failed");
+    assert.equal(jobs.find(j => j.kind === "invitation")!.state, "accepted");
+    assert.equal(f.sends(), 1);
+});
+
+test("정상 OTP 접수와 전송 뒤 타임아웃의 unknown은 유지", async t => {
+    for (const timeout of [false, true]) await t.test(String(timeout), async () => {
+        const f = await fixture(), stored = (await f.service.repository.read(f.id))!;
+        await f.service.requestOtp(f.service.decodeJob(stored.jobs[0]).token!, "email");
+        await f.service.repository.mutate(f.id, value => { value.jobs.find(job => job.kind === "invitation")!.state = "accepted"; });
+        let calls = 0;
+        const delivery = { async ready() { return true; }, async send() { calls++; if (timeout) throw Error("fake response lost"); return {state: "accepted" as const, providerId: "fake"}; } };
+        await processEsignJobs(f.service, f.storage, delivery, 1);
+        await processEsignJobs(f.service, f.storage, delivery, 1);
+        assert.equal(calls, 1);
+        assert.equal((await f.service.repository.read(f.id))!.jobs.find(j => j.kind === "otp")!.state, timeout ? "unknown" : "accepted");
+    });
 });

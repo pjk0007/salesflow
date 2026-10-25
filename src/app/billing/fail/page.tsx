@@ -23,7 +23,7 @@ function BillingFailContent() {
                     <p className="text-xs text-muted-foreground">오류 코드: {code}</p>
                 )}
                 <Button
-                    onClick={() => router.push("/settings?tab=billing")}
+                    onClick={() => router.push("/settings/billing")}
                     className="mt-4"
                 >
                     다시 시도

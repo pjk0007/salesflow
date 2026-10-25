@@ -1,14 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-export default function SettingsRedirect() {
-    const router = useRouter();
-
-    useEffect(() => {
-        router.replace("/settings/organization");
-    }, [router]);
-
-    return null;
+export default async function SettingsRedirect({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
+    const { tab } = await searchParams;
+    redirect(tab === "billing" ? "/settings/billing" : tab === "users" ? "/settings/organization?tab=team" : "/settings/organization");
 }

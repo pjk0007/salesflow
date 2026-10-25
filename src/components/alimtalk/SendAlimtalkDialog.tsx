@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useAlimtalkTemplateLinks } from "@/hooks/useAlimtalkTemplateLinks";
 import { useAlimtalkSend } from "@/hooks/useAlimtalkSend";
 import {
@@ -32,6 +32,10 @@ interface SendResult {
     totalCount: number;
     successCount: number;
     failCount: number;
+    unknownCount?: number;
+    excludedCount?: number;
+    warning?: string;
+    errors?: Array<{ recordId?: number; error: string }>;
 }
 
 export default function SendAlimtalkDialog({
@@ -45,33 +49,42 @@ export default function SendAlimtalkDialog({
     const [selectedLinkId, setSelectedLinkId] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<SendResult | null>(null);
+    const sending = useRef(false);
 
     const activeLinks = templateLinks.filter((l) => l.isActive === 1);
 
     const handleSend = async () => {
+        if (sending.current) return;
         if (!selectedLinkId) {
             toast.error("템플릿을 선택해주세요.");
             return;
         }
 
+        sending.current = true;
         setLoading(true);
+        try {
         const sendResult = await sendAlimtalk({
             templateLinkId: selectedLinkId,
             recordIds,
         });
-        setLoading(false);
-
         if (sendResult.success) {
             setResult(sendResult.data);
-            toast.success(
-                `발송 완료: 성공 ${sendResult.data.successCount}건, 실패 ${sendResult.data.failCount}건`
-            );
+            if (sendResult.data.warning) toast.warning(sendResult.data.warning);
+            else toast.success(`접수 ${sendResult.data.successCount}건, 실패 ${sendResult.data.failCount}건`);
         } else {
             toast.error(sendResult.error || "발송에 실패했습니다.");
+            if (sendResult.data?.errors?.length) setResult({ requestId: "", totalCount: recordIds.length,
+                successCount: 0, failCount: 0, excludedCount: recordIds.length, errors: sendResult.data.errors });
         }
+        } catch {
+            setResult({ requestId: "", totalCount: recordIds.length, successCount: 0, failCount: 0,
+                unknownCount: recordIds.length, warning: "응답을 확인할 수 없습니다. 다시 발송하지 말고 발송 이력에서 접수 여부를 확인해주세요." });
+            toast.warning("발송 결과 확인이 필요합니다. 중복 발송 전에 이력을 확인해주세요.");
+        } finally { sending.current = false; setLoading(false); }
     };
 
     const handleClose = () => {
+        if (sending.current) return;
         setSelectedLinkId(null);
         setResult(null);
         onOpenChange(false);
@@ -91,14 +104,14 @@ export default function SendAlimtalkDialog({
                     <div className="space-y-4">
                         <div className="text-center py-4">
                             <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
-                            <p className="text-lg font-medium">발송 완료</p>
+                            <p className="text-lg font-medium">발송 요청 결과</p>
                         </div>
                         <div className="flex justify-center gap-4">
                             <div className="text-center">
                                 <p className="text-2xl font-bold text-green-600">
                                     {result.successCount}
                                 </p>
-                                <p className="text-xs text-muted-foreground">성공</p>
+                                <p className="text-xs text-muted-foreground">접수됨</p>
                             </div>
                             <div className="text-center">
                                 <p className="text-2xl font-bold text-red-600">
@@ -107,9 +120,14 @@ export default function SendAlimtalkDialog({
                                 <p className="text-xs text-muted-foreground">실패</p>
                             </div>
                         </div>
+                        <p className="text-sm">제외 {result.excludedCount ?? 0}건 · 확인 필요 {result.unknownCount ?? 0}건</p>
+                        {result.warning && <p role="alert" className="text-sm text-amber-700">{result.warning}</p>}
+                        {result.errors?.length ? <ul className="max-h-40 overflow-y-auto text-sm space-y-1">{result.errors.map((error, index) =>
+                            <li key={index}>{error.recordId ? `레코드 #${error.recordId}: ` : ""}{error.error}</li>)}</ul> : null}
                         <p className="text-xs text-center text-muted-foreground">
-                            요청 ID: {result.requestId}
+                            {result.requestId ? `요청 ID: ${result.requestId}` : "요청 ID 미확인"} · 최종 수신 결과는 발송 이력에서 확인해주세요.
                         </p>
+                        <a className="block text-center text-sm underline" href="/alimtalk?tab=logs">발송 이력 확인</a>
                         <Button className="w-full" onClick={handleClose}>
                             닫기
                         </Button>

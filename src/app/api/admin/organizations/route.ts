@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
             ) as last_activity
         FROM ${organizations} o
         ${search ? sql`WHERE o.name ILIKE ${"%" + search + "%"} OR o.slug ILIKE ${"%" + search + "%"}` : sql``}
-        ORDER BY o.created_at
+        ORDER BY o.created_at DESC, o.id DESC
         LIMIT ${limit} OFFSET ${offset}
     `);
 

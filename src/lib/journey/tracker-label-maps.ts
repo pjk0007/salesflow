@@ -11,6 +11,8 @@ export type TrackerLabelMaps = {
     funnelStageEventNames: Set<string>;
     /** event_name → 한글 라벨 (퍼널 단계 라벨 우선, 이벤트 별칭 보완) */
     customEventLabels: Map<string, string>;
+    /** TYPE:name → 라벨. CUSTOM의 퍼널 우선 규칙도 포함한다. */
+    eventLabels: Map<string, string>;
 };
 
 /**
@@ -20,22 +22,29 @@ export type TrackerLabelMaps = {
  */
 export function buildTrackerLabelMaps(
     funnels: ReadonlyArray<{ stages: ReadonlyArray<FunnelStage> | null | undefined }>,
-    customAliases: ReadonlyArray<{ eventName: string; label: string | null }>,
+    customAliases: ReadonlyArray<{ eventType?: string; eventName: string; label: string | null }>,
 ): TrackerLabelMaps {
     const funnelStageEventNames = new Set<string>();
     const customEventLabels = new Map<string, string>();
+    const eventLabels = new Map<string, string>();
     // ② 라벨 카드 먼저 (퍼널 라벨이 덮어쓰도록)
     for (const a of customAliases) {
-        if (a.label?.trim()) customEventLabels.set(a.eventName, a.label);
+        if (!a.label?.trim()) continue;
+        const type = a.eventType ?? "CUSTOM";
+        eventLabels.set(`${type}:${a.eventName}`, a.label.trim());
+        if (type === "CUSTOM") customEventLabels.set(a.eventName, a.label.trim());
     }
     // ① 퍼널 단계 라벨 우선 적용
     for (const f of funnels) {
         for (const st of (f.stages ?? [])) {
             if (st.match?.type === "custom_event") {
                 funnelStageEventNames.add(st.match.eventName);
-                if (st.label?.trim()) customEventLabels.set(st.match.eventName, st.label);
+                if (st.label?.trim()) {
+                    customEventLabels.set(st.match.eventName, st.label.trim());
+                    eventLabels.set(`CUSTOM:${st.match.eventName}`, st.label.trim());
+                }
             }
         }
     }
-    return { funnelStageEventNames, customEventLabels };
+    return { funnelStageEventNames, customEventLabels, eventLabels };
 }

@@ -38,7 +38,7 @@ interface SessionContextType {
     sessionError: string | null;
     logout: () => void;
     refreshSession: () => Promise<void>;
-    switchOrg: (orgId: string) => Promise<void>;
+    switchOrg: (orgId: string) => Promise<{ success: boolean; error?: string }>;
     createOrg: (name: string) => Promise<{ success: boolean; error?: string }>;
     isSessionChanging: boolean;
     sessionEpoch: number;
@@ -55,7 +55,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const [isSessionChanging, setIsSessionChanging] = useState(false);
     const sessionChanging = useRef(false);
     const [sessionEpoch, setSessionEpoch] = useState(0);
-    const identity = useRef<string | null>(null);
+    // null은 확인된 로그아웃, undefined는 아직 확인하지 못했거나 조회 실패한 세션이다.
+    const identity = useRef<string | null | undefined>(undefined);
+    // 세션 조회가 실패해 user를 숨겨도 기존 SWR 캐시의 소유 조직은 잊지 않는다.
+    const cacheIdentity = useRef<string | null>(null);
+    const reloadPending = useRef(false);
+    const navigationPending = useRef<string | null>(null);
+    const documentNavigationStarted = useRef(false);
     const sessionRequest = useRef(0);
     const invalidationListeners = useRef(new Set<() => void>());
     const subscribeInvalidation = useCallback((listener: () => void) => {
@@ -68,9 +74,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         for (const listener of invalidationListeners.current) listener();
         setSessionEpoch((value) => value + 1);
     }, []);
+    const finishNavigation = useCallback(() => {
+        const target = navigationPending.current;
+        navigationPending.current = null;
+        if (identity.current === undefined || documentNavigationStarted.current) return;
+        if (reloadPending.current) {
+            // 숨긴 화면의 user가 아니라 마지막 /me로 확인한 실제 세션에 따라 이동한다.
+            documentNavigationStarted.current = true;
+            setIsLoading(true);
+            window.location.replace(identity.current === null ? "/login" : "/");
+        } else if (target) {
+            router.push(target);
+        }
+    }, [router]);
     const [transitions] = useState(() => new SessionTransitionQueue(
-        () => { sessionChanging.current = true; invalidate(); setIsSessionChanging(true); },
-        () => { sessionChanging.current = false; setIsSessionChanging(false); },
+        () => { sessionChanging.current = true; navigationPending.current = null; invalidate(); setIsSessionChanging(true); },
+        () => { sessionChanging.current = false; finishNavigation(); setIsSessionChanging(false); },
     ));
 
     const fetchSession = useCallback(async (reconciling = false) => {
@@ -84,9 +103,21 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             if (request !== sessionRequest.current) return;
 
             if (data.success) {
-                const nextIdentity = `${data.user.orgId}:${data.user.userId}`;
-                if (identity.current && identity.current !== nextIdentity) { invalidate(); request = sessionRequest.current; }
+                // 같은 조직에 다시 참여하거나 권한이 바뀐 세션도 이전 권한의 캐시를 재사용하지 않는다.
+                const nextIdentity = [data.user.orgId, data.user.userId, data.user.membershipId,
+                    data.user.tokenVersion, data.user.role, data.user.isSuperAdmin === true].join(":");
                 identity.current = nextIdentity;
+                if (reloadPending.current || (cacheIdentity.current && cacheIdentity.current !== nextIdentity)) {
+                    // 조직이 바뀌면 SWR 전역 캐시와 페이지 자체 상태를 함께 비운다.
+                    // 여러 소비자가 전역 mutate를 사용하므로 일부 화면만 새 provider로 감싸지 않는다.
+                    invalidate();
+                    request = sessionRequest.current;
+                    reloadPending.current = true;
+                    setUser(null);
+                    setIsLoading(true);
+                    return;
+                }
+                cacheIdentity.current = nextIdentity;
                 setUser({
                     id: data.user.userId,
                     orgId: data.user.orgId,
@@ -105,6 +136,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             } else {
                 if (identity.current) { invalidate(); request = sessionRequest.current; }
                 identity.current = null;
+                if (cacheIdentity.current) reloadPending.current = true;
                 setUser(null);
             }
         } catch {
@@ -112,13 +144,16 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             // Hide stale account data after an ambiguous cookie transition, but keep
             // the cookie so retry can recover without redirecting to login.
             if (identity.current) { invalidate(); request = sessionRequest.current; }
-            identity.current = null;
+            identity.current = undefined;
             setUser(null);
             setSessionError("로그인 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
         } finally {
-            if (request === sessionRequest.current) setIsLoading(false);
+            if (request === sessionRequest.current) {
+                if (!sessionChanging.current) finishNavigation();
+                setIsLoading(reloadPending.current && identity.current !== undefined);
+            }
         }
-    }, [invalidate]);
+    }, [finishNavigation, invalidate]);
 
     const logout = useCallback(() => transitions.run(async (isLatest) => {
         try {
@@ -129,11 +164,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             // An uncertain response may still have changed the cookie.
             await fetchSession(true);
         }
-        if (isLatest() && !identity.current) router.push("/login");
-    }), [fetchSession, router, transitions]);
+        if (isLatest() && identity.current === null) navigationPending.current = "/login";
+    }), [fetchSession, transitions]);
 
-    const switchOrg = useCallback((orgId: string) => transitions.run(async (isLatest) => {
-        let switched = false;
+    const switchOrg = useCallback(async (orgId: string) => {
+        let result = { success: false, error: "조직을 전환하지 못했습니다. 다시 시도해주세요." };
+        await transitions.run(async (isLatest) => {
         try {
             const res = await fetch("/api/org/switch", {
                 method: "POST",
@@ -141,15 +177,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
                 body: JSON.stringify({ orgId }),
             });
             const data = await res.json();
-            switched = data.success === true;
+            result = { success: res.ok && data.success === true, error: data.error || "조직을 전환하지 못했습니다." };
         } catch (error) {
             console.error("Org switch error:", error);
         } finally {
             // Also reconcile intermediate successes and failed/ambiguous cookie responses.
             await fetchSession(true);
         }
-        if (switched && isLatest() && identity.current) router.push("/");
-    }), [fetchSession, router, transitions]);
+        if (result.success && isLatest() && identity.current) navigationPending.current = "/";
+        });
+        return result;
+    }, [fetchSession, transitions]);
 
     const createOrg = useCallback(async (name: string) => {
         let result: { success: boolean; error?: string } = { success: false, error: "서버 오류가 발생했습니다." };
@@ -167,10 +205,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
             } finally {
                 await fetchSession(true);
             }
-            if (result.success && isLatest() && identity.current) router.push("/");
+            if (result.success && isLatest() && identity.current) navigationPending.current = "/";
         });
         return result;
-    }, [fetchSession, router, transitions]);
+    }, [fetchSession, transitions]);
 
     useEffect(() => {
         fetchSession();

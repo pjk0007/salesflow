@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { sql } from "drizzle-orm";
 import type { FunnelStage, StageMatch } from "@/components/tracker/types/funnel";
+import { pagePathExpr } from "@/lib/tracker/page-path";
 
 /**
  * 퍼널 분석 ─ 코호트 + sequential 방식.
@@ -15,9 +16,7 @@ import type { FunnelStage, StageMatch } from "@/components/tracker/types/funnel"
  *   "전환까지 갔다가 종료된 사람"도 전환에 카운트 (산업 표준 — 도달 기준).
  *
  * 매칭 정의:
- *   - record_field: record_events 이력에 (type=field, label=value) 이벤트가 있는가.
- *                   현재 상태(records.data) 매칭은 하지 않음 — 도달 사실은 이력에 있어야 함.
- *                   트래커 도입 전부터 활동하던 record는 별도 backfill로 살릴 수 있음.
+ *   - record_field: 현재 상태(records.data) 또는 record_events의 과거 도달 이력 합집합.
  *   - page_url:     tracker_events에 그 경로 PV가 있는가.
  */
 
@@ -44,28 +43,32 @@ export async function getStageVisitorIds(
     match: StageMatch,
 ): Promise<Set<number>> {
     if (match.type === "record_field") {
-        // 이력 기반 매칭: record_events에 (type=field, label=value) 이벤트가 있는가.
-        // 현재 상태(records.data)는 보지 않음 — "도달한 적 있는가"가 퍼널의 본질.
+        // 생성·외부 갱신은 이력이 없을 수 있다. 현재 값과 과거 도달을 함께 본다.
         const rows = (await db.execute(sql`
             ${visitorRecordsAllCte()}
             SELECT DISTINCT vra.visitor_id AS id
             FROM visitor_records_all vra
-            JOIN record_events re ON re.record_id = vra.record_id
-                AND re.type = ${match.field}
-                AND re.label = ${match.value}
+            JOIN records r ON r.id = vra.record_id
+            JOIN tracker_sites site ON site.id = ${ctx.siteId} AND site.org_id = r.org_id
             WHERE vra.visitor_id IN ${ctx.meaningfulVisitorIdsSql}
+              AND (r.data->>${match.field} = ${match.value} OR EXISTS (
+                SELECT 1 FROM record_events re WHERE re.record_id = vra.record_id
+                  AND re.type = ${match.field} AND re.label = ${match.value}
+              ))
         `)) as unknown as Array<{ id: number }>;
         return new Set(rows.map((r) => r.id));
     }
 
     if (match.type === "page_url") {
-        const prefix = match.pathPrefix + "%";
+        const path = match.pathPrefix.replace(/\/+$/, "") || "/";
+        const childPattern = path.replace(/[\\%_]/g, "\\$&") + "/%";
         const rows = (await db.execute(sql`
             SELECT DISTINCT ev.visitor_id AS id
             FROM tracker_events ev
             WHERE ev.site_id = ${ctx.siteId}
               AND ev.event_type = 'PAGE_VIEW'
-              AND regexp_replace(split_part(ev.page_url, '?', 1), '^https?://[^/]+', '') LIKE ${prefix}
+              AND (${pagePathExpr("ev.page_url")} = ${path}
+                OR (${path} <> '/' AND ${pagePathExpr("ev.page_url")} LIKE ${childPattern}))
               AND ev.visitor_id IN ${ctx.meaningfulVisitorIdsSql}
         `)) as unknown as Array<{ id: number }>;
         return new Set(rows.map((r) => r.id));

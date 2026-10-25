@@ -45,7 +45,7 @@ export function WelcomeProcess({
                     rel="noopener noreferrer"
                     className="block rounded-xl border border-violet-100 bg-violet-50/50 p-3 text-gray-700"
                 >
-                    <p className="font-medium">디자이너 구독이 처음이신가요?</p>
+                    <p className="font-medium">서비스 이용이 처음이신가요?</p>
                     <p className="mt-1 text-xs">
                         1:1 도입 상담으로 맞춤 안내를 받아보세요.
                     </p>

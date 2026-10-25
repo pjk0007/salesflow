@@ -3,6 +3,7 @@ import { db, users, organizationMembers } from "@/lib/db";
 import { eq, and, or, ilike, sql, count } from "drizzle-orm";
 import { hashPassword } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
+import { isUniqueViolation } from "@/lib/db/errors";
 
 export async function GET(req: NextRequest) {
     const auth = await requireAdmin(req);
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
     try {
         const { name, email, password, role, phone } = await req.json();
 
-        if (!name || !email || !password) {
+        if (typeof name !== "string" || !name.trim() || typeof email !== "string" || !email.trim() || typeof password !== "string" || !password) {
             return NextResponse.json({
                 success: false,
                 error: "이름, 이메일, 비밀번호를 입력해주세요.",
@@ -97,6 +98,10 @@ export async function POST(req: NextRequest) {
         }
 
         const targetRole = role || "member";
+        const normalizedEmail = email.trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || !["admin", "member"].includes(targetRole)) {
+            return NextResponse.json({ success: false, error: "이메일 또는 역할을 확인해주세요." }, { status: 400 });
+        }
 
         // admin은 member만 생성 가능
         if (user.role === "admin" && targetRole !== "member") {
@@ -106,29 +111,26 @@ export async function POST(req: NextRequest) {
             }, { status: 403 });
         }
 
-        // 이메일 중복 확인 (같은 조직 내)
+        // 이메일은 전역 고유값이다. 다른 조직 계정은 새로 만들지 않고 초대로 연결한다.
         const [existing] = await db
             .select({ id: users.id })
             .from(users)
-            .innerJoin(organizationMembers, and(
-                eq(organizationMembers.userId, users.id),
-                eq(organizationMembers.organizationId, user.orgId)
-            ))
-            .where(eq(users.email, email));
+            .where(eq(users.email, normalizedEmail));
 
         if (existing) {
-            return NextResponse.json({ success: false, error: "이미 등록된 이메일입니다." }, { status: 409 });
+            return NextResponse.json({ success: false, error: "이미 가입된 이메일입니다. 초대 기능을 이용해주세요." }, { status: 409 });
         }
 
         const hashedPassword = await hashPassword(password);
 
-        const [created] = await db
+        const created = await db.transaction(async (tx) => {
+        const [account] = await tx
             .insert(users)
             .values({
                 orgId: user.orgId,
-                email,
+                email: normalizedEmail,
                 password: hashedPassword,
-                name,
+                name: name.trim(),
                 role: targetRole,
                 phone: phone || null,
             })
@@ -140,15 +142,20 @@ export async function POST(req: NextRequest) {
             });
 
         // organizationMembers에도 추가
-        await db.insert(organizationMembers).values({
+        await tx.insert(organizationMembers).values({
             organizationId: user.orgId,
-            userId: created.id,
+            userId: account.id,
             role: targetRole,
+        });
+        return account;
         });
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error) {
         console.error("User create error:", error);
+        if (isUniqueViolation(error)) {
+            return NextResponse.json({ success: false, error: "이미 가입된 이메일입니다. 초대 기능을 이용해주세요." }, { status: 409 });
+        }
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }

@@ -122,7 +122,7 @@ export async function POST(
                 fieldType: finalFieldType,
                 cellType,
                 category: isSystemField ? null : (category?.trim() || null),
-                isRequired: 0,
+                isRequired: isSystemField ? 0 : (isRequired ? 1 : 0),
                 isSortable: isSystemField ? 1 : (isSortable ? 1 : 0),
                 isSystem: isSystemField ? 1 : 0,
                 systemColumn: isSystemField ? systemColumn : null,
@@ -165,7 +165,8 @@ export async function POST(
 
         for (const p of partitionList) {
             const currentFields = (p.visibleFields as string[]) || [];
-            if (!currentFields.includes(newKey)) {
+            // null·빈 배열은 전체 표시다. 한 열만 담는 배열로 바꾸지 않는다.
+            if (currentFields.length > 0 && !currentFields.includes(newKey)) {
                 await db
                     .update(partitions)
                     .set({

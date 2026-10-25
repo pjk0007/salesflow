@@ -133,11 +133,12 @@ export async function PATCH(req: NextRequest) {
                 email: currentUser.email,
                 name: name.trim(),
                 role: currentUser.role,
+                membershipId: currentUser.membershipId,
                 tokenVersion: currentUser.tokenVersion,
                 ...(currentUser.isSuperAdmin && { isSuperAdmin: true }),
             };
             const response = NextResponse.json({ success: true, data: updated });
-            setSessionCookie(response, payload);
+            await setSessionCookie(response, payload);
             return response;
         }
 

@@ -8,18 +8,22 @@ import { ArrowLeft, Download, RefreshCw, XCircle } from "lucide-react";
 import { esignApi, downloadFile } from "../api/client";
 import { channelLabels, deliveryLabels, displayDate, envelopeLabels, roleColors } from "../utils/presentation";
 import { PdfViewer } from "./PdfViewer";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
-const eventLabels: Record<string, string> = { "envelope.created": "서명 요청 생성", "envelope.dispatched": "서명 요청 발송", "recipient.otp_requested": "확인 코드 요청", "recipient.otp_failed": "확인 코드 재확인", "recipient.verified": "수신자 확인", "recipient.signed": "서명 제출", "envelope.rejected": "서명 거절", "envelope.cancelled": "요청 취소", "envelope.expired": "만료", "envelope.finalizing": "완료 문서 준비", "envelope.completed": "서명 완료", "delivery.result": "발송 결과 확인", "envelope.finalization_failed": "완료 문서 생성 재확인 필요" };
+const eventLabels: Record<string, string> = { "envelope.created": "서명 요청 생성", "envelope.dispatched": "서명 요청 발송", "recipient.otp_requested": "확인 코드 요청", "recipient.otp_failed": "확인 코드 재확인", "recipient.verified": "수신자 확인", "recipient.signed": "서명 제출", "envelope.rejected": "서명 거절", "envelope.cancelled": "요청 취소", "envelope.expired": "만료", "envelope.finalizing": "완료 문서 준비", "envelope.completed": "서명 완료", "delivery.result": "발송 결과 확인", "envelope.finalization_retried": "완료 PDF 다시 생성", "envelope.finalization_failed": "완료 문서 생성 재확인 필요" };
 
 export function EnvelopeDetail({ detail, workspaceId, onClose, onRefresh }: { detail: StaffEsignDetail; workspaceId: number; onClose: () => void; onRefresh: () => void }) {
     const [page, setPage] = useState(0), [error, setError] = useState(""), [busy, setBusy] = useState(false);
     const { envelope, recipients, jobs, events } = detail;
     const ready = envelope.state === "completed" && !!envelope.finalArtifact;
+    const finalizeFailed = envelope.state === "finalizing" && jobs.some(job => job.kind === "finalize" && job.state === "failed");
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     async function download(url: string, name: string) { setError(""); try { await downloadFile(url, name); } catch (cause) { setError(cause instanceof Error ? cause.message : "파일을 내려받지 못했습니다."); } }
 
     return <section className="space-y-5 rounded-xl border bg-card p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3"><div><Button type="button" variant="ghost" size="sm" className="-ml-2 mb-3" onClick={onClose}><ArrowLeft />요청 목록</Button><h2 className="text-xl font-semibold">{envelope.title}</h2><p className="mt-2 text-sm text-muted-foreground">{displayDate(envelope.createdAt)} 요청 · {envelope.order === "parallel" ? "동시 서명" : "순차 서명"}</p></div><div className="flex items-center gap-2"><span className={`rounded-full px-3 py-1.5 text-sm font-medium ${ready ? "bg-green-100 text-green-800" : envelope.state === "pending" || envelope.state === "finalizing" ? "bg-blue-50 text-blue-800" : "bg-muted text-muted-foreground"}`}>{envelopeLabels[envelope.state]}</span><Button type="button" size="icon-sm" variant="outline" aria-label="진행 상태 새로고침" onClick={onRefresh}><RefreshCw /></Button></div></div>
-        {envelope.state === "finalizing" && <p role="status" className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">모든 서명이 모였습니다. 완료 문서를 생성·저장하고 있습니다. 준비가 끝나면 내려받을 수 있습니다.</p>}
+        {envelope.state === "finalizing" && <div role="status" className="rounded-lg bg-blue-50 p-4 text-sm text-blue-900">{finalizeFailed ? <><p>완료 PDF 생성에 실패했습니다. 저장된 서명으로 다시 생성할 수 있습니다.</p><Button className="mt-3" type="button" onClick={() => confirm({ title: "완료 PDF를 다시 생성할까요?", description: "저장된 서명과 원본을 사용합니다. 서명을 다시 요청하거나 초대를 재발송하지 않습니다.", confirmLabel: "다시 생성", onConfirm: async () => { await esignApi.retryFinalization(workspaceId, envelope.id); onRefresh(); } })}>완료 PDF 다시 생성</Button></> : "모든 서명이 모였습니다. 완료 문서를 생성·저장하고 있습니다. 준비가 끝나면 내려받을 수 있습니다."}</div>}
+        {confirmationDialog}
         <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
             <PdfViewer key={`${envelope.id}-${ready}`} url={esignApi.envelopeUrl(workspaceId, envelope.id, ready)} fields={ready ? [] : envelope.document.fields} pageIndex={page} onPageChange={setPage} />
             <aside className="space-y-5">

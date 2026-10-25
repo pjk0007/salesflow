@@ -24,7 +24,7 @@ import { useResolvedFields } from "@/hooks/useResolvedFields";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import FollowupStepsForm, { type FollowupStepUI } from "@/components/alimtalk/FollowupStepsForm";
-import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
+import { extractAllTemplateVariables, saveAlimtalkFollowupSteps, loadAlimtalkFollowupSteps, type AlimtalkFollowupStep } from "@/lib/alimtalk-template-utils";
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 
@@ -83,31 +83,8 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                 setUseRepeat(true);
                 setRepeatConfig(link.repeatConfig);
             }
-            type FollowupStepRaw = {
-                delayDays?: number;
-                delayHours?: number;
-                delayMinutes?: number;
-                templateCode: string;
-                variableMappings?: Record<string, string>;
-            };
-            const fc = link.followupConfig as FollowupStepRaw | FollowupStepRaw[] | null;
-            const rawSteps: FollowupStepRaw[] = !fc
-                ? []
-                : Array.isArray(fc)
-                  ? fc
-                  : [fc];
-            if (rawSteps.length > 0) {
-                setUseFollowup(true);
-                setFollowupSteps(rawSteps.map((s): FollowupStepUI => {
-                    if (s.delayHours != null) {
-                        return { delayValue: s.delayHours, delayUnit: "hours", senderKey: "", templateCode: s.templateCode, variableMappings: s.variableMappings ?? {} };
-                    }
-                    if (s.delayMinutes != null) {
-                        return { delayValue: Math.max(1, Math.round(s.delayMinutes / 60)), delayUnit: "hours", senderKey: "", templateCode: s.templateCode, variableMappings: s.variableMappings ?? {} };
-                    }
-                    return { delayValue: s.delayDays ?? 1, delayUnit: "days", senderKey: "", templateCode: s.templateCode, variableMappings: s.variableMappings ?? {} };
-                }));
-            }
+            const steps = loadAlimtalkFollowupSteps(link.followupConfig as AlimtalkFollowupStep | AlimtalkFollowupStep[] | null);
+            if (steps.length > 0) { setUseFollowup(true); setFollowupSteps(steps); }
             setLoaded(true);
         }
     }, [templateLinks, linkId, loaded]);
@@ -140,12 +117,7 @@ export default function EditAlimtalkLinkPage({ params }: { params: Promise<{ id:
                 ? followupSteps.filter((s) => s.templateCode)
                 : [];
             const followupConfig = validSteps.length > 0
-                ? validSteps.map((s) => ({
-                    ...(s.delayUnit === "hours" && { delayHours: s.delayValue }),
-                    ...(s.delayUnit === "days" && { delayDays: s.delayValue }),
-                    templateCode: s.templateCode,
-                    ...(Object.keys(s.variableMappings).length > 0 && { variableMappings: s.variableMappings }),
-                }))
+                ? saveAlimtalkFollowupSteps(validSteps)
                 : null;
 
             const result = await updateLink(linkId, {

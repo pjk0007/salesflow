@@ -10,6 +10,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Activity } from "lucide-react";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useTrackerFunnels } from "../../hooks/useTrackerFunnels";
 import { useFunnelAnalytics } from "../../hooks/useFunnelAnalytics";
 import type { SegmentFilters } from "../../types/overview";
@@ -29,7 +30,7 @@ const COLORS = ["#8b5cf6", "#6366f1", "#3b82f6", "#0ea5e9", "#06b6d4", "#10b981"
  * event 퍼널이 없으면 만들기 안내(빈 상태)를 표시.
  */
 export function EventFunnelCard({ siteId, range, filters }: Props) {
-    const { funnels, isLoading: funnelsLoading } = useTrackerFunnels(siteId);
+    const { funnels, isLoading: funnelsLoading, error: funnelsError, mutate: retryFunnels } = useTrackerFunnels(siteId);
     const eventFunnels = useMemo(() => funnels.filter((f) => f.kind === "event"), [funnels]);
 
     // 사용자가 명시 선택한 id (없으면 null). 실제 사용 id는 아래 derived로 결정.
@@ -41,8 +42,8 @@ export function EventFunnelCard({ siteId, range, filters }: Props) {
             ? pickedId
             : eventFunnels[0]?.id ?? null;
 
-    const { data, isLoading } = useFunnelAnalytics({
-        siteId,
+    const { data, isLoading, error, mutate } = useFunnelAnalytics({
+        siteId: selectedId === null ? null : siteId,
         funnelId: selectedId,
         from: range.from,
         to: range.to,
@@ -50,6 +51,9 @@ export function EventFunnelCard({ siteId, range, filters }: Props) {
         channel: filters.channel,
         channelMode: filters.channelMode,
     });
+
+    if (funnelsError && funnels.length === 0) return <QueryErrorState error={funnelsError} onRetry={() => { void retryFunnels(); }} />;
+    if (error && !data) return <QueryErrorState error={error} onRetry={() => { void mutate(); }} />;
 
     // event 퍼널 없으면 만들기 안내 (행동 탭 전용이라 숨기지 않고 빈 상태 노출)
     if (!funnelsLoading && eventFunnels.length === 0) {
@@ -69,10 +73,12 @@ export function EventFunnelCard({ siteId, range, filters }: Props) {
     }
 
     const stages = data?.stages ?? [];
-    const max = Math.max(1, stages[0]?.visitors ?? 1);
+    const max = Math.max(1, ...stages.map((stage) => stage.visitors));
+    const cohort = stages[0]?.visitors ?? 0;
 
     return (
         <div className="rounded-lg border bg-card p-5">
+            {(error || funnelsError) && <p role="alert" className="mb-3 text-sm text-destructive">최신 자료를 가져오지 못했습니다. 이전 자료를 표시합니다. <button className="underline" onClick={() => { void mutate(); void retryFunnels(); }}>다시 시도</button></p>}
             <div className="mb-1 flex items-center justify-between gap-3">
                 <p className="inline-flex items-center gap-2 text-sm font-semibold">
                     <Activity className="h-4 w-4 text-violet-500" />
@@ -95,7 +101,7 @@ export function EventFunnelCard({ siteId, range, filters }: Props) {
                 </Select>
             </div>
             <p className="mb-4 text-[11px] text-muted-foreground/80">
-                방문한 사람들이 각 단계 이벤트를 실제로 발생시킨 수입니다. 단계마다 실제 발생자만 카운트되며, 상위 단계로의 역산은 적용되지 않습니다.
+                선택 기간에 처음 방문한 사람 중 각 행동의 독립 발생자 수입니다. 도달률은 전체 방문자 대비이며, 앞 단계 통과나 순차 전환을 뜻하지 않습니다.
             </p>
 
             {isLoading && !data ? (
@@ -108,9 +114,7 @@ export function EventFunnelCard({ siteId, range, filters }: Props) {
                 <ul className="space-y-3">
                     {stages.map((s, i) => {
                         const widthPct = (s.visitors / max) * 100;
-                        const prev = i === 0 ? null : stages[i - 1].visitors;
-                        const conv = prev && prev > 0 ? (s.visitors / prev) * 100 : null;
-                        const drop = prev && prev > 0 ? Math.round(((prev - s.visitors) / prev) * 100) : null;
+                        const reach = i > 0 && cohort > 0 ? (s.visitors / cohort) * 100 : null;
                         const color = COLORS[i % COLORS.length];
                         return (
                             <li key={s.key} className="space-y-1">
@@ -122,13 +126,10 @@ export function EventFunnelCard({ siteId, range, filters }: Props) {
                                         )}
                                     </div>
                                     <div className="flex items-baseline gap-3 tabular-nums">
-                                        {conv !== null && (
-                                            <span className="text-[11px] text-muted-foreground">전환 {conv.toFixed(1)}%</span>
+                                        {reach !== null && (
+                                            <span className="text-[11px] text-muted-foreground">방문 대비 도달 {reach.toFixed(1)}%</span>
                                         )}
                                         <span className="text-lg font-semibold">{s.visitors.toLocaleString()}</span>
-                                        {drop !== null && drop > 0 && (
-                                            <span className="text-[11px] text-rose-600/80">-{drop}%</span>
-                                        )}
                                     </div>
                                 </div>
                                 <div className="h-3 w-full overflow-hidden rounded bg-muted">

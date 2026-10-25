@@ -23,7 +23,7 @@ export async function POST(
     const attributionParams = parseAttributionParams(
         typeof reqBody?.attribution === "string" ? reqBody.attribution : ""
     );
-    if (!submitData || typeof submitData !== "object") {
+    if (!submitData || typeof submitData !== "object" || Array.isArray(submitData)) {
         return NextResponse.json({ success: false, error: "제출 데이터가 필요합니다." }, { status: 400 });
     }
 
@@ -44,6 +44,11 @@ export async function POST(
             .from(webFormFields)
             .where(eq(webFormFields.formId, form.id))
             .orderBy(asc(webFormFields.sortOrder));
+
+        const fieldIds = new Set(fields.map((field) => String(field.id)));
+        if (Object.keys(submitData).some((id) => !fieldIds.has(id))) {
+            return NextResponse.json({ success: false, error: "질문 구성이 변경되었습니다. 폼을 새로 불러온 뒤 제출해주세요." }, { status: 409 });
+        }
 
         // required 검증 — 필수 체크박스(동의)는 체크(참)일 때만 통과한다. 해제하면 "false"가 오므로 빈 값 검사만으로는 막지 못한다 (UX-046)
         for (const field of fields) {

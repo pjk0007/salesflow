@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { trackerFunnels, trackerEventAliases, trackerEvents, trackerSessions } from "@/lib/db/schema";
-import { inArray, and, eq } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
 import type {
     JourneyEvent,
     JourneySummary,
@@ -57,12 +57,9 @@ export async function loadTrackerLabelMaps(siteIds: number[]): Promise<TrackerLa
         db.select({ stages: trackerFunnels.stages })
             .from(trackerFunnels)
             .where(inArray(trackerFunnels.siteId, siteIds)),
-        db.select({ eventName: trackerEventAliases.eventName, label: trackerEventAliases.label })
+        db.select({ eventType: trackerEventAliases.eventType, eventName: trackerEventAliases.eventName, label: trackerEventAliases.label })
             .from(trackerEventAliases)
-            .where(and(
-                inArray(trackerEventAliases.siteId, siteIds),
-                eq(trackerEventAliases.eventType, "CUSTOM"),
-            )),
+            .where(inArray(trackerEventAliases.siteId, siteIds)),
     ]);
     return buildTrackerLabelMaps(funnels, aliases);
 }
@@ -80,12 +77,12 @@ export function normalizeTrackerEvents(
     trkEvents: TrkEvent[],
     maps: TrackerLabelMaps,
 ): JourneyEvent[] {
-    const { funnelStageEventNames, customEventLabels } = maps;
+    const { funnelStageEventNames, eventLabels } = maps;
 
     // CUSTOM 이벤트의 표시 라벨 — 라벨 맵 우선, 없으면 기본 라벨러.
     const customLabel = (ev: TrkEvent): string => {
-        if (ev.eventType === "CUSTOM" && ev.eventName && customEventLabels.has(ev.eventName)) {
-            return customEventLabels.get(ev.eventName)!;
+        if (ev.eventName && eventLabels.has(`${ev.eventType}:${ev.eventName}`)) {
+            return eventLabels.get(`${ev.eventType}:${ev.eventName}`)!;
         }
         return trackerEventLabel(ev);
     };
@@ -112,6 +109,7 @@ export function normalizeTrackerEvents(
         const stageEvents = sessionEvents.filter(isFunnelStageEvent);
         const children = sessionEvents
             .filter((ev) => !isFunnelStageEvent(ev))
+            .sort((a, b) => a.occurredAt.getTime() - b.occurredAt.getTime() || a.id - b.id)
             .map<JourneyEvent>((ev) => ({
                 at: ev.occurredAt.toISOString(),
                 source: "tracker",
@@ -136,7 +134,7 @@ export function normalizeTrackerEvents(
             source: "tracker",
             channel: "사이트",
             type: "session",
-            label: `${inflow}${josaRo(inflow)} 사이트 방문 ${children.length}페이지`,
+            label: `${inflow}${josaRo(inflow)} 사이트 방문 ${children.filter((e) => e.type === "PAGE_VIEW").length}페이지`,
             meta: {
                 duration: s.duration,
                 landingPage: s.landingPage,
@@ -176,6 +174,7 @@ export function buildAttribution(events: JourneyEvent[], convertedAt: string | n
             touches.push({ channel: "메일", at: e.at });
         }
     }
+    touches.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
     // 간격 텍스트
     for (let i = 1; i < touches.length; i++) {
         touches[i].gapText = gapText(touches[i - 1].at, touches[i].at);
@@ -183,12 +182,32 @@ export function buildAttribution(events: JourneyEvent[], convertedAt: string | n
     const conversionAt = convertedAt
         ?? events.find((e) => e.type === "signup")?.at
         ?? null;
+    const beforeConversion = conversionAt ? touches.filter((t) => Date.parse(t.at) <= Date.parse(conversionAt)) : touches;
     return {
         firstTouch: touches[0] ?? null,
-        lastTouch: touches.length ? touches[touches.length - 1] : null,
+        lastTouch: beforeConversion.at(-1) ?? null,
         conversionAt,
         path: touches,
     };
+}
+
+/** 기간을 넘는 세션도 범위 안 행동만 남기고 요약/추천과 같은 집합을 사용한다. */
+export function filterJourneyEvents(events: JourneyEvent[], fromTs: number | null, toTs: number | null): JourneyEvent[] {
+    const inRange = (at: string) => (fromTs === null || Date.parse(at) >= fromTs) && (toTs === null || Date.parse(at) <= toTs);
+    return events.flatMap((event): JourneyEvent[] => {
+        if (!event.children) return inRange(event.at) ? [event] : [];
+        const children = event.children.filter((child) => inRange(child.at));
+        if (!inRange(event.at) && children.length === 0) return [];
+        const at = inRange(event.at) ? event.at : children[0].at;
+        const inflow = String(event.meta.inflowChannel ?? "사이트");
+        const duration = Number(event.meta.duration) || 0;
+        const start = Date.parse(event.at);
+        const clippedDuration = Math.max(0, (Math.min(start + duration * 1000, toTs ?? Infinity) - Math.max(start, fromTs ?? -Infinity)) / 1000);
+        return [{ ...event, at, children, groupCount: children.length,
+            label: event.type === "session" ? `${inflow}${josaRo(inflow)} 사이트 방문 ${children.filter((e) => e.type === "PAGE_VIEW").length}페이지` : event.label,
+            meta: { ...event.meta, duration: clippedDuration },
+        }];
+    }).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
 }
 
 // 다음 액션 제안 (간단한 룰)
@@ -210,9 +229,9 @@ export function buildNextActions(events: JourneyEvent[], summary: JourneySummary
     let pricingViews = 0;
     for (const e of events) {
         if (e.children) {
-            pricingViews += e.children.filter((c) =>
-                String((c.meta?.pageUrl as string) ?? "").includes("pricing") ||
-                c.label.includes("요금제")
+            pricingViews += e.children.filter((c) => c.type === "PAGE_VIEW" && (
+                String((c.meta?.pageUrl as string) ?? "").split(/[?#]/)[0].includes("pricing") ||
+                c.label.includes("요금제"))
             ).length;
         }
     }

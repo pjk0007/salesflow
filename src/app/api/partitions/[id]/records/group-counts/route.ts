@@ -1,7 +1,7 @@
-import { recordEqualsSql, recordKstDateSql } from "@/lib/record-filters";
+import { buildRecordConditions } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records } from "@/lib/db";
-import { eq, and, sql } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 
@@ -47,64 +47,7 @@ export async function GET(
     }
 
     try {
-        const conditions = [eq(records.partitionId, partitionId)];
-
-        if (search) {
-            conditions.push(sql`${records.data}::text ILIKE ${"%" + search + "%"}`);
-        }
-        if (distributionOrder !== undefined) {
-            conditions.push(eq(records.distributionOrder, distributionOrder));
-        }
-
-        for (const f of filters) {
-            const key = f.field;
-            const val = f.value;
-            switch (f.operator) {
-                case "contains":
-                    conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
-                    break;
-                case "equals":
-                    conditions.push(recordEqualsSql(key, val));
-                    break;
-                case "not_equals":
-                    conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
-                    break;
-                case "gt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric > ${Number(val)}`);
-                    break;
-                case "gte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric >= ${Number(val)}`);
-                    break;
-                case "lt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric < ${Number(val)}`);
-                    break;
-                case "lte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
-                    break;
-                case "before":
-                    conditions.push(sql`${recordKstDateSql(key)} < ${String(val)}::date`);
-                    break;
-                case "after":
-                    conditions.push(sql`${recordKstDateSql(key)} > ${String(val)}::date`);
-                    break;
-                case "between":
-                    conditions.push(sql`${recordKstDateSql(key)} >= ${String(val)}::date`);
-                    conditions.push(sql`${recordKstDateSql(key)} <= ${String(f.valueTo)}::date`);
-                    break;
-                case "is_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);
-                    break;
-                case "is_not_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NOT NULL AND ${records.data}->>${key} != '')`);
-                    break;
-                case "is_true":
-                    conditions.push(sql`(${records.data}->>${key})::boolean = true`);
-                    break;
-                case "is_false":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR (${records.data}->>${key})::boolean = false)`);
-                    break;
-            }
-        }
+        const conditions = buildRecordConditions(partitionId, { orgId: user.orgId, search, distributionOrder, filters });
 
         const whereClause = and(...conditions);
 

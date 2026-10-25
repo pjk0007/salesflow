@@ -16,7 +16,7 @@ async function load(t: TestContext) {
 }
 
 const member = (role: "owner" | "admin" | "member"): Responder => (call) =>
-    isMembershipLookup(call) ? [{ role, tokenVersion: 0, isSuperAdmin: 0 }] : undefined;
+    isMembershipLookup(call) ? [{ role, membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }] : undefined;
 /** 여러 응답기를 앞에서부터 시도한다(undefined면 다음, 끝까지 없으면 빈 결과). */
 const chain = (...responders: Responder[]): Responder => (call) => {
     for (const r of responders) {
@@ -54,7 +54,7 @@ function captureFetch(t: TestContext, reply: (url: string) => Response = () => R
 }
 
 const tokenFor = (generateToken: (p: never) => string, role: "owner" | "admin" | "member") =>
-    generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role, tokenVersion: 0 } as never);
+    generateToken({ userId: USER, orgId: ORG_A, email: "a@example.test", name: "가상", role, membershipId: 71, tokenVersion: 0 } as never);
 
 test("웹 폼 생성: 다른 조직 파티션은 404, 워크스페이스는 파티션 것을 쓴다 (UX-042)", async (t) => {
     const { generateToken, db } = await load(t);
@@ -173,9 +173,12 @@ test("알림톡 수동 발송: 연결 파티션 밖·다른 조직·없는 레�
         assert.equal(sent.length, 0);
     });
     await t.test("같은 파티션 레코드만이면 발송 요청이 나간다", async (t) => {
-        const sent = captureFetch(t);
-        installFakeDb(t, db, base([r(1, "01011112222"), r(2, "01033334444")]));
-        await send([1, 2]);
+        const sent = captureFetch(t, url => Response.json(url.endsWith("/messages")
+            ? { header: { isSuccessful: true, resultCode: 0 }, message: { requestId: "fake", sendResults: ["01011112222", "01033334444"].map((recipientNo, i) => ({ recipientNo, recipientSeq: i + 1, resultCode: 0 })) } }
+            : { header: { isSuccessful: true, resultCode: 0 }, template: { templateContent: "가상 본문" } }));
+        const respond = base([r(1, "01011112222"), r(2, "01033334444")]);
+        installFakeDb(t, db, c => c.op === "insert" && c.table === "alimtalk_send_logs" ? [{ id: 1 }, { id: 2 }] : respond(c));
+        assert.equal((await send([1, 2])).status, 200);
         const message = sent.find((s) => s.url.endsWith("/messages"));
         assert.ok(message, "NHN 발송 호출");
         assert.match(message!.body, /01011112222/);

@@ -127,11 +127,11 @@ export function salesHandler(external: boolean) {
                 }
                 if (req.method === "POST" && !id)
                     return resource === "contacts"
-                        ? upsertContact(actor.orgId, body, true, undefined, {
+                        ? upsertContact(actor.orgId, body, false, undefined, {
                               actor,
                               source: "staff",
                           })
-                        : upsertCompany(actor.orgId, body, true, undefined, {
+                        : upsertCompany(actor.orgId, body, false, undefined, {
                               actor,
                               source: "staff",
                           });

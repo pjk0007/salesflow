@@ -60,6 +60,35 @@ test("two delivery channels share a recipient and token; staff DTOs exclude cred
     assert(!staff.includes("tokenHash")); assert(!staff.includes("encryptedPayload")); assert(!staff.includes(f.tokens[0]));
     const stored = JSON.stringify(value); assert(!stored.includes(f.tokens[0]));
 });
+
+test("UX-192: exhausted PDF job can be retried once concurrently, without resending invitations", async () => {
+    const f = await fixture(), verified = await f.verify();
+    await f.service.submitSignature(f.tokens[0], f.signature(0, verified.verificationToken));
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const job = await f.claimFinalize(); assert(job);
+        await f.service.failFinalization(job.id, f.id, job.leaseId!); f.advance(60_001);
+    }
+    const before = (await f.repository.read(f.id))!;
+    assert.equal(before.jobs.find(j => j.kind === "finalize")!.state, "failed");
+    await assert.rejects(f.service.retryFinalization({ ...actor, orgId: "other-org" }, f.id), /찾을 수 없습니다/);
+    await Promise.all([f.service.retryFinalization(actor, f.id), f.service.retryFinalization(actor, f.id)]);
+    const after = (await f.repository.read(f.id))!;
+    assert.equal(after.jobs.filter(j => j.kind === "finalize").length, 1);
+    assert.equal(after.events.filter(e => e.type === "envelope.finalization_retried").length, 1);
+    assert.deepEqual(after.recipients, before.recipients);
+    assert.deepEqual(after.jobs.filter(j => j.kind === "invitation"), before.jobs.filter(j => j.kind === "invitation"));
+    const job = await f.claimFinalize(); assert(job);
+    await f.service.finishEnvelope(job.id, f.id, job.leaseId!, { artifact: { ...source, key: "esign/completed/fake.pdf", sha256: "c".repeat(64) }, verified: true });
+    const completed = await f.service.retryFinalization(actor, f.id);
+    assert.equal(completed.envelope.state, "completed");
+    assert.equal(completed.jobs.filter(j => j.kind === "completed").length, 1);
+});
+test("UX-192: pending, cancelled and unsigned requests cannot retry PDF creation", async () => {
+    const f = await fixture();
+    await assert.rejects(f.service.retryFinalization(actor, f.id), /다시 생성할 수 없는/);
+    await f.service.cancelEnvelope(actor, f.id);
+    await assert.rejects(f.service.retryFinalization(actor, f.id), /다시 생성할 수 없는/);
+});
 test("link alone cannot read source, sign or reuse an OTP; verification is session-bound", async () => {
     const f = await fixture(), first = await f.service.publicSession(f.tokens[0]);
     assert.equal(first.document, undefined); assert.equal(first.verified, false);

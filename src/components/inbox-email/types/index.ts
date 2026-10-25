@@ -1,4 +1,7 @@
 export interface EmailMailbox {
+    connectionStatus?: string | null;
+    connectionErrorCode?: string | null;
+    workerEnabled?: boolean;
     googleAccount?: string | null;
     id: string;
     workspaceId: number;

@@ -1,6 +1,6 @@
 import type { AiClient } from "./client";
 import type { Product } from "@/lib/db";
-import { callGeminiWithSearch, type WebSearchResult } from "./gemini";
+import { callGeminiWithSearch } from "./gemini";
 
 // ---- 제품 생성 (웹서칭) ----
 
@@ -133,25 +133,8 @@ export async function generateCompanyResearch(
         }
     }
 
-    let result: WebSearchResult;
-    try {
-        result = await callGeminiWithSearch(client, systemPrompt, userPrompt, pattern);
-    } catch (err) {
-        const msg = err instanceof Error ? err.message : "";
-        if (msg.includes("credit") || msg.includes("API") || msg.includes("key") || msg.includes("auth") || msg.includes("401") || msg.includes("403")) {
-            throw err;
-        }
-        return {
-            companyName: input.companyName,
-            industry: "정보 없음",
-            description: "해당 회사에 대한 정보를 찾을 수 없습니다. 회사명을 확인하거나 더 구체적인 이름을 입력해주세요.",
-            services: "정보 없음",
-            employees: "정보 없음",
-            website: "정보 없음",
-            sources: [],
-            usage: { promptTokens: 0, completionTokens: 0 },
-        };
-    }
+    // 호출 실패를 '검색 결과 없음'으로 바꾸면 기존 조사 결과를 빈 정보로 덮어쓴다.
+    const result = await callGeminiWithSearch(client, systemPrompt, userPrompt, pattern);
 
     return {
         companyName: result.parsed.companyName as string || input.companyName,

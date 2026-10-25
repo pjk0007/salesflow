@@ -24,7 +24,7 @@ export type CustomerActor = Pick<
     JWTPayload,
     "orgId" | "userId" | "name" | "role"
 > &
-    Pick<Partial<JWTPayload>, "tokenVersion">;
+    Pick<Partial<JWTPayload>, "tokenVersion" | "membershipId">;
 export async function activeCustomerActor(
     actor: CustomerActor,
     exec: DbExec = db,
@@ -32,6 +32,7 @@ export async function activeCustomerActor(
     const member = await findActiveMembership(actor.orgId, actor.userId, exec);
     if (
         !member ||
+        (actor.membershipId !== undefined && actor.membershipId !== member.membershipId) ||
         !isTokenVersionAcceptable(
             checkTokenVersion(actor.tokenVersion, member.tokenVersion),
         )
@@ -56,6 +57,7 @@ export async function customerStaffActor(
         name,
         role: member.role as OrgRole,
         tokenVersion: member.tokenVersion,
+        membershipId: member.membershipId,
     };
 }
 export async function requireCustomerAccess(

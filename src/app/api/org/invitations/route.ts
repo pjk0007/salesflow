@@ -84,6 +84,9 @@ export async function POST(req: NextRequest) {
         if (!role || !["admin", "member"].includes(role)) {
             return NextResponse.json({ success: false, error: "유효하지 않은 역할입니다." }, { status: 400 });
         }
+        if (user.role === "admin" && role !== "member") {
+            return NextResponse.json({ success: false, error: "관리자 초대는 소유자만 할 수 있습니다." }, { status: 403 });
+        }
 
         // 플랜 제한 체크
         const currentCount = await getResourceCount(user.orgId, "members");

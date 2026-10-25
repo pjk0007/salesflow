@@ -67,6 +67,7 @@ function LogSenderCell({ log }: { log: LogSenderSource }) {
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
+    unknown: { label: "접수 결과 확인 필요", variant: "secondary" },
     uncertain: { label: "결과 미확인", variant: "secondary" },
     cancelled: { label: "발송 취소", variant: "secondary" },
     pending: { label: "대기", variant: "secondary" },
@@ -95,11 +96,7 @@ const PERIOD_OPTIONS = [
     { value: "90", label: "90일" },
 ];
 
-const STATUS_OPTIONS = [
-    { value: "sent", label: "발송" },
-    { value: "failed", label: "실패" },
-    { value: "pending", label: "대기" },
-];
+const STATUS_OPTIONS = Object.entries(STATUS_MAP).map(([value, { label }]) => ({ value, label }));
 
 const TRIGGER_OPTIONS = [
     { value: "manual", label: "수동" },

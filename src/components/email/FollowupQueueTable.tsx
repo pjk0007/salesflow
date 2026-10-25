@@ -38,6 +38,7 @@ const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondar
 
 /** 멈춘 까닭 (DESIGN-RPL 11절 5번) — 취소 배지 옆 */
 const STOP_REASON_MAP: Record<string, string> = {
+    rule_inactive: "(규칙 꺼짐)",
     replied: "(회신)",
     bounced: "(반송)",
     first_failed: "(앞 메일 실패)",
@@ -45,6 +46,7 @@ const STOP_REASON_MAP: Record<string, string> = {
 };
 
 const STOP_REASON_TITLE: Record<string, string> = {
+    rule_inactive: "규칙이 비활성화되어 후속 발송을 중단했습니다.",
     replied: "고객이 회신해서 자동 메일을 멈췄습니다",
     bounced: "반송된 주소라 자동 메일을 멈췄습니다",
     first_failed: "앞 메일이 받는 쪽에서 실패해(NHN 발송 실패 — 주소 없음 등) 후속을 보내지 않았습니다",

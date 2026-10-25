@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, scheduledRegistrations } from "@/lib/db";
+import { db } from "@/lib/db";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { uploadToR2 } from "@/lib/r2";
+import { decodeCsvText } from "@/lib/csv-text";
+import { enqueueScheduledRows } from "@/lib/scheduled-registration-upload";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 
 const MAX_ROWS = 100_000; // 메모리/안정성 안전 상한
-const INSERT_BATCH = 1000;
+
 
 /** 업로드 파일(버퍼)을 행 배열(string[][])로 파싱 */
 function parseFileToRows(buffer: Buffer, fileName: string): string[][] {
     const name = fileName.toLowerCase();
     if (name.endsWith(".csv")) {
-        const text = buffer.toString("utf8");
+        const text = decodeCsvText(buffer);
         const result = Papa.parse<string[]>(text, { header: false, skipEmptyLines: true });
         return result.data;
     }
@@ -119,24 +121,26 @@ export async function POST(
         const encoder = new TextEncoder();
         const values = queueValues;
         const total = values.length;
+        let disconnected = false;
         const stream = new ReadableStream<Uint8Array>({
+            cancel() { disconnected = true; },
             async start(controller) {
-                const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+                const send = (obj: unknown) => {
+                    if (disconnected) return;
+                    try { controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n")); }
+                    catch { disconnected = true; }
+                };
                 try {
                     send({ type: "start", total });
-                    let inserted = 0;
-                    for (let i = 0; i < values.length; i += INSERT_BATCH) {
-                        const batch = values.slice(i, i + INSERT_BATCH);
-                        await db.insert(scheduledRegistrations).values(batch);
-                        inserted += batch.length;
-                        send({ type: "progress", processed: inserted, total });
-                    }
+                    const inserted = await enqueueScheduledRows(db, values, (processed, count) => {
+                        send({ type: "progress", processed, total: count });
+                    });
                     send({ type: "done", inserted });
                 } catch (err) {
                     console.error("Scheduled registration upload (stream) error:", err);
-                    send({ type: "error", error: "적재 중 오류가 발생했습니다." });
+                    send({ type: "error", error: "적재 중 오류가 발생해 이번 업로드는 저장되지 않았습니다." });
                 } finally {
-                    controller.close();
+                    if (!disconnected) controller.close();
                 }
             },
         });

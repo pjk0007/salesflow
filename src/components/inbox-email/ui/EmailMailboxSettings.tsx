@@ -79,6 +79,13 @@ export function EmailMailboxSettings({
                     >
                         <h3 className="font-semibold">{box.name}</h3>
                         <p>{box.address}</p>
+                        {(!box.googleAccount || box.googleAccount === box.address) && (
+                            <p className="text-xs text-muted-foreground">
+                                같은 Google 계정을 다른 사업 문의 주소에도 연결했다면,
+                                그 주소로만 온 메일은 이 기본 메일함에 가져오지 않습니다.
+                                받는 사람·참조에 이 주소도 있으면 양쪽 메일함에서 받습니다.
+                            </p>
+                        )}
                         <MailboxGoogleAccount
                             key={box.googleAccount || box.address}
                             box={box}

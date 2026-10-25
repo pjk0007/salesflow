@@ -44,9 +44,15 @@ export async function POST(
         // 진행률 스트리밍 응답 (NDJSON): progress… → done|error
         const encoder = new TextEncoder();
         const orgId = user.orgId;
+        let disconnected = false;
         const stream = new ReadableStream<Uint8Array>({
+            cancel() { disconnected = true; },
             async start(controller) {
-                const send = (obj: unknown) => controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n"));
+                const send = (obj: unknown) => {
+                    if (disconnected) return;
+                    try { controller.enqueue(encoder.encode(JSON.stringify(obj) + "\n")); }
+                    catch { disconnected = true; }
+                };
                 try {
                     const result = await db.transaction((tx) =>
                         insertImportedRecords(tx, {
@@ -84,7 +90,7 @@ export async function POST(
                     console.error("Bulk import error:", err);
                     send({ type: "error", error: "서버 오류가 발생했습니다." });
                 } finally {
-                    controller.close();
+                    if (!disconnected) controller.close();
                 }
             },
         });

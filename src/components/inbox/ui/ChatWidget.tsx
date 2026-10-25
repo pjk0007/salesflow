@@ -29,6 +29,7 @@ import {
     isReadOnlyCustomerConversation,
 } from "@/components/customer-conversations/utils/presentation";
 import { mergeCustomerDraftText } from "@/components/customer-conversations/utils/draft-text";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 type PendingMessage = { body: string; id: string; files: string };
 type ConversationDraft = {
     text: string;
@@ -58,6 +59,7 @@ export function ChatWidget({
         [parentOrigin],
     );
     const [isHome, setIsHome] = useState(true);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const [token, setToken] = useState(""),
         [ready, setReady] = useState(false),
         [name, setName] = useState(""),
@@ -265,7 +267,7 @@ export function ChatWidget({
         {
             refreshInterval: opened ? 3000 : 15000,
             refreshWhenHidden: false,
-            shouldRetryOnError: false,
+            shouldRetryOnError: (error) => !(error instanceof InboxRequestError && [401, 403, 404].includes(error.status)),
         },
     );
     const currentResolved =
@@ -284,7 +286,7 @@ export function ChatWidget({
         (isReadOnlyCustomerConversation(selectedRow) ||
             (detailResolved && isReadOnlyCustomerConversation(data.data)));
     const detailPending = history.enabled && !isNew && !detailResolved;
-    const canWrite = !readOnly && !detailPending && !data.error;
+    const canWrite = !readOnly && !detailPending && !detailAccessDenied;
     useJourneyAttachment({
         channelKey,
         token,
@@ -1120,7 +1122,7 @@ export function ChatWidget({
                                         >
                                             다시 불러오기
                                         </button>
-                                        <button
+                                        {detailAccessDenied && <button
                                             className="ml-4"
                                             onClick={() => {
                                                 if (
@@ -1132,30 +1134,38 @@ export function ChatWidget({
                                                     );
                                                     return;
                                                 }
-                                                generation.current++;
-                                                attachments.reset();
-                                                drafts.current.clear();
-                                                deferredDraft.current = null;
-                                                setHasDeferredDraft(false);
-                                                setDraftKey("current");
-                                                pending.current = null;
-                                                handoffPending.current = null;
-                                                setText("");
-                                                setSuggestedText("");
-                                                setToken("");
-                                                setOlder([]);
-                                                setCanLoad(true);
-                                                try {
-                                                    localStorage.removeItem(
-                                                        storageKey,
-                                                    );
-                                                } catch {}
+                                                const expectedGeneration = generation.current;
+                                                confirm({
+                                                    title: "새 문의를 시작할까요?",
+                                                    description: "이전 대화는 이 브라우저에서 다시 볼 수 없습니다. 작성 중인 초안과 첨부도 지워집니다.",
+                                                    confirmLabel: "새 문의 시작",
+                                                    onConfirm: async () => {
+                                                        if (expectedGeneration !== generation.current) return;
+                                                        generation.current++;
+                                                        attachments.reset();
+                                                        drafts.current.clear();
+                                                        deferredDraft.current = null;
+                                                        setHasDeferredDraft(false);
+                                                        setDraftKey("current");
+                                                        pending.current = null;
+                                                        handoffPending.current = null;
+                                                        setText("");
+                                                        setSuggestedText("");
+                                                        setToken("");
+                                                        setOlder([]);
+                                                        setCanLoad(true);
+                                                        try {
+                                                            localStorage.removeItem(storageKey);
+                                                        } catch {}
+                                                    },
+                                                });
                                             }}
                                         >
                                             {managed && token.includes(".")
                                                 ? "회원 다시 연결"
                                                 : "새 문의 시작"}
-                                        </button>
+                                        </button>}
+                                        {confirmationDialog}
                                     </div>
                                 )}
                                 {!isNew &&
@@ -1366,7 +1376,7 @@ export function ChatWidget({
                                             (!isNew &&
                                                 data.data?.aiState ===
                                                     "human") ||
-                                            !!data.error
+                                            detailAccessDenied
                                         }
                                         onClick={() => void requestHuman()}
                                         className="shrink-0 px-5 py-2 text-xs text-gray-500 underline disabled:no-underline"
@@ -1465,7 +1475,7 @@ export function ChatWidget({
                                                     !attachments.files
                                                         .length) ||
                                                 !config.data ||
-                                                !!data.error
+                                                detailAccessDenied
                                             }
                                             className="rounded-xl p-2.5 text-white disabled:opacity-40"
                                             style={{ backgroundColor: color }}

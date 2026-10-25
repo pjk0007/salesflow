@@ -1,5 +1,5 @@
 // 유입 경로 분류 — referrer + landingPage(utm)를 사람이 읽는 채널 라벨로.
-// 동일 정책이 SQL(트래커 overview route)에도 적용됨 — 두 곳 일치 유지 필수.
+// 트래커 overview의 채널별 전환·유입 분포도 이 분류기를 공유한다.
 
 // 채널 라벨은 동적(소셜은 utm_source명을 그대로) — 고정 enum 아닌 string.
 export type InflowChannel = string;
@@ -139,4 +139,22 @@ export function classifyInflow(referrer: string | null, landingPage: string | nu
     if (!ref || isOwnDomain(ref)) return "직접";
 
     return "기타";
+}
+
+/** 첫 유입 원자료 → 활성 방문자 채널별 전환. 분포/필터와 같은 분류 우선순위. */
+export function summarizeChannelConversions(rows: Array<{
+    visitor_id: number; is_lead: boolean; referrer: string | null; landing_page: string | null;
+}>) {
+    const groups = new Map<string, { visitors: Set<number>; leads: Set<number> }>();
+    for (const row of rows) {
+        const channel = classifyInflow(row.referrer, row.landing_page);
+        const group = groups.get(channel) ?? { visitors: new Set<number>(), leads: new Set<number>() };
+        group.visitors.add(row.visitor_id);
+        if (row.is_lead) group.leads.add(row.visitor_id);
+        groups.set(channel, group);
+    }
+    return [...groups].map(([channel, group]) => ({
+        channel, visitors: group.visitors.size, leads: group.leads.size,
+        leadRate: Number(((group.leads.size / group.visitors.size) * 100).toFixed(1)),
+    })).sort((a, b) => b.visitors - a.visitors || a.channel.localeCompare(b.channel));
 }

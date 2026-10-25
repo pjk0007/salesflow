@@ -164,7 +164,10 @@ export function ConversationPane({
             .then(refresh)
             .catch(() => {});
     }, [chat.id, chat.customerSeq]); // eslint-disable-line react-hooks/exhaustive-deps
+    const changingRef = useRef(false);
+    const [changing, setChanging] = useState(false);
     async function change(value: unknown) {
+        if (changingRef.current) return false;
         if (!canRespond) {
             toast.info(
                 "열람 권한으로 보고 있습니다. 응대·편집은 담당 직원에게 요청해주세요.",
@@ -177,12 +180,17 @@ export function ConversationPane({
             );
             return false;
         }
+        changingRef.current = true;
+        setChanging(true);
         try {
             await patch(value);
             return true;
         } catch (e) {
             toast.error((e as Error).message);
             return false;
+        } finally {
+            changingRef.current = false;
+            if (mounted.current) setChanging(false);
         }
     }
     function persistDraft(value: string, key = draftKey) {
@@ -348,7 +356,7 @@ export function ConversationPane({
                             </p>
                         </div>
                         <button
-                            disabled={chat.historyOnly || !canRespond}
+                            disabled={changing || chat.historyOnly || !canRespond}
                             aria-label={
                                 chat.priority
                                     ? "중요 상담 해제"
@@ -373,6 +381,7 @@ export function ConversationPane({
                                     <>
                                         <button
                                             title="상담 보류"
+                                            disabled={changing}
                                             aria-label="상담 보류"
                                             onClick={() =>
                                                 change({
@@ -391,6 +400,7 @@ export function ConversationPane({
                                             onClick={() =>
                                                 change({ status: "closed" })
                                             }
+                                            disabled={changing}
                                             className="flex items-center gap-1 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
                                         >
                                             <Check size={16} />
@@ -403,6 +413,7 @@ export function ConversationPane({
                                         onClick={() =>
                                             change({ status: "open" })
                                         }
+                                        disabled={changing}
                                     >
                                         다시 열기
                                     </button>
@@ -431,7 +442,11 @@ export function ConversationPane({
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                             받는 사람과 참조는 답장 작성란에서 확인합니다.{" "}
-                            {chat.emailContext.enabled
+                            {chat.emailContext.connectionStatus === "reconnect"
+                                ? "Google 재연결이 필요합니다. 관리자에게 이메일 연결 확인을 요청해주세요."
+                                : chat.emailContext.connectionStatus === "connected" && chat.emailContext.workerEnabled === false
+                                  ? "Google 메일 자동 처리가 꺼져 있습니다. 관리자에게 확인해주세요."
+                                  : chat.emailContext.enabled
                                 ? "메일 서비스 접수 상태를 각 답장에서 확인할 수 있습니다."
                                 : "현재 메일함 연결이 중지되어 있습니다."}
                         </p>

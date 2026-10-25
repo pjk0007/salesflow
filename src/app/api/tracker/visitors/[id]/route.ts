@@ -75,7 +75,7 @@ export async function GET(
         : [];
 
     // 관심도 집계 (전체 기간, 이벤트 limit 무관)
-    const [sectionRows, clickRows, pageRows, dailyRows, hourlyRows, aliasRows] = await Promise.all([
+    const [sectionRows, clickRows, pageRows, dailyRows, hourlyRows, aliasRows, durationRows] = await Promise.all([
         db
             .select({
                 name: trackerEvents.eventName,
@@ -136,10 +136,13 @@ export async function GET(
             })
             .from(trackerEventAliases)
             .where(eq(trackerEventAliases.siteId, visitor.siteId)),
+        db.select({ total: sql<number>`COALESCE(SUM(${trackerSessions.duration}), 0)::bigint` })
+            .from(trackerSessions)
+            .where(inArray(trackerSessions.visitorId, visitorIds)),
     ]);
 
     // 별칭 라벨 머지 (섹션/클릭 이름 → 사람이 읽는 라벨)
-    const aliasMap = new Map(aliasRows.map((a) => [`${a.eventType}:${a.eventName}`, a.label]));
+    const aliasMap = new Map(aliasRows.filter((a) => a.label?.trim()).map((a) => [`${a.eventType}:${a.eventName}`, a.label.trim()]));
     const engagement = {
         sections: sectionRows
             .filter((r) => r.name)
@@ -152,6 +155,7 @@ export async function GET(
 
     // 그룹 합산 요약
     const summary = {
+        totalDuration: Number(durationRows[0]?.total ?? 0),
         totalVisits: groupVisitors.reduce((s, v) => s + v.totalVisits, 0),
         totalPageviews: groupVisitors.reduce((s, v) => s + v.totalPageviews, 0),
         totalEvents: groupVisitors.reduce((s, v) => s + v.totalEvents, 0),

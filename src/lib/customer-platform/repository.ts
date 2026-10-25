@@ -72,7 +72,7 @@ export async function upsertCompany(
                 ),
             );
         if (before && !mayUpdate)
-            throw new InboxError("기존 회사의 수정 권한이 필요합니다.", 403);
+            throw new InboxError(write.source === "staff" ? "같은 외부 번호의 회사가 이미 있습니다. 기존 항목을 열어 수정해주세요." : "기존 회사의 수정 권한이 필요합니다.", write.source === "staff" ? 409 : 403);
         if (version !== undefined && version !== (before?.version ?? 0))
             throw new InboxError(
                 "다른 사람이 고객 정보를 변경했습니다. 최신 내용을 불러온 뒤 다시 저장해주세요.",
@@ -94,7 +94,7 @@ export async function upsertCompany(
         const insert = tx
             .insert(crmCompanies)
             .values({ ...input, orgId, attributes });
-        const [saved] = await insert
+        const [saved] = mayUpdate ? await insert
             .onConflictDoUpdate({
                 target: [crmCompanies.workspaceId, crmCompanies.externalId],
                 set: {
@@ -104,7 +104,8 @@ export async function upsertCompany(
                     updatedAt: new Date(),
                 },
             })
-            .returning();
+            .returning() : await insert.onConflictDoNothing().returning();
+        if (!saved) throw new InboxError("같은 외부 번호의 회사가 이미 있습니다. 기존 항목을 열어 수정해주세요.", write.source === "staff" ? 409 : 403);
         await appendCustomerAudit(tx, "companies", before, saved, write);
         await enqueuePlatformEvent(tx, {
             orgId,
@@ -150,7 +151,7 @@ export async function upsertContact(
                   .where(eq(crmContactCompanies.contactId, before.id))
             : [];
         if (before && !mayUpdate)
-            throw new InboxError("기존 고객의 수정 권한이 필요합니다.", 403);
+            throw new InboxError(write.source === "staff" ? "같은 외부 번호의 고객이 이미 있습니다. 기존 항목을 열어 수정해주세요." : "기존 고객의 수정 권한이 필요합니다.", write.source === "staff" ? 409 : 403);
         if (version !== undefined && version !== (before?.version ?? 0))
             throw new InboxError(
                 "다른 사람이 고객 정보를 변경했습니다. 최신 내용을 불러온 뒤 다시 저장해주세요.",
@@ -240,7 +241,7 @@ export async function upsertContact(
                   .returning()
             : await insert.onConflictDoNothing().returning();
         if (!contact)
-            throw new InboxError("기존 고객의 수정 권한이 필요합니다.", 403);
+            throw new InboxError(write.source === "staff" ? "같은 외부 번호의 고객이 이미 있습니다. 기존 항목을 열어 수정해주세요." : "기존 고객의 수정 권한이 필요합니다.", write.source === "staff" ? 409 : 403);
         if (companyIds) {
             await tx
                 .delete(crmContactCompanies)

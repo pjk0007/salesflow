@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StageMatch } from "../../types/funnel";
@@ -13,13 +15,15 @@ interface Props {
 
 /** 페이지 경로 — 인기 페이지 드롭다운 + 직접 입력 */
 export function PageSelector({ popularPaths, current, onChange }: Props) {
-    const isCustom = current.pathPrefix && !popularPaths.includes(current.pathPrefix);
+    const [manual, setManual] = useState(false);
+    const isCustom = manual || (current.pathPrefix !== "" && !popularPaths.includes(current.pathPrefix));
 
     return (
         <>
             <Select
                 value={isCustom ? CUSTOM : (current.pathPrefix || "")}
                 onValueChange={(v) => {
+                    setManual(v === CUSTOM);
                     if (v === CUSTOM) onChange({ type: "page_url", pathPrefix: "" });
                     else onChange({ type: "page_url", pathPrefix: v });
                 }}
@@ -38,12 +42,14 @@ export function PageSelector({ popularPaths, current, onChange }: Props) {
             </Select>
             {isCustom && (
                 <Input
-                    placeholder="경로 prefix (예: /pricing)"
+                    aria-label="직접 입력할 페이지 경로"
+                    placeholder="페이지 경로 (예: /pricing)"
                     value={current.pathPrefix}
-                    onChange={(e) => onChange({ ...current, pathPrefix: e.target.value })}
+                    onChange={(e) => { setManual(true); onChange({ ...current, pathPrefix: e.target.value }); }}
                     className="h-8 w-44 font-mono text-xs"
                 />
             )}
+            <p className="w-full text-[11px] text-muted-foreground">선택 경로와 하위 경로를 포함합니다. /는 홈 페이지만 집계합니다.</p>
         </>
     );
 }

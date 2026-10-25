@@ -35,3 +35,12 @@ export function formatDate(date: Date | string | null): string {
     timeZone: "Asia/Seoul",
   });
 }
+
+/** datetime-local 입력은 대상 날짜의 지역 시각을 쓴다. 현재 날짜의 DST 오프셋을 적용하지 않는다. */
+export function localDateTimeValue(value: Date | string | null | undefined): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "";
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

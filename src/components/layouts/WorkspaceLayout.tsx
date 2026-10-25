@@ -12,7 +12,7 @@ interface WorkspaceLayoutProps {
 
 export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     const router = useRouter();
-    const { user, isLoading, sessionError, refreshSession } = useSession();
+    const { user, isLoading, sessionError, refreshSession, isSessionChanging } = useSession();
 
     useEffect(() => {
         if (!isLoading && !sessionError && !user) {
@@ -24,7 +24,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
         }
     }, [isLoading, sessionError, user, router]);
 
-    if (isLoading) {
+    if (isLoading || isSessionChanging) {
         return (
             <div className="flex min-h-screen items-center justify-center">
                 <div className="text-muted-foreground">로딩 중...</div>

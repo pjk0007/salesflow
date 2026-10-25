@@ -51,6 +51,8 @@ export interface CreateRecordInput<E = null> {
     enforcePlanLimit?: boolean;
     /** SSE에서 제외할 요청자 세션 (화면 추가 시 자기 목록 중복 갱신 방지) */
     sessionId?: string;
+    /** 외부 이벤트의 중복 확인 등 생성 전 조건을 같은 트랜잭션에서 잠그고 검증한다. 실패하면 쓰기·후처리가 없다. */
+    beforeCreate?: (tx: RecordDb) => Promise<void>;
     /** 같은 트랜잭션에서 함께 쓸 일 (예: v1 이벤트 기록). 실패하면 레코드 생성도 취소된다 */
     inTransaction?: (tx: RecordDb, record: DbRecord, kind: "created" | "merged") => Promise<E>;
 }
@@ -158,7 +160,8 @@ export async function createRecord<E = null>(
         (input.inTransaction ? await input.inTransaction(tx, record, kind) : null) as E;
 
     const outcome = await deps.db.transaction(async (tx): Promise<TxOutcome<E>> => {
-        if (dup.field && dupValue) {
+        await input.beforeCreate?.(tx);
+        if (dup.field && !isBlankValue(dupValue)) {
             const value = String(dupValue);
             // 같은 값의 동시 제출이 둘 다 '중복 없음'으로 통과하지 않도록 파티션·값 단위로 줄을 세운다
             await tx.execute(sql`SELECT pg_advisory_xact_lock(${partition.id}::int4, hashtext(${`${dup.field}:${value}`}::text))`);
@@ -177,10 +180,9 @@ export async function createRecord<E = null>(
                     case "allow":
                         break;
                     case "merge": {
-                        const mergedData = { ...(duplicate.data as Record<string, unknown>), ...data };
                         const [merged] = await tx
                             .update(records)
-                            .set({ data: mergedData, updatedAt: new Date() })
+                            .set({ data: sql`COALESCE(${records.data}, '{}'::jsonb) || ${JSON.stringify(data)}::jsonb`, updatedAt: new Date() })
                             .where(eq(records.id, duplicate.id))
                             .returning();
                         return { status: "merged", record: merged, extra: await runExtra(tx, merged, "merged") };

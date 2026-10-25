@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
             data: { id: newOrg.id, name: newOrg.name, slug: newOrg.slug, role: "owner" },
         });
         // 새 조직으로 JWT 전환. 새 멤버십이라 token_version은 DEFAULT 0. 슈퍼관리자 표시는 유지한다
-        setSessionCookie(response, {
+        await setSessionCookie(response, {
             userId: user.userId,
             email: user.email,
             name: user.name,

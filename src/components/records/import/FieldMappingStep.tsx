@@ -19,6 +19,7 @@ interface FieldMappingStepProps {
     duplicateAction: "skip" | "error";
     onDuplicateActionChange: (action: "skip" | "error") => void;
     duplicateCheckField?: string;
+    showDuplicateAction?: boolean;
 }
 
 export default function FieldMappingStep({
@@ -29,6 +30,7 @@ export default function FieldMappingStep({
     duplicateAction,
     onDuplicateActionChange,
     duplicateCheckField,
+    showDuplicateAction = true,
 }: FieldMappingStepProps) {
     return (
         <div className="space-y-4">
@@ -67,7 +69,7 @@ export default function FieldMappingStep({
                     </div>
                 ))}
             </div>
-            <div className="border-t pt-4 space-y-2">
+            {showDuplicateAction && <div className="border-t pt-4 space-y-2">
                 <Label>중복 처리</Label>
                 <Select
                     value={duplicateAction}
@@ -86,7 +88,7 @@ export default function FieldMappingStep({
                         중복 기준 필드: {duplicateCheckField}
                     </p>
                 )}
-            </div>
+            </div>}
         </div>
     );
 }

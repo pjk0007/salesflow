@@ -1,5 +1,5 @@
 const fetcher = (url: string, options: RequestInit) =>
-    fetch(url, options).then((r) => r.json());
+    fetch(url, { ...options, signal: AbortSignal.timeout(45_000) }).then((r) => r.json());
 
 export function useAlimtalkSend() {
     const sendAlimtalk = async (data: {

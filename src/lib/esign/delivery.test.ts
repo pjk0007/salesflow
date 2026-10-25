@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createEsignDelivery, esignMessage } from "./delivery";
 import type { EsignJob } from "./types";
 import { OTP_TTL_MS } from "./rules";
+import { EMAIL_SEND_BLOCKED, EMAIL_SEND_CHECK_FAILED, EMAIL_SEND_INVALID_CONTEXT } from "../email-send-guard";
 const invitation = { id: "fake-job", kind: "invitation", channel: "sms" } as EsignJob;
 const payload = { name: "가상 고객", phone: "01000000000", email: "fake@example.test", title: "가상 계약서", token: "a".repeat(43) };
 const sms = { appKey: "fake-key", secretKey: "fake-secret", sender: "0200000000" };
@@ -63,4 +64,21 @@ test("이메일에는 계약명과 이름을 HTML로 삽입하지 않고 접수 
     const delivery = createEsignDelivery({ publicOrigin: "https://example.test", timeoutMs: 5, emailSender: async () => ({ address: "sender@example.test", submit: async () => { submissions++; return new Promise(() => undefined); } }) });
     assert.equal((await delivery.send({ ...invitation, channel: "email" }, "fake-org", payload)).state, "unknown");
     assert.equal(submissions, 1);
+});
+test("UX-266: 전송 전 설정 조회·공개 주소 오류는 unknown이 아닌 미발송", async () => {
+    let sent = 0;
+    for (const publicOrigin of ["invalid", "https://example.test"]) {
+        const delivery = createEsignDelivery({ publicOrigin, emailSender: async () => { throw new Error("fake lookup failure"); }, fetcher: (async () => { sent++; throw Error("must not send"); }) as typeof fetch });
+        const result = await delivery.send({ ...invitation, channel: "email" }, "fake-org", payload);
+        assert.equal(result.state, "failed");
+    }
+    assert.equal(sent, 0);
+});
+test("UX-264: 발송 가드의 한국어 사유를 보존하고 누락된 접수 결과는 unknown", async () => {
+    for (const code of [EMAIL_SEND_BLOCKED, EMAIL_SEND_CHECK_FAILED, EMAIL_SEND_INVALID_CONTEXT, 0]) {
+        const delivery = createEsignDelivery({ publicOrigin: "https://example.test", emailSender: async () => ({ address: "sender@example.test", submit: async () => ({ header: { isSuccessful: code === 0, resultCode: code, resultMessage: "가상 수신거부 확인 실패: 보내지 않았습니다." }, data: null }) }) });
+        const result = await delivery.send({ ...invitation, channel: "email" }, "fake-org", payload);
+        assert.equal(result.state, code === 0 ? "unknown" : "failed");
+        if (code !== 0) assert.match(result.error!, /가상 수신거부 확인 실패/);
+    }
 });

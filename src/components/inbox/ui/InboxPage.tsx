@@ -27,6 +27,7 @@ import { useInbox } from "../hooks/useInbox";
 import { useInboxSearch } from "../hooks/useInboxSearch";
 import { useStaffDraftSession, type SubscribeSessionInvalidation } from "../hooks/useStaffDraftSession";
 import { EmailMailboxSettings } from "@/components/inbox-email/ui/EmailMailboxSettings";
+import { useEmailMailboxes } from "@/components/inbox-email/hooks/useEmailMailboxes";
 import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
@@ -98,6 +99,9 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         teamId: channelId ? (teamFilters[channelId] ?? "") : "",
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
+    const mailboxes = useEmailMailboxes(channel?.workspaceId ?? null);
+    const reconnectCount = mailboxes.data?.filter((box) => box.connectionStatus === "reconnect").length ?? 0;
+    const mailWorkerStopped = mailboxes.data?.some((box) => box.connectionStatus === "connected" && box.enabled && box.workerEnabled === false);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
     const accessDenied = [
         initial.bootstrap.error,
@@ -229,6 +233,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                     onClick={() => setEmailSettings(true)}
                                 >
                                     이메일 연결
+                                    {reconnectCount > 0 && <span className="ml-1 text-amber-700">· 재연결 필요 {reconnectCount}</span>}
                                 </button>
                             )}
                             {canSetChannel && (
@@ -254,6 +259,14 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                     </details>
                 )}
             </header>
+            {(reconnectCount > 0 || mailWorkerStopped || mailboxes.error) && (
+                <p role="alert" className="border-b bg-amber-50 px-5 py-3 text-sm text-amber-900">
+                    {reconnectCount > 0 ? `이 사업의 Google 메일함 ${reconnectCount}개를 다시 연결해야 새 문의와 답장을 처리할 수 있습니다.`
+                        : mailWorkerStopped ? "Google 메일 자동 처리가 꺼져 있습니다. 관리자에게 서버 설정 확인을 요청해주세요."
+                        : "메일 연결 상태를 확인하지 못했습니다. 잠시 후 다시 확인해주세요."}
+                    {abilities.manage && reconnectCount > 0 && <button className="ml-2 underline" onClick={() => setEmailSettings(true)}>이메일 연결 확인</button>}
+                </p>
+            )}
             {error && (
                 <div
                     role="alert"

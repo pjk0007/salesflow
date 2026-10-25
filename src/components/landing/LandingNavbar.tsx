@@ -60,7 +60,7 @@ export default function LandingNavbar() {
                 {/* Mobile */}
                 <Sheet open={open} onOpenChange={setOpen}>
                     <SheetTrigger asChild className="md:hidden">
-                        <button className="p-2 text-slate-600"><Menu className="h-5 w-5" /></button>
+                        <button aria-label="메뉴 열기" aria-expanded={open} className="p-2 text-slate-600"><Menu className="h-5 w-5" /></button>
                     </SheetTrigger>
                     <SheetContent side="right" className="w-72">
                         <SheetTitle className="flex items-center gap-2 text-lg font-bold"><SendbIcon className="size-5" />Sendb</SheetTitle>

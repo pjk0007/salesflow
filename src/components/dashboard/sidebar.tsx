@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useRef } from "react";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { SendbIcon } from "@/components/SendbLogo";
@@ -168,7 +170,7 @@ export function DesktopSidebar({
             >
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" onClick={onToggle}>
+                        <Button variant="ghost" size="icon" onClick={onToggle} aria-label={collapsed ? "사이드바 펼치기" : "사이드바 접기"}>
                             {collapsed ? (
                                 <PanelLeftOpen className="h-4 w-4" />
                             ) : (
@@ -187,16 +189,24 @@ export function DesktopSidebar({
 
 export function MobileSidebar() {
     const { open, setOpen } = useSidebar();
-
-    if (!open) return null;
+    const opener = useRef<HTMLElement | null>(null);
+    useEffect(() => {
+        const desktop = window.matchMedia("(min-width: 768px)");
+        const closeOnDesktop = () => { if (desktop.matches) setOpen(false); };
+        closeOnDesktop();
+        desktop.addEventListener("change", closeOnDesktop);
+        return () => desktop.removeEventListener("change", closeOnDesktop);
+    }, [setOpen]);
 
     return (
-        <>
-            <div
-                className="fixed inset-0 z-40 bg-black/50 md:hidden"
-                onClick={() => setOpen(false)}
-            />
-            <aside className="fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-sidebar shadow-lg md:hidden">
+        <Sheet open={open} onOpenChange={setOpen}>
+            <SheetContent side="left" showCloseButton={false} aria-describedby={undefined}
+                className="w-60 max-w-[85vw] gap-0 bg-sidebar"
+                onOpenAutoFocus={() => { opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; }}
+                onCloseAutoFocus={(event) => {
+                    if (opener.current?.isConnected) { event.preventDefault(); opener.current.focus(); }
+                }}>
+                <SheetTitle className="sr-only">주 메뉴</SheetTitle>
                 <div className="flex h-14 items-center justify-between border-b px-6">
                     <Link
                         href="/"
@@ -209,6 +219,7 @@ export function MobileSidebar() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setOpen(false)}
+                        aria-label="메뉴 닫기"
                     >
                         <X className="h-4 w-4" />
                     </Button>
@@ -216,14 +227,14 @@ export function MobileSidebar() {
                 <div className="border-b px-3 py-2">
                     <OrgSwitcher />
                 </div>
-                <NavLinks onNavigate={() => setOpen(false)} />
-            </aside>
-        </>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto"><NavLinks onNavigate={() => setOpen(false)} /></div>
+            </SheetContent>
+        </Sheet>
     );
 }
 
 export function MobileSidebarToggle() {
-    const { toggle } = useSidebar();
+    const { open, toggle } = useSidebar();
 
     return (
         <Button
@@ -231,6 +242,8 @@ export function MobileSidebarToggle() {
             size="icon"
             className="md:hidden"
             onClick={toggle}
+            aria-label="메뉴 열기"
+            aria-expanded={open}
         >
             <PanelLeftOpen className="h-4 w-4" />
         </Button>

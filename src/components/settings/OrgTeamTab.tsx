@@ -104,8 +104,11 @@ export default function OrgTeamTab() {
             const result = await createInvitation(inviteEmail.trim(), inviteRole);
             if (result.success) {
                 const inviteUrl = `${window.location.origin}/invite?token=${result.data.token}`;
-                await navigator.clipboard.writeText(inviteUrl);
-                toast.success("초대가 생성되었습니다. 링크가 클립보드에 복사되었습니다.");
+                let copied = false;
+                try { await navigator.clipboard.writeText(inviteUrl); copied = true; } catch { /* 초대 생성과 복사 결과는 별개 */ }
+                toast.success(result.data.emailSent ? "초대 메일을 보냈습니다." : "초대는 생성되었지만 메일을 보내지 못했습니다.");
+                if (copied) toast.info("초대 링크를 클립보드에 복사했습니다.");
+                else toast.info("대기 중인 초대의 링크 복사를 이용해 직접 전달해주세요.");
                 setInviteDialogOpen(false);
                 setInviteEmail("");
                 setInviteRole("member");
@@ -148,10 +151,14 @@ export default function OrgTeamTab() {
         }
     };
 
-    const handleCopyInviteLink = (token: string) => {
+    const handleCopyInviteLink = async (token: string) => {
         const url = `${window.location.origin}/invite?token=${token}`;
-        navigator.clipboard.writeText(url);
-        toast.success("초대 링크가 복사되었습니다.");
+        try {
+            await navigator.clipboard.writeText(url);
+            toast.success("초대 링크가 복사되었습니다.");
+        } catch {
+            toast.error("클립보드에 복사하지 못했습니다. 브라우저의 복사 권한을 확인해주세요.");
+        }
     };
 
     if (membersError) return <QueryErrorState error={membersError} onRetry={() => mutateMembers()} />;

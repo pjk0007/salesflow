@@ -51,6 +51,7 @@ export default function OrgGeneralTab() {
             });
             if (result.success) {
                 toast.success("조직 설정이 저장되었습니다.");
+                await refreshSession();
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
             }

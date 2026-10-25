@@ -4,7 +4,7 @@ import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
-import { buildRecordConditions } from "@/lib/record-filters";
+import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 
 export async function GET(
     req: NextRequest,
@@ -28,8 +28,8 @@ export async function GET(
         }
 
         const searchParams = req.nextUrl.searchParams;
-        const page = Math.max(1, Number(searchParams.get("page")) || 1);
-        const pageSize = Math.min(1000, Math.max(1, Number(searchParams.get("pageSize")) || 50));
+        const requestedPage = Math.max(1, Math.floor(Number(searchParams.get("page")) || 1));
+        const pageSize = Math.min(1000, Math.max(1, Math.floor(Number(searchParams.get("pageSize")) || 50)));
         const search = searchParams.get("search") || "";
         const distributionOrder = searchParams.get("distributionOrder")
             ? Number(searchParams.get("distributionOrder"))
@@ -48,10 +48,9 @@ export async function GET(
             } catch { /* 무시 */ }
         }
 
-        const offset = (page - 1) * pageSize;
 
         // WHERE 조건 구성 (목록/조건삭제 공용 빌더)
-        const conditions = buildRecordConditions(partitionId, { search, distributionOrder, groupBy, groupValue, filters });
+        const conditions = buildRecordConditions(partitionId, { orgId: user.orgId, search, distributionOrder, groupBy, groupValue, filters });
 
         const whereClause = and(...conditions);
 
@@ -84,9 +83,9 @@ export async function GET(
             let jsonField;
             const ft = fieldDef?.fieldType;
             if (ft === "number" || ft === "currency") {
-                jsonField = sql`(${records.data}->>${sortField})::numeric`;
+                jsonField = recordNumberSql(sortField);
             } else if (ft === "date" || ft === "datetime") {
-                jsonField = sql`(${records.data}->>${sortField})::timestamptz`;
+                jsonField = recordDateTimeSql(sortField);
             } else {
                 jsonField = sql`${records.data}->>${sortField}`;
             }
@@ -99,6 +98,8 @@ export async function GET(
             .from(records)
             .where(whereClause);
         const total = totalResult?.value ?? 0;
+        const page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
+        const offset = (page - 1) * pageSize;
 
         // 레코드 목록 (댓글 수 포함)
         const memoCountSq = db
@@ -124,7 +125,7 @@ export async function GET(
             .from(records)
             .leftJoin(memoCountSq, eq(records.id, memoCountSq.recordId))
             .where(whereClause)
-            .orderBy(orderBy)
+            .orderBy(orderBy, sortOrder === "asc" ? asc(records.id) : desc(records.id))
             .limit(pageSize)
             .offset(offset);
 
