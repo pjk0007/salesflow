@@ -16,6 +16,9 @@ export type ImportJob = {
     counts: Record<string, number>;
     rows: ImportPlanRow[];
     hasMore: boolean;
+    /** 오류·확인 사항이 있는 행 수(오류 행만 보기의 전체 건수) */
+    issueRows: number;
+    updatedAt: string;
     input: Omit<ImportInput, "content">;
     results: {
         position: number;
@@ -34,4 +37,4 @@ export type ImportJob = {
 export type ImportSummary = Pick<
     ImportJob,
     "id" | "source" | "namespace" | "state" | "cursor" | "version" | "reason"
-> & { createdAt: string };
+> & { createdAt: string; updatedAt: string };
