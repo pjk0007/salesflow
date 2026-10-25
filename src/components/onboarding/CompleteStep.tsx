@@ -52,7 +52,7 @@ export default function CompleteStep({
                 )}
                 {invitesUnsent > 0 && <p className="text-sm text-muted-foreground">{invitesUnsent}건은 메일을 보내지 못했습니다. 설정 &gt; 팀멤버에서 초대 링크를 복사해 전달해주세요.</p>}
                 {inviteFailures > 0 && <p role="alert" className="text-sm text-destructive">초대 {inviteFailures}건을 만들지 못했습니다. 설정 &gt; 팀멤버에서 다시 초대해주세요.</p>}
-                {!workspaceName && fieldsCreated === 0 && invitesSent === 0 && (
+                {!workspaceName && fieldsCreated === 0 && invitesSent === 0 && inviteFailures === 0 && (
                     <p className="text-sm text-muted-foreground text-center">
                         설정을 건너뛰었습니다. 언제든 설정에서 변경할 수 있어요.
                     </p>

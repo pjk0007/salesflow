@@ -21,6 +21,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (targetId === user.userId && body.isSuperAdmin === 0) {
         return NextResponse.json({ success: false, error: "자신의 super admin 권한은 해제할 수 없습니다." }, { status: 400 });
     }
+    // 자기 계정 정지 방지 — 정지하면 바로 모든 조직에서 로그인할 수 없게 된다
+    if (targetId === user.userId && body.isActive === 0) {
+        return NextResponse.json({ success: false, error: "자신의 계정은 정지할 수 없습니다." }, { status: 400 });
+    }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };
     if (typeof body.isActive === "number") updates.isActive = body.isActive;

@@ -74,7 +74,7 @@ function InvitePageContent() {
                 await refreshSession();
                 router.push("/");
             } else if (data.requiresLogin) {
-                router.push(`/login?invite=${token}`);
+                router.push(`/login?invite=${encodeURIComponent(token)}`);
             } else {
                 setError(data.error || "가입에 실패했습니다.");
             }
