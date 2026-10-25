@@ -60,12 +60,17 @@ export const patchInput = z
         assigneeId: z.string().uuid().nullable().optional(),
         teamId: z.string().uuid().nullable().optional(),
         recordId: z.number().int().positive().nullable().optional(),
+        /** 화면에 보이는 통합코드로 CRM 레코드를 연결한다(서버가 같은 사업의 레코드 번호로 바꾼다). */
+        recordCode: z.string().trim().min(1).max(50).optional(),
         tags: z.array(z.string().trim().min(1).max(30)).max(10).optional(),
         priority: z.boolean().optional(),
         version: z.number().int().positive().optional(),
         aiState: z.enum(["auto", "human"]).optional(),
     })
-    .strict();
+    .strict()
+    .refine((v) => !(v.recordCode && v.recordId !== undefined), {
+        message: "통합코드와 레코드 번호 중 하나만 입력해주세요.",
+    });
 export const conversationFiltersInput = z.object({
     q: z.string().trim().max(200).default(""),
     status: z.enum(["open", "snoozed", "closed"]).optional(),

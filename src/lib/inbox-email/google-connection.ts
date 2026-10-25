@@ -30,6 +30,30 @@ import {
     type GoogleMailConfig,
 } from "./google-config";
 type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
+/** 콜백 주소에 실을 짧은 실패 코드. 비밀·토큰·사유 원문은 URL에 넣지 않는다. */
+export type GoogleConnectionFailureCode =
+    | "expired"
+    | "scope"
+    | "account"
+    | "alias"
+    | "permission"
+    | "failed";
+export class GoogleConnectionFailure extends InboxError {
+    constructor(
+        message: string,
+        public code: GoogleConnectionFailureCode,
+        /** 관리 권한을 확인한 메일함의 상담함만 담는다. */
+        public channelId?: number,
+        status = 409,
+    ) {
+        super(message, status);
+    }
+}
+/** 다시 가져와도 같은 결과인 수신 실패 사유. 이 사유는 '다시 가져오기' 대상에서 뺀다. */
+export const PERMANENT_GOOGLE_JOB_REASONS = [
+    "invalid_source",
+    "intake_rejected",
+] as const;
 export const googleCookieName = (stateHash: string) =>
     `sendb_email_oauth_${stateHash.slice(0, 16)}`;
 async function currentAdmin(actor: Actor, exec: DbExec) {
@@ -54,7 +78,8 @@ export async function googleConnectionStatus(
         })
         .from(connections)
         .where(eq(connections.mailboxId, id));
-    const [counts] = await exec
+    const [[counts], failedReasons, [replies]] = await Promise.all([
+        exec
         .select({
             pending:
                 sql<number>`count(*) FILTER (WHERE ${jobs.state} IN ('pending','processing'))`.mapWith(
@@ -68,7 +93,26 @@ export async function googleConnectionStatus(
             ),
         })
         .from(jobs)
-        .where(eq(jobs.mailboxId, id));
+        .where(eq(jobs.mailboxId, id)),
+        exec
+            .select({
+                reasonCode: jobs.reasonCode,
+                count: sql<number>`count(*)`.mapWith(Number),
+            })
+            .from(jobs)
+            .where(and(eq(jobs.mailboxId, id), eq(jobs.state, "failed")))
+            .groupBy(jobs.reasonCode),
+        // 중지·재연결·해제 확인창에 보여줄 발송 대기 답장 수(이 동작들이 취소한다).
+        exec
+            .select({ pending: sql<number>`count(*)`.mapWith(Number) })
+            .from(deliveries)
+            .where(
+                and(
+                    eq(deliveries.mailboxId, id),
+                    sql`${deliveries.state} IN ('queued','leased')`,
+                ),
+            ),
+    ]);
     let configured = false;
     try {
         googleMailConfig();
@@ -77,6 +121,8 @@ export async function googleConnectionStatus(
     return {
         connection: connection ?? { status: "disconnected", version: 0 },
         counts,
+        failedReasons,
+        pendingReplies: replies?.pending ?? 0,
         configured,
         workerEnabled: googleMailWorkerEnabled(),
     };
@@ -202,9 +248,9 @@ export async function finishGoogleConnection(
             row.expiresAt <= now ||
             row.cookieHash !== googleHash(input.cookie)
         )
-            throw new InboxError(
+            throw new GoogleConnectionFailure(
                 "Google 연결 요청이 만료되거나 다른 브라우저에서 시작됐습니다. 다시 연결해주세요.",
-                409,
+                "expired",
             );
         await tx
             .update(states)
@@ -214,6 +260,34 @@ export async function finishGoogleConnection(
     });
     const box = await ownedMailbox(actor, state.mailboxId, exec);
     await requireCustomerAccess(actor, box.workspaceId, "manage", exec);
+    try {
+        return await completeGoogleConnection(actor, input, state, box, stateHash, exec, cfg, fetchImpl, now);
+    } catch (error) {
+        if (error instanceof GoogleConnectionFailure) throw error;
+        throw new GoogleConnectionFailure(
+            error instanceof InboxError
+                ? error.message
+                : "Google 연결을 완료하지 못했습니다. 다시 연결해주세요.",
+            error instanceof InboxError && [401, 403].includes(error.status)
+                ? "permission"
+                : "failed",
+            box.channelId,
+        );
+    }
+}
+async function completeGoogleConnection(
+    actor: Actor,
+    input: { code?: string; error?: string },
+    state: typeof states.$inferSelect,
+    box: typeof boxes.$inferSelect,
+    stateHash: string,
+    exec: DbExec,
+    cfg: GoogleMailConfig,
+    fetchImpl: typeof fetch,
+    now: Date,
+) {
+    const fail = (message: string, code: GoogleConnectionFailureCode) =>
+        new GoogleConnectionFailure(message, code, box.channelId);
     if (input.error)
         return {
             channelId: box.channelId,
@@ -252,10 +326,7 @@ export async function finishGoogleConnection(
         })
         .parse(await response.json());
     if (!GOOGLE_MAIL_SCOPES.every((s) => token.scope.split(/\s+/).includes(s)))
-        throw new InboxError(
-            "메일 읽기와 답장 발송 권한을 모두 승인해주세요.",
-            409,
-        );
+        throw fail("메일 읽기와 답장 발송 권한을 모두 승인해주세요.", "scope");
     const profileResponse = await fetchImpl(
         "https://gmail.googleapis.com/gmail/v1/users/me/profile",
         {
@@ -272,16 +343,20 @@ export async function finishGoogleConnection(
         })
         .parse(await profileResponse.json());
     if (profile.emailAddress.toLowerCase() !== googleAccountAddress(box))
-        throw new InboxError(
+        throw fail(
             "등록한 Google 로그인 계정과 다릅니다. 메일함 설정의 계정을 선택해주세요.",
-            409,
+            "account",
         );
-    await assertGoogleAlias(
-        box.address,
-        googleAccountAddress(box),
-        token.access_token,
-        fetchImpl,
-    );
+    try {
+        await assertGoogleAlias(
+            box.address,
+            googleAccountAddress(box),
+            token.access_token,
+            fetchImpl,
+        );
+    } catch (error) {
+        throw fail((error as Error).message, "alias");
+    }
     return exec.transaction(async (tx) => {
         await currentAdmin(actor, tx);
         const locked = await ownedMailbox(actor, box.id, tx, true);
@@ -449,13 +524,21 @@ export async function retryGoogleJobs(
                     eq(jobs.mailboxId, id),
                     eq(jobs.connectionVersion, c.version),
                     eq(jobs.state, "failed"),
+                    sql`COALESCE(${jobs.reasonCode}, '') NOT IN (${sql.join(
+                        PERMANENT_GOOGLE_JOB_REASONS.map((r) => sql`${r}`),
+                        sql`, `,
+                    )})`,
                 ),
             )
             .returning({ id: jobs.id });
+        const [left] = await tx
+            .select({ count: sql<number>`count(*)`.mapWith(Number) })
+            .from(jobs)
+            .where(and(eq(jobs.mailboxId, id), eq(jobs.state, "failed")));
         await tx
             .update(connections)
             .set({ nextRunAt: new Date() })
             .where(eq(connections.mailboxId, id));
-        return { retried: rows.length };
+        return { retried: rows.length, permanent: left?.count ?? 0 };
     });
 }

@@ -3,6 +3,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { changeDelivery } from "../api";
 import type { EmailDelivery } from "../types";
+import { deliveryReason } from "../utils/delivery-reason";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 const labels = {
     queued: "메일 발송 대기",
     leased: "메일 발송 준비",
@@ -16,12 +18,17 @@ export function EmailDeliveryStatus({
     item,
     refresh,
     canRespond = false,
+    onRewrite,
 }: {
     item: EmailDelivery;
     refresh: () => Promise<unknown>;
     canRespond?: boolean;
+    /** 취소된 답장 본문을 답장 작성란에 다시 넣는다. */
+    onRewrite?: () => void;
 }) {
     const [busy, setBusy] = useState(false);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
+    const reason = deliveryReason(item);
     const act = async (action: "retry" | "cancel") => {
         setBusy(true);
         try {
@@ -35,7 +42,7 @@ export function EmailDeliveryStatus({
     };
     return (
         <div
-            className={`space-y-1 text-xs ${["failed", "uncertain"].includes(item.state) ? "text-amber-800" : "text-muted-foreground"}`}
+            className={`space-y-1 text-xs ${reason.warn ? "text-amber-800" : "text-muted-foreground"}`}
         >
             <p>
                 {labels[item.state]} ·{" "}
@@ -44,41 +51,7 @@ export function EmailDeliveryStatus({
             {!!item.recipientCc?.length && (
                 <p className="break-all">참조: {item.recipientCc.join(", ")}</p>
             )}
-            {item.state === "failed" &&
-                [
-                    "attachment_download",
-                    "attachment_changed",
-                    "mime_invalid",
-                    "mailbox_mismatch",
-                ].includes(item.errorCode ?? "") && (
-                    <p>
-                        {item.errorCode === "mailbox_mismatch"
-                            ? "연결된 메일 계정과 발신 주소가 다릅니다. 관리자에게 연결 설정을 확인해주세요."
-                            : "첨부 파일을 모두 확인하지 못해 발송을 시작하지 않았습니다. 파일과 연결 상태를 확인한 뒤 재시도해주세요."}
-                    </p>
-                )}
-            {item.errorCode === "access_revoked" && (
-                <p>작성자의 사업 응대 권한이 회수되어 발송을 중단했습니다.</p>
-            )}
-            {item.errorCode === "alias_unverified" && (
-                <p>
-                    사업 문의 주소가 Gmail에서 인증된 발신 주소인지 확인하지
-                    못해 발송을 중단했습니다. Google 계정의 다른 주소에서 메일
-                    보내기 설정을 확인한 뒤 재시도해주세요.
-                </p>
-            )}
-            {item.errorCode === "email_unsubscribed" && (
-                <p>
-                    조직 전체 수신거부 목록에 등록된 주소가 있어 발송을
-                    중단했습니다.
-                </p>
-            )}
-            {item.state === "uncertain" && (
-                <p>
-                    중복 발송을 막기 위해 자동 재전송하지 않습니다. 메일
-                    서비스의 보낸 편지함에서 확인해주세요.
-                </p>
-            )}
+            {reason.text && <p>{reason.text}</p>}
             {canRespond && item.state === "failed" && (
                 <button
                     disabled={busy}
@@ -98,6 +71,32 @@ export function EmailDeliveryStatus({
                         발송 취소
                     </button>
                 )}
+            {canRespond && item.state === "uncertain" && (
+                <button
+                    disabled={busy}
+                    className="underline"
+                    onClick={() =>
+                        confirm({
+                            title: "보내지 않은 답장으로 정리할까요?",
+                            description:
+                                "보낸 편지함에 이 답장이 없는 것을 확인한 경우에만 정리해주세요. 정리하면 자동 확인을 멈추고, 본문을 다시 넣어 새로 보낼 수 있습니다. 실제로 보내졌다면 고객이 같은 답장을 두 번 받게 됩니다.",
+                            confirmLabel: "보내지 않음으로 정리",
+                            onConfirm: async () => {
+                                await changeDelivery(item.id, "cancel");
+                                await refresh();
+                            },
+                        })
+                    }
+                >
+                    보내지 않은 것으로 정리
+                </button>
+            )}
+            {canRespond && reason.canRewrite && onRewrite && (
+                <button className="underline" onClick={onRewrite}>
+                    본문을 작성란에 다시 넣기
+                </button>
+            )}
+            {confirmationDialog}
         </div>
     );
 }

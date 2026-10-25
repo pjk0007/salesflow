@@ -27,6 +27,8 @@ export function useSSE({
     );
     const attemptRef = useRef(0);
     const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // 한 번이라도 연결된 뒤 다시 연결되면 끊긴 동안의 변경을 놓쳤을 수 있다.
+    const connectedOnceRef = useRef(false);
 
     // 콜백을 ref로 관리 — 재연결 방지
     const callbacksRef = useRef({
@@ -60,6 +62,8 @@ export function useSSE({
         es.addEventListener("connected", () => {
             setIsConnected(true);
             attemptRef.current = 0;
+            if (connectedOnceRef.current) callbacksRef.current.onAnyChange?.();
+            connectedOnceRef.current = true;
         });
 
         const handleEvent = (event: MessageEvent, type: string) => {
@@ -100,7 +104,10 @@ export function useSSE({
             if (attemptRef.current < 5) {
                 const delay = Math.min(1000 * Math.pow(2, attemptRef.current), 30000);
                 attemptRef.current++;
-                reconnectTimerRef.current = setTimeout(connect, delay);
+                reconnectTimerRef.current = setTimeout(() => {
+                    reconnectTimerRef.current = null;
+                    connect();
+                }, delay);
             }
         };
     }, [partitionId, enabled]);
@@ -125,6 +132,22 @@ export function useSSE({
         attemptRef.current = 0;
         connect();
     }, [connect]);
+
+    // 재연결 5회가 모두 실패해 멈춘 뒤에는 네트워크 복구·탭 복귀 때 다시 연결한다.
+    useEffect(() => {
+        if (!partitionId || !enabled) return;
+        const resume = () => {
+            if (document.visibilityState !== "visible") return;
+            if (esRef.current || reconnectTimerRef.current) return;
+            reconnect();
+        };
+        window.addEventListener("online", resume);
+        document.addEventListener("visibilitychange", resume);
+        return () => {
+            window.removeEventListener("online", resume);
+            document.removeEventListener("visibilitychange", resume);
+        };
+    }, [partitionId, enabled, reconnect]);
 
     return { isConnected, sessionId: sessionIdRef.current, reconnect };
 }
