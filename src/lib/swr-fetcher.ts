@@ -33,7 +33,8 @@ function responseError(value: unknown): string {
 export async function apiRequest<T = unknown>(
     url: string,
     options?: RequestInit,
-    timeoutMs = options?.body instanceof FormData ? 120000 : 15000,
+    // 운영 발송 이력 검색이 12초 넘게 걸린다 — 정상 조회를 끊지 않도록 프록시 한도(60초)에 맞춘다.
+    timeoutMs = options?.body instanceof FormData ? 120000 : 60000,
     messages: RequestMessages = {},
 ): Promise<T> {
     const controller = new AbortController();
