@@ -1,77 +1,92 @@
 // 실제 provider/queue 소스 실행. 브라우저·쿠키·네트워크·DB는 사용하지 않는다.
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
-import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// 한계: React를 쓰지 않고 훅을 직접 모사한다. useEffect는 최초 렌더 뒤 1회만 실행하고 useCallback은 함수를 그대로 돌려주므로,
+// 의존성 변경에 따른 effect 재실행·정리(cleanup)와 렌더 사이 콜백 교체는 이 시험이 확인하지 않는다.
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import vm from "node:vm";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import type { useSession } from "./SessionContext";
+
+type SessionValue = ReturnType<typeof useSession>;
+type Identity = { orgId: string; userId: string; membershipId: number; tokenVersion: number; role: string; organizations: unknown[] };
+type Listener = (event: { type: string } & Record<string, unknown>) => void;
+type Exports = Record<string, unknown>;
+type Provider = { SessionProvider: (props: { children: null }) => { props: { value: SessionValue } } };
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tick = () => new Promise(resolve => setImmediate(resolve));
-const gate = () => { let release; const promise = new Promise(resolve => { release = resolve; }); return { promise, release }; };
+const gate = () => { let release = () => {}; const promise = new Promise<void>(resolve => { release = resolve; }); return { promise, release }; };
 
 async function harness() {
-    let current = { orgId: 'A', userId: 'staff', membershipId: 1, tokenVersion: 0, role: 'owner', organizations: [] };
-    let failMe = false, onLogout = async () => { current = null; }, onSwitch = async () => {};
+    let current: Identity | null = { orgId: "A", userId: "staff", membershipId: 1, tokenVersion: 0, role: "owner", organizations: [] };
+    let failMe = false;
+    let onLogout = async () => { current = null; };
+    let onSwitch = async (id: string) => { void id; };
     let cursor = 0, mounted = false;
-    const slots = [], effects = [], events = [], navigations = [], announcements = [];
-    const listeners = new Map();
-    const emit = (type, extra = {}) => { for (const listener of listeners.get(type) ?? []) listener({ type, ...extra }); };
-    const state = initial => {
+    const slots: unknown[] = [], effects: (() => unknown)[] = [], events: string[] = [];
+    const navigations: [string, string][] = [], announcements: [string, string][] = [];
+    const listeners = new Map<string, Set<Listener>>();
+    const emit = (type: string, extra: Record<string, unknown> = {}) => { for (const listener of listeners.get(type) ?? []) listener({ type, ...extra }); };
+    const signedIn = () => { if (!current) throw Error("로그인 상태가 아님"); return current; };
+    const state = <T>(initial: T | (() => T)): [T, (value: T | ((previous: T) => T)) => void] => {
         const index = cursor++;
-        if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
-        return [slots[index], value => { slots[index] = typeof value === 'function' ? value(slots[index]) : value; }];
+        if (!(index in slots)) slots[index] = typeof initial === "function" ? (initial as () => T)() : initial;
+        return [slots[index] as T, value => { slots[index] = typeof value === "function" ? (value as (previous: T) => T)(slots[index] as T) : value; }];
     };
     const react = {
-        createContext: () => ({ Provider: 'provider' }), useState: state,
-        useRef: value => state(() => ({ current: value }))[0], useCallback: f => f,
-        useEffect: f => { if (!mounted) effects.push(f); },
+        createContext: () => ({ Provider: "provider" }), useState: state,
+        useRef: <T>(value: T) => state(() => ({ current: value }))[0], useCallback: <F>(f: F) => f,
+        useEffect: (f: () => unknown) => { if (!mounted) effects.push(f); },
     };
-    const compile = (relative, imports) => {
-        const source = fs.readFileSync(path.join(root, relative), 'utf8');
+    const compile = (relative: string, imports: Record<string, unknown>): Exports => {
+        const source = fs.readFileSync(path.join(root, relative), "utf8");
         const js = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-        const exports = {};
-        vm.runInNewContext('(function(require,exports){' + js + '})', {
+        const exports: Exports = {};
+        const run = vm.runInNewContext("(function(require,exports){" + js + "})", {
             console: { error() {} },
             window: {
-                location: { replace: url => { navigations.push(['replace', url]); events.push('replace:' + url); } },
-                addEventListener: (type, listener) => { if (!listeners.has(type)) listeners.set(type, new Set()); listeners.get(type).add(listener); },
-                removeEventListener: (type, listener) => { listeners.get(type)?.delete(listener); },
+                location: { replace: (url: string) => { navigations.push(["replace", url]); events.push("replace:" + url); } },
+                addEventListener: (type: string, listener: Listener) => { const set = listeners.get(type) ?? new Set<Listener>(); set.add(listener); listeners.set(type, set); },
+                removeEventListener: (type: string, listener: Listener) => { listeners.get(type)?.delete(listener); },
             },
-            localStorage: { setItem: (key, value) => { announcements.push([key, value]); } },
-            fetch: async (url, options) => {
-                if (url === '/api/org/switch') {
-                    const id = JSON.parse(options.body).orgId;
-                    events.push('switch-start:' + id); await onSwitch(id);
-                    current = { ...current, orgId: id, membershipId: id === 'B' ? 2 : 3 };
-                    events.push('switch-response:' + id);
+            localStorage: { setItem: (key: string, value: string) => { announcements.push([key, value]); } },
+            fetch: async (url: string, options: { body: string }) => {
+                if (url === "/api/org/switch") {
+                    const id: string = JSON.parse(options.body).orgId;
+                    events.push("switch-start:" + id); await onSwitch(id);
+                    current = { ...signedIn(), orgId: id, membershipId: id === "B" ? 2 : 3 };
+                    events.push("switch-response:" + id);
                     return { ok: true, json: async () => ({ success: true }) };
                 }
-                if (url === '/api/auth/logout') { events.push('logout-start'); await onLogout(); events.push('logout-response'); return { ok: false }; }
-                throw Error('외부 요청 금지: ' + url);
+                if (url === "/api/auth/logout") { events.push("logout-start"); await onLogout(); events.push("logout-response"); return { ok: false }; }
+                throw Error("외부 요청 금지: " + url);
             },
-        })(name => { if (Object.hasOwn(imports, name)) return imports[name]; throw Error('허용하지 않은 의존성: ' + name); }, exports);
+        }) as (require: (name: string) => unknown, exports: Exports) => void;
+        run(name => { if (Object.hasOwn(imports, name)) return imports[name]; throw Error("허용하지 않은 의존성: " + name); }, exports);
         return exports;
     };
-    const queue = compile('components/inbox/hooks/session-transition-queue.ts', {});
-    const sessionSync = compile('lib/session-sync.ts', {});
-    const provider = compile('contexts/SessionContext.tsx', {
-        react, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }) },
-        'next/navigation': { useRouter: () => ({ push: url => navigations.push(['push', url]) }) },
-        '@/components/inbox/hooks/session-transition-queue': queue,
-        '@/lib/session-sync': sessionSync,
-        '@/lib/session-request': { fetchSessionResponse: async () => {
-            if (failMe) { events.push('me:error'); throw Error('세션 조회 실패'); }
-            events.push('me:' + (current?.orgId ?? 'null'));
+    const queue = compile("components/inbox/hooks/session-transition-queue.ts", {});
+    const sessionSync = compile("lib/session-sync.ts", {});
+    const provider = compile("contexts/SessionContext.tsx", {
+        react, "react/jsx-runtime": { jsx: (type: unknown, props: unknown) => ({ type, props }) },
+        "next/navigation": { useRouter: () => ({ push: (url: string) => navigations.push(["push", url]) }) },
+        "@/components/inbox/hooks/session-transition-queue": queue,
+        "@/lib/session-sync": sessionSync,
+        "@/lib/session-request": { fetchSessionResponse: async () => {
+            if (failMe) { events.push("me:error"); throw Error("세션 조회 실패"); }
+            events.push("me:" + (current?.orgId ?? "null"));
             return current ? { success: true, user: { ...current } } : { success: false };
         } },
-    });
+    }) as Provider;
     const render = () => { cursor = 0; const value = provider.SessionProvider({ children: null }).props.value; mounted = true; return value; };
     render(); effects.forEach(f => f()); await tick();
     return {
-        render, events, navigations, announcements, emit, setCurrent: value => { current = value; },
-        changeRole: role => { current = { ...current, role }; }, failMe: value => { failMe = value; },
-        onLogout: f => { onLogout = f; }, onSwitch: f => { onSwitch = f; },
+        render, events, navigations, announcements, emit, setCurrent: (value: Identity | null) => { current = value; },
+        changeRole: (role: string) => { current = { ...signedIn(), role }; }, failMe: (value: boolean) => { failMe = value; },
+        onLogout: (f: () => Promise<void>) => { onLogout = f; }, onSwitch: (f: (id: string) => Promise<void>) => { onSwitch = f; },
     };
 }
 
@@ -99,7 +114,7 @@ test('B→C는 최종 C 확인 뒤 한 번만 문서를 이동한다', async () 
     assert.equal(h.events.at(-2), 'me:C');
 });
 
-for (const failure of ['http', 'network']) test(`B→logout ${failure} 실패 뒤 실제 /me:B는 /login으로 오인하지 않는다`, async () => {
+for (const failure of ['http', 'network'] as const) test(`B→logout ${failure} 실패 뒤 실제 /me:B는 /login으로 오인하지 않는다`, async () => {
     const h = await harness();
     h.onLogout(async () => { if (failure === 'network') throw Error('응답 불명'); });
     await Promise.all([h.render().switchOrg('B'), h.render().logout()]);
@@ -123,7 +138,7 @@ test('동일 조직 refresh의 권한 변경도 기존 캐시 노출 없이 한 
     assert.deepEqual(h.navigations, [['replace', '/']]); assert.equal(h.render().user, null);
 });
 
-for (const same of [true, false]) test(`refresh 오류 뒤 ${same ? '동일' : '다른'} identity 복구`, async () => {
+for (const same of [true, false] as const) test(`refresh 오류 뒤 ${same ? '동일' : '다른'} identity 복구`, async () => {
     const h = await harness(); h.failMe(true); await h.render().refreshSession();
     assert.deepEqual(h.navigations, []); assert.equal(h.render().user, null); assert.ok(h.render().sessionError);
     h.failMe(false);
