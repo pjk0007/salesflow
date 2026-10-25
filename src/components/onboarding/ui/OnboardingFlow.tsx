@@ -21,6 +21,9 @@ import {
     saveOnboardingWorkspace,
 } from "@/components/onboarding/api";
 
+// 실패 안내가 오른쪽 위 [건너뛰기] 버튼을 덮어 재시도 클릭을 가로채지 않게 가운데 위에 띄운다(UI확인-V1).
+const ONBOARDING_TOAST = { position: "top-center" } as const;
+
 const STEP_ERRORS: Record<number, string> = {
     1: "조직 정보를 저장하지 못했습니다. 다시 시도해주세요.",
     2: "워크스페이스를 저장하지 못했습니다. 다시 시도해주세요.",
@@ -95,7 +98,7 @@ export default function OnboardingPage() {
             await refreshSession();
             router.push("/");
         } catch (error) {
-            toast.error(requestErrorMessage(error, "완료 처리에 실패했습니다. 다시 시도해주세요."));
+            toast.error(requestErrorMessage(error, "완료 처리에 실패했습니다. 다시 시도해주세요."), ONBOARDING_TOAST);
         } finally {
             submitPending.current = false;
             setIsLoading(false);
@@ -114,7 +117,7 @@ export default function OnboardingPage() {
                 setStep(2);
             } else if (step === 2) {
                 if (!workspaceName.trim()) {
-                    toast.error("워크스페이스 이름을 입력해주세요.");
+                    toast.error("워크스페이스 이름을 입력해주세요.", ONBOARDING_TOAST);
                     return;
                 }
                 // 이미 만든 워크스페이스면 이름·아이콘만 고친다(뒤로→다음 중복 생성 방지)
@@ -127,7 +130,7 @@ export default function OnboardingPage() {
                     setAppliedTemplateId(template.id);
                     setFieldsCreated((previous) => previous + result.created);
                     if (result.skippedItems.length) {
-                        toast.info(result.skippedItems.map((item) => `${item.key}: ${item.reason}`).join(" · "));
+                        toast.info(result.skippedItems.map((item) => `${item.key}: ${item.reason}`).join(" · "), ONBOARDING_TOAST);
                     }
                 }
                 setStep(4);
@@ -135,7 +138,7 @@ export default function OnboardingPage() {
                 const { created, failures } = await createOnboardingInvites(emails, invitationResults.current);
                 invitationResults.current = created;
                 for (const failure of failures) {
-                    toast.error(`${failure.email}: ${requestErrorMessage(failure.error, "초대를 만들지 못했습니다.")}`);
+                    toast.error(`${failure.email}: ${requestErrorMessage(failure.error, "초대를 만들지 못했습니다.")}`, ONBOARDING_TOAST);
                 }
                 setInvitesSent(created.size);
                 setInvitesUnsent([...created.values()].filter((sent) => !sent).length);
@@ -143,8 +146,8 @@ export default function OnboardingPage() {
                 setStep(5);
             }
         } catch (error) {
-            toast.error(requestErrorMessage(error, STEP_ERRORS[step] ?? "요청을 처리하지 못했습니다."));
-            if (step === 3) toast.info("속성은 워크스페이스 설정 > 속성 타입 관리에서도 추가할 수 있습니다.");
+            toast.error(requestErrorMessage(error, STEP_ERRORS[step] ?? "요청을 처리하지 못했습니다."), ONBOARDING_TOAST);
+            if (step === 3) toast.info("속성은 워크스페이스 설정 > 속성 타입 관리에서도 추가할 수 있습니다.", ONBOARDING_TOAST);
         } finally {
             submitPending.current = false;
             setIsLoading(false);

@@ -125,8 +125,11 @@ export default function WorkspaceSettingsTab() {
         if (!selectedId) return;
         const result = await deleteWorkspace(selectedId);
         if (result.success) {
-            toast.success("워크스페이스가 삭제되었습니다.");
+            // 삭제한 워크스페이스의 설정 캐시를 먼저 비워, 뒤늦은 재검증 404가
+            // "최신 정보를 불러오지 못했습니다" 토스트로 성공 안내와 함께 뜨지 않게 한다(UI확인-V1).
+            void mutateWorkspace(undefined, { revalidate: false });
             setSelectedId(null);
+            toast.success("워크스페이스가 삭제되었습니다.");
             setDeleteOpen(false);
         } else {
             throw new Error(result.error || "삭제에 실패했습니다.");

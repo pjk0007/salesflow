@@ -106,7 +106,10 @@ export default function CreateWorkspaceDialog({
                                     .join(", ")}${skippedItems.length > 3 ? " 외" : ""}`);
                             }
                         } else {
-                            toast.error(result.error || "템플릿을 적용하지 못했습니다. 속성 타입 관리에서 다시 추가할 수 있습니다.");
+                            // 서버 문구가 있어도 대안 안내는 빠뜨리지 않는다(UI확인-V1).
+                            toast.error(result.error || "템플릿을 적용하지 못했습니다.", {
+                                description: "속성은 속성 타입 관리에서 다시 추가할 수 있습니다.",
+                            });
                             return;
                         }
                     }
