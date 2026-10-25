@@ -10,8 +10,9 @@ import { EmailDeliveryStatus } from "@/components/inbox-email/ui/EmailDeliverySt
 const day = new Intl.DateTimeFormat("ko-KR", {year:"numeric",month:"long",day:"numeric"});
 const time = new Intl.DateTimeFormat("ko-KR", {hour:"2-digit",minute:"2-digit"});
 const full = new Intl.DateTimeFormat("ko-KR", {year:"numeric",month:"numeric",day:"numeric",hour:"numeric",minute:"numeric",second:"numeric"});
-export const MessageHistory = memo(function MessageHistory({ messages, historyOnly, canRespond, refresh }: {
+export const MessageHistory = memo(function MessageHistory({ messages, historyOnly, canRespond, refresh, onRewrite }: {
     messages: ChatMessage[]; historyOnly?: boolean; canRespond: boolean; refresh: () => Promise<unknown>;
+    onRewrite?: (body: string) => void;
 }) {
     return <>
         {messages.map((m, index) => (
@@ -107,6 +108,11 @@ export const MessageHistory = memo(function MessageHistory({ messages, historyOn
                             canRespond={canRespond}
                             item={m.delivery}
                             refresh={refresh}
+                            onRewrite={
+                                onRewrite && m.body && !historyOnly
+                                    ? () => onRewrite(m.body!)
+                                    : undefined
+                            }
                         />
                     )}
                     {!!m.email?.files.length && (

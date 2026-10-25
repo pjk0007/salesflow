@@ -6,7 +6,7 @@ import { useAgentPresence } from "@/components/inbox-presence/hooks/useAgentPres
 import { ReplyGuardSettings } from "@/components/inbox-reply-guard/ui/ReplyGuardSettings";
 import { AgentStatus } from "@/components/inbox-presence/ui/AgentStatus";
 import { CapacitySettings } from "@/components/inbox-capacity/ui/CapacitySettings";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
 import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
 import type { OpenSupportConversation } from "@/components/inbox-operations/types";
@@ -32,13 +32,27 @@ import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { connectionResultMessage, connectionSucceeded } from "@/components/inbox-email/utils/connection-result";
 const listDate = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" });
 export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
     const params = useSearchParams();
-    const [emailSettings, setEmailSettings] = useState(() =>
-        params.has("emailConnection"),
+    // 승인 결과는 관리 권한을 확인한 상담함(channelId)이 함께 올 때만 그 사업의 메일 설정에서 보여준다.
+    const [emailSettings, setEmailSettings] = useState(
+        () => params.has("emailConnection") && params.has("channelId"),
     );
+    const router = useRouter(),
+        pathname = usePathname();
+    useEffect(() => {
+        const result = params.get("emailConnection");
+        if (!result || params.has("channelId")) return;
+        (connectionSucceeded(result) ? toast.info : toast.error)(
+            connectionResultMessage(result),
+        );
+        const next = new URLSearchParams(params.toString());
+        next.delete("emailConnection");
+        router.replace(next.size ? `${pathname}?${next}` : pathname, { scroll: false });
+    }, [params, pathname, router]); // 쿼리를 지우면 다시 실행되지 않는다.
     const [chosenChannel, setChosenChannel] = useState<number | null>(
             Number(params.get("channelId")) || null,
         ),

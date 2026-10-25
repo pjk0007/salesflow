@@ -1,19 +1,37 @@
 "use client";
 import { useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { GoogleConnectionPanel } from "./GoogleConnectionPanel";
 import { MailboxGoogleAccount } from "./MailboxGoogleAccount";
+import { MailboxName } from "./MailboxName";
+import { MailboxToggle } from "./MailboxToggle";
 import { toast } from "sonner";
 import { useEmailMailboxes } from "../hooks/useEmailMailboxes";
-import { createEmailMailbox, toggleEmailMailbox } from "../api";
+import { createEmailMailbox } from "../api";
+import { connectionResultMessage } from "../utils/connection-result";
 export function EmailMailboxSettings({
     workspaceId,
-    onClose,
+    onClose: close,
 }: {
     workspaceId: number;
     onClose: () => void;
 }) {
-    const connectionResult = useSearchParams().get("emailConnection");
+    const params = useSearchParams(),
+        router = useRouter(),
+        pathname = usePathname();
+    const connectionResult = params.get("emailConnection");
+    // 닫으면 승인 결과 쿼리를 지워 다시 열거나 새로고침할 때 지난 결과가 반복되지 않게 한다.
+    const onClose = () => {
+        if (connectionResult) {
+            const next = new URLSearchParams(params.toString());
+            next.delete("emailConnection");
+            const query = next.toString();
+            router.replace(query ? `${pathname}?${query}` : pathname, {
+                scroll: false,
+            });
+        }
+        close();
+    };
     const { data, error, mutate } = useEmailMailboxes(workspaceId);
     const [address, setAddress] = useState(""),
         [googleAccount, setGoogleAccount] = useState(""),
@@ -50,11 +68,7 @@ export function EmailMailboxSettings({
                 </header>
                 {connectionResult && (
                     <p role="status" className="rounded border p-3 text-sm">
-                        {connectionResult === "connected"
-                            ? "Google 계정이 연결됐습니다. 메일함의 수신·발송 켜기를 눌러주세요."
-                            : connectionResult === "cancelled"
-                              ? "Google 연결 승인을 취소했습니다."
-                              : "Google 연결을 완료하지 못했습니다. 등록한 Google 로그인 계정과 문의 주소의 Gmail 발신 인증을 확인해주세요."}
+                        {connectionResultMessage(connectionResult)}
                     </p>
                 )}
                 <p className="text-sm text-muted-foreground">
@@ -79,13 +93,22 @@ export function EmailMailboxSettings({
                     >
                         <h3 className="font-semibold">{box.name}</h3>
                         <p>{box.address}</p>
-                        {(!box.googleAccount || box.googleAccount === box.address) && (
-                            <p className="text-xs text-muted-foreground">
-                                같은 Google 계정을 다른 사업 문의 주소에도 연결했다면,
-                                그 주소로만 온 메일은 이 기본 메일함에 가져오지 않습니다.
-                                받는 사람·참조에 이 주소도 있으면 양쪽 메일함에서 받습니다.
-                            </p>
-                        )}
+                        {!!box.aliasMailboxCount &&
+                            (!box.googleAccount ||
+                                box.googleAccount === box.address) && (
+                                <p className="text-xs text-amber-800">
+                                    이 계정을 로그인 계정으로 쓰는 다른 사업
+                                    메일함이 {box.aliasMailboxCount}개 있어,
+                                    그 주소로만 온 메일은 이 기본 메일함에
+                                    가져오지 않습니다. 받는 사람·참조에 이
+                                    주소도 있으면 양쪽 메일함에서 받습니다.
+                                </p>
+                            )}
+                        <MailboxName
+                            key={`name:${box.name}`}
+                            box={box}
+                            onChange={mutate}
+                        />
                         <MailboxGoogleAccount
                             key={box.googleAccount || box.address}
                             box={box}
@@ -97,21 +120,11 @@ export function EmailMailboxSettings({
                         <p className="text-sm">
                             {box.enabled ? "수신·발송 허용" : "수신·발송 중지"}
                         </p>
-                        <button
-                            disabled={busy}
-                            className="rounded-lg border px-3 py-2 text-sm"
-                            onClick={() =>
-                                void run(() =>
-                                    toggleEmailMailbox(
-                                        box.id,
-                                        box.version,
-                                        !box.enabled,
-                                    ),
-                                )
-                            }
-                        >
-                            {box.enabled ? "수신·발송 중지" : "수신·발송 켜기"}
-                        </button>
+                        <MailboxToggle
+                            box={box}
+                            busy={busy}
+                            onChange={mutate}
+                        />
                         <GoogleConnectionPanel box={box} onChange={mutate} />
                     </article>
                 ))}
@@ -134,7 +147,7 @@ export function EmailMailboxSettings({
                 >
                     <h3 className="font-semibold">메일함 등록</h3>
                     <label className="block text-sm">
-                        메일함 이름
+                        보내는 이름 (고객에게 표시)
                         <input
                             className="mt-1 w-full rounded-lg border p-2"
                             value={name}

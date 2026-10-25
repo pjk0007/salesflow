@@ -4,7 +4,11 @@ export const controlGoogleConnection = (
     id: string,
     input: GoogleConnectionAction,
 ) =>
-    inboxWrite<{ authorizationUrl?: string; retried?: number }>(
+    inboxWrite<{
+        authorizationUrl?: string;
+        retried?: number;
+        permanent?: number;
+    }>(
         `/api/email-mailboxes/${id}/google`,
         input,
     );
@@ -33,6 +37,12 @@ export const changeGoogleAccount = (
         enabled: false,
         googleAccount,
     });
+export const renameEmailMailbox = (
+    id: string,
+    version: number,
+    enabled: boolean,
+    name: string,
+) => inboxWrite(`/api/email-mailboxes/${id}`, { version, enabled, name });
 export const toggleEmailMailbox = (
     id: string,
     version: number,

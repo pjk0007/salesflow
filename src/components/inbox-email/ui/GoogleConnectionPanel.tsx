@@ -5,6 +5,8 @@ import { controlGoogleConnection } from "../api";
 import { useGoogleConnection } from "../hooks/useGoogleConnection";
 import type { EmailMailbox } from "../types";
 import { reconnectWindow } from "../utils/reconnect-window";
+import { jobReasonLabel, retryableFailures } from "../utils/job-reasons";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 const displayTime = (value?: string | null) =>
     value ? new Date(value).toLocaleString("ko-KR") : "아직 없음";
 export function GoogleConnectionPanel({
@@ -17,9 +19,13 @@ export function GoogleConnectionPanel({
     const { data, error, mutate } = useGoogleConnection(box.id),
         [chosenDays, setDays] = useState<number | null>(null),
         [busy, setBusy] = useState(false);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const recovery = reconnectWindow(data?.connection.lastPollAt);
     const days = chosenDays ?? recovery.days;
-    const act = async (action: "connect" | "disconnect" | "retry") => {
+    const act = async (
+        action: "connect" | "disconnect" | "retry",
+        fromDialog = false,
+    ) => {
         setBusy(true);
         try {
             const result = await controlGoogleConnection(
@@ -36,12 +42,40 @@ export function GoogleConnectionPanel({
             }
             await Promise.all([mutate(), onChange()]);
             if (action === "retry")
-                toast.success(`${result.retried ?? 0}건을 다시 가져옵니다.`);
+                toast.success(
+                    `${result.retried ?? 0}건을 다시 가져옵니다.${
+                        result.permanent
+                            ? ` 다시 시도해도 실패하는 ${result.permanent}건은 원본 메일함에서 확인해주세요.`
+                            : ""
+                    }`,
+                );
         } catch (e) {
+            // 확인창에서는 오류를 던져 창을 연 채 문구를 보여준다.
+            if (fromDialog) throw e;
             toast.error((e as Error).message);
         } finally {
             setBusy(false);
         }
+    };
+    // 중지·재연결·해제는 발송 대기 답장을 모두 취소하므로 건수를 보여주고 확인받는다.
+    const askFirst = (
+        title: string,
+        effect: string,
+        confirmLabel: string,
+        action: "connect" | "disconnect",
+    ) => {
+        const pending = data?.pendingReplies ?? 0;
+        confirm({
+            title,
+            description: `${effect}
+${
+                pending
+                    ? `발송 대기 중인 답장 ${pending}건이 취소되며 다시 보낼 수 없습니다(본문을 작성란에 다시 넣어 새로 보내야 합니다).`
+                    : "지금 발송 대기 중인 답장은 없습니다."
+            }`,
+            confirmLabel,
+            onConfirm: () => act(action, true),
+        });
     };
     if (error)
         return (
@@ -97,7 +131,16 @@ export function GoogleConnectionPanel({
                     <button
                         className="rounded-lg border px-3 py-2"
                         disabled={busy}
-                        onClick={() => void act("connect")}
+                        onClick={() =>
+                            data.connection.status === "disconnected"
+                                ? void act("connect")
+                                : askFirst(
+                                      "Google 계정을 다시 연결할까요?",
+                                      "다시 연결하는 동안 수신·발송이 중지되고, 연결 후 수신·발송 켜기를 다시 눌러야 합니다.",
+                                      "다시 연결",
+                                      "connect",
+                                  )
+                        }
                     >
                         {connected
                             ? "Google 계정 다시 연결"
@@ -147,24 +190,44 @@ export function GoogleConnectionPanel({
                 </p>
             )}
             {data.counts.failed > 0 && (
-                <p role="alert">
-                    가져오기 확인 필요 {data.counts.failed}건{" "}
-                    {connected && (
-                        <button
-                            className="underline"
-                            disabled={busy}
-                            onClick={() => void act("retry")}
-                        >
-                            실패한 메일 다시 가져오기
-                        </button>
+                <div role="alert" className="space-y-1">
+                    <p>가져오기 확인 필요 {data.counts.failed}건</p>
+                    {!!data.failedReasons?.length && (
+                        <ul className="list-disc pl-5 text-xs">
+                            {data.failedReasons.map((r) => (
+                                <li key={r.reasonCode ?? "unknown"}>
+                                    {jobReasonLabel(r.reasonCode).text} ·{" "}
+                                    {r.count}건
+                                </li>
+                            ))}
+                        </ul>
                     )}
-                </p>
+                    {connected &&
+                        (data.failedReasons === undefined ||
+                            retryableFailures(data.failedReasons) > 0) && (
+                            <button
+                                className="underline"
+                                disabled={busy}
+                                onClick={() => void act("retry")}
+                            >
+                                실패한 메일 다시 가져오기
+                            </button>
+                        )}
+                </div>
             )}
+            {confirmationDialog}
             {data.connection.status !== "disconnected" && (
                 <button
                     className="rounded border px-3 py-2"
                     disabled={busy}
-                    onClick={() => void act("disconnect")}
+                    onClick={() =>
+                        askFirst(
+                            "Google 연결을 해제할까요?",
+                            "새 문의 가져오기와 답장 발송이 멈추고, 다시 연결하기 전까지 이 주소의 문의를 받지 않습니다.",
+                            "연결 해제",
+                            "disconnect",
+                        )
+                    }
                 >
                     Google 연결 해제·수신 발송 중지
                 </button>

@@ -2,7 +2,7 @@
 import { ConversationServiceStatus } from "@/components/inbox-operations/ui/ConversationServiceStatus";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
@@ -208,6 +208,25 @@ export function ConversationPane({
         draftSession.setText(key, value);
         persistDraft(value, key);
     }
+    // 취소된 메일 답장을 새 답장 초안으로 되살린다. 작성 중인 내용은 지우지 않고 뒤에 붙인다.
+    const rewriteRef = useRef<(body: string) => void>(() => {});
+    useEffect(() => {
+        rewriteRef.current = (body) => {
+            const key = `${chat.id}:reply`,
+                current = drafts[key] ?? "";
+            setKind("reply");
+            updateDraft(current.trim() ? `${current}
+
+${body}` : body, key);
+            toast.info(
+                "취소된 답장 본문을 작성란에 넣었습니다. 첨부는 다시 추가해주세요.",
+            );
+        };
+    });
+    const rewriteReply = useCallback(
+        (body: string) => rewriteRef.current(body),
+        [],
+    );
     async function send() {
         if (!canRespond || !draftSession.capture().isCurrent()) return;
         if ((!text.trim() && !attachments.files.length) || busy) return;
@@ -528,7 +547,7 @@ export function ConversationPane({
                             고객이 문의를 작성하고 있습니다.
                         </p>
                     )}
-                    <MessageHistory messages={allMessages} historyOnly={chat.historyOnly} canRespond={canRespond} refresh={refresh} />
+                    <MessageHistory messages={allMessages} historyOnly={chat.historyOnly} canRespond={canRespond} refresh={refresh} onRewrite={rewriteReply} />
                     <div ref={end} />
                 </div>
                 <ConversationPresence agents={presenceAgents} userId={userId} />

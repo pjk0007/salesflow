@@ -344,6 +344,7 @@ export async function deliverGmailReply(
     }
     const files: GmailReplyFile[] = [];
     let raw: string;
+    let stage: "attachment" | "mime" = "attachment";
     try {
         for (const expected of item.attachments ?? []) {
             const file = await client.downloadEmailDeliveryFile(
@@ -364,15 +365,20 @@ export async function deliverGmailReply(
                 bytes,
             });
         }
+        stage = "mime";
         raw = gmailReplyRaw(item, new Date(), files);
     } catch (error) {
+        // 받는 사람·머리글·첨부 수 검증 실패를 첨부 다운로드 실패로 잘못 안내하지 않는다.
         await client.changeEmailDelivery(item.id, {
             action: "prepare_failed",
             leaseToken: item.leaseToken,
             errorCode:
-                error instanceof Error && error.message === "attachment_changed"
-                    ? "attachment_changed"
-                    : "attachment_download",
+                stage === "mime"
+                    ? "mime_invalid"
+                    : error instanceof Error &&
+                        error.message === "attachment_changed"
+                      ? "attachment_changed"
+                      : "attachment_download",
         });
         return { deliveryId: item.id, state: "failed" };
     }
@@ -504,6 +510,26 @@ export async function gmailReader(
     };
 }
 type GmailReader = Awaited<ReturnType<typeof gmailReader>>;
+/**
+ * 결과 확인 필요 답장이 실제로 보내졌는지 보낸 메일의 Message-ID로 찾는다.
+ * 찾으면 Gmail 메시지 ID, 못 찾으면 null(보내지 않았다는 증거가 아니므로 상태를 바꾸지 않는다).
+ */
+export async function findSentGmailReply(
+    get: GmailReader,
+    rfcMessageId: string,
+) {
+    rfcId.parse(rfcMessageId);
+    const query = new URLSearchParams({
+        q: `rfc822msgid:${rfcMessageId.slice(1, -1)} in:sent`,
+        maxResults: "1",
+    });
+    const page = await get<{ messages?: { id?: string }[] }>(
+        `messages?${query}`,
+        1024 * 1024,
+    );
+    const id = page.messages?.[0]?.id;
+    return id && /^[A-Za-z0-9_-]{1,200}$/.test(id) ? id : null;
+}
 function partBytes(data: string | undefined, max: number) {
     if (
         typeof data !== "string" ||

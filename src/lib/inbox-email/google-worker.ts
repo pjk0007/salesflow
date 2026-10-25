@@ -3,7 +3,7 @@ import {
     requireCustomerAccess,
 } from "@/lib/customer-access/access";
 import { randomUUID } from "node:crypto";
-import { and, eq, or, lte, isNull, asc, sql } from "drizzle-orm";
+import { and, eq, or, lte, gte, isNull, isNotNull, asc, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
     db,
@@ -21,6 +21,8 @@ import {
     receiveGmailMessage,
     retryGmailFiles,
     deliverGmailReply,
+    findSentGmailReply,
+    type EmailTransportClient,
 } from "./gmail";
 import {
     googleMailConfig,
@@ -378,12 +380,18 @@ async function receiveOne(
               }
             : { state: "skipped", reasonCode: result.skippedReason };
     } catch (error) {
+        const network =
+            error instanceof Error &&
+            ["AbortError", "TimeoutError", "TypeError"].includes(error.name);
+        // 연결·시간 초과는 일시 사유로 남겨 '다시 가져오기' 대상에 둔다(원본 형식 오류와 구분).
         const code =
             error instanceof GmailApiError
                 ? error.code
                 : error instanceof InboxError
                   ? "intake_rejected"
-                  : "invalid_source";
+                  : network
+                    ? "transient"
+                    : "invalid_source";
         const retry =
             (error instanceof GmailApiError &&
                 ["transient", "rate_limited", "auth", "scope"].includes(
@@ -433,6 +441,57 @@ async function receiveOne(
             .where(eq(connections.mailboxId, job.box.id));
     });
     if (fatal) throw fatal;
+}
+/**
+ * 결과 확인 필요 답장을 보낸 메일함에서 Message-ID로 찾아 접수됨으로 바꾼다.
+ * 찾지 못하면 그대로 둔다(늦게 반영될 수 있어 실패로 바꾸면 중복 발송을 부른다).
+ */
+export async function confirmUncertainReplies(
+    job: Pick<Claim, "box">,
+    client: Pick<EmailTransportClient, "changeEmailDelivery">,
+    credentials: GmailCredentials,
+    exec: DbExec,
+    now: Date,
+    fetchImpl: typeof fetch,
+) {
+    const rows = await exec
+        .select({
+            id: deliveries.id,
+            rfcMessageId: deliveries.rfcMessageId,
+            leaseToken: deliveries.leaseToken,
+        })
+        .from(deliveries)
+        .where(
+            and(
+                eq(deliveries.mailboxId, job.box.id),
+                eq(deliveries.state, "uncertain"),
+                isNotNull(deliveries.leaseToken),
+                gte(deliveries.createdAt, new Date(now.getTime() - 3 * 86400000)),
+            ),
+        )
+        .orderBy(asc(deliveries.createdAt), asc(deliveries.id))
+        .limit(5);
+    if (!rows.length) return 0;
+    const get = await gmailReader(credentials, fetchImpl);
+    let confirmed = 0;
+    for (const row of rows) {
+        try {
+            const providerMessageId = await findSentGmailReply(
+                get,
+                row.rfcMessageId,
+            );
+            if (!providerMessageId) continue;
+            await client.changeEmailDelivery(row.id, {
+                action: "sent",
+                leaseToken: row.leaseToken!,
+                providerMessageId,
+            });
+            confirmed++;
+        } catch {
+            // 조회 실패는 다음 회차에서 다시 확인한다. 발송 단계는 막지 않는다.
+        }
+    }
+    return confirmed;
 }
 async function finish(job: Claim, error: unknown, exec: DbExec, now: Date) {
     await exec.transaction(async (tx) => {
@@ -563,7 +622,15 @@ export async function processGoogleMailQueue(options: Options = {}) {
                         .set({ fileCursor: result.nextCursor ?? null })
                         .where(eq(connections.mailboxId, job.box.id));
             });
-        } else
+        } else {
+            await confirmUncertainReplies(
+                job,
+                client,
+                credentials,
+                exec,
+                now(),
+                fetchImpl,
+            ).catch(() => 0);
             await deliverGmailReply(
                 client,
                 job.box.id,
@@ -579,6 +646,7 @@ export async function processGoogleMailQueue(options: Options = {}) {
                         );
                 },
             );
+        }
     } catch (e) {
         error = e;
     }
