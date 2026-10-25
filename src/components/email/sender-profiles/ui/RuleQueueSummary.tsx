@@ -70,6 +70,9 @@ export default function RuleQueueSummary({ ids, linkId, savedIds }: RuleQueueSum
                             {summary.warning}
                         </p>
                     )}
+                    {stats?.sharedPool && summary.eta && (
+                        <p className="text-xs text-muted-foreground">같은 발신 주소를 쓰는 다른 명단과 하루 한도를 나눠 계산했습니다.</p>
+                    )}
                     {poolChanged && summary.eta && (
                         <p className="text-xs text-muted-foreground">대기·예상 소진일은 저장된 발신 묶음 기준입니다.</p>
                     )}

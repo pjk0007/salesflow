@@ -88,6 +88,8 @@ export interface SendQueueRuleStats {
     };
     /** 지금 쌓인 대기가 다 나가는 한국 날짜 "YYYY-MM-DD". 한도 없음이거나 14일 안에 못 끝나면 null */
     etaDate: string | null;
+    /** 같은 발신 주소를 대기가 있는 다른 명단도 쓴다 — 예상은 하루 한도를 나눠 센 값 (UX-195). 예전 서버 응답에는 없다 */
+    sharedPool?: boolean;
     /** 대기 ÷ 오늘~내일(보낼 수 있는 앞의 두 날) 평균 하루 용량. 한도 없음이거나 보낼 수 있는 날이 없으면 null */
     backlogDays: number | null;
     /** backlogDays > 3, 또는 대기가 있는데 보낼 수 있는 날이 없음 (backlogDays null) */

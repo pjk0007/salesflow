@@ -78,7 +78,8 @@ export function queueBadges(s: SendQueueRuleStats | undefined, now: Date): Queue
             tone: "info",
             title: s.capacity.unlimited
                 ? `${pendingBreakdown(s)}. 발신 묶음에 한도가 없어 대기열 차례대로 나갑니다.`
-                : `${pendingBreakdown(s)}. 지금 쌓인 양만 센 예상입니다 (새로 들어오는 메일은 빼고).`,
+                : `${pendingBreakdown(s)}. 지금 쌓인 양만 센 예상입니다 (새로 들어오는 메일은 빼고).` +
+                  (s.sharedPool ? " 같은 발신 주소를 쓰는 다른 명단과 하루 한도를 나눠 계산했습니다." : ""),
         });
         if (s.warning) {
             out.push({ key: "warning", text: `대기 ${BACKLOG_WARNING_DAYS}일치 넘음`, tone: "warning", title: warningDetail(s) });
