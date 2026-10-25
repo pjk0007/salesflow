@@ -301,3 +301,50 @@ test("UX-160: 템플릿 테스트 발송 — NHN이 수신자를 거절하면 �
     assert.doesNotMatch(unauthorized.error, /Unauthorized|HTTP 401/);
     assert.match(unauthorized.error, /NHN 인증에 실패/);
 });
+
+test("UX-154: 한도 있는 발신 주소 — 발송 전 오류 건만 자리 반환(1회), 정지 주소는 limitedCount 분기 유지", async (t) => {
+    const profileRow = (isPaused: boolean) => ({
+        id: 5, fromEmail: "limited@example.test", fromName: "한도 주소", isDefault: true, dailyLimit: 100,
+        warmupEnabled: false, warmupStartCount: null, warmupStep: null, warmupStartedOn: null,
+        sendWindowStart: null, sendWindowEnd: null, weekdaysOnly: false, spreadEvenly: false, isPaused,
+        usageSentCount: 0, usageLastSentAt: null,
+    });
+    for (const paused of [false, true]) {
+        await t.test(paused ? "정지 주소" : "2번째 로그 기록 실패", async (t) => {
+            const { db, request, membership } = await staff(t);
+            const { POST } = await import("../app/api/email/send/route");
+            let inserts = 0, posts = 0;
+            const { calls } = installFakeDb(t, db, chain(membership, (c) => {
+                if (c.table === "email_configs") return [{ fromEmail: null, fromName: null, appKey: "fake", secretKey: "fake", isActive: 1 }];
+                if (c.op === "select" && c.table === "email_sender_profiles") return [profileRow(paused)];
+                if (c.op === "execute" && c.sql.includes("email_sender_daily_usage")) return [{ sent_count: 1 }];
+                if (c.op === "select" && c.table === "email_template_links") return [{ email_template_links: { id: 7, partitionId: 3, emailTemplateId: 9, recipientField: "email", variableMappings: {} }, workspaces: { id: 2 } }];
+                if (c.op === "select" && c.table === "partitions") return [{ partition: { id: 3, workspaceId: 2 }, workspace: { id: 2, orgId } }];
+                if (c.op === "select" && c.table === "workspaces") return [{ id: 2, orgId }];
+                if (c.op === "select" && c.table === "email_templates") return [{ id: 9, subject: "가상 제목", htmlBody: "가상 본문", useUnsubscribe: false }];
+                if (c.op === "select" && c.table === "records") return [1, 2, 3].map((id) => ({ id, partitionId: 3, orgId, integratedCode: `FAKE-${id}`, data: { email: `r${id}@example.test` } }));
+                if (c.op === "insert" && c.table === "email_send_logs") return ++inserts === 2 ? new Error("가상 DB 오류") : [{ id: inserts }];
+                return undefined;
+            }));
+            t.mock.method(globalThis, "fetch", async () => {
+                posts++;
+                return Response.json({ header: { isSuccessful: true, resultCode: 0, resultMessage: "" }, body: { data: { requestId: `req-${posts}`, results: [{ resultCode: 0 }] } } });
+            });
+            const res = await POST(request("https://example.test/api/email/send", "POST", { templateLinkId: 7, recordIds: [1, 2, 3], senderProfileId: 5 }));
+            const body = await res.json();
+            assert.equal(res.status, 200);
+            const releases = updatesOf(calls, "email_sender_daily_usage").length;
+            if (paused) {
+                assert.equal(posts, 0);
+                assert.equal(body.data.limitedCount, 3);
+                assert.equal(body.data.successCount, 0);
+                assert.equal(releases, 0, "잡은 자리가 없으니 돌려줄 것도 없다");
+            } else {
+                assert.equal(posts, 2);
+                assert.equal(body.data.successCount, 2);
+                assert.equal(body.data.failCount, 1);
+                assert.equal(releases, 1, "보내지 않은 2번째의 자리만 돌려준다 — 보낸 건은 돌려주지 않는다");
+            }
+        });
+    }
+});
