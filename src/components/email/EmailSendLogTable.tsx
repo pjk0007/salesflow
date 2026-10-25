@@ -175,14 +175,20 @@ export default function EmailSendLogTable() {
 
     const handleSync = async () => {
         setSyncing(true);
-        const result = await syncLogs();
-        setSyncing(false);
-        if (result.success && result.data?.busy) {
-            toast.info(result.data.message || "다른 동기화가 도는 중입니다. 잠시 뒤 다시 눌러 주세요.");
-        } else if (result.success) {
-            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트`);
-        } else {
-            toast.error(result.error || "동기화에 실패했습니다.");
+        try {
+            const result = await syncLogs();
+            if (result.success && result.data?.busy) {
+                toast.info(result.data.message || "다른 동기화가 도는 중입니다. 잠시 뒤 다시 눌러 주세요.");
+            } else if (result.success) {
+                toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트`);
+            } else {
+                toast.error(result.error || "동기화에 실패했습니다.");
+            }
+        } catch {
+            // 네트워크·비JSON 응답에서도 버튼이 동기화 중에 묶이지 않게 한다 (UX-144)
+            toast.error("동기화 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요.");
+        } finally {
+            setSyncing(false);
         }
     };
 

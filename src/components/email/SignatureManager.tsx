@@ -75,27 +75,42 @@ export default function SignatureManager({
         }
         setSaving(true);
         const sigJson = JSON.stringify(form.sig);
-        const result = editingId
-            ? await updateSignature(editingId, { name: form.name, signature: sigJson })
-            : await createSignature({ name: form.name, signature: sigJson });
-        setSaving(false);
-        if (result.success) {
-            toast.success(editingId ? "서명이 수정되었습니다." : "서명이 추가되었습니다.");
-            setDialogOpen(false);
-        } else {
-            toast.error(result.error || "저장에 실패했습니다.");
+        try {
+            const result = editingId
+                ? await updateSignature(editingId, { name: form.name, signature: sigJson })
+                : await createSignature({ name: form.name, signature: sigJson });
+            if (result.success) {
+                toast.success(editingId ? "서명이 수정되었습니다." : "서명이 추가되었습니다.");
+                setDialogOpen(false);
+            } else {
+                toast.error(result.error || "저장에 실패했습니다.");
+            }
+        } catch {
+            // 입력은 그대로 두고 저장 중 상태만 푼다 (UX-144)
+            toast.error("저장 결과를 확인하지 못했습니다. 목록에서 반영 여부를 확인한 뒤 다시 시도해주세요.");
+        } finally {
+            setSaving(false);
         }
     };
 
     const handleDelete = async (id: number) => {
-        const result = await deleteSignature(id);
-        if (result.success) toast.success("서명이 삭제되었습니다.");
-        else toast.error(result.error || "삭제에 실패했습니다.");
+        try {
+            const result = await deleteSignature(id);
+            if (result.success) toast.success("서명이 삭제되었습니다.");
+            else toast.error(result.error || "삭제에 실패했습니다.");
+        } catch {
+            toast.error("삭제 결과를 확인하지 못했습니다. 목록에서 확인한 뒤 다시 시도해주세요.");
+        }
     };
 
     const handleSetDefault = async (id: number) => {
-        const result = await updateSignature(id, { isDefault: true });
-        if (result.success) toast.success("기본 서명으로 설정되었습니다.");
+        try {
+            const result = await updateSignature(id, { isDefault: true });
+            if (result.success) toast.success("기본 서명으로 설정되었습니다.");
+            else toast.error(result.error || "기본 서명 설정에 실패했습니다.");
+        } catch {
+            toast.error("기본 서명 설정 결과를 확인하지 못했습니다. 다시 시도해주세요.");
+        }
     };
 
     const updateField = (field: keyof SignatureData, value: string) => {
