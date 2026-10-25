@@ -48,16 +48,21 @@ export function supportKnowledgeHandlers(external: boolean) {
                 const workspaceId = workspace.parse(
                     req.nextUrl.searchParams.get("workspaceId"),
                 );
+                const params = req.nextUrl.searchParams;
                 return listSupportKnowledge(
                     await supportActor(req, external, { workspaceId }),
                     workspaceId,
-                    req.nextUrl.searchParams.has("before")
-                        ? z.coerce
-                              .number()
-                              .int()
-                              .positive()
-                              .parse(req.nextUrl.searchParams.get("before"))
+                    params.has("before")
+                        ? z.coerce.number().int().positive().parse(params.get("before"))
                         : undefined,
+                    undefined,
+                    {
+                        approvedForChat: z
+                            .enum(["approved"])
+                            .optional()
+                            .parse(params.get("state") ?? undefined) === "approved",
+                        q: z.string().max(120).optional().parse(params.get("q") ?? undefined),
+                    },
                 );
             }),
         POST: (req: NextRequest) =>

@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import type { EsignField } from "@/lib/esign/types";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Loader2, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
 import { clamp, fieldLabels, roleColors } from "../utils/presentation";
 
 type Props = {
@@ -18,7 +18,11 @@ type Props = {
 /** PDF.js is fetched only when a document preview is mounted. One page is rasterized at a time. */
 export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, onPageChange, selectedFieldId, onFieldClick, onPlace, onMove }: Props) {
     const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
-    const [error, setError] = useState("");
+    // 문서 불러오기 실패와 한 페이지 표시 실패를 나눈다. 페이지 실패는 다른 페이지 이동·다시 시도로 회복하며 부모(인증·입력) 상태를 건드리지 않는다.
+    const [loadError, setLoadError] = useState("");
+    const [pageError, setPageError] = useState("");
+    const [loadAttempt, setLoadAttempt] = useState(0);
+    const [renderAttempt, setRenderAttempt] = useState(0);
     const [rendering, setRendering] = useState(true);
     const [zoom, setZoom] = useState(1);
     const [width, setWidth] = useState(700);
@@ -32,7 +36,7 @@ export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, o
     useEffect(() => {
         let disposed = false;
         let loading: ReturnType<typeof import("pdfjs-dist")["getDocument"]> | undefined;
-        setError(""); setPdf(null); setRendering(true);
+        setLoadError(""); setPageError(""); setPdf(null); setRendering(true);
         void import("pdfjs-dist").then(async (renderer) => {
             renderer.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
             const assets = `/api/esign/assets/${renderer.version}`;
@@ -40,9 +44,9 @@ export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, o
             const document = await loading.promise;
             if (disposed) return;
             setPdf(document);
-        }).catch(() => { if (!disposed) { setError("문서를 미리 볼 수 없습니다. 접근 권한이나 PDF 상태를 확인해 주세요."); setRendering(false); } });
+        }).catch(() => { if (!disposed) { setLoadError("문서를 미리 볼 수 없습니다. 접근 권한이나 PDF 상태를 확인해 주세요."); setRendering(false); } });
         return () => { disposed = true; void loading?.destroy(); };
-    }, [url, headerKey]);
+    }, [url, headerKey, loadAttempt]);
 
     useEffect(() => {
         const element = hostRef.current; if (!element) return;
@@ -54,7 +58,7 @@ export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, o
         if (!pdf || !canvasRef.current) return;
         let disposed = false;
         let task: ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]> | undefined;
-        setRendering(true);
+        setRendering(true); setPageError("");
         void pdf.getPage(clamp(pageIndex + 1, 1, pdf.numPages)).then(async (page) => {
             if (disposed || !canvasRef.current) return;
             const natural = page.getViewport({ scale: 1 });
@@ -65,9 +69,9 @@ export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, o
             setDimensions({ width: viewport.width, height: viewport.height });
             task = page.render({ canvas, canvasContext: context, viewport, transform: ratio !== 1 ? [ratio, 0, 0, ratio, 0, 0] : undefined });
             await task.promise; if (!disposed) setRendering(false);
-        }).catch((cause) => { if (!disposed && cause?.name !== "RenderingCancelledException") { setError("이 페이지를 표시하지 못했습니다."); setRendering(false); } });
+        }).catch((cause) => { if (!disposed && cause?.name !== "RenderingCancelledException") { setPageError("이 페이지를 표시하지 못했습니다."); setRendering(false); } });
         return () => { disposed = true; task?.cancel(); };
-    }, [pdf, pageIndex, width, zoom]);
+    }, [pdf, pageIndex, width, zoom, renderAttempt]);
 
     return <section className="overflow-hidden rounded-xl border bg-slate-100" aria-label="PDF 문서 미리보기">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-white p-2">
@@ -83,8 +87,8 @@ export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, o
             </div>
         </div>
         <div ref={hostRef} className="relative max-h-[72vh] min-h-64 overflow-auto p-3">
-            {error ? <p role="alert" className="rounded-lg border border-red-200 bg-white p-6 text-sm text-red-700">{error}</p> : <div ref={pageRef} className={`relative mx-auto bg-white shadow ${onPlace ? "cursor-crosshair" : ""}`} style={{ width: dimensions.width, height: dimensions.height }} onClick={event => {
-                if (!onPlace || !pdf || rendering) return;
+            {loadError ? <div role="alert" className="space-y-3 rounded-lg border border-red-200 bg-white p-6 text-sm text-red-700"><p>{loadError}</p><Button type="button" size="sm" variant="outline" onClick={() => setLoadAttempt(value => value + 1)}><RefreshCw />문서 다시 불러오기</Button></div> : <div ref={pageRef} className={`relative mx-auto bg-white shadow ${onPlace ? "cursor-crosshair" : ""}`} style={{ width: dimensions.width, height: dimensions.height }} onClick={event => {
+                if (!onPlace || !pdf || rendering || pageError) return;
                 const bounds = event.currentTarget.getBoundingClientRect(); onPlace(pageIndex, (event.clientX - bounds.left) / bounds.width, (event.clientY - bounds.top) / bounds.height);
             }}>
                 <canvas ref={canvasRef} className="block" style={{ width: dimensions.width, height: dimensions.height }} aria-label={`문서 ${pageIndex + 1}페이지`} />
@@ -103,6 +107,7 @@ export function PdfViewer({ url, headers, fields = [], values = {}, pageIndex, o
                     {values[field.id] ?  <img src={values[field.id]} alt="입력 미리보기" className="h-full w-full object-contain" draggable={false} /> : <span className="px-1">{field.label || fieldLabels[field.type]}{field.required && " *"}</span>}
                 </button>)}
                 {rendering && <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/70"><Loader2 className="size-6 animate-spin" aria-label="문서 표시 중" /></div>}
+                {pageError && <div role="alert" className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-white/95 p-6 text-center text-sm text-red-700" onClick={event => event.stopPropagation()}><p>{pageError} 다른 페이지로 이동하거나 다시 시도해 주세요. 입력한 내용은 그대로 있습니다.</p><Button type="button" size="sm" variant="outline" onClick={() => setRenderAttempt(value => value + 1)}><RefreshCw />이 페이지 다시 표시</Button></div>}
             </div>}
         </div>
     </section>;

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { trackerFunnels, trackerEventAliases, trackerEvents, trackerSessions } from "@/lib/db/schema";
+import { trackerFunnels, trackerEventAliases, trackerEvents, trackerSessions, trackerSites } from "@/lib/db/schema";
 import { inArray } from "drizzle-orm";
 import type {
     JourneyEvent,
@@ -53,15 +53,18 @@ export type { TrackerLabelMaps };
 export async function loadTrackerLabelMaps(siteIds: number[]): Promise<TrackerLabelMaps> {
     if (siteIds.length === 0) return buildTrackerLabelMaps([], []);
 
-    const [funnels, aliases] = await Promise.all([
+    const [funnels, aliases, sites] = await Promise.all([
         db.select({ stages: trackerFunnels.stages })
             .from(trackerFunnels)
             .where(inArray(trackerFunnels.siteId, siteIds)),
         db.select({ eventType: trackerEventAliases.eventType, eventName: trackerEventAliases.eventName, label: trackerEventAliases.label })
             .from(trackerEventAliases)
             .where(inArray(trackerEventAliases.siteId, siteIds)),
+        db.select({ id: trackerSites.id, domains: trackerSites.domains })
+            .from(trackerSites)
+            .where(inArray(trackerSites.id, siteIds)),
     ]);
-    return buildTrackerLabelMaps(funnels, aliases);
+    return { ...buildTrackerLabelMaps(funnels, aliases), siteDomains: new Map(sites.map((s) => [s.id, s.domains ?? []])) };
 }
 
 type TrkEvent = typeof trackerEvents.$inferSelect;
@@ -128,7 +131,7 @@ export function normalizeTrackerEvents(
                 meta: { pageUrl: ev.pageUrl, eventName: ev.eventName, properties: ev.properties },
             });
         }
-        const inflow = classifyInflow(s.referrer, s.landingPage);
+        const inflow = classifyInflow(s.referrer, s.landingPage, maps.siteDomains?.get(s.siteId) ?? []);
         events.push({
             at: s.startedAt.toISOString(),
             source: "tracker",

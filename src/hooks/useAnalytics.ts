@@ -23,6 +23,8 @@ export interface AnalyticsSummary {
     alimtalk: ChannelSummary;
     email: ChannelSummary;
     newRecordsInPeriod: number;
+    /** 이메일 수치의 집계 기준 시각 (15분 집계표). null = 집계 준비 중 */
+    emailAsOf?: string | null;
 }
 
 export interface TemplatePerformance {

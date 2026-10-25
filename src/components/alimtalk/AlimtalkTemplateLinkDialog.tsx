@@ -17,7 +17,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
-import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
+import RepeatConfigForm, { DEFAULT_REPEAT_CONFIG } from "@/components/alimtalk/RepeatConfigForm";
 import type { AlimtalkTemplateLink } from "@/lib/db";
 import type { FieldDefinition } from "@/types";
 
@@ -267,7 +267,7 @@ export default function AlimtalkTemplateLinkDialog({
                                 />
 
                                 <div className="flex items-center gap-2">
-                                    <Switch checked={useRepeat} onCheckedChange={setUseRepeat} />
+                                    <Switch checked={useRepeat} onCheckedChange={(v) => { setUseRepeat(v); if (v) setRepeatConfig((c: typeof repeatConfig) => c ?? DEFAULT_REPEAT_CONFIG); }} />
                                     <Label>반복 발송 사용</Label>
                                 </div>
 

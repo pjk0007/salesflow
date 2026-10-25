@@ -2,6 +2,7 @@
 
 import {SupportAlertLink} from "@/components/inbox-operations/ui/SupportNotifications";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import { useSession } from "@/contexts/SessionContext";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MobileSidebarToggle } from "./sidebar";
 import { useBreadcrumbOverrides } from "./breadcrumb-context";
+import { getBreadcrumbItems } from "./navigation";
 import {
     Sheet,
     SheetContent,
@@ -33,58 +35,24 @@ import {
     SheetTitle,
 } from "@/components/ui/sheet";
 
-const BREADCRUMB_LABELS: Record<string, string> = {
-    records: "레코드",
-    inbox: "고객 상담",
-    email: "이메일",
-    esign: "전자서명",
-    alimtalk: "알림톡",
-    products: "제품",
-    "web-forms": "웹 폼",
-    logs: "로그",
-    users: "사용자",
-    settings: "설정",
-    profile: "프로필",
-    organization: "조직 설정",
-    workspace: "워크스페이스",
-    billing: "요금제",
-    admin: "관리자",
-    templates: "템플릿",
-    links: "연결",
-    "ai-auto": "AI 자동발송",
-    new: "새로 만들기",
-};
-
-const UUID_RE =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 function HeaderBreadcrumb() {
     const pathname = usePathname();
     const { overrides } = useBreadcrumbOverrides();
-    const segments = pathname.split("/").filter(Boolean);
+    const items = getBreadcrumbItems(pathname, overrides);
 
     return (
-        <nav className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground ml-2">
-            <Home className="h-3.5 w-3.5" />
-            {segments.map((segment, i) => {
-                const label =
-                    overrides[segment] ||
-                    BREADCRUMB_LABELS[segment] ||
-                    (UUID_RE.test(segment) ? "..." : segment);
-                const isLast = i === segments.length - 1;
+        <nav aria-label="현재 위치" className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground ml-2 min-w-0">
+            <Link href="/" aria-label="홈" className="shrink-0"><Home className="h-3.5 w-3.5" /></Link>
+            {items.map(({ href, label }, i) => {
+                const isLast = i === items.length - 1;
                 return (
-                    <span key={segment} className="flex items-center gap-1">
-                        <ChevronRight className="h-3 w-3" />
-                        <span
-                            className={cn(
-                                isLast
-                                    ? "text-foreground font-medium"
-                                    : "",
-                                "max-w-50 truncate"
-                            )}
-                        >
-                            {label}
-                        </span>
+                    <span key={`${i}-${href}`} className="flex items-center gap-1 min-w-0">
+                        <ChevronRight aria-hidden="true" className="h-3 w-3 shrink-0" />
+                        {isLast ? (
+                            <span aria-current="page" className="max-w-50 truncate text-foreground font-medium">{label}</span>
+                        ) : (
+                            <Link href={href} className="max-w-50 truncate hover:text-foreground hover:underline">{label}</Link>
+                        )}
                     </span>
                 );
             })}
@@ -96,20 +64,12 @@ function MobileTitle() {
     const pathname = usePathname();
     const { overrides, mobileSubtitle, mobileSheet, mobileSheetOpen, setMobileSheetOpen } =
         useBreadcrumbOverrides();
-    const segments = pathname.split("/").filter(Boolean);
-
-    const root = segments[0];
-    const rootLabel = root
-        ? overrides[root] || BREADCRUMB_LABELS[root] || root
-        : "홈";
-
-    const last = segments[segments.length - 1];
-    const lastLabel = last
-        ? overrides[last] || BREADCRUMB_LABELS[last] || (UUID_RE.test(last) ? "" : last)
-        : "";
+    const items = getBreadcrumbItems(pathname, overrides);
+    const rootLabel = items[0]?.label || "홈";
+    const lastLabel = items.at(-1)?.label || "";
     const subtitle =
         mobileSubtitle ||
-        (segments.length > 1 && lastLabel && lastLabel !== rootLabel ? lastLabel : "");
+        (items.length > 1 && lastLabel && lastLabel !== rootLabel ? lastLabel : "");
 
     const hasSheet = !!mobileSheet;
 

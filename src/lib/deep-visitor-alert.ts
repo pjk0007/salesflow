@@ -32,8 +32,8 @@ import {
 } from "@/lib/deep-visitor-alert-batch";
 import { isDeadlineExceeded } from "@/lib/email-send-queue-rules";
 import {
-    chatRequestIdEnabled,
-    chatRequestIdFor,
+    chatFixedMessageIdEnabled,
+    chatMessageIdFor,
     chatThreadsEnabled,
     chatWebhookProblem,
     postGoogleChatText,
@@ -839,7 +839,7 @@ async function deliverDue(
         post: (url, text, row) =>
             postSafely(url, text, {
                 threadKey: threads && row?.recordId ? `deep-record-${row.recordId}` : undefined,
-                requestId: row ? chatRequestIdFor(env, "deep", row.id) : undefined,
+                messageId: row && chatFixedMessageIdEnabled(env) ? chatMessageIdFor(env, "deep", row.id) : undefined,
             }),
         prepareText: (row) => {
             const r = rowsById.get(row.id);
@@ -854,7 +854,7 @@ async function deliverDue(
         onResult: (row, result) => recordChatWebhookResult(sourceOf.get(row.workspaceId), row.workspaceId, result, config.webhookByWorkspace[row.workspaceId]),
         // 다시 보낼 때도 근무시간에 (밤에 다시 나가지 않게, DV-5)
         retryAt: (base) => nextAlertTime(base),
-        idempotent: chatRequestIdEnabled(env),
+        idempotent: chatFixedMessageIdEnabled(env),
         markSent: async (id) => {
             await db
                 .update(deepVisitorAlerts)
@@ -936,7 +936,7 @@ function toClaimedAlert(row: ClaimedRow): ClaimedAlert {
 async function postSafely(
     webhookUrl: string,
     text: string,
-    opts: { threadKey?: string; requestId?: string } = {}
+    opts: { threadKey?: string; messageId?: string } = {}
 ): Promise<GoogleChatResult> {
     try {
         return await postGoogleChatText(webhookUrl, text, fetch, opts);

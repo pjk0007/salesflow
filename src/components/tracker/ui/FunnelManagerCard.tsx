@@ -12,6 +12,8 @@ import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 interface Props {
     siteId: number;
+    /** 일반 멤버 — 서버가 변경을 거절하므로 보기만 */
+    readOnly?: boolean;
 }
 
 function CopyBtn({ text }: { text: string }) {
@@ -35,9 +37,10 @@ interface RowProps {
     onEdit: (f: FunnelDefinition) => void;
     onDelete: (f: FunnelDefinition) => void;
     onSetDefault: (f: FunnelDefinition) => void;
+    readOnly?: boolean;
 }
 
-function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault }: RowProps) {
+function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault, readOnly }: RowProps) {
     const isEvent = f.kind === "event";
     return (
         <li className="rounded-md border bg-card p-3">
@@ -58,7 +61,7 @@ function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault }: RowProps) {
                         {f.stages.map((s) => s.label).join(" → ") || "(단계 미정의)"}
                     </p>
                 </div>
-                <div className="flex shrink-0 gap-1">
+                {!readOnly && <div className="flex shrink-0 gap-1">
                     {!isEvent && !f.isDefault && (
                         <Button size="sm" variant="ghost" onClick={() => onSetDefault(f)} title="메인으로">
                             <Star className="h-3.5 w-3.5" />
@@ -70,7 +73,7 @@ function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault }: RowProps) {
                     <Button size="sm" variant="ghost" onClick={() => onDelete(f)} className="text-rose-600 hover:text-rose-700">
                         <Trash2 className="h-3.5 w-3.5" />
                     </Button>
-                </div>
+                </div>}
             </div>
         </li>
     );
@@ -81,7 +84,7 @@ function FunnelRow({ funnel: f, onEdit, onDelete, onSetDefault }: RowProps) {
  * 마케팅 퍼널(방문/리드 자동 + 상태 단계)과 행동 퍼널(CUSTOM 이벤트 단계)을
  * 한 카드 안에서 두 섹션으로 분리해, 각각 추가/관리한다.
  */
-export function FunnelManagerCard({ siteId }: Props) {
+export function FunnelManagerCard({ siteId, readOnly = false }: Props) {
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const { funnels, isLoading, mutate } = useTrackerFunnels(siteId);
     const [editing, setEditing] = useState<FunnelDefinition | null>(null);
@@ -151,10 +154,10 @@ export function FunnelManagerCard({ siteId }: Props) {
                             <Target className="h-3.5 w-3.5 text-sky-500" />
                             <span className="text-sm font-semibold">마케팅 퍼널</span>
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => handleAdd("marketing")}>
+                        {!readOnly && <Button size="sm" variant="outline" onClick={() => handleAdd("marketing")}>
                             <Plus className="mr-1 h-3.5 w-3.5" />
                             추가
-                        </Button>
+                        </Button>}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
                         방문 → 리드까지 자동 단계. 그 다음 상태 단계를 정의하면 됩니다. 메인 퍼널은 개요 탭에 표시됩니다.
@@ -163,12 +166,12 @@ export function FunnelManagerCard({ siteId }: Props) {
                         <p className="text-sm text-muted-foreground">불러오는 중...</p>
                     ) : marketingFunnels.length === 0 ? (
                         <p className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
-                            마케팅 퍼널이 없습니다. &quot;추가&quot;로 시작하세요.
+                            마케팅 퍼널이 없습니다. {readOnly ? "관리자에게 추가를 요청하세요." : <>&quot;추가&quot;로 시작하세요.</>}
                         </p>
                     ) : (
                         <ul className="space-y-2">
                             {marketingFunnels.map((f) => (
-                                <FunnelRow key={f.id} funnel={f} onEdit={handleEdit} onDelete={handleDelete} onSetDefault={setAsDefault} />
+                                <FunnelRow key={f.id} funnel={f} onEdit={handleEdit} onDelete={handleDelete} onSetDefault={setAsDefault} readOnly={readOnly} />
                             ))}
                         </ul>
                     )}
@@ -181,10 +184,10 @@ export function FunnelManagerCard({ siteId }: Props) {
                             <Activity className="h-3.5 w-3.5 text-violet-500" />
                             <span className="text-sm font-semibold">행동 퍼널</span>
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => handleAdd("event")}>
+                        {!readOnly && <Button size="sm" variant="outline" onClick={() => handleAdd("event")}>
                             <Plus className="mr-1 h-3.5 w-3.5" />
                             추가
-                        </Button>
+                        </Button>}
                     </div>
                     <p className="text-[11px] text-muted-foreground">
                         CUSTOM 이벤트 단계로 폼/행동 흐름의 단계별 이탈을 봅니다. 행동 탭에 표시됩니다.
@@ -193,12 +196,12 @@ export function FunnelManagerCard({ siteId }: Props) {
                         <p className="text-sm text-muted-foreground">불러오는 중...</p>
                     ) : eventFunnels.length === 0 ? (
                         <p className="rounded-md border border-dashed bg-muted/30 p-3 text-center text-xs text-muted-foreground">
-                            행동 퍼널이 없습니다. &quot;추가&quot;로 만드세요.
+                            행동 퍼널이 없습니다. {readOnly ? "관리자에게 추가를 요청하세요." : <>&quot;추가&quot;로 만드세요.</>}
                         </p>
                     ) : (
                         <ul className="space-y-2">
                             {eventFunnels.map((f) => (
-                                <FunnelRow key={f.id} funnel={f} onEdit={handleEdit} onDelete={handleDelete} onSetDefault={setAsDefault} />
+                                <FunnelRow key={f.id} funnel={f} onEdit={handleEdit} onDelete={handleDelete} onSetDefault={setAsDefault} readOnly={readOnly} />
                             ))}
                         </ul>
                     )}

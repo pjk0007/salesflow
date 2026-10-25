@@ -1,5 +1,6 @@
 // Client-safe utils for alimtalk template variable extraction.
 // 이 파일은 서버 전용 모듈(db 등)을 import 하지 않아 client component에서 안전하게 사용 가능.
+import type { NhnTemplateButton, NhnTemplateQuickReply } from "./nhn-alimtalk"; // 타입만(실행 시 제거)
 
 interface VariableExtractable {
     templateContent?: string;
@@ -25,6 +26,14 @@ interface VariableExtractable {
         linkMo?: string;
         linkPc?: string;
     }>;
+}
+
+/**
+ * 알림톡·SMS 수신번호 정규화: 숫자만 남기고 국가번호 형식 휴대폰(+82 10…, 82 010…)은 국내 번호(010…)로 바꾼다.
+ * NHN 국내 발송은 국내 번호를 기대한다(전자서명 rules와 같은 규칙, UX-270).
+ */
+export function normalizePhoneNumber(phone: string): string {
+    return phone.replace(/[^0-9]/g, "").replace(/^820?(1[016789])/, "0$1");
 }
 
 /** 단순 문자열에서 #{변수} 패턴 추출 (중복 제거) */
@@ -80,6 +89,88 @@ export function extractAllTemplateVariables(
 
     const allText = sources.join("\n");
     return extractTemplateVariables(allText);
+}
+
+/**
+ * 미리보기용으로 문자열을 텍스트·#{변수} 조각으로 나눈다(변수 규칙은 extractTemplateVariables와 같다).
+ * 화면은 조각을 React 텍스트 노드로 렌더링한다 — 입력한 HTML 형태 문자열을 태그로 해석하지 않는다.
+ */
+export function splitTemplateVariables(content: string | null | undefined): Array<{ text: string; variable: boolean }> {
+    const parts: Array<{ text: string; variable: boolean }> = [];
+    if (!content) return parts;
+    let last = 0;
+    for (const match of content.matchAll(/#\{([^}]+)\}/g)) {
+        const index = match.index ?? 0;
+        if (index > last) parts.push({ text: content.slice(last, index), variable: false });
+        parts.push({ text: match[0], variable: true });
+        last = index + match[0].length;
+    }
+    if (last < content.length) parts.push({ text: content.slice(last), variable: false });
+    return parts;
+}
+
+/** 등록·수정 폼 값 중 검수 요청에 실을 수 있는 부분(TemplateFormEditor의 TemplateFormState와 같은 모양) */
+export interface TemplateSubmitForm {
+    templateName: string;
+    templateContent: string;
+    templateMessageType: string;
+    templateEmphasizeType: string;
+    templateExtra: string;
+    templateTitle: string;
+    templateSubtitle: string;
+    templateHeader: string;
+    securityFlag: boolean;
+    categoryCode: string;
+    buttons: NhnTemplateButton[];
+    quickReplies: NhnTemplateQuickReply[];
+    interactionType: "buttons" | "quickReplies";
+    templateImageName: string;
+    templateImageUrl: string;
+    templateItem: { list: Array<{ title: string; description: string }>; summary?: { title: string; description: string } } | null;
+    templateItemHighlight: { title: string; description: string; imageUrl?: string } | null;
+    templateRepresentLink: { linkMo: string; linkPc: string; schemeIos: string; schemeAndroid: string } | null;
+}
+
+/** 메시지·강조 유형별로 화면에 보이는 입력란(TemplateFormEditor 표시 조건과 같다) */
+export function templateFieldVisibility(form: Pick<TemplateSubmitForm, "templateMessageType" | "templateEmphasizeType">) {
+    return {
+        extra: form.templateMessageType === "EX" || form.templateMessageType === "MI",
+        emphasizeText: form.templateEmphasizeType === "TEXT",
+        image: form.templateEmphasizeType === "IMAGE" || form.templateEmphasizeType === "ITEM_LIST",
+        itemList: form.templateEmphasizeType === "ITEM_LIST",
+    };
+}
+
+/**
+ * 검수 요청(등록·수정) 본문. 유형을 바꿔 화면에서 숨긴 값(강조 타이틀·이미지·아이템·부가정보)은 싣지 않는다 — 미리보기와 검수 내용이 같아야 한다.
+ * 임시저장은 폼 전체를 그대로 저장하므로 이 함수를 쓰지 않는다.
+ */
+export function buildTemplateSubmitPayload(form: TemplateSubmitForm) {
+    const show = templateFieldVisibility(form);
+    const link = form.templateRepresentLink;
+    return {
+        templateName: form.templateName,
+        templateContent: form.templateContent,
+        templateMessageType: form.templateMessageType,
+        templateEmphasizeType: form.templateEmphasizeType,
+        ...(show.extra && form.templateExtra && { templateExtra: form.templateExtra }),
+        ...(show.emphasizeText && form.templateTitle && { templateTitle: form.templateTitle }),
+        ...(show.emphasizeText && form.templateSubtitle && { templateSubtitle: form.templateSubtitle }),
+        ...(form.templateHeader && { templateHeader: form.templateHeader }),
+        ...(form.securityFlag && { securityFlag: true }),
+        ...(form.categoryCode && { categoryCode: form.categoryCode }),
+        ...(form.interactionType === "buttons" && form.buttons.length > 0 && { buttons: form.buttons }),
+        ...(form.interactionType === "quickReplies" && form.quickReplies.length > 0 && { quickReplies: form.quickReplies }),
+        ...(show.image && form.templateImageUrl && { templateImageName: form.templateImageName, templateImageUrl: form.templateImageUrl }),
+        ...(show.itemList && form.templateItem && { templateItem: form.templateItem }),
+        ...(show.itemList && form.templateItemHighlight && { templateItemHighlight: form.templateItemHighlight }),
+        ...(link && (link.linkMo || link.linkPc || link.schemeIos || link.schemeAndroid) && { templateRepresentLink: link }),
+    };
+}
+
+/** 발송 API templateParameter 키(#{...}를 벗긴 이름) — 템플릿 모든 노출 영역 기준, 중복 제거 */
+export function extractTemplateParameterKeys(template: VariableExtractable | null | undefined): string[] {
+    return extractAllTemplateVariables(template).map((v) => v.slice(2, -1));
 }
 
 export interface AlimtalkFollowupStep {

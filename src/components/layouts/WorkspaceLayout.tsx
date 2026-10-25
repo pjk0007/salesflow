@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "@/contexts/SessionContext";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { RequestError } from "@/lib/swr-fetcher";
+import { loginPathFor } from "@/lib/safe-next-path";
 
 interface WorkspaceLayoutProps {
     children: React.ReactNode;
@@ -17,8 +18,7 @@ export default function WorkspaceLayout({ children }: WorkspaceLayoutProps) {
     useEffect(() => {
         if (!isLoading && !sessionError && !user) {
             // 보던 주소를 넘긴다 — 구글 챗 카드의 레코드 링크를 로그인 안 된 채 눌러도 로그인 뒤 그 레코드로 돌아오게 (DV-12)
-            const here = `${window.location.pathname}${window.location.search}`;
-            router.push(here && here !== "/" ? `/login?next=${encodeURIComponent(here)}` : "/login");
+            router.push(loginPathFor(`${window.location.pathname}${window.location.search}${window.location.hash}`));
         } else if (!isLoading && !sessionError && user && !user.onboardingCompleted) {
             router.push("/onboarding");
         }

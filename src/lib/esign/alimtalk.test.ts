@@ -106,3 +106,11 @@ test("template variables preserve one exact HTTPS sign link, and OTP validity ag
     assert.throws(() => esignAlimtalkParameters(job, { ...payload, token: "bad" }, "https://esign.example.test"));
     assert(templates.find(t => t.kind === "otp")!.templateContent.includes(`${OTP_TTL_MS / 60000}분`));
 });
+
+test("UX-261: 상태 조회 시간 초과는 unavailable로 표시하고 미승인과 구분한다", async () => {
+    const timeout = await setup({ throwGet: true }).adapter.status("fake-org");
+    assert.equal(timeout.ready, false); assert.equal(timeout.unavailable, true);
+    const unapproved = await setup({ status: "TSC02" }).adapter.status("fake-org");
+    assert.equal(unapproved.ready, false); assert.equal(unapproved.unavailable, undefined);
+    assert.equal((await setup({ missingConfig: true }).adapter.status("fake-org")).unavailable, undefined);
+});

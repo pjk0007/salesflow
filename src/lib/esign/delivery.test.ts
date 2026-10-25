@@ -21,6 +21,21 @@ test("이메일 단독 요청은 지정 발신자와 수신자 한 명으로 접
     assert.equal(requests.length, 1);
     assert.deepEqual(requests[0], { senderAddress: "contract@example.test", senderName: "계약 담당자", title: "[샌드비] 서명을 요청드립니다", body: esignMessage(invitation, payload, "https://example.test").html, receiverList: [{ receiveMailAddr: payload.email, receiveType: "MRT0" }] });
 });
+test("UX-262: 서명 요청 안내에 요청 조직과 서명 기한(KST)을 넣고, 이전 작업·완료 안내·확인 코드는 형식을 유지한다", () => {
+    const withMeta = esignMessage(invitation, { ...payload, orgName: "가상 상사", expiresAt: "2026-10-31T14:59:00.000Z" }, "https://example.test");
+    assert.equal(withMeta.text, `[샌드비] 서명을 요청드립니다\n가상 계약서\n요청: 가상 상사\n서명 기한: 2026-10-31 23:59(한국 시간)까지\nhttps://example.test/sign/${"a".repeat(43)}`);
+    assert.ok(withMeta.html.includes("<p>요청: 가상 상사</p>")); assert.ok(withMeta.html.includes("서명 기한: 2026-10-31 23:59(한국 시간)까지"));
+    // 이미 저장된 작업(orgName·expiresAt 없음)은 기존 본문 그대로.
+    assert.equal(esignMessage(invitation, payload, "https://example.test").text, `[샌드비] 서명을 요청드립니다\n가상 계약서\nhttps://example.test/sign/${"a".repeat(43)}`);
+    // 완료 안내에는 기한을 넣지 않는다.
+    assert.ok(!esignMessage({ kind: "completed" }, { ...payload, orgName: "가상 상사", expiresAt: "2026-10-31T14:59:00.000Z" }, "https://example.test").text.includes("기한"));
+    // 확인 코드 본문은 바뀌지 않는다.
+    assert.equal(esignMessage({ kind: "otp" }, { code: "123456", orgName: "가상 상사" }, "https://example.test").text, `[샌드비] 서명 확인 코드 123456\n${Math.floor(OTP_TTL_MS / 60_000)}분 이내에 입력해주세요.`);
+    // 줄바꿈·HTML은 본문 구조를 깨지 않는다. MMS 본문(2,000바이트) 안에 들어간다.
+    const hostile = esignMessage(invitation, { ...payload, orgName: "<b>회사</b>\n가짜 줄", expiresAt: "2026-10-31T14:59:00.000Z", title: "가".repeat(200) }, "https://example.test");
+    assert.ok(!hostile.html.includes("<b>")); assert.equal(hostile.text.split("\n").length, 5);
+    assert.ok(Buffer.byteLength(hostile.text, "utf8") < 2000);
+});
 test("확인 코드 안내 시간은 실제 서버 유효시간과 일치한다", () => {
     const message = esignMessage({ kind: "otp" }, { code: "123456" }, "https://example.test");
     assert.ok(message.text.includes(`${Math.floor(OTP_TTL_MS / 60_000)}분`));

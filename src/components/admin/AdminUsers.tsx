@@ -1,20 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import useSWR from "swr";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, Shield, ShieldOff, UserX, UserCheck, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { defaultFetcher, apiRequest } from "@/lib/swr-fetcher";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { useSession } from "@/contexts/SessionContext";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export default function AdminUsers() {
+    const { user: me } = useSession();
     const [search, setSearch] = useState("");
     const [page, setPage] = useState(1);
     const [pendingId, setPendingId] = useState<string | null>(null);
+    const pendingRef = useRef(false);
     const { confirm, confirmationDialog } = useAsyncConfirm();
 
     const query = new URLSearchParams({ search, page: String(page), limit: "20" });
@@ -23,16 +26,21 @@ export default function AdminUsers() {
     const pagination = data?.pagination;
 
     async function handleUpdate(userId: string, updates: { isActive?: number; isSuperAdmin?: number }) {
+        if (pendingRef.current) return;
+        pendingRef.current = true;
         setPendingId(userId);
         try {
-        await apiRequest(`/api/admin/users/${userId}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updates),
-        });
-        toast.success("변경되었습니다.");
-        void mutate();
-        } finally { setPendingId(null); }
+            await apiRequest(`/api/admin/users/${userId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updates),
+            });
+            toast.success("변경되었습니다.");
+            void mutate();
+        } finally {
+            pendingRef.current = false;
+            setPendingId(null);
+        }
     }
 
     if (error && !data) return <QueryErrorState error={error} onRetry={() => mutate()} />;
@@ -51,7 +59,7 @@ export default function AdminUsers() {
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
-                <Table className="w-full text-sm">
+                <Table tabIndex={0} aria-label="사용자 목록" className="w-full text-sm">
                     <TableHeader className="bg-slate-50 text-left">
                         <TableRow>
                             <TableHead className="px-4 py-3 font-medium">이름</TableHead>
@@ -89,9 +97,9 @@ export default function AdminUsers() {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            title={u.isActive === 1 ? "계정 정지" : "계정 활성화"}
+                                            title={u.isActive === 1 ? (u.id === me?.id ? "자신의 계정은 정지할 수 없습니다" : "계정 정지") : "계정 활성화"}
                                             aria-label={u.isActive === 1 ? `${u.name} 계정 정지` : `${u.name} 계정 활성화`}
-                                            disabled={pendingId === u.id}
+                                            disabled={pendingId === u.id || (u.id === me?.id && u.isActive === 1)}
                                             onClick={() => confirm({ title: u.isActive === 1 ? "계정을 정지하시겠습니까?" : "계정을 활성화하시겠습니까?", description: `${u.name} (${u.email}) 계정의 모든 조직 접근에 적용됩니다.`, confirmLabel: "변경", onConfirm: () => handleUpdate(u.id, { isActive: u.isActive === 1 ? 0 : 1 }) })}
                                         >
                                             {u.isActive === 1 ? <UserX className="h-4 w-4 text-red-500" /> : <UserCheck className="h-4 w-4 text-green-500" />}
@@ -100,13 +108,14 @@ export default function AdminUsers() {
                                             variant="ghost"
                                             size="icon"
                                             className="h-8 w-8"
-                                            title={u.isSuperAdmin === 1 ? "Super Admin 해제" : "Super Admin 지정"}
+                                            title={u.isSuperAdmin === 1 ? (u.id === me?.id ? "자신의 Super Admin 권한은 해제할 수 없습니다" : "Super Admin 해제") : "Super Admin 지정"}
                                             aria-label={u.isSuperAdmin === 1 ? `${u.name} 운영자 해제` : `${u.name} 운영자 지정`}
-                                            disabled={pendingId === u.id}
+                                            disabled={pendingId === u.id || (u.id === me?.id && u.isSuperAdmin === 1)}
                                             onClick={() => confirm({ title: "운영자 권한을 변경하시겠습니까?", description: `${u.name} (${u.email}) 계정의 전체 조직 관리 권한을 ${u.isSuperAdmin === 1 ? "해제" : "부여"}합니다.`, confirmLabel: "변경", onConfirm: () => handleUpdate(u.id, { isSuperAdmin: u.isSuperAdmin === 1 ? 0 : 1 }) })}
                                         >
                                             {u.isSuperAdmin === 1 ? <ShieldOff className="h-4 w-4 text-violet-500" /> : <Shield className="h-4 w-4 text-slate-400" />}
                                         </Button>
+                                        {pendingId === u.id && <span role="status" className="inline-flex items-center gap-1 text-xs"><Loader2 className="h-4 w-4 animate-spin" />처리 중...</span>}
                                     </div>
                                 </TableCell>
                             </TableRow>

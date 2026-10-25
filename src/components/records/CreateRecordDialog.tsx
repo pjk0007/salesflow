@@ -28,6 +28,8 @@ interface CreateRecordDialogProps {
     onOpenChange: (open: boolean) => void;
     partitionId: number | null;
     onSubmit: (data: Record<string, unknown>) => Promise<{ success: boolean; error?: string; merged?: boolean }>;
+    /** 미리 채울 값(예: 그룹 뷰에서 고른 상태). 바뀌면 부모가 key로 다시 마운트한다 */
+    initialData?: Record<string, unknown>;
 }
 
 export default function CreateRecordDialog({
@@ -35,9 +37,10 @@ export default function CreateRecordDialog({
     onOpenChange,
     partitionId,
     onSubmit,
+    initialData,
 }: CreateRecordDialogProps) {
     const { fields } = useResolvedFields(partitionId);
-    const [formData, setFormData] = useState<Record<string, unknown>>({});
+    const [formData, setFormData] = useState<Record<string, unknown>>(() => ({ ...initialData }));
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -76,7 +79,7 @@ export default function CreateRecordDialog({
             const result = await onSubmit(formData);
             if (result.success) {
                 toast.success(result.merged ? "같은 값의 기존 레코드에 내용을 합쳤습니다." : "레코드가 등록되었습니다.");
-                setFormData({});
+                setFormData({ ...initialData });
                 setErrors({});
                 onOpenChange(false);
             } else {
@@ -91,7 +94,7 @@ export default function CreateRecordDialog({
 
     const handleOpenChange = (open: boolean) => {
         if (!open) {
-            setFormData({});
+            setFormData({ ...initialData });
             setErrors({});
         }
         onOpenChange(open);

@@ -1,4 +1,5 @@
 "use client";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useState } from "react";
 import Link from "next/link";
 import { Bell } from "lucide-react";
@@ -65,24 +66,20 @@ export function SupportNotifications({
                 알림 {count > 99 ? "99+" : count}
             </button>
             {open && (
-                <div
-                    className="fixed inset-0 z-50 flex justify-end bg-black/30"
-                    onClick={() => setOpen(false)}
-                >
-                    <section
-                        role="dialog"
-                        aria-modal="true"
-                        aria-label="내 상담 알림"
-                        className="h-full w-full max-w-lg space-y-4 overflow-auto bg-background p-6"
-                        onClick={(e) => e.stopPropagation()}
+                <Sheet open onOpenChange={(next) => !next && setOpen(false)}>
+                    <SheetContent
+                        side="right"
+                        showCloseButton={false}
+                        aria-describedby={undefined}
+                        className="block h-full w-full space-y-4 overflow-auto bg-background p-6 sm:max-w-lg"
                     >
                         <header className="flex items-center justify-between">
-                            <h2 className="font-semibold">
+                            <SheetTitle className="text-base font-semibold">
                                 내 상담 알림{" "}
                                 <span className="text-muted-foreground">
                                     {count}개 미확인
                                 </span>
-                            </h2>
+                            </SheetTitle>
                             <button
                                 aria-label="상담 알림 닫기"
                                 onClick={() => setOpen(false)}
@@ -177,8 +174,8 @@ export function SupportNotifications({
                                 이전 알림 더 보기
                             </button>
                         )}
-                    </section>
-                </div>
+                    </SheetContent>
+                </Sheet>
             )}
         </>
     );

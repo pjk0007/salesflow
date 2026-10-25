@@ -238,7 +238,7 @@ export default function RecordGroup({
                         </div>
                     )}
 
-                    {/* + 신규 Item 버튼 */}
+                    {/* 이 그룹의 상태를 미리 채워 추가 */}
                     {onCreateWithStatus && (
                         <Button
                             variant="ghost"
@@ -247,7 +247,7 @@ export default function RecordGroup({
                             onClick={() => onCreateWithStatus(statusValue)}
                         >
                             <Plus className="h-3.5 w-3.5" />
-                            신규 Item
+                            이 상태로 추가
                         </Button>
                     )}
                 </div>

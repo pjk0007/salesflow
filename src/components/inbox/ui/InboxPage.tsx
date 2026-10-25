@@ -6,7 +6,7 @@ import { useAgentPresence } from "@/components/inbox-presence/hooks/useAgentPres
 import { ReplyGuardSettings } from "@/components/inbox-reply-guard/ui/ReplyGuardSettings";
 import { AgentStatus } from "@/components/inbox-presence/ui/AgentStatus";
 import { CapacitySettings } from "@/components/inbox-capacity/ui/CapacitySettings";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
 import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
 import type { OpenSupportConversation } from "@/components/inbox-operations/types";
@@ -32,13 +32,29 @@ import { ChannelSettings } from "./ChannelSettings";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { connectionResultMessage, connectionSucceeded } from "@/components/inbox-email/utils/connection-result";
+import { moveInboxDraft } from "../utils/draft-storage";
+import { mailboxAlert } from "@/components/inbox-email/utils/mailbox-alert";
 const listDate = new Intl.DateTimeFormat("ko-KR", { month: "2-digit", day: "2-digit" });
 export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidation }: { userId: string; orgId?: string; role: string; subscribeSessionInvalidation?: SubscribeSessionInvalidation }) {
     const params = useSearchParams();
-    const [emailSettings, setEmailSettings] = useState(() =>
-        params.has("emailConnection"),
+    // 승인 결과는 관리 권한을 확인한 상담함(channelId)이 함께 올 때만 그 사업의 메일 설정에서 보여준다.
+    const [emailSettings, setEmailSettings] = useState(
+        () => params.has("emailConnection") && params.has("channelId"),
     );
+    const router = useRouter(),
+        pathname = usePathname();
+    useEffect(() => {
+        const result = params.get("emailConnection");
+        if (!result || params.has("channelId")) return;
+        (connectionSucceeded(result) ? toast.info : toast.error)(
+            connectionResultMessage(result),
+        );
+        const next = new URLSearchParams(params.toString());
+        next.delete("emailConnection");
+        router.replace(next.size ? `${pathname}?${next}` : pathname, { scroll: false });
+    }, [params, pathname, router]); // 쿼리를 지우면 다시 실행되지 않는다.
     const [chosenChannel, setChosenChannel] = useState<number | null>(
             Number(params.get("channelId")) || null,
         ),
@@ -97,11 +113,20 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         status,
         filter,
         teamId: channelId ? (teamFilters[channelId] ?? "") : "",
+    }, (fromId, toId, toChannelId) => {
+        // 보고 있던 비회원 상담이 회원 상담으로 합쳐지면 서버가 돌려준 대상으로 따라간다(초안도 옮김).
+        if (toChannelId !== channelId) return;
+        const moved = moveInboxDraft(localStorage, userId, fromId, toId);
+        setSelectedState((current) => (current === fromId ? toId : current));
+        toast.info(
+            moved
+                ? "비회원 상담이 회원 상담으로 합쳐져 이어서 보여드립니다. 작성 중이던 초안도 옮겼습니다."
+                : "비회원 상담이 회원 상담으로 합쳐져 이어서 보여드립니다.",
+        );
     });
     const channel = bootstrap?.channels.find((c) => c.id === channelId);
     const mailboxes = useEmailMailboxes(channel?.workspaceId ?? null);
-    const reconnectCount = mailboxes.data?.filter((box) => box.connectionStatus === "reconnect").length ?? 0;
-    const mailWorkerStopped = mailboxes.data?.some((box) => box.connectionStatus === "connected" && box.enabled && box.workerEnabled === false);
+    const { reconnectCount, workerStopped: mailWorkerStopped } = mailboxAlert(mailboxes.data);
     const abilities = workspaceAbilities(bootstrap, channel?.workspaceId);
     const accessDenied = [
         initial.bootstrap.error,
@@ -457,7 +482,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                 <input
                                     aria-label="상담 검색"
                                     className="min-w-0 w-full bg-transparent text-xs outline-none"
-                                    placeholder="고객, 태그, 대화 전체 검색"
+                                    placeholder={filter === "history" ? "이전 상담 기록에서 고객·태그·대화 검색" : `${statusNames[status]} 상담에서 고객·태그·대화 검색`}
                                     maxLength={200}
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
@@ -522,9 +547,33 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                     />
                                     <p className="text-sm text-muted-foreground">
                                         {query
-                                            ? "검색 결과가 없습니다"
+                                            ? filter === "history"
+                                                ? "이전 상담 기록에 검색 결과가 없습니다"
+                                                : `${statusNames[status]} 상담에 검색 결과가 없습니다`
                                             : "이곳의 상담을 모두 확인했어요"}
                                     </p>
+                                    {query && filter !== "history" && list.counts?.searchOpen !== undefined && (
+                                        <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+                                            {(["open", "snoozed", "closed"] as const)
+                                                .filter((s) => s !== status)
+                                                .map((s) => {
+                                                    const n = list.counts?.[s === "open" ? "searchOpen" : s === "snoozed" ? "searchSnoozed" : "searchClosed"] ?? 0;
+                                                    return (
+                                                        <button
+                                                            key={s}
+                                                            disabled={!n}
+                                                            className="rounded-lg border px-2 py-1 disabled:opacity-40"
+                                                            onClick={() => {
+                                                                setStatus(s);
+                                                                setSelected(null);
+                                                            }}
+                                                        >
+                                                            {statusNames[s]} {n}건 보기
+                                                        </button>
+                                                    );
+                                                })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {filtered.map((c) => (
@@ -602,7 +651,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                             {channel.enabled
                                 ? "사이트 상담창 켜짐"
                                 : "사이트 상담창 꺼짐"}{" "}
-                            · 모든 상담과 대화에서 검색
+                            · 검색은 선택한 상태(또는 이전 상담 기록) 안에서 찾습니다
                         </p>
                     </section>
                     {selected && detail.data && detail.data.conversation.id === selected && detail.data.conversation.channelId === channelId && ![401, 403, 404].includes(detail.error?.status) ? (

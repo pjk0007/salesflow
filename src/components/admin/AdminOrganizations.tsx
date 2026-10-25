@@ -123,7 +123,7 @@ export default function AdminOrganizations() {
             </div>
 
             <div className="bg-white rounded-xl border overflow-hidden">
-                <Table className="w-full text-sm">
+                <Table tabIndex={0} aria-label="조직 목록" className="w-full text-sm">
                     <TableHeader className="bg-slate-50 text-left">
                         <TableRow>
                             <TableHead className="px-4 py-3 font-medium">조직명</TableHead>

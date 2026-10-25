@@ -1,6 +1,8 @@
 import { z } from "zod";
-import { EsignError, type EsignArtifact, type EsignDocumentInput, type EsignEnvelopeInput, type EsignRecipient, type EsignEnvelope, type EsignValue } from "./types";
+import { EsignError, type EsignArtifact, type EsignDocumentInput, type EsignField, type EsignPage, type EsignEnvelopeInput, type EsignRecipient, type EsignEnvelope, type EsignValue } from "./types";
 import { ESIGN_PDF_LIMITS } from "./pdf-types";
+import { normalizePhoneNumber } from "@/lib/alimtalk-template-utils";
+import { fieldRasterSize } from "./geometry";
 export const OTP_TTL_MS = 5 * 60 * 1000;
 export const OTP_COOLDOWN_MS = 60 * 1000;
 export const VERIFY_TTL_MS = 30 * 60 * 1000;
@@ -27,6 +29,18 @@ export function parseDocument(raw: EsignDocumentInput) {
     if (input.pages.some((p, i) => p.pageIndex !== i) || input.fields.some((f) => f.pageIndex >= input.pages.length)) throw new EsignError("페이지 번호를 확인해주세요.");
     return input;
 }
+const FIELD_TYPE_LABELS: Record<EsignField["type"], string> = { signature: "서명", seal: "도장", name: "이름", date: "날짜", text: "텍스트" };
+/** 서명자 화면이 이미지를 만들 수 없는(32픽셀 미만) 첫 입력란. 저장된 문서는 바꾸지 않고 발송·저장 시점에만 막는다. */
+export function unusableField(pages: readonly Pick<EsignPage, "width" | "height">[], fields: readonly EsignField[]) {
+    return fields.find((f) => { const page = pages[f.pageIndex]; return !page || !fieldRasterSize(page, f).usable; });
+}
+export function unusableFieldMessage(field: EsignField) {
+    return `${field.pageIndex + 1}쪽 ${field.recipientIndex + 1}번 서명자의 '${field.label || FIELD_TYPE_LABELS[field.type]}' 입력란이 너무 가늘거나 납작해 서명자가 입력할 수 없습니다. 입력란의 너비·높이를 늘려주세요.`;
+}
+export function assertUsableFields(pages: readonly Pick<EsignPage, "width" | "height">[], fields: readonly EsignField[]) {
+    const field = unusableField(pages, fields);
+    if (field) throw new EsignError(unusableFieldMessage(field), 400, "field_too_thin");
+}
 export function parseEnvelope(raw: EsignEnvelopeInput, now: Date) {
     const input = envelopeInput.parse(raw), expires = new Date(input.expiresAt).getTime();
     if (expires <= now.getTime() || expires > now.getTime() + 90 * 86400000) throw new EsignError("만료일은 현재 이후 90일 이내로 선택해주세요.");
@@ -36,7 +50,7 @@ export function parseEnvelope(raw: EsignEnvelopeInput, now: Date) {
         if (r.phone) r.phone = r.phone.replace(/[ -]/g, "");
         if (r.channels.includes("sms") || r.channels.includes("alimtalk")) {
             // Both NHN domestic transports expect a national number, not an E.164 +82 prefix.
-            if (r.phone) r.phone = r.phone.replace(/^\+820?/, "0");
+            if (r.phone) r.phone = normalizePhoneNumber(r.phone);
             if (!r.phone || !/^01[016789]\d{7,8}$/.test(r.phone))
                 throw new EsignError("알림톡·SMS는 국내 휴대폰 번호만 지원합니다. 010 형식의 번호를 입력해주세요.");
         }

@@ -34,11 +34,12 @@ export async function PUT(
     }
 
     try {
-        const { name, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig, preventDuplicate, senderProfileId, senderProfileIds } = await req.json();
+        const { name, emailTemplateId, recipientField, variableMappings, isActive, triggerType, triggerCondition, repeatConfig, followupConfig, preventDuplicate, senderProfileId, senderProfileIds } = await req.json();
 
-        // 후속 템플릿이 이 조직 것인지 — 남의 템플릿 id를 넣어 그 내용을 후속으로 받아 보지 못하게
-        if (followupConfig !== undefined) {
-            const templates = await checkLinkTemplatesOwned(user.orgId, { followupConfig });
+        // 첫 메일·후속 템플릿이 이 조직 것인지 — 남의 템플릿 id를 넣어 그 내용을 받아 보지 못하게.
+        // 첫 메일 템플릿을 바꿔도 저장하지 않으면 화면은 '수정됨'인데 옛 템플릿으로 발송된다 (UX-156)
+        if (emailTemplateId !== undefined || followupConfig !== undefined) {
+            const templates = await checkLinkTemplatesOwned(user.orgId, { emailTemplateId, followupConfig });
             if (!templates.ok) {
                 return NextResponse.json({ success: false, error: templates.error }, { status: 400 });
             }
@@ -52,6 +53,7 @@ export async function PUT(
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
         if (senderPool.value) Object.assign(updateData, senderPool.value);
         if (name !== undefined) updateData.name = name;
+        if (emailTemplateId !== undefined) updateData.emailTemplateId = Number(emailTemplateId);
         if (recipientField !== undefined) updateData.recipientField = recipientField;
         if (variableMappings !== undefined) updateData.variableMappings = variableMappings;
         if (isActive !== undefined) updateData.isActive = isActive;

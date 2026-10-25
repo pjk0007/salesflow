@@ -41,7 +41,8 @@ export function JourneyEventDetail({ event }: { event: JourneyEvent; onClose?: (
             {/* 단일 사이트 세션: 유입 상세(검색어/광고) + 방문 페이지 경로별 집계 */}
             {event.type === "session" && (
                 <>
-                    <InflowDetailBlock referrer={meta.referrer as string | null} landingPage={meta.landingPage as string | null} />
+                    <InflowDetailBlock referrer={meta.referrer as string | null} landingPage={meta.landingPage as string | null}
+                        channel={typeof meta.inflowChannel === "string" ? meta.inflowChannel : undefined} />
                     {event.children && event.children.length > 0 && <PagePathSummary pages={event.children} />}
                 </>
             )}
@@ -264,9 +265,11 @@ function CustomEventProps({ properties }: { properties: unknown }) {
 }
 
 /** 사이트 세션 유입 상세 — 채널/검색어/광고키워드/소재. (트래커 방문자 상세와 동일 파서) */
-function InflowDetailBlock({ referrer, landingPage }: { referrer: string | null; landingPage: string | null }) {
+function InflowDetailBlock({ referrer, landingPage, channel }: { referrer: string | null; landingPage: string | null; channel?: string }) {
     if (!referrer && !landingPage) return null;
-    const inflow = parseInflowDetail(referrer ?? null, landingPage ?? null);
+    // 채널은 서버가 사이트 허용 도메인으로 분류한 값(meta.inflowChannel)을 쓴다 — 화면에는 사이트 도메인이 없다
+    const parsed = parseInflowDetail(referrer ?? null, landingPage ?? null);
+    const inflow = channel ? { ...parsed, channel } : parsed;
     return (
         <div className="space-y-1.5">
             <div className="flex items-center gap-1.5 text-sm">

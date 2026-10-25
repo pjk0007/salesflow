@@ -1,5 +1,6 @@
 import { useAlimtalkTemplates } from "./useAlimtalkTemplates";
 import type { NhnTemplateButton, NhnTemplateQuickReply } from "@/lib/nhn-alimtalk";
+import { apiRequest } from "@/lib/swr-fetcher";
 
 interface TemplateData {
     senderKey: string;
@@ -43,18 +44,18 @@ export function useAlimtalkTemplateManage(senderKey: string | null) {
         return result;
     };
 
+    // 삭제·검수 요청은 실패하면 RequestError를 던진다(서버의 한국어 안내 유지). 호출부가 창·입력을 유지한다.
     const deleteTemplate = async (templateCode: string, skKey: string) => {
-        const res = await fetch(
+        const result = await apiRequest(
             `/api/alimtalk/templates/${encodeURIComponent(templateCode)}?senderKey=${encodeURIComponent(skKey)}`,
             { method: "DELETE" }
         );
-        const result = await res.json();
-        if (result.success) mutate();
+        mutate();
         return result;
     };
 
     const commentTemplate = async (templateCode: string, skKey: string, comment: string) => {
-        const res = await fetch(
+        const result = await apiRequest(
             `/api/alimtalk/templates/${encodeURIComponent(templateCode)}/comments`,
             {
                 method: "POST",
@@ -62,8 +63,7 @@ export function useAlimtalkTemplateManage(senderKey: string | null) {
                 body: JSON.stringify({ senderKey: skKey, comment }),
             }
         );
-        const result = await res.json();
-        if (result.success) mutate();
+        mutate();
         return result;
     };
 

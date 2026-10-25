@@ -558,10 +558,16 @@ export class SendbClient {
     #apiToken: string;
     #base: string;
     #fetch: typeof fetch;
+    #timeoutMs: number;
+    #uploadTimeoutMs: number;
     constructor(options: {
         apiBase: string;
         apiToken: string;
         fetchImpl?: typeof fetch;
+        /** 일반 요청 제한 시간(기본 15초) */
+        timeoutMs?: number;
+        /** 파일 업로드·다운로드 제한 시간(기본 120초) */
+        uploadTimeoutMs?: number;
     }) {
         if (typeof window !== "undefined")
             throw new Error("SendbClient는 사이트 서버에서 사용해주세요.");
@@ -580,23 +586,47 @@ export class SendbClient {
         this.#apiToken = options.apiToken;
         this.#base = url.origin;
         this.#fetch = options.fetchImpl ?? fetch;
+        this.#timeoutMs = options.timeoutMs ?? 15000;
+        this.#uploadTimeoutMs = options.uploadTimeoutMs ?? 120000;
     }
-    async request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
-        const response = await this.#fetch(this.#base + path, {
-            method,
-            headers: {
-                Authorization: `Bearer ${this.#apiToken}`,
-                "Content-Type": "application/json",
-            },
-            cache: "no-store",
-            ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-        });
-        const data = await response.json().catch(() => {
+    /** 제한 시간을 걸고, 연결 실패·시간 초과를 한국어 SendbApiError로 바꾼다(status 0 / 408). */
+    async #send(path: string, init: RequestInit, timeoutMs: number) {
+        try {
+            return await this.#fetch(this.#base + path, {
+                ...init,
+                cache: "no-store",
+                signal: AbortSignal.timeout(timeoutMs),
+            });
+        } catch (error) {
+            const name = (error as Error)?.name;
+            throw name === "TimeoutError" || name === "AbortError"
+                ? new SendbApiError("샌드비 API 응답이 늦어 요청을 중단했습니다. 잠시 후 다시 시도해주세요.", 408)
+                : new SendbApiError("샌드비 API에 연결하지 못했습니다.", 0);
+        }
+    }
+    /** 게이트웨이 HTML 등 JSON이 아닌 응답을 영어 SyntaxError 대신 한국어 SendbApiError로 바꾼다. */
+    async #json(response: Response) {
+        return response.json().catch(() => {
             throw new SendbApiError(
                 "샌드비 API 응답을 확인할 수 없습니다.",
                 response.status,
             );
         });
+    }
+    async request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+        const response = await this.#send(
+            path,
+            {
+                method,
+                headers: {
+                    Authorization: `Bearer ${this.#apiToken}`,
+                    "Content-Type": "application/json",
+                },
+                ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+            },
+            this.#timeoutMs,
+        );
+        const data = await this.#json(response);
         if (!response.ok || !data.success)
             throw new SendbApiError(
                 data.error || "샌드비 API 요청을 처리하지 못했습니다.",
@@ -1266,13 +1296,16 @@ export class SendbClient {
         );
     }
     async #upload<T>(path: string, form: FormData): Promise<T> {
-        const response = await this.#fetch(this.#base + path, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${this.#apiToken}` },
-            body: form,
-            cache: "no-store",
-        });
-        const result = await response.json();
+        const response = await this.#send(
+            path,
+            {
+                method: "POST",
+                headers: { Authorization: `Bearer ${this.#apiToken}` },
+                body: form,
+            },
+            this.#uploadTimeoutMs,
+        );
+        const result = await this.#json(response);
         if (!response.ok || !result.success)
             throw new SendbApiError(
                 result.error ?? "파일을 올리지 못했습니다.",
@@ -1296,15 +1329,18 @@ export class SendbClient {
         path: string,
         extraHeaders: Record<string, string> = {},
     ) {
-        const response = await this.#fetch(this.#base + path, {
-            headers: {
-                Authorization: `Bearer ${this.#apiToken}`,
-                ...extraHeaders,
+        const response = await this.#send(
+            path,
+            {
+                headers: {
+                    Authorization: `Bearer ${this.#apiToken}`,
+                    ...extraHeaders,
+                },
             },
-            cache: "no-store",
-        });
+            this.#uploadTimeoutMs,
+        );
         if (!response.ok) {
-            const result = await response.json();
+            const result = await this.#json(response);
             throw new SendbApiError(
                 result.error ?? "파일을 불러오지 못했습니다.",
                 response.status,
@@ -1389,35 +1425,59 @@ export function createMemberIdentityHandler(options: {
                 { success: false, error: "사이트 로그인이 필요합니다." },
                 { status: 401, headers: { "Cache-Control": "no-store" } },
             );
-        let companyIds: string[] | undefined;
-        if (customer.company) {
-            const company = await options.client.upsertCompany({
-                workspaceId: options.workspaceId,
-                externalId: customer.company.id,
-                name: customer.company.name,
-                domain: customer.company.domain,
-                attributes: customer.company.attributes,
-            });
-            companyIds = [company.id];
+        // 샌드비 호출 실패도 JSON으로 돌려 위젯이 원인을 안내할 수 있게 한다.
+        try {
+            return await linkMemberIdentity(options, customer);
+        } catch (error) {
+            const status =
+                error instanceof SendbApiError && error.status >= 400
+                    ? error.status
+                    : 502;
+            return Response.json(
+                {
+                    success: false,
+                    error:
+                        error instanceof SendbApiError
+                            ? error.message
+                            : "상담 회원 연결을 처리하지 못했습니다.",
+                },
+                { status, headers: { "Cache-Control": "no-store" } },
+            );
         }
-        const contact = await options.client.upsertContact({
-            workspaceId: options.workspaceId,
-            externalId: customer.id,
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone,
-            recordId: customer.crmRecordId,
-            isInternal: customer.isInternal,
-            companyIds,
-            attributes: customer.attributes,
-        });
-        const identity = await options.client.customerIdentity(
-            options.channelId,
-            contact.id,
-        );
-        return Response.json(
-            { success: true, data: identity },
-            { headers: { "Cache-Control": "no-store" } },
-        );
     };
+}
+async function linkMemberIdentity(
+    options: Parameters<typeof createMemberIdentityHandler>[0],
+    customer: SiteCustomer,
+) {
+    let companyIds: string[] | undefined;
+    if (customer.company) {
+        const company = await options.client.upsertCompany({
+            workspaceId: options.workspaceId,
+            externalId: customer.company.id,
+            name: customer.company.name,
+            domain: customer.company.domain,
+            attributes: customer.company.attributes,
+        });
+        companyIds = [company.id];
+    }
+    const contact = await options.client.upsertContact({
+        workspaceId: options.workspaceId,
+        externalId: customer.id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        recordId: customer.crmRecordId,
+        isInternal: customer.isInternal,
+        companyIds,
+        attributes: customer.attributes,
+    });
+    const identity = await options.client.customerIdentity(
+        options.channelId,
+        contact.id,
+    );
+    return Response.json(
+        { success: true, data: identity },
+        { headers: { "Cache-Control": "no-store" } },
+    );
 }

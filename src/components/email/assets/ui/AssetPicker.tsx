@@ -23,13 +23,22 @@ interface AssetPickerProps {
 }
 
 // 에셋 그리드에서 하나 이상 선택 → {id, url}[] 반환. AI 규칙 편집·템플릿 삽입 공용.
-export default function AssetPicker({
-    open,
+// 선택 상태는 열 때마다 새로 만든다 — 열린 시점의 initialSelectedIds(비동기로 채워진 저장값 포함)가 초기 선택이고,
+// 열려 있는 동안 부모가 다시 그려져도 사용자 선택을 덮어쓰지 않는다 (UX-145).
+export default function AssetPicker({ open, onClose, ...rest }: AssetPickerProps) {
+    return (
+        <Dialog open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
+            {open && <AssetPickerContent onClose={onClose} {...rest} />}
+        </Dialog>
+    );
+}
+
+function AssetPickerContent({
     initialSelectedIds = [],
     onClose,
     onConfirm,
-}: AssetPickerProps) {
-    const { assets, isLoading } = useEmailAssets(open);
+}: Omit<AssetPickerProps, "open">) {
+    const { assets, isLoading } = useEmailAssets(true);
     const [selectedIds, setSelectedIds] = useState<number[]>(initialSelectedIds);
     const [query, setQuery] = useState("");
 
@@ -51,24 +60,13 @@ export default function AssetPicker({
         onClose();
     };
 
-    // 다이얼로그가 열릴 때 initialSelectedIds로 리셋
-    const handleOpenChange = (next: boolean) => {
-        if (next) {
-            setSelectedIds(initialSelectedIds);
-            setQuery("");
-        } else {
-            onClose();
-        }
-    };
-
     const hasAssets = assets.length > 0;
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="max-w-2xl gap-0">
                 <DialogHeader>
                     <DialogTitle>이미지 에셋 선택</DialogTitle>
-                    <DialogDescription>본문에 넣을 이미지를 고르세요</DialogDescription>
+                    <DialogDescription>본문에 넣을 이미지를 고르세요. Tab으로 이동하고 Enter·Space로 선택합니다.</DialogDescription>
                 </DialogHeader>
 
                 {hasAssets && (
@@ -78,6 +76,7 @@ export default function AssetPicker({
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             placeholder="이름으로 검색"
+                            aria-label="에셋 이름으로 검색"
                             className="pl-9"
                         />
                     </div>
@@ -99,7 +98,7 @@ export default function AssetPicker({
                             <p className="text-sm">&quot;{query}&quot; 검색 결과가 없습니다.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5" role="group" aria-label="이미지 에셋">
                             {filtered.map((asset) => (
                                 <AssetCard
                                     key={asset.id}
@@ -113,7 +112,7 @@ export default function AssetPicker({
                 </div>
 
                 <DialogFooter className="mt-4 border-t pt-4 sm:justify-between">
-                    <span className="text-sm text-muted-foreground self-center">
+                    <span className="text-sm text-muted-foreground self-center" aria-live="polite">
                         <span className="font-semibold text-foreground">{selectedIds.length}개</span> 선택됨
                     </span>
                     <div className="flex gap-2">
@@ -126,6 +125,5 @@ export default function AssetPicker({
                     </div>
                 </DialogFooter>
             </DialogContent>
-        </Dialog>
     );
 }

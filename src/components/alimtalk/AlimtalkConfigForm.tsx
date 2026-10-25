@@ -33,7 +33,7 @@ export default function AlimtalkConfigForm() {
         const result = await testConnection({ appKey, secretKey });
         if (result.success) {
             setTestStatus("success");
-            toast.success(`연결 성공! 발신프로필 ${result.data.senderCount}개 확인`);
+            toast.success(`연결 성공! 발신프로필 ${result.data?.senderCount ?? 0}개 확인`);
         } else {
             setTestStatus("fail");
             toast.error(result.error || "연결 테스트에 실패했습니다.");

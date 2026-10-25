@@ -3,7 +3,7 @@ import {
     requireCustomerAccess,
     customerAccessPredicate,
 } from "@/lib/customer-access/access";
-import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, lt, sql } from "drizzle-orm";
 import {
     db,
     customerAiSettings as settings,
@@ -264,8 +264,11 @@ export async function listSupportKnowledge(
     workspaceId: number,
     before?: number,
     exec: DbExec = db,
+    // 설정 선택기용(UX-301): 승인되었고 고객 상담 목적 사실이 있는 버전만, 이름 검색은 선택.
+    filter: { approvedForChat?: boolean; q?: string } = {},
 ) {
     await requireCustomerAccess(actor, workspaceId, "read", exec);
+    const q = filter.q?.trim();
     const rows = await exec
         .select()
         .from(knowledge)
@@ -274,6 +277,11 @@ export async function listSupportKnowledge(
                 eq(knowledge.orgId, actor.orgId),
                 eq(knowledge.workspaceId, workspaceId),
                 before ? lt(knowledge.id, before) : undefined,
+                filter.approvedForChat ? eq(knowledge.state, "approved") : undefined,
+                filter.approvedForChat
+                    ? sql`EXISTS (SELECT 1 FROM jsonb_array_elements(${knowledge.snapshot}->'claims') AS c WHERE c->'purposes' @> '["customer_chat"]'::jsonb)`
+                    : undefined,
+                q ? ilike(knowledge.name, `%${q.replace(/[\\%_]/g, "\\$&")}%`) : undefined,
             ),
         )
         .orderBy(desc(knowledge.id))
@@ -321,7 +329,7 @@ export async function manageSupportKnowledge(
     const conn = provided ?? (await queryClient.reserve());
     try {
         if (input.action === "create")
-            return createKnowledgeVersion(conn, {
+            return await createKnowledgeVersion(conn, {
                 orgId: actor.orgId,
                 workspaceId,
                 userId: actor.userId,
@@ -337,7 +345,7 @@ export async function manageSupportKnowledge(
             });
             return { approved: true };
         }
-        return blockVersion(conn, {
+        return await blockVersion(conn, {
             orgId: actor.orgId,
             userId: actor.userId,
             id: input.id!,

@@ -13,8 +13,10 @@ type JsonDates<T> = {
           : T[K];
 };
 export type Pipeline = JsonDates<typeof crmPipelines.$inferSelect>;
-export type Deal = JsonDates<typeof crmDeals.$inferSelect>;
-export type Task = JsonDates<typeof crmTasks.$inferSelect>;
+/** 목록 응답은 연결 고객·회사 이름을 함께 준다(상세·저장 응답에는 없다). */
+type LinkedNames = { contactName?: string | null; companyName?: string | null };
+export type Deal = JsonDates<typeof crmDeals.$inferSelect> & LinkedNames;
+export type Task = JsonDates<typeof crmTasks.$inferSelect> & LinkedNames;
 export type Contact = JsonDates<typeof crmContacts.$inferSelect> & {
     companyIds: string[];
 };

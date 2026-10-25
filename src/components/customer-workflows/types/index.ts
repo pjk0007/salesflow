@@ -14,6 +14,8 @@ export interface Workflow {
     enabled: boolean;
     activeRevisionId: string | null;
     updatedAt: string;
+    /** 목록 응답: 게시한 직원이 지금도 운영 관리 권한을 갖는지 */
+    publisherCanManage?: boolean;
 }
 export interface Revision {
     name: string;
@@ -42,6 +44,9 @@ export interface WorkflowDetail {
         detail: Record<string, unknown>;
         createdAt: string;
     }[];
+    publisher: { name: string | null; canManage: boolean } | null;
+    activeRuns: number;
+    lastFailure: { reason: string | null; updatedAt: string } | null;
 }
 export interface Preview {
     id: string;

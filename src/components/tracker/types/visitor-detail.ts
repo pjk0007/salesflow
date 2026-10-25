@@ -41,6 +41,8 @@ export type VisitorDetailResponse =
               hourlyActivity: VisitorHourlyActivity[];
               /** "SECTION_VIEW:name" | "CLICK:name" → 라벨 */
               aliases: Record<string, string>;
+              /** 사이트 허용 도메인 — 유입 '직접' 판정용 */
+              siteDomains?: string[];
           };
       }
     | { success: false; error: string };

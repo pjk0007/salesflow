@@ -10,6 +10,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // 시험·빌드가 만드는 전자서명 작업자 생성물(.gitignore 대상)
+    ".esign-runtime/**",
   ]),
 ]);
 

@@ -36,6 +36,8 @@ interface FollowupStepsFormProps {
     fields: FieldOption[];
     steps: FollowupStepUI[];
     onChange: (steps: FollowupStepUI[]) => void;
+    /** 단계 매핑을 비워 두면 실행 시 기본 연결 매핑을 쓴다 — 미매핑 안내도 같은 규칙 */
+    fallbackMappings?: Record<string, string>;
 }
 
 export default function FollowupStepsForm({
@@ -44,6 +46,7 @@ export default function FollowupStepsForm({
     fields,
     steps,
     onChange,
+    fallbackMappings,
 }: FollowupStepsFormProps) {
     const updateStep = (index: number, patch: Partial<FollowupStepUI>) => {
         const next = steps.map((s, i) => (i === index ? { ...s, ...patch } : s));
@@ -76,6 +79,7 @@ export default function FollowupStepsForm({
                     index={index}
                     step={step}
                     fallbackSenderKey={senderKey}
+                    fallbackMappings={fallbackMappings}
                     senders={senders}
                     fields={fields}
                     onChange={(patch) => updateStep(index, patch)}
@@ -101,6 +105,7 @@ interface StepCardProps {
     index: number;
     step: FollowupStepUI;
     fallbackSenderKey: string;
+    fallbackMappings?: Record<string, string>;
     senders: SenderOption[];
     fields: FieldOption[];
     onChange: (patch: Partial<FollowupStepUI>) => void;
@@ -111,6 +116,7 @@ function StepCard({
     index,
     step,
     fallbackSenderKey,
+    fallbackMappings,
     senders,
     fields,
     onChange,
@@ -123,6 +129,8 @@ function StepCard({
         () => extractAllTemplateVariables(selectedTemplate ?? null),
         [selectedTemplate]
     );
+    const effectiveMappings = Object.keys(step.variableMappings).length > 0 ? step.variableMappings : fallbackMappings ?? {};
+    const unmapped = variables.filter((v) => !effectiveMappings[v]);
 
     return (
         <div className="rounded-md border p-4 space-y-3">
@@ -234,6 +242,11 @@ function StepCard({
                             </Select>
                         </div>
                     ))}
+                    {unmapped.length > 0 && (
+                        <p className="text-xs text-destructive" role="alert">
+                            {unmapped.length}개 미매핑 — 모든 변수를 매핑해야 저장할 수 있습니다.
+                        </p>
+                    )}
                 </div>
             )}
         </div>

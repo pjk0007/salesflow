@@ -17,13 +17,13 @@ export const NO_WEBHOOK_ERROR = "웹훅 주소 없음";
 export const NO_WEBHOOK_WAIT = "웹훅 주소가 없어 넣을 때까지 기다림";
 /**
  * 응답 시간 초과(구글이 이미 올렸을 수 있음)는 이만큼까지만 시도한다 — 같은 카드가 회차마다 쌓이지 않게 (CT-1).
- * requestId를 켜면(GOOGLE_CHAT_REQUEST_ID=on) 구글이 같은 요청을 한 번만 만드니 보통 시도 수(MAX_ATTEMPTS)를 쓴다
+ * 고정 messageId를 켜면(GOOGLE_CHAT_REQUEST_ID=on) 구글이 같은 ID를 한 번만 올리니 보통 시도 수(MAX_ATTEMPTS)를 쓴다
  */
 export const UNCERTAIN_MAX_ATTEMPTS = 2;
 export const UNCERTAIN_GIVE_UP_NOTE = "두 번 모두 응답이 없어 그만 보냄 (스페이스에 올라갔는지 확인해 주세요)";
 /** 'sent' 기록이 일시 DB 오류로 실패하면 짧게 다시 해 본다 — 이미 올라간 카드가 15분 뒤 다시 나가지 않게 */
-const MARK_SENT_TRIES = 3;
-const MARK_SENT_RETRY_MS = 300;
+export const MARK_SENT_TRIES = 3;
+export const MARK_SENT_RETRY_MS = 300;
 
 /** 집은 줄 (attempts는 집을 때 올린 뒤의 값) */
 export interface ClaimedAlert {
@@ -39,7 +39,7 @@ export interface DeliveryDeps {
     now: Date;
     overBudget: () => boolean;
     webhookFor: (workspaceId: number) => string | undefined;
-    /** row를 받으면 스레드 키·requestId를 붙일 수 있다 */
+    /** row를 받으면 스레드 키·고정 messageId를 붙일 수 있다 */
     post: (webhookUrl: string, text: string, row?: ClaimedAlert) => Promise<GoogleChatResult>;
     /** 보낼 때 글을 고친다 (기한 줄을 보내는 때 기준으로 다시 쓰기 — DV-5·RC-12). 없으면 저장한 글 그대로 */
     prepareText?: (row: ClaimedAlert) => string;
@@ -47,7 +47,7 @@ export interface DeliveryDeps {
     onResult?: (row: ClaimedAlert, result: GoogleChatResult) => Promise<void>;
     /** 다시 보낼 때 (기본 now + 10분). 깊이 알림은 근무시간으로 미룬다 (DV-5) */
     retryAt?: (base: Date) => Date;
-    /** requestId를 붙여 보내 구글이 같은 요청을 한 번만 만든다 — 시간 초과 뒤에도 시도 수를 다 쓴다 */
+    /** 고정 messageId를 붙여 보내 구글이 같은 글을 한 번만 올린다 — 시간 초과 뒤에도 시도 수를 다 쓴다 */
     idempotent?: boolean;
     markSent: (id: number) => Promise<void>;
     markSkipped: (id: number, reason: string) => Promise<void>;
@@ -203,7 +203,7 @@ export async function deliverClaimedBatch(
 
             // attempts는 집을 때 이미 올렸다 — 처리 중 죽어도 시도가 남아야 무한 재시도를 막는다.
             // 400처럼 다시 보내도 같은 결과인 실패는 기다리지 않고 바로 확정한다.
-            // 시간 초과는 구글이 이미 올렸을 수 있다 — requestId 없이 보낼 때는 두 번째 시도에서 그친다 (같은 카드가 쌓이지 않게, CT-1)
+            // 시간 초과는 구글이 이미 올렸을 수 있다 — 고정 messageId 없이 보낼 때는 두 번째 시도에서 그친다 (같은 카드가 쌓이지 않게, CT-1)
             const uncertainStop = result.uncertain === true && !deps.idempotent && row.attempts >= UNCERTAIN_MAX_ATTEMPTS;
             if (!result.retryable || row.attempts >= MAX_ATTEMPTS || uncertainStop) {
                 await deps.markFailed(row.id, uncertainStop ? `${lastError} — ${UNCERTAIN_GIVE_UP_NOTE}`.slice(0, 500) : lastError);
@@ -237,7 +237,8 @@ export async function deliverClaimedBatch(
     return tally;
 }
 
-async function retry(run: () => Promise<void>, tries: number, delayMs: number, sleep: (ms: number) => Promise<void>) {
+/** 'sent' 기록 같은 짧은 DB 쓰기를 tries번까지 해 본다 (고객 여정 카드도 같이 쓴다) */
+export async function retry(run: () => Promise<void>, tries: number, delayMs: number, sleep: (ms: number) => Promise<void>) {
     for (let attempt = 1; ; attempt++) {
         try {
             await run();

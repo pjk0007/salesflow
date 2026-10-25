@@ -5,6 +5,7 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
+import { duplicateKeyOf, findDuplicateValues } from "@/lib/record-duplicates";
 
 export async function GET(
     req: NextRequest,
@@ -129,9 +130,25 @@ export async function GET(
             .limit(pageSize)
             .offset(offset);
 
+        // 중복 행 색상 표시: 파티션 전체 기준으로 이 페이지 행의 중복 여부(UX-081). 설정이 켜진 파티션만 조회한다
+        const dc = access.partition.duplicateConfig;
+        let rows: (typeof data[number] & { isDuplicate?: boolean })[] = data;
+        if (dc?.highlightEnabled && dc.field && data.length > 0) {
+            const duplicates = await findDuplicateValues(db, {
+                orgId: user.orgId,
+                partitionId,
+                field: dc.field,
+                values: data.map((r) => duplicateKeyOf(r.data, dc.field)),
+            });
+            rows = data.map((r) => {
+                const key = duplicateKeyOf(r.data, dc.field);
+                return { ...r, isDuplicate: key !== "" && duplicates.has(key) };
+            });
+        }
+
         return NextResponse.json({
             success: true,
-            data,
+            data: rows,
             total,
             page,
             pageSize,

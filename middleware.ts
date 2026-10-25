@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400",
-};
+import { PUBLIC_API_CORS_HEADERS as CORS_HEADERS } from "@/lib/public-api-cors";
+import { isDevelopmentPreviewRuntime } from "./src/lib/development-runtime";
 
 export function middleware(req: NextRequest) {
+    if (req.nextUrl.pathname === "/dev-start" || req.nextUrl.pathname.startsWith("/dev-start/")) {
+        if (!isDevelopmentPreviewRuntime(process.env)) {
+            return new NextResponse("페이지를 찾을 수 없습니다.", {
+                status: 404,
+                headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex, nofollow" },
+            });
+        }
+        return NextResponse.next();
+    }
     // Preflight OPTIONS 요청 처리
     if (req.method === "OPTIONS") {
         return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
@@ -21,7 +25,7 @@ export function middleware(req: NextRequest) {
     return response;
 }
 
-// /api/v1/ 경로에만 적용
+// 개발 체험 자료는 지정된 개발 서비스에서만 제공한다.
 export const config = {
-    matcher: "/api/v1/:path*",
+    matcher: ["/api/v1/:path*", "/dev-start/:path*"],
 };

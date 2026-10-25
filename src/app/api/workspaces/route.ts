@@ -5,12 +5,11 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
 
 export async function GET(req: NextRequest) {
-    const user = await getActiveUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
-    }
-
     try {
+        const user = await getActiveUserFromNextRequest(req);
+        if (!user) {
+            return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+        }
         const result = await db
             .select({
                 id: workspaces.id,
@@ -32,22 +31,29 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const user = await getActiveUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
-    }
-
-    if (user.role === "member") {
-        return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
-    }
-
-    const { name, description, icon } = await req.json();
-
-    if (!name || !name.trim()) {
-        return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
-    }
-
     try {
+        const user = await getActiveUserFromNextRequest(req);
+        if (!user) {
+            return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+        }
+
+        if (user.role === "member") {
+            return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
+        }
+
+        const body = await req.json().catch(() => null);
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+            return NextResponse.json({ success: false, error: "요청 본문을 확인해주세요." }, { status: 400 });
+        }
+        const { name, description, icon } = body;
+
+        if (typeof name !== "string" || !name.trim()) {
+            return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
+        }
+
+        if ((description != null && typeof description !== "string") || (icon != null && typeof icon !== "string")) {
+            return NextResponse.json({ success: false, error: "설명과 아이콘은 문자열로 입력해주세요." }, { status: 400 });
+        }
         // 플랜 제한 체크
         const currentCount = await getResourceCount(user.orgId, "workspaces");
         const limit = await checkPlanLimit(user.orgId, "workspaces", currentCount);

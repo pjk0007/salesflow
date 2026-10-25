@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user?.isSuperAdmin) {
-        return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+        return NextResponse.json({ success: false, error: "페이지를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const { id: targetId } = await params;
@@ -20,6 +20,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // 자기 자신의 super admin 해제 방지
     if (targetId === user.userId && body.isSuperAdmin === 0) {
         return NextResponse.json({ success: false, error: "자신의 super admin 권한은 해제할 수 없습니다." }, { status: 400 });
+    }
+    // 자기 계정 정지 방지 — 정지하면 바로 모든 조직에서 로그인할 수 없게 된다
+    if (targetId === user.userId && body.isActive === 0) {
+        return NextResponse.json({ success: false, error: "자신의 계정은 정지할 수 없습니다." }, { status: 400 });
     }
 
     const updates: Record<string, unknown> = { updatedAt: new Date() };

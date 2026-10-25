@@ -5,7 +5,7 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
 import { kstParts } from "@/lib/kst";
 import { pickHealthPatch, pickLimitPatch } from "@/lib/email-sender-limit";
-import { toLimitSettings, validateLimitSettings } from "@/lib/email-sender-limit-rules";
+import { shiftWarmupStart, toLimitSettings, validateLimitSettings } from "@/lib/email-sender-limit-rules";
 import type { SenderLimitSettings } from "@/lib/email-sender-limit-rules";
 import {
     restartedWarmupStartedOn,
@@ -109,7 +109,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
         }
 
         // 정지 스위치 (DESIGN-SND 6-3·6-5): 켜면 사람이 멈춘 것으로 적는다. 자동으로 멈춘 주소를 끄면 풀기 API와 같은 기록
-        // (health_reset_at·웜업 시작일 미루기 — releaseSenderPause 한 함수)을 남긴다. 손으로 멈춘 주소를 끄면 멈춤 칸만 비운다
+        // (health_reset_at·웜업 시작일 미루기 — releaseSenderPause 한 함수)을 남긴다. 손으로 멈춘 주소를 끄면 멈춤 칸을 비우고
+        // 웜업 시작일은 자동 해제와 같은 규칙(shiftWarmupStart)으로 멈춘 기간만큼 미룬다 (UX-138)
         const pausing = !!limits && limits.isPaused && !existing.isPaused;
         const unpausing = !!limits && !limits.isPaused && existing.isPaused;
         let autoRelease: ReleaseSenderResult | null = null;
@@ -119,6 +120,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
             if (autoRelease.ok && limits && limits.warmupStartedOn === currentLimits.warmupStartedOn) {
                 limits = { ...limits, warmupStartedOn: autoRelease.warmupStartedOn };
             }
+        }
+
+        if (unpausing && !autoRelease && limits && limits.warmupStartedOn === currentLimits.warmupStartedOn) {
+            const pausedAt = existing.pausedAt ? new Date(existing.pausedAt) : null;
+            const pausedOn = pausedAt && Number.isFinite(pausedAt.getTime()) ? kstParts(pausedAt).date : null;
+            limits = { ...limits, warmupStartedOn: shiftWarmupStart(limits, pausedOn, todayYmd) };
         }
 
         // 주소를 바꾸면 웜업을 오늘 0일째부터 다시 센다 — 이전 주소의 웜업 날수가 처음 쓰는 주소로 넘어가면 안 된다

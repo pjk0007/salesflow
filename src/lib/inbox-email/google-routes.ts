@@ -12,6 +12,7 @@ import {
     finishGoogleConnection,
     disconnectGoogle,
     retryGoogleJobs,
+    GoogleConnectionFailure,
 } from "./google-connection";
 type Context = { params: Promise<{ id: string }> };
 export async function googleStatusGet(req: NextRequest, c: Context) {
@@ -112,7 +113,9 @@ export async function googleCallbackGet(req: NextRequest) {
                 error: req.nextUrl.searchParams.get("error") ?? undefined,
             });
         target = `/inbox?channelId=${result.channelId}&emailConnection=${result.result}`;
-    } catch {}
+    } catch (error) {
+        target = `/inbox?${callbackFailureQuery(error)}`;
+    }
     const response = NextResponse.redirect(new URL(target, returnOrigin), 303);
     response.headers.set("Cache-Control", "no-store");
     response.headers.set("Referrer-Policy", "no-referrer");
@@ -124,4 +127,19 @@ export async function googleCallbackGet(req: NextRequest) {
             path: "/api/email-google/callback",
         });
     return response;
+}
+/** 실패를 짧은 코드로만 돌려준다. 상담함은 관리 권한을 확인한 메일함의 것만 연다. */
+export function callbackFailureQuery(error: unknown) {
+    const params = new URLSearchParams();
+    if (error instanceof GoogleConnectionFailure) {
+        if (error.channelId) params.set("channelId", String(error.channelId));
+        params.set("emailConnection", error.code);
+    } else
+        params.set(
+            "emailConnection",
+            error instanceof InboxError && [401, 403].includes(error.status)
+                ? "permission"
+                : "failed",
+        );
+    return params.toString();
 }

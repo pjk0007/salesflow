@@ -1,28 +1,30 @@
-import type { EsignDocument, EsignEnvelopeInput, EsignField, EsignChannel, EsignRecipientInput, PublicEsignSession, StaffEsignDetail } from "@/lib/esign/types";
+import type { EsignDocument, EsignEnvelopeInput, EsignField, EsignChannel, EsignListPage, EsignRecipientInput, PublicEsignSession, StaffEsignDetail, StaffEsignSummary } from "@/lib/esign/types";
 import type { EsignAlimtalkStatus } from "@/lib/esign/alimtalk";
 
 export type EsignStatus = { enabled: boolean; emailReady: boolean; smsReady: boolean; alimtalkReady?: boolean; alimtalk?: EsignAlimtalkStatus; storageReady: boolean; databaseReady: boolean; issues: string[] };
 export type SigningValue = { fieldId: string; text?: string; pngDataUrl: string };
 export type OtpResult = { retryAt?: string; expiresAt?: string; delivery?: { state: string }; message?: string; previewCode?: string };
-export class EsignApiError extends Error { constructor(message: string, readonly status: number) { super(message); this.name = "EsignApiError"; } }
+/** code·retryAt은 서버 EsignError의 구분 값이다(예: verification_required, delivery_unconfigured, otp_locked). */
+export class EsignApiError extends Error { constructor(message: string, readonly status: number, readonly code?: string, readonly retryAt?: string) { super(message); this.name = "EsignApiError"; } }
 
 export const isEsignPreviewPage = () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1";
 const apiBase = () => isEsignPreviewPage() ? "/api/esign-preview" : "/api/esign";
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${apiBase()}${path}`, { cache: "no-store", ...init });
-    const result = await response.json().catch(() => null) as { success?: boolean; data?: T; error?: string } | null;
-    if (!response.ok || !result?.success) throw new EsignApiError(result?.error || "요청을 처리하지 못했습니다. 잠시 후 다시 확인해 주세요.", response.status);
+    const result = await response.json().catch(() => null) as { success?: boolean; data?: T; error?: string; code?: string; retryAt?: string } | null;
+    if (!response.ok || !result?.success) throw new EsignApiError(result?.error || "요청을 처리하지 못했습니다. 잠시 후 다시 확인해 주세요.", response.status, result?.code, result?.retryAt);
     return result.data as T;
 }
 const json = (value: unknown): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
 const scoped = (path: string, workspaceId: number) => `${path}${path.includes("?") ? "&" : "?"}workspaceId=${workspaceId}`;
+const listParams = (query: Record<string, string | undefined>) => { const params = new URLSearchParams(Object.entries(query).filter((entry): entry is [string, string] => !!entry[1])); return params.size ? `?${params}` : ""; };
 const publicPath = (token: string, suffix = "") => `/public/${encodeURIComponent(token)}${suffix}`;
 export const verificationHeaders = (token?: string): Record<string, string> => token ? { "X-Esign-Verification": token } : {};
 
 export const esignApi = {
     status: () => request<EsignStatus>("/status"),
-    documents: (workspaceId: number) => request<EsignDocument[]>(scoped("/documents", workspaceId)),
-    envelopes: (workspaceId: number) => request<StaffEsignDetail[]>(scoped("/envelopes", workspaceId)),
+    documents: (workspaceId: number, query: { kind?: EsignDocument["kind"]; q?: string; cursor?: string } = {}) => request<EsignListPage<EsignDocument>>(scoped(`/documents${listParams(query)}`, workspaceId)),
+    envelopes: (workspaceId: number, query: { q?: string; cursor?: string } = {}) => request<EsignListPage<StaffEsignSummary>>(scoped(`/envelopes${listParams(query)}`, workspaceId)),
     prefill: (workspaceId: number, identity: { recordId?: number; contactId?: string }) => request<EsignRecipientInput>(scoped(`/prefill?${identity.recordId ? `recordId=${identity.recordId}` : `contactId=${encodeURIComponent(identity.contactId || "")}`}`, workspaceId)),
     upload: (workspaceId: number, file: File, title: string, kind: "document" | "template") => {
         const body = new FormData(); body.set("workspaceId", String(workspaceId)); body.set("file", file); body.set("title", title); body.set("kind", kind);
@@ -33,13 +35,14 @@ export const esignApi = {
     createEnvelope: (workspaceId: number, input: EsignEnvelopeInput) => request<StaffEsignDetail>(scoped("/envelopes", workspaceId), json(input)),
     detail: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}`, workspaceId)),
     cancel: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}/action`, workspaceId), json({ action: "cancel" })),
+    resend: (workspaceId: number, id: string, jobId: string, confirmUnknown = false) => request<StaffEsignDetail>(scoped(`/envelopes/${id}/action`, workspaceId), json({ action: "resend", jobId, confirmUnknown })),
     retryFinalization: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}/action`, workspaceId), json({ action: "retry_finalize" })),
     documentUrl: (workspaceId: number, id: string) => `${apiBase()}${scoped(`/documents/${id}/file`, workspaceId)}`,
     envelopeUrl: (workspaceId: number, id: string, final = false) => `${apiBase()}${scoped(`/envelopes/${id}/file${final ? "?final=1" : ""}`, workspaceId)}`,
     auditUrl: (workspaceId: number, id: string) => `${apiBase()}${scoped(`/envelopes/${id}/audit`, workspaceId)}`,
     session: (token: string, verificationToken?: string) => request<PublicEsignSession>(publicPath(token), { headers: verificationHeaders(verificationToken) }),
     otp: (token: string, channel: EsignChannel) => request<OtpResult>(publicPath(token, "/otp"), json({ channel })),
-    verify: (token: string, code: string) => request<{ verificationToken: string }>(publicPath(token, "/verify"), json({ code })),
+    verify: (token: string, code: string) => request<{ verificationToken: string; expiresAt: string }>(publicPath(token, "/verify"), json({ code })),
     sign: (token: string, verificationToken: string, values: SigningValue[], idempotencyKey: string) => request<PublicEsignSession>(publicPath(token, "/sign"), json({ verificationToken, consent: true, values, idempotencyKey })),
     reject: (token: string, verificationToken: string, reason: string) => request<PublicEsignSession>(publicPath(token, "/sign"), json({ action: "reject", verificationToken, reason })),
     publicDocumentUrl: (token: string, final = false) => `${apiBase()}${publicPath(token, `/document${final ? "?final=1" : ""}`)}`,

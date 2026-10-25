@@ -27,16 +27,21 @@ export async function totalCounts(orgId: string, query: StatsQuery): Promise<Sta
     return row;
 }
 
+/** 집계 상태 한 줄 — 기준 시각(asOf)은 recent_done_at. 이메일 통계 화면과 홈 발송 분석이 같은 값을 쓴다 */
+export async function readStatsState(orgId: string) {
+    const states = await queryClient<{
+        filled_from: string | null;
+        backfill_done_at: string | null;
+        recent_done_at: string | null;
+    }[]> `SELECT filled_from::text,backfill_done_at::text,recent_done_at::text FROM email_stats_state WHERE org_id=${orgId}`;
+    return states[0];
+}
+
 export async function statsEnvelope(orgId: string, query: StatsQuery): Promise<StatsEnvelope> {
-    const [states, connections] = await Promise.all([
-        queryClient<{
-            filled_from: string | null;
-            backfill_done_at: string | null;
-            recent_done_at: string | null;
-        }[]> `SELECT filled_from::text,backfill_done_at::text,recent_done_at::text FROM email_stats_state WHERE org_id=${orgId}`,
+    const [state, connections] = await Promise.all([
+        readStatsState(orgId),
         statsConnections(orgId, query.workspaceId),
     ]);
-    const state = states[0];
     const previous = previousRange(query.from, query.to);
     return {
         range: {

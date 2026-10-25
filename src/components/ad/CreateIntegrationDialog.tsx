@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import type { FieldDefinition } from "@/types";
+import type { AdLeadIntegrationInfo, FieldDefinition } from "@/types";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -71,14 +71,20 @@ interface PartitionsResponse {
 interface CreateIntegrationDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** 생성·수정 저장 후 호출 */
     onCreated: () => void;
+    /** 기존 연동 수정 — 광고 소스는 고정하고 파티션·매핑·기본값 단계를 같은 화면으로 고친다 (UX-052) */
+    editTarget?: { integration: AdLeadIntegrationInfo; platformId: number };
 }
 
 export default function CreateIntegrationDialog({
     open,
     onOpenChange,
     onCreated,
+    editTarget,
 }: CreateIntegrationDialogProps) {
+    const editing = !!editTarget;
+    const firstStep: Step = editing ? 2 : 1;
     // Step state
     const [step, setStep] = useState<Step>(1);
     const [saving, setSaving] = useState(false);
@@ -102,7 +108,7 @@ export default function CreateIntegrationDialog({
     // Data hooks
     const { platforms } = useAdPlatforms();
     const { accounts } = useAdAccounts(platformId);
-    const { createIntegration } = useAdLeadIntegrations();
+    const { createIntegration, updateIntegration } = useAdLeadIntegrations();
     const { pages } = useMetaPages(platformId);
     const { forms } = useMetaLeadForms(platformId, pageId || undefined);
     const { fields: formFields, isLoading: formFieldsLoading } = useMetaLeadFormFields(
@@ -139,12 +145,23 @@ export default function CreateIntegrationDialog({
     const isMeta = selectedPlatform?.platform === "meta";
     const selectedAccount = accounts.find((a) => a.id === adAccountId);
     const selectedForm = forms.find((f) => f.id === formId);
+    const formName = selectedForm?.name || editTarget?.integration.formName || formId;
     const selectedPartition = allPartitions.find((p) => p.id === partitionId);
 
     // Mapped DB field keys (used in step 3)
     const mappedDbKeys = new Set(Object.values(fieldMappings));
     // Unmapped DB fields for step 4
     const unmappedDbFields = dbFields.filter((f) => !mappedDbKeys.has(f.key));
+    // 파티션을 바꾸면 기존 매핑 대상 컬럼이 없을 수 있다 — 조용히 빠지지 않도록 다음 단계 전에 고치게 한다
+    const dbFieldKeys = new Set(dbFields.map((f) => f.key));
+    const missingTargets = dbFields.length > 0
+        ? Object.entries(fieldMappings).filter(([, to]) => !dbFieldKeys.has(to))
+        : [];
+    // 리드 폼에서 사라진 질문의 매핑 (수정 시) — 값이 들어오지 않으므로 보여주고 지울 수 있게 한다
+    const formFieldKeys = new Set(formFields.map((f) => f.key));
+    const staleMappings = !formFieldsLoading && formFields.length > 0
+        ? Object.keys(fieldMappings).filter((key) => !formFieldKeys.has(key))
+        : [];
 
     // Reset all state when dialog closes
     const resetState = useCallback(() => {
@@ -163,15 +180,29 @@ export default function CreateIntegrationDialog({
     useEffect(() => {
         if (!open) {
             resetState();
+            return;
         }
-    }, [open, resetState]);
+        if (editTarget) {
+            const { integration, platformId: editPlatformId } = editTarget;
+            setStep(2);
+            setPlatformId(editPlatformId);
+            setAdAccountId(integration.adAccountId);
+            setFormId(integration.formId);
+            setWorkspaceId(integration.partitionWorkspaceId ?? undefined);
+            setPartitionId(integration.partitionId ?? undefined);
+            setFieldMappings({ ...(integration.fieldMappings || {}) });
+            setDefaultValues(Object.fromEntries(
+                Object.entries(integration.defaultValues || {}).map(([key, value]) => [key, String(value ?? "")])
+            ));
+        }
+    }, [open, resetState, editTarget]);
 
-    // Auto-select workspace linked to the ad account
+    // Auto-select workspace linked to the ad account (새로 만들 때만 — 수정은 현재 파티션의 워크스페이스를 유지)
     useEffect(() => {
-        if (selectedAccount?.workspaceId) {
+        if (!editing && selectedAccount?.workspaceId) {
             setWorkspaceId(selectedAccount.workspaceId);
         }
-    }, [selectedAccount?.workspaceId]);
+    }, [selectedAccount?.workspaceId, editing]);
 
     // Reset cascading selections
     const handlePlatformChange = (val: string) => {
@@ -210,7 +241,7 @@ export default function CreateIntegrationDialog({
 
     const canProceedStep3 = (): boolean => {
         // At least one field mapping is required
-        return Object.keys(fieldMappings).length > 0;
+        return Object.keys(fieldMappings).length > 0 && missingTargets.length === 0;
     };
 
     const handleNext = () => {
@@ -232,7 +263,7 @@ export default function CreateIntegrationDialog({
     };
 
     const handlePrev = () => {
-        if (step > 1) setStep((step - 1) as Step);
+        if (step > firstStep) setStep((step - 1) as Step);
     };
 
     const handleSubmit = async () => {
@@ -240,12 +271,29 @@ export default function CreateIntegrationDialog({
 
         setSaving(true);
         try {
-            const name = `${selectedForm?.name || formId} → ${selectedPartition?.name || partitionId}`;
+            const name = `${formName} → ${selectedPartition?.name || partitionId}`;
 
             // Filter out empty default values
             const filteredDefaults: Record<string, string> = {};
             for (const [k, v] of Object.entries(defaultValues)) {
                 if (v.trim()) filteredDefaults[k] = v.trim();
+            }
+
+            if (editTarget) {
+                const result = await updateIntegration(editTarget.integration.id, {
+                    name,
+                    partitionId,
+                    fieldMappings,
+                    defaultValues: filteredDefaults,
+                });
+                if (result.success) {
+                    toast.success("연동 설정이 수정되었습니다.");
+                    onCreated();
+                    onOpenChange(false);
+                } else {
+                    toast.error(result.error || "연동 설정을 수정하지 못했습니다.");
+                }
+                return;
             }
 
             const result = await createIntegration({
@@ -275,7 +323,7 @@ export default function CreateIntegrationDialog({
             <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>
-                        연동 추가 ({step}/4 - {STEP_NAMES[step]})
+                        {editing ? "연동 수정" : "연동 추가"} ({step}/4 - {STEP_NAMES[step]})
                     </DialogTitle>
                 </DialogHeader>
 
@@ -382,6 +430,11 @@ export default function CreateIntegrationDialog({
                     {/* Step 2: 대상 파티션 선택 */}
                     {step === 2 && (
                         <>
+                            {editing && (
+                                <p className="text-sm text-muted-foreground">
+                                    리드 폼: <span className="font-medium text-foreground">{formName}</span> (광고 소스는 바꿀 수 없습니다)
+                                </p>
+                            )}
                             <div className="space-y-2">
                                 <Label>워크스페이스</Label>
                                 <Select
@@ -462,7 +515,7 @@ export default function CreateIntegrationDialog({
                                                     })
                                                 }
                                             >
-                                                <SelectTrigger className="flex-1">
+                                                <SelectTrigger className="flex-1" aria-label={`${ff.label} 매핑 컬럼`}>
                                                     <SelectValue placeholder="DB 컬럼 선택" />
                                                 </SelectTrigger>
                                                 <SelectContent position="popper" className="max-h-60">
@@ -476,6 +529,35 @@ export default function CreateIntegrationDialog({
                                             </Select>
                                         </div>
                                     ))}
+                                    {missingTargets.length > 0 && (
+                                        <p role="alert" className="text-sm text-destructive">
+                                            선택한 파티션에 없는 컬럼으로 매핑된 필드가 있습니다:{" "}
+                                            {missingTargets.map(([from, to]) => `${from} → ${to}`).join(", ")}. 다른 컬럼을 고르거나 매핑 안 함으로 바꿔주세요.
+                                        </p>
+                                    )}
+                                    {staleMappings.length > 0 && (
+                                        <div className="rounded-md border border-dashed p-2 text-sm text-muted-foreground space-y-1">
+                                            <p>리드 폼에 더 이상 없는 필드의 매핑입니다. 이 값은 들어오지 않습니다.</p>
+                                            {staleMappings.map((key) => (
+                                                <div key={key} className="flex items-center justify-between gap-2">
+                                                    <span className="font-mono text-xs">{key} → {fieldMappings[key]}</span>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 text-xs"
+                                                        onClick={() => setFieldMappings((prev) => {
+                                                            const next = { ...prev };
+                                                            delete next[key];
+                                                            return next;
+                                                        })}
+                                                    >
+                                                        매핑 삭제
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </>
@@ -519,7 +601,7 @@ export default function CreateIntegrationDialog({
 
                 <DialogFooter className="flex justify-between sm:justify-between">
                     <div>
-                        {step > 1 && (
+                        {step > firstStep && (
                             <Button variant="outline" onClick={handlePrev} disabled={saving}>
                                 &larr; 이전
                             </Button>
@@ -543,7 +625,7 @@ export default function CreateIntegrationDialog({
                         ) : (
                             <Button onClick={handleSubmit} disabled={saving}>
                                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                생성
+                                {editing ? "저장" : "생성"}
                             </Button>
                         )}
                     </div>

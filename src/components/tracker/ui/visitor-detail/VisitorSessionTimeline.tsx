@@ -26,10 +26,13 @@ export function VisitorSessionTimeline({
     sessions,
     events,
     aliases,
+    ownDomains = [],
 }: {
     sessions: TrackerSession[];
     events: TrackerEvent[];
     aliases: Record<string, string>;
+    /** 사이트 허용 도메인 — 자기 사이트에서 온 방문을 직접으로 본다 */
+    ownDomains?: readonly string[];
 }) {
     // 최신 세션은 기본으로 펼침
     const [open, setOpen] = useState<Set<number>>(
@@ -70,6 +73,7 @@ export function VisitorSessionTimeline({
                                 session={s}
                                 events={eventsBySession.get(s.id) ?? []}
                                 aliases={aliases}
+                                ownDomains={ownDomains}
                                 isOpen={open.has(s.id)}
                                 onToggle={() => toggle(s.id)}
                             />
@@ -87,14 +91,16 @@ function SessionItem({
     aliases,
     isOpen,
     onToggle,
+    ownDomains,
 }: {
     session: TrackerSession;
     events: TrackerEvent[];
     aliases: Record<string, string>;
     isOpen: boolean;
     onToggle: () => void;
+    ownDomains: readonly string[];
 }) {
-    const inflow = parseInflowDetail(s.referrer, s.landingPage);
+    const inflow = parseInflowDetail(s.referrer, s.landingPage, ownDomains);
 
     return (
         <li className="rounded border">

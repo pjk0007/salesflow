@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { EsignService } from "./core";
 import { MemoryEsignRepository } from "./memory-repository";
 import { decryptPayload, encryptPayload } from "./crypto";
-import type { EsignActor, EsignArtifact, EsignDocumentInput, EsignJob, SignatureInput } from "./types";
+import { EsignError, type EsignActor, type EsignArtifact, type EsignDocumentInput, type EsignJob, type SignatureInput } from "./types";
 
 const secret = "isolated-esign-test-secret-with-32-characters-minimum";
 const actor: EsignActor = { orgId: "00000000-0000-4000-8000-000000000001", workspaceId: 1, userId: "00000000-0000-4000-8000-000000000002", name: "가상 직원" };
@@ -102,13 +102,17 @@ test("link alone cannot read source, sign or reuse an OTP; verification is sessi
 });
 test("OTP wrong attempts commit, cooldown/expiry apply and codes cannot cross recipients", async () => {
     const f = await fixture({ count: 2 }), one = await f.verify(0);
-    await f.service.requestOtp(f.tokens[1], "email");
-    await assert.rejects(f.service.requestOtp(f.tokens[1], "email"), /잠시 후/);
-    for (let i = 0; i < 5; i++) await assert.rejects(f.service.verifyOtp(f.tokens[1], "wrong"), /일치/);
+    const requested = await f.service.requestOtp(f.tokens[1], "email");
+    await assert.rejects(f.service.requestOtp(f.tokens[1], "email"), (e: EsignError) => e.status === 429 && e.code === "cooldown" && /뒤 확인 코드를 다시 요청/.test(e.message) && e.details?.retryAt === requested.retryAt);
+    // UX-304: 틀릴 때 남은 횟수를 알려 주고, 5번째에는 '만료'가 아니라 횟수 초과와 재요청 가능 시각을 알린다.
+    for (let i = 0; i < 4; i++) await assert.rejects(f.service.verifyOtp(f.tokens[1], "wrong"), (e: EsignError) => e.code === "otp_invalid" && e.details?.remainingAttempts === 4 - i && e.message.includes(`${4 - i}번 더`));
+    await assert.rejects(f.service.verifyOtp(f.tokens[1], "wrong"), (e: EsignError) => e.status === 429 && e.code === "otp_locked" && e.details?.retryAt === requested.expiresAt && /5번 잘못/.test(e.message) && !/만료/.test(e.message));
     assert.equal((await f.repository.read(f.id))!.recipients[1].otpAttempts, 5);
+    assert.equal((await f.repository.read(f.id))!.recipients[1].otpRetryAt, requested.expiresAt, "재요청 가능 시각을 코드 만료 시각으로 올린다");
     f.advance(61000);
-    await assert.rejects(f.service.requestOtp(f.tokens[1], "email"), /잠시 후/);
-    await assert.rejects(f.service.verifyOtp(f.tokens[1], one.code), /만료/);
+    // 60초 쿨다운이 지나도 코드 만료 전에는 재요청이 막히며, 같은 시각을 돌려준다(다른 채널로 요청해도 같은 서명자 제한).
+    await assert.rejects(f.service.requestOtp(f.tokens[1], "email"), (e: EsignError) => e.code === "cooldown" && e.details?.retryAt === requested.expiresAt && /여러 번 잘못/.test(e.message) && /약 4분/.test(e.message));
+    await assert.rejects(f.service.verifyOtp(f.tokens[1], one.code), (e: EsignError) => e.code === "otp_locked");
     f.advance(5 * 60000);
     await f.service.requestOtp(f.tokens[1], "email");
     f.advance(5 * 60000);
@@ -285,7 +289,7 @@ test("bounded expiry cleanup erases retained invitation secrets without reopenin
     await f.service.completeDelivery(job.id, f.id, job.leaseId!, { state: "accepted" });
     f.setTime("2026-10-19T01:00:00.000Z");
     const before = (await f.repository.read(f.id))!;
-    assert.equal((await f.service.listEnvelopes(actor))[0].envelope.state, "expired");
+    assert.equal((await f.service.listEnvelopes(actor)).items[0].envelope.state, "expired");
     assert.deepEqual((await f.repository.read(f.id))!, before, "List polling does not persist or scan mutations");
     assert.equal((await f.service.expireDue()).processed, 1);
     const after = (await f.repository.read(f.id))!;
@@ -363,4 +367,99 @@ test("an exact signed replay is idempotent before aggregate policy checks, while
     assert.equal((await f.repository.read(f.id))!.events.filter((e) => e.type === "recipient.signed").length, 1);
     replay.values[0].raster = { width: 50, height: 100 };
     await assert.rejects(f.service.submitSignature(f.tokens[0], replay), /크기 정보/);
+});
+
+test("UX-189: 고객이 이미지를 만들 수 없는 가는 입력란은 저장·발송 전에 막고 정상 입력란과 기존 문서는 그대로 둔다", async () => {
+    const repository = new MemoryEsignRepository(), service = new EsignService({ repository, secret, clock: () => new Date("2026-10-18T01:00:00.000Z") });
+    const a4 = { pageIndex: 0, width: 595, height: 842, rotation: 0 as const, crop: { x: 0, y: 0, width: 595, height: 842 } };
+    const thin = { id: "thin", recipientIndex: 0, type: "signature" as const, pageIndex: 0, x: 0, y: 0.5, width: 1, height: 0.02, required: true };
+    // 기존(검증 이전) 문서는 그대로 저장돼 있다고 가정한다: 생성 경로는 자동 변경하지 않는다.
+    const legacy = await service.createDocument(actor, { ...documentInput(), pages: [a4], fields: [thin] });
+    assert.equal(legacy.fields[0].height, 0.02);
+    const request = { documentId: legacy.id, title: "가는 서명란", order: "parallel" as const, expiresAt: "2026-10-19T01:00:00.000Z", recipients: [{ name: "가상 고객", email: "fake@example.invalid", channels: ["email" as const] }] };
+    await assert.rejects(service.createEnvelope(actor, request), (e: Error & { code?: string }) => e.code === "field_too_thin" && e.message.includes("1쪽 1번 서명자의 '서명'"));
+    assert.equal((await repository.list(actor, {})).items.length, 0, "발송 작업이 만들어지지 않는다");
+    await assert.rejects(service.updateDocument(actor, legacy.id, { fields: [thin], version: 1 }), /너무 가늘거나 납작/);
+    const fixed = await service.updateDocument(actor, legacy.id, { fields: [{ ...thin, height: 0.07, width: 0.2 }], version: 1 });
+    const created = await service.createEnvelope(actor, { ...request, documentId: fixed.id });
+    assert.equal(created.envelope.state, "draft");
+    // 가로 페이지의 세로 서명란처럼 정상 비율은 허용한다.
+    const landscape = { ...a4, width: 842, height: 595, crop: { x: 0, y: 0, width: 842, height: 595 } };
+    const tall = await service.createDocument(actor, { ...documentInput(), pages: [landscape], fields: [{ ...thin, width: 0.05, height: 0.3 }] });
+    assert.equal((await service.createEnvelope(actor, { ...request, documentId: tall.id })).envelope.state, "draft");
+});
+
+test("UX-304: 1~4회 틀린 뒤 맞는 코드로 인증되고 횟수는 새 코드에서 초기화된다", async () => {
+    const f = await fixture();
+    await f.service.requestOtp(f.tokens[0], "email");
+    for (let i = 0; i < 4; i++) await assert.rejects(f.service.verifyOtp(f.tokens[0], "111111"), /번 더 입력/);
+    const value = (await f.repository.read(f.id))!, code = f.service.decodeJob(value.jobs.filter((j) => j.kind === "otp").at(-1)!).code!;
+    assert.ok((await f.service.verifyOtp(f.tokens[0], code)).verificationToken);
+});
+
+test("UX-226: 실패·확인 필요 초대만 같은 링크로 다시 보내고 중복·순서·종료 상태를 막는다", async () => {
+    const f = await fixture({ count: 2, order: "sequential" });
+    const claim = async () => { const job = (await f.service.claimJob())!; assert.equal(job.kind, "invitation"); return job; };
+    const first = await claim();
+    await f.service.completeDelivery(first.id, f.id, first.leaseId!, { state: "failed", error: "주소 거절" });
+    // 다른 조직·사업은 찾을 수 없다.
+    await assert.rejects(f.service.resendInvitation({ ...actor, workspaceId: 2 }, f.id, { jobId: first.id }), /찾을 수 없습니다/);
+    // 순차 서명에서 차례가 아닌 서명자의 초대는 다시 보낼 수 없다.
+    const blocked = (await f.repository.read(f.id))!.jobs.find((j) => j.recipientId === f.stored.recipients[1].id)!;
+    await assert.rejects(f.service.resendInvitation(actor, f.id, { jobId: blocked.id }), (e: EsignError) => e.code === "waiting");
+    const resent = await f.service.resendInvitation(actor, f.id, { jobId: first.id });
+    const invitations = resent.jobs.filter((j) => j.kind === "invitation" && j.recipientId === f.stored.recipients[0].id);
+    assert.equal(invitations.length, 2); assert.equal(invitations[1].state, "pending");
+    assert.equal(resent.events.filter((e) => e.type === "delivery.resent").length, 1);
+    assert.equal(resent.events.find((e) => e.type === "delivery.resent")!.actorId, actor.userId);
+    // 같은 실패 기록으로 다시 눌러도(중복 클릭·응답 유실) 대기 작업은 하나다.
+    const again = await f.service.resendInvitation(actor, f.id, { jobId: first.id });
+    assert.equal(again.jobs.filter((j) => j.kind === "invitation" && j.recipientId === f.stored.recipients[0].id).length, 2);
+    // 새 작업은 같은 서명 링크를 담고, 이전 실패 작업의 암호 payload는 지운다.
+    const stored = (await f.repository.read(f.id))!, nextJob = stored.jobs.find((j) => j.id === invitations[1].id)!;
+    assert.equal(f.service.decodeJob(nextJob).token, f.tokens[0]);
+    assert.equal(stored.jobs.find((j) => j.id === first.id)!.encryptedPayload, undefined);
+    // 접수됨은 다시 보내지 않고, 확인 필요는 직원 확인 표시가 있어야 한다.
+    const second = await claim();
+    await f.service.completeDelivery(second.id, f.id, second.leaseId!, { state: "unknown", error: "응답 없음" });
+    await assert.rejects(f.service.resendInvitation(actor, f.id, { jobId: first.id }), (e: EsignError) => e.code === "stale_job");
+    await assert.rejects(f.service.resendInvitation(actor, f.id, { jobId: second.id }), (e: EsignError) => e.code === "confirm_required");
+    const confirmed = await f.service.resendInvitation(actor, f.id, { jobId: second.id, confirmUnknown: true });
+    const third = await claim(); assert.equal(f.service.decodeJob((await f.repository.read(f.id))!.jobs.find((j) => j.id === third.id)!).token, f.tokens[0]);
+    await f.service.completeDelivery(third.id, f.id, third.leaseId!, { state: "accepted", providerId: "fake" });
+    assert.equal(confirmed.events.filter((e) => e.type === "delivery.resent").length, 2);
+    await assert.rejects(f.service.resendInvitation(actor, f.id, { jobId: third.id }), (e: EsignError) => e.code === "not_resendable");
+    // 취소 뒤에는 거부한다.
+    await f.service.cancelEnvelope(actor, f.id);
+    await assert.rejects(f.service.resendInvitation(actor, f.id, { jobId: second.id, confirmUnknown: true }), (e: EsignError) => e.status === 409);
+});
+
+test("UX-226: 서명을 마친 서명자·만료·완료 요청은 다시 보내지 않고, 다시 보낸 링크로 완료 알림까지 이어진다", async () => {
+    const f = await fixture();
+    const job = (await f.service.claimJob())!;
+    await f.service.completeDelivery(job.id, f.id, job.leaseId!, { state: "failed", error: "주소 거절" });
+    await f.service.resendInvitation(actor, f.id, { jobId: job.id });
+    const session = await f.verify(0);
+    await f.service.submitSignature(f.tokens[0], f.signature(0, session.verificationToken));
+    await assert.rejects(f.service.resendInvitation(actor, f.id, { jobId: job.id }), (e: EsignError) => e.status === 409);
+    const finalize = await f.claimFinalize();
+    await f.service.finishEnvelope(finalize!.id, f.id, finalize!.leaseId!, { artifact: { key: "esign/completed/x.pdf", sha256: "c".repeat(64), size: 900, contentType: "application/pdf" }, verified: true });
+    const completed = (await f.repository.read(f.id))!.jobs.filter((j) => j.kind === "completed");
+    assert.equal(completed.length, 1); assert.equal(f.service.decodeJob(completed[0]).token, f.tokens[0]);
+    const late = await fixture();
+    const lateJob = (await late.service.claimJob())!;
+    await late.service.completeDelivery(lateJob.id, late.id, lateJob.leaseId!, { state: "failed" });
+    late.advance(2 * 86400000);
+    await assert.rejects(late.service.resendInvitation(actor, late.id, { jobId: lateJob.id }), (e: EsignError) => e.status === 410);
+});
+
+test("UX-262: 초대 작업 payload에 요청 조직명과 기한을 담고, 조직명을 모르면 생략한다", async () => {
+    const repository = new MemoryEsignRepository(), service = new EsignService({ repository, secret, clock: () => new Date("2026-10-18T01:00:00.000Z") });
+    const doc = await service.createDocument(actor, documentInput());
+    const request = { documentId: doc.id, title: "가상 계약", order: "parallel" as const, expiresAt: "2026-10-19T01:00:00.000Z", recipients: [{ name: "가상 고객", email: "fake@example.invalid", channels: ["email" as const] }] };
+    const named = await service.createEnvelope({ ...actor, orgName: " 가상 상사 " }, request);
+    const payload = service.decodeJob((await repository.read(named.envelope.id))!.jobs[0]);
+    assert.equal(payload.orgName, "가상 상사"); assert.equal(payload.expiresAt, "2026-10-19T01:00:00.000Z");
+    const unnamed = await service.createEnvelope(actor, request);
+    assert.equal(service.decodeJob((await repository.read(unnamed.envelope.id))!.jobs[0]).orgName, undefined);
 });

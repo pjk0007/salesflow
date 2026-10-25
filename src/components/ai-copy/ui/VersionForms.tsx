@@ -12,6 +12,11 @@ import type {
     PolicySnapshot,
 } from "@/lib/ai-copy/types";
 import { Field, controlClass, purposeLabel } from "./Fields";
+import {
+    DEFAULT_MEANINGS,
+    switchPurpose,
+    targetFromInput,
+} from "../utils/policy-form";
 // 확인일은 KST 날짜로 고르고 KST 자정 순간으로 저장한다 — 다시 열거나 복제할 때도 KST 날짜로 읽어야 하루씩 밀리지 않는다.
 const today = () => kstParts(new Date()).date;
 type Workspaces = { id: number; name: string }[];
@@ -282,11 +287,14 @@ export function PolicyForm({
     initial,
     onSave,
     pending,
+    models,
 }: {
     workspaces: Workspaces;
     initial?: { workspaceId: number; snapshot: PolicySnapshot };
     onSave: (body: unknown) => Promise<unknown>;
     pending: boolean;
+    /** 서버에 키가 있는 공급자인지(UX-244). 없으면 연결 여부를 표시하지 않는다. */
+    models?: { id: string; configured: boolean }[];
 }) {
     const startPurpose = initial?.snapshot.purpose ?? "visit_ack";
     const [workspaceId, setWorkspaceId] = useState(initial?.workspaceId ?? 0),
@@ -300,8 +308,7 @@ export function PolicyForm({
             "정중한 실무자의 말투로, 부담을 주지 않는 짧은 문장을 자연스럽게 변주하세요.",
     );
     const [meanings, setMeanings] = useState(
-        initial?.snapshot.requiredMeanings.join("\n") ??
-            "갑작스러운 메일에도 방문해 준 것에 대한 감사\n추가로 궁금한 점이 있는지 질문\n전화나 답장으로 문의하면 안내",
+        initial?.snapshot.requiredMeanings.join("\n") ?? DEFAULT_MEANINGS.visit_ack,
     );
     const [forbidden, setForbidden] = useState(
         initial?.snapshot.forbiddenPhrases.join("\n") ??
@@ -319,6 +326,9 @@ export function PolicyForm({
     const [targets, setTargets] = useState(
         initial?.snapshot.targets ?? targetsFor(startPurpose),
     );
+    // 입력 중인 칸의 글자 그대로(빈 칸 포함). 저장 값은 targets에 반올림해 둔다(UX-243).
+    const [targetDrafts, setTargetDrafts] = useState<Partial<Record<string, string>>>({});
+    const configured = (id: string) => models?.find((m) => m.id === id)?.configured ?? true;
     return (
         <form
             className="space-y-4"
@@ -375,16 +385,17 @@ export function PolicyForm({
                             value={purpose}
                             onChange={(e) => {
                                 const value = e.target.value as CopyPurpose;
+                                // 기본값 그대로인 항목만 바꾸고 직접 고친 내용은 보존한다(UX-245).
+                                const next = switchPurpose(
+                                    { meanings, maxCharacters, targets },
+                                    purpose,
+                                    value,
+                                );
                                 setPurpose(value);
-                                setTargets(targetsFor(value));
-                                setMaxCharacters(
-                                    value === "visit_ack" ? 600 : 2000,
-                                );
-                                setMeanings(
-                                    value === "visit_ack"
-                                        ? "갑작스러운 메일에도 방문해 준 것에 대한 감사\n추가로 궁금한 점이 있는지 질문\n전화나 답장으로 문의하면 안내"
-                                        : "승인된 서비스 사실을 고객 맥락에 맞게 소개\n부담을 줄인 추가 문의 안내",
-                                );
+                                setTargets(next.targets);
+                                setTargetDrafts({});
+                                setMaxCharacters(next.maxCharacters);
+                                setMeanings(next.meanings);
                             }}
                         >
                             {["initial_email", "visit_ack"].map((p) => (
@@ -395,7 +406,14 @@ export function PolicyForm({
                         </select>
                     )}
                 </Field>
-                <Field label="생성 모델">
+                <Field
+                    label="생성 모델"
+                    help={
+                        configured(model)
+                            ? undefined
+                            : "이 모델은 서버에 AI 연결이 없어 생성이 'AI 연결 확인 필요'로 보류됩니다. 연결된 모델을 골라 주세요."
+                    }
+                >
                     {(id) => (
                         <select
                             id={id}
@@ -404,8 +422,14 @@ export function PolicyForm({
                             onChange={(e) => setModel(e.target.value)}
                         >
                             {AI_MODELS.map((m) => (
-                                <option key={m.id} value={m.id}>
+                                <option
+                                    key={m.id}
+                                    value={m.id}
+                                    // 미연결 모델은 고를 수 없게 하되, 복제한 버전의 기존 값은 그대로 보여 준다(UX-244).
+                                    disabled={!configured(m.id) && m.id !== initial?.snapshot.model}
+                                >
                                     {m.label}
+                                    {configured(m.id) ? "" : " · 연결 필요"}
                                 </option>
                             ))}
                         </select>
@@ -484,17 +508,17 @@ export function PolicyForm({
                                     className={controlClass}
                                     type="number"
                                     step="any"
-                                    value={Number(
-                                        (targets[t.key] / t.scale).toFixed(3),
-                                    )}
-                                    onChange={(e) =>
-                                        setTargets((v) => ({
-                                            ...v,
-                                            [t.key]:
-                                                Number(e.target.value) *
-                                                t.scale,
-                                        }))
+                                    value={
+                                        targetDrafts[t.key] ??
+                                        String(Number((targets[t.key] / t.scale).toFixed(3)))
                                     }
+                                    onChange={(e) => {
+                                        const raw = e.target.value;
+                                        setTargetDrafts((d) => ({ ...d, [t.key]: raw }));
+                                        const value = targetFromInput(raw, t.scale);
+                                        if (value !== null)
+                                            setTargets((v) => ({ ...v, [t.key]: value }));
+                                    }}
                                     required
                                 />
                             )}

@@ -63,9 +63,9 @@ function extractSearchQuery(params: URLSearchParams | null, referrer: string | n
     return null;
 }
 
-export function parseInflowDetail(referrer: string | null, landingPage: string | null): InflowDetail {
+export function parseInflowDetail(referrer: string | null, landingPage: string | null, ownDomains: readonly string[] = []): InflowDetail {
     const params = getParams(landingPage);
-    const channel = classifyInflow(referrer, landingPage);
+    const channel = classifyInflow(referrer, landingPage, ownDomains);
     const isPaid = isPaidChannel(channel);
 
     return {

@@ -435,7 +435,7 @@ function NewAiAutoPageContent() {
 
                                             <div className="space-y-2">
                                                 <Label>톤</Label>
-                                                <Select value={tone} onValueChange={setTone}>
+                                                <Select value={tone || "default"} onValueChange={(v) => setTone(v === "default" ? "" : v)}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="기본" />
                                                     </SelectTrigger>

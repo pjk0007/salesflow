@@ -11,18 +11,9 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AsyncAlertDialog } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MoreHorizontal, Plus, Star, Trash2, MessageSquare } from "lucide-react";
+import { MoreHorizontal, Plus, Star, Trash2, MessageSquare, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import SenderProfileRegisterDialog from "./SenderProfileRegisterDialog";
 
@@ -30,6 +21,8 @@ export default function SenderProfileList() {
     const { senders, isLoading, deleteSender } = useAlimtalkSenders();
     const { config, setDefaultSender } = useAlimtalkConfig();
     const [registerOpen, setRegisterOpen] = useState(false);
+    // 인증 대기(YSC02) 프로필은 등록 요청부터 다시 하지 않고 인증번호 단계로 이어간다(UX-258)
+    const [resumePlusFriendId, setResumePlusFriendId] = useState<string | null>(null);
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
     const { user } = useSession();
     // 기본 발신프로필 변경·삭제는 조직 전체 발송에 영향을 주므로 관리자만 한다(서버도 403)
@@ -44,15 +37,12 @@ export default function SenderProfileList() {
         }
     };
 
+    // 확인창은 성공해야 닫히고 실패하면 사유를 보여 준다
     const handleDelete = async () => {
         if (!deleteTarget) return;
         const result = await deleteSender(deleteTarget);
-        if (result.success) {
-            toast.success("발신프로필이 삭제되었습니다.");
-        } else {
-            toast.error(result.error || "삭제에 실패했습니다.");
-        }
-        setDeleteTarget(null);
+        if (!result.success) throw new Error(result.error || "삭제에 실패했습니다.");
+        toast.success("발신프로필이 삭제되었습니다.");
     };
 
     if (isLoading) {
@@ -69,7 +59,7 @@ export default function SenderProfileList() {
         <div className="space-y-4">
             <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">발신프로필 목록</h3>
-                <Button onClick={() => setRegisterOpen(true)}>
+                <Button onClick={() => { setResumePlusFriendId(null); setRegisterOpen(true); }}>
                     <Plus className="h-4 w-4 mr-2" />
                     발신프로필 등록
                 </Button>
@@ -140,7 +130,7 @@ export default function SenderProfileList() {
                                     </div>
 
                                     <div className="flex items-center gap-2 mt-3">
-                                        <Badge variant={sender.status === "YSC" ? "default" : "secondary"}>
+                                        <Badge variant={sender.status === "YSC03" ? "default" : "secondary"}>
                                             {sender.statusName || sender.status}
                                         </Badge>
                                         {sender.alimtalk && (
@@ -153,6 +143,16 @@ export default function SenderProfileList() {
                                     <p className="text-xs text-muted-foreground mt-2">
                                         등록일: {sender.createDate}
                                     </p>
+                                    {sender.status === "YSC02" && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="mt-3"
+                                            onClick={() => { setResumePlusFriendId(sender.plusFriendId); setRegisterOpen(true); }}
+                                        >
+                                            <KeyRound className="h-4 w-4 mr-1" /> 인증번호 입력
+                                        </Button>
+                                    )}
                                 </CardContent>
                             </Card>
                         );
@@ -161,24 +161,19 @@ export default function SenderProfileList() {
             )}
 
             <SenderProfileRegisterDialog
+                key={registerOpen ? resumePlusFriendId ?? "new" : "closed"}
                 open={registerOpen}
                 onOpenChange={setRegisterOpen}
+                resumePlusFriendId={resumePlusFriendId}
             />
 
-            <AlertDialog open={!!deleteTarget} onOpenChange={() => setDeleteTarget(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>발신프로필 삭제</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            이 발신프로필을 삭제하시겠습니까? 삭제 후 복구할 수 없습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            <AsyncAlertDialog
+                open={!!deleteTarget}
+                onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+                title="발신프로필 삭제"
+                description="이 발신프로필을 삭제하시겠습니까? 등록한 템플릿도 함께 삭제되며 복구할 수 없습니다."
+                onConfirm={handleDelete}
+            />
         </div>
     );
 }

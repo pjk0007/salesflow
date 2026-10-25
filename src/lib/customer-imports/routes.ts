@@ -89,6 +89,11 @@ export function importItemHandlers(external: boolean) {
                               .min(0)
                               .parse(req.nextUrl.searchParams.get("offset"))
                         : undefined,
+                    {
+                        issues: req.nextUrl.searchParams.get("issues") === "1",
+                        fileAudit:
+                            req.nextUrl.searchParams.get("fileAudit") === "1",
+                    },
                 );
             }),
         POST: (req: NextRequest, c: Context) =>

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { workflowRequest, workflowWrite } from "../api";
 import { useWorkflowPages } from "../hooks/useWorkflowPages";
 import type { WorkflowRun, WorkflowRunDetail } from "../types";
-import { runLabels } from "../utils/labels";
+import { auditLabels, runLabels } from "../utils/labels";
 export function WorkflowRuns({
     id,
     canManage,
@@ -184,8 +184,11 @@ export function WorkflowRuns({
                                     {new Date(h.createdAt).toLocaleString(
                                         "ko-KR",
                                     )}{" "}
-                                    · {h.actorName} · {h.action} ·{" "}
-                                    {String(h.detail.reason ?? "")}
+                                    · {h.actorName} ·{" "}
+                                    {auditLabels[h.action] ?? h.action}
+                                    {h.detail.reason
+                                        ? ` · ${String(h.detail.reason)}`
+                                        : ""}
                                 </p>
                             ))}
                             {canManage && (

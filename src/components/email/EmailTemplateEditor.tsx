@@ -20,6 +20,9 @@ import { assetsToImgHtml, insertAtCursor } from "@/components/email/assets/utils
 import type { SelectedAsset } from "@/components/email/assets/types";
 import { toast } from "sonner";
 import type { EmailTemplate } from "@/lib/db";
+import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
+import { linkTemplateIds } from "@/hooks/useEmailTemplates";
+import { canSaveAsDraft, isSnapshotDirty, type TemplateSnapshot } from "@/components/email/utils/template-draft";
 import { sanitizeEmailHtml } from "@/components/email/utils/sanitizeEmailHtml";
 
 interface SaveData {
@@ -63,7 +66,14 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
 
     // Auto-save state
     const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "unsaved">("idle");
-    const lastSavedRef = useRef<{ name: string; subject: string; htmlBody: string } | null>(null);
+    // 마지막으로 저장된 저장 요청 필드 전부 (UX-142)
+    const lastSavedRef = useRef<TemplateSnapshot | null>(null);
+    // 발행 템플릿은 자동저장·임시저장이 실제 발송 본문을 덮어쓰므로 '수정'으로만 확정한다 (UX-147)
+    const draftAllowed = canSaveAsDraft(template?.status);
+    const { templateLinks } = useEmailTemplateLinks(template && !draftAllowed ? "all" : null);
+    const linkedCount = template
+        ? templateLinks.filter((l) => linkTemplateIds(l.emailTemplateId, l.followupConfig).includes(template.id)).length
+        : 0;
     const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const savingRef = useRef(false);
 
@@ -78,7 +88,14 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
             setTemplateType(template.templateType || "");
             setCategoryId(template.categoryId ?? null);
             setUseUnsubscribe(template.useUnsubscribe === 1);
-            lastSavedRef.current = { name: template.name, subject: template.subject, htmlBody: template.htmlBody };
+            lastSavedRef.current = {
+                name: template.name,
+                subject: template.subject,
+                htmlBody: template.htmlBody,
+                templateType: template.templateType || "",
+                categoryId: template.categoryId ?? null,
+                useUnsubscribe: template.useUnsubscribe === 1,
+            };
         }
     }, [template]);
 
@@ -136,9 +153,16 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         }
     }, [editMode, htmlBody]);
 
-    // AI 스트리밍 상태
+    // AI 스트리밍 상태 — 후보 제목·본문은 미리보기에만 두고, 성공했을 때 함께 적용한다 (UX-143)
     const [isStreaming, setIsStreaming] = useState(false);
     const [streamingHtml, setStreamingHtml] = useState("");
+    const [streamingSubject, setStreamingSubject] = useState("");
+
+    const clearStreaming = useCallback(() => {
+        setIsStreaming(false);
+        setStreamingHtml("");
+        setStreamingSubject("");
+    }, []);
 
     // AI 스트리밍 중간 결과 — subject와 htmlBody를 실시간 파싱
     const handleAiStream = useCallback((fullText: string) => {
@@ -147,7 +171,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         // subject 추출 (완성된 값만)
         const subjectMatch = fullText.match(/"subject"\s*:\s*"((?:[^"\\]|\\.)*)"/);
         if (subjectMatch) {
-            setSubject(subjectMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'));
+            setStreamingSubject(subjectMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, '"'));
         }
 
         // htmlBody 스트리밍 추출 — 시작 위치 이후 모든 내용
@@ -175,14 +199,18 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
 
     // AI 생성 최종 결과 반영
     const handleAiGenerated = useCallback((result: { subject: string; htmlBody: string }) => {
-        setIsStreaming(false);
-        setStreamingHtml("");
+        clearStreaming();
         setSubject(result.subject);
         setHtmlBody(result.htmlBody);
         if (editorRef.current && editMode === "visual") {
             editorRef.current.innerHTML = sanitizeEmailHtml(result.htmlBody);
         }
-    }, [editMode]);
+    }, [editMode, clearStreaming]);
+
+    // 중지·실패: 후보를 버리고 기존 제목·본문을 그대로 보여준다
+    const handleAiSettled = useCallback((outcome: "success" | "failed" | "cancelled") => {
+        if (outcome !== "success") clearStreaming();
+    }, [clearStreaming]);
 
     // 미리보기 — iframe contentDocument에 직접 주입 (스크롤 유지)
     const previewBodyHtml = useMemo(() => {
@@ -226,22 +254,22 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         doc.body.innerHTML = sanitizeEmailHtml(previewBodyHtml);
     }, [previewBodyHtml]);
 
-    // Dirty 체크
-    const isDirty = useCallback(() => {
-        const saved = lastSavedRef.current;
-        if (!saved) return !!(name || subject || htmlBody);
-        return name !== saved.name || subject !== saved.subject || htmlBody !== saved.htmlBody;
-    }, [name, subject, htmlBody]);
+    // Dirty 체크 — 저장 요청에 담는 필드 전부
+    const snapshot = useMemo<TemplateSnapshot>(() => ({
+        name, subject, htmlBody, templateType, categoryId, useUnsubscribe,
+    }), [name, subject, htmlBody, templateType, categoryId, useUnsubscribe]);
+    const isDirty = useCallback(() => isSnapshotDirty(lastSavedRef.current, snapshot), [snapshot]);
 
     // 변경 감지 → unsaved 표시
     useEffect(() => {
         if (initialized.current && isDirty() && autoSaveStatus !== "saving") {
             setAutoSaveStatus("unsaved");
         }
-    }, [name, subject, htmlBody, isDirty, autoSaveStatus]);
+    }, [snapshot, isDirty, autoSaveStatus]);
 
-    // 30초 자동저장
+    // 30초 자동저장 — 새 템플릿·초안만
     useEffect(() => {
+        if (!draftAllowed) return;
         autoSaveTimerRef.current = setInterval(async () => {
             if (!isDirty() || savingRef.current) return;
             if (!name && !subject && !htmlBody) return;
@@ -259,8 +287,10 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     useUnsubscribe: useUnsubscribe ? 1 : 0,
                 });
                 if (result.success) {
-                    lastSavedRef.current = { name, subject, htmlBody };
+                    lastSavedRef.current = snapshot;
                     setAutoSaveStatus("saved");
+                } else {
+                    setAutoSaveStatus("unsaved");
                 }
             } catch {
                 setAutoSaveStatus("unsaved");
@@ -272,11 +302,11 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
         return () => {
             if (autoSaveTimerRef.current) clearInterval(autoSaveTimerRef.current);
         };
-    }, [name, subject, htmlBody, templateType, categoryId, useUnsubscribe, isDirty, onSave]);
+    }, [name, subject, htmlBody, templateType, categoryId, useUnsubscribe, isDirty, onSave, draftAllowed, snapshot]);
 
-    // 임시저장 (수동)
+    // 임시저장 (수동) — 새 템플릿·초안만
     const handleSaveDraft = async () => {
-        if (!name && !subject && !htmlBody) return;
+        if (!draftAllowed || (!name && !subject && !htmlBody)) return;
         setSaving(true);
         savingRef.current = true;
         try {
@@ -290,12 +320,14 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 useUnsubscribe: useUnsubscribe ? 1 : 0,
             });
             if (result.success) {
-                lastSavedRef.current = { name, subject, htmlBody };
+                lastSavedRef.current = snapshot;
                 setAutoSaveStatus("saved");
                 toast.success("임시저장되었습니다.");
             } else {
                 toast.error(result.error || "저장에 실패했습니다.");
             }
+        } catch {
+            toast.error("저장 결과를 확인하지 못했습니다. 잠시 후 다시 시도해주세요.");
         } finally {
             setSaving(false);
             savingRef.current = false;
@@ -317,9 +349,14 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 categoryId,
                 useUnsubscribe: useUnsubscribe ? 1 : 0,
             });
-            if (!result.success) {
+            if (result.success) {
+                lastSavedRef.current = snapshot;
+                setAutoSaveStatus("idle");
+            } else {
                 toast.error(result.error || "발행에 실패했습니다.");
             }
+        } catch {
+            toast.error("저장 결과를 확인하지 못했습니다. 목록에서 반영 여부를 확인해주세요.");
         } finally {
             setSaving(false);
             savingRef.current = false;
@@ -353,14 +390,25 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                         <span className="text-xs text-green-600">임시저장됨</span>
                     )}
                     {autoSaveStatus === "unsaved" && (
-                        <span className="text-xs text-amber-600">변경사항 있음</span>
+                        <span className="text-xs text-amber-600">
+                            {draftAllowed ? "변경사항 있음" : "변경사항 있음 — '수정'을 눌러야 발송에 반영됩니다"}
+                        </span>
+                    )}
+                    {!draftAllowed && autoSaveStatus !== "unsaved" && (
+                        <span className="text-xs text-muted-foreground">
+                            발행된 템플릿은 자동저장하지 않습니다{linkedCount > 0 ? ` · 자동 발송 연결 ${linkedCount}개가 사용 중` : ""}
+                        </span>
                     )}
 
                     {(
                         <Button
                             variant={showAiPanel ? "default" : "outline"}
                             size="sm"
-                            onClick={() => setShowAiPanel(!showAiPanel)}
+                            onClick={() => {
+                                // 패널을 닫으면 진행 중 생성도 멈추므로 후보 미리보기를 정리한다
+                                if (showAiPanel) clearStreaming();
+                                setShowAiPanel(!showAiPanel);
+                            }}
                         >
                             <Sparkles className="h-4 w-4 mr-1" />
                             AI
@@ -369,20 +417,23 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     <Button variant="outline" size="sm" onClick={onCancel}>
                         취소
                     </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleSaveDraft}
-                        disabled={saving || (!name && !subject && !htmlBody)}
-                    >
-                        {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        <Save className="h-4 w-4 mr-1" />
-                        임시저장
-                    </Button>
+                    {draftAllowed && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleSaveDraft}
+                            disabled={saving || isStreaming || (!name && !subject && !htmlBody)}
+                        >
+                            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            <Save className="h-4 w-4 mr-1" />
+                            임시저장
+                        </Button>
+                    )}
                     <Button
                         size="sm"
                         onClick={handlePublish}
-                        disabled={saving || !name || !subject || !htmlBody}
+                        disabled={saving || isStreaming || !name || !subject || !htmlBody}
+                        title={!draftAllowed && linkedCount > 0 ? `자동 발송 연결 ${linkedCount}개에 바로 반영됩니다` : undefined}
                     >
                         {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         {template?.status === "draft" ? "발행" : template ? "수정" : "발행"}
@@ -458,7 +509,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     {/* AI 패널 (접이식) */}
                     {showAiPanel && (
                         <div className="shrink-0 p-4 border-b">
-                            <AiEmailPanel onGenerated={handleAiGenerated} onStream={handleAiStream} />
+                            <AiEmailPanel onGenerated={handleAiGenerated} onStream={handleAiStream} onSettled={handleAiSettled} />
                         </div>
                     )}
 
@@ -528,8 +579,10 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 <div className="w-1/2 flex flex-col min-h-0">
                     {/* 미리보기 헤더 */}
                     <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-                        <span className="text-sm font-medium text-muted-foreground">
-                            {isStreaming ? "AI 생성 중..." : "미리보기"}
+                        <span className="text-sm font-medium text-muted-foreground truncate">
+                            {isStreaming
+                                ? `AI 생성 중...${streamingSubject ? ` 제목 후보: ${streamingSubject}` : ""} (완료되면 적용)`
+                                : "미리보기"}
                         </span>
                         {isStreaming && (
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />

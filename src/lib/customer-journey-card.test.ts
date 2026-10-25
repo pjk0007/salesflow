@@ -83,6 +83,35 @@ test("신청 완료 기록이 있으면 이탈로 표시하지 않는다", () =>
     assert.match(s.recommendation, /온보딩/);
 });
 
+test("UX-222 신청 화면만 보고 입력 행동이 없으면 '입력 시작 후 막힘'으로 안내하지 않는다 — 카드·저장 근거가 같은 뜻", () => {
+    const f = fixture();
+    f.events = f.events.filter((e) => e.eventName !== "subscribe_step_1");
+    const s = summarizeJourney(f, at(1000));
+    assert.equal(s.priority.inputStarted, false);
+    assert.ok(s.priority.evidence.includes("신청 화면 확인 (입력 시작은 미확인)"));
+    assert.equal(s.stage, "신청 화면 확인 (입력 시작 미확인)");
+    assert.match(s.recommendation, /입력을 시작한 기록은 없습니다/);
+    const card = buildJourneyCard(f, at(1000));
+    assert.doesNotMatch(JSON.stringify(card), /신청을 시작한 뒤 완료하지 않았습니다/);
+    assert.doesNotMatch(card.text, /· 신청 시작/);
+});
+
+test("UX-222 명시적 입력 시작·AI 신청 시작·체험 쿠폰은 기존처럼 '신청 시작 뒤 미완료'로 안내한다", () => {
+    const explicit = summarizeJourney(fixture(), at(1000));
+    assert.equal(explicit.priority.inputStarted, true);
+    assert.ok(explicit.priority.evidence.includes("신청 입력·AI 신청 시작 행동"));
+    assert.equal(explicit.stage, "신청 시작");
+    assert.match(explicit.recommendation, /신청을 시작한 뒤 완료하지 않았습니다/);
+
+    for (const [eventType, eventName] of [["CLICK", "ai_entry_click"], ["CLICK", "hero-free-trial"]] as const) {
+        const f = fixture();
+        f.events = f.events.filter((e) => e.eventName !== "subscribe_step_1");
+        f.events.push({ sessionId: 52, eventType, eventName, pageUrl: "https://site.test/signup", pageTitle: null, occurredAt: at(130), properties: null });
+        const s = summarizeJourney(f, at(1000));
+        assert.match(s.recommendation, /신청을 시작한 뒤 완료하지 않았습니다/, eventName);
+    }
+});
+
 test("구매 완료도 완료로 표시한다", () => {
     const f = fixture();
     f.events.push({ ...f.events[4], eventType: "PURCHASE", eventName: "order", occurredAt: at(185) });
@@ -198,7 +227,7 @@ test("카드는 저장한 판정·현재 처리 상태·관리 링크를 표시�
     assert.doesNotMatch(JSON.stringify(card), /챗에 보내지 않을 대응 메모/);
 });
 
-test("cardsV2 전송은 기존 스레드·요청 ID·429 재시도를 함께 쓴다", async () => {
+test("cardsV2 전송은 기존 스레드·고정 메시지 ID·429 재시도를 함께 쓴다", async () => {
     const calls: { url: string; body: Record<string, unknown> }[] = [];
     const post: typeof fetch = async (url, init) => {
         calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
@@ -206,10 +235,11 @@ test("cardsV2 전송은 기존 스레드·요청 ID·429 재시도를 함께 쓴
     };
     const message = buildJourneyCard(fixture(), at(1000));
     const result = await postGoogleChatMessage("https://chat.googleapis.com/v1/spaces/demo/messages?key=fake&token=fake", message, post,
-        { spaceIntervalMs: 0, retryDelayMs: 0, threadKey: "record-42", requestId: "00000000-0000-5000-a000-000000000042" });
+        { spaceIntervalMs: 0, retryDelayMs: 0, threadKey: "record-42", messageId: "client-journey-42" });
     assert.equal(result.ok, true);
     assert.equal(calls.length, 2);
     assert.deepEqual(calls[0].body.cardsV2, message.cardsV2);
     assert.deepEqual(calls[0].body.thread, { threadKey: "record-42" });
-    assert.match(calls[0].url, /requestId=/);
+    assert.match(calls[0].url, /messageId=client-journey-42/);
+    assert.doesNotMatch(calls[0].url, /requestId=/);
 });

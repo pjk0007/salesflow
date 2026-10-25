@@ -73,7 +73,10 @@ export function StaffAccessPanel({
                     </p>
                     <p>
                         <b>접근 없음</b> · 다음 요청부터 해당 사업 접근 중단.
-                        이미 처리 중인 발송은 취소를 보장하지 않습니다.
+                        열람·접근 없음으로 바꾸면 그 직원이 쓴 발송 대기 메일
+                        답장은 보내지 않고 취소됩니다(이미 메일 서비스에 넘긴
+                        답장은 제외). 취소된 답장은 다른 직원이 본문을 다시
+                        넣어 보낼 수 있습니다.
                     </p>
                 </div>
                 {workspaceId > 0 && (
@@ -135,6 +138,17 @@ function Roster({
                                                     ? " · 비활성"
                                                     : ""}
                                             </span>
+                                            {!!m.pendingEmailReplies && (
+                                                <span className="block text-xs text-amber-800">
+                                                    발송 대기 메일 답장{" "}
+                                                    {m.pendingEmailReplies}건
+                                                    {["read", "none"].includes(
+                                                        drafts[m.id] ?? m.role,
+                                                    ) && m.role !== (drafts[m.id] ?? m.role)
+                                                        ? " · 저장하면 모두 취소됩니다"
+                                                        : ""}
+                                                </span>
+                                            )}
                                         </td>
                                         <td>
                                             {m.orgRole !== "member" ? (
@@ -172,6 +186,26 @@ function Roster({
                                                     ))}
                                                 </select>
                                             )}
+                                            {/* UX-101 게시자 권한을 낮추면 그 직원이 게시한 자동화가 모두 실패한다 */}
+                                            {m.orgRole === "member" &&
+                                                !!m.publishedWorkflows &&
+                                                (drafts[m.id] ?? m.role) !==
+                                                    "manager" &&
+                                                (drafts[m.id] ?? m.role) !==
+                                                    m.role && (
+                                                    <p
+                                                        role="alert"
+                                                        className="mt-1 max-w-xs text-xs text-amber-800"
+                                                    >
+                                                        이 직원이 게시한 켜진
+                                                        자동화 {m.publishedWorkflows}
+                                                        개가 저장 후 실행되지
+                                                        않습니다. 운영 관리 권한이
+                                                        있는 직원이 고객
+                                                        자동화에서 다시 게시해야
+                                                        합니다.
+                                                    </p>
+                                                )}
                                         </td>
                                         <td>
                                             {m.orgRole === "member" && (

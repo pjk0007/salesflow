@@ -2,7 +2,7 @@
 import { ConversationServiceStatus } from "@/components/inbox-operations/ui/ConversationServiceStatus";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
@@ -11,6 +11,7 @@ import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
 import type { StaffDraftSession } from "../hooks/staff-draft-session";
 import { AttachmentDrafts } from "./AttachmentDrafts";
 import { MessageHistory } from "./MessageHistory";
+import { inboxDraftStorageKey } from "../utils/draft-storage";
 import { InboxAudit } from "./InboxAudit";
 import { StaffReplyContact } from "@/components/customer-messenger/ui/StaffReplyContact";
 import { CustomerCrmContext } from "./CustomerCrmContext";
@@ -76,7 +77,7 @@ export function ConversationPane({
     const canRespond =
         workspaceAbilities(bootstrap, workspaceId).respond &&
         sharedDrafts.active;
-    const draftStorageKey = `sendb-inbox-draft:${userId}:${chat.id}`;
+    const draftStorageKey = inboxDraftStorageKey(userId, chat.id);
     const emailReply = useEmailReply(chat.emailContext, draftStorageKey);
     const noteMentions = useNoteMentions(
         draftStorageKey,
@@ -208,6 +209,25 @@ export function ConversationPane({
         draftSession.setText(key, value);
         persistDraft(value, key);
     }
+    // 취소된 메일 답장을 새 답장 초안으로 되살린다. 작성 중인 내용은 지우지 않고 뒤에 붙인다.
+    const rewriteRef = useRef<(body: string) => void>(() => {});
+    useEffect(() => {
+        rewriteRef.current = (body) => {
+            const key = `${chat.id}:reply`,
+                current = drafts[key] ?? "";
+            setKind("reply");
+            updateDraft(current.trim() ? `${current}
+
+${body}` : body, key);
+            toast.info(
+                "취소된 답장 본문을 작성란에 넣었습니다. 첨부는 다시 추가해주세요.",
+            );
+        };
+    });
+    const rewriteReply = useCallback(
+        (body: string) => rewriteRef.current(body),
+        [],
+    );
     async function send() {
         if (!canRespond || !draftSession.capture().isCurrent()) return;
         if ((!text.trim() && !attachments.files.length) || busy) return;
@@ -528,7 +548,7 @@ export function ConversationPane({
                             고객이 문의를 작성하고 있습니다.
                         </p>
                     )}
-                    <MessageHistory messages={allMessages} historyOnly={chat.historyOnly} canRespond={canRespond} refresh={refresh} />
+                    <MessageHistory messages={allMessages} historyOnly={chat.historyOnly} canRespond={canRespond} refresh={refresh} onRewrite={rewriteReply} />
                     <div ref={end} />
                 </div>
                 <ConversationPresence agents={presenceAgents} userId={userId} />
@@ -788,7 +808,12 @@ function CustomerInfo({
                           version: tagDraft?.version ?? chat.version,
                       }
                     : {
-                          recordId: recordId ? Number(recordId) : null,
+                          // 숫자만 입력하면 레코드 번호, 그 밖은 화면에 보이는 통합코드로 연결한다.
+                          ...(!recordId.trim()
+                              ? { recordId: null }
+                              : /^\d+$/.test(recordId.trim())
+                                ? { recordId: Number(recordId.trim()) }
+                                : { recordCode: recordId.trim() }),
                           version: recordDraft?.version ?? chat.version,
                       },
             );
@@ -940,13 +965,13 @@ function CustomerInfo({
                     <section className="space-y-3 border-t pt-5">
                         <h3 className="font-semibold">샌드비 CRM 연결</h3>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                            고객을 확인한 뒤 같은 사업의 레코드 번호로
-                            연결하세요.
+                            고객을 확인한 뒤 같은 사업 레코드의 통합코드(레코드
+                            목록에 보이는 코드)를 입력해 연결하세요. 레코드
+                            번호도 입력할 수 있습니다.
                         </p>
                         <input
-                            type="number"
-                            min={1}
-                            aria-label="CRM 레코드 번호"
+                            maxLength={50}
+                            aria-label="CRM 통합코드 또는 레코드 번호"
                             className="w-full rounded-lg border bg-background p-2 text-xs"
                             disabled={!canRespond}
                             value={recordId}
@@ -956,7 +981,7 @@ function CustomerInfo({
                                     version: old?.version ?? chat.version,
                                 }))
                             }
-                            placeholder="레코드 번호"
+                            placeholder="예: SALES-0012"
                         />
                         <button
                             className="text-xs text-[#635BFF]"

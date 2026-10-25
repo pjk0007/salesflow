@@ -1,3 +1,4 @@
+import { nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { NhnEmailClient } from "@/lib/nhn-email";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
         } else {
             return NextResponse.json({
                 success: false,
-                error: `연결 실패: ${result.header.resultMessage}`,
+                error: nhnEmailFailureMessage(result, "연결 확인"),
             });
         }
     } catch (error) {

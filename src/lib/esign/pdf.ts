@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { inflateSync } from "node:zlib";
-import { degrees, PDFDocument, PDFName, PDFNumber } from "pdf-lib";
+import { degrees, EncryptedPDFError, PDFDocument, PDFName, PDFNumber } from "pdf-lib";
 import { normalizePdfRotation, pdfImageTransform, visiblePdfCrop } from "./geometry";
 import { ESIGN_PDF_LIMITS, type PdfImagePlacement, type PdfInspection, type PdfPage } from "./pdf-types";
 export { ESIGN_PDF_LIMITS } from "./pdf-types";
 
+const ENCRYPTED_PDF_MESSAGE = "암호화된 PDF(열기 암호·인쇄/편집 권한 제한 포함)는 사용할 수 없습니다. 제한을 해제한 뒤 PDF로 다시 저장해 주세요.";
 const sha256 = (bytes: Uint8Array) => createHash("sha256").update(bytes).digest("hex");
 
 async function readPdf(bytes: Uint8Array): Promise<{ document: PDFDocument; inspection: PdfInspection }> {
@@ -25,10 +26,13 @@ async function readPdf(bytes: Uint8Array): Promise<{ document: PDFDocument; insp
       throwOnInvalidObject: true,
     });
     sourcePages = document.getPages();
-  } catch {
-    throw new Error("PDF를 읽을 수 없습니다. 암호를 해제하고 정상 PDF로 다시 저장해 주세요.");
+  } catch (error) {
+    // UX-263: 암호·권한 제한과 손상·비표준 파일을 다른 문구로 안내한다(파싱 기준은 완료 PDF와 같아 완화하지 않는다).
+    // pdf-lib의 EncryptedPDFError는 ES5 상속이라 instanceof가 실패할 수 있어 문구·트레일러 표시도 함께 본다.
+    if (error instanceof EncryptedPDFError || (error instanceof Error && /\bis encrypted\b/.test(error.message)) || /\/Encrypt\b/.test(tail)) throw new Error(ENCRYPTED_PDF_MESSAGE);
+    throw new Error("PDF를 읽을 수 없습니다. 파일이 손상되었거나 지원하지 않는 형식입니다. 원본 프로그램에서 PDF로 다시 저장해 주세요.");
   }
-  if (document.isEncrypted) throw new Error("암호화된 PDF는 사용할 수 없습니다.");
+  if (document.isEncrypted) throw new Error(ENCRYPTED_PDF_MESSAGE);
   const count = sourcePages.length;
   if (count < 1 || count > ESIGN_PDF_LIMITS.pages) {
     throw new Error("PDF는 1~30페이지여야 합니다.");

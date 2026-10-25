@@ -81,6 +81,13 @@ export async function linkVisitorByFormSubmit(input: {
     });
     if (!visitor) return;
 
+    // 대표 record_id만 덮어쓰면 이전 폼으로 만든 레코드의 여정에서 이 방문자가 사라진다 —
+    // identify·역매칭처럼 이전·새 레코드를 링크에 누적한다 (UX-285, 멱등)
+    if (visitor.recordId && visitor.recordId !== input.recordId) {
+        await linkVisitorRecord({ orgId: site.orgId, visitorId: visitor.id, recordId: visitor.recordId, source: "form_submit" });
+    }
+    await linkVisitorRecord({ orgId: site.orgId, visitorId: visitor.id, recordId: input.recordId, source: "form_submit" });
+
     await db
         .update(trackerVisitors)
         .set({

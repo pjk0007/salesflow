@@ -1,7 +1,6 @@
 import { isCompleteRecordFilter } from "@/lib/record-filter-input";
 import { NextRequest, NextResponse } from "next/server";
-import { db, records } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { deleteRecordsWhere } from "@/lib/record-delete";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { buildRecordConditions, type RecordFilter } from "@/lib/record-filters";
@@ -40,10 +39,8 @@ export async function POST(
 
         const conditions = buildRecordConditions(partitionId, { filters });
 
-        const deleted = await db
-            .delete(records)
-            .where(and(eq(records.orgId, user.orgId), ...conditions))
-            .returning({ id: records.id });
+        // 삭제 + 방문자 연결 해제(UX-064)
+        const deleted = await deleteRecordsWhere(user.orgId, conditions);
 
         const deletedIds = deleted.map((d) => d.id);
         const sessionId = req.headers.get("x-session-id") as string;

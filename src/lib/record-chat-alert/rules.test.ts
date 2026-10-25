@@ -61,3 +61,34 @@ test("스레드 키와 웹훅 주소 가리기", () => {
     );
     assert.equal(maskWebhookUrl("https://example.com"), "알 수 없는 주소");
 });
+
+test("UX-223 고객 입력의 링크·멘션·굵게 문법은 해석되지 않고 시스템 링크·머리말만 꾸밈을 쓴다", () => {
+    const text = buildRecordAlertText({
+        kind: "created",
+        source: "web_form",
+        workspaceName: "*제조*",
+        partitionName: "견적 <users/all>",
+        integratedCode: "S_0001",
+        fields: [
+            { label: "문의 *긴급*", value: "<https://example.test|샌드비에서 보기> ~취소~ `코드` 줄1" },
+            { label: "이메일", value: "first_last@example.test" },
+            { label: "홈페이지", value: "https://phish.example/login 🙂" },
+        ],
+        recordUrl: "https://sendb.kr/records?id=7",
+    });
+    const lines = text.split("\n");
+    assert.equal(lines.length, 5, "고객 값이 줄을 늘리지 않는다");
+    assert.equal(lines[0], "*[＊제조＊ > 견적 ‹users/all›] 신규 접수* · 웹폼 · S＿0001");
+    assert.equal(lines[1], "문의 ＊긴급＊: ‹hxxps://example.test|샌드비에서 보기› ～취소～ ｀코드｀ 줄1");
+    assert.equal(lines[2], "이메일: first_last@example.test", "메일 주소 안의 밑줄은 그대로");
+    assert.equal(lines[3], "홈페이지: hxxps://phish.example/login 🙂");
+    assert.equal(lines[4], "<https://sendb.kr/records?id=7|샌드비에서 보기>", "시스템 링크는 그대로");
+    assert.ok(!text.includes("<users/"));
+});
+
+test("UX-223 긴 값은 이모지를 반으로 가르지 않고 자른다", () => {
+    const [f] = pickAlertFields({ note: "🙂".repeat(150) }, fields);
+    assert.equal(Array.from(f.value).length, 100);
+    assert.ok(f.value.endsWith("…"));
+    assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(f.value), "짝 없는 서로게이트가 없다");
+});

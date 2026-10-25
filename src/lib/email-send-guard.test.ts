@@ -49,3 +49,15 @@ test("a later unsubscribe is rechecked on every submission and duplicate recipie
     assert.equal(checks, 2);
     if (typeof result !== "string") assert.equal(result.header.resultCode, EMAIL_SEND_BLOCKED);
 });
+test("UX-135 막힌 주소를 모두 결과에 담되 외부 응답 문구에는 주소를 넣지 않는다", async () => {
+    const { checkEmailSubmission } = await import("./email-send-guard");
+    const blocked = new Set(["a@example.test", "c@example.test"]);
+    const decision = await checkEmailSubmission("org-a", ["A@example.test", "b@example.test", "c@example.test"], async (_o, email) => blocked.has(email));
+    assert.equal(decision.allowed, false);
+    if (decision.allowed) return;
+    assert.deepEqual(decision.blockedRecipients, ["a@example.test", "c@example.test"]);
+    assert.equal(decision.rejection.header.resultCode, EMAIL_SEND_BLOCKED);
+    assert.equal(decision.rejection.header.resultMessage.includes("@"), false);
+    const external = await submitEmailWithGuard("org-a", ["a@example.test"], async () => true, async () => "sent");
+    assert.equal(JSON.stringify(external).includes("a@example.test"), false);
+});

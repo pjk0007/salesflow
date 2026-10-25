@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, partitions, records, fieldDefinitions, folders, chatSpaces } from "@/lib/db";
+import { db, partitions, records, folders, chatSpaces } from "@/lib/db";
 import { eq, and, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
@@ -108,27 +108,13 @@ export async function PATCH(
             const newFieldTypeId = fieldTypeId === null ? null : Number(fieldTypeId);
             updateData.fieldTypeId = newFieldTypeId;
 
-            // 속성 타입 변경 시 visibleFields를 새 타입의 필드들로 동기화
-            if (newFieldTypeId) {
-                const typeFields = await db
-                    .select({ key: fieldDefinitions.key })
-                    .from(fieldDefinitions)
-                    .where(eq(fieldDefinitions.fieldTypeId, newFieldTypeId))
-                    .orderBy(fieldDefinitions.sortOrder);
-                updateData.visibleFields = typeFields.map((f) => f.key);
-            } else {
-                // 타입 해제 시 워크스페이스 필드로 복원
-                const wsFields = await db
-                    .select({ key: fieldDefinitions.key })
-                    .from(fieldDefinitions)
-                    .where(eq(fieldDefinitions.workspaceId, access.partition.workspaceId))
-                    .orderBy(fieldDefinitions.sortOrder);
-                updateData.visibleFields = wsFields.map((f) => f.key);
-            }
+            // 속성 타입을 바꾸거나 해제하면 새 속성 목록 전체 표시(null)로 되돌린다(UX-067)
+            updateData.visibleFields = null;
         }
 
-        if (visibleFields !== undefined && Array.isArray(visibleFields)) {
-            updateData.visibleFields = visibleFields;
+        // null 또는 빈 배열 = 전체 표시
+        if (visibleFields === null || (Array.isArray(visibleFields) && visibleFields.every((k) => typeof k === "string"))) {
+            updateData.visibleFields = visibleFields && visibleFields.length > 0 ? visibleFields : null;
         }
 
         if (useDistributionOrder !== undefined) {

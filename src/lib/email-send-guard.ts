@@ -12,7 +12,7 @@ export type EmailSendRejection = {
 };
 export type EmailSendDecision =
     | { allowed: true; recipients: string[] }
-    | { allowed: false; rejection: EmailSendRejection };
+    | { allowed: false; rejection: EmailSendRejection; blockedRecipients?: string[] };
 
 function reject(resultCode: number, resultMessage: string): EmailSendDecision {
     return { allowed: false, rejection: { header: { isSuccessful: false, resultCode, resultMessage }, data: null } };
@@ -29,15 +29,22 @@ export async function checkEmailSubmission(
     const normalized = recipients.map((email) => typeof email === "string" ? normalizeEmail(email) : "");
     if (normalized.some((email) => email.length > 254 || !/^[^\s@<>,;]+@[^\s@<>,;]+$/.test(email)))
         return reject(EMAIL_SEND_INVALID_CONTEXT, "받는 이메일 주소가 올바르지 않아 메일을 보내지 않았습니다.");
+    const blocked: string[] = [];
     try {
         for (const email of new Set(normalized)) {
-            if (await lookup(orgId, email))
-                return reject(EMAIL_SEND_BLOCKED, "이 조직의 수신거부 목록에 등록된 주소가 있어 메일을 보내지 않았습니다.");
+            if (await lookup(orgId, email)) blocked.push(email);
         }
     } catch {
         // An outage must never turn into permission to send. Do not expose DB errors or addresses.
         return reject(EMAIL_SEND_CHECK_FAILED, "수신거부 여부를 확인하지 못해 메일을 보내지 않았습니다. 잠시 후 다시 시도해주세요.");
     }
+    // 문구는 그대로 두고, 직원 화면처럼 필요한 호출부만 막힌 주소를 쓸 수 있게 함께 돌려준다.
+    if (blocked.length)
+        return {
+            allowed: false,
+            rejection: { header: { isSuccessful: false, resultCode: EMAIL_SEND_BLOCKED, resultMessage: "이 조직의 수신거부 목록에 등록된 주소가 있어 메일을 보내지 않았습니다." }, data: null },
+            blockedRecipients: blocked,
+        };
     return { allowed: true, recipients: normalized };
 }
 

@@ -162,7 +162,7 @@ test("늦거나 다시 보내도 실패한 웹훅의 남은 줄은 이번 회차
     assert.deepEqual([tally.requeued, tally.deferred, tally.sent], [1, 1, 1]);
 });
 
-test("시간 초과(이미 올라갔을 수 있음)는 requestId 없이 두 번째 시도에서 그친다, requestId를 쓰면 시도 수를 다 쓴다 (CT-1)", async () => {
+test("시간 초과(이미 올라갔을 수 있음)는 고정 messageId 없이 두 번째 시도에서 그친다, 고정 messageId를 쓰면 시도 수를 다 쓴다 (CT-1)", async () => {
     const timeout: GoogleChatResult = { ok: false, status: null, error: "시간 초과", retryable: true, uncertain: true };
     const a = fakeDeps({ results: { [HOOK_8]: [timeout] } });
     await deliverClaimedBatch([row(1, 8, 2)], new Map(), a.deps, { posted: 0 });

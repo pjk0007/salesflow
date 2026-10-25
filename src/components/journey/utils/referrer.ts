@@ -1,6 +1,8 @@
 // 유입 경로 분류 — referrer + landingPage(utm)를 사람이 읽는 채널 라벨로.
 // 트래커 overview의 채널별 전환·유입 분포도 이 분류기를 공유한다.
 
+import { matchesDomain } from "@/lib/tracker/domain-match";
+
 // 채널 라벨은 동적(소셜은 utm_source명을 그대로) — 고정 enum 아닌 string.
 export type InflowChannel = string;
 
@@ -89,17 +91,24 @@ function titleCase(s: string): string {
 }
 
 // 자체 도메인 referrer = 직접(사이트 내부 클릭/재방문) 판별.
-// 디하/백오피스랩/픽셀앤로직 + 로컬 dev. 추후 사이트 설정으로 도메인 받게 일반화 가능.
-function isOwnDomain(ref: string): boolean {
-    return /designer-hire\.com|backofficelab\.com|pixelandlogic\.com|localhost/i.test(ref);
+// 사이트 설정의 허용 도메인(수집 허용과 같은 matchesDomain 규칙) + 로컬 개발. 코드에 회사 도메인을 박지 않는다 (UX-275).
+function isOwnDomain(ref: string, ownDomains: readonly string[]): boolean {
+    try {
+        const host = new URL(ref).hostname;
+        if (host === "localhost" || host === "127.0.0.1") return true;
+    } catch {
+        return false;
+    }
+    return ownDomains.length > 0 && matchesDomain(ref, [...ownDomains]);
 }
 
 /**
  * 유입 채널 분류.
  * 우선순위: 광고(fbclid/gclid/medium=paid) → 메일 → 소셜(medium=social, source 그대로) →
  *           검색엔진 referrer → 자체 도메인=직접 → referrer 없음=직접 → 기타.
+ * ownDomains: 그 사이트의 허용 도메인(tracker_sites.domains). 같은 사이트 안 이동·새 탭·세션 만료 뒤 재활동을 직접으로 본다.
  */
-export function classifyInflow(referrer: string | null, landingPage: string | null): InflowChannel {
+export function classifyInflow(referrer: string | null, landingPage: string | null, ownDomains: readonly string[] = []): InflowChannel {
     const ref = (referrer ?? "").toLowerCase();
     const utm = parseUtm(landingPage);
 
@@ -136,7 +145,7 @@ export function classifyInflow(referrer: string | null, landingPage: string | nu
     if (/twitter\.com|x\.com|t\.co/.test(ref)) return "X";
 
     // 자체 도메인 또는 referrer 없음 = 직접
-    if (!ref || isOwnDomain(ref)) return "직접";
+    if (!ref || isOwnDomain(ref, ownDomains)) return "직접";
 
     return "기타";
 }
@@ -144,10 +153,10 @@ export function classifyInflow(referrer: string | null, landingPage: string | nu
 /** 첫 유입 원자료 → 활성 방문자 채널별 전환. 분포/필터와 같은 분류 우선순위. */
 export function summarizeChannelConversions(rows: Array<{
     visitor_id: number; is_lead: boolean; referrer: string | null; landing_page: string | null;
-}>) {
+}>, ownDomains: readonly string[] = []) {
     const groups = new Map<string, { visitors: Set<number>; leads: Set<number> }>();
     for (const row of rows) {
-        const channel = classifyInflow(row.referrer, row.landing_page);
+        const channel = classifyInflow(row.referrer, row.landing_page, ownDomains);
         const group = groups.get(channel) ?? { visitors: new Set<number>(), leads: new Set<number>() };
         group.visitors.add(row.visitor_id);
         if (row.is_lead) group.leads.add(row.visitor_id);

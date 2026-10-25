@@ -2,7 +2,7 @@ import { readImportResponse } from "@/components/records/api/import-response";
 import useSWR, { mutate as globalMutate } from "swr";
 import type { DbRecord } from "@/lib/db";
 import type { FilterCondition, ImportResult } from "@/types";
-import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
+import { blockingError, defaultFetcher, RequestError } from "@/lib/swr-fetcher";
 
 interface UseRecordsParams {
     partitionId: number | null;
@@ -131,8 +131,22 @@ export function useRecords(params: UseRecordsParams) {
         const res = await fetch(
             `/api/partitions/${params.partitionId}/records/export?${qs.toString()}`
         );
-        if (!res.ok) throw new Error("Export failed");
-        return res.blob();
+        if (!res.ok) {
+            // 권한·서버 오류의 한국어 안내를 살린다(UX-072)
+            const body = await res.json().catch(() => null);
+            const message = typeof body?.error === "string" ? body.error : "CSV 내보내기에 실패했습니다.";
+            throw new RequestError(message, res.status, typeof body?.error === "string");
+        }
+        // 서버가 정한 파일 이름(KST 날짜)을 그대로 쓴다(UX-073)
+        const disposition = res.headers.get("Content-Disposition") ?? "";
+        const encoded = /filename="([^"]+)"/.exec(disposition)?.[1];
+        let filename: string | null = null;
+        try {
+            filename = encoded ? decodeURIComponent(encoded) : null;
+        } catch {
+            filename = null;
+        }
+        return { blob: await res.blob(), filename };
     };
 
     const bulkImport = async (

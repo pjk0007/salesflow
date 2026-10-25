@@ -6,7 +6,7 @@ import { sql, eq, gte } from "drizzle-orm";
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req, { scope: "account" });
     if (!user?.isSuperAdmin) {
-        return NextResponse.json({ success: false, error: "Not found" }, { status: 404 });
+        return NextResponse.json({ success: false, error: "페이지를 찾을 수 없습니다." }, { status: 404 });
     }
 
     const now = new Date();
@@ -39,9 +39,10 @@ export async function GET(req: NextRequest) {
         db.select({ planName: plans.name, count: sql<number>`count(*)::int` })
             .from(subscriptions).innerJoin(plans, eq(subscriptions.planId, plans.id))
             .where(eq(subscriptions.status, "active")).groupBy(plans.name),
-        db.select({ date: sql<string>`date_trunc('day', ${users.createdAt})::date::text`.as("date"), count: sql<number>`count(*)::int` })
+        // 가입 일별 추이는 DB 세션 시간대가 아니라 KST 날짜로 묶는다(F3 계약)
+        db.select({ date: sql<string>`(${users.createdAt} AT TIME ZONE 'Asia/Seoul')::date::text`.as("date"), count: sql<number>`count(*)::int` })
             .from(users).where(gte(users.createdAt, thirtyDaysAgo))
-            .groupBy(sql`date_trunc('day', ${users.createdAt})`).orderBy(sql`date_trunc('day', ${users.createdAt})`),
+            .groupBy(sql`(${users.createdAt} AT TIME ZONE 'Asia/Seoul')::date`).orderBy(sql`(${users.createdAt} AT TIME ZONE 'Asia/Seoul')::date`),
         db.select({ count: sql<number>`count(*)::int` }).from(records),
         db.select({ count: sql<number>`count(*)::int` }).from(emailSendLogs),
         db.select({ count: sql<number>`count(*)::int` }).from(alimtalkSendLogs),

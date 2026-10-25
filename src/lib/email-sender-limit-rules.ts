@@ -236,7 +236,8 @@ export function hasAnyLimit(s: SenderLimitSettings): boolean {
  *
  * warmupStartedOn부터 date 전날까지 "보낼 수 있는 날" 수다. 달력 날수로 세면 평일만 주소가
  * 금요일에서 월요일로 넘어갈 때 세 단계가 한꺼번에 올라 웜업 뜻이 없어진다.
- * 시작일이 없거나 date가 시작일보다 이르면 0. 정지한 날도 세는 것은 정지 이력이 없어서다 (범위 밖).
+ * 시작일이 없거나 date가 시작일보다 이르면 0. 정지한 날은 여기서 빼지 않는다 — 정지를 풀 때(자동·손 모두)
+ * shiftWarmupStart가 멈춘 날(paused_at)부터의 보낼 수 있는 날만큼 시작일을 미뤄 같은 효과를 낸다.
  */
 export function warmupDayIndex(s: SenderLimitSettings, date: string): number {
     const startedOn = s.warmupStartedOn;
@@ -256,12 +257,12 @@ export function warmupDayIndex(s: SenderLimitSettings, date: string): number {
 }
 
 /**
- * 발신 건강 자동 멈춤을 풀 때 웜업 시작일을 멈춘 동안의 "보낼 수 있는 날" 수만큼 뒤로 옮긴다 (DESIGN-SND 6-5, SND-10).
+ * 정지(발신 건강 자동 멈춤·손 정지)를 풀 때 웜업 시작일을 멈춘 동안의 "보낼 수 있는 날" 수만큼 뒤로 옮긴다 (DESIGN-SND 6-5, SND-10, UX-138).
  *
- * warmupDayIndex는 정지한 날도 센다 (정지 이력이 없어서다). 자동 멈춤에는 멈춘 날(pausedOn, KST)이 남으므로 그 구멍만 메운다:
+ * warmupDayIndex는 정지한 날도 센다. 정지에는 멈춘 날(paused_at → pausedOn, KST)이 남으므로 그 구멍만 메운다:
  * 멈춘 날 ~ 풀린 날 전날 [pausedOn, releasedOn)의 보낼 수 있는 날 수 k만큼 시작일을 보낼 수 있는 날 기준으로 뒤로 민다.
  * 그러면 풀린 날의 웜업 일차 = 멈춘 날의 웜업 일차 → 5일째(35통/일)에 멈춘 주소는 풀린 날 다시 5일째 한도로 시작한다.
- * 웜업이 꺼졌거나 시작일·날짜가 없거나 같은 날 풀면 그대로 돌려준다. 손 정지·손 풀기는 지금 동작 그대로 둔다 (범위 밖).
+ * 웜업이 꺼졌거나 시작일·날짜가 없거나(멈춘 날이 기록되기 전의 옛 정지 포함) 같은 날 풀면 그대로 돌려준다.
  */
 export function shiftWarmupStart(s: SenderLimitSettings, pausedOn: string | null, releasedOn: string): string | null {
     const startedOn = s.warmupStartedOn;

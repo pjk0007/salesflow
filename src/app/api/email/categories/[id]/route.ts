@@ -1,3 +1,4 @@
+import { nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient } from "@/lib/nhn-email";
@@ -33,7 +34,7 @@ export async function PUT(
         if (!result.header.isSuccessful) {
             return NextResponse.json({
                 success: false,
-                error: result.header.resultMessage || "카테고리 수정에 실패했습니다.",
+                error: nhnEmailFailureMessage(result, "카테고리 수정"),
             }, { status: 500 });
         }
 
@@ -70,7 +71,7 @@ export async function DELETE(
         if (!result.header.isSuccessful) {
             return NextResponse.json({
                 success: false,
-                error: result.header.resultMessage || "카테고리 삭제에 실패했습니다.",
+                error: nhnEmailFailureMessage(result, "카테고리 삭제"),
             }, { status: 500 });
         }
 

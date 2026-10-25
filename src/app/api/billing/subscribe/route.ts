@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, plans, subscriptions, payments } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth-admin";
-import { BillingProviderError, executeBilling } from "@/lib/billing";
+import { BillingProviderError, executeBilling, reconcilePendingPayments } from "@/lib/billing";
 
 const fail = (error: string, status: number) => NextResponse.json({ success: false, error }, { status });
 const UNCONFIRMED = "결제 결과를 확인 중입니다. 다시 결제하지 말고 고객센터에 문의해주세요.";
@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
         if (typeof planSlug !== "string" || !planSlug) return fail("플랜을 선택해주세요.", 400);
         const [targetPlan] = await db.select().from(plans).where(eq(plans.slug, planSlug));
         if (!targetPlan) return fail("플랜을 찾을 수 없습니다.", 404);
+        // 오래 남은 미확인 결제는 공급자 주문 조회로 먼저 확정한다. 확정하지 못하면 아래에서 409로 막는다.
+        await reconcilePendingPayments({ orgId: user.orgId });
 
         // 결제 전에 구독 행을 잠그고 pending을 영속화한다. 병렬 요청/응답 유실 뒤 재시도는 새 결제를 만들지 않는다.
         const prepared = await db.transaction(async (tx) => {

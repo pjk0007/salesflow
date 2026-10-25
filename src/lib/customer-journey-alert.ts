@@ -1,6 +1,7 @@
 import type { queryClient } from "./db";
 import { buildJourneyCard, summarizeJourney, type JourneyCardInput, type JourneyCardMessage } from "./customer-journey-card";
-import { postGoogleChatMessage } from "./google-chat";
+import { chatMessageIdFor, postGoogleChatMessage, type GoogleChatResult } from "./google-chat";
+import { MARK_SENT_RETRY_MS, MARK_SENT_TRIES, retry } from "./deep-visitor-alert-delivery";
 import { journeyAlertConfig } from "./customer-journey-alert-config";
 import { journeyOwner } from "./customer-journey-owner";
 import type { JourneyPriority } from "./customer-journey-priority";
@@ -24,6 +25,34 @@ async function removeExcludedFromCohort(conn: Connection, row: CandidateRow, inp
         WHERE org_id = ${row.org_id} AND workspace_id = ${row.workspace_id}
           AND message->'journeyPriority'->>'customerKey' = ${priority.customerKey}
           AND message->'journeyPriority'->>'rankEligible' = 'true'`;
+}
+
+/**
+ * 여정 카드 한 장 보내기 (UX-224). 알림 줄·서버 주소로 만든 고정 messageId를 붙여, 구글에 올라갔는데 sent 기록을 못 남긴 카드를
+ * 다음 회차에 다시 보내도 같은 ID의 409(이미 있음)로 끝나 채팅에 두 번 올라가지 않는다. sent 기록은 깊이 알림처럼 짧게 다시 해 본다.
+ * 그래도 기록이 안 되면 던진다 — 줄은 pending(다음 회차에 같은 ID로 확인)이나 uncertain(멘션, 자동 재전송 안 함)으로 남는다.
+ */
+export async function deliverJourneyCard(args: {
+    post: typeof postGoogleChatMessage;
+    webhookUrl: string;
+    message: { text: string; cardsV2?: unknown[] };
+    env: Env;
+    alert: { id: number; org_id: string; workspace_id: number; record_id: number };
+    mentionUserId?: string;
+    markSent: () => Promise<void>;
+    sleep?: (ms: number) => Promise<void>;
+}): Promise<GoogleChatResult> {
+    const { alert } = args;
+    // 수신 웹훅은 requestId를 지원하지 않는다 (실제 API가 400으로 거절) — 고정 messageId를 쓴다.
+    const result = await args.post(args.webhookUrl, args.message, fetch, {
+        threadKey: `customer-journey-${alert.org_id}-${alert.workspace_id}-${alert.record_id}`,
+        messageId: chatMessageIdFor(args.env, "journey", alert.id),
+        mentionUserId: args.mentionUserId,
+    });
+    if (result.ok) {
+        await retry(args.markSent, MARK_SENT_TRIES, MARK_SENT_RETRY_MS, args.sleep ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms))));
+    }
+    return result;
 }
 
 export interface JourneyAlertStats {
@@ -126,13 +155,18 @@ export async function processCustomerJourneyAlerts(opts: { env?: Env; now?: Date
             await conn`UPDATE customer_journey_alerts SET message = ${JSON.stringify(message)}::jsonb, stage = ${summary.stage},
                 last_activity_at = ${summary.lastActivityAt.toISOString()}, status = ${mentionUserId ? "uncertain" : "pending"},
                 last_error = ${mentionUserId ? "담당자 알림 전송 결과 미확인" : null} WHERE id = ${alert.id}`;
-            // 수신 웹훅은 requestId를 지원하지 않는다 (실제 API가 400으로 거절).
-            const result = await (opts.post ?? postGoogleChatMessage)(config.routes[alert.workspace_id], message, fetch, {
-                threadKey: `customer-journey-${alert.org_id}-${alert.workspace_id}-${alert.record_id}`,
+            const result = await deliverJourneyCard({
+                post: opts.post ?? postGoogleChatMessage,
+                webhookUrl: config.routes[alert.workspace_id],
+                message,
+                env,
+                alert,
                 mentionUserId,
+                markSent: async () => {
+                    await conn`UPDATE customer_journey_alerts SET status = 'sent', sent_at = ${now.toISOString()}, attempts = attempts + 1, last_error = NULL WHERE id = ${alert.id}`;
+                },
             });
             if (result.ok) {
-                await conn`UPDATE customer_journey_alerts SET status = 'sent', sent_at = ${now.toISOString()}, attempts = attempts + 1, last_error = NULL WHERE id = ${alert.id}`;
                 stats.sent++;
             } else {
                 const retry = result.retryable && !result.uncertain && alert.attempts < 4;

@@ -283,3 +283,37 @@ test("읽기 요청의 401은 해당 토큰을 갱신해 한 번만 재시도한
     assert.equal(tokenCalls, 2);
     assert.equal(result.results.length, 0);
 });
+test("UX-132 받는 사람 형식 오류는 첨부 오류가 아니라 mime_invalid로 기록하고 발송하지 않는다", async () => {
+    const { deliverGmailReply } = await import("./gmail");
+    clearGmailTokenCache();
+    const posts: string[] = [];
+    const fetchImpl = (async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes("oauth2.googleapis.com")) return new Response(JSON.stringify({ access_token: "a", expires_in: 3600 }), { status: 200 });
+        if (u.endsWith("/profile")) return new Response(JSON.stringify({ emailAddress: "help@example.test" }), { status: 200 });
+        if (init?.method === "POST") posts.push(u);
+        return new Response("{}", { status: 200 });
+    }) as unknown as typeof fetch;
+    const changes: { action: string; errorCode?: string }[] = [];
+    const client = {
+        claimEmail: async () => ({
+            id: "d1", leaseToken: "00000000-0000-4000-8000-000000000001", from: "help@example.test", googleAccount: "help@example.test",
+            fromName: "상담", recipient: "lead@example.test", recipientTo: ["other@example.test"], recipientCc: [],
+            rfcMessageId: "<d1@example.test>", inReplyTo: "<g1@example.test>", subject: "상담", body: "답장", providerThreadId: "t1", attachments: [],
+        }),
+        changeEmailDelivery: async (_id: string, input: { action: string; errorCode?: string }) => { changes.push(input); return {}; },
+    } as unknown as Parameters<typeof deliverGmailReply>[0];
+    const result = await deliverGmailReply(client, "box", { clientId: "c", clientSecret: "s", refreshToken: "r-mime" }, fetchImpl);
+    assert.deepEqual(result, { deliveryId: "d1", state: "failed" });
+    assert.deepEqual(changes, [{ action: "prepare_failed", leaseToken: "00000000-0000-4000-8000-000000000001", errorCode: "mime_invalid" }]);
+    assert.equal(posts.length, 0);
+});
+test("UX-134 보낸 메일 Message-ID 조회: 있으면 메시지 ID, 없으면 null", async () => {
+    const { findSentGmailReply } = await import("./gmail");
+    const paths: string[] = [];
+    const get = (async (path: string) => { paths.push(path); return paths.length === 1 ? { messages: [{ id: "abc_1" }] } : {}; }) as never;
+    assert.equal(await findSentGmailReply(get, "<id1@example.test>"), "abc_1");
+    assert.equal(await findSentGmailReply(get, "<id2@example.test>"), null);
+    assert.match(decodeURIComponent(paths[0]).replaceAll("+", " "), /q=rfc822msgid:id1@example\.test in:sent/);
+    await assert.rejects(findSentGmailReply(get, "bad id"));
+});

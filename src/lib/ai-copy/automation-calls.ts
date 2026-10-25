@@ -9,6 +9,12 @@ import {
 } from "./generation";
 import { AUTO_DAILY_CALLS, AUTO_DAILY_TOKENS, parseAutoJson } from "./automation-rules";
 import type { CopyProviderResponse } from "./provider";
+import { formatKstHm } from "../kst";
+
+/** 같은 자동 호출을 공급자 실패·시간 초과·잘림·형식 오류로 다시 시도하는 최대 횟수(첫 시도 포함). */
+export const AUTO_CALL_MAX_ATTEMPTS = 3;
+/** n번째 실패 뒤 다시 시도할 때까지 기다리는 시간. */
+export const autoCallRetryDelayMs = (failures: number) => failures * 10 * 60_000;
 
 export async function requireAutomaticBudget(
     conn: CopyConnection,
@@ -70,6 +76,7 @@ export async function callAutomationTask(
         { result: unknown }[]
     >`SELECT result FROM ai_copy_automation_calls WHERE job_id=${job.id}`;
     if (stored?.result !== null && stored?.result !== undefined) return stored.result;
+    // retry는 이전 호출이 일시 실패해 다시 시도할 작업이다(UX-246). held·cancelled만 멈춘다.
     if (job.state === "held" || job.state === "cancelled")
         throw new Error("자동 준비 호출을 완료하지 못했습니다. 기존 지침을 유지합니다.");
     const now = deps.now();
@@ -80,11 +87,16 @@ export async function callAutomationTask(
         await conn`UPDATE ai_copy_generation_attempts SET result='timeout',finished_at=${now.toISOString()},reason='automation_lease_expired' WHERE job_id=${job.id} AND result='running'`;
         throw new Error("자동 호출 결과 불명확: 자동 재호출 없이 기존 지침을 유지합니다.");
     }
+    if (job.state === "retry" && job.retry_at && new Date(job.retry_at) > now)
+        throw new CopyDeferredError(
+            new Date(job.retry_at),
+            `자동 준비 AI 호출 재시도 대기: ${formatKstHm(new Date(job.retry_at))}에 다시 시도합니다.`,
+        );
     await requireAutomaticBudget(conn, input.orgId, now, deps);
     const lease = randomUUID();
     const attempt = await copyTransaction(conn, async () => {
         const [claim] =
-            await conn`UPDATE ai_copy_generation_jobs SET state='generating',attempts=1,lease_token=${lease},lease_until=${new Date(now.getTime() + 60000).toISOString()} WHERE id=${job.id} AND state='pending' RETURNING id`;
+            await conn`UPDATE ai_copy_generation_jobs SET state='generating',attempts=attempts+1,retry_at=NULL,lease_token=${lease},lease_until=${new Date(now.getTime() + 60000).toISOString()} WHERE id=${job.id} AND state IN('pending','retry') AND (retry_at IS NULL OR retry_at<=${now.toISOString()}) RETURNING id`;
         if (!claim)
             throw new CopyDeferredError(
                 new Date(now.getTime() + 60000),
@@ -93,7 +105,8 @@ export async function callAutomationTask(
         await conn`INSERT INTO ai_copy_automation_calls(job_id,cycle_id,kind) VALUES(${job.id},${input.cycleId},${input.kind}) ON CONFLICT DO NOTHING`;
         const [a] = await conn<
             { id: number }[]
-        >`INSERT INTO ai_copy_generation_attempts(job_id,org_id,attempt_number,lease_token,provider,model,started_at) VALUES(${job.id},${input.orgId},1,${lease},${input.policy.provider},${input.policy.model},${now.toISOString()}) RETURNING id`;
+        >`INSERT INTO ai_copy_generation_attempts(job_id,org_id,attempt_number,lease_token,provider,model,started_at)
+            VALUES(${job.id},${input.orgId},(SELECT COALESCE(max(attempt_number),0)+1 FROM ai_copy_generation_attempts WHERE job_id=${job.id}),${lease},${input.policy.provider},${input.policy.model},${now.toISOString()}) RETURNING id`;
         return a;
     });
     const controller = new AbortController();
@@ -135,6 +148,20 @@ export async function callAutomationTask(
         return result;
     } catch (error) {
         await conn`UPDATE ai_copy_generation_attempts SET result=${timedOut ? "timeout" : "provider_failed"},finished_at=${deps.now().toISOString()},duration_ms=${Math.max(0, deps.now().getTime() - now.getTime())},reason='automation_call_failed' WHERE id=${attempt.id}`;
+        // 한 번의 일시 실패로 회차 전체를 '준비 보류'로 끝내지 않는다(UX-246). 상한까지는 같은 작업을 나중에 다시 시도하고
+        // 기존 지연 경로(CopyDeferredError: 회차 유지·retryAt 재실행)를 탄다. 상한을 넘으면 기존처럼 보류한다.
+        const [{ failures }] = await conn<
+            { failures: number }[]
+        >`SELECT count(*)::int AS failures FROM ai_copy_generation_attempts WHERE job_id=${job.id} AND result IN('timeout','provider_failed')`;
+        if (failures < AUTO_CALL_MAX_ATTEMPTS) {
+            const retryAt = new Date(deps.now().getTime() + autoCallRetryDelayMs(failures));
+            await conn`UPDATE ai_copy_generation_jobs SET state='retry',retry_at=${retryAt.toISOString()},reason='자동 준비 일시 실패',lease_until=NULL,lease_token=NULL WHERE id=${job.id}`;
+            const cause = timedOut ? "응답 시간 초과" : error instanceof Error ? error.message : "AI 호출 실패";
+            throw new CopyDeferredError(
+                retryAt,
+                `자동 준비 AI 호출 실패(${failures}/${AUTO_CALL_MAX_ATTEMPTS}회, ${cause}): ${formatKstHm(retryAt)}에 다시 시도합니다.`,
+            );
+        }
         await conn`UPDATE ai_copy_generation_jobs SET state='held',reason='자동 준비 실패',lease_until=NULL,lease_token=NULL WHERE id=${job.id}`;
         throw error;
     } finally {

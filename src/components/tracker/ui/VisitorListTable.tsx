@@ -15,7 +15,8 @@ import type { TrackerVisitorRow } from "../types";
 import { classifyInflow, channelBadgeClass } from "@/components/journey/utils/referrer";
 import { cn } from "@/lib/utils";
 
-export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }) {
+/** ownDomains: 사이트 허용 도메인 — 자기 사이트에서 온 방문을 직접으로 본다 */
+export function VisitorListTable({ visitors, ownDomains = [] }: { visitors: TrackerVisitorRow[]; ownDomains?: readonly string[] }) {
     if (visitors.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
@@ -81,7 +82,7 @@ export function VisitorListTable({ visitors }: { visitors: TrackerVisitorRow[] }
                             </TableCell>
                             <TableCell className="text-center">
                                 {(() => {
-                                    const channel = classifyInflow(v.firstReferrer, v.firstPage);
+                                    const channel = classifyInflow(v.firstReferrer, v.firstPage, ownDomains);
                                     return channel === "직접" ? (
                                         <span className="text-sm text-muted-foreground">-</span>
                                     ) : (

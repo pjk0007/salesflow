@@ -1,13 +1,16 @@
 "use client";
 import { useState, useRef } from "react";
 import { toast } from "sonner";
+import { useApprovedKnowledge } from "../hooks/useApprovedKnowledge";
 import type { SupportCatalog, SupportSettings } from "../types";
 export function SupportSettingsForm({
+    workspaceId,
     catalog,
     members,
     onSave,
     canManage,
 }: {
+    workspaceId: number;
     catalog: SupportCatalog;
     members: { id: string; name: string }[];
     onSave: (value: SupportSettings) => Promise<SupportSettings>;
@@ -16,6 +19,15 @@ export function SupportSettingsForm({
     const [draft, setDraft] = useState(catalog.settings),
         [busy, setBusy] = useState(false),
         [error, setError] = useState("");
+    // 최신 100개 밖의 이전 승인 지식 찾기(UX-301). 선택한 값은 검색·쪽을 바꿔도 목록에 남긴다.
+    const [findOlder, setFindOlder] = useState(false),
+        [knowledgeQuery, setKnowledgeQuery] = useState(""),
+        [picked, setPicked] = useState<SupportCatalog["knowledge"][number] | null>(null);
+    const older = useApprovedKnowledge(workspaceId, knowledgeQuery, findOlder);
+    const knowledgeOptions = [...catalog.knowledge];
+    for (const k of [...(picked ? [picked] : []), ...older.options])
+        if (!knowledgeOptions.some((o) => o.id === k.id))
+            knowledgeOptions.push({ ...k, fingerprint: "" });
     const field =
         "mt-1 w-full rounded-lg border bg-background px-3 py-2 text-sm";
     const saving = useRef(false);
@@ -87,16 +99,14 @@ export function SupportSettingsForm({
                         aria-label="상담 승인 지식"
                         className={field}
                         value={draft.knowledgeVersionId ?? ""}
-                        onChange={(e) =>
-                            setDraft((d) => ({
-                                ...d,
-                                knowledgeVersionId:
-                                    Number(e.target.value) || null,
-                            }))
-                        }
+                        onChange={(e) => {
+                            const id = Number(e.target.value) || null;
+                            setPicked(knowledgeOptions.find((k) => k.id === id) ?? null);
+                            setDraft((d) => ({ ...d, knowledgeVersionId: id }));
+                        }}
                     >
                         <option value="">지식 선택</option>
-                        {catalog.knowledge.map((k) => (
+                        {knowledgeOptions.map((k) => (
                             <option
                                 key={k.id}
                                 value={k.id}
@@ -109,7 +119,46 @@ export function SupportSettingsForm({
                         ))}
                     </select>
                 </label>
-                {draft.knowledgeVersionId && !catalog.knowledge.find((knowledge) => knowledge.id === draft.knowledgeVersionId)?.claims && (
+                <div className="space-y-2 text-xs">
+                    {!findOlder ? (
+                        <button type="button" className="underline" onClick={() => setFindOlder(true)}>
+                            이전 승인 지식 찾기
+                        </button>
+                    ) : (
+                        <>
+                            <input
+                                aria-label="이전 승인 지식 이름 검색"
+                                className={field}
+                                placeholder="지식 이름으로 찾기 (최신 100개 밖의 승인 지식도 찾습니다)"
+                                value={knowledgeQuery}
+                                maxLength={120}
+                                onChange={(e) => setKnowledgeQuery(e.target.value)}
+                            />
+                            {older.error ? (
+                                <p role="alert" className="text-red-600">
+                                    {older.error.message}{" "}
+                                    <button type="button" className="underline" onClick={older.retry}>
+                                        다시 시도
+                                    </button>
+                                </p>
+                            ) : older.loading ? (
+                                <p role="status" className="text-muted-foreground">
+                                    승인 지식을 찾는 중…
+                                </p>
+                            ) : (
+                                <p className="text-muted-foreground">
+                                    찾은 승인 지식은 위 목록에 추가됩니다.
+                                    {older.hasMore && (
+                                        <button type="button" className="ml-2 underline" onClick={older.loadMore}>
+                                            더 보기
+                                        </button>
+                                    )}
+                                </p>
+                            )}
+                        </>
+                    )}
+                </div>
+                {draft.knowledgeVersionId && !knowledgeOptions.find((knowledge) => knowledge.id === draft.knowledgeVersionId)?.claims && (
                     <p role="alert" className="text-sm text-amber-800">선택한 지식에 현재 사용할 수 있는 상담 근거가 없습니다. 확인일과 승인 상태를 검토해주세요.</p>
                 )}
                 <label className="block text-xs">

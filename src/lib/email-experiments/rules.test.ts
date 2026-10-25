@@ -185,3 +185,19 @@ test("회사 미확인 탐색 코호트와 외부 접촉을 확정 성과와 구
     assert.equal(result.exploratory.B.positive, 1);
     assert.ok(result.blocks.some((b) => b.includes("다른 캠페인")));
 });
+
+// UX-158 — 판단 보류 사유가 내부 영문 상태 코드가 아니라 화면과 같은 한국어 이름으로 나온다
+test("판단 보류 사유의 실험 상태는 한국어 이름이다", () => {
+    for (const [state, label] of [
+        ["draft", "초안"],
+        ["evaluated", "사전 점검 완료"],
+        ["paused", "일시 중지"],
+        ["data_check", "데이터 확인"],
+        ["invalidated", "무효화"],
+        ["insufficient_sample", "표본 부족"],
+    ] as const) {
+        const blocks = analyze([], { state }).blocks;
+        assert.ok(blocks.includes(`실험 상태 '${label}' 확인 필요`), `${state}: ${blocks.join(" / ")}`);
+        assert.equal(blocks.some((b) => b.includes(state)), false);
+    }
+});

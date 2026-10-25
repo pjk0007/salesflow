@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-10-25] - 서버 SDK(SendbClient) 전송 오류·시간 제한 정리 (UX-122)
+
+- `request`·파일 업로드·다운로드가 같은 전송 처리를 쓴다: 기본 제한 시간 15초(업로드·다운로드 120초), 생성자 옵션 `timeoutMs`·`uploadTimeoutMs`로 조정.
+- 연결 실패는 `SendbApiError(status 0)`, 시간 초과는 `SendbApiError(status 408)`, JSON이 아닌 응답(게이트웨이 HTML)은 응답 상태를 담은 `SendbApiError`로 통일. 이전에는 업로드·다운로드에서 영어 `SyntaxError`·`TypeError`가 그대로 났다.
+- `createMemberIdentityHandler`는 샌드비 호출 실패를 `{ success: false, error }` JSON(샌드비 상태 또는 502)으로 돌려준다.
+
+---
+
 ## [2026-03-11] - Alimtalk Test Send Complete
 
 ### Summary

@@ -2,6 +2,7 @@ import { classifyEmailSubmission } from "./nhn-submit-result";
 import { db, queryClient, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
 import { eq, ne, and, or, gt, gte, lte, asc, inArray, notInArray, sql } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
+import { unmappedEmailVariables, unmappedVariablesMessage } from "@/lib/email-utils";
 import { evaluateCondition } from "@/lib/alimtalk-automation";
 import { resolveDefaultSignature } from "@/lib/email-sender-resolver";
 import { claimSender, releaseSenderSlot } from "@/lib/email-sender-limit";
@@ -150,6 +151,25 @@ async function sendEmailSingle(
     const workspaceId = await resolveWorkspaceId(link.partitionId);
     if (!workspaceId) return { success: false };
     if (await isUnsubscribed(workspaceId, email)) return { success: false };
+    // 매핑 없는 변수가 남으면 '##회사명##' 원문이 고객에게 나간다 — 자리를 잡기 전에 막고 발송 이력에 이유를 남긴다 (UX-163).
+    // NHN에 넘기지 않은 실패라 중복·쿨다운 확인에 걸리지 않는다 — 매핑을 고치면 다음 트리거에 다시 나간다
+    const mappings = (link.variableMappings as Record<string, string>) || {};
+    const unmapped = unmappedEmailVariables([template.subject, template.htmlBody], mappings);
+    if (unmapped.length > 0) {
+        await db.insert(emailSendLogs).values({
+            orgId,
+            templateLinkId: link.id,
+            partitionId: link.partitionId,
+            recordId: record.id,
+            emailTemplateId: template.id,
+            recipientEmail: email,
+            subject: template.subject,
+            status: "failed",
+            triggerType,
+            resultMessage: unmappedVariablesMessage(unmapped),
+        });
+        return { success: false };
+    }
     // 명단 보류 (DESIGN-SND 6-2) — 대량(가져오기 명단의 첫 메일·반복)만. 폼 제출 등 문의 첫 메일(inbound)은 보지 않는다.
     // 자리 잡기 전에 본다 (한도를 쓰지 않게). 보류 확인 → 회신 막기 순서
     const hold = await getActiveHold(orgId, link.partitionId, purpose);
@@ -183,8 +203,7 @@ async function sendEmailSingle(
         // 서명 결정 (기본 서명 → 레거시 fallback)
         const signatureJson = await resolveDefaultSignature(orgId, config);
 
-        // 변수 매핑
-        const mappings = (link.variableMappings as Record<string, string>) || {};
+        // 변수 매핑 (누락은 위에서 막았다)
         const substitutedSubject = substituteVariables(template.subject, mappings, data);
         let finalBody = substituteVariables(template.htmlBody, mappings, data);
         if (signatureJson) {

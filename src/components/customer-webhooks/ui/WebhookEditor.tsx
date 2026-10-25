@@ -18,6 +18,8 @@ export const eventNames: Record<string, string> = {
     "pipeline.created": "파이프라인 생성",
     "pipeline.updated": "파이프라인 변경",
     "platform.test": "가상 연결 확인",
+    "ai.draft.ready": "AI 답변 초안 준비",
+    "ai.handoff": "AI에서 사람 응대로 전환",
 };
 export function WebhookEditor({
     endpoint,

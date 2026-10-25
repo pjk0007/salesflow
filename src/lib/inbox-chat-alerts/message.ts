@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { defangUrls } from "@/lib/chat-text";
 
 export interface ChatAlertMessage {
     id: number; conversationId: string; channelId: number;
@@ -24,14 +25,16 @@ export function conversationLink(message: Pick<ChatAlertMessage, "conversationId
     return url.href;
 }
 export function chatAlertMessages(message: ChatAlertMessage, baseUrl: string) {
-    const url = conversationLink(message, baseUrl), chunks = splitMessage(message.body);
+    // 고객이 보낸 맨 URL은 직원 채팅에서 눌리지 않게(다른 챗 알림과 같은 규칙). 나누기 전에 바꿔야 카드 예산이 맞다.
+    const url = conversationLink(message, baseUrl), chunks = splitMessage(defangUrls(message.body));
+    const name = defangUrls(message.name), attachments = message.attachments.map(defangUrls);
     return chunks.map((chunk, index) => ({
-        text: `새 고객 메시지 · ${message.channelName} · ${message.name}${chunks.length > 1 ? ` (${index + 1}/${chunks.length})` : ""}`,
+        text: `새 고객 메시지 · ${message.channelName} · ${name}${chunks.length > 1 ? ` (${index + 1}/${chunks.length})` : ""}`,
         cardsV2: [{ cardId: `message-${message.id}-${index}`, card: {
-            header: { title: html(message.name), subtitle: `${html(message.channelName)} · ${message.medium === "email" ? "이메일" : "웹 상담"}` },
+            header: { title: html(name), subtitle: `${html(message.channelName)} · ${message.medium === "email" ? "이메일" : "웹 상담"}` },
             sections: [{ widgets: [
                 { textParagraph: { text: html(chunk || "(첨부 파일 메시지)").replace(/\n/g, "<br>") } },
-                ...(index === chunks.length - 1 && message.attachments.length ? [{ textParagraph: { text: `<b>첨부 ${message.attachments.length}개</b><br>${message.attachments.map(html).join("<br>")}<br>파일은 상담 화면에서 확인해 주세요.` } }] : []),
+                ...(index === chunks.length - 1 && attachments.length ? [{ textParagraph: { text: `<b>첨부 ${attachments.length}개</b><br>${attachments.map(html).join("<br>")}<br>파일은 상담 화면에서 확인해 주세요.` } }] : []),
                 { textParagraph: { text: message.createdAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) } },
                 { buttonList: { buttons: [{ text: "샌드비에서 상담 열기", onClick: { openLink: { url } } }] } },
             ] }],

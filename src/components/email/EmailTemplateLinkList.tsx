@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
+import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
 import { Switch } from "@/components/ui/switch";
 import {
     Select,
@@ -15,19 +16,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AsyncAlertDialog } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
 
 interface Partition {
     id: number;
@@ -49,6 +40,8 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
     const router = useRouter();
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+    // 활성 전환 요청 중인 규칙 — 같은 행 중복 조작을 막는다 (UX-148)
+    const [pendingIds, setPendingIds] = useState<Set<number>>(() => new Set());
 
     const { templateLinks, isLoading, updateLink, deleteLink, loadError, mutate } = useEmailTemplateLinks(selectedPartitionId);
     const selectedPartition = selectedPartitionId !== "all" ? partitions.find((p) => p.id === selectedPartitionId) : null;
@@ -70,19 +63,40 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
         router.push(`/email/links/${linkId}?partitionId=${pId}`);
     };
 
+    // 서버 거부·응답 유실을 모두 안내한다 (UX-148)
     const handleToggleActive = async (link: { id: number; isActive: number }) => {
-        const result = await updateLink(link.id, { isActive: link.isActive === 1 ? 0 : 1 });
-        if (result.success) {
-            toast.success(link.isActive === 1 ? "비활성화되었습니다." : "활성화되었습니다.");
+        if (pendingIds.has(link.id)) return;
+        const stopping = link.isActive === 1;
+        setPendingIds((prev) => new Set(prev).add(link.id));
+        try {
+            const result = await updateLink(link.id, { isActive: stopping ? 0 : 1 });
+            if (result?.success) {
+                toast.success(stopping ? "비활성화되었습니다." : "활성화되었습니다.");
+            } else {
+                toast.error(result?.error || (stopping ? "비활성화에 실패했습니다. 자동 발송이 계속될 수 있습니다." : "활성화에 실패했습니다."));
+            }
+        } catch {
+            toast.error("결과를 확인하지 못했습니다. 목록을 새로고침해 실제 상태를 확인해주세요.");
+            void mutate();
+        } finally {
+            setPendingIds((prev) => {
+                const next = new Set(prev);
+                next.delete(link.id);
+                return next;
+            });
         }
     };
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
-        const result = await deleteLink(deleteTarget);
-        if (result.success) toast.success("규칙이 삭제되었습니다.");
-        else toast.error(result.error || "삭제에 실패했습니다.");
-        setDeleteTarget(null);
+        let result;
+        try {
+            result = await deleteLink(deleteTarget);
+        } catch {
+            throw new Error("삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.");
+        }
+        if (!result?.success) throw new Error(result?.error || "삭제에 실패했습니다.");
+        toast.success("규칙이 삭제되었습니다.");
     };
 
     return (
@@ -150,6 +164,7 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                                 중복방지
                                             </Badge>
                                         )}
+                                        {/* 배열(현재)·객체(예전) 모두 읽는다 — AI 규칙 목록과 같은 배지 (UX-153) */}
                                         {followupBadgeLabel(link.followupConfig) && (
                                             link.triggerType === "manual" ? (
                                                 // 예전에 저장된 수동 연결의 후속 설정 — 수동 발송은 후속을 보내지 않는다 (UX-229)
@@ -174,6 +189,8 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                     <Switch
                                         checked={!!link.isActive}
                                         onCheckedChange={() => handleToggleActive(link)}
+                                        disabled={pendingIds.has(link.id)}
+                                        aria-label={link.isActive ? "자동 발송 중지" : "자동 발송 켜기"}
                                     />
                                     <Button
                                         variant="ghost"
@@ -199,20 +216,14 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
             </CardContent>
 
             {/* 삭제 확인 */}
-            <AlertDialog open={deleteTarget !== null} onOpenChange={(o) => !o && setDeleteTarget(null)}>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>규칙 삭제</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            이 자동 발송 규칙을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+            {/* 실패하면 창을 닫지 않고 오류를 보여준다 (UX-148) */}
+            <AsyncAlertDialog
+                open={deleteTarget !== null}
+                onOpenChange={(o) => { if (!o) setDeleteTarget(null); }}
+                title="규칙 삭제"
+                description="이 자동 발송 규칙을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다."
+                onConfirm={handleDelete}
+            />
         </Card>
     );
 }
