@@ -39,10 +39,12 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
+    AsyncAlertDialog,
+    useAsyncConfirm,
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, HelpCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { useAutoPersonalizedEmail } from "@/hooks/useAutoPersonalizedEmail";
+import { useAutoPersonalizedEmail, type ImpactedExperiment } from "@/hooks/useAutoPersonalizedEmail";
 import { useProducts } from "@/hooks/useProducts";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { FollowupConfigForm } from "@/components/email/FollowupConfigForm";
@@ -80,6 +82,16 @@ const OPERATOR_LABELS: Record<string, string> = {
     eq: "같음",
     ne: "같지 않음",
     contains: "포함",
+};
+
+const EXPERIMENT_STATE_LABELS: Record<string, string> = {
+    running: "모집 중",
+    paused: "일시 중지",
+    enrollment_closed: "모집 종료",
+    observing: "관찰 중",
+    decision_ready: "판단 가능",
+    data_check: "자료 확인 필요",
+    insufficient_sample: "표본 부족",
 };
 
 function HelpTip({ text }: { text: string }) {
@@ -145,13 +157,24 @@ function EditAiAutoPageContent() {
 
     // DB(파티션) 변경 confirm dialog
     const [pendingPartitionId, setPendingPartitionId] = useState<number | null>(null);
-    const { fields: pendingFields } = useResolvedFields(pendingPartitionId);
+    const {
+        fields: pendingFields,
+        isLoading: pendingFieldsLoading,
+        loadError: pendingFieldsError,
+        mutate: reloadPendingFields,
+    } = useResolvedFields(pendingPartitionId);
+    // 새 DB 필드를 실제로 받은 뒤에만 호환 여부를 판단한다 — 미조회와 '필드 0개'를 구별한다
+    const pendingFieldsReady = pendingPartitionId !== null && !pendingFieldsLoading && !pendingFieldsError;
+
+    // 저장이 진행 중 문구 실험을 무효화하게 되면 확인을 받는다 (서버 409 experiment_impact)
+    const [experimentImpact, setExperimentImpact] = useState<{ asDraft: boolean; experiments: ImpactedExperiment[] } | null>(null);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
 
     const selectedProduct = products.find((p) => p.id === productId);
 
     // pending DB로 바꾸면 비워질 필드 키 목록
     const fieldsToReset = (() => {
-        if (!pendingPartitionId || pendingFields.length === 0) return [];
+        if (!pendingFieldsReady) return [];
         const keySet = new Set(pendingFields.map((f) => f.key));
         const candidates: { key: string; label: string }[] = [];
         const lookupLabel = (key: string) =>
@@ -177,7 +200,7 @@ function EditAiAutoPageContent() {
     };
 
     const confirmPartitionChange = () => {
-        if (!pendingPartitionId) return;
+        if (!pendingPartitionId || !pendingFieldsReady) return;
         const keySet = new Set(pendingFields.map((f) => f.key));
         // 비호환 필드 초기화
         if (recipientField && !keySet.has(recipientField)) setRecipientField("");
@@ -233,28 +256,31 @@ function EditAiAutoPageContent() {
         }
     }, [link, loaded]);
 
-    const handleSave = async (asDraft = false) => {
-        if (!asDraft && (!recipientField || !companyField)) {
-            toast.error("필수 항목을 입력해주세요.");
-            return;
-        }
-        setSaving(true);
-        try {
-            const triggerCondition = conditionEnabled && conditionField
-                ? { field: conditionField, operator: conditionOperator, value: conditionValue }
-                : null;
+    const isDraftRule = (link as unknown as { isDraft?: number })?.isDraft === 1;
 
-            const result = await updateLink(linkId, {
-                name: name || undefined,
+    /**
+     * 저장 요청 하나. 실패는 한국어 Error로 던진다(버튼은 토스트, 확인창은 창 안에 표시).
+     * 진행 중 문구 실험이 무효화되는 변경이면 저장하지 않고 해당 실험 목록을 돌려준다.
+     */
+    const submit = async (asDraft: boolean, confirmExperimentImpact = false): Promise<ImpactedExperiment[] | null> => {
+        const triggerCondition = conditionEnabled && conditionField
+            ? { field: conditionField, operator: conditionOperator, value: conditionValue }
+            : null;
+        let result;
+        try {
+            result = await updateLink(linkId, {
+                // 수정에서 빈 문자열은 '지움'이다 — 서버가 null로 저장한다 (생성의 '생략'과 구분)
+                name,
                 partitionId: currentPartitionId,
                 productId,
                 ctaUrl: ctaUrl.trim(),
                 triggerType,
                 recipientField,
                 companyField,
-                prompt: prompt || undefined,
-                tone: tone || undefined,
-                model,
+                prompt,
+                tone,
+                // 모델을 고르지 않은 규칙은 그대로 둔다(기본 모델로 생성) — 저장만으로 실험 비교 조건이 바뀌지 않게
+                model: !link?.model && model === DEFAULT_MODEL_ID ? null : model,
                 format,
                 autoResearch: autoResearch ? 1 : 0,
                 useSignaturePersona: useSignaturePersona ? 1 : 0,
@@ -266,13 +292,46 @@ function EditAiAutoPageContent() {
                 signatureId,
                 assetIds,
                 isDraft: asDraft ? 1 : 0,
+                ...(confirmExperimentImpact && { confirmExperimentImpact: true }),
             });
-            if (result.success) {
-                toast.success(asDraft ? "임시저장되었습니다." : "규칙이 수정되었습니다.");
-                router.push("/email?tab=ai-auto");
-            } else {
-                toast.error(result.error || "저장에 실패했습니다.");
-            }
+        } catch {
+            throw new Error("저장 결과를 확인하지 못했습니다. 목록에서 반영 여부를 확인한 뒤 다시 시도해주세요.");
+        }
+        if (result?.code === "experiment_impact" && Array.isArray(result.experiments)) {
+            return result.experiments as ImpactedExperiment[];
+        }
+        if (!result?.success) throw new Error(result?.error || "저장에 실패했습니다.");
+        toast.success(asDraft ? "임시저장되었습니다." : "규칙이 수정되었습니다.");
+        router.push("/email?tab=ai-auto");
+        return null;
+    };
+
+    const saveOrAskImpact = async (asDraft: boolean) => {
+        const experiments = await submit(asDraft);
+        if (experiments) setExperimentImpact({ asDraft, experiments });
+    };
+
+    const handleSave = async (asDraft = false) => {
+        if (!asDraft && (!recipientField || !companyField)) {
+            toast.error("필수 항목을 입력해주세요.");
+            return;
+        }
+        // 초안을 정식으로 저장하면 자동 발송이 켜진다 — 상태가 바뀌는 저장만 확인을 받는다 (UX-139)
+        if (!asDraft && isDraftRule) {
+            confirm({
+                title: "정식 저장하고 자동 발송을 켤까요?",
+                description: `정식 저장하면 이 규칙이 활성화되어 이후 레코드 ${triggerType === "on_update" ? "수정" : "생성"} 시 조건에 맞으면 AI 메일이 자동 발송됩니다.`,
+                confirmLabel: "정식 저장",
+                pendingLabel: "저장 중...",
+                onConfirm: () => saveOrAskImpact(false),
+            });
+            return;
+        }
+        setSaving(true);
+        try {
+            await saveOrAskImpact(asDraft);
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "저장에 실패했습니다.");
         } finally {
             setSaving(false);
         }
@@ -325,7 +384,10 @@ function EditAiAutoPageContent() {
                             </Select>
                         </div>
                         <div className="flex items-center gap-2">
-                            {(link as unknown as { isDraft?: number })?.isDraft === 1 && (
+                            {!isDraftRule && link.isActive !== 1 && (
+                                <span className="text-xs text-muted-foreground">중지된 규칙입니다. 저장해도 중지 상태가 유지됩니다.</span>
+                            )}
+                            {isDraftRule && (
                                 <Button variant="outline" onClick={() => handleSave(true)} disabled={saving}>
                                     {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                                     임시저장
@@ -333,7 +395,7 @@ function EditAiAutoPageContent() {
                             )}
                             <Button onClick={() => handleSave(false)} disabled={saving || !recipientField || !companyField}>
                                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                                {(link as unknown as { isDraft?: number })?.isDraft === 1 ? "정식 저장" : "수정"}
+                                {isDraftRule ? "정식 저장" : "수정"}
                             </Button>
                         </div>
                     </div>
@@ -538,7 +600,7 @@ function EditAiAutoPageContent() {
 
                                             <div className="space-y-2">
                                                 <Label>톤</Label>
-                                                <Select value={tone} onValueChange={setTone}>
+                                                <Select value={tone || "default"} onValueChange={(v) => setTone(v === "default" ? "" : v)}>
                                                     <SelectTrigger>
                                                         <SelectValue placeholder="기본" />
                                                     </SelectTrigger>
@@ -784,11 +846,20 @@ function EditAiAutoPageContent() {
                         <AlertDialogHeader>
                             <AlertDialogTitle>DB를 변경하시겠습니까?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                {fieldsToReset.length === 0
-                                    ? "기존 설정이 모두 호환됩니다. 그대로 적용됩니다."
-                                    : "새 DB에 동일한 필드가 없어 다음 항목이 초기화됩니다. 변경 후 다시 선택해주세요."}
+                                {pendingFieldsError
+                                    ? "새 DB의 필드를 불러오지 못해 호환 여부를 확인할 수 없습니다. 다시 시도해주세요."
+                                    : !pendingFieldsReady
+                                        ? "새 DB의 필드를 확인하는 중입니다..."
+                                        : fieldsToReset.length === 0
+                                            ? "기존 설정이 모두 호환됩니다. 그대로 적용됩니다."
+                                            : "새 DB에 동일한 필드가 없어 다음 항목이 초기화됩니다. 변경 후 다시 선택해주세요."}
                             </AlertDialogDescription>
                         </AlertDialogHeader>
+                        {pendingFieldsError != null && (
+                            <Button variant="outline" size="sm" className="self-start" onClick={() => reloadPendingFields()}>
+                                다시 시도
+                            </Button>
+                        )}
                         {fieldsToReset.length > 0 && (
                             <ul className="text-sm text-foreground bg-muted/50 rounded p-3 space-y-1">
                                 {fieldsToReset.map((f) => (
@@ -801,10 +872,40 @@ function EditAiAutoPageContent() {
                         )}
                         <AlertDialogFooter>
                             <AlertDialogCancel onClick={cancelPartitionChange}>취소</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmPartitionChange}>변경</AlertDialogAction>
+                            <AlertDialogAction onClick={confirmPartitionChange} disabled={!pendingFieldsReady}>
+                                {pendingFieldsLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                                변경
+                            </AlertDialogAction>
                         </AlertDialogFooter>
                     </AlertDialogContent>
                 </AlertDialog>
+
+                {confirmationDialog}
+
+                <AsyncAlertDialog
+                    open={experimentImpact !== null}
+                    onOpenChange={(open) => { if (!open) setExperimentImpact(null); }}
+                    title="진행 중인 문구 실험이 있습니다"
+                    description={"이 변경을 저장하면 아래 실험이 비교하는 규칙 조건이 달라져, 다음 발송 준비 때 실험이 무효화됩니다.\n이미 실험에 배정된 미발송 메일은 실험을 종료할 때까지 보류됩니다. 이메일 > 문구 실험에서 실험을 종료하며 남은 메일을 계속 보낼지 취소할지 고를 수 있습니다."}
+                    confirmLabel="그래도 저장"
+                    pendingLabel="저장 중..."
+                    onConfirm={async () => {
+                        if (!experimentImpact) return;
+                        await submit(experimentImpact.asDraft, true);
+                    }}
+                >
+                    <ul className="text-sm bg-muted/50 rounded p-3 space-y-1">
+                        {experimentImpact?.experiments.map((e) => (
+                            <li key={e.id}>
+                                • <span className="font-medium">{e.name}</span>
+                                <span className="text-muted-foreground"> ({EXPERIMENT_STATE_LABELS[e.state] ?? e.state})</span>
+                            </li>
+                        ))}
+                    </ul>
+                    <Button variant="link" className="h-auto p-0 self-start" onClick={() => router.push("/email?tab=experiments")}>
+                        문구 실험 보기
+                    </Button>
+                </AsyncAlertDialog>
             </TooltipProvider>
         </WorkspaceLayout>
     );
