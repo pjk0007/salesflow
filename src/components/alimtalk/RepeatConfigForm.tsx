@@ -7,10 +7,9 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import type { FieldDefinition } from "@/types";
 
-interface RepeatConfig {
+export interface RepeatConfig {
     intervalHours: number;
     maxRepeat: number;
     stopCondition: {
@@ -43,39 +42,23 @@ const MAX_REPEAT_OPTIONS = Array.from({ length: 10 }, (_, i) => ({
     label: `${i + 1}회`,
 }));
 
+/** 바깥 "반복 발송" 스위치를 켤 때 바로 쓰는 기본값(UX-252: 안쪽 체크박스를 따로 켜지 않아도 저장된다) */
+export const DEFAULT_REPEAT_CONFIG: RepeatConfig = {
+    intervalHours: 24,
+    maxRepeat: 3,
+    stopCondition: { field: "", operator: "eq", value: "" },
+};
+
 export default function RepeatConfigForm({
     fields,
-    value,
+    value: current,
     onChange,
 }: RepeatConfigFormProps) {
-    const enabled = value !== null;
-
-    const handleToggle = (checked: boolean) => {
-        if (checked) {
-            onChange({
-                intervalHours: 24,
-                maxRepeat: 3,
-                stopCondition: { field: "", operator: "eq", value: "" },
-            });
-        } else {
-            onChange(null);
-        }
-    };
+    // 사용 여부는 화면의 "반복 발송" 스위치 하나로만 정한다. 값이 비어 있으면 기본값으로 보여 준다.
+    const value = current ?? DEFAULT_REPEAT_CONFIG;
 
     return (
         <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex items-center gap-2">
-                <Checkbox
-                    id="repeat-enabled"
-                    checked={enabled}
-                    onCheckedChange={handleToggle}
-                />
-                <label htmlFor="repeat-enabled" className="text-sm font-medium cursor-pointer">
-                    반복 발송 사용
-                </label>
-            </div>
-
-            {enabled && value && (
                 <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-1">
@@ -180,9 +163,13 @@ export default function RepeatConfigForm({
                                 placeholder="값"
                             />
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                            {value.stopCondition.field
+                                ? "조건이 충족되면 남은 횟수와 관계없이 반복을 멈춥니다."
+                                : "필드를 고르지 않으면 중단 조건 없이 최대 횟수까지 반복합니다."}
+                        </p>
                     </div>
                 </div>
-            )}
         </div>
     );
 }

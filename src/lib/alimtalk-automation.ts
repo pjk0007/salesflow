@@ -125,6 +125,26 @@ async function checkCooldown(
 // 단건 자동 발송
 // ============================================
 
+/** 자동·반복·후속 발송이 공급자 접수 전에 멈춘 사유를 발송 이력에 남긴다(쿨다운·중복 판정은 failed를 보지 않는다). */
+async function recordAutomationFailure(
+    link: Pick<AlimtalkTemplateLink, "id" | "partitionId" | "senderKey" | "templateCode" | "templateName">,
+    recordId: number,
+    orgId: string,
+    triggerType: "auto" | "repeat" | "followup",
+    stepIndex: number,
+    recipientNo: string,
+    message: string,
+) {
+    try {
+        await db.insert(alimtalkSendLogs).values({ orgId, templateLinkId: link.id, partitionId: link.partitionId,
+            recordId, senderKey: link.senderKey, templateCode: link.templateCode,
+            templateName: link.templateName, recipientNo, status: "failed", resultMessage: message,
+            triggerType, stepIndex });
+    } catch (err) {
+        console.error(`[alimtalk] link ${link.id} record ${recordId}: 실패 사유 기록 실패 — ${message}`, err);
+    }
+}
+
 async function sendSingle(
     link: AlimtalkTemplateLink,
     record: DbRecord,
@@ -153,16 +173,27 @@ async function sendSingle(
         }
     }
 
-    const result = await sendAlimtalkForOrg({
-        orgId, senderKey: link.senderKey, templateCode: link.templateCode, triggerType, dedupeSince,
-        recipients: [{ phoneNumber: recipientNo, templateParameter, recordId: record.id,
-            templateLinkId: link.id, partitionId: link.partitionId, stepIndex }],
-    });
+    let result: Awaited<ReturnType<typeof sendAlimtalkForOrg>>;
+    try {
+        result = await sendAlimtalkForOrg({
+            orgId, senderKey: link.senderKey, templateCode: link.templateCode, triggerType, dedupeSince,
+            recipients: [{ phoneNumber: recipientNo, templateParameter, recordId: record.id,
+                templateLinkId: link.id, partitionId: link.partitionId, stepIndex }],
+        });
+    } catch (err) {
+        // 공급자 발송 호출 자체는 send-service 안에서 잡힌다 — 여기 오는 예외는 접수 전(설정·템플릿 조회·이력 준비) 단계다.
+        console.error(`[alimtalk] link ${link.id} record ${record.id}: 발송 준비 실패`, err);
+        await recordAutomationFailure(link, record.id, orgId, triggerType, stepIndex, recipientNo,
+            "발송 준비 중 오류가 발생해 발송하지 않았습니다. 알림톡 설정과 템플릿을 확인해주세요.");
+        return null;
+    }
     if (!result.ok) {
-        await db.insert(alimtalkSendLogs).values({ orgId, templateLinkId: link.id, partitionId: link.partitionId,
-            recordId: record.id, senderKey: link.senderKey, templateCode: link.templateCode,
-            templateName: link.templateName, recipientNo, status: "failed", resultMessage: result.error,
-            triggerType, stepIndex });
+        // 이미 접수·미확인 이력이 있어 막힌 경우는 그 이력이 사유다. 실패 줄을 덧붙이지 않는다.
+        if (result.code !== "duplicate") {
+            const preError = result.errors?.[0]?.error;
+            await recordAutomationFailure(link, record.id, orgId, triggerType, stepIndex, recipientNo,
+                preError ? `${preError} (수신번호 필드: ${link.recipientField})` : result.error);
+        }
         return null;
     }
     // 후속 체인은 최종 배달이 아닌 공급자 개별 접수 확인을 기준으로 한다.
@@ -185,7 +216,16 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
     const { record, partitionId, triggerType, orgId } = params;
 
     // 해당 파티션의 매칭 triggerType을 가진 active 링크 조회
-    const links = await db
+    const links = await loadActiveLinks(partitionId, triggerType);
+
+    console.log(`[alimtalk] trigger: ${triggerType}, partition: ${partitionId}, record: ${record.id}, links: ${links.length}`);
+    if (links.length === 0) return;
+
+    await processLinksForRecord(links, record, orgId);
+}
+
+async function loadActiveLinks(partitionId: number, triggerType: AutoTriggerParams["triggerType"]) {
+    return db
         .select()
         .from(alimtalkTemplateLinks)
         .where(
@@ -195,10 +235,38 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
                 eq(alimtalkTemplateLinks.isActive, 1)
             )
         );
+}
 
-    console.log(`[alimtalk] trigger: ${triggerType}, partition: ${partitionId}, record: ${record.id}, links: ${links.length}`);
-    if (links.length === 0) return;
+/**
+ * 가져오기·예약 등록처럼 한 번에 많은 레코드가 생길 때의 자동 알림톡(UX-254).
+ * 연결은 한 번만 읽고, 레코드는 후속 큐와 같은 5건 병렬 + 1초 간격으로 처리해 공급자 호출이 한꺼번에 몰리지 않게 한다.
+ * 레코드별 판정(조건·중복·쿨다운·실패 사유 기록)은 단건 경로(processLinksForRecord)와 같다.
+ */
+export async function processAutoTriggerBatch(
+    recordList: DbRecord[],
+    ctx: { partitionId: number; orgId: string; triggerType?: AutoTriggerParams["triggerType"] },
+    options: { batchDelayMs?: number } = {},
+): Promise<{ processed: number; failed: number }> {
+    const links = await loadActiveLinks(ctx.partitionId, ctx.triggerType ?? "on_create");
+    const stats = { processed: 0, failed: 0 };
+    if (links.length === 0 || recordList.length === 0) return stats;
+    const delay = options.batchDelayMs ?? BATCH_DELAY_MS;
+    for (let i = 0; i < recordList.length; i += BATCH_SIZE) {
+        const batch = recordList.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(batch.map((record) => processLinksForRecord(links, record, ctx.orgId)));
+        for (const r of results) {
+            stats.processed++;
+            if (r.status === "rejected") {
+                stats.failed++;
+                console.error("[alimtalk] import batch error:", r.reason);
+            }
+        }
+        if (i + BATCH_SIZE < recordList.length && delay > 0) await new Promise((r) => setTimeout(r, delay));
+    }
+    return stats;
+}
 
+async function processLinksForRecord(links: AlimtalkTemplateLink[], record: DbRecord, orgId: string): Promise<void> {
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
@@ -507,8 +575,8 @@ export async function processAlimtalkFollowupQueue(): Promise<FollowupQueueStats
     }
 }
 
-// 단건 처리
-async function processFollowupItem(
+// 단건 처리 (큐 선점은 processAlimtalkFollowupQueue가 한다 — 시험은 이 함수를 직접 부른다)
+export async function processFollowupItem(
     item: typeof alimtalkFollowupQueue.$inferSelect,
     stats: FollowupQueueStats
 ): Promise<void> {
@@ -536,6 +604,14 @@ async function processFollowupItem(
         if (!link?.followupConfig || link.isActive !== 1) {
             await closeQueueItem(item.id, "failed");
             stats.failed++;
+            // 비활성화로 멈춘 대기 후속은 이력에 사유를 남긴다. 재활성화해도 닫힌 큐는 다시 열지 않는다.
+            if (link && link.isActive !== 1) {
+                const step = normalizeFollowupConfig(link.followupConfig)[item.stepIndex];
+                await recordAutomationFailure(
+                    { ...link, senderKey: step?.senderKey || link.senderKey, templateCode: step?.templateCode || link.templateCode, templateName: step?.templateName || null },
+                    parentLog.recordId, item.orgId, "followup", item.stepIndex + 1, "",
+                    "연결이 비활성화되어 후속 발송을 중단했습니다. 다시 활성화해도 이 단계는 발송되지 않습니다.");
+            }
             return;
         }
 

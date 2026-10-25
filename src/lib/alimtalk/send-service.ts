@@ -59,6 +59,8 @@ export interface SendAlimtalkErr {
     ok: false;
     status: number;
     error: string;
+    /** 자동 경로가 이력 기록 여부를 정할 때 쓴다. duplicate는 이미 이력이 있으므로 새 실패 줄을 만들지 않는다. */
+    code?: "duplicate" | "inactive";
     errors?: SendAlimtalkPreError[];
 }
 
@@ -190,7 +192,7 @@ export async function sendAlimtalkForOrg(
             for (const r of validRecipients) {
                 const [link] = await tx.select({ isActive: alimtalkTemplateLinks.isActive, preventDuplicate: alimtalkTemplateLinks.preventDuplicate })
                     .from(alimtalkTemplateLinks).where(and(eq(alimtalkTemplateLinks.id, r.templateLinkId!), eq(alimtalkTemplateLinks.partitionId, r.partitionId!)));
-                if (link?.isActive !== 1) return { ok: false, status: 409, error: "규칙이 꺼져 있어 발송하지 않았습니다." };
+                if (link?.isActive !== 1) return { ok: false, status: 409, code: "inactive", error: "규칙이 꺼져 있어 발송하지 않았습니다." };
                 const since = input.dedupeSince ?? new Date(Date.now() - 60 * 60 * 1000);
                 const accepted = or(inArray(alimtalkSendLogs.status, ["sent", "pending"]), isNotNull(alimtalkSendLogs.requestId));
                 const sameRun = triggerType === "auto"
@@ -200,7 +202,7 @@ export async function sendAlimtalkForOrg(
                     eq(alimtalkSendLogs.orgId, input.orgId), eq(alimtalkSendLogs.recordId, r.recordId!),
                     eq(alimtalkSendLogs.templateLinkId, r.templateLinkId!), or(eq(alimtalkSendLogs.status, "unknown"), sameRun),
                 )).limit(1);
-                if (previous) return { ok: false, status: 409, error: "이미 접수했거나 이전 접수 결과가 미확인 상태입니다. 자동 재발송하지 않았습니다." };
+                if (previous) return { ok: false, status: 409, code: "duplicate", error: "이미 접수했거나 이전 접수 결과가 미확인 상태입니다. 자동 재발송하지 않았습니다." };
             }
         }
         const logs = await tx.insert(alimtalkSendLogs).values(logValues).returning({ id: alimtalkSendLogs.id });

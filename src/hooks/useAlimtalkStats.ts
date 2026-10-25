@@ -7,6 +7,8 @@ interface StatsData {
     sent: number;
     failed: number;
     pending: number;
+    /** 접수 결과 미확인(공급자 응답 유실 등). 이전 서버 응답에는 없을 수 있다. */
+    unknown?: number;
     recentLogs: AlimtalkSendLog[];
 }
 
@@ -24,7 +26,7 @@ export function useAlimtalkStats(period: "today" | "week" | "month" = "today") {
     );
 
     return {
-        stats: data?.data ?? { total: 0, sent: 0, failed: 0, pending: 0, recentLogs: [] },
+        stats: data?.data ?? { total: 0, sent: 0, failed: 0, pending: 0, unknown: 0, recentLogs: [] },
         isLoading,
         mutate,
         error,

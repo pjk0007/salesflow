@@ -20,7 +20,8 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Send, CheckCircle2, XCircle, Clock, Settings } from "lucide-react";
+import { Send, CheckCircle2, XCircle, Clock, Settings, AlertTriangle } from "lucide-react";
+import { STATUS_MAP, TRIGGER_TYPE_MAP } from "./SendLogTable";
 
 interface AlimtalkDashboardProps {
     onTabChange?: (tab: string) => void;
@@ -51,16 +52,12 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
 
     const cards = [
         { label: "전체 발송", value: stats.total, icon: Send, color: "text-blue-600" },
-        { label: "성공", value: stats.sent, icon: CheckCircle2, color: "text-green-600" },
+        { label: "수신 성공", value: stats.sent, icon: CheckCircle2, color: "text-green-600" },
         { label: "실패", value: stats.failed, icon: XCircle, color: "text-red-600" },
-        { label: "대기", value: stats.pending, icon: Clock, color: "text-yellow-600" },
+        // 접수됨은 공급자 접수만 된 상태다. 수신 결과는 발송 이력의 결과 동기화로 확정된다.
+        { label: "접수됨", value: stats.pending, icon: Clock, color: "text-yellow-600" },
+        { label: "결과 확인 필요", value: stats.unknown ?? 0, icon: AlertTriangle, color: "text-orange-600" },
     ];
-
-    const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
-        pending: { label: "대기", variant: "secondary" },
-        sent: { label: "성공", variant: "default" },
-        failed: { label: "실패", variant: "destructive" },
-    };
 
     return (
         <div className="space-y-6">
@@ -78,7 +75,7 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
                 </Select>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {cards.map((card) => (
                     <Card key={card.label}>
                         <CardContent className="p-4">
@@ -112,6 +109,7 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
                                     <TableHead>발송일시</TableHead>
                                     <TableHead>수신번호</TableHead>
                                     <TableHead>템플릿</TableHead>
+                                    <TableHead>방식</TableHead>
                                     <TableHead>상태</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -121,6 +119,7 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
                                         label: log.status,
                                         variant: "secondary" as const,
                                     };
+                                    const triggerInfo = TRIGGER_TYPE_MAP[log.triggerType || "manual"] || { label: "기타", variant: "outline" as const };
                                     return (
                                         <TableRow key={log.id}>
                                             <TableCell className="text-sm">
@@ -131,6 +130,9 @@ export default function AlimtalkDashboard({ onTabChange }: AlimtalkDashboardProp
                                             </TableCell>
                                             <TableCell className="text-sm">
                                                 {log.templateName || log.templateCode}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant={triggerInfo.variant}>{triggerInfo.label}</Badge>
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant={statusInfo.variant}>

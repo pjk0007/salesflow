@@ -1,7 +1,7 @@
 import useSWR from "swr";
 import { useAlimtalkConfig } from "./useAlimtalkConfig";
 import type { NhnSenderProfile } from "@/lib/nhn-alimtalk";
-import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
+import { apiRequest, blockingError, defaultFetcher, requestErrorMessage } from "@/lib/swr-fetcher";
 
 interface SendersResponse {
     success: boolean;
@@ -20,43 +20,39 @@ export function useAlimtalkSenders() {
         defaultFetcher
     );
 
-    const registerSender = async (senderData: {
+    // 변경 요청은 연결 끊김도 success:false로 돌려 호출부의 처리 중 상태가 풀리게 한다(UX-180)
+    const send = async (url: string, init: RequestInit, fallback: string): Promise<{ success: boolean; message?: string; error?: string }> => {
+        try {
+            const result = await apiRequest<{ success: boolean; message?: string }>(url, init);
+            mutate();
+            return result;
+        } catch (error) {
+            return { success: false, error: requestErrorMessage(error, fallback) };
+        }
+    };
+
+    const registerSender = (senderData: {
         plusFriendId: string;
         phoneNo: string;
         categoryCode: string;
-    }) => {
-        const res = await fetch("/api/alimtalk/senders", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(senderData),
-        });
-        const result = await res.json();
-        if (result.success) mutate();
-        return result;
-    };
+    }) => send("/api/alimtalk/senders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(senderData),
+    }, "등록 요청 결과를 확인하지 못했습니다. 카카오톡으로 인증번호가 왔다면 목록의 '인증번호 입력'으로 이어가주세요.");
 
-    const authenticateToken = async (data: {
+    const authenticateToken = (data: {
         plusFriendId: string;
         token: string;
-    }) => {
-        const res = await fetch("/api/alimtalk/senders/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(data),
-        });
-        const result = await res.json();
-        if (result.success) mutate();
-        return result;
-    };
+    }) => send("/api/alimtalk/senders/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+    }, "인증 결과를 확인하지 못했습니다. 목록에서 상태를 확인한 뒤 다시 시도해주세요.");
 
-    const deleteSender = async (senderKey: string) => {
-        const res = await fetch(`/api/alimtalk/senders/${encodeURIComponent(senderKey)}`, {
-            method: "DELETE",
-        });
-        const result = await res.json();
-        if (result.success) mutate();
-        return result;
-    };
+    const deleteSender = (senderKey: string) => send(`/api/alimtalk/senders/${encodeURIComponent(senderKey)}`, {
+        method: "DELETE",
+    }, "삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.");
 
     return {
         senders: data?.data?.senders ?? [],

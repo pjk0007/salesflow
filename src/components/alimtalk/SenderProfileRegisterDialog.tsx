@@ -25,6 +25,8 @@ import { toast } from "sonner";
 interface SenderProfileRegisterDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** 인증 대기 프로필의 채널 ID — 주면 인증번호 입력 단계로 바로 연다(UX-258) */
+    resumePlusFriendId?: string | null;
 }
 
 /** 재귀적으로 최하위 카테고리(리프)만 추출 */
@@ -50,14 +52,17 @@ function flattenLeafCategories(
 export default function SenderProfileRegisterDialog({
     open,
     onOpenChange,
+    resumePlusFriendId,
 }: SenderProfileRegisterDialogProps) {
     const { registerSender, authenticateToken } = useAlimtalkSenders();
     const { categories, isLoading: categoriesLoading } = useAlimtalkCategories();
-    const [step, setStep] = useState<1 | 2>(1);
+    const [step, setStep] = useState<1 | 2>(resumePlusFriendId ? 2 : 1);
     const [loading, setLoading] = useState(false);
+    // 인증 단계에서 닫으려 하면 한 번 확인한다(입력한 채널 ID·단계를 잃지 않게)
+    const [confirmClose, setConfirmClose] = useState(false);
 
     // Step 1
-    const [plusFriendId, setPlusFriendId] = useState("");
+    const [plusFriendId, setPlusFriendId] = useState(resumePlusFriendId ?? "");
     const [phoneNo, setPhoneNo] = useState("");
     const [categoryCode, setCategoryCode] = useState("");
     const [categorySearch, setCategorySearch] = useState("");
@@ -109,6 +114,7 @@ export default function SenderProfileRegisterDialog({
     };
 
     const handleClose = () => {
+        setConfirmClose(false);
         setStep(1);
         setPlusFriendId("");
         setPhoneNo("");
@@ -121,8 +127,16 @@ export default function SenderProfileRegisterDialog({
     const selectedCategoryLabel = leafCategories.find((c) => c.code === categoryCode)?.label;
 
     return (
-        <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <Dialog open={open} onOpenChange={(next) => {
+            if (next) return;
+            if (loading) return;
+            if (step === 2) setConfirmClose(true);
+            else handleClose();
+        }}>
+            <DialogContent
+                className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+                onInteractOutside={(e) => { if (step === 2) e.preventDefault(); }}
+            >
                 <DialogHeader>
                     <DialogTitle>
                         발신프로필 등록 {step === 2 && "- 인증"}
@@ -229,6 +243,15 @@ export default function SenderProfileRegisterDialog({
                             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                             인증 완료
                         </Button>
+                        {confirmClose && (
+                            <div role="alert" className="space-y-2 rounded-lg border p-3 text-sm">
+                                <p>인증을 마치지 않고 닫을까요? 받은 인증번호는 나중에 발신프로필 목록의 &apos;인증번호 입력&apos;에서 넣을 수 있습니다.</p>
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => setConfirmClose(false)}>계속 인증</Button>
+                                    <Button variant="destructive" size="sm" onClick={handleClose}>닫기</Button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </DialogContent>

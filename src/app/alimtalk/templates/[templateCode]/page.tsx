@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/common/page-container";
 import { ArrowLeft, Sparkles, Loader2 } from "lucide-react";
 import type { NhnTemplate, NhnTemplateButton } from "@/lib/nhn-alimtalk";
+import { buildTemplateSubmitPayload } from "@/lib/alimtalk-template-utils";
 
 function templateToFormState(template: NhnTemplate): TemplateFormState {
     const hasButtons = (template.buttons?.length ?? 0) > 0;
@@ -99,22 +100,8 @@ function EditAlimtalkTemplateContent() {
         try {
             const payload = {
                 senderKey,
-                templateName: form.templateName,
-                templateContent: form.templateContent,
-                templateMessageType: form.templateMessageType,
-                templateEmphasizeType: form.templateEmphasizeType,
-                ...(form.templateExtra && { templateExtra: form.templateExtra }),
-                ...(form.templateTitle && { templateTitle: form.templateTitle }),
-                ...(form.templateSubtitle && { templateSubtitle: form.templateSubtitle }),
-                ...(form.templateHeader && { templateHeader: form.templateHeader }),
-                ...(form.securityFlag && { securityFlag: true }),
-                ...(form.categoryCode && { categoryCode: form.categoryCode }),
-                ...(form.interactionType === "buttons" && form.buttons.length > 0 && { buttons: form.buttons }),
-                ...(form.interactionType === "quickReplies" && form.quickReplies.length > 0 && { quickReplies: form.quickReplies }),
-                ...(form.templateImageUrl && { templateImageName: form.templateImageName, templateImageUrl: form.templateImageUrl }),
-                ...(form.templateItem && { templateItem: form.templateItem }),
-                ...(form.templateItemHighlight && { templateItemHighlight: form.templateItemHighlight }),
-                ...(form.templateRepresentLink && (form.templateRepresentLink.linkMo || form.templateRepresentLink.linkPc || form.templateRepresentLink.schemeIos || form.templateRepresentLink.schemeAndroid) && { templateRepresentLink: form.templateRepresentLink }),
+                // 유형에 맞지 않아 화면에서 숨긴 값은 검수 요청에 싣지 않는다(UX-257, 등록 화면과 같은 함수)
+                ...buildTemplateSubmitPayload(form),
             };
 
             const result = await updateTemplate(templateCode, payload);

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EsignError, type EsignArtifact, type EsignDocumentInput, type EsignEnvelopeInput, type EsignRecipient, type EsignEnvelope, type EsignValue } from "./types";
 import { ESIGN_PDF_LIMITS } from "./pdf-types";
+import { normalizePhoneNumber } from "@/lib/alimtalk-template-utils";
 export const OTP_TTL_MS = 5 * 60 * 1000;
 export const OTP_COOLDOWN_MS = 60 * 1000;
 export const VERIFY_TTL_MS = 30 * 60 * 1000;
@@ -36,7 +37,7 @@ export function parseEnvelope(raw: EsignEnvelopeInput, now: Date) {
         if (r.phone) r.phone = r.phone.replace(/[ -]/g, "");
         if (r.channels.includes("sms") || r.channels.includes("alimtalk")) {
             // Both NHN domestic transports expect a national number, not an E.164 +82 prefix.
-            if (r.phone) r.phone = r.phone.replace(/^\+820?/, "0");
+            if (r.phone) r.phone = normalizePhoneNumber(r.phone);
             if (!r.phone || !/^01[016789]\d{7,8}$/.test(r.phone))
                 throw new EsignError("알림톡·SMS는 국내 휴대폰 번호만 지원합니다. 010 형식의 번호를 입력해주세요.");
         }

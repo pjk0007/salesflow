@@ -13,6 +13,18 @@ const EMAIL_REJECTIONS = new Set([-1000, -1001, -1002, -1003, -1004, -1005, -100
     -5000, -5002, -5003, -9993, -9995, -9996, -9997, -9998,
     EMAIL_SEND_BLOCKED, EMAIL_SEND_CHECK_FAILED, EMAIL_SEND_INVALID_CONTEXT]);
 export const isKnownAlimtalkRejection = (code: unknown): boolean => typeof code === "number" && ALIMTALK_REJECTIONS.has(code);
+/** 알림톡 1건 발송 요청 응답 판정. 개별 접수 성공은 pending(수신 결과는 logs/sync가 확정)이다. */
+export function classifyAlimtalkSubmission(result: {
+    header?: { isSuccessful?: boolean; resultCode?: number } | null;
+    message?: { requestId?: unknown; sendResults?: Array<{ resultCode?: unknown }> | null } | null;
+} | null | undefined): "pending" | "failed" | "unknown" {
+    if (!result?.header) return "unknown";
+    if (result.header.isSuccessful === false) return isKnownAlimtalkRejection(result.header.resultCode) ? "failed" : "unknown";
+    const item = Array.isArray(result.message?.sendResults) ? result.message.sendResults[0] : undefined;
+    if (!item || typeof item.resultCode !== "number") return "unknown";
+    if (item.resultCode === 0) return typeof result.message?.requestId === "string" && result.message.requestId ? "pending" : "unknown";
+    return isKnownAlimtalkRejection(item.resultCode) ? "failed" : "unknown";
+}
 export const isKnownEmailRejection = (code: unknown): boolean => typeof code === "number" && EMAIL_REJECTIONS.has(code);
 
 export function classifyEmailSubmission(result: {
