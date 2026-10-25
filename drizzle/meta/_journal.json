@@ -883,6 +883,20 @@
       "when": 1792951200000,
       "tag": "0124_inbox_google_account",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1793037600000,
+      "tag": "0125_scheduled_registrations_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1793124000000,
+      "tag": "0126_crm_recent_indexes",
+      "breakpoints": true
     }
   ]
 }

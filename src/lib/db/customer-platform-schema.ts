@@ -42,6 +42,8 @@ export const crmCompanies = pgTable(
     (t) => [
         uniqueIndex("crm_company_external").on(t.workspaceId, t.externalId),
         index("crm_company_scope").on(t.orgId, t.workspaceId),
+        // 최근 순 목록(UX-087) — drizzle/0126
+        index("crm_company_recent").on(t.orgId, t.workspaceId, t.createdAt.desc(), t.id.desc()),
     ],
 );
 export const crmContacts = pgTable(
@@ -72,6 +74,8 @@ export const crmContacts = pgTable(
     (t) => [
         uniqueIndex("crm_contact_external").on(t.workspaceId, t.externalId),
         index("crm_contact_scope").on(t.orgId, t.workspaceId),
+        // 최근 순 목록(UX-087) — drizzle/0126
+        index("crm_contact_recent").on(t.orgId, t.workspaceId, t.createdAt.desc(), t.id.desc()),
         index("crm_contact_record").on(t.recordId),
         check(
             "crm_contact_stage",
