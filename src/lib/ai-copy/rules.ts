@@ -7,10 +7,9 @@ import type {
     CopyOutput,
     GenerationContext,
     KnowledgeSnapshot,
-    PerformanceTargets,
     PolicySnapshot,
 } from "./types";
-import { targetsFor } from "./defaults";
+import { targetsMatchDefaults } from "./defaults";
 export { targetsFor } from "./defaults";
 
 export const COPY_VALIDATOR_VERSION = "copy-v1";
@@ -97,13 +96,7 @@ export const policySchema = z
                 path: ["model"],
                 message: "공급자와 명시한 모델이 일치하지 않습니다.",
             });
-        const defaults = targetsFor(p.purpose);
-        if (
-            Object.entries(defaults).some(
-                ([k, v]) => p.targets[k as keyof PerformanceTargets] !== v,
-            ) &&
-            !p.targets.overrideReason
-        )
+        if (!targetsMatchDefaults(p.targets, p.purpose) && !p.targets.overrideReason)
             ctx.addIssue({
                 code: "custom",
                 path: ["targets"],

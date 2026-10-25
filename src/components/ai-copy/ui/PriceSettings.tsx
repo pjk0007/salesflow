@@ -6,7 +6,15 @@ import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
 import { copyRequest } from "../api/copy";
 import { controlClass, Field } from "./Fields";
 type Action = <T>(url: string, body: unknown) => Promise<T | undefined>;
-export function PriceSettings({ act, pending }: { act: Action; pending: boolean }) {
+export function PriceSettings({
+    act,
+    pending,
+    models,
+}: {
+    act: Action;
+    pending: boolean;
+    models?: { id: string; configured: boolean }[];
+}) {
     const [model, setModel] = useState(DEFAULT_MODEL_ID),
         [currency, setCurrency] = useState("USD");
     const [price, setPrice] = useState({
@@ -59,9 +67,13 @@ export function PriceSettings({ act, pending }: { act: Action; pending: boolean 
                             value={model}
                             onChange={(e) => setModel(e.target.value)}
                         >
+                            {/* 단가는 연결 전에도 미리 등록할 수 있으므로 표시만 한다(UX-244). */}
                             {AI_MODELS.map((m) => (
                                 <option key={m.id} value={m.id}>
                                     {m.label}
+                                    {models?.find((x) => x.id === m.id)?.configured === false
+                                        ? " · 연결 필요"
+                                        : ""}
                                 </option>
                             ))}
                         </select>

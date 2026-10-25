@@ -7,8 +7,8 @@ import { installFakeDb, isolateEnv, isMembershipLookup } from "../auth-fake-db.t
 
 const ORG = "00000000-0000-4000-8000-000000000001";
 
-async function setup(t: TestContext, role: "owner" | "member" = "owner") {
-    isolateEnv(t);
+async function setup(t: TestContext, role: "owner" | "member" = "owner", env: Record<string, string> = {}) {
+    isolateEnv(t, env);
     const { db, queryClient } = await import("../db");
     const { generateToken } = await import("../auth");
     installFakeDb(t, db, (call) =>
@@ -64,7 +64,7 @@ test("UX-167 비교 평가용 '사용 가능' 상태와 관리 목록 기본 조
     assert.deepEqual(Object.keys(usable.data).sort(), ["nextCursor", "versions"]);
     sql.length = 0;
     const full = await (await GET(get("/api/ai/copy-policies?cursor=0"))).json();
-    assert.deepEqual(Object.keys(full.data).sort(), ["bindings", "nextCursor", "rules", "versions", "workspaces"]);
+    assert.deepEqual(Object.keys(full.data).sort(), ["bindings", "models", "nextCursor", "rules", "versions", "workspaces"]);
     assert.ok(sql[0].values.filter((v) => v === "").length >= 2, "상태·목적 미지정은 빈 값(조건 없음)");
 });
 
@@ -87,4 +87,15 @@ test("UX-167 member는 선택기 조회도 403", async (t) => {
     const { GET } = await import("../../app/api/ai/copy-policies/route");
     assert.equal((await GET(get("/api/ai/copy-policies?state=approved"))).status, 403);
     assert.equal(sql.length, 0);
+});
+
+test("UX-244 관리 목록 조회는 모델별 서버 연결 여부를 내려준다", async (t) => {
+    const { get } = await setup(t, "owner", { ANTHROPIC_API_KEY: "fake-anthropic", DEEPSEEK_API_KEY: "" });
+    const { GET } = await import("../../app/api/ai/copy-policies/route");
+    const body = await (await GET(get("/api/ai/copy-policies?cursor=0"))).json();
+    const configured = Object.fromEntries(
+        body.data.models.map((m: { id: string; configured: boolean }) => [m.id, m.configured]),
+    );
+    assert.equal(configured["claude-haiku-4-5"], true);
+    assert.equal(configured["deepseek-v4-flash"], false);
 });

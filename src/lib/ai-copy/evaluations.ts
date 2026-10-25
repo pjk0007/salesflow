@@ -24,6 +24,7 @@ import {
 } from "./evaluation-rules";
 import { CopyActionError } from "./errors";
 import { fingerprint } from "./rules";
+import { normalizeTargets } from "./defaults";
 
 export interface EvaluationPair {
     workspaceId: number;
@@ -59,7 +60,8 @@ export async function createEvaluationRun(
             if (policies.length !== 2 || !knowledge)
                 throw new CopyActionError("사업별 작성 버전 두 개와 승인된 지식이 필요합니다.");
             const candidate = policies.find((p) => p.id === pair.candidatePolicyId)!;
-            const currentFingerprint = fingerprint(candidate.snapshot.targets);
+            // 반올림 오차만 다른 기준(예: 0.95와 0.9500000000000001)은 같은 기준으로 본다(UX-243).
+            const currentFingerprint = fingerprint(normalizeTargets(candidate.snapshot.targets));
             if (targetFingerprint && targetFingerprint !== currentFingerprint)
                 throw new CopyActionError(
                     "같은 평가 안에서는 두 사업 후보안의 성능 기준이 같아야 합니다.",

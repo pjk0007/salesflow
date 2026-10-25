@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { copyAdminApi } from "@/lib/ai-copy/api";
+import { AI_MODELS, getAiClient } from "@/lib/ai";
 import { createPolicyVersion } from "@/lib/ai-copy/versions";
 const selectorFilter = z.object({
     state: z.enum(["approved", "usable"]).optional(),
@@ -49,6 +50,8 @@ export const GET = (req: NextRequest) =>
             workspaces,
             rules,
             bindings,
+            // 서버에 키가 있는 공급자인지(UX-244). 상담 AI 설정(catalog.ts)과 같은 계산.
+            models: AI_MODELS.map((m) => ({ ...m, configured: !!getAiClient(m.id) })),
         };
     });
 export const POST = (req: NextRequest) =>

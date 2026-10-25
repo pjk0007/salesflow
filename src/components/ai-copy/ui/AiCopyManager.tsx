@@ -365,7 +365,7 @@ export default function AiCopyManager() {
                     <GenerationList workspaces={catalog.workspaces} act={act} pending={pending} />
                 </TabsContent>
                 <TabsContent value="prices" className="pt-3">
-                    <PriceSettings act={act} pending={pending} />
+                    <PriceSettings act={act} pending={pending} models={catalog.models} />
                 </TabsContent>
             </Tabs>
             <Dialog
@@ -427,6 +427,7 @@ export default function AiCopyManager() {
                         <PolicyForm
                             key={typeof editPolicy === "string" ? "new" : editPolicy.id}
                             workspaces={catalog.workspaces}
+                            models={catalog.models}
                             pending={pending}
                             initial={
                                 typeof editPolicy === "object"
