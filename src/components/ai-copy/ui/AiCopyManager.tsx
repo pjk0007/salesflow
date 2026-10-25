@@ -100,7 +100,13 @@ export default function AiCopyManager() {
                 </p>
             )}
             {confirmationDialog}
-            <Tabs value={tab} onValueChange={setTab}>
+            <Tabs
+                value={tab}
+                onValueChange={(next) => {
+                    manager.clearActionError();
+                    setTab(next);
+                }}
+            >
                 <TabsList className="flex h-auto w-fit flex-wrap">
                     <TabsTrigger value="observations">자동 관찰</TabsTrigger>
                     <TabsTrigger value="policies">작성 지침</TabsTrigger>
@@ -371,7 +377,10 @@ export default function AiCopyManager() {
             <Dialog
                 open={editKnowledge !== null}
                 onOpenChange={(open) => {
-                    if (!open) setEditKnowledge(null);
+                    if (!open) {
+                        setEditKnowledge(null);
+                        manager.clearActionError();
+                    }
                 }}
             >
                 <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
@@ -409,7 +418,10 @@ export default function AiCopyManager() {
             <Dialog
                 open={editPolicy !== null}
                 onOpenChange={(open) => {
-                    if (!open) setEditPolicy(null);
+                    if (!open) {
+                        setEditPolicy(null);
+                        manager.clearActionError();
+                    }
                 }}
             >
                 <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
@@ -448,7 +460,10 @@ export default function AiCopyManager() {
             <Dialog
                 open={block !== null}
                 onOpenChange={(open) => {
-                    if (!open) setBlock(null);
+                    if (!open) {
+                        setBlock(null);
+                        manager.clearActionError();
+                    }
                 }}
             >
                 <DialogContent>
@@ -474,7 +489,13 @@ export default function AiCopyManager() {
                         )}
                     </Field>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setBlock(null)}>
+                        <Button
+                            variant="outline"
+                            onClick={() => {
+                                setBlock(null);
+                                manager.clearActionError();
+                            }}
+                        >
                             닫기
                         </Button>
                         <Button
