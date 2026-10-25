@@ -58,6 +58,7 @@ import {
     SENDER_LOG_LOOKBACK_DAYS,
     STAGE1_MAX_PER_RUN,
     STALE_SYNC_MS,
+    isReplySyncIdleStale,
     addressVariants,
     backfillListQuery,
     bounceTypeOf,
@@ -1947,7 +1948,7 @@ export interface ReplySyncStatus {
 }
 
 /** 회신 탭 띠 (GET /api/email/replies meta.sync)·SND 매일 보고가 읽는다 */
-export async function loadReplySyncStatus(env: Env = process.env): Promise<ReplySyncStatus> {
+export async function loadReplySyncStatus(env: Env = process.env, now: Date = new Date()): Promise<ReplySyncStatus> {
     const config = resolveReplyConfig(env);
     const base: ReplySyncStatus = {
         mode: config.syncMode,
@@ -1992,6 +1993,20 @@ export async function loadReplySyncStatus(env: Env = process.env): Promise<Reply
         if (!r) return base;
         const iso = (v: string | Date | null) => toDate(v)?.toISOString() ?? null;
         const excluded = Array.isArray(r.stats?.excluded) ? (r.stats!.excluded as unknown[]).filter((x): x is string => typeof x === "string") : [];
+        // 회차가 멈춰 오류가 남지 않아도 띠가 '켜짐'으로 보이지 않게 정체를 오류로 돌려준다 (UX-137)
+        const lastSuccess = toDate(r.last_success_at);
+        if (!r.last_error_code && isReplySyncIdleStale(config.syncMode, lastSuccess, toDate(r.last_run_at), now)) {
+            return {
+                ...base,
+                lastRunAt: iso(r.last_run_at),
+                lastSuccessAt: iso(r.last_success_at),
+                errorCode: "stale",
+                errorText: replyErrorText("stale"),
+                errorSince: iso(r.last_success_at ?? r.last_run_at),
+                backfillDone: r.backfill_done_at !== null,
+                excluded,
+            };
+        }
         return {
             ...base,
             lastRunAt: iso(r.last_run_at),
