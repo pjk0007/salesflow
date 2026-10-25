@@ -282,7 +282,17 @@ export class EsignService {
                 const recipient = value.recipients.find((r) => r.id === stored.recipientId);
                 if (valid && stored.kind === "invitation") valid = value.envelope.state === "pending" && recipient?.state === "pending" && !recipientWaiting(value.envelope, value.recipients, recipient);
                 if (valid && stored.kind === "otp") {
-                    const payload = this.decodeJob(stored);
+                    let payload: DeliveryPayload;
+                    try { payload = this.decodeJob(stored); }
+                    catch {
+                        // claim 단계는 공급자 호출 전이다. 손상된 OTP는 불명 발송으로 복구하지 않는다.
+                        stored.state = "failed";
+                        stored.error = "확인 코드 내용을 확인하지 못해 보내지 않았습니다.";
+                        stored.updatedAt = at(now);
+                        delete stored.encryptedPayload; delete stored.leaseId; delete stored.leaseUntil;
+                        event(value, "delivery.result", now, { recipientId: stored.recipientId }, { jobId: stored.id, channel: stored.channel, state: stored.state });
+                        return false;
+                    }
                     valid = !!recipient?.otpExpiresAt && new Date(recipient.otpExpiresAt) > now && recipient.otpChallenge === payload.otpChallenge;
                 }
                 if (!valid && stored.state === "processing") {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, emailConfigs } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth-admin";
 
 function maskSecret(secret: string): string {
     if (secret.length <= 6) return "***";
@@ -45,10 +46,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-    const user = await getActiveUserFromNextRequest(req);
-    if (!user) {
-        return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
+    const auth = await requireAdmin(req);
+    if (!auth.ok) {
+        return NextResponse.json({ success: false, error: auth.status === 403 ? "관리자만 이메일 설정을 변경할 수 있습니다." : auth.error }, { status: auth.status });
     }
+    const user = auth.user;
 
     try {
         const { appKey, secretKey, fromName, fromEmail, signature, signatureEnabled } = await req.json();
