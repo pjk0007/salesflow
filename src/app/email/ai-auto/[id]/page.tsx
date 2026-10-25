@@ -361,8 +361,9 @@ function EditAiAutoPageContent() {
         <WorkspaceLayout>
             <TooltipProvider>
                 <PageContainer>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                    {/* 좁은 화면에서는 제목·DB 선택·저장 버튼을 줄바꿈해 저장 버튼이 화면 안에 들어오게 한다 */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-3">
                             <Button variant="ghost" size="icon" onClick={() => router.push("/email?tab=ai-auto")}>
                                 <ArrowLeft className="h-5 w-5" />
                             </Button>
@@ -371,7 +372,7 @@ function EditAiAutoPageContent() {
                                 value={String(currentPartitionId)}
                                 onValueChange={(v) => handlePartitionSelectChange(Number(v))}
                             >
-                                <SelectTrigger className="w-65 h-8 text-sm">
+                                <SelectTrigger className="w-65 max-w-full h-8 text-sm">
                                     <SelectValue placeholder="DB 선택" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -383,7 +384,7 @@ function EditAiAutoPageContent() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                             {!isDraftRule && link.isActive !== 1 && (
                                 <span className="text-xs text-muted-foreground">중지된 규칙입니다. 저장해도 중지 상태가 유지됩니다.</span>
                             )}

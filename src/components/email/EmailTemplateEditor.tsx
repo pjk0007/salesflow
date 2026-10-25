@@ -382,10 +382,10 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
     };
 
     return (
-        <div className="flex flex-col h-[calc(100vh-theme(spacing.14))]">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 h-14 border-b shrink-0">
-                <div className="flex items-center gap-3">
+        <div className="flex flex-col h-[calc(100vh-theme(spacing.14))] max-md:h-auto">
+            {/* Header — 좁은 화면에서는 동작 버튼을 줄바꿈해 저장·발행이 화면 안에 들어오게 한다 */}
+            <div className="flex items-center justify-between px-6 h-14 border-b shrink-0 max-md:h-auto max-md:flex-wrap max-md:gap-2 max-md:px-4 max-md:py-2">
+                <div className="flex items-center gap-3 whitespace-nowrap">
                     <Button variant="ghost" size="icon" onClick={onCancel}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
@@ -396,7 +396,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                         <Badge variant="outline" className="text-amber-600 border-amber-300">임시저장</Badge>
                     )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-md:flex-wrap">
                     {/* 자동저장 상태 */}
                     {autoSaveStatus === "saving" && (
                         <span className="text-xs text-muted-foreground flex items-center gap-1">
@@ -459,13 +459,13 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 </div>
             </div>
 
-            {/* Body */}
-            <div className="flex flex-1 min-h-0">
+            {/* Body — 좁은 화면에서는 편집·미리보기를 세로로 쌓는다 */}
+            <div className="flex flex-1 min-h-0 max-md:flex-col">
                 {/* 좌측 패널 */}
-                <div className="w-1/2 flex flex-col border-r min-h-0">
+                <div className="w-1/2 flex flex-col border-r min-h-0 max-md:w-full max-md:border-r-0 max-md:border-b">
                     {/* 메타 정보 */}
                     <div className="shrink-0 p-4 space-y-3 border-b">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-3 max-sm:grid-cols-1">
                             <div className="space-y-1">
                                 <Label htmlFor="tmpl-name" className="text-xs">이름</Label>
                                 <Input
@@ -572,7 +572,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                     </div>
 
                     {/* 편집 영역 */}
-                    <div className="flex-1 overflow-auto min-h-0">
+                    <div className="flex-1 overflow-auto min-h-0 max-md:h-[60dvh] max-md:flex-none">
                         {editMode === "visual" ? (
                             <div
                                 ref={editorRef}
@@ -597,7 +597,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                 </div>
 
                 {/* 우측 패널 */}
-                <div className="w-1/2 flex flex-col min-h-0">
+                <div className="w-1/2 flex flex-col min-h-0 max-md:h-[70dvh] max-md:w-full">
                     {/* 미리보기 헤더 */}
                     <div className="shrink-0 flex items-center justify-between px-4 py-2 border-b bg-muted/30">
                         <span className="text-sm font-medium text-muted-foreground truncate">

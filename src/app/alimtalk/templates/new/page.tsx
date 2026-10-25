@@ -226,18 +226,18 @@ function NewAlimtalkTemplateContent() {
 
     return (
         <PageContainer>
-            {/* 상단 헤더 */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+            {/* 상단 헤더 — 좁은 화면에서는 줄바꿈해 검수 요청 버튼이 화면 안에 들어오게 한다 */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                     <Button variant="ghost" size="icon" onClick={() => router.push("/alimtalk?tab=templates")}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
                     <h2 className="text-lg font-semibold">알림톡 템플릿 등록</h2>
-                    <span className="text-sm text-muted-foreground">
+                    <span className="text-sm text-muted-foreground break-all">
                         {senders.find((s) => s.senderKey === senderKey)?.plusFriendId || senderKey}
                     </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
                         variant={showAi ? "default" : "outline"}
                         size="sm"
@@ -264,12 +264,12 @@ function NewAlimtalkTemplateContent() {
 
             {error && <p className="text-sm text-destructive">{error}</p>}
 
-            {/* 2-column: 폼 + 미리보기 */}
-            <div className="grid grid-cols-2 gap-6">
-                <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
+            {/* 2-column: 폼 + 미리보기 (좁은 화면에서는 한 열로 쌓고 페이지 스크롤을 쓴다) */}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="md:overflow-y-auto md:max-h-[calc(100vh-200px)]">
                     <TemplateFormEditor value={form} onChange={setForm} mode="create" />
                 </div>
-                <div className="overflow-y-auto max-h-[calc(100vh-200px)]">
+                <div className="md:overflow-y-auto md:max-h-[calc(100vh-200px)]">
                     <TemplatePreview
                         templateContent={form.templateContent}
                         templateMessageType={form.templateMessageType}
