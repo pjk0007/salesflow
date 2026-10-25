@@ -34,3 +34,27 @@ test("UX-270: 국가번호 형식 휴대폰은 국내 번호로, 국내 형식�
     assert.equal(normalizePhoneNumber("+82 11 123 4567"), "0111234567");
     for (const [phone, expected] of [["010-1234-5678", "01012345678"], ["01012345678", "01012345678"], ["02-1234-5678", "0212345678"], ["+82 2 1234 5678", "82212345678"]]) assert.equal(normalizePhoneNumber(phone), expected);
 });
+test("UX-257: 검수 요청 본문은 유형별로 보이는 입력란만 싣는다(16개 조합)", async () => {
+    const { buildTemplateSubmitPayload } = await import("./alimtalk-template-utils");
+    const form = {
+        templateName: "가상", templateContent: "본문", templateMessageType: "BA", templateEmphasizeType: "NONE",
+        templateExtra: "부가", templateTitle: "타이틀", templateSubtitle: "서브", templateHeader: "헤더",
+        securityFlag: false, categoryCode: "", buttons: [], quickReplies: [], interactionType: "buttons" as const,
+        templateImageName: "a.png", templateImageUrl: "https://example.test/a.png",
+        templateItem: { list: [{ title: "항목", description: "값" }] },
+        templateItemHighlight: { title: "하이라이트", description: "설명" },
+        templateRepresentLink: null,
+    };
+    for (const messageType of ["BA", "EX", "AD", "MI"]) for (const emphasize of ["NONE", "TEXT", "IMAGE", "ITEM_LIST"]) {
+        const payload = buildTemplateSubmitPayload({ ...form, templateMessageType: messageType, templateEmphasizeType: emphasize }) as Record<string, unknown>;
+        const label = `${messageType}×${emphasize}`;
+        assert.equal("templateExtra" in payload, messageType === "EX" || messageType === "MI", label);
+        assert.equal("templateTitle" in payload, emphasize === "TEXT", label);
+        assert.equal("templateSubtitle" in payload, emphasize === "TEXT", label);
+        assert.equal("templateImageUrl" in payload, emphasize === "IMAGE" || emphasize === "ITEM_LIST", label);
+        assert.equal("templateItem" in payload, emphasize === "ITEM_LIST", label);
+        assert.equal("templateItemHighlight" in payload, emphasize === "ITEM_LIST", label);
+        assert.equal(payload.templateHeader, "헤더", label);
+        assert.equal(payload.templateContent, "본문", label);
+    }
+});
