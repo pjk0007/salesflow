@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAiEmail } from "@/hooks/useAiEmail";
+import { EMAIL_GENERATION_CANCELLED } from "@/components/email/api/ai-email";
 import { useProducts } from "@/hooks/useProducts";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -28,11 +29,13 @@ const TONE_OPTIONS = [
 interface AiEmailPanelProps {
     onGenerated: (result: { subject: string; htmlBody: string }) => void;
     onStream?: (fullText: string) => void;
+    /** 생성이 끝날 때 한 번(성공은 onGenerated 뒤). 중지·실패 시 받은 중간 결과를 버리는 데 쓴다 */
+    onSettled?: (outcome: "success" | "failed" | "cancelled") => void;
     recordId?: number;
     defaultProductId?: number;
 }
 
-export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultProductId }: AiEmailPanelProps) {
+export default function AiEmailPanel({ onGenerated, onStream, onSettled, recordId, defaultProductId }: AiEmailPanelProps) {
     const { user, sessionEpoch, isSessionChanging, subscribeInvalidation } = useSession();
     const { generateEmailStream, isGenerating, cancelStream } = useAiEmail(`${user?.orgId}:${user?.id}:${sessionEpoch}:${recordId}`, subscribeInvalidation);
     const { products } = useProducts({ activeOnly: true });
@@ -67,24 +70,33 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
             return;
         }
 
-        const result = await generateEmailStream(
-            {
-                prompt: prompt.trim(),
-                productId,
-                recordId,
-                tone: tone === "default" ? undefined : tone,
-                ctaUrl: ctaUrl.trim() || undefined,
-                model,
-            },
-            (fullText) => {
-                onStream?.(fullText);
-            },
-        );
+        let result;
+        try {
+            result = await generateEmailStream(
+                {
+                    prompt: prompt.trim(),
+                    productId,
+                    recordId,
+                    tone: tone === "default" ? undefined : tone,
+                    ctaUrl: ctaUrl.trim() || undefined,
+                    model,
+                },
+                (fullText) => {
+                    onStream?.(fullText);
+                },
+            );
+        } catch {
+            result = { success: false, error: "AI 이메일 생성에 실패했습니다." };
+        }
 
         if (result.success && result.data) {
             onGenerated(result.data);
+            onSettled?.("success");
             toast.success("AI 이메일이 생성되었습니다.");
-        } else if (result.error && result.error !== "요청이 취소되었습니다.") {
+        } else if (result.error === EMAIL_GENERATION_CANCELLED) {
+            onSettled?.("cancelled");
+        } else {
+            onSettled?.("failed");
             toast.error(result.error || "AI 이메일 생성에 실패했습니다.");
         }
     };
@@ -151,11 +163,11 @@ export default function AiEmailPanel({ onGenerated, onStream, recordId, defaultP
                 <Input
                     value={ctaUrl}
                     onChange={(e) => setCtaUrl(e.target.value)}
-                    placeholder="https://example.com — 제품 선택 시 자동 입력"
+                    placeholder="https://example.com/?utm_source=owned&utm_medium=email&utm_campaign=cold"
                     className="h-8 text-sm"
                 />
                 <p className="text-[11px] text-muted-foreground">
-                    이메일 내 버튼 링크에 사용됩니다. UTM 파라미터가 자동 추가됩니다.
+                    이메일 내 버튼 링크에 입력한 URL이 그대로 사용됩니다 (UTM 자동 부착 없음). UTM 파라미터는 직접 작성하세요. 제품 선택 시 제품 URL이 채워집니다.
                 </p>
             </div>
             <div className="flex gap-2">
