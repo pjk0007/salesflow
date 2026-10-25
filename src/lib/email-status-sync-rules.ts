@@ -275,6 +275,8 @@ export const UPDATE_WINDOW = {
     overlapMs: 5 * MINUTE_MS,
     /** 창 하나의 길이 */
     lengthMs: HOUR_MS,
+    /** 쪽이 많아 창을 줄일 때의 가장 짧은 길이 (shrinkUpdateSpan, UX-197) */
+    minLengthMs: MINUTE_MS,
     /** 지금에서 이만큼 뒤까지만 읽는다 (막 바뀐 상태가 목록에 아직 없을 수 있다) */
     lagMs: MINUTE_MS,
     /** 커서가 지금 − 이 값 안으로 들어오면 처음 따라잡기가 끝났다 (initial_done_at) */
@@ -291,11 +293,29 @@ export function initialCursor(now: Date, backfillDays: number): Date {
  * 이번에 읽을 창 [cursor − 5분, min(cursor + 1시간, now − 1분)]. 읽을 것이 없으면(커서가 지금을 따라잡음) null.
  * 창을 쪽 끝까지 다 읽은 뒤에만 커서를 창 끝(end)으로 옮긴다.
  */
-export function nextUpdateWindow(cursor: Date, now: Date): { start: Date; end: Date } | null {
-    const end = Math.min(cursor.getTime() + UPDATE_WINDOW.lengthMs, now.getTime() - UPDATE_WINDOW.lagMs);
+export function nextUpdateWindow(
+    cursor: Date,
+    now: Date,
+    lengthMs: number = UPDATE_WINDOW.lengthMs
+): { start: Date; end: Date } | null {
+    const end = Math.min(cursor.getTime() + lengthMs, now.getTime() - UPDATE_WINDOW.lagMs);
     // 초 단위로 묻는다 — 초 아래만 남은 창은 읽을 것이 없다
     if (Math.floor(end / 1000) <= Math.floor(cursor.getTime() / 1000)) return null;
     return { start: new Date(cursor.getTime() - UPDATE_WINDOW.overlapMs), end: new Date(end) };
+}
+
+/**
+ * 창 하나를 끝까지 읽을 쪽 수(pagesNeeded)가 이번 회차에 더 물을 수 있는 수(pagesAffordable)보다 많으면 창 길이를 그 비율로
+ * 줄인다 (UX-197). 예전에는 같은 창을 매 회차 첫 쪽부터 읽다 예산에서 멈춰 커서가 영영 움직이지 않았다.
+ * 돌려주는 값: 다음에 물을 창 길이(초 단위로 내림, minLengthMs 이상). 줄일 필요가 없으면 spanMs 그대로,
+ * 더 줄일 수 없거나(이미 가장 짧다) 물을 수가 없으면 null — 부르는 쪽은 예산이 모자란 것으로 보고 커서를 옮기지 않는다.
+ */
+export function shrinkUpdateSpan(spanMs: number, pagesNeeded: number, pagesAffordable: number): number | null {
+    if (!(pagesAffordable >= 1)) return null;
+    if (pagesNeeded <= pagesAffordable) return spanMs;
+    const scaled = Math.floor((spanMs * pagesAffordable) / pagesNeeded / 1000) * 1000;
+    const next = Math.max(UPDATE_WINDOW.minLengthMs, scaled);
+    return next < spanMs ? next : null;
 }
 
 export function isCursorCaughtUp(cursor: Date, now: Date): boolean {
@@ -449,6 +469,21 @@ export function resolveStatusSyncConfig(env: Record<string, string | undefined>)
         backfillDays: intEnv(env.NHN_STATUS_BACKFILL_DAYS, 8, 0, 60),
         pageSize: intEnv(env.NHN_STATUS_PAGE_SIZE, 100, 1, 1000),
     };
+}
+
+/**
+ * 화면 "동기화" 버튼의 경고 문구 (UX-260). 조회가 실패했는데 "0건 업데이트" 성공처럼 보이지 않게 한다.
+ * 실패가 없으면 null. 키 오류면 설정 확인을, 그 밖은 일부 실패와 다시 시도를 안내한다. 문구 앞부분은 상태 줄과 같은 failureText.
+ */
+export function syncWarning(stats: { errors: number; lastFailure?: { kind: NhnFailureKind; text: string } }): string | null {
+    const f = stats.lastFailure;
+    if (f?.kind === "auth") {
+        return `${f.text} — NHN에서 결과를 가져오지 못했습니다. 이메일 화면 '설정'에서 appKey·secretKey를 확인해주세요.`;
+    }
+    if (stats.errors > 0 || f) {
+        return `${f?.text ?? "NHN 조회 일시 오류"} — 결과 조회 일부가 실패했습니다. 잠시 뒤 다시 동기화해주세요.`;
+    }
+    return null;
 }
 
 /** NHN 조회 실패 갈래 (3-5). 400은 update-mails에서 창 시작이 하루보다 오래됐을 때만 "오래된 창 거절"로 본다 (3-6, OPS-7) */
