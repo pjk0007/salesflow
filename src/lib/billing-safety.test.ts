@@ -9,7 +9,7 @@ const USER = "00000000-0000-4000-8000-000000000001";
 const free = { id: 1, slug: "free", name: "Free", price: 0, limits: { records: 100, workspaces: 1, members: 3 } };
 const pro = { id: 2, slug: "pro", name: "Pro", price: 10000, limits: { records: 1000, workspaces: 10, members: 20 } };
 
-async function fixture(t: TestContext, options: { suspended?: boolean; role?: "owner" | "member"; failApply?: boolean; failPrepare?: boolean } = {}) {
+async function fixture(t: TestContext, options: { suspended?: boolean; role?: "owner" | "member"; failApply?: boolean; failPrepare?: boolean; cardSaveMisses?: boolean } = {}) {
     isolateEnv(t, { TOSS_SECRET_KEY: "fake-toss-key" });
     const auth = await import("./auth");
     const { db } = await import("./db");
@@ -34,15 +34,24 @@ async function fixture(t: TestContext, options: { suspended?: boolean; role?: "o
         if (isMembershipLookup(c)) return [{ role: options.role ?? "owner", membershipId: 71, tokenVersion: 0, isSuperAdmin: 0 }];
         if (c.op === "select" && c.table === "plans") return [c.params.includes("free") || c.params.includes(1) ? free : pro];
         if (c.table === "subscriptions") {
+            // 카드 없는 만료 구독 정리(UX-025)의 조건만 메모리 상태로 판정한다
+            if (c.sql.includes('"subscriptions"."toss_billing_key" is null') && sub.tossBillingKey) return [];
             if (c.op === "select") return [{ ...sub }];
             if (c.op === "update") {
+                if (options.cardSaveMisses && "tossBillingKey" in (c.set as Record<string, unknown>)) return [];
                 if (options.failApply && (c.set as Record<string, unknown>).planId === 2) return new Error("SQL UPDATE subscriptions SECRET");
                 sub = { ...sub, ...c.set as Record<string, unknown> };
                 return [{ id: 10 }];
             }
         }
         if (c.table === "payments") {
-            if (c.op === "select") return paymentRows.filter((p) => p.status === "pending");
+            if (c.op === "select") {
+                const pending = paymentRows.filter((p) => p.status === "pending");
+                // 대사 대상은 15분 넘게 남은 pending뿐이다(진행 중일 수 있는 요청은 조회하지 않는다)
+                if (!c.sql.includes('"payments"."created_at"')) return pending;
+                const cutoff = Date.now() - 15 * 60 * 1000;
+                return pending.filter((p) => p.createdAt instanceof Date && p.createdAt.getTime() <= cutoff);
+            }
             if (c.op === "insert") {
                 if (options.failPrepare) return new Error("SQL INSERT payments SECRET");
                 const row = { ...c.values as Record<string, unknown>, id: paymentRows.length + 1 };
@@ -86,6 +95,7 @@ async function fixture(t: TestContext, options: { suspended?: boolean; role?: "o
         sub: () => sub, payments: () => paymentRows, providerCalls: () => providerCalls,
         provider: (next: typeof provider) => { provider = next; },
         setSub: (values: Record<string, unknown>) => { Object.assign(sub, values); },
+        addPayment: (row: Record<string, unknown>) => { paymentRows.push({ id: paymentRows.length + 1, orgId: ORG, subscriptionId: 10, ...row }); },
     };
 }
 
@@ -250,4 +260,104 @@ test("UX-024 승인 응답의 주문 ID/상태가 다르면 구독을 바꾸지 
     assert.equal((await f.subscribe()).status, 500);
     assert.equal(f.sub().planId, 1);
     assert.equal(f.payments()[0].status, "pending");
+});
+
+const STALE = () => new Date(Date.now() - 60 * 60 * 1000);
+const orderLookup = (url: string) => url.includes("/payments/orders/");
+
+test("UX-024 오래된 수동 결제 pending은 공급자 승인 기록으로 확정하고 같은 주문을 다시 결제하지 않는다", async (t) => {
+    const f = await fixture(t);
+    f.addPayment({ status: "pending", amount: 10000, tossOrderId: "order_stale", createdAt: STALE() });
+    f.provider(async ({ url }) => orderLookup(url)
+        ? Response.json({ status: "DONE", orderId: "order_stale", paymentKey: "fake-approved", totalAmount: 10000, approvedAt: "2026-10-01T00:00:00+09:00" })
+        : Response.json({ status: "DONE", orderId: "unexpected", paymentKey: "x" }));
+    assert.deepEqual(await f.billing.reconcilePendingPayments(), { confirmed: 1, released: 0, unresolved: 0 });
+    assert.equal(f.payments()[0].status, "done");
+    assert.equal(f.payments()[0].tossPaymentKey, "fake-approved");
+    assert.equal(f.sub().planId, 2);
+    assert.equal(f.sub().status, "active");
+    // 확정 뒤 같은 플랜을 다시 고르면 결제 없이 '이미 동일한 플랜'
+    assert.equal((await f.subscribe()).status, 400);
+    assert.equal(f.providerCalls(), 1, "주문 조회 1회뿐, 승인 요청 없음");
+});
+
+test("UX-024 공급자에 승인 기록이 없는 pending은 실패로 풀어 다시 결제할 수 있다", async (t) => {
+    const f = await fixture(t);
+    f.addPayment({ status: "pending", amount: 10000, tossOrderId: "order_lost", createdAt: STALE() });
+    const charged: string[] = [];
+    f.provider(async ({ url, body }) => {
+        if (orderLookup(url)) return Response.json({ code: "NOT_FOUND_PAYMENT", message: "존재하지 않는 결제 정보 입니다." }, { status: 404 });
+        charged.push(String(body.orderId));
+        return Response.json({ status: "DONE", orderId: body.orderId, paymentKey: "fake-payment" });
+    });
+    assert.equal((await f.subscribe()).status, 200);
+    assert.equal(f.payments()[0].status, "failed");
+    assert.equal(charged.length, 1);
+    assert.notEqual(charged[0], "order_lost", "새 주문 번호로 1회만 결제");
+    assert.equal(f.sub().planId, 2);
+});
+
+test("UX-024 주문 조회도 실패하면 pending을 유지하고 결제하지 않는다", async (t) => {
+    const f = await fixture(t);
+    f.addPayment({ status: "pending", amount: 10000, tossOrderId: "order_unknown", createdAt: STALE() });
+    let charges = 0;
+    f.provider(async ({ url }) => {
+        if (orderLookup(url)) throw new Error("network");
+        charges++;
+        return Response.json({});
+    });
+    assert.equal((await f.subscribe()).status, 409);
+    assert.equal(f.payments()[0].status, "pending");
+    assert.equal(charges, 0);
+    // 금액이 다른 승인 기록도 확정하지 않는다
+    f.provider(async () => Response.json({ status: "DONE", orderId: "order_unknown", paymentKey: "k", totalAmount: 99 }));
+    assert.deepEqual(await f.billing.reconcilePendingPayments(), { confirmed: 0, released: 0, unresolved: 1 });
+    assert.equal(f.payments()[0].status, "pending");
+});
+
+test("UX-024 자동 갱신 pending은 대사로 기간만 연장하고 같은 갱신을 다시 결제하지 않는다", async (t) => {
+    const f = await fixture(t);
+    f.setSub({ planId: 2, retryCount: 0, currentPeriodEnd: new Date(0) });
+    f.addPayment({ status: "pending", amount: 10000, tossOrderId: "renew_stale", createdAt: STALE() });
+    let charges = 0;
+    f.provider(async ({ url }) => {
+        if (orderLookup(url)) return Response.json({ status: "DONE", orderId: "renew_stale", paymentKey: "fake-renew", totalAmount: 10000, approvedAt: new Date().toISOString() });
+        charges++;
+        return Response.json({});
+    });
+    const result = await f.billing.processRenewals();
+    assert.equal(result.renewed, 0);
+    assert.equal(charges, 0);
+    assert.equal(f.payments()[0].status, "done");
+    assert.equal(f.sub().planId, 2);
+    assert.ok((f.sub().currentPeriodEnd as Date) > new Date());
+});
+
+test("UX-025 카드 없이 기간이 끝난 유료 구독은 갱신 때 Free로 내려가고, 카드가 있으면 그대로 갱신된다", async (t) => {
+    await t.test("카드 없음 → Free 전환, 결제 호출 없음", async (t) => {
+        const f = await fixture(t);
+        f.setSub({ planId: 2, retryCount: 0, currentPeriodEnd: new Date(0), tossBillingKey: null, tossCustomerKey: null });
+        const result = await f.billing.processRenewals();
+        assert.equal(result.downgraded, 1);
+        assert.equal(f.sub().planId, 1);
+        assert.equal(f.sub().currentPeriodEnd, null);
+        assert.ok(f.sub().canceledAt instanceof Date);
+        assert.equal(f.providerCalls(), 0);
+    });
+    await t.test("카드 있음 → 전환 없이 갱신 결제", async (t) => {
+        const f = await fixture(t);
+        f.setSub({ planId: 2, retryCount: 0, currentPeriodEnd: new Date(0) });
+        const result = await f.billing.processRenewals();
+        assert.equal(result.downgraded, 0);
+        assert.equal(result.renewed, 1);
+        assert.equal(f.sub().planId, 2);
+    });
+});
+
+test("UX-019 카드 저장이 0행이면 성공 대신 409로 알린다", async (t) => {
+    const f = await fixture(t, { suspended: true, cardSaveMisses: true });
+    const res = await f.issue.POST(f.request("issue-billing-key", { authKey: "fake", customerKey: "fake" }));
+    assert.equal(res.status, 409);
+    assert.match((await res.json()).error, /카드 정보를 저장하지 못했습니다/);
+    assert.equal(f.sub().tossBillingKey, "fake-card");
 });

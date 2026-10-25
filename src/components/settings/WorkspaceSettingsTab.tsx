@@ -318,6 +318,7 @@ export default function WorkspaceSettingsTab() {
                 onOpenChange={setDeleteOpen}
                 workspace={selectedWorkspace}
                 onConfirm={handleDelete}
+                onHide={selectedWorkspace && !selectedWorkspace.hiddenAt ? () => { setDeleteOpen(false); void handleToggleHidden(); } : undefined}
             />
         </div>
     );
