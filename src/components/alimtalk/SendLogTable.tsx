@@ -67,7 +67,7 @@ export default function SendLogTable() {
         const result = await syncResults();
         setSyncing(false);
         if (result.success) {
-            toast.success(`동기화 완료: ${result.data.updated}건 상태 업데이트`);
+            toast.success(`동기화 완료: ${result.data?.updated ?? 0}건 상태 업데이트`);
         } else {
             toast.error(result.error || "동기화에 실패했습니다.");
         }
