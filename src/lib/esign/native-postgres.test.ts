@@ -78,12 +78,12 @@ test("native PostgreSQL: two connections enforce CAS, atomic signatures, locks, 
             const jsonType = await connectionA.query<{ kind: string }>("SELECT jsonb_typeof(data) kind FROM esign.documents WHERE id=$1", [contract.document.id]);
             assert.equal(jsonType.rows[0].kind, "object", "Driver JSON parameters must not be double serialized");
             assert.equal((await serviceA.getEnvelope(owner, contract.id)).envelope.document.version, 1);
-            const listed = await serviceB.listEnvelopes(owner);
+            const listed = (await serviceB.listEnvelopes(owner)).items;
             assert.equal(listed[0].envelope.id, contract.id); assert.equal(listed[0].recipients.length, 1);
-            assert.equal(listed[0].jobs.length, 0); assert.equal(listed[0].events.length, 0);
-            assert.equal((await serviceB.listDocuments(owner)).length, 1);
+            assert.equal("jobs" in listed[0], false); assert.equal("events" in listed[0], false); assert.equal("document" in listed[0].envelope, false);
+            assert.equal((await serviceB.listDocuments(owner)).items.length, 1);
             await assert.rejects(serviceB.getEnvelope({ ...owner, workspaceId: 99 }, contract.id), /찾을 수/);
-            assert.equal((await serviceB.listEnvelopes({ ...owner, orgId: randomUUID() })).length, 0);
+            assert.equal((await serviceB.listEnvelopes({ ...owner, orgId: randomUUID() })).items.length, 0);
             await assert.rejects(repositoryA.mutate(contract.id, (a) => { a.envelope.state = "cancelled"; throw new Error("native-rollback"); }), /native-rollback/);
             assert.equal((await serviceB.getEnvelope(owner, contract.id)).envelope.state, "pending");
             await serviceA.requestOtp(contract.token, "email");

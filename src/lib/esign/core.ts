@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { EsignAggregate, EsignRepository } from "./repository";
 import { decryptPayload, encryptPayload, equalHash, otpHash, randomOtp, randomToken, secretKey, tokenHash } from "./crypto";
-import { activeEnvelope, artifactInput, assertImageOwnership, maskEmail, maskPhone, MAX_OTP_ATTEMPTS, OTP_COOLDOWN_MS, OTP_TTL_MS, parseDocument, parseEnvelope, recipientWaiting, uniqueImageBudget, validateValues, VERIFY_TTL_MS } from "./rules";
+import { activeEnvelope, artifactInput, assertImageOwnership, assertUsableFields, maskEmail, maskPhone, MAX_OTP_ATTEMPTS, OTP_COOLDOWN_MS, OTP_TTL_MS, parseDocument, parseEnvelope, recipientWaiting, uniqueImageBudget, validateValues, VERIFY_TTL_MS } from "./rules";
 import { ESIGN_PDF_LIMITS } from "./pdf-types";
-import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignActor, type EsignDocumentInput, type EsignEnvelopeInput, type EsignEvent, type EsignJob, type EsignRecipient, type FinalizedArtifact, type PublicEsignSession, type SignatureInput, type StaffEsignDetail } from "./types";
+import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignActor, type EsignDocument, type EsignDocumentInput, type EsignListPage, type EsignListQuery, type StaffEsignSummary, type StaffRecipient, type EsignEnvelopeInput, type EsignEvent, type EsignJob, type EsignRecipient, type FinalizedArtifact, type PublicEsignSession, type SignatureInput, type StaffEsignDetail } from "./types";
 
 const at = (date: Date, milliseconds = 0) => new Date(date.getTime() + milliseconds).toISOString();
 const safeError = (message?: string) => (message?.slice(0, 200) || "처리 결과를 확인해주세요.");
@@ -51,14 +51,15 @@ function canAuthenticate(value: EsignAggregate, recipient: EsignRecipient, now: 
     if (["finalizing", "completed"].includes(value.envelope.state) && recipient.state === "signed") return;
     throw new EsignError("현재 확인할 수 없는 서명 요청입니다.", value.envelope.state === "expired" ? 410 : 409, value.envelope.state);
 }
+function staffRecipient(r: EsignRecipient): StaffRecipient {
+    const { tokenHash: _token, otpHash: _otp, otpChallenge: _challenge, otpExpiresAt: _otpExpires, otpRetryAt: _retry, otpAttempts: _attempts, verificationHash: _verification, verificationExpiresAt: _verifiedExpiry, submissionKey: _submission, submissionHash: _submissionHash, ...safe } = r;
+    void [_token, _otp, _challenge, _otpExpires, _retry, _attempts, _verification, _verifiedExpiry, _submission, _submissionHash];
+    return structuredClone(safe);
+}
 function detail(value: EsignAggregate): StaffEsignDetail {
     return {
         envelope: structuredClone(value.envelope),
-        recipients: value.recipients.map((r) => {
-            const { tokenHash: _token, otpHash: _otp, otpChallenge: _challenge, otpExpiresAt: _otpExpires, otpRetryAt: _retry, otpAttempts: _attempts, verificationHash: _verification, verificationExpiresAt: _verifiedExpiry, submissionKey: _submission, submissionHash: _submissionHash, ...safe } = r;
-            void [_token, _otp, _challenge, _otpExpires, _retry, _attempts, _verification, _verifiedExpiry, _submission, _submissionHash];
-            return structuredClone(safe);
-        }),
+        recipients: value.recipients.map(staffRecipient),
         jobs: value.jobs.map((j) => { const { encryptedPayload: _payload, leaseId: _lease, ...safe } = j; void [_payload, _lease]; return structuredClone(safe); }),
         events: structuredClone(value.events),
     };
@@ -82,7 +83,7 @@ export class EsignService {
         const document = { ...parseDocument(raw), id: randomUUID(), orgId: actor.orgId, workspaceId: actor.workspaceId, createdBy: actor.userId, version: 1, createdAt: at(this.clock()) };
         await this.repository.saveDocument(document); return document;
     }
-    listDocuments(actor: EsignActor) { return this.repository.documents(actor); }
+    listDocuments(actor: EsignActor, query: EsignListQuery & { kind?: EsignDocument["kind"] } = {}) { return this.repository.documents(actor, query); }
     async getDocument(actor: EsignActor, id: string) {
         const document = await this.repository.document(actor, z.string().uuid().parse(id));
         if (!document) throw new EsignError("문서를 찾을 수 없습니다.", 404, "not_found");
@@ -93,6 +94,7 @@ export class EsignService {
         const current = await this.getDocument(actor, id);
         if (current.version !== patch.version) throw new EsignError("문서가 변경되었습니다. 다시 열어주세요.", 409, "conflict");
         const input = parseDocument({ title: patch.title ?? current.title, kind: patch.kind ?? current.kind, artifact: current.artifact, pages: current.pages, fields: (patch.fields ?? current.fields) as EsignDocumentInput["fields"] });
+        if (patch.fields) assertUsableFields(input.pages, input.fields);
         const next = { ...current, ...input, version: current.version + 1 };
         await this.repository.saveDocument(next, current.version); return next;
     }
@@ -101,6 +103,7 @@ export class EsignService {
         if (!document.fields.length || document.fields.some((f) => f.recipientIndex >= input.recipients.length)) throw new EsignError("문서 입력란의 서명자를 확인해주세요.");
         for (let index = 0; index < input.recipients.length; index++) if (!document.fields.some((f) => f.recipientIndex === index && f.required && ["signature", "seal"].includes(f.type)))
             throw new EsignError("모든 서명자에게 필수 서명 또는 도장 입력란이 필요합니다.");
+        assertUsableFields(document.pages, document.fields);
         const id = randomUUID(), value: EsignAggregate = {
             envelope: { id, orgId: actor.orgId, workspaceId: actor.workspaceId, title: input.title, order: input.order, state: "draft", version: 1, document: structuredClone(document), expiresAt: new Date(input.expiresAt).toISOString(), createdBy: actor.userId, createdAt: at(now), updatedAt: at(now) },
             recipients: [], events: [], jobs: [],
@@ -113,13 +116,13 @@ export class EsignService {
         event(value, "envelope.created", now, { actorId: actor.userId }, { sourceSha256: document.artifact.sha256, documentVersion: document.version });
         await this.repository.create(value); return detail(value);
     }
-    async listEnvelopes(actor: EsignActor) {
-        const now = this.clock();
-        return (await this.repository.list(actor)).map((value) => {
+    async listEnvelopes(actor: EsignActor, query: EsignListQuery = {}): Promise<EsignListPage<StaffEsignSummary>> {
+        const now = this.clock(), listed = await this.repository.list(actor, query);
+        return { ...listed, items: listed.items.map((value) => {
             // Effective status is readable immediately; bounded expiry processing persists its audit/cleanup.
             if (["draft", "pending"].includes(value.envelope.state) && new Date(value.envelope.expiresAt) <= now) value.envelope.state = "expired";
-            return detail(value);
-        });
+            return { envelope: structuredClone(value.envelope), recipients: value.recipients.map(staffRecipient) };
+        }) };
     }
     async expireDue(limit = 5) {
         const now = this.clock(), bounded = Number.isFinite(limit) ? Math.min(10, Math.max(1, Math.trunc(limit))) : 5;

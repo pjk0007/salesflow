@@ -1,6 +1,14 @@
-import type { EsignRepository, EsignAggregate } from "./repository";
-import { EsignError, type EsignActor, type EsignDocument, type EsignJob } from "./types";
+import { compareNewestFirst, decodeListCursor, encodeListCursor, listLimit, normalizedSearch, type EsignRepository, type EsignAggregate } from "./repository";
+import { EsignError, type EsignActor, type EsignDocument, type EsignJob, type EsignListQuery, type EsignListPage } from "./types";
 const copy = <T>(value: T): T => structuredClone(value);
+/** postgres 저장소와 같은 정렬·커서·건수 규칙. map으로 반환 항목만 바꾼다. */
+function pageOf<T>(rows: T[], key: (row: T) => { createdAt: string; id: string }, options: EsignListQuery) {
+    const limit = listLimit(options.limit), cursor = decodeListCursor(options.cursor);
+    const sorted = [...rows].sort((a, b) => compareNewestFirst(key(a), key(b)));
+    const after = cursor ? sorted.filter((row) => compareNewestFirst(cursor, key(row)) < 0) : sorted;
+    const items = after.slice(0, limit), last = items.at(-1);
+    return { map<U>(mapper: (row: T) => U): EsignListPage<U> { return { items: items.map(mapper), nextCursor: after.length > limit && last ? encodeListCursor(key(last)) : null, total: rows.length }; } };
+}
 export class MemoryEsignRepository implements EsignRepository {
     private readonly docs = new Map<string, EsignDocument>();
     private readonly aggregates = new Map<string, EsignAggregate>();
@@ -14,15 +22,19 @@ export class MemoryEsignRepository implements EsignRepository {
         const row = this.docs.get(id);
         return row && row.orgId === actor.orgId && row.workspaceId === actor.workspaceId ? copy(row) : null;
     }
-    async documents(actor: EsignActor) {
-        return [...this.docs.values()].filter((d) => d.orgId === actor.orgId && d.workspaceId === actor.workspaceId).slice(-100).reverse().map(copy);
+    async documents(actor: EsignActor, options: EsignListQuery & { kind?: EsignDocument["kind"] } = {}) {
+        const search = normalizedSearch(options.query)?.toLowerCase();
+        return pageOf([...this.docs.values()].filter((d) => d.orgId === actor.orgId && d.workspaceId === actor.workspaceId && (!options.kind || d.kind === options.kind) && (!search || d.title.toLowerCase().includes(search))), (d) => d, options).map(copy);
     }
     async create(aggregate: EsignAggregate) {
         if (this.aggregates.has(aggregate.envelope.id)) throw new EsignError("이미 생성된 서명 요청입니다.", 409);
         this.aggregates.set(aggregate.envelope.id, copy(aggregate));
     }
-    async list(actor: EsignActor) {
-        return [...this.aggregates.values()].filter((a) => a.envelope.orgId === actor.orgId && a.envelope.workspaceId === actor.workspaceId).slice(-100).reverse().map((a) => ({ envelope: copy(a.envelope), recipients: copy(a.recipients), events: [], jobs: [] }));
+    async list(actor: EsignActor, options: EsignListQuery = {}) {
+        const search = normalizedSearch(options.query)?.toLowerCase();
+        const matches = [...this.aggregates.values()].filter((a) => a.envelope.orgId === actor.orgId && a.envelope.workspaceId === actor.workspaceId
+            && (!search || a.envelope.title.toLowerCase().includes(search) || a.recipients.some((r) => r.name.toLowerCase().includes(search))));
+        return pageOf(matches, (a) => a.envelope, options).map((a) => { const { document: _document, ...envelope } = copy(a.envelope); void _document; return { envelope, recipients: copy(a.recipients) }; });
     }
     async read(id: string) { const row = this.aggregates.get(id); return row ? copy(row) : null; }
     async recipientByTokenHash(hash: string) {

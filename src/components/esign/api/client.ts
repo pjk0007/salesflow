@@ -1,4 +1,4 @@
-import type { EsignDocument, EsignEnvelopeInput, EsignField, EsignChannel, EsignRecipientInput, PublicEsignSession, StaffEsignDetail } from "@/lib/esign/types";
+import type { EsignDocument, EsignEnvelopeInput, EsignField, EsignChannel, EsignListPage, EsignRecipientInput, PublicEsignSession, StaffEsignDetail, StaffEsignSummary } from "@/lib/esign/types";
 import type { EsignAlimtalkStatus } from "@/lib/esign/alimtalk";
 
 export type EsignStatus = { enabled: boolean; emailReady: boolean; smsReady: boolean; alimtalkReady?: boolean; alimtalk?: EsignAlimtalkStatus; storageReady: boolean; databaseReady: boolean; issues: string[] };
@@ -16,13 +16,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 const json = (value: unknown): RequestInit => ({ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
 const scoped = (path: string, workspaceId: number) => `${path}${path.includes("?") ? "&" : "?"}workspaceId=${workspaceId}`;
+const listParams = (query: Record<string, string | undefined>) => { const params = new URLSearchParams(Object.entries(query).filter((entry): entry is [string, string] => !!entry[1])); return params.size ? `?${params}` : ""; };
 const publicPath = (token: string, suffix = "") => `/public/${encodeURIComponent(token)}${suffix}`;
 export const verificationHeaders = (token?: string): Record<string, string> => token ? { "X-Esign-Verification": token } : {};
 
 export const esignApi = {
     status: () => request<EsignStatus>("/status"),
-    documents: (workspaceId: number) => request<EsignDocument[]>(scoped("/documents", workspaceId)),
-    envelopes: (workspaceId: number) => request<StaffEsignDetail[]>(scoped("/envelopes", workspaceId)),
+    documents: (workspaceId: number, query: { kind?: EsignDocument["kind"]; q?: string; cursor?: string } = {}) => request<EsignListPage<EsignDocument>>(scoped(`/documents${listParams(query)}`, workspaceId)),
+    envelopes: (workspaceId: number, query: { q?: string; cursor?: string } = {}) => request<EsignListPage<StaffEsignSummary>>(scoped(`/envelopes${listParams(query)}`, workspaceId)),
     prefill: (workspaceId: number, identity: { recordId?: number; contactId?: string }) => request<EsignRecipientInput>(scoped(`/prefill?${identity.recordId ? `recordId=${identity.recordId}` : `contactId=${encodeURIComponent(identity.contactId || "")}`}`, workspaceId)),
     upload: (workspaceId: number, file: File, title: string, kind: "document" | "template") => {
         const body = new FormData(); body.set("workspaceId", String(workspaceId)); body.set("file", file); body.set("title", title); body.set("kind", kind);

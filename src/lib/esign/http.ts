@@ -44,6 +44,11 @@ function requireWorkspace(url: URL, body?: { workspaceId?: unknown }) {
     if (!Number.isSafeInteger(id) || id < 1) throw new EsignError("사업을 선택해주세요.");
     return id;
 }
+/** 목록 공통 쿼리: q(제목·서명자 검색), cursor(다음 페이지), limit(최대 100). */
+function listQuery(url: URL) {
+    const limit = url.searchParams.get("limit");
+    return { query: z.string().max(200).optional().parse(url.searchParams.get("q") ?? undefined), cursor: z.string().max(300).optional().parse(url.searchParams.get("cursor") ?? undefined), limit: limit ? z.coerce.number().int().min(1).max(100).parse(limit) : undefined };
+}
 const kick = (engine: EsignEngine) => { void engine.kick().catch(() => undefined); };
 
 /** Shared Request/Response handler is exercised through the isolated test HTTP server too. */
@@ -129,7 +134,10 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
         if (route[0] === "prefill" && method === "GET") return result(await dependencies.prefill(request, actor, url.searchParams));
         if (route[0] === "documents") {
             const id = route[1], action = route[2];
-            if (!id && method === "GET") return result(await service.repository.documents(actor));
+            if (!id && method === "GET") {
+                const kind = url.searchParams.get("kind");
+                return result(await service.listDocuments(actor, { ...listQuery(url), ...(kind ? { kind: z.enum(["document", "template"]).parse(kind) } : {}) }));
+            }
             if (!id && method === "POST") {
                 if (form) {
                     const file = form.get("file");
@@ -148,7 +156,7 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
         }
         if (route[0] === "envelopes") {
             const id = route[1], action = route[2];
-            if (!id && method === "GET") return result(await service.listEnvelopes(actor));
+            if (!id && method === "GET") return result(await service.listEnvelopes(actor, listQuery(url)));
             if (!id && method === "POST") {
                 const input = body as unknown as Parameters<EsignService["createEnvelope"]>[1];
                 const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "alimtalk", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);

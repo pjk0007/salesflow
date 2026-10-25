@@ -285,7 +285,7 @@ test("bounded expiry cleanup erases retained invitation secrets without reopenin
     await f.service.completeDelivery(job.id, f.id, job.leaseId!, { state: "accepted" });
     f.setTime("2026-10-19T01:00:00.000Z");
     const before = (await f.repository.read(f.id))!;
-    assert.equal((await f.service.listEnvelopes(actor))[0].envelope.state, "expired");
+    assert.equal((await f.service.listEnvelopes(actor)).items[0].envelope.state, "expired");
     assert.deepEqual((await f.repository.read(f.id))!, before, "List polling does not persist or scan mutations");
     assert.equal((await f.service.expireDue()).processed, 1);
     const after = (await f.repository.read(f.id))!;
@@ -363,4 +363,24 @@ test("an exact signed replay is idempotent before aggregate policy checks, while
     assert.equal((await f.repository.read(f.id))!.events.filter((e) => e.type === "recipient.signed").length, 1);
     replay.values[0].raster = { width: 50, height: 100 };
     await assert.rejects(f.service.submitSignature(f.tokens[0], replay), /크기 정보/);
+});
+
+test("UX-189: 고객이 이미지를 만들 수 없는 가는 입력란은 저장·발송 전에 막고 정상 입력란과 기존 문서는 그대로 둔다", async () => {
+    const repository = new MemoryEsignRepository(), service = new EsignService({ repository, secret, clock: () => new Date("2026-10-18T01:00:00.000Z") });
+    const a4 = { pageIndex: 0, width: 595, height: 842, rotation: 0 as const, crop: { x: 0, y: 0, width: 595, height: 842 } };
+    const thin = { id: "thin", recipientIndex: 0, type: "signature" as const, pageIndex: 0, x: 0, y: 0.5, width: 1, height: 0.02, required: true };
+    // 기존(검증 이전) 문서는 그대로 저장돼 있다고 가정한다: 생성 경로는 자동 변경하지 않는다.
+    const legacy = await service.createDocument(actor, { ...documentInput(), pages: [a4], fields: [thin] });
+    assert.equal(legacy.fields[0].height, 0.02);
+    const request = { documentId: legacy.id, title: "가는 서명란", order: "parallel" as const, expiresAt: "2026-10-19T01:00:00.000Z", recipients: [{ name: "가상 고객", email: "fake@example.invalid", channels: ["email" as const] }] };
+    await assert.rejects(service.createEnvelope(actor, request), (e: Error & { code?: string }) => e.code === "field_too_thin" && e.message.includes("1쪽 1번 서명자의 '서명'"));
+    assert.equal((await repository.list(actor, {})).items.length, 0, "발송 작업이 만들어지지 않는다");
+    await assert.rejects(service.updateDocument(actor, legacy.id, { fields: [thin], version: 1 }), /너무 가늘거나 납작/);
+    const fixed = await service.updateDocument(actor, legacy.id, { fields: [{ ...thin, height: 0.07, width: 0.2 }], version: 1 });
+    const created = await service.createEnvelope(actor, { ...request, documentId: fixed.id });
+    assert.equal(created.envelope.state, "draft");
+    // 가로 페이지의 세로 서명란처럼 정상 비율은 허용한다.
+    const landscape = { ...a4, width: 842, height: 595, crop: { x: 0, y: 0, width: 842, height: 595 } };
+    const tall = await service.createDocument(actor, { ...documentInput(), pages: [landscape], fields: [{ ...thin, width: 0.05, height: 0.3 }] });
+    assert.equal((await service.createEnvelope(actor, { ...request, documentId: tall.id })).envelope.state, "draft");
 });

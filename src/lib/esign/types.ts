@@ -51,6 +51,10 @@ export type PublicEsignSession = {
     document?: EsignDocument; values?: EsignValue[]; finalArtifact?: EsignArtifact;
 };
 export type StaffRecipient = Omit<EsignRecipient, "tokenHash" | "otpHash" | "otpChallenge" | "otpExpiresAt" | "otpRetryAt" | "otpAttempts" | "verificationHash" | "verificationExpiresAt" | "submissionKey" | "submissionHash">;
+export type EsignListQuery = { query?: string; cursor?: string; limit?: number };
+/** total은 현재 검색 조건 전체 건수, nextCursor가 있으면 다음 페이지가 있다. */
+export type EsignListPage<T> = { items: T[]; nextCursor: string | null; total: number };
+export type StaffEsignSummary = { envelope: Omit<EsignEnvelope, "document">; recipients: StaffRecipient[] };
 export type StaffEsignDetail = { envelope: EsignEnvelope; recipients: StaffRecipient[]; jobs: Omit<EsignJob, "encryptedPayload" | "leaseId">[]; events: EsignEvent[] };
 export type SignatureInput = { verificationToken: string; idempotencyKey: string; consent: true; values: EsignValue[] };
 export type DeliveryOutcome = { state: "accepted" | "failed" | "unknown"; providerId?: string; error?: string };

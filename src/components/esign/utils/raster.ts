@@ -1,12 +1,14 @@
-const MAX_FIELD_PIXELS = 80_000;
+import { fieldRasterSize } from "@/lib/esign/geometry";
+
 const MAX_FIELD_PNG_BYTES = 83_886;
 
 function fieldCanvas(aspect: number): HTMLCanvasElement {
     if (!Number.isFinite(aspect) || aspect <= 0) throw new Error("입력란 크기를 확인해 주세요.");
+    // 서버가 발송 전에 같은 산식(fieldRasterSize)으로 막으므로 새 요청에서는 여기까지 오지 않는다.
+    const size = fieldRasterSize({ width: aspect, height: 1 }, { width: 1, height: 1 });
     const canvas = document.createElement("canvas");
-    canvas.width = Math.floor(Math.min(600, Math.sqrt(MAX_FIELD_PIXELS * aspect)));
-    canvas.height = Math.floor(canvas.width / aspect);
-    if (canvas.width < 32 || canvas.height < 32) throw new Error("입력란이 너무 가늘어 내용을 넣을 수 없습니다. 요청자에게 입력란 크기 조정을 요청해 주세요.");
+    canvas.width = size.width; canvas.height = size.height;
+    if (!size.usable) throw new Error("입력란이 너무 가늘어 내용을 넣을 수 없습니다. 요청자에게 입력란 크기 조정을 요청해 주세요.");
     return canvas;
 }
 
