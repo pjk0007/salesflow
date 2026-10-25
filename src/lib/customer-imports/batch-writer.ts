@@ -7,6 +7,28 @@ import type { ImportJob } from "./repository";
 import type { ImportPlanRow } from "./rules";
 import { applyImportRow, type ImportMessageBatch } from "./writer";
 
+/** 묶음 안에서 실패한 행을 알려 준다(실패 사유와 감사 기록에 행 번호·종류·원본 ID를 남긴다). */
+export class ImportRowError extends Error {
+    constructor(
+        public row: Pick<ImportPlanRow, "index" | "kind" | "sourceId">,
+        public cause: unknown,
+    ) {
+        super(cause instanceof Error ? cause.message : "import row failed");
+        this.name = "ImportRowError";
+    }
+}
+async function applyRow(...args: Parameters<typeof applyImportRow>) {
+    try {
+        return await applyImportRow(...args);
+    } catch (error) {
+        const row = args[3];
+        throw new ImportRowError(
+            { index: row.index, kind: row.kind, sourceId: row.sourceId },
+            error,
+        );
+    }
+}
+
 const independentCreate = (row: ImportPlanRow) =>
     row.kind === "messages" && row.operation === "create" && row.targetId === null;
 
@@ -24,7 +46,7 @@ export async function applyImportBatch(
         let end = at;
         if (pipeline) while (end < rows.length && independentCreate(rows[end])) end++;
         if (end - at < 2) {
-            await applyImportRow(actor, scope, job, rows[at++], tx, messageBatch);
+            await applyRow(actor, scope, job, rows[at++], tx, messageBatch);
             continue;
         }
         const group = rows.slice(at, end);
@@ -42,7 +64,7 @@ export async function applyImportBatch(
             while (!failed && next < group.length) {
                 const index = next++;
                 try {
-                    await applyImportRow(actor, scope, job, group[index], tx, messageBatch, ids[index]);
+                    await applyRow(actor, scope, job, group[index], tx, messageBatch, ids[index]);
                 } catch (error) {
                     if (!failed) firstError = error;
                     failed = true;

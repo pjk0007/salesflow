@@ -3,9 +3,20 @@ import { useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import { fileRequest, fileWrite, supplementFile } from "../api";
 import type { ImportFile, ImportFilePage } from "../types";
+import { drainPendingFiles } from "../utils/drain";
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
+import {
+    importErrorMessage,
+    importLongWrite,
+} from "@/components/customer-imports/api";
+const fetchable = (r: ImportFile) =>
+    r.active &&
+    r.state === "pending" &&
+    r.metadataValid &&
+    (r.expectedSize === null || r.expectedSize <= MAX_FILE_BYTES);
 export function useImportFiles(jobId: string) {
     const [offset, setOffset] = useState(0),
+        [state, setStateFilter] = useState(""),
         [busy, setBusy] = useState(false),
         [error, setError] = useState(""),
         [progress, setProgress] = useState(""),
@@ -13,9 +24,13 @@ export function useImportFiles(jobId: string) {
         alive = useRef(true),
         running = useRef(false),
         url = `/api/customer-imports/${jobId}/files`,
-        page = useSWR<ImportFilePage>(`${url}?offset=${offset}`, fileRequest, {
-            refreshInterval: busy ? 0 : 5000,
-        });
+        page = useSWR<ImportFilePage>(
+            `${url}?offset=${offset}${state ? `&state=${state}` : ""}`,
+            fileRequest,
+            {
+                refreshInterval: busy ? 0 : 5000,
+            },
+        );
     useEffect(() => {
         alive.current = true;
         stopped.current = false;
@@ -34,7 +49,13 @@ export function useImportFiles(jobId: string) {
             await action();
             return true;
         } catch (e) {
-            if (alive.current) setError((e as Error).message);
+            if (alive.current)
+                setError(
+                    importErrorMessage(
+                        e,
+                        "파일 처리 결과 확인이 지연되고 있습니다. 서버에서 처리됐을 수 있으니 새로고침해 상태를 확인한 뒤 다시 시도해주세요.",
+                    ),
+                );
             return false;
         } finally {
             running.current = false;
@@ -44,12 +65,22 @@ export function useImportFiles(jobId: string) {
             }
         }
     }
+    // 원본 서버에서 파일을 내려받아 저장하므로 상담용 15초보다 길게 기다린다(UX-089).
     const fetchOne = (row: ImportFile) =>
-        fileWrite(url, { action: "fetch", id: row.id, version: row.version });
+        importLongWrite(url, {
+            action: "fetch",
+            id: row.id,
+            version: row.version,
+        });
     return {
         page,
         offset,
         setOffset,
+        state,
+        setState: (value: string) => {
+            setStateFilter(value);
+            setOffset(0);
+        },
         busy,
         error,
         progress,
@@ -91,28 +122,34 @@ export function useImportFiles(jobId: string) {
                         );
                     if (!result.hasMore || stopped.current) break;
                 }
+                if (alive.current && stopped.current)
+                    setProgress(
+                        `중지했습니다 · 첨부 목록 준비 ${at}행까지 · 최신 원본과 다른 행 ${skipped}개 제외`,
+                    );
             }),
         batch: () =>
             run(async () => {
-                const rows =
-                    page.data?.rows.filter(
-                        (r) => r.active && r.state === "pending" && (r.expectedSize === null || r.expectedSize <= MAX_FILE_BYTES),
-                    ) ?? [];
-                let done = 0,
-                    failed = 0;
-                for (const row of rows) {
-                    if (stopped.current) break;
-                    try {
-                        await fetchOne(row);
-                    } catch {
-                        failed++;
-                    }
-                    done++;
-                    if (alive.current && !stopped.current)
-                        setProgress(
-                            `현재 페이지 ${done}/${rows.length}개 처리 · 확인 필요 ${failed}개`,
-                        );
-                }
+                const { done, failed } = await drainPendingFiles({
+                    page: (skip) =>
+                        fileRequest<ImportFilePage>(
+                            `${url}?offset=${skip}&state=pending`,
+                        ),
+                    fetch: fetchOne,
+                    eligible: fetchable,
+                    stopped: () => stopped.current,
+                    onProgress: (done, failed) => {
+                        if (alive.current && !stopped.current)
+                            setProgress(
+                                `대기 파일 ${done}개 처리 · 확인 필요 ${failed}개`,
+                            );
+                    },
+                });
+                if (alive.current)
+                    setProgress(
+                        stopped.current
+                            ? `중지했습니다 · 처리 ${done}개 · 확인 필요 ${failed}개`
+                            : `대기 파일 처리를 마쳤습니다 · 처리 ${done}개 · 확인 필요 ${failed}개`,
+                    );
             }),
     };
 }

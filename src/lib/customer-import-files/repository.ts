@@ -120,19 +120,32 @@ function editable(task: Task, version: number) {
             409,
         );
 }
+export const importFileStates = [
+    "pending",
+    "fetching",
+    "ready",
+    "failed",
+    "needs_source",
+] as const;
 export async function importFilePage(
     actor: SalesActor,
     jobId: string,
     offset = 0,
     exec: DbExec = db,
+    // 상태별로 모아 보기(UX-095). 지정하면 현재 원본(active)의 해당 상태만, 건수는 전체 기준.
+    state?: (typeof importFileStates)[number],
 ) {
     await fileJobOwned(actor, jobId, exec);
     const where = and(eq(tasks.orgId, actor.orgId), eq(tasks.jobId, jobId));
+    const filtered = state
+        ? and(where, eq(tasks.state, state), eq(tasks.active, true))
+        : where;
+    // 원본 상담·메시지 순서(메시지 번호)로 보여 준다. 무작위 UUID 순서를 쓰지 않는다.
     const rows = await exec
         .select()
         .from(tasks)
-        .where(where)
-        .orderBy(tasks.id)
+        .where(filtered)
+        .orderBy(tasks.messageId, tasks.id)
         .limit(100)
         .offset(offset);
     const counts = await exec
@@ -144,13 +157,18 @@ export async function importFilePage(
         .from(tasks)
         .where(where)
         .groupBy(tasks.state, tasks.active);
-    const total = counts.reduce((n, row) => n + row.count, 0);
+    const total = counts.reduce((n, row) => n + row.count, 0),
+        matched = state
+            ? counts
+                  .filter((row) => row.active && row.state === state)
+                  .reduce((n, row) => n + row.count, 0)
+            : total;
     return {
         rows: rows.map(safe),
         counts,
         total,
         offset,
-        hasMore: offset + rows.length < total,
+        hasMore: offset + rows.length < matched,
     };
 }
 /** One bounded relationship lookup for streaming migration; excludes original bodies and signed URLs. */

@@ -425,6 +425,24 @@ export function WorkflowEditor({
                             </option>
                         ))}
                     </select>
+                    {events.data && !events.error && !eventRows.length && (
+                        <p className="rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                            아직 이 사업에 모의 실행할 이벤트가 없습니다. 게시하려면
+                            실제 이벤트로 모의 실행을 통과해야 합니다.{" "}
+                            <a
+                                className="underline"
+                                href={`/customer-crm?workspaceId=${workspaceId}&resource=contacts`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                고객 관리에서 시험용 고객을 추가
+                            </a>
+                            하면 &apos;고객 등록&apos; 이벤트가 생깁니다. 상담·딜 등
+                            다른 시작 이벤트도 해당 화면에서 한 번 만들면 여기에
+                            나타납니다. 그 뒤 &apos;새 이벤트 불러오기&apos;를
+                            눌러주세요.
+                        </p>
+                    )}
                     <button
                         type="button"
                         onClick={() => void events.mutate()}

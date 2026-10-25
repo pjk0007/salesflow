@@ -172,6 +172,26 @@ function Roster({
                                                     ))}
                                                 </select>
                                             )}
+                                            {/* UX-101 게시자 권한을 낮추면 그 직원이 게시한 자동화가 모두 실패한다 */}
+                                            {m.orgRole === "member" &&
+                                                !!m.publishedWorkflows &&
+                                                (drafts[m.id] ?? m.role) !==
+                                                    "manager" &&
+                                                (drafts[m.id] ?? m.role) !==
+                                                    m.role && (
+                                                    <p
+                                                        role="alert"
+                                                        className="mt-1 max-w-xs text-xs text-amber-800"
+                                                    >
+                                                        이 직원이 게시한 켜진
+                                                        자동화 {m.publishedWorkflows}
+                                                        개가 저장 후 실행되지
+                                                        않습니다. 운영 관리 권한이
+                                                        있는 직원이 고객
+                                                        자동화에서 다시 게시해야
+                                                        합니다.
+                                                    </p>
+                                                )}
                                         </td>
                                         <td>
                                             {m.orgRole === "member" && (

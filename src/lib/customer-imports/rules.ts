@@ -267,17 +267,38 @@ export function validateRows(rows: ImportRow[]) {
 }
 export function parseCsv(input: ImportInput): ImportRow[] {
     if (!input.csvKind) throw new InboxError("CSV 자료 종류를 선택해주세요.");
-    const parsed = Papa.parse<Record<string, string>>(
-        input.content.replace(/^\uFEFF/, ""),
-        { header: true, skipEmptyLines: "greedy" },
-    );
+    const content = input.content.replace(/^\uFEFF/, ""),
+        parsed = Papa.parse<Record<string, string>>(content, {
+            header: true,
+            skipEmptyLines: "greedy",
+        });
     if (
         parsed.errors.length ||
         Object.keys(parsed.meta.renamedHeaders ?? {}).length
-    )
+    ) {
+        // 파일의 줄 번호(머리글=1행)로 알려 준다. 따옴표 오류는 문자 위치(index)가 정확하고,
+        // 열 개수 오류는 머리글을 뺀 0부터의 자료 번호(row)만 있다.
+        const lines = [
+            ...new Set(
+                parsed.errors.flatMap((e) =>
+                    typeof e.index === "number"
+                        ? [content.slice(0, e.index).split("\n").length]
+                        : typeof e.row === "number"
+                          ? [e.row + 2]
+                          : [],
+                ),
+            ),
+        ].sort((a, b) => a - b);
         throw new InboxError(
-            "CSV의 따옴표·열 개수·중복 열 이름을 확인해주세요.",
+            `CSV의 따옴표·열 개수·중복 열 이름을 확인해주세요.${
+                lines.length
+                    ? ` 문제 행: ${lines.slice(0, 10).join(", ")}행${lines.length > 10 ? ` 외 ${lines.length - 10}개` : ""}`
+                    : Object.keys(parsed.meta.renamedHeaders ?? {}).length
+                      ? ` 중복 열: ${Object.values(parsed.meta.renamedHeaders ?? {}).join(", ")}`
+                      : ""
+            }`,
         );
+    }
     return parsed.data.map((original) => {
         const data: Record<string, unknown> = {};
         for (const [field, column] of Object.entries(input.columns)) {

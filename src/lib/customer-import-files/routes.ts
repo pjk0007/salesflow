@@ -5,6 +5,7 @@ import { handleInbox, jsonBody } from "@/lib/inbox/http";
 import { readFileUpload } from "@/lib/inbox/file-http";
 import { fileAction } from "./rules";
 import {
+    importFileStates,
     importFilePage,
     importFileDetail,
     prepareImportFiles,
@@ -29,7 +30,16 @@ export function importFileHandlers(external: boolean) {
                         .min(0)
                         .parse(req.nextUrl.searchParams.get("offset") ?? 0);
                 const fileId = req.nextUrl.searchParams.get("fileId");
-                return fileId ? importFileDetail(actor, id, z.string().uuid().parse(fileId)) : importFilePage(actor, id, offset);
+                const state = req.nextUrl.searchParams.get("state");
+                return fileId
+                    ? importFileDetail(actor, id, z.string().uuid().parse(fileId))
+                    : importFilePage(
+                          actor,
+                          id,
+                          offset,
+                          undefined,
+                          state ? z.enum(importFileStates).parse(state) : undefined,
+                      );
             }),
         POST: (req: NextRequest, c: Context) =>
             handleInbox(async () => {

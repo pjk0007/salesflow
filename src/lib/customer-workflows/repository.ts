@@ -1,5 +1,17 @@
-import { requireCustomerAccess } from "@/lib/customer-access/access";
-import { and, desc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import {
+    customerAccessPredicate,
+    requireCustomerAccess,
+} from "@/lib/customer-access/access";
+import {
+    and,
+    desc,
+    eq,
+    getTableColumns,
+    inArray,
+    lt,
+    or,
+    sql,
+} from "drizzle-orm";
 import {
     db,
     workspaces,
@@ -13,9 +25,11 @@ import {
     crmContacts,
     inboxConversations,
     inboxChannels,
+    users,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
+import { newerFirstAfter } from "@/lib/customer-platform/list-cursor";
 import { InboxError } from "@/lib/inbox/errors";
 import {
     workflowInput,
@@ -73,6 +87,13 @@ export async function lockWorkflowWorkspace(
         .for("update");
     if (!w) throw new InboxError("사업을 찾을 수 없습니다.", 404);
 }
+/**
+ * 게시한 직원이 지금도 이 사업의 운영 관리 권한(활성 계정·멤버십 포함)을 갖는지(UX-101).
+ * 실행은 게시자 권한으로 처리되므로, 권한이 없으면 활성으로 보여도 모든 실행이 실패한다.
+ * 게시 버전이 없으면(초안) true.
+ */
+export const publisherCanManage = (orgId: string) =>
+    sql<boolean>`(${workflows.activeRevisionId} IS NULL OR EXISTS (SELECT 1 FROM ${revisions} WHERE ${revisions.id} = ${workflows.activeRevisionId} AND ${customerAccessPredicate(orgId, revisions.publishedBy, sql`${workflows.workspaceId}`, "manage")}))`;
 export async function workflowList(
     actor: SalesActor,
     workspaceId: number,
@@ -80,17 +101,35 @@ export async function workflowList(
     exec: DbExec = db,
 ) {
     await requireCustomerAccess(actor, workspaceId, "read", exec);
+    // 최근 변경한 자동화 먼저(UX-087). 자동화 표에는 생성 시각이 없어 updatedAt을 쓴다.
+    const [cursor] = before
+        ? await exec
+              .select({ at: workflows.updatedAt, id: workflows.id })
+              .from(workflows)
+              .where(
+                  and(
+                      eq(workflows.id, before),
+                      eq(workflows.orgId, actor.orgId),
+                      eq(workflows.workspaceId, workspaceId),
+                  ),
+              )
+        : [];
+    if (before && !cursor)
+        throw new InboxError("목록 위치를 확인해주세요. 새로고침 후 다시 시도해주세요.", 404);
     const rows = await exec
-        .select()
+        .select({
+            ...getTableColumns(workflows),
+            publisherCanManage: publisherCanManage(actor.orgId),
+        })
         .from(workflows)
         .where(
             and(
                 eq(workflows.orgId, actor.orgId),
                 eq(workflows.workspaceId, workspaceId),
-                before ? lt(workflows.id, before) : undefined,
+                newerFirstAfter(workflows.updatedAt, workflows.id, cursor),
             ),
         )
-        .orderBy(desc(workflows.id))
+        .orderBy(desc(workflows.updatedAt), desc(workflows.id))
         .limit(50);
     return {
         rows,
@@ -125,7 +164,41 @@ export async function workflowDetail(
         versions.push(
             await workflowRevision(id, workflow.activeRevisionId, exec),
         );
-    return { workflow, revisions: versions, history };
+    const publishedBy = versions.find(
+            (r) => r.id === workflow.activeRevisionId,
+        )?.publishedBy,
+        [publisher] = workflow.activeRevisionId
+            ? await exec
+                  .select({
+                      name: sql<
+                          string | null
+                      >`(SELECT ${users.name} FROM ${users} WHERE ${users.id} = ${publishedBy ?? null}::uuid)`,
+                      canManage: publisherCanManage(actor.orgId),
+                  })
+                  .from(workflows)
+                  .where(eq(workflows.id, id))
+            : [],
+        // 중단 확인창에 취소될 대기 실행 수, 현재 적용 영역에 최근 실패 사유를 보여 준다(UX-099·101).
+        [active] = await exec
+            .select({ count: sql<number>`count(*)::int` })
+            .from(runs)
+            .where(
+                and(eq(runs.workflowId, id), inArray(runs.state, activeRunStates)),
+            ),
+        [lastFailure] = await exec
+            .select({ reason: runs.reason, updatedAt: runs.updatedAt })
+            .from(runs)
+            .where(and(eq(runs.workflowId, id), eq(runs.state, "failed")))
+            .orderBy(desc(runs.updatedAt), desc(runs.id))
+            .limit(1);
+    return {
+        workflow,
+        revisions: versions,
+        history,
+        publisher: publisher ?? null,
+        activeRuns: active?.count ?? 0,
+        lastFailure: lastFailure ?? null,
+    };
 }
 export async function saveWorkflow(
     actor: SalesActor,
@@ -603,6 +676,97 @@ export async function disableWorkflow(
             detail: { generation: workflow.generation + 1 },
         });
         return { disabled: true };
+    });
+}
+/**
+ * 중단한 자동화를 같은 게시 버전으로 다시 켠다(UX-099). 새 버전 저장·모의 실행·게시를 반복하지 않는다.
+ * 게시 때와 같은 조건을 다시 확인한다: 그 버전의 통과한 모의 실행(같은 지문), 현재 참조 유효성, 활성 100개 한도.
+ * 중단 때 취소한 실행은 되살리지 않는다(새 이벤트부터 처리).
+ */
+export async function enableWorkflow(
+    actor: SalesActor,
+    id: string,
+    version: number,
+    exec: DbExec = db,
+) {
+    const hint = await workflowOwned(actor, id, exec);
+    await requireCustomerAccess(actor, hint.workspaceId, "manage", exec);
+    return exec.transaction(async (tx) => {
+        await lockWorkflowWorkspace(actor.orgId, hint.workspaceId, tx);
+        const workflow = await workflowOwned(actor, id, tx, true);
+        if (workflow.version !== version)
+            throw new InboxError(
+                "자동화가 변경되었습니다. 최신 설정을 확인해주세요.",
+                409,
+            );
+        if (workflow.enabled)
+            throw new InboxError("이미 켜져 있는 자동화입니다.", 409);
+        if (!workflow.activeRevisionId)
+            throw new InboxError(
+                "게시한 버전이 없습니다. 모의 실행 후 게시해주세요.",
+                409,
+            );
+        const revision = await workflowRevision(
+            id,
+            workflow.activeRevisionId,
+            tx,
+        );
+        const [preview] = await tx
+            .select({ id: previews.id })
+            .from(previews)
+            .where(
+                and(
+                    eq(previews.workflowId, id),
+                    eq(previews.revisionId, revision.id),
+                    eq(previews.passed, true),
+                    eq(previews.fingerprint, revision.fingerprint),
+                ),
+            )
+            .limit(1);
+        if (!revision.publishedAt || !preview)
+            throw new InboxError(
+                "게시 당시 모의 실행 결과를 확인할 수 없습니다. 새 버전으로 저장한 뒤 다시 게시해주세요.",
+                409,
+            );
+        await validateWorkflowReferences(
+            actor.orgId,
+            workflow.workspaceId,
+            revision.definition.steps,
+            tx,
+        );
+        const count = await tx
+            .select({ id: workflows.id })
+            .from(workflows)
+            .where(
+                and(
+                    eq(workflows.workspaceId, workflow.workspaceId),
+                    eq(workflows.enabled, true),
+                ),
+            );
+        if (count.length >= 100)
+            throw new InboxError(
+                "사업별 활성 자동화는 100개까지 사용할 수 있습니다.",
+            );
+        await tx
+            .update(workflows)
+            .set({
+                enabled: true,
+                generation: workflow.generation + 1,
+                version: workflow.version + 1,
+                updatedAt: new Date(),
+            })
+            .where(eq(workflows.id, id));
+        await tx.insert(audit).values({
+            workflowId: id,
+            actorName: actor.name,
+            action: "enabled",
+            detail: {
+                revisionId: revision.id,
+                previewId: preview.id,
+                generation: workflow.generation + 1,
+            },
+        });
+        return { enabled: true };
     });
 }
 export async function workflowRunPage(

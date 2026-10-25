@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
 import useSWR from "swr";
+import { toast } from "sonner";
 import { webhookRequest, webhookWrite } from "../api";
 import { useWebhookDeliveries } from "../hooks/useWebhookDeliveries";
 import type { DeliveryDetail, WebhookEndpoint } from "../types";
 import { eventNames } from "./WebhookEditor";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 export const deliveryNames: Record<string, string> = {
     pending: "발송 대기",
     processing: "전달 중",
@@ -24,6 +26,7 @@ export function WebhookDeliveries({
         [chosen, setChosen] = useState<string | null>(null),
         [busy, setBusy] = useState(false),
         [error, setError] = useState("");
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const pages = useWebhookDeliveries(endpoint.id, state),
         detail = useSWR<DeliveryDetail>(
             chosen
@@ -53,6 +56,33 @@ export function WebhookDeliveries({
             setBusy(false);
         }
     }
+    // 같은 상태의 실패 전달을 최대 100건 한 번에 다시 보낸다(UX-098)
+    const bulkState = ["dead", "retry", "cancelled"].includes(state)
+        ? (state as "dead" | "retry" | "cancelled")
+        : null;
+    function confirmBulkRetry() {
+        if (!bulkState) return;
+        confirm({
+            title: `${deliveryNames[bulkState]} 전달 다시 보내기`,
+            description: `'${deliveryNames[bulkState]}' 상태의 전달을 오래된 순으로 최대 100건 다시 발송 대기열에 넣습니다.\n수신 서버가 복구됐는지 먼저 확인해주세요. 이미 대기·전달 중·완료인 전달은 바꾸지 않습니다.`,
+            confirmLabel: "다시 보내기",
+            onConfirm: async () => {
+                const result = await webhookWrite<{
+                    retried: number;
+                    remaining: boolean;
+                }>(`/api/customer-platform/webhooks/${endpoint.id}`, {
+                    action: "retry_deliveries",
+                    state: bulkState,
+                });
+                await Promise.all([pages.mutate(), detail.mutate()]);
+                toast.success(
+                    result.retried
+                        ? `${result.retried}건을 다시 보내도록 했습니다.${result.remaining ? " 남은 전달은 한 번 더 실행해주세요." : ""}`
+                        : "다시 보낼 전달이 없습니다.",
+                );
+            },
+        });
+    }
     return (
         <section className="space-y-4 border-t pt-5">
             <div className="flex justify-between">
@@ -74,6 +104,23 @@ export function WebhookDeliveries({
                     ))}
                 </select>
             </div>
+            {canManage && bulkState && !!rows.length && (
+                <button
+                    className="rounded-lg border px-3 py-2 text-xs disabled:opacity-40"
+                    disabled={!endpoint.enabled}
+                    onClick={confirmBulkRetry}
+                >
+                    이 상태의 전달 최대 100건 다시 보내기
+                </button>
+            )}
+            {canManage &&
+                (state === "" || state === "pending" || state === "processing" || state === "succeeded") && (
+                    <p className="text-xs text-muted-foreground">
+                        실패한 전달을 한 번에 다시 보내려면 상태를 &apos;전달
+                        실패&apos;·&apos;재시도 대기&apos;·&apos;취소됨&apos;으로
+                        고르세요.
+                    </p>
+                )}
             {(pages.error || detail.error || error) && (
                 <p role="alert" className="text-sm text-red-600">
                     {error || pages.error?.message || detail.error?.message}
@@ -205,6 +252,7 @@ export function WebhookDeliveries({
                     </details>
                 </article>
             )}
+            {confirmationDialog}
         </section>
     );
 }

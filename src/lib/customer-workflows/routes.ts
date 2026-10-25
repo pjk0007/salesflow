@@ -11,6 +11,7 @@ import {
     simulateWorkflow,
     publishWorkflow,
     disableWorkflow,
+    enableWorkflow,
     workflowRunPage,
     workflowRunDetail,
     changeWorkflowRun,
@@ -124,7 +125,7 @@ export function workflowItemHandlers(external: boolean) {
                                 .strict(),
                             z
                                 .object({
-                                    action: z.literal("disable"),
+                                    action: z.enum(["disable", "enable"]),
                                     version: z.number().int().positive(),
                                 })
                                 .strict(),
@@ -139,6 +140,8 @@ export function workflowItemHandlers(external: boolean) {
                     );
                 if (input.action === "publish")
                     return publishWorkflow(who, id, input);
+                if (input.action === "enable")
+                    return enableWorkflow(who, id, input.version);
                 return disableWorkflow(who, id, input.version);
             }),
     };
