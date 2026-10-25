@@ -48,3 +48,16 @@ test("UX-049 OAuth 전 빈 토큰은 연결 대기로 저장·조회하고 실�
         assert.equal((calls.find((c) => c.op === "update")?.set as { status: string }).status, "connected");
     });
 });
+
+test("UX-049 콜백 안내 HTML은 utf-8로 선언해 취소·실패 문구가 깨지지 않는다", async (t) => {
+    isolateEnv(t);
+    const callback = await import("../app/api/meta/callback/route");
+    for (const url of ["http://localhost/api/meta/callback?error=access_denied", "http://localhost/api/meta/callback", "http://localhost/api/meta/callback?code=x&state=forged"]) {
+        const response = await callback.GET(new NextRequest(url));
+        assert.equal(response.headers.get("content-type"), "text/html; charset=utf-8");
+        assert.equal(response.headers.get("cache-control"), "no-store");
+        const html = new TextDecoder("utf-8").decode(await response.arrayBuffer());
+        assert.match(html, /<meta charset="utf-8">/);
+        assert.match(html, /Meta 연결이 취소되었습니다|잘못된 요청입니다|연결 요청이 만료되었거나/);
+    }
+});
