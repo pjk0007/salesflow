@@ -67,17 +67,17 @@ export function useAnalytics(period: Period = "30d", channel: string = "all") {
     const { data: trendsData, error: trendsError, isLoading: trendsLoading, mutate: mutateTrends } = useSWR<{
         success: boolean;
         data?: TrendItem[];
-    }>(trendsKey, defaultFetcher, { refreshInterval: 900000 });
+    }>(trendsKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     const { data: summaryData, error: summaryError, isLoading: summaryLoading, mutate: mutateSummary } = useSWR<{
         success: boolean;
         data?: AnalyticsSummary;
-    }>(summaryKey, defaultFetcher, { refreshInterval: 900000 });
+    }>(summaryKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     const { data: templatesData, error: templatesError, isLoading: templatesLoading, mutate: mutateTemplates } = useSWR<{
         success: boolean;
         data?: TemplatePerformance[];
-    }>(templatesKey, defaultFetcher, { refreshInterval: 900000 });
+    }>(templatesKey, defaultFetcher, { refreshInterval: 900000, revalidateOnFocus: false });
 
     return {
         trends: trendsData?.data ?? [],
