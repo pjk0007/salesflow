@@ -6,6 +6,11 @@ import { requirePartitionAccess } from "@/lib/partition-access";
 import type { ScheduledRegConfig } from "@/lib/scheduled-registration";
 
 const PAGE_SIZE = 50;
+const LIST_STATUSES = ["pending", "skipped"] as const;
+
+function listStatus(value: unknown): (typeof LIST_STATUSES)[number] {
+    return value === "skipped" ? "skipped" : "pending";
+}
 
 // 대기 목록 + 요약 조회
 export async function GET(
@@ -28,13 +33,17 @@ export async function GET(
     }
     const partition = access.partition;
 
-    const page = Math.max(1, Number(req.nextUrl.searchParams.get("page")) || 1);
+    const page = Math.max(1, Math.floor(Number(req.nextUrl.searchParams.get("page")) || 1));
+    // 대기(pending) 또는 중복으로 건너뛴 행(skipped) 보기(UX-078)
+    const status = listStatus(req.nextUrl.searchParams.get("status"));
 
-    const [countRow] = await db
-        .select({ total: sql<number>`COUNT(*)::int` })
+    const counts = await db
+        .select({ status: scheduledRegistrations.status, total: sql<number>`COUNT(*)::int` })
         .from(scheduledRegistrations)
-        .where(and(eq(scheduledRegistrations.partitionId, partitionId), eq(scheduledRegistrations.status, "pending")));
-    const total = countRow?.total ?? 0;
+        .where(and(eq(scheduledRegistrations.partitionId, partitionId), inArray(scheduledRegistrations.status, [...LIST_STATUSES])))
+        .groupBy(scheduledRegistrations.status);
+    const total = counts.find((c) => c.status === status)?.total ?? 0;
+    const skippedTotal = counts.find((c) => c.status === "skipped")?.total ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
     const safePage = Math.min(page, totalPages);
 
@@ -46,7 +55,7 @@ export async function GET(
             createdAt: scheduledRegistrations.createdAt,
         })
         .from(scheduledRegistrations)
-        .where(and(eq(scheduledRegistrations.partitionId, partitionId), eq(scheduledRegistrations.status, "pending")))
+        .where(and(eq(scheduledRegistrations.partitionId, partitionId), eq(scheduledRegistrations.status, status)))
         .orderBy(scheduledRegistrations.id)
         .limit(PAGE_SIZE)
         .offset((safePage - 1) * PAGE_SIZE);
@@ -55,11 +64,11 @@ export async function GET(
 
     return NextResponse.json({
         success: true,
-        data: { items, total, page: safePage, totalPages, config },
+        data: { items, total, page: safePage, totalPages, pageSize: PAGE_SIZE, status, skippedTotal, config },
     });
 }
 
-// 대기 행 삭제 — body.ids 있으면 해당 항목만, 없으면 전체 pending 삭제
+// 대기 행 삭제 — body.ids 있으면 해당 항목만, 없으면 그 상태(기본 pending) 전체 삭제
 export async function DELETE(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -84,7 +93,7 @@ export async function DELETE(
 
     const base = and(
         eq(scheduledRegistrations.partitionId, partitionId),
-        eq(scheduledRegistrations.status, "pending"),
+        eq(scheduledRegistrations.status, listStatus(body?.status)),
     );
     const deleted = await db
         .delete(scheduledRegistrations)

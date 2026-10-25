@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import { readScheduledUploadResponse } from "@/components/records/api/import-response";
-import { requestErrorMessage } from "@/lib/swr-fetcher";
+import { apiRequest, requestErrorMessage } from "@/lib/swr-fetcher";
 import { decodeCsvText } from "@/lib/csv-text";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -22,7 +22,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Upload, CalendarClock, Trash2, Loader2 } from "lucide-react";
+import { Upload, CalendarClock, Trash2, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import FieldMappingStep from "../../import/FieldMappingStep";
 import type { FieldDefinition } from "@/types";
 import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
@@ -45,9 +46,16 @@ interface ListResponse {
         total: number;
         page: number;
         totalPages: number;
+        pageSize?: number;
+        status?: QueueStatus;
+        /** 중복으로 건너뛴 행 수 */
+        skippedTotal?: number;
         config: ScheduledRegConfig | null;
     };
 }
+
+/** 대기(pending) / 매일 등록 때 중복으로 건너뛴 행(skipped) */
+type QueueStatus = "pending" | "skipped";
 
 interface Props {
     open: boolean;
@@ -58,18 +66,27 @@ interface Props {
 
 export default function ScheduledRegistrationDialog({ open, onOpenChange, partitionId, fields }: Props) {
     const [tab, setTab] = useState("list");
+    // 대기 목록 페이지·보기(UX-078) — 서버가 마지막을 넘는 page를 마지막 유효 페이지로 돌려준다
+    const [listPage, setListPage] = useState(1);
+    const [listStatus, setListStatus] = useState<QueueStatus>("pending");
 
     const mappableFields = useMemo(
         () => fields.filter((f) => !EXCLUDED_TYPES.includes(f.fieldType)),
         [fields],
     );
 
-    const listKey = open && partitionId ? `/api/partitions/${partitionId}/scheduled-registrations` : null;
+    const listKey = open && partitionId
+        ? `/api/partitions/${partitionId}/scheduled-registrations?page=${listPage}&status=${listStatus}`
+        : null;
     const { data, error, isLoading, mutate } = useSWR<ListResponse>(listKey, defaultFetcher);
     const loadError = blockingError(data, error);
 
     const handleOpenChange = (v: boolean) => {
-        if (!v) setTab("list");
+        if (!v) {
+            setTab("list");
+            setListPage(1);
+            setListStatus("pending");
+        }
         onOpenChange(v);
     };
 
@@ -98,10 +115,17 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                     <TabsContent value="list">
                         {loadError ? <QueryErrorState error={loadError} onRetry={() => mutate()} /> : (
                             <ListTab
+                                key={`${listStatus}:${listPage}`}
                                 partitionId={partitionId}
                                 data={data}
                                 isLoading={isLoading}
                                 fields={mappableFields}
+                                status={listStatus}
+                                onStatusChange={(next) => {
+                                    setListStatus(next);
+                                    setListPage(1);
+                                }}
+                                onPageChange={setListPage}
                                 onChanged={() => mutate()}
                             />
                         )}
@@ -113,6 +137,7 @@ export default function ScheduledRegistrationDialog({ open, onOpenChange, partit
                             mappableFields={mappableFields}
                             onUploaded={() => {
                                 mutate();
+                                setListStatus("pending");
                                 setTab("list");
                             }}
                         />
@@ -140,18 +165,29 @@ function ListTab({
     data,
     isLoading,
     fields,
+    status,
+    onStatusChange,
+    onPageChange,
     onChanged,
 }: {
     partitionId: number;
     data: ListResponse | undefined;
     isLoading: boolean;
     fields: FieldDefinition[];
+    status: QueueStatus;
+    onStatusChange: (status: QueueStatus) => void;
+    onPageChange: (page: number) => void;
     onChanged: () => void;
 }) {
     const { confirm, confirmationDialog } = useAsyncConfirm();
-    const [clearing, setClearing] = useState(false);
-    const items = data?.data.items ?? [];
+    // 선택은 지금 보이는 페이지·보기에서만 유지한다(부모가 key로 다시 그림)
+    const [selected, setSelected] = useState<Set<number>>(new Set());
+    const items = useMemo(() => data?.data.items ?? [], [data]);
     const total = data?.data.total ?? 0;
+    const page = data?.data.page ?? 1;
+    const totalPages = data?.data.totalPages ?? 1;
+    const pageSize = data?.data.pageSize ?? 50;
+    const skippedTotal = data?.data.skippedTotal ?? 0;
     const config = data?.data.config ?? null;
 
     // 데이터에 등장하는 키 → 필드 라벨 순서로 컬럼 구성
@@ -166,31 +202,38 @@ function ListTab({
     const nextRun = config?.enabled
         ? `매일 ${config.timeOfDay} · ${config.countPerDay.toLocaleString()}건씩`
         : "예약 등록 비활성 (설정 탭에서 켜기)";
+    const statusLabel = status === "pending" ? "대기" : "중복으로 건너뜀";
 
-    const handleClearAll = async () => {
+    const remove = (ids: number[] | null) => {
+        const count = ids ? ids.length : total;
         confirm({
-            title: "예약 대기 목록 삭제",
-            description: `대기 중인 ${total.toLocaleString()}건을 모두 삭제할까요?`,
+            title: ids ? "선택한 행 삭제" : `${statusLabel} 목록 전체 삭제`,
+            description: ids
+                ? `선택한 ${count.toLocaleString()}건을 ${statusLabel} 목록에서 삭제할까요?`
+                : `${statusLabel} ${count.toLocaleString()}건을 모두 삭제할까요?`,
             onConfirm: async () => {
-                setClearing(true);
-                try {
-                    const res = await fetch(`/api/partitions/${partitionId}/scheduled-registrations`, {
+                const res = await apiRequest<{ data: { deleted: number } }>(
+                    `/api/partitions/${partitionId}/scheduled-registrations`,
+                    {
                         method: "DELETE",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({}),
-                    });
-                    const json = await res.json();
-                    if (json.success) {
-                        toast.success(`${json.data.deleted.toLocaleString()}건 삭제됨`);
-                        onChanged();
-                    } else {
-                        throw new Error(json.error ?? "삭제 실패");
-                    }
-                } finally {
-                    setClearing(false);
-                }
+                        body: JSON.stringify(ids ? { ids, status } : { status }),
+                    },
+                );
+                toast.success(`${res.data.deleted.toLocaleString()}건 삭제됨`);
+                setSelected(new Set());
+                onChanged();
             },
         });
+    };
+
+    const allChecked = items.length > 0 && items.every((it) => selected.has(it.id));
+    const toggleAll = () => setSelected(allChecked ? new Set() : new Set(items.map((it) => it.id)));
+    const toggleOne = (id: number) => {
+        const next = new Set(selected);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelected(next);
     };
 
     return (
@@ -198,28 +241,64 @@ function ListTab({
             {confirmationDialog}
             <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2 text-sm">
                 <div>
-                    <span className="font-medium">대기 {total.toLocaleString()}건</span>
-                    <span className="text-muted-foreground"> · {nextRun}</span>
+                    <span className="font-medium">{statusLabel} {total.toLocaleString()}건</span>
+                    {status === "pending" && <span className="text-muted-foreground"> · {nextRun}</span>}
                 </div>
-                {total > 0 && (
-                    <Button variant="ghost" size="sm" onClick={handleClearAll} disabled={clearing} className="gap-1 text-destructive">
-                        <Trash2 className="h-3.5 w-3.5" />
-                        전체 삭제
-                    </Button>
-                )}
+                <div className="flex items-center gap-1">
+                    {selected.size > 0 && (
+                        <Button variant="ghost" size="sm" onClick={() => remove([...selected])} className="gap-1 text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                            선택 {selected.size.toLocaleString()}건 삭제
+                        </Button>
+                    )}
+                    {total > 0 && (
+                        <Button variant="ghost" size="sm" onClick={() => remove(null)} className="gap-1 text-destructive">
+                            <Trash2 className="h-3.5 w-3.5" />
+                            전체 삭제
+                        </Button>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs">
+                <Button
+                    variant={status === "pending" ? "secondary" : "ghost"}
+                    size="sm"
+                    aria-pressed={status === "pending"}
+                    onClick={() => onStatusChange("pending")}
+                >
+                    대기 목록
+                </Button>
+                <Button
+                    variant={status === "skipped" ? "secondary" : "ghost"}
+                    size="sm"
+                    aria-pressed={status === "skipped"}
+                    onClick={() => onStatusChange("skipped")}
+                >
+                    중복으로 건너뜀{skippedTotal > 0 ? ` ${skippedTotal.toLocaleString()}건` : ""}
+                </Button>
             </div>
 
             {isLoading ? (
                 <div className="flex justify-center py-10 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /></div>
             ) : items.length === 0 ? (
-                <div className="py-10 text-center text-sm text-muted-foreground">대기 중인 예약 등록이 없습니다.</div>
+                <div className="py-10 text-center text-sm text-muted-foreground">
+                    {status === "pending" ? "대기 중인 예약 등록이 없습니다." : "중복으로 건너뛴 행이 없습니다."}
+                </div>
             ) : (
                 <>
-                    <p className="text-xs text-muted-foreground">위에서부터 등록 예정 순서(먼저 올린 순)입니다.</p>
+                    <p className="text-xs text-muted-foreground">
+                        {status === "pending"
+                            ? "위에서부터 등록 예정 순서(먼저 올린 순)입니다."
+                            : "매일 등록 때 파티션 중복 정책(거부)에 걸려 등록하지 않은 행입니다. 확인 후 삭제하거나 고쳐서 다시 올리세요."}
+                    </p>
                     <div className="max-h-[360px] overflow-auto rounded-md border">
                         <table className="w-full text-sm">
                             <thead className="sticky top-0 z-10 bg-muted/80 backdrop-blur">
                                 <tr>
+                                    <th className="px-3 py-2 w-8">
+                                        <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="이 페이지 전체 선택" />
+                                    </th>
                                     <th className="px-3 py-2 text-left font-medium whitespace-nowrap text-muted-foreground w-12">#</th>
                                     {columns.map((c) => (
                                         <th key={c.key} className="px-3 py-2 text-left font-medium whitespace-nowrap">
@@ -231,7 +310,14 @@ function ListTab({
                             <tbody className="divide-y">
                                 {items.map((it, i) => (
                                     <tr key={it.id} className="hover:bg-muted/30">
-                                        <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{i + 1}</td>
+                                        <td className="px-3 py-1.5">
+                                            <Checkbox
+                                                checked={selected.has(it.id)}
+                                                onCheckedChange={() => toggleOne(it.id)}
+                                                aria-label={`${(page - 1) * pageSize + i + 1}번 행 선택`}
+                                            />
+                                        </td>
+                                        <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{(page - 1) * pageSize + i + 1}</td>
                                         {columns.map((c) => (
                                             <td key={c.key} className="px-3 py-1.5 whitespace-nowrap" title={String(it.data[c.key] ?? "")}>
                                                 {String(it.data[c.key] ?? "")}
@@ -242,10 +328,33 @@ function ListTab({
                             </tbody>
                         </table>
                     </div>
-                    {total > items.length && (
-                        <p className="text-center text-xs text-muted-foreground">
-                            외 {(total - items.length).toLocaleString()}건 더…
-                        </p>
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">총 {total.toLocaleString()}건</p>
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    aria-label="이전 페이지"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    disabled={page <= 1 || isLoading}
+                                    onClick={() => onPageChange(page - 1)}
+                                >
+                                    <ChevronLeft className="h-4 w-4" />
+                                </Button>
+                                <span className="text-sm px-2">{page} / {totalPages}</span>
+                                <Button
+                                    aria-label="다음 페이지"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    disabled={page >= totalPages || isLoading}
+                                    onClick={() => onPageChange(page + 1)}
+                                >
+                                    <ChevronRight className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
                     )}
                 </>
             )}
