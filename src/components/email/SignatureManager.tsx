@@ -191,11 +191,11 @@ export default function SignatureManager({
                                         </div>
                                         <div className="flex items-center gap-1">
                                             {!s.isDefault && (
-                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSetDefault(s.id)} title="기본으로 설정">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleSetDefault(s.id)} title="기본으로 설정" aria-label={`${s.name} 기본 서명으로 설정`}>
                                                     <Star className="h-4 w-4" />
                                                 </Button>
                                             )}
-                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)} aria-label={`${s.name} 수정`}>
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(s)} aria-label={`${s.name} 서명 삭제`}>

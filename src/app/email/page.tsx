@@ -71,6 +71,8 @@ function EmailPageContent() {
                                 variant={activeTab === "settings" ? "secondary" : "ghost"}
                                 size="icon"
                                 className="size-7"
+                                aria-label={activeTab === "settings" ? "이메일 설정 닫기" : "이메일 설정 열기"}
+                                aria-pressed={activeTab === "settings"}
                                 onClick={() => setActiveTab(activeTab === "settings" ? "dashboard" : "settings")}
                             >
                                 <Settings className="size-4" />

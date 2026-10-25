@@ -90,6 +90,7 @@ function SortableFieldRow({
                 <button
                     type="button"
                     className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded"
+                    aria-label={`${field.label} 순서 변경`}
                     {...attributes}
                     {...listeners}
                 >
@@ -114,10 +115,10 @@ function SortableFieldRow({
                     <Lock className="h-4 w-4 text-muted-foreground" />
                 ) : (
                     <div className="flex gap-1">
-                        <button type="button" className="p-1 hover:bg-accent rounded" onClick={() => onEdit(field)}>
+                        <button type="button" className="p-1 hover:bg-accent rounded" onClick={() => onEdit(field)} aria-label={`${field.label} 수정`}>
                             <Pencil className="h-4 w-4" />
                         </button>
-                        <button type="button" className="p-1 hover:bg-destructive/10 rounded text-destructive" onClick={() => onDelete(field)}>
+                        <button type="button" className="p-1 hover:bg-destructive/10 rounded text-destructive" onClick={() => onDelete(field)} aria-label={`${field.label} 삭제`}>
                             <Trash2 className="h-4 w-4" />
                         </button>
                     </div>
