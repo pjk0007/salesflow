@@ -471,7 +471,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                 <input
                                     aria-label="상담 검색"
                                     className="min-w-0 w-full bg-transparent text-xs outline-none"
-                                    placeholder="고객, 태그, 대화 전체 검색"
+                                    placeholder={filter === "history" ? "이전 상담 기록에서 고객·태그·대화 검색" : `${statusNames[status]} 상담에서 고객·태그·대화 검색`}
                                     maxLength={200}
                                     value={query}
                                     onChange={(e) => setQuery(e.target.value)}
@@ -536,9 +536,33 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                     />
                                     <p className="text-sm text-muted-foreground">
                                         {query
-                                            ? "검색 결과가 없습니다"
+                                            ? filter === "history"
+                                                ? "이전 상담 기록에 검색 결과가 없습니다"
+                                                : `${statusNames[status]} 상담에 검색 결과가 없습니다`
                                             : "이곳의 상담을 모두 확인했어요"}
                                     </p>
+                                    {query && filter !== "history" && list.counts?.searchOpen !== undefined && (
+                                        <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs">
+                                            {(["open", "snoozed", "closed"] as const)
+                                                .filter((s) => s !== status)
+                                                .map((s) => {
+                                                    const n = list.counts?.[s === "open" ? "searchOpen" : s === "snoozed" ? "searchSnoozed" : "searchClosed"] ?? 0;
+                                                    return (
+                                                        <button
+                                                            key={s}
+                                                            disabled={!n}
+                                                            className="rounded-lg border px-2 py-1 disabled:opacity-40"
+                                                            onClick={() => {
+                                                                setStatus(s);
+                                                                setSelected(null);
+                                                            }}
+                                                        >
+                                                            {statusNames[s]} {n}건 보기
+                                                        </button>
+                                                    );
+                                                })}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                             {filtered.map((c) => (
@@ -616,7 +640,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                             {channel.enabled
                                 ? "사이트 상담창 켜짐"
                                 : "사이트 상담창 꺼짐"}{" "}
-                            · 모든 상담과 대화에서 검색
+                            · 검색은 선택한 상태(또는 이전 상담 기록) 안에서 찾습니다
                         </p>
                     </section>
                     {selected && detail.data && detail.data.conversation.id === selected && detail.data.conversation.channelId === channelId && ![401, 403, 404].includes(detail.error?.status) ? (

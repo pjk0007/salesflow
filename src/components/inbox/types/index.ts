@@ -102,8 +102,11 @@ export type ConversationFilter =
     | "history"
     | "mentioned"
     | "myTeams";
+/** 검색어가 있을 때만 상태별 검색 결과 건수(searchOpen 등)가 함께 온다. */
+export type InboxCounts = Record<ConversationFilter, number> &
+    Partial<Record<"searchOpen" | "searchSnoozed" | "searchClosed", number>>;
 export interface InboxListPage {
     rows: Conversation[];
-    counts?: Record<ConversationFilter, number>;
+    counts?: InboxCounts;
     hasMore: boolean;
 }

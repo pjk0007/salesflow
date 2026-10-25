@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import useSWRInfinite from "swr/infinite";
 import { inboxRequest } from "../api";
+import { objectChanges } from "../utils/audit-changes";
 type Row = {
     id: string;
     actorName: string;
@@ -44,11 +45,14 @@ const fields: Record<string, string> = {
     color: "색상",
     allowedOrigins: "설치 도메인",
     enabled: "상담창 사용",
+    messengerSettings: "첫 상담 안내",
+    operations: "운영·성과 설정",
 };
 function label(value: unknown) {
     if (value === null) return "없음";
     if (typeof value === "boolean") return value ? "켜짐" : "꺼짐";
     if (Array.isArray(value)) return value.join(", ") || "없음";
+    if (typeof value === "object") return "변경됨";
     return (
         (
             {
@@ -116,13 +120,28 @@ export function InboxAudit({ url }: { url: string }) {
                         <time className="text-muted-foreground">
                             {new Date(row.createdAt).toLocaleString("ko-KR")}
                         </time>
-                        {Object.entries(row.changes).map(([key, value]) => (
-                            <p key={key} className="break-words">
-                                {fields[key] ?? key}:{" "}
-                                {value.beforeLabel ?? label(value.before)} →{" "}
-                                {value.afterLabel ?? label(value.after)}
-                            </p>
-                        ))}
+                        {Object.entries(row.changes).map(([key, value]) => {
+                            const nested =
+                                value.beforeLabel || value.afterLabel
+                                    ? null
+                                    : objectChanges(value.before, value.after);
+                            return nested ? (
+                                <Fragment key={key}>
+                                {nested.map((sub) => (
+                                    <p key={`${key}:${sub.field}`} className="break-words">
+                                        {fields[key] ?? key} · {sub.field}:{" "}
+                                        {label(sub.before)} → {label(sub.after)}
+                                    </p>
+                                ))}
+                                </Fragment>
+                            ) : (
+                                <p key={key} className="break-words">
+                                    {fields[key] ?? key}:{" "}
+                                    {value.beforeLabel ?? label(value.before)} →{" "}
+                                    {value.afterLabel ?? label(value.after)}
+                                </p>
+                            );
+                        })}
                     </article>
                 ))
             )}

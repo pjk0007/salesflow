@@ -10,6 +10,7 @@ import type {
     ChatMessage,
     InboxBootstrap,
     InboxListPage,
+    InboxCounts,
 } from "../types";
 export function useInbox(
     channelId: number | null,
@@ -43,7 +44,7 @@ export function useInbox(
         inboxRequest,
         { refreshInterval: 4000, refreshWhenHidden: false },
     );
-    const counts = useSWR<Record<ConversationFilter, number>>(
+    const counts = useSWR<InboxCounts>(
         channelId ? `/api/inbox?${new URLSearchParams({ view: "counts", channelId: String(channelId), ...filters })}` : null,
         inboxRequest,
         { refreshInterval: 15000, refreshWhenHidden: false },

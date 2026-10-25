@@ -11,7 +11,7 @@ const BASE = "00000000-0000-4000-8000-00000000b001";
 const BIZ = "00000000-0000-4000-8000-00000000b002";
 const BIZ2 = "00000000-0000-4000-8000-00000000b003";
 const FOREIGN = "00000000-0000-4000-8000-00000000b004";
-const actor = { orgId: ORG, userId: USER, name: "가상 관리자", role: "owner" };
+const actor = { orgId: ORG, userId: USER, name: "가상 관리자", role: "owner" as const };
 
 async function setup() {
     const schema = await import("../db/schema");
