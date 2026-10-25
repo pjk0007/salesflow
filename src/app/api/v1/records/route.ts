@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, recordEvents, partitions, workspaces, organizations, fieldDefinitions } from "@/lib/db";
+import { db, records, partitions, workspaces, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getApiTokenFromNextRequest, resolveApiToken, checkTokenAccess } from "@/lib/auth";
 import type { ApiTokenInfo } from "@/lib/auth";
-import { checkPlanLimit, getResourceCount } from "@/lib/billing";
-import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
-import { processAutoEnrich } from "@/lib/auto-enrich";
-import { assignDistributionOrder } from "@/lib/distribution";
-import { broadcastToPartition } from "@/lib/sse";
-import { applyFieldDefaults } from "@/lib/apply-field-defaults";
+import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
 import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
 import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
-import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -210,143 +204,30 @@ async function handlePost(req: NextRequest) {
 
         const partition = access.partition;
 
-        // 플랜 제한 체크
-        const currentCount = await getResourceCount(tokenInfo.orgId, "records");
-        const limit = await checkPlanLimit(tokenInfo.orgId, "records", currentCount);
-        if (!limit.allowed) {
+        // 생성 공통 경로 — 이벤트 기록은 생성·병합과 같은 트랜잭션에서 한다
+        const result = await createRecord({
+            orgId: tokenInfo.orgId,
+            partition: toRecordCreatePartition(partition),
+            data: recordData,
+            source: "api",
+            enforcePlanLimit: true,
+            inTransaction: (tx, record) => eventInput
+                ? insertRecordEvent({ orgId: tokenInfo.orgId, recordId: record.id, event: eventInput }, tx)
+                : Promise.resolve(null),
+        });
+
+        if (result.status === "plan_limit") {
             return NextResponse.json({
                 success: false,
-                error: `Record limit (${limit.limit}) exceeded. Plan upgrade required.`,
+                error: `Record limit (${result.limit}) exceeded. Plan upgrade required.`,
             }, { status: 403 });
         }
-
-        // 중복 체크 (duplicateConfig 우선, fallback to duplicateCheckField)
-        const dupConfig = partition.duplicateConfig as { field: string; action: string } | null;
-        const dupField = dupConfig?.field || partition.duplicateCheckField;
-
-        if (dupField) {
-            const checkValue = recordData[dupField];
-            if (checkValue) {
-                const [duplicate] = await db
-                    .select({ id: records.id, data: records.data })
-                    .from(records)
-                    .where(
-                        and(
-                            eq(records.partitionId, partitionId),
-                            sql`${records.data}->>${dupField} = ${String(checkValue)}`
-                        )
-                    )
-                    .limit(1);
-
-                if (duplicate) {
-                    const action = dupConfig?.action || "reject";
-
-                    switch (action) {
-                        case "reject":
-                            return NextResponse.json({
-                                success: false,
-                                error: `Duplicate data exists. (${dupField}: ${checkValue})`,
-                            }, { status: 409 });
-
-                        case "allow":
-                            break;
-
-                        case "merge": {
-                            const mergedData = { ...(duplicate.data as Record<string, unknown>), ...recordData };
-                            const [merged] = await db
-                                .update(records)
-                                .set({ data: mergedData, updatedAt: new Date() })
-                                .where(eq(records.id, duplicate.id))
-                                .returning();
-                            const mergedEvent = eventInput
-                                ? await insertRecordEvent({ orgId: tokenInfo.orgId, recordId: merged.id, event: eventInput })
-                                : null;
-                            rematchVisitorsByRecord({
-                                orgId: tokenInfo.orgId,
-                                workspaceId: partition.workspaceId,
-                                recordId: merged.id,
-                                data: merged.data as Record<string, unknown>,
-                            }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
-                            notifyRecordChatAlert({ recordId: merged.id, source: "api", kind: "merged" })
-                                .catch((err) => console.error("Record chat alert error:", err));
-                            return NextResponse.json({ success: true, data: merged, merged: true, event: mergedEvent ?? null });
-                        }
-
-                        case "delete_old":
-                            await db.delete(records).where(eq(records.id, duplicate.id));
-                            break;
-                    }
-                }
-            }
+        if (result.status === "duplicate") {
+            return NextResponse.json({
+                success: false,
+                error: `Duplicate data exists. (${result.field}: ${result.value})`,
+            }, { status: 409 });
         }
-
-        const result = await db.transaction(async (tx) => {
-            const [org] = await tx
-                .select()
-                .from(organizations)
-                .where(eq(organizations.id, tokenInfo.orgId));
-
-            const newSeq = org.integratedCodeSeq + 1;
-            const integratedCode = `${org.integratedCodePrefix}-${String(newSeq).padStart(4, "0")}`;
-
-            await tx
-                .update(organizations)
-                .set({ integratedCodeSeq: newSeq })
-                .where(eq(organizations.id, org.id));
-
-            let distributionOrder: number | null = null;
-            let finalData = await applyFieldDefaults(partitionId, recordData);
-            const distribution = await assignDistributionOrder(tx, partition.id);
-            if (distribution) {
-                distributionOrder = distribution.distributionOrder;
-                finalData = { ...distribution.defaults };
-                for (const [k, v] of Object.entries(recordData)) {
-                    if (v !== undefined && v !== null && v !== "") finalData[k] = v;
-                }
-            }
-
-            const [newRecord] = await tx
-                .insert(records)
-                .values({
-                    orgId: tokenInfo.orgId,
-                    workspaceId: partition.workspaceId,
-                    partitionId,
-                    integratedCode,
-                    distributionOrder,
-                    data: finalData,
-                })
-                .returning();
-
-            // record 생성과 이벤트를 같은 트랜잭션에 (원자적)
-            let createdEvent = null;
-            if (eventInput) {
-                createdEvent = await insertRecordEvent(
-                    { orgId: tokenInfo.orgId, recordId: newRecord.id, event: eventInput },
-                    tx
-                );
-            }
-
-            return { record: newRecord, event: createdEvent };
-        });
-
-        dispatchAutoTriggers({
-            record: result.record,
-            partitionId,
-            triggerType: "on_create",
-            orgId: tokenInfo.orgId,
-        });
-
-        processAutoEnrich({
-            record: result.record,
-            partitionId,
-            triggerType: "on_create",
-            orgId: tokenInfo.orgId,
-        }).catch((err) => console.error("Auto enrich error:", err));
-
-        broadcastToPartition(partitionId, "record:created", {
-            partitionId,
-            recordId: result.record.id,
-        }, "");
 
         // 미연결 트래커 visitor 역매칭 (fire-after-commit, 실패해도 응답엔 영향 없음)
         rematchVisitorsByRecord({
@@ -356,10 +237,11 @@ async function handlePost(req: NextRequest) {
             data: result.record.data as Record<string, unknown>,
         }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
 
-        notifyRecordChatAlert({ recordId: result.record.id, source: "api" })
-            .catch((err) => console.error("Record chat alert error:", err));
+        if (result.status === "merged") {
+            return NextResponse.json({ success: true, data: result.record, merged: true, event: result.extra ?? null });
+        }
 
-        return NextResponse.json({ success: true, data: result.record, event: result.event ?? null }, { status: 201 });
+        return NextResponse.json({ success: true, data: result.record, event: result.extra ?? null }, { status: 201 });
     } catch (error) {
         console.error("External record create error:", error);
         return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });

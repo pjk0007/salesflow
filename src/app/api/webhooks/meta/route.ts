@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, records, partitions, workspaces, organizations } from "@/lib/db/schema";
+import { adLeadIntegrations, adLeadLogs, adAccounts, adPlatforms, partitions, workspaces } from "@/lib/db/schema";
 import { eq, and } from "drizzle-orm";
 import type { MetaCredentials } from "@/types";
-import { applyFieldDefaults } from "@/lib/apply-field-defaults";
-import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
-import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
+import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
 
 // GET: Meta Webhook 검증
 export async function GET(req: NextRequest) {
@@ -214,10 +212,11 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
         }
     }
 
-    // 기본값 적용
+    // 연동 기본값 — 리드가 실제로 답한 값은 덮지 않고 빈 칸에만 채운다 (웹 폼과 같은 규칙, UX-038)
+    const sourceDefaults: Record<string, unknown> = {};
     for (const [column, value] of Object.entries(defaultValues)) {
         if (value !== null && value !== undefined) {
-            recordData[column] = typeof value === "boolean" ? (value ? 1 : 0) : value;
+            sourceDefaults[column] = typeof value === "boolean" ? (value ? 1 : 0) : value;
         }
     }
 
@@ -227,15 +226,12 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
 
     // 등록일은 records.registered_at(시스템 컬럼)이 단일 진실원천 — data에 별도 저장하지 않음
 
-    // 7. 파티션의 워크스페이스 정보 조회
+    // 7. 파티션 조회 — 연동 조직의 파티션일 때만 받는다
     const [partitionRow] = await db
-        .select({
-            workspaceId: partitions.workspaceId,
-            orgId: workspaces.orgId,
-        })
+        .select({ partition: partitions })
         .from(partitions)
         .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-        .where(eq(partitions.id, integration.partitionId));
+        .where(and(eq(partitions.id, integration.partitionId), eq(workspaces.orgId, integration.orgId)));
 
     if (!partitionRow) {
         await db.insert(adLeadLogs).values({
@@ -248,58 +244,40 @@ async function processLead(leadgenId: string, formId: string, adId?: string) {
         return;
     }
 
-    // 8. 필드 기본값 적용
-    const finalRecordData = await applyFieldDefaults(integration.partitionId!, recordData);
-
-    // 9. 통합코드 생성 + 레코드 생성
+    // 8. 생성 공통 경로 — 중복 정책·통합코드 발번·분배·기본값·자동화·자동 보강·실시간 갱신이 다른 유입 경로와 같다
     try {
-        const [org] = await db
-            .select({ prefix: organizations.integratedCodePrefix, seq: organizations.integratedCodeSeq })
-            .from(organizations)
-            .where(eq(organizations.id, integration.orgId));
+        const created = await createRecord({
+            orgId: integration.orgId,
+            partition: toRecordCreatePartition(partitionRow.partition),
+            data: recordData,
+            sourceDefaults,
+            source: "meta_ad",
+        });
 
-        const newSeq = (org?.seq ?? 0) + 1;
-        const integratedCode = `${org?.prefix || "SALES"}-${newSeq}`;
+        if (created.status === "duplicate") {
+            await db.insert(adLeadLogs).values({
+                integrationId: integration.id,
+                externalLeadId: leadgenId,
+                recordId: created.existingRecordId,
+                rawData: leadData,
+                status: "duplicate",
+                errorMessage: `파티션 중복 설정(거부)으로 등록하지 않았습니다. (${created.fieldLabel}: ${created.value})`,
+            });
+            return;
+        }
+        if (created.status === "plan_limit") {
+            throw new Error("Meta 리드는 레코드 한도를 강제하지 않는다 — plan_limit가 올 수 없음");
+        }
 
-        await db
-            .update(organizations)
-            .set({ integratedCodeSeq: newSeq })
-            .where(eq(organizations.id, integration.orgId));
-
-        const [newRecord] = await db
-            .insert(records)
-            .values({
-                orgId: integration.orgId,
-                workspaceId: partitionRow.workspaceId,
-                partitionId: integration.partitionId,
-                integratedCode,
-                data: finalRecordData,
-                registeredAt: new Date(),
-            })
-            .returning({ id: records.id });
-
-        // 9. 성공 로그
+        // 9. 성공 로그 (병합이면 합친 기존 레코드를 가리킨다)
         await db.insert(adLeadLogs).values({
             integrationId: integration.id,
             externalLeadId: leadgenId,
-            recordId: newRecord.id,
+            recordId: created.record.id,
             rawData: leadData,
             status: "success",
+            errorMessage: created.status === "merged" ? "파티션 중복 설정(병합)으로 기존 레코드에 합쳤습니다." : null,
         });
-
-        // 10. 자동화 트리거 (이메일/알림톡)
-        const [fullRecord] = await db.select().from(records).where(eq(records.id, newRecord.id));
-        if (fullRecord) {
-            dispatchAutoTriggers({
-                record: fullRecord,
-                partitionId: integration.partitionId!,
-                triggerType: "on_create",
-                orgId: integration.orgId,
-            });
-        }
-
-        notifyRecordChatAlert({ recordId: newRecord.id, source: "meta_ad" })
-            .catch((e) => console.error("Record chat alert error:", e));
     } catch (err) {
         await db.insert(adLeadLogs).values({
             integrationId: integration.id,

@@ -1,7 +1,6 @@
 import {
     db,
     records,
-    organizations,
     alimtalkTemplateLinks,
     emailTemplateLinks,
     emailAutoPersonalizedLinks,
@@ -13,6 +12,7 @@ import { processAutoTrigger } from "@/lib/alimtalk-automation";
 import { processEmailAutoTrigger } from "@/lib/email-automation";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { enqueueSends, wakeSendQueue } from "@/lib/email-send-queue";
+import { reserveIntegratedCodes, type RecordDb } from "@/lib/record-create";
 
 // db 트랜잭션 / db 둘 다 받을 수 있는 최소 실행기 타입
 type DbExecutor = Pick<typeof db, "select" | "insert" | "update" | "delete">;
@@ -32,6 +32,11 @@ export interface InsertImportedRecordsParams {
     duplicateAction?: "skip" | "error";
     /** 진행률 콜백 (처리된 행 수, 전체) — 약 50행마다 + 완료 시 호출 */
     onProgress?: (processed: number, total: number) => void;
+    /**
+     * 통합코드 범위를 예약할 실행기. 기본은 트랜잭션 밖 풀 연결(db) — 가져오기 트랜잭션 내내 조직 행을 잠그면
+     * 그동안 웹 폼·API 단건 생성이 모두 기다리므로 짧은 단일 문장으로 끝낸다. 롤백되면 예약한 번호만 비어 남는다.
+     */
+    codeExecutor?: RecordDb;
 }
 
 export interface InsertImportedRecordsResult {
@@ -43,117 +48,133 @@ export interface InsertImportedRecordsResult {
     insertedRecords: DbRecord[];
 }
 
+type ImportRowPlan =
+    | { kind: "insert"; deleteExistingId?: number }
+    | { kind: "merge"; existingId: number; mergedData: Record<string, unknown> }
+    | { kind: "skip" }
+    | { kind: "error"; message: string };
+
+/**
+ * 행별 처리 계획 — DB를 쓰지 않고 파티션 중복 정책(reject/allow/merge/delete_old)을 먼저 정한다.
+ * 실제 생성할 행 수를 알아야 통합코드를 그만큼만 원자적으로 예약할 수 있다 (UX-071).
+ */
+export function planImportRows(
+    dataRows: Array<Record<string, unknown>>,
+    existing: Array<{ id: number; val: string | null; data: unknown }>,
+    duplicateField: string | null,
+    dupAction: string,
+    duplicateAction: "skip" | "error",
+): ImportRowPlan[] {
+    // 기존 레코드 값 → ID 매핑 (merge/delete_old용)
+    const existingMap = new Map<string, number>();
+    const existingDataMap = new Map<string, Record<string, unknown>>();
+    for (const r of existing) {
+        if (r.val) {
+            existingMap.set(r.val, r.id);
+            existingDataMap.set(r.val, r.data as Record<string, unknown>);
+        }
+    }
+    const batchValues = new Set<string>();
+
+    return dataRows.map((data): ImportRowPlan => {
+        if (!duplicateField || !data[duplicateField]) return { kind: "insert" };
+
+        const val = String(data[duplicateField]);
+        const isDupExisting = existingMap.has(val);
+        const isDupBatch = batchValues.has(val);
+        let plan: ImportRowPlan = { kind: "insert" };
+
+        if (isDupExisting || isDupBatch) {
+            if (dupAction === "allow") {
+                // 그대로 진행 (중복 허용)
+            } else if (dupAction === "merge" && isDupExisting) {
+                const mergedData = { ...(existingDataMap.get(val) || {}), ...data };
+                existingDataMap.set(val, mergedData);
+                return { kind: "merge", existingId: existingMap.get(val)!, mergedData };
+            } else if (dupAction === "delete_old" && isDupExisting) {
+                plan = { kind: "insert", deleteExistingId: existingMap.get(val)! };
+                existingMap.delete(val);
+                existingDataMap.delete(val);
+            } else if (duplicateAction === "skip") {
+                return { kind: "skip" };
+            } else {
+                return { kind: "error", message: `중복: ${duplicateField}="${val}"` };
+            }
+        }
+        batchValues.add(val);
+        return plan;
+    });
+}
+
 /**
  * 가져오기/예약등록 공용 — 데이터 행들을 레코드로 생성한다.
- * 통합코드 채번 + 파티션 중복 정책(reject/allow/merge/delete_old) 처리 + insert.
+ * 파티션 중복 정책 처리 + 통합코드 범위 예약(UPDATE … + n RETURNING) + insert.
  * 반드시 트랜잭션(tx) 안에서 호출할 것. 트리거는 호출하지 않는다(=dispatchImportTriggers 별도).
+ * 단건 생성 경로(createRecord)와 같은 발번 함수를 쓴다. 분배·필드 기본값은 기존처럼 적용하지 않는다(파일 값 그대로).
  */
 export async function insertImportedRecords(
     tx: DbExecutor,
-    { orgId, partition, dataRows, duplicateAction = "skip", onProgress }: InsertImportedRecordsParams,
+    { orgId, partition, dataRows, duplicateAction = "skip", onProgress, codeExecutor = db }: InsertImportedRecordsParams,
 ): Promise<InsertImportedRecordsResult> {
     const partitionId = partition.id;
-
-    // 조직 정보 (통합코드용)
-    const [org] = await tx
-        .select()
-        .from(organizations)
-        .where(eq(organizations.id, orgId));
 
     // 중복 체크 필드 (duplicateConfig 우선, fallback to duplicateCheckField)
     const dupConfig = partition.duplicateConfig;
     const duplicateField = dupConfig?.field || partition.duplicateCheckField;
     const dupAction = dupConfig?.action || "reject"; // reject=skip/error, allow/merge/delete_old
 
-    // 기존 레코드 값 → ID 매핑 (merge/delete_old용)
-    const existingMap = new Map<string, number>();
-    const existingDataMap = new Map<string, Record<string, unknown>>();
-    if (duplicateField) {
-        const existing = await tx
+    const existing = duplicateField
+        ? await tx
             .select({ id: records.id, data: records.data, val: sql<string>`${records.data}->>${duplicateField}` })
             .from(records)
-            .where(eq(records.partitionId, partitionId));
-        for (const r of existing) {
-            if (r.val) {
-                existingMap.set(r.val, r.id);
-                existingDataMap.set(r.val, r.data as Record<string, unknown>);
-            }
-        }
-    }
+            .where(and(eq(records.partitionId, partitionId), eq(records.orgId, orgId)))
+        : [];
 
-    const batchValues = new Set<string>();
+    const plans = planImportRows(dataRows, existing, duplicateField, dupAction, duplicateAction);
+    const codes = await reserveIntegratedCodes(codeExecutor, orgId, plans.filter((p) => p.kind === "insert").length);
+
     const errors: Array<{ row: number; message: string }> = [];
     const insertedRecords: DbRecord[] = [];
-    let insertedCount = 0;
     let skippedCount = 0;
     let mergedCount = 0;
-    let currentSeq = org.integratedCodeSeq;
 
     for (let i = 0; i < dataRows.length; i++) {
         if (onProgress && i % 50 === 0) onProgress(i, dataRows.length);
-        const data = dataRows[i];
+        const plan = plans[i];
 
-        // 중복 체크
-        if (duplicateField && data[duplicateField]) {
-            const val = String(data[duplicateField]);
-            const isDupExisting = existingMap.has(val);
-            const isDupBatch = batchValues.has(val);
-
-            if (isDupExisting || isDupBatch) {
-                if (dupAction === "allow") {
-                    // 그대로 진행 (중복 허용)
-                } else if (dupAction === "merge" && isDupExisting) {
-                    const existingData = existingDataMap.get(val) || {};
-                    const mergedData = { ...existingData, ...data };
-                    await tx
-                        .update(records)
-                        .set({ data: mergedData, updatedAt: new Date() })
-                        .where(eq(records.id, existingMap.get(val)!));
-                    existingDataMap.set(val, mergedData);
-                    mergedCount++;
-                    continue;
-                } else if (dupAction === "delete_old" && isDupExisting) {
-                    await tx.delete(records).where(eq(records.id, existingMap.get(val)!));
-                    existingMap.delete(val);
-                    existingDataMap.delete(val);
-                } else {
-                    // reject
-                    if (duplicateAction === "skip") {
-                        skippedCount++;
-                        continue;
-                    } else {
-                        errors.push({ row: i + 1, message: `중복: ${duplicateField}="${val}"` });
-                        continue;
-                    }
-                }
-            }
-            batchValues.add(val);
+        if (plan.kind === "skip") {
+            skippedCount++;
+            continue;
         }
-
-        // 통합코드 생성
-        currentSeq++;
-        const integratedCode = `${org.integratedCodePrefix}-${String(currentSeq).padStart(4, "0")}`;
+        if (plan.kind === "error") {
+            errors.push({ row: i + 1, message: plan.message });
+            continue;
+        }
+        if (plan.kind === "merge") {
+            await tx
+                .update(records)
+                .set({ data: plan.mergedData, updatedAt: new Date() })
+                .where(eq(records.id, plan.existingId));
+            mergedCount++;
+            continue;
+        }
+        if (plan.deleteExistingId) {
+            await tx.delete(records).where(eq(records.id, plan.deleteExistingId));
+        }
 
         const [inserted] = await tx.insert(records).values({
             orgId,
             workspaceId: partition.workspaceId,
             partitionId,
-            integratedCode,
-            data,
+            integratedCode: codes[insertedRecords.length],
+            data: dataRows[i],
         }).returning();
-        insertedCount++;
         insertedRecords.push(inserted);
     }
 
     if (onProgress) onProgress(dataRows.length, dataRows.length);
 
-    // 조직 시퀀스 업데이트
-    await tx
-        .update(organizations)
-        .set({ integratedCodeSeq: currentSeq })
-        .where(eq(organizations.id, org.id));
-
-    return { totalCount: dataRows.length, insertedCount, skippedCount, mergedCount, errors, insertedRecords };
+    return { totalCount: dataRows.length, insertedCount: insertedRecords.length, skippedCount, mergedCount, errors, insertedRecords };
 }
 
 /**
