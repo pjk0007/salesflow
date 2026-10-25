@@ -1,3 +1,4 @@
+import { classifyEmailSubmission } from "./nhn-submit-result";
 import {
     db,
     queryClient,
@@ -9,7 +10,7 @@ import {
     records,
     products,
 } from "@/lib/db";
-import { eq, and, ne, sql } from "drizzle-orm";
+import { eq, and, ne, inArray, or, isNotNull, sql } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
 import { getAiClient, generateEmail, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import { resolveSignature } from "@/lib/email-sender-resolver";
@@ -35,7 +36,7 @@ import { visitAckConfig } from "./email-visit-ack-rules";
 import { handleVisitAcknowledgement } from "./email-visit-ack-delivery";
 
 /** 후속 줄의 stop_reason — 회신·반송 막기(RPL 7-4)와 원본 메일 실패(F4) */
-type FollowupStopReason = ReplyStopReason | "first_failed" | "site_visit";
+type FollowupStopReason = ReplyStopReason | "first_failed" | "site_visit" | "rule_inactive";
 
 // ============================================
 // 타입 정의
@@ -67,7 +68,7 @@ type FollowupHandlerResult =
     | { kind: "skipped" }
     | { kind: "uncertain" }
     | { kind: "deferred"; retryAt: Date }
-    | { kind: "stopped"; reason: ReplyStopReason | "site_visit" };
+    | { kind: "stopped"; reason: ReplyStopReason | "site_visit" | "rule_inactive" };
 
 const SENT: FollowupHandlerResult = { kind: "sent" };
 const SKIPPED: FollowupHandlerResult = { kind: "skipped" };
@@ -468,6 +469,16 @@ async function processFollowupItem(
             }
         }
 
+        if (item.sourceType === "template" || item.sourceType === "ai") {
+            const [previous] = await db.select({ id: emailSendLogs.id }).from(emailSendLogs).where(and(
+                eq(emailSendLogs.orgId, item.orgId), eq(emailSendLogs.parentLogId, parentLog.id),
+                or(inArray(emailSendLogs.status, ["pending", "unknown", "uncertain", "sent"]), isNotNull(emailSendLogs.requestId)),
+            )).limit(1);
+            if (previous) {
+                await updateQueueStatus(item.id, "uncertain", null); stats.uncertain++; return "uncertain";
+            }
+        }
+
         // 2. 링크 클릭 여부로 분기 판정 (수신확인보다 정확 — 우리가 직접 기록)
         // 미뤘다가 다시 볼 때도 그때의 클릭 여부로 다시 판정한다 — 기다리는 사이 클릭했으면 그 분기가 맞다
         const isClicked = await hasClicked(item.parentLogId);
@@ -585,6 +596,7 @@ async function handleTemplateFollowup(
         .limit(1);
 
     if (!link || !link.followupConfig) return SKIPPED;
+    if (link.isActive !== 1) return { kind: "stopped", reason: "rule_inactive" };
 
     const steps = normalizeFollowupConfig(link.followupConfig);
     const currentStep = steps[item.stepIndex] as TemplateFollowupStep | undefined;
@@ -704,6 +716,13 @@ async function handleTemplateFollowup(
             return { kind: "stopped", reason: "site_visit" };
         }
 
+        const [currentRule] = await db.select({ isActive: emailTemplateLinks.isActive }).from(emailTemplateLinks).where(eq(emailTemplateLinks.id, link.id));
+        if (!currentRule || currentRule.isActive !== 1) {
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: "규칙이 꺼져 후속 발송을 중단했습니다." }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
+            await releaseSenderSlot(slot);
+            return { kind: "stopped", reason: "rule_inactive" };
+        }
         sendAttempted = true;
         const nhnResult = await client.sendEachMail({
             senderAddress: senderFromEmail,
@@ -717,14 +736,15 @@ async function handleTemplateFollowup(
         });
 
         const sendResult = nhnResult.data?.results?.[0];
-        const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+        const submissionStatus = classifyEmailSubmission(nhnResult);
+        const isSuccess = submissionStatus === "sent";
         // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다
-        if (!isSuccess) await releaseSenderSlot(slot);
+        if (submissionStatus === "failed") { slotReleased = true; await releaseSenderSlot(slot); }
 
         await db.update(emailSendLogs)
             .set({
                 requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
+                status: submissionStatus,
                 resultCode: sendResult ? String(sendResult.resultCode) : null,
                 resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
             })
@@ -746,9 +766,10 @@ async function handleTemplateFollowup(
             }
         }
 
-        return isSuccess ? SENT : SKIPPED;
+        return isSuccess ? SENT : submissionStatus === "unknown" ? { kind: "uncertain" } : SKIPPED;
     } catch (err) {
         if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
+        if (sendAttempted) return { kind: "uncertain" };
         throw err;
     }
 }
@@ -770,6 +791,7 @@ async function handleAiFollowup(
         .limit(1);
 
     if (!link || !link.followupConfig) return SKIPPED;
+    if (link.isActive !== 1 || link.isDraft === 1) return { kind: "stopped", reason: "rule_inactive" };
 
     const steps = normalizeFollowupConfig(link.followupConfig);
     const currentStep = steps[item.stepIndex] as AiFollowupStep | undefined;
@@ -938,6 +960,13 @@ async function handleAiFollowup(
             return { kind: "stopped", reason: "site_visit" };
         }
 
+        const [currentRule] = await db.select({ isActive: emailAutoPersonalizedLinks.isActive, isDraft: emailAutoPersonalizedLinks.isDraft }).from(emailAutoPersonalizedLinks).where(eq(emailAutoPersonalizedLinks.id, link.id));
+        if (!currentRule || currentRule.isActive !== 1 || currentRule.isDraft === 1) {
+            await db.update(emailSendLogs).set({ status: "cancelled", resultMessage: "규칙이 꺼져 후속 발송을 중단했습니다." }).where(eq(emailSendLogs.id, inserted.id));
+            slotReleased = true;
+            await releaseSenderSlot(slot);
+            return { kind: "stopped", reason: "rule_inactive" };
+        }
         sendAttempted = true;
         const nhnResult = await emailClient.sendEachMail({
             senderAddress: senderFromEmail,
@@ -951,14 +980,15 @@ async function handleAiFollowup(
         });
 
         const sendResult = nhnResult.data?.results?.[0];
-        const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+        const submissionStatus = classifyEmailSubmission(nhnResult);
+        const isSuccess = submissionStatus === "sent";
         // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다
-        if (!isSuccess) await releaseSenderSlot(slot);
+        if (submissionStatus === "failed") { slotReleased = true; await releaseSenderSlot(slot); }
 
         await db.update(emailSendLogs)
             .set({
                 requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
+                status: submissionStatus,
                 resultCode: sendResult ? String(sendResult.resultCode) : null,
                 resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
             })
@@ -980,9 +1010,10 @@ async function handleAiFollowup(
             }
         }
 
-        return isSuccess ? SENT : SKIPPED;
+        return isSuccess ? SENT : submissionStatus === "unknown" ? { kind: "uncertain" } : SKIPPED;
     } catch (err) {
         if (!sendAttempted && !slotReleased) await releaseSenderSlot(slot);
+        if (sendAttempted) return { kind: "uncertain" };
         throw err;
     }
 }

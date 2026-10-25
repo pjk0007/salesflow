@@ -1,4 +1,4 @@
-import { db, queryClient, emailSendQueue, emailAutoPersonalizedLinks, emailSendLogs, records } from "@/lib/db";
+import { db, queryClient, emailSendQueue, emailAutoPersonalizedLinks, emailSendLogs, emailPreparedSends, records } from "@/lib/db";
 import { sql, eq, and, or, gt, gte, lt, inArray, like } from "drizzle-orm";
 import { addDaysYmd, kstParts, kstToDate } from "@/lib/kst";
 import type { SQL } from "drizzle-orm";
@@ -8,6 +8,7 @@ import { getAiClient, checkTokenQuota } from "@/lib/ai";
 import { getEmailConfig } from "@/lib/nhn-email";
 import {
     planQueueRow,
+    recoverStuckQueueRow,
     parseLinkIdList,
     toProcessedRow,
     recordDeletedRow,
@@ -27,7 +28,6 @@ import {
     DRAIN_BATCH_SIZE,
     DEADLINE_BUDGET_MS,
     STUCK_THRESHOLD_MS,
-    MAX_ATTEMPTS,
     isDeadlineExceeded,
 } from "@/lib/email-send-queue-rules";
 import type { ClaimTurn, ProcessedRow, QueueRowWrite, QueueWalk, QueueWalkLookups } from "@/lib/email-send-queue-rules";
@@ -356,25 +356,42 @@ export function wakeSendQueue(): void {
     }).catch((e) => console.error("[send-queue] wake failed (cron will pick up):", e));
 }
 
-/**
- * processing에서 죽은 행을 pending으로 되돌린다.
- *
- * 워커 예산이 8분이므로 정상 처리 중인 행은 그 안에 상태가 바뀐다.
- * 임계(15분)를 넘겼다면 프로세스가 죽은 것이다 — 배포·크래시가 여기 해당한다.
- */
+/** 중단된 회차를 잠그고 접수 흔적을 대조한다. 상한 행도 종결해 processing으로 남기지 않는다. */
 async function reclaimStuck(): Promise<number> {
-    const result = (await db.execute(sql`
-        UPDATE email_send_queue
-        SET status = 'pending', last_error = 'stuck: reclaimed'
-        WHERE status = 'processing'
-          AND locked_at < NOW() - (${STUCK_THRESHOLD_MS}::bigint * INTERVAL '1 millisecond')
-          AND attempts < ${MAX_ATTEMPTS}
-        RETURNING id
-    `)) as unknown as Array<{ id: number }>;
-    if (result.length > 0) {
-        console.log(`[send-queue] reclaimed ${result.length} stuck rows`);
-    }
-    return result.length;
+    return db.transaction(async tx => {
+        const now = new Date();
+        const stuck = await tx.select().from(emailSendQueue).where(and(
+            eq(emailSendQueue.status, "processing"), lt(emailSendQueue.lockedAt, new Date(now.getTime() - STUCK_THRESHOLD_MS)),
+        )).orderBy(emailSendQueue.id).limit(IN_CHUNK).for("update", { skipLocked: true });
+        if (!stuck.length) return 0;
+        const prepared = await tx.select({ queueId: emailPreparedSends.queueId, status: emailPreparedSends.status })
+            .from(emailPreparedSends).where(inArray(emailPreparedSends.queueId, stuck.map(r => r.id)));
+        const earliest = new Date(Math.min(...stuck.map(r => r.createdAt.getTime())));
+        const logs = await tx.select({ orgId: emailSendLogs.orgId, recordId: emailSendLogs.recordId, status: emailSendLogs.status,
+            requestId: emailSendLogs.requestId, sentAt: emailSendLogs.sentAt }).from(emailSendLogs).where(and(
+            inArray(emailSendLogs.orgId, [...new Set(stuck.map(r => r.orgId))]),
+            inArray(emailSendLogs.recordId, [...new Set(stuck.map(r => r.recordId))]),
+            eq(emailSendLogs.triggerType, "ai_auto"), gte(emailSendLogs.sentAt, earliest),
+        ));
+        const preparedEvidence = new Set(prepared.filter(p => ["sending", "sent", "uncertain"].includes(p.status)).map(p => p.queueId));
+        const logEvidence = new Map<string, number>();
+        for (const log of logs) {
+            if (!["pending", "unknown", "uncertain", "sent"].includes(log.status) && !log.requestId) continue;
+            const key = `${log.orgId}:${log.recordId}`;
+            logEvidence.set(key, Math.max(logEvidence.get(key) ?? 0, log.sentAt.getTime()));
+        }
+        const groups = new Map<string, { plan: ReturnType<typeof recoverStuckQueueRow>; ids: number[] }>();
+        for (const row of stuck) {
+            const evidence = preparedEvidence.has(row.id) || (logEvidence.get(`${row.orgId}:${row.recordId}`) ?? 0) >= row.createdAt.getTime();
+            const plan = recoverStuckQueueRow(row.attempts, evidence);
+            const group = groups.get(plan.lastError) ?? { plan, ids: [] };
+            group.ids.push(row.id); groups.set(plan.lastError, group);
+        }
+        for (const { plan, ids } of groups.values()) await tx.update(emailSendQueue).set({
+            ...plan, lockedAt: null, processedAt: plan.status === "failed" ? now : null, requeueAt: null,
+        }).where(and(inArray(emailSendQueue.id, ids), eq(emailSendQueue.status, "processing")));
+        return stuck.length;
+    });
 }
 
 /**

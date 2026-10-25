@@ -49,7 +49,9 @@ export async function POST(req: NextRequest) {
                 const result = await client.getMessage(log.requestId, log.recipientSeq);
                 if (result.header.isSuccessful && result.message) {
                     const msg = result.message;
-                    const newStatus = msg.resultCode === "1000" ? "sent" : "failed";
+                    // 접수/처리 중 응답은 최종 실패로 만들지 않는다 (NHN messageStatus 계약).
+                    if (!["COMPLETED", "FAILED", "CANCEL"].includes(msg.messageStatus ?? "")) continue;
+                    const newStatus = msg.messageStatus === "COMPLETED" && msg.resultCode === "1000" ? "sent" : "failed";
 
                     if (newStatus !== log.status) {
                         await db

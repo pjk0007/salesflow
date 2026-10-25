@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useEmailTemplateLinks } from "@/hooks/useEmailTemplateLinks";
 import { useEmailSend } from "@/hooks/useEmailSend";
 import { useSenderProfiles } from "@/hooks/useSenderProfiles";
@@ -37,6 +37,7 @@ interface EmailSendResult {
     totalCount: number;
     successCount: number;
     failCount: number;
+    unknownCount?: number;
     /** 발신 프로필 한도(하루 최대·시간대·정지·간격)에 걸려 보내지 않은 건수 */
     limitedCount?: number;
     /** 보내지 않은 레코드와 이유 (주소 없음·수신거부·한도·NHN 실패), 레코드 코드·이메일. 없으면 빠진다 */
@@ -64,6 +65,7 @@ export default function SendEmailDialog({
     const selectedProfileId = pickedProfileId || (defaultProfile ? String(defaultProfile.id) : "");
     const selectedSigId = pickedSigId || (defaultSignature ? String(defaultSignature.id) : "");
     const [loading, setLoading] = useState(false);
+    const sending = useRef(false);
     const [result, setResult] = useState<EmailSendResult | null>(null);
     // "모두 보기"로 펼친 이유
     const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -71,6 +73,7 @@ export default function SendEmailDialog({
     const activeLinks = templateLinks.filter((l) => l.isActive === 1);
 
     const handleSend = async () => {
+        if (sending.current) return;
         if (!selectedLinkId) {
             toast.error("템플릿을 선택해주세요.");
             return;
@@ -80,14 +83,15 @@ export default function SendEmailDialog({
             return;
         }
 
+        sending.current = true;
         setLoading(true);
+        try {
         const sendResult = await sendEmail({
             templateLinkId: selectedLinkId,
             recordIds,
             senderProfileId: selectedProfileId ? Number(selectedProfileId) : undefined,
             signatureId: selectedSigId === "none" ? null : selectedSigId ? Number(selectedSigId) : undefined,
         });
-        setLoading(false);
 
         if (sendResult.success) {
             const data = sendResult.data as EmailSendResult;
@@ -96,17 +100,22 @@ export default function SendEmailDialog({
             refreshUsage();
             const limited = data.limitedCount ?? 0;
             // 결과 대화상자 제목과 같은 말을 쓴다 — 일부라도 못 보냈으면 "발송 완료"라고 하지 않는다
-            const notSent = data.failCount + limited;
-            const head = notSent === 0 ? "발송 완료" : data.successCount === 0 ? "보내지 못했습니다" : "일부만 보냈습니다";
-            const message = `${head}: 성공 ${data.successCount}건, 실패 ${data.failCount}건${limited > 0 ? `, 발송 제한 ${limited}건` : ""}`;
+            const notSent = data.totalCount - data.successCount;
+            const head = data.unknownCount ? "접수 결과 확인 필요" : notSent === 0 ? "발송 완료" : data.successCount === 0 ? "보내지 못했습니다" : "일부만 보냈습니다";
+            const message = `${head}: 성공 ${data.successCount}건, 실패 ${data.failCount}건${data.unknownCount ? `, 확인 필요 ${data.unknownCount}건` : ""}${limited > 0 ? `, 발송 제한 ${limited}건` : ""}`;
             if (notSent > 0) toast.warning(message);
             else toast.success(message);
         } else {
             toast.error(sendResult.error || "발송에 실패했습니다.");
         }
+        } catch {
+            setResult({ totalCount: recordIds.length, successCount: 0, failCount: 0, unknownCount: recordIds.length });
+            toast.warning("응답을 확인할 수 없습니다. 중복 발송 전에 발송 이력을 확인해주세요.");
+        } finally { sending.current = false; setLoading(false); }
     };
 
     const handleClose = () => {
+        if (sending.current) return;
         setSelectedLinkId(null);
         setPickedProfileId("");
         setPickedSigId("");
@@ -134,7 +143,7 @@ export default function SendEmailDialog({
                                 <>
                                     <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto mb-3" />
                                     <p className="text-lg font-medium">
-                                        {result.successCount > 0 ? "일부는 보내지 못했습니다" : "보내지 못했습니다"}
+                                        {result.unknownCount ? "접수 결과 확인 필요" : result.successCount > 0 ? "일부는 보내지 못했습니다" : "보내지 못했습니다"}
                                     </p>
                                 </>
                             ) : (
@@ -166,13 +175,14 @@ export default function SendEmailDialog({
                                 </div>
                             )}
                         </div>
+                        {!!result.unknownCount && <p role="alert" className="text-sm text-amber-700">결과 확인 필요 {result.unknownCount}건. 이미 접수되었을 수 있으니 중복 발송 전에 <a className="underline" href="/email?tab=logs">발송 이력</a>을 확인해주세요.</p>}
                         {(() => {
                             const groups = groupNotSent(result.errors);
                             if (groups.length === 0) return null;
                             const total = groups.reduce((n, g) => n + g.count, 0);
                             return (
                                 <div className="max-h-[45vh] space-y-3 overflow-y-auto rounded-lg bg-muted p-3 text-xs">
-                                    <p className="font-medium">보내지 않은 레코드 {total.toLocaleString()}건</p>
+                                    <p className="font-medium">미발송 또는 결과 확인이 필요한 레코드 {total.toLocaleString()}건</p>
                                     {groups.map((g) => {
                                         const open = expanded.has(g.message);
                                         const shown = open ? g.recipients : g.recipients.slice(0, RECIPIENT_PREVIEW);

@@ -17,6 +17,13 @@ export const MAX_ATTEMPTS = 3;
 /** processing에 이만큼 머물면 죽은 것으로 보고 회수한다. 워커 상한(8분)보다 넉넉해야 한다. */
 export const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
 
+/** 중단된 회차에 접수 흔적이 있으면 성공/실패 추측으로 자동 재발송하지 않는다. */
+export function recoverStuckQueueRow(attempts: number, deliveryEvidence: boolean): { status: "pending" | "failed"; lastError: string } {
+    if (deliveryEvidence) return { status: "failed", lastError: "stuck: 접수 결과 확인 필요. 발송 이력을 대조하기 전에는 다시 보내지 마세요." };
+    if (attempts >= MAX_ATTEMPTS) return { status: "failed", lastError: "stuck: 재시도 상한에서 처리가 중단되었습니다. 발송 전 상태를 확인해주세요." };
+    return { status: "pending", lastError: "stuck: 발송 접수 흔적 없이 중단되어 재시도 대기" };
+}
+
 /** 한 회차의 처리 예산. cron 주기(10분) 안에 여유를 남긴다. */
 export const DEADLINE_BUDGET_MS = 8 * 60 * 1000;
 

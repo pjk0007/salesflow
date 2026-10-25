@@ -4,7 +4,7 @@ import type { EsignStorage } from "./storage";
 import type { EsignDelivery } from "./delivery";
 import { completePdfInWorker } from "./pdf-worker";
 import type { PdfImagePlacement } from "./pdf-types";
-import { EsignError } from "./types";
+import { EsignError, type DeliveryPayload } from "./types";
 
 /** One bounded batch; no file/network work is performed inside a DB transaction. */
 export async function processEsignJobs(service: EsignService, storage: EsignStorage, delivery: EsignDelivery, limit = 4) {
@@ -47,8 +47,13 @@ export async function processEsignJobs(service: EsignService, storage: EsignStor
                 await service.completeDelivery(job.id, job.envelopeId, lease, { state: "failed", error: "서명 요청의 현재 상태에서 발송할 수 없습니다." }).catch(() => undefined);
                 continue;
             }
+            let payload: DeliveryPayload;
+            try { payload = service.decodeJob(current); }
+            catch {
+                await service.completeDelivery(job.id, job.envelopeId, lease, { state: "failed", error: "발송 내용을 확인하지 못해 보내지 않았습니다." }).catch(() => undefined);
+                continue;
+            }
             try {
-                const payload = service.decodeJob(current);
                 const recipient = aggregate.recipients.find(item => item.id === current.recipientId);
                 if (current.kind === "otp" && (!recipient?.otpExpiresAt || new Date(recipient.otpExpiresAt).getTime() <= Date.now() || recipient.otpChallenge !== payload.otpChallenge)) {
                     await service.completeDelivery(job.id, job.envelopeId, lease, { state: "failed", error: "이 확인 코드는 만료되었거나 새 코드로 바뀌었습니다." });

@@ -38,6 +38,13 @@ test("worker still sends an active claimed request exactly once", async () => {
     const f = await fixture(); await processEsignJobs(f.service, f.storage, f.delivery); await processEsignJobs(f.service, f.storage, f.delivery);
     assert.equal(f.sends(), 1); assert.equal((await f.service.repository.read(f.id))!.jobs[0].state, "accepted");
 });
+test("UX-266: payload decode failure is recorded as failed before transport", async () => {
+    const f = await fixture();
+    f.service.decodeJob = () => { throw new Error("fake damaged ciphertext"); };
+    await processEsignJobs(f.service, f.storage, f.delivery);
+    assert.equal(f.sends(), 0);
+    assert.equal((await f.service.repository.read(f.id))!.jobs[0].state, "failed");
+});
 test("worker does not deliver a code superseded after its claim", async () => {
     const f = await fixture(), stored = (await f.service.repository.read(f.id))!;
     const token = f.service.decodeJob(stored.jobs.find(job => job.kind === "invitation")!).token!;

@@ -32,7 +32,8 @@ import { toast } from "sonner";
 import type { AlimtalkSendLog } from "@/lib/db";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
-    pending: { label: "대기", variant: "secondary" },
+    pending: { label: "접수됨", variant: "secondary" },
+    unknown: { label: "결과 확인 필요", variant: "destructive" },
     sent: { label: "성공", variant: "default" },
     failed: { label: "실패", variant: "destructive" },
 };
@@ -41,6 +42,8 @@ const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "se
     manual: { label: "수동", variant: "outline" },
     auto: { label: "자동", variant: "default" },
     repeat: { label: "반복", variant: "secondary" },
+    followup: { label: "후속 발송", variant: "secondary" },
+    external_api: { label: "외부 API", variant: "outline" },
 };
 
 export default function SendLogTable() {
@@ -93,7 +96,8 @@ export default function SendLogTable() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">전체</SelectItem>
-                        <SelectItem value="pending">대기</SelectItem>
+                        <SelectItem value="pending">접수됨</SelectItem>
+                        <SelectItem value="unknown">결과 확인 필요</SelectItem>
                         <SelectItem value="sent">성공</SelectItem>
                         <SelectItem value="failed">실패</SelectItem>
                     </SelectContent>
@@ -157,7 +161,7 @@ export default function SendLogTable() {
                                             </TableCell>
                                             <TableCell>
                                                 {(() => {
-                                                    const info = TRIGGER_TYPE_MAP[log.triggerType || "manual"] || TRIGGER_TYPE_MAP.manual;
+                                                    const info = TRIGGER_TYPE_MAP[log.triggerType || "manual"] || { label: "기타", variant: "outline" as const };
                                                     return <Badge variant={info.variant} className="text-xs">{info.label}</Badge>;
                                                 })()}
                                             </TableCell>
@@ -214,7 +218,7 @@ export default function SendLogTable() {
                 <SheetContent className="sm:max-w-lg overflow-y-auto">
                     {selectedLog && (() => {
                         const statusInfo = STATUS_MAP[selectedLog.status] || { label: selectedLog.status, variant: "secondary" as const };
-                        const triggerInfo = TRIGGER_TYPE_MAP[selectedLog.triggerType || "manual"] || { label: selectedLog.triggerType, variant: "outline" as const };
+                        const triggerInfo = TRIGGER_TYPE_MAP[selectedLog.triggerType || "manual"] || { label: "기타", variant: "outline" as const };
 
                         return (
                             <>

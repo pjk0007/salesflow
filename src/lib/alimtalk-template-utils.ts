@@ -81,3 +81,28 @@ export function extractAllTemplateVariables(
     const allText = sources.join("\n");
     return extractTemplateVariables(allText);
 }
+
+export interface AlimtalkFollowupStep {
+    delayDays?: number; delayHours?: number; delayMinutes?: number;
+    senderKey?: string; templateCode: string; variableMappings?: Record<string, string>;
+}
+export interface FollowupStepUI {
+    delayValue: number; delayUnit: "minutes" | "hours" | "days";
+    senderKey: string; templateCode: string; variableMappings: Record<string, string>;
+}
+/** 기존 합산 지연을 분 단위까지 보존한다. 단위를 바꿔 재저장해도 발송 시점이 달라지지 않는다. */
+export function loadAlimtalkFollowupSteps(config: AlimtalkFollowupStep | AlimtalkFollowupStep[] | null | undefined): FollowupStepUI[] {
+    return (config ? Array.isArray(config) ? config : [config] : []).map(step => {
+        const minutes = (step.delayDays ?? 0) * 1440 + (step.delayHours ?? 0) * 60 + (step.delayMinutes ?? 0) || 1440;
+        const delayUnit = minutes % 1440 === 0 ? "days" : minutes % 60 === 0 ? "hours" : "minutes";
+        return { delayValue: minutes / (delayUnit === "days" ? 1440 : delayUnit === "hours" ? 60 : 1), delayUnit,
+            senderKey: step.senderKey ?? "", templateCode: step.templateCode, variableMappings: step.variableMappings ?? {} };
+    });
+}
+export function saveAlimtalkFollowupSteps(steps: FollowupStepUI[]) {
+    return steps.map(step => ({
+        ...(step.delayUnit === "minutes" ? { delayMinutes: step.delayValue } : step.delayUnit === "hours" ? { delayHours: step.delayValue } : { delayDays: step.delayValue }),
+        templateCode: step.templateCode, ...(step.senderKey ? { senderKey: step.senderKey } : {}),
+        ...(Object.keys(step.variableMappings).length ? { variableMappings: step.variableMappings } : {}),
+    }));
+}

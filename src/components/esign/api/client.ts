@@ -33,6 +33,7 @@ export const esignApi = {
     createEnvelope: (workspaceId: number, input: EsignEnvelopeInput) => request<StaffEsignDetail>(scoped("/envelopes", workspaceId), json(input)),
     detail: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}`, workspaceId)),
     cancel: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}/action`, workspaceId), json({ action: "cancel" })),
+    retryFinalization: (workspaceId: number, id: string) => request<StaffEsignDetail>(scoped(`/envelopes/${id}/action`, workspaceId), json({ action: "retry_finalize" })),
     documentUrl: (workspaceId: number, id: string) => `${apiBase()}${scoped(`/documents/${id}/file`, workspaceId)}`,
     envelopeUrl: (workspaceId: number, id: string, final = false) => `${apiBase()}${scoped(`/envelopes/${id}/file${final ? "?final=1" : ""}`, workspaceId)}`,
     auditUrl: (workspaceId: number, id: string) => `${apiBase()}${scoped(`/envelopes/${id}/audit`, workspaceId)}`,

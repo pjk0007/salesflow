@@ -157,7 +157,12 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
                 const detail = await service.dispatchEnvelope(actor, created.envelope.id); kick(engine); return result(detail, 201);
             }
             if (id && !action && method === "GET") return result(await service.getEnvelope(actor, id));
-            if (id && action === "action" && method === "POST") { z.object({ action: z.literal("cancel") }).strict().parse(body); return result(await service.cancelEnvelope(actor, id)); }
+            if (id && action === "action" && method === "POST") {
+                const input = z.object({ action: z.enum(["cancel", "retry_finalize"]) }).strict().parse(body);
+                if (input.action === "cancel") return result(await service.cancelEnvelope(actor, id));
+                const detail = await service.retryFinalization(actor, id);
+                kick(engine); return result(detail);
+            }
             if (id && action === "file" && method === "GET") {
                 const detail = await service.getEnvelope(actor, id), final = url.searchParams.get("final") === "1";
                 const artifact = final ? detail.envelope.finalArtifact : detail.envelope.document.artifact;

@@ -1,3 +1,4 @@
+import { classifyEmailSubmission } from "./nhn-submit-result";
 import { db, queryClient, emailTemplateLinks, emailSendLogs, emailAutomationQueue, emailTemplates, records } from "@/lib/db";
 import { eq, ne, and, gt, gte, lte, asc, inArray, notInArray, sql } from "drizzle-orm";
 import { getEmailClient, getEmailConfig, substituteVariables, appendSignature } from "@/lib/nhn-email";
@@ -121,6 +122,11 @@ async function sendEmailSingle(
         purpose?: SendPurpose;
     } = {}
 ): Promise<TemplateSendResult> {
+    const [unresolved] = await db.select({ id: emailSendLogs.id }).from(emailSendLogs).where(and(
+        eq(emailSendLogs.orgId, orgId), eq(emailSendLogs.recordId, record.id), eq(emailSendLogs.templateLinkId, link.id),
+        inArray(emailSendLogs.status, ["pending", "unknown", "uncertain"]),
+    )).limit(1);
+    if (unresolved) return { success: false };
     const purpose: SendPurpose = opts.purpose ?? templatePurpose(triggerType);
     const client = await getEmailClient(orgId);
     if (!client) return { success: false };
@@ -232,14 +238,15 @@ async function sendEmailSingle(
         });
 
         const sendResult = nhnResult.data?.results?.[0];
-        const isSuccess = nhnResult.header.isSuccessful && (!sendResult || sendResult.resultCode === 0);
+        const submissionStatus = classifyEmailSubmission(nhnResult);
+        const isSuccess = submissionStatus === "sent";
         // NHN이 받지 않았다 — 나가지 않았으니 자리를 돌려준다
-        if (!isSuccess) await releaseSenderSlot(slot);
+        if (submissionStatus === "failed") { slotReleased = true; await releaseSenderSlot(slot); }
 
         await db.update(emailSendLogs)
             .set({
                 requestId: nhnResult.data?.requestId,
-                status: isSuccess ? "sent" : "failed",
+                status: submissionStatus,
                 resultCode: sendResult ? String(sendResult.resultCode) : null,
                 resultMessage: sendResult?.resultMessage ?? nhnResult.header.resultMessage,
             })

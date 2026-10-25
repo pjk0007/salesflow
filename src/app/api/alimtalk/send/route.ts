@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, alimtalkTemplateLinks, alimtalkSendLogs, records, partitions, workspaces } from "@/lib/db";
+import { db, alimtalkTemplateLinks, records, partitions, workspaces } from "@/lib/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
-import { getAlimtalkClient, normalizePhoneNumber } from "@/lib/nhn-alimtalk";
+import { sendAlimtalkForOrg } from "@/lib/alimtalk/send-service";
 
 export async function POST(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);
     if (!user) {
         return NextResponse.json({ success: false, error: "인증이 필요합니다." }, { status: 401 });
-    }
-
-    const client = await getAlimtalkClient(user.orgId);
-    if (!client) {
-        return NextResponse.json({ success: false, error: "알림톡 설정이 필요합니다." }, { status: 400 });
     }
 
     try {
@@ -78,139 +73,25 @@ export async function POST(req: NextRequest) {
             }, { status: 404 });
         }
 
-        // 수신자 목록 구성
-        const recipientList: Array<{
-            recipientNo: string;
-            templateParameter?: Record<string, string>;
-            recordId: number;
-        }> = [];
-
-        const errors: Array<{ recordId: number; error: string }> = [];
-
-        for (const record of recordList) {
-            const data = record.data as Record<string, unknown>;
-            const phone = data[templateLink.recipientField];
-
-            if (!phone || typeof phone !== "string") {
-                errors.push({ recordId: record.id, error: "수신번호 없음" });
-                continue;
-            }
-
-            const normalizedPhone = normalizePhoneNumber(phone);
-            if (normalizedPhone.length < 10) {
-                errors.push({ recordId: record.id, error: "수신번호 형식 오류" });
-                continue;
-            }
-
-            // 변수 매핑
-            let templateParameter: Record<string, string> | undefined;
-            const mappings = templateLink.variableMappings as Record<string, string> | null;
-            if (mappings && Object.keys(mappings).length > 0) {
-                templateParameter = {};
-                for (const [variable, fieldKey] of Object.entries(mappings)) {
-                    // #{변수명} → 변수명으로 키 정리
-                    const paramKey = variable.replace(/^#\{|\}$/g, "");
-                    const fieldValue = data[fieldKey];
-                    templateParameter[paramKey] = fieldValue != null ? String(fieldValue) : "";
-                }
-            }
-
-            recipientList.push({
-                recipientNo: normalizedPhone,
-                templateParameter,
-                recordId: record.id,
-            });
-        }
-
-        if (recipientList.length === 0) {
-            return NextResponse.json({
-                success: false,
-                error: "유효한 수신자가 없습니다.",
-                data: { errors },
-            }, { status: 400 });
-        }
-
-        // 템플릿 본문 조회 (content 저장용)
-        const templateDetail = await client.getTemplate(templateLink.senderKey, templateLink.templateCode);
-        const templateContent = templateDetail?.template?.templateContent || "";
-
-        // NHN Cloud 발송 API 호출
-        const nhnResult = await client.sendMessages({
-            senderKey: templateLink.senderKey,
-            templateCode: templateLink.templateCode,
-            recipientList: recipientList.map(({ recipientNo, templateParameter }) => ({
-                recipientNo,
-                templateParameter,
-            })),
+        const result = await sendAlimtalkForOrg({
+            orgId: user.orgId, senderKey: templateLink.senderKey, templateCode: templateLink.templateCode,
+            triggerType: "manual", sentBy: user.userId,
+            recipients: recordList.map(record => {
+                const data = record.data as Record<string, unknown>;
+                const mappings = templateLink.variableMappings as Record<string, string> | null;
+                return {
+                    phoneNumber: typeof data[templateLink.recipientField] === "string" ? data[templateLink.recipientField] as string : "",
+                    templateParameter: Object.fromEntries(Object.entries(mappings ?? {}).map(([variable, field]) =>
+                        [variable.replace(/^#\{|\}$/g, ""), data[field] != null ? String(data[field]) : ""])),
+                    recordId: record.id, templateLinkId: templateLink.id, partitionId: templateLink.partitionId,
+                };
+            }),
         });
-
-        if (!nhnResult.header.isSuccessful) {
-            return NextResponse.json({
-                success: false,
-                error: `발송 실패: ${nhnResult.header.resultMessage}`,
-            });
-        }
-
-        const sendResponse = nhnResult.message;
-        if (!sendResponse) {
-            return NextResponse.json({
-                success: false,
-                error: "NHN Cloud에서 응답을 받지 못했습니다.",
-            });
-        }
-
-        let successCount = 0;
-        let failCount = 0;
-
-        // 발송 로그 저장
-        const logValues = sendResponse.sendResults.map((result, index) => {
-            const recipient = recipientList[index];
-            const isSuccess = result.resultCode === 0;
-            if (isSuccess) successCount++;
-            else failCount++;
-
-            // 변수 치환된 본문 생성
-            let content = templateContent;
-            if (recipient.templateParameter) {
-                for (const [key, value] of Object.entries(recipient.templateParameter)) {
-                    content = content.replaceAll(`#{${key}}`, value);
-                }
-            }
-
-            return {
-                orgId: user.orgId,
-                templateLinkId: templateLink.id,
-                partitionId: templateLink.partitionId,
-                recordId: recipient.recordId,
-                senderKey: templateLink.senderKey,
-                templateCode: templateLink.templateCode,
-                templateName: templateLink.templateName || "",
-                recipientNo: result.recipientNo,
-                requestId: sendResponse.requestId,
-                recipientSeq: result.recipientSeq,
-                status: isSuccess ? "sent" : "failed",
-                resultCode: String(result.resultCode),
-                resultMessage: result.resultMessage,
-                content,
-                triggerType: "manual",
-                sentBy: user.userId,
-            };
-        });
-
-        if (logValues.length > 0) {
-            await db.insert(alimtalkSendLogs).values(logValues);
-        }
-
-        return NextResponse.json({
-            success: true,
-            data: {
-                requestId: sendResponse.requestId,
-                totalCount: recipientList.length,
-                successCount,
-                failCount,
-                errors: errors.length > 0 ? errors : undefined,
-            },
-        });
+        if (!result.ok) return NextResponse.json({ success: false, error: result.error, data: { errors: result.errors } }, { status: result.status });
+        return NextResponse.json({ success: true, data: { ...result.data, totalCount: ids.length,
+            excludedCount: result.data.errors?.length ?? 0,
+            errors: [...(result.data.errors ?? []), ...result.data.results.filter(r => r.status !== "pending").map(r => ({ recordId: r.recordId, error: r.resultMessage }))],
+        } });
     } catch (error) {
         console.error("Alimtalk send error:", error);
         return NextResponse.json({ success: false, error: "발송에 실패했습니다." }, { status: 500 });

@@ -24,7 +24,7 @@ import { useResolvedFields } from "@/hooks/useResolvedFields";
 import TriggerConditionForm from "@/components/alimtalk/TriggerConditionForm";
 import RepeatConfigForm from "@/components/alimtalk/RepeatConfigForm";
 import FollowupStepsForm, { type FollowupStepUI } from "@/components/alimtalk/FollowupStepsForm";
-import { extractAllTemplateVariables } from "@/lib/alimtalk-template-utils";
+import { extractAllTemplateVariables, saveAlimtalkFollowupSteps } from "@/lib/alimtalk-template-utils";
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 
@@ -81,12 +81,7 @@ function NewAlimtalkLinkContent() {
                 ? followupSteps.filter((s) => s.templateCode)
                 : [];
             const followupConfig = validSteps.length > 0
-                ? validSteps.map((s) => ({
-                    ...(s.delayUnit === "hours" && { delayHours: s.delayValue }),
-                    ...(s.delayUnit === "days" && { delayDays: s.delayValue }),
-                    templateCode: s.templateCode,
-                    ...(Object.keys(s.variableMappings).length > 0 && { variableMappings: s.variableMappings }),
-                }))
+                ? saveAlimtalkFollowupSteps(validSteps)
                 : null;
 
             const result = await createLink({
