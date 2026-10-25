@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { copyAdminApi } from "@/lib/ai-copy/api";
+import { BLOCK_REASON_MIN_LENGTH } from "@/lib/ai-copy/defaults";
 import { approveKnowledge, blockVersion } from "@/lib/ai-copy/versions";
 import { retireCopyVersion } from "@/lib/ai-copy/retirement";
 export const POST = (req: NextRequest, context: { params: Promise<{ id: string }> }) =>
@@ -13,7 +14,7 @@ export const POST = (req: NextRequest, context: { params: Promise<{ id: string }
         const body = z
             .object({
                 action: z.enum(["approve", "block", "retire"]),
-                reason: z.string().trim().min(10).max(1000).optional(),
+                reason: z.string().trim().min(BLOCK_REASON_MIN_LENGTH).max(1000).optional(),
             })
             .parse(await req.json());
         if (body.action === "block")

@@ -19,6 +19,8 @@ export interface CopyCatalog {
         policy_version_id: number;
         knowledge_version_id: number;
     }[];
+    /** 생성 모델별 서버 연결 여부(UX-244) */
+    models: { id: string; label: string; configured: boolean }[];
 }
 export interface GenerationRow {
     id: number;

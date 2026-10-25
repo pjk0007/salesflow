@@ -5,7 +5,7 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireRecordAccess } from "@/lib/partition-access";
 import { getAiClient, buildEmailSystemPrompt, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
 import type { AiClient, GenerateEmailInput } from "@/lib/ai";
-import { callClaudeEmail } from "@/lib/ai/claude";
+import { callClaudeEmail, EmailResponseError } from "@/lib/ai/claude";
 
 type Usage = { promptTokens: number; completionTokens: number };
 
@@ -75,23 +75,10 @@ export async function POST(req: NextRequest) {
                     controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
                 };
 
-                try {
-                    let usage: Usage;
-                    if (client.provider === "claude") {
-                        // 기존 Anthropic 어댑터의 JSON·사용량 변환을 재사용한다.
-                        // 이 공급자는 완료한 초안을 한 번의 chunk로 보낸다.
-                        const result = await callClaudeEmail(client, systemPrompt, input.prompt, { strict: true });
-                        usage = result.usage;
-                        sendEvent("chunk", { text: JSON.stringify({ subject: result.subject, htmlBody: result.htmlBody }) });
-                    } else if (client.provider === "deepseek") {
-                        usage = await streamDeepseek(client, systemPrompt, input.prompt, sendEvent);
-                    } else {
-                        usage = await streamGemini(client, systemPrompt, input.prompt, sendEvent);
-                    }
-
-                    const totalTokens = usage.promptTokens + usage.completionTokens;
-                    await updateTokenUsage(user.orgId, totalTokens);
-
+                // 공급자가 이미 쓴 토큰. 실패(잘림·형식 오류·연결 끊김)로 끝나도 받은 만큼 기록해 한도와 맞춘다.
+                const usage: Usage = { promptTokens: 0, completionTokens: 0 };
+                const recordUsage = async () => {
+                    await updateTokenUsage(user.orgId, usage.promptTokens + usage.completionTokens);
                     await logAiUsage({
                         orgId: user.orgId,
                         userId: user.userId,
@@ -101,9 +88,33 @@ export async function POST(req: NextRequest) {
                         completionTokens: usage.completionTokens,
                         purpose: "email_generation",
                     });
+                };
+
+                try {
+                    if (client.provider === "claude") {
+                        // 기존 Anthropic 어댑터의 JSON·사용량 변환을 재사용한다.
+                        // 이 공급자는 완료한 초안을 한 번의 chunk로 보낸다.
+                        try {
+                            const result = await callClaudeEmail(client, systemPrompt, input.prompt, { strict: true });
+                            Object.assign(usage, result.usage);
+                            sendEvent("chunk", { text: JSON.stringify({ subject: result.subject, htmlBody: result.htmlBody }) });
+                        } catch (error) {
+                            if (error instanceof EmailResponseError) Object.assign(usage, error.usage);
+                            throw error;
+                        }
+                    } else if (client.provider === "deepseek") {
+                        await streamDeepseek(client, systemPrompt, input.prompt, sendEvent, usage);
+                    } else {
+                        await streamGemini(client, systemPrompt, input.prompt, sendEvent, usage);
+                    }
+
+                    await recordUsage();
                     sendEvent("done", { usage });
                 } catch (error) {
                     console.error("AI email stream error:", error);
+                    if (usage.promptTokens + usage.completionTokens > 0) {
+                        await recordUsage().catch((err) => console.error("AI usage log error:", err));
+                    }
                     sendEvent("error", { error: "AI 이메일 생성에 실패했습니다. 잠시 후 다시 시도하거나 조직 AI 연결을 확인해주세요." });
                 } finally {
                     if (!cancelled) controller.close();
@@ -131,7 +142,8 @@ async function streamDeepseek(
     client: AiClient,
     systemPrompt: string,
     userPrompt: string,
-    sendEvent: SendEvent
+    sendEvent: SendEvent,
+    usage: Usage
 ): Promise<Usage> {
     const response = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
@@ -160,7 +172,6 @@ async function streamDeepseek(
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    const usage: Usage = { promptTokens: 0, completionTokens: 0 };
     let complete = false;
 
     try {
@@ -204,13 +215,15 @@ async function streamGemini(
     client: AiClient,
     systemPrompt: string,
     userPrompt: string,
-    sendEvent: SendEvent
+    sendEvent: SendEvent,
+    usage: Usage
 ): Promise<Usage> {
     const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:streamGenerateContent?alt=sse&key=${client.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(client.model)}:streamGenerateContent?alt=sse`,
         {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            // 키는 주소(쿼리)가 아니라 헤더로 보낸다 — 주소는 프록시·접근 로그에 남는다.
+            headers: { "Content-Type": "application/json", "x-goog-api-key": client.apiKey },
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
@@ -227,7 +240,6 @@ async function streamGemini(
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    const usage: Usage = { promptTokens: 0, completionTokens: 0 };
     let complete = false;
 
     try {

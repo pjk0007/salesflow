@@ -5,6 +5,7 @@ import { CopyDeferredError, type GenerationDeps } from "./generation";
 import { CopyActionError } from "./errors";
 import {
     advanceAutomation,
+    automationRuleChanged,
     createAutomationCycle,
     type AutomationCycle,
     type AutomationSetting,
@@ -44,10 +45,17 @@ export async function processCopyAutomation(provided?: {
             >`SELECT * FROM ai_copy_automation_cycles WHERE setting_id=${setting.id} AND stage NOT IN('applied','declined','blocked') ORDER BY id DESC LIMIT 1`;
             if (!cycle) {
                 const [latest] = await conn<
-                    { updated_at: Date }[]
-                >`SELECT updated_at FROM ai_copy_automation_cycles WHERE setting_id=${setting.id} ORDER BY id DESC LIMIT 1`;
+                    { updated_at: Date; stage: string; rule_fingerprint: string | null }[]
+                >`SELECT updated_at,stage,rule_fingerprint FROM ai_copy_automation_cycles WHERE setting_id=${setting.id} ORDER BY id DESC LIMIT 1`;
+                // 7일 대기는 적용·유지로 끝난 회차에만 둔다. 준비 보류 회차는 관리자가 '다시 준비'(last_error 비움)하거나
+                // 발송 규칙이 바뀌면 바로 새 회차를 연다(UX-246).
+                const reopenBlocked =
+                    latest?.stage === "blocked" &&
+                    (setting.last_error == null ||
+                        (await automationRuleChanged(conn, setting, latest.rule_fingerprint)));
                 if (
                     latest &&
+                    !reopenBlocked &&
                     new Date(latest.updated_at).getTime() + 7 * 86400000 > now.getTime()
                 ) {
                     await conn`UPDATE ai_copy_automation_settings SET next_run_at=${new Date(new Date(latest.updated_at).getTime() + 7 * 86400000).toISOString()} WHERE id=${setting.id}`;
@@ -64,7 +72,10 @@ export async function processCopyAutomation(provided?: {
                     await advanceExperimentLifecycles(conn, now, setting.org_id);
                 await advanceAutomation(conn, setting, cycle, deps, connected);
             }
-            await conn`UPDATE ai_copy_automation_settings SET next_run_at=${new Date(now.getTime() + 30000).toISOString()},last_error=NULL WHERE id=${setting.id}`;
+            // 이번 진행으로 회차가 보류(예: 자동 평가 미달)로 끝났다면 사유를 남긴다. 비어 있으면 '다시 준비'로 보고
+            // 7일 대기 없이 새 회차를 열기 때문이다(UX-246).
+            await conn`UPDATE ai_copy_automation_settings SET next_run_at=${new Date(now.getTime() + 30000).toISOString()},
+                last_error=(SELECT CASE WHEN c.stage='blocked' THEN COALESCE(c.reason,'준비 보류') END FROM ai_copy_automation_cycles c WHERE c.id=${cycle.id}) WHERE id=${setting.id}`;
             return { processed: 1, cycleId: cycle.id };
         } catch (error) {
             const deferred = error instanceof CopyDeferredError && !error.held;

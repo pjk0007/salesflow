@@ -35,15 +35,17 @@ export async function callGeminiEmail(
         };
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent`;
     const body = JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
         contents: [{ role: "user", parts: [{ text: userPrompt }] }],
     });
 
+    // 키는 주소(쿼리)가 아니라 헤더로 보낸다 — 주소는 프록시·접근 로그에 남는다.
+    const headers = { "Content-Type": "application/json", "x-goog-api-key": client.apiKey };
     let response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body,
     });
 
@@ -52,7 +54,7 @@ export async function callGeminiEmail(
         await new Promise(r => setTimeout(r, 1000 + Math.random() * 1000));
         response = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body,
         });
     }
@@ -97,10 +99,10 @@ export async function callGeminiJson(
     }
 
     const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent`,
         {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "x-goog-api-key": client.apiKey },
             body: JSON.stringify({
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
@@ -137,8 +139,8 @@ export async function callGeminiWithSearch(
         return callClaudeWithSearch(client, systemPrompt, userPrompt, jsonPattern);
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent?key=${client.apiKey}`;
-    const headers = { "Content-Type": "application/json" };
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${client.model}:generateContent`;
+    const headers = { "Content-Type": "application/json", "x-goog-api-key": client.apiKey };
 
     let response = await fetch(url, {
         method: "POST",
