@@ -6,6 +6,7 @@ import { parseAttributionParams } from "@/lib/attribution/parse-params";
 import { resolveAttribution } from "@/lib/attribution/resolve-attribution";
 import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
 import { parseCheckboxValue } from "@/lib/checkbox-value";
+import { isBlankRequiredValue } from "@/lib/required-fields";
 
 export async function POST(
     req: NextRequest,
@@ -51,11 +52,11 @@ export async function POST(
             return NextResponse.json({ success: false, error: "질문 구성이 변경되었습니다. 폼을 새로 불러온 뒤 제출해주세요." }, { status: 409 });
         }
 
-        // required 검증 — 필수 체크박스(동의)는 체크(참)일 때만 통과한다. 해제하면 "false"가 오므로 빈 값 검사만으로는 막지 못한다 (UX-046)
+        // required 검증 — 공백만 든 값도 빈 값(UX-036). 필수 체크박스(동의)는 체크(참)일 때만 통과한다. 해제하면 "false"가 오므로 빈 값 검사만으로는 막지 못한다 (UX-046)
         for (const field of fields) {
             if (field.isRequired) {
                 const val = submitData[String(field.id)];
-                if (field.fieldType === "checkbox" ? !parseCheckboxValue(val) : val === undefined || val === null || val === "") {
+                if (field.fieldType === "checkbox" ? !parseCheckboxValue(val) : isBlankRequiredValue(val)) {
                     return NextResponse.json({
                         success: false,
                         error: field.fieldType === "checkbox"

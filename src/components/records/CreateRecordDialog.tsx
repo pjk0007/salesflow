@@ -22,6 +22,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { DateTimePicker } from "@/components/ui/datetime-picker";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { toast } from "sonner";
+import { isEditableField, missingRequiredFields, requiredFieldMessage } from "@/lib/required-fields";
 
 interface CreateRecordDialogProps {
     open: boolean;
@@ -44,9 +45,7 @@ export default function CreateRecordDialog({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const editableFields = fields.filter(
-        (f) => f.fieldType !== "formula" && f.cellType !== "readonly"
-    );
+    const editableFields = fields.filter(isEditableField);
 
     const setValue = (key: string, value: unknown) => {
         setFormData((prev) => ({ ...prev, [key]: value }));
@@ -58,14 +57,10 @@ export default function CreateRecordDialog({
     };
 
     const validate = (): boolean => {
+        // 공백만 넣은 값도 빈 값으로 본다 — 서버도 같은 기준으로 다시 확인한다 (UX-036)
         const newErrors: Record<string, string> = {};
-        for (const field of editableFields) {
-            if (field.isRequired) {
-                const val = formData[field.key];
-                if (val === undefined || val === null || val === "") {
-                    newErrors[field.key] = `${field.label}은(는) 필수 항목입니다.`;
-                }
-            }
+        for (const field of missingRequiredFields(editableFields, formData)) {
+            newErrors[field.key] = requiredFieldMessage(field);
         }
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;

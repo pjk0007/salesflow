@@ -4,6 +4,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { chatFixedMessageIdEnabled, chatMessageIdFor, postGoogleChatText, type GoogleChatResult } from "@/lib/google-chat";
 import { scrubWebhook } from "@/lib/deep-visitor-alert-delivery";
 import { insertRecordEvent } from "@/lib/record-events";
+import { partitionFieldsWhere } from "@/lib/partition-fields";
 import {
     buildRecordAlertText,
     pickAlertFields,
@@ -18,7 +19,6 @@ function baseUrl(): string {
 
 /** 파티션이 쓰는 필드 정의 — 파티션 타입 → 워크스페이스 기본 타입 → 워크스페이스 필드 순 (resolved-fields API와 같은 기준) */
 async function resolveFields(fieldTypeId: number | null, defaultFieldTypeId: number | null, workspaceId: number) {
-    const typeId = fieldTypeId ?? defaultFieldTypeId;
     return db
         .select({
             key: fieldDefinitions.key,
@@ -27,7 +27,7 @@ async function resolveFields(fieldTypeId: number | null, defaultFieldTypeId: num
             isSystem: fieldDefinitions.isSystem,
         })
         .from(fieldDefinitions)
-        .where(typeId ? eq(fieldDefinitions.fieldTypeId, typeId) : eq(fieldDefinitions.workspaceId, workspaceId))
+        .where(partitionFieldsWhere(fieldTypeId, defaultFieldTypeId, workspaceId))
         .orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
 }
 
