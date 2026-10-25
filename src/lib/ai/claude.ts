@@ -74,7 +74,7 @@ async function callClaudeMessage(
     client: AiClient,
     systemPrompt: string,
     userPrompt: string
-): Promise<ClaudeCallResult> {
+): Promise<ClaudeCallResult & { stopReason: Anthropic.Message["stop_reason"] }> {
     const anthropic = new Anthropic(clientOptions(client.apiKey));
     const message = await requestWithRetry(anthropic, {
         model: client.model,
@@ -89,6 +89,7 @@ async function callClaudeMessage(
         usage: toUsage(message.usage),
         truncated: message.stop_reason === "max_tokens",
         pausedOut: false,
+        stopReason: message.stop_reason,
     };
 }
 
@@ -144,10 +145,25 @@ async function runSearchLoop(
 export async function callClaudeEmail(
     client: AiClient,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    options: { strict?: boolean } = {}
 ): Promise<GenerateEmailResult> {
-    const { text, usage, truncated } = await callClaudeMessage(client, systemPrompt, userPrompt);
-    const parsed = extractJson(text, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
+    const { text, usage, truncated, stopReason } = await callClaudeMessage(client, systemPrompt, userPrompt);
+    let parsed: Record<string, unknown>;
+    if (options.strict) {
+        // 스트림 완료 계약에서는 잘림·복구 결과를 완성된 초안으로 내보내지 않는다.
+        // 다른 이메일/검색 호출의 기존 복구 계약은 기본 옵션으로 유지한다.
+        if (stopReason !== "end_turn") throw new Error("AI 응답이 완료되지 않았습니다.");
+        const value: unknown = JSON.parse(text);
+        if (!value || typeof value !== "object" || Array.isArray(value) ||
+            !("subject" in value) || typeof value.subject !== "string" || !value.subject.trim() ||
+            !("htmlBody" in value) || typeof value.htmlBody !== "string" || !value.htmlBody.trim()) {
+            throw new Error("AI 응답에 완성된 이메일 제목과 본문이 없습니다.");
+        }
+        parsed = value as Record<string, unknown>;
+    } else {
+        parsed = extractJson(text, /\{[\s\S]*"subject"[\s\S]*"htmlBody"[\s\S]*\}/, truncated);
+    }
 
     return {
         subject: (parsed.subject as string).replace(/<[^>]*>/g, ""),

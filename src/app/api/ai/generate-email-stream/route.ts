@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
                     if (client.provider === "claude") {
                         // 기존 Anthropic 어댑터의 JSON·사용량 변환을 재사용한다.
                         // 이 공급자는 완료한 초안을 한 번의 chunk로 보낸다.
-                        const result = await callClaudeEmail(client, systemPrompt, input.prompt);
+                        const result = await callClaudeEmail(client, systemPrompt, input.prompt, { strict: true });
                         usage = result.usage;
                         sendEvent("chunk", { text: JSON.stringify({ subject: result.subject, htmlBody: result.htmlBody }) });
                     } else if (client.provider === "deepseek") {

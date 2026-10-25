@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { installFakeDb, isolateEnv, isMembershipLookup } from "../auth-fake-db.test-helper";
+import { readAiEmailStream } from "../../components/email/api/ai-email";
 
 const ORG = "00000000-0000-4000-8000-000000000001";
 const mail = { subject: "가상 제목", htmlBody: "<p>가상 본문</p>" };
@@ -30,7 +31,10 @@ test("UX-168 기본 Claude·DeepSeek·Gemini가 올바른 공급자를 한 번 �
                 throw new Error("예상하지 못한 외부 경로");
             });
             const response = await POST(new NextRequest("http://localhost/api/ai/generate-email-stream", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ prompt: "안내", model }) }));
-            const body = await response.text();
+            const body = await response.clone().text();
+            const result = await readAiEmailStream(response, new AbortController().signal, () => {});
+            assert.equal(result.success, true);
+            assert.deepEqual(result.data, mail);
             assert.equal(response.status, 200);
             assert.equal(urls.length, 1);
             assert.ok(urls[0].includes(!model ? "anthropic.com" : model.startsWith("deepseek") ? "deepseek.com" : "googleapis.com"));
@@ -60,4 +64,49 @@ test("UX-168 기본 Claude·DeepSeek·Gemini가 올바른 공급자를 한 번 �
             assert.doesNotMatch(body, /event: done/);
         });
     }
+});
+
+test("UX-168 Claude 엄격 이메일은 정상 종료와 완성 JSON을 모두 요구한다", async t => {
+    isolateEnv(t, { ANTHROPIC_API_KEY: "fake-anthropic" });
+    const { db } = await import("../db");
+    const { generateToken } = await import("../auth");
+    const { POST } = await import("../../app/api/ai/generate-email-stream/route");
+    const { callClaudeEmail } = await import("./claude");
+    const identity = { userId: "00000000-0000-4000-8000-000000000002", orgId: ORG, email: "test@example.test", name: "가상", role: "owner" as const, tokenVersion: 0, membershipId: 71 };
+    const token = generateToken(identity);
+    const incomplete = '{"subject":"가상 제목","htmlBody":"<p>잘린 본문';
+    for (const [name, stopReason, text] of [
+        ["max_tokens 유효 JSON", "max_tokens", JSON.stringify(mail)],
+        ["max_tokens 불완전 JSON", "max_tokens", incomplete],
+        ["end_turn 불완전 JSON", "end_turn", incomplete],
+        ["end_turn 잘못된 필드", "end_turn", '{"subject":"제목","htmlBody":7}'],
+        ["종료 사유 누락", null, JSON.stringify(mail)],
+    ] as const) await t.test(name, async t => {
+        t.mock.method(console, "error", () => {});
+        installFakeDb(t, db, call => {
+            if (isMembershipLookup(call)) return [{ role: "owner", tokenVersion: 0, membershipId: 71 }];
+            if (call.table === "ai_usage_quotas") return [{ id: 1, totalTokens: 0, quotaLimit: 100000 }];
+            return [];
+        });
+        let requests = 0;
+        t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+            assert.match(input instanceof Request ? input.url : String(input), /api\.anthropic\.com/);
+            requests++;
+            return Response.json({ id: "msg_fake", type: "message", role: "assistant", content: [{ type: "text", text }], model: "claude-haiku-4-5", stop_reason: stopReason, stop_sequence: null, usage: { input_tokens: 12, output_tokens: 8 } });
+        });
+        const response = await POST(new NextRequest("http://localhost/api/ai/generate-email-stream", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ prompt: "가상 안내" }) }));
+        const body = await response.clone().text();
+        const result = await readAiEmailStream(response, new AbortController().signal, () => {});
+        assert.equal(requests, 1);
+        assert.match(body, /event: error/);
+        assert.doesNotMatch(body, /event: done|event: chunk/);
+        assert.equal(result.success, false);
+    });
+    await t.test("기존 비엄격 이메일 복구 계약 유지", async t => {
+        t.mock.method(console, "log", () => {});
+        t.mock.method(globalThis, "fetch", async () => Response.json({ id: "msg_fake", type: "message", role: "assistant", content: [{ type: "text", text: incomplete }], model: "claude-haiku-4-5", stop_reason: "max_tokens", stop_sequence: null, usage: { input_tokens: 12, output_tokens: 8 } }));
+        const result = await callClaudeEmail({ provider: "claude", model: "claude-haiku-4-5", apiKey: "fake-anthropic" }, "가상", "가상");
+        assert.equal(result.subject, "가상 제목");
+        assert.equal(result.htmlBody, "<p>잘린 본문");
+    });
 });
