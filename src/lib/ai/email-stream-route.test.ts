@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { installFakeDb, isolateEnv, isMembershipLookup } from "../auth-fake-db.test-helper";
@@ -119,7 +119,7 @@ test("UX-168 Gemini 키는 주소가 아니라 헤더로 보내고, 실패한 �
     const { callGeminiEmail } = await import("./gemini");
     const token = generateToken({ userId: "00000000-0000-4000-8000-000000000002", orgId: ORG, email: "test@example.test", name: "가상", role: "owner", tokenVersion: 0, membershipId: 71 });
     const request = (model?: string) => new NextRequest("http://localhost/api/ai/generate-email-stream", { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ prompt: "안내", model }) });
-    const fakeDb = (t: Parameters<Parameters<typeof test>[1]>[0]) => installFakeDb(t, db, call => {
+    const fakeDb = (t: TestContext) => installFakeDb(t, db, call => {
         if (isMembershipLookup(call)) return [{ role: "owner", tokenVersion: 0, membershipId: 71 }];
         if (call.table === "ai_usage_quotas") return [{ id: 1, totalTokens: 0, quotaLimit: 100000 }];
         return [];
