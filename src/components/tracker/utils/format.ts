@@ -1,4 +1,6 @@
-/** "2026. 06. 09. 14:32" 형태 */
+import { KST_TIME_ZONE } from "@/lib/kst";
+
+/** "2026. 06. 09. 14:32" 형태 (업무 기준 KST) */
 export function formatDateTime(s: string): string {
     const d = new Date(s);
     if (isNaN(d.getTime())) return s;
@@ -8,6 +10,7 @@ export function formatDateTime(s: string): string {
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        timeZone: KST_TIME_ZONE,
     });
 }
 
@@ -34,7 +37,7 @@ export function formatRelative(s: string): string {
     if (h < 24) return `${h}시간 전`;
     const d = Math.floor(h / 24);
     if (d < 30) return `${d}일 전`;
-    return new Date(s).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit" });
+    return new Date(s).toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: KST_TIME_ZONE });
 }
 
 /** ms 단위 체류시간 → "1분 40초", "12초" */

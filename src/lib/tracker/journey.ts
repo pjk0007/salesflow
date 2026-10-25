@@ -13,7 +13,7 @@ import {
     workspaces,
     visitorRecordLinks,
 } from "@/lib/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, asc } from "drizzle-orm";
 import { loadInboxJourney } from "@/lib/inbox/journey";
 import type { JourneyEvent, JourneySummary, StageDuration } from "@/components/journey/types";
 import {
@@ -24,6 +24,7 @@ import {
     firstInflowChannel,
     buildAttribution,
     buildNextActions,
+    filterJourneyEvents,
 } from "@/lib/journey/tracker-journey";
 
 /**
@@ -157,10 +158,11 @@ export async function buildRecordJourney(args: JourneyArgs): Promise<JourneyResu
 
     // ── normalize ──
     const events: JourneyEvent[] = [];
+    const stage = await loadStageOrder(record.partitionId, record.workspaceId);
 
     // business
     for (const e of bizEvents) {
-        const channel = businessChannel(e.type);
+        const channel = e.type === stage.stageFieldKey ? (stage.stageFieldLabel ?? "상태") : businessChannel(e.type);
         events.push({
             at: e.occurredAt.toISOString(),
             source: "business",
@@ -182,8 +184,8 @@ export async function buildRecordJourney(args: JourneyArgs): Promise<JourneyResu
             at: s.sentAt.toISOString(),
             source: "email",
             channel: "메일",
-            type: "email_sent",
-            label: `메일 발송: ${s.subject ?? "(제목 없음)"}`,
+            type: s.status === "sent" ? "email_sent" : `email_${s.status}`,
+            label: `${s.status === "sent" ? "메일 발송" : s.status === "pending" ? "메일 발송 대기" : ["failed", "rejected"].includes(s.status) ? "메일 발송 실패" : "메일 미발송"}: ${s.subject ?? "(제목 없음)"}`,
             meta: { subject: s.subject, status: s.status },
         });
     }
@@ -200,33 +202,28 @@ export async function buildRecordJourney(args: JourneyArgs): Promise<JourneyResu
 
     // 기간 필터 + 정렬
     if (want("inbox")) events.push(...await loadInboxJourney(orgId, recordIds));
-    let filtered = events;
-    if (fromTs !== null) filtered = filtered.filter((e) => new Date(e.at).getTime() >= fromTs);
-    if (toTs !== null) filtered = filtered.filter((e) => new Date(e.at).getTime() <= toTs);
-    filtered.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-
-    const summary = await buildSummary(filtered, record, trkSessions, sendLogs, clickLogs);
+    const filtered = filterJourneyEvents(events, fromTs, toTs);
+    const summary = buildSummary(filtered, record, stage, fromTs === null && toTs === null && channelFilter.length === 0);
     const attribution = buildAttribution(filtered, summary.convertedAt);
     const nextActions = buildNextActions(filtered, summary);
 
     return { summary, events: filtered, attribution, nextActions };
 }
 
-async function buildSummary(
+export function buildSummary(
     events: JourneyEvent[],
     record: typeof records.$inferSelect,
-    sessions: (typeof trackerSessions.$inferSelect)[],
-    sendLogs: (typeof emailSendLogs.$inferSelect)[],
-    clickLogs: (typeof emailClickLogs.$inferSelect)[]
-): Promise<JourneySummary> {
+    stage: { stageOrder: string[]; stageFieldKey: string | null },
+    includeCurrentState = true,
+): JourneySummary {
     const firstSeenAt = events.length ? events[0].at : null;
     const lastActiveAt = events.length ? events[events.length - 1].at : null;
 
     // 퍼널 단계 순서 = 추적 select 필드의 options
-    const { stageOrder, stageFieldKey } = await loadStageOrder(record.partitionId, record.workspaceId);
+    const { stageOrder, stageFieldKey } = stage;
 
     // 단계성 이벤트 (시간순) → 도달 단계 / 소요시간
-    const stageEvents = events.filter((e) => isStageEvent(e.channel));
+    const stageEvents = events.filter((e) => isStageEvent(e.channel) || (e.source === "business" && e.type === stageFieldKey));
     const reachedStages: string[] = [];
     for (const e of stageEvents) {
         if (!reachedStages.includes(e.label)) reachedStages.push(e.label);
@@ -241,7 +238,7 @@ async function buildSummary(
 
     // 현재 단계 = record.data[stageFieldKey] 또는 마지막 단계 이벤트
     const data = record.data as Record<string, unknown>;
-    const currentStage = (stageFieldKey && (data[stageFieldKey] as string)) ||
+    const currentStage = (includeCurrentState && stageFieldKey && (data[stageFieldKey] as string)) ||
         (stageEvents.length ? stageEvents[stageEvents.length - 1].label : null);
 
     // 전환 = 퍼널 마지막 단계 도달. stageOrder 없으면 도달 단계의 마지막을 전환으로 폴백.
@@ -264,10 +261,11 @@ async function buildSummary(
     for (const e of events) channels[e.source] = (channels[e.source] ?? 0) + 1;
 
     // 활동 밀도
-    const visits = sessions.length || events.filter((e) => e.channel === "사이트").length;
-    const emailSent = sendLogs.length;
-    const emailClicks = clickLogs.length;
-    const dwells = sessions.map((s) => s.duration ?? 0).filter((d) => d > 0);
+    const sessions = events.filter((e) => e.source === "tracker" && e.type === "session");
+    const visits = sessions.length;
+    const emailSent = events.filter((e) => e.source === "email" && e.type === "email_sent").length;
+    const emailClicks = events.filter((e) => e.source === "email" && e.type === "email_click").length;
+    const dwells = sessions.map((s) => Number(s.meta.duration) || 0).filter((d) => d > 0);
     const avgDwellSec = dwells.length ? Math.round(dwells.reduce((a, b) => a + b, 0) / dwells.length) : 0;
 
     // 이탈
@@ -307,7 +305,7 @@ async function buildSummary(
 async function loadStageOrder(
     partitionId: number,
     workspaceId: number
-): Promise<{ stageOrder: string[]; stageFieldKey: string | null }> {
+): Promise<{ stageOrder: string[]; stageFieldKey: string | null; stageFieldLabel: string | null }> {
     const [partition] = await db
         .select({ fieldTypeId: partitions.fieldTypeId })
         .from(partitions)
@@ -320,19 +318,17 @@ async function loadStageOrder(
             .where(eq(workspaces.id, workspaceId));
         resolvedTypeId = ws?.defaultFieldTypeId ?? null;
     }
-    if (!resolvedTypeId) return { stageOrder: [], stageFieldKey: null };
-
     const tracked = await db
-        .select({ key: fieldDefinitions.key, options: fieldDefinitions.options })
+        .select({ key: fieldDefinitions.key, label: fieldDefinitions.label, options: fieldDefinitions.options })
         .from(fieldDefinitions)
         .where(
             and(
-                eq(fieldDefinitions.fieldTypeId, resolvedTypeId),
+                resolvedTypeId ? eq(fieldDefinitions.fieldTypeId, resolvedTypeId) : eq(fieldDefinitions.workspaceId, workspaceId),
                 eq(fieldDefinitions.trackHistory, 1),
                 eq(fieldDefinitions.fieldType, "select")
             )
-        );
+        ).orderBy(asc(fieldDefinitions.sortOrder), asc(fieldDefinitions.id));
     // 첫 추적 select 필드를 퍼널 기준으로 사용
     const f = tracked[0];
-    return { stageOrder: (f?.options as string[]) ?? [], stageFieldKey: f?.key ?? null };
+    return { stageOrder: (f?.options as string[]) ?? [], stageFieldKey: f?.key ?? null, stageFieldLabel: f?.label ?? null };
 }

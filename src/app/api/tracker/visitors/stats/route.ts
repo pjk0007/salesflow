@@ -4,6 +4,7 @@ import { eq, and, sql, type SQL } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getVisitorIdsByChannel } from "@/lib/tracker/session-filter";
 import { pagePathExpr } from "@/lib/tracker/page-path";
+import { idInFilterSql } from "@/lib/tracker/sql-filters";
 
 /**
  * 트래커 방문자 전체 집계 통계.
@@ -41,9 +42,7 @@ export async function GET(req: NextRequest) {
     const channelVisitorIds = await getVisitorIdsByChannel({ siteId, channel });
 
     const visitorIdInSql = (col: string): SQL | null => {
-        if (channelVisitorIds === null) return null;
-        if (channelVisitorIds.length === 0) return sql`FALSE`;
-        return sql`${sql.raw(col)} IN (${sql.join(channelVisitorIds.map((id) => sql`${id}`), sql`, `)})`;
+        return idInFilterSql(channelVisitorIds, col);
     };
 
     const filters = [sql`site_id = ${siteId}`];

@@ -1,3 +1,5 @@
+import { classifyInflow, isPaidChannel } from "@/components/journey/utils/referrer";
+
 // 세션 유입 상세 파싱 — referrer + landingPage(쿼리스트링)에서
 // 채널 라벨 / 검색어 / 광고 키워드 / 광고 소재 등을 사람이 읽는 형태로 추출.
 // 트래커 방문자 상세에서 "어떻게 들어왔는지"를 자세히 보여주기 위함.
@@ -61,41 +63,10 @@ function extractSearchQuery(params: URLSearchParams | null, referrer: string | n
     return null;
 }
 
-/**
- * 유입 채널 라벨 + 광고/자연 구분. classifyInflow와 정책 일치시키되 광고 세분화.
- */
-function classifyChannel(source: string | null, medium: string | null, ref: string, hasGclid: boolean, hasFbclid: boolean, hasSendbCid: boolean): { channel: string; isPaid: boolean } {
-    const paidMedium = medium === "cpc" || medium === "paid" || medium === "pmax" || medium === "ppc";
-
-    // 메일 (sendb 우리 클릭 ID > utm) — classifyInflow / SQL overview와 정책 일치
-    if (hasSendbCid || source === "email" || medium === "email" || medium === "sales" || ref === "email") return { channel: "메일", isPaid: false };
-    if (hasFbclid || source === "meta" || source === "facebook" || source === "instagram" || /facebook|instagram|fb\.com/.test(ref)) {
-        return { channel: "메타 광고", isPaid: true };
-    }
-    if (hasGclid || (source === "google" && paidMedium) || (/google/.test(ref) && paidMedium)) {
-        return { channel: "구글 검색광고", isPaid: true };
-    }
-    if (source === "naver" && paidMedium) return { channel: "네이버 검색광고", isPaid: true };
-    if (/google/.test(ref) || source === "google") return { channel: "구글 검색", isPaid: false };
-    if (/naver/.test(ref) || source === "naver") return { channel: "네이버 검색", isPaid: false };
-    if (/daum|kakao/.test(ref) || source === "daum" || source === "kakao") return { channel: "다음/카카오", isPaid: paidMedium };
-    if (!ref) return { channel: "직접", isPaid: false };
-    return { channel: "기타", isPaid: paidMedium };
-}
-
 export function parseInflowDetail(referrer: string | null, landingPage: string | null): InflowDetail {
     const params = getParams(landingPage);
-    const ref = (referrer ?? "").toLowerCase();
-    const source = params?.get("utm_source")?.toLowerCase() ?? null;
-    const medium = params?.get("utm_medium")?.toLowerCase() ?? null;
-    const { channel, isPaid } = classifyChannel(
-        source,
-        medium,
-        ref,
-        params?.has("gclid") ?? false,
-        params?.has("fbclid") ?? false,
-        params?.has("sendb_cid") ?? false,
-    );
+    const channel = classifyInflow(referrer, landingPage);
+    const isPaid = isPaidChannel(channel);
 
     return {
         channel,

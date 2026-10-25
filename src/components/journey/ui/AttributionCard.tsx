@@ -18,6 +18,9 @@ export function AttributionCard({ attribution }: { attribution: JourneyAttributi
     if (conversionAt) {
         nodes.push({ channel: "전환", at: conversionAt, gapText: undefined, kind: "conversion" });
     }
+    nodes.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+    // 전환 노드를 끼운 직후에는 기존 '이전 터치부터' 간격을 잘못 읽히지 않게 생략한다.
+    nodes.forEach((node, index) => { if (nodes[index - 1]?.kind === "conversion") node.gapText = undefined; });
 
     return (
         <div className="rounded-lg border bg-card p-4">
@@ -60,7 +63,7 @@ export function AttributionCard({ attribution }: { attribution: JourneyAttributi
 
             {lastTouch && (
                 <p className="mt-2 border-t pt-2 text-[11px] text-muted-foreground">
-                    Last touch · <span className="text-foreground">{lastTouch.channel}</span> 이후 전환
+                    Last touch · <span className="text-foreground">{lastTouch.channel}</span>{conversionAt ? " 이후 전환" : " · 최근 접점"}
                 </p>
             )}
         </div>

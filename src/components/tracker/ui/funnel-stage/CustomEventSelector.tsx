@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StageMatch } from "../../types/funnel";
@@ -13,13 +15,15 @@ interface Props {
 
 /** CUSTOM 이벤트 — 정의된 이벤트(이름+라벨) 드롭다운 + 직접 입력 */
 export function CustomEventSelector({ customEvents, current, onChange }: Props) {
-    const isCustom = current.eventName && !customEvents.some((e) => e.eventName === current.eventName);
+    const [manual, setManual] = useState(false);
+    const isCustom = manual || (current.eventName !== "" && !customEvents.some((e) => e.eventName === current.eventName));
 
     return (
         <>
             <Select
                 value={isCustom ? CUSTOM : (current.eventName || "")}
                 onValueChange={(v) => {
+                    setManual(v === CUSTOM);
                     if (v === CUSTOM) onChange({ type: "custom_event", eventName: "" });
                     else onChange({ type: "custom_event", eventName: v });
                 }}
@@ -40,9 +44,10 @@ export function CustomEventSelector({ customEvents, current, onChange }: Props) 
             </Select>
             {isCustom && (
                 <Input
+                    aria-label="직접 입력할 이벤트 이름"
                     placeholder="이벤트 이름 (예: subscribe_step_2)"
                     value={current.eventName}
-                    onChange={(e) => onChange({ ...current, eventName: e.target.value })}
+                    onChange={(e) => { setManual(true); onChange({ ...current, eventName: e.target.value }); }}
                     className="h-8 w-44 font-mono text-xs"
                 />
             )}

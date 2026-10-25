@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, trackerSites, trackerFunnels, trackerSessions } from "@/lib/db";
+import { db, trackerSites, trackerFunnels, trackerSessions, trackerVisitors } from "@/lib/db";
 import { and, eq, gte, lte, sql, desc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { rangeBounds, resolveRange } from "@/lib/tracker/date-range";
@@ -7,6 +7,8 @@ import { getStageVisitorIds } from "@/lib/tracker/funnel-analytics";
 import { classifyAdGroup, type AdGroup } from "@/components/journey/utils/ad-group";
 import type { AdPerformanceRow } from "@/components/tracker/types/ad-performance";
 import type { StageMatch } from "@/components/tracker/types/funnel";
+import { classifyInflow, matchesChannelFilter } from "@/components/journey/utils/referrer";
+import { idArraySql } from "@/lib/tracker/sql-filters";
 
 
 export async function GET(req: NextRequest) {
@@ -39,6 +41,9 @@ export async function GET(req: NextRequest) {
     // 기간
     const { fromYmd, toYmd } = resolveRange(sp.get("from"), sp.get("to"));
     const { fromIso, toIso } = rangeBounds(fromYmd, toYmd);
+    const device = sp.get("device");
+    const channel = sp.get("channel");
+    const channelMode = sp.get("channelMode") === "paid" ? "paid" : sp.get("channelMode") === "organic" ? "organic" : "all";
 
     // 1) 기간 내 광고 세션 → 광고 그룹별 visitor 집합 (JS 분류)
     const sessions = await db
@@ -48,16 +53,19 @@ export async function GET(req: NextRequest) {
             landingPage: trackerSessions.landingPage,
         })
         .from(trackerSessions)
+        .innerJoin(trackerVisitors, eq(trackerVisitors.id, trackerSessions.visitorId))
         .where(and(
             eq(trackerSessions.siteId, siteId),
             gte(trackerSessions.startedAt, new Date(fromIso)),
             lte(trackerSessions.startedAt, new Date(toIso)),
+            device && ["desktop", "mobile", "tablet"].includes(device) ? eq(trackerVisitors.deviceType, device) : undefined,
         ));
 
     const groupMeta = new Map<string, AdGroup>();
     const visitorsByGroup = new Map<string, Set<number>>();
     for (const s of sessions) {
         if (s.visitorId == null) continue;
+        if (!matchesChannelFilter(classifyInflow(s.referrer, s.landingPage), channel, channelMode)) continue;
         const g = classifyAdGroup(s.referrer, s.landingPage);
         if (!g) continue;
         if (!groupMeta.has(g.key)) {
@@ -76,7 +84,7 @@ export async function GET(req: NextRequest) {
     if (funnel && funnel.stages.length > 0 && allAdVisitorIds.length > 0) {
         const lastStage = funnel.stages[funnel.stages.length - 1];
         conversionLabel = lastStage.label;
-        const idsSql = sql`(${sql.join(allAdVisitorIds.map((i) => sql`${i}`), sql`, `)})`;
+        const idsSql = sql`(SELECT unnest(${idArraySql(allAdVisitorIds)}))`;
         convVisitors = await getStageVisitorIds(
             { siteId, meaningfulVisitorIdsSql: idsSql },
             lastStage.match,

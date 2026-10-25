@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type { StageMatch, FunnelOptions } from "../../types/funnel";
@@ -20,6 +22,7 @@ interface Props {
  * eventTypes 평탄화 데이터를 그대로 사용. 같은 label이 여러 type에 있으면 type 정보를 툴팁으로 보여줌.
  */
 export function FieldValueSelector({ eventTypes, current, onChange }: Props) {
+    const [manual, setManual] = useState(false);
     type Option = { value: string; field: string; label: string; display: string };
     const options: Option[] = [];
     for (const e of eventTypes) {
@@ -32,13 +35,14 @@ export function FieldValueSelector({ eventTypes, current, onChange }: Props) {
         ? `${current.field}::${current.value}`
         : "";
     const matchedOption = options.find((o) => o.value === currentValue);
-    const isCustom = current.field && !matchedOption;
+    const isCustom = manual || ((current.field !== "" || current.value !== "") && !matchedOption);
 
     return (
         <>
             <Select
                 value={isCustom ? CUSTOM : currentValue}
                 onValueChange={(v) => {
+                    setManual(v === CUSTOM);
                     if (v === CUSTOM) {
                         onChange({ type: "record_field", field: "", value: "" });
                         return;
@@ -62,15 +66,17 @@ export function FieldValueSelector({ eventTypes, current, onChange }: Props) {
             {isCustom && (
                 <>
                     <Input
+                        aria-label="직접 입력할 필드명"
                         placeholder="필드명"
                         value={current.field}
-                        onChange={(e) => onChange({ ...current, field: e.target.value })}
+                        onChange={(e) => { setManual(true); onChange({ ...current, field: e.target.value }); }}
                         className="h-8 w-32 text-xs"
                     />
                     <Input
+                        aria-label="직접 입력할 필드 값"
                         placeholder="값"
                         value={current.value}
-                        onChange={(e) => onChange({ ...current, value: e.target.value })}
+                        onChange={(e) => { setManual(true); onChange({ ...current, value: e.target.value }); }}
                         className="h-8 w-32 text-xs"
                     />
                 </>

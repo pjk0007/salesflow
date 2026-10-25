@@ -42,7 +42,7 @@ export function VisitorDetailPage({ visitorPk }: { visitorPk: number }) {
 
     const { visitor, summary, sessions, events, engagement, dailyActivity, hourlyActivity, aliases } =
         data.data;
-    const totalDuration = sessions.reduce((sum, s) => sum + (s.duration ?? 0), 0);
+    const totalDuration = summary.totalDuration;
 
     // 관심도 카드 — 데이터 있는 것만 모아서 빈칸 없이 배치
     const cards: Array<(className: string) => React.ReactNode> = [];

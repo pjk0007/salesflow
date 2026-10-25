@@ -1,6 +1,7 @@
 import type { TrackerVisitor, TrackerSession, TrackerEvent } from "./index";
 
 export type VisitorSummary = {
+    totalDuration: number;
     totalVisits: number;
     totalPageviews: number;
     totalEvents: number;

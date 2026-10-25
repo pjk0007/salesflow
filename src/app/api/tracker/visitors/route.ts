@@ -4,6 +4,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getVisitorIdsByChannel } from "@/lib/tracker/session-filter";
 import { pagePathExpr } from "@/lib/tracker/page-path";
+import { idInFilterSql } from "@/lib/tracker/sql-filters";
 
 const PAGE_SIZE = 50;
 
@@ -33,7 +34,8 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ success: false, error: "트래커를 찾을 수 없습니다." }, { status: 404 });
     }
 
-    const page = Math.max(1, Number(sp.get("page")) || 1);
+    const requestedPage = Number(sp.get("page"));
+    const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
     const q = sp.get("q")?.trim();
     const hasRecord = sp.get("hasRecord"); // "true" | "false" | null
     const pagePath = sp.get("pagePath")?.trim() || null;
@@ -52,10 +54,8 @@ export async function GET(req: NextRequest) {
             sql`(email ILIKE ${term} OR name ILIKE ${term} OR visitor_id ILIKE ${term})`,
         );
     }
-    if (channelVisitorIds !== null) {
-        if (channelVisitorIds.length === 0) filters.push(sql`FALSE`);
-        else filters.push(sql`id IN (${sql.join(channelVisitorIds.map((id) => sql`${id}`), sql`, `)})`);
-    }
+    const channelFilter = idInFilterSql(channelVisitorIds, "id");
+    if (channelFilter) filters.push(channelFilter);
     if (pagePath) {
         filters.push(sql`EXISTS (
             SELECT 1 FROM tracker_events ev
@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
             FROM tracker_visitors
             WHERE ${whereSql}
             GROUP BY ${groupKey}
-            ORDER BY MAX(last_seen_at) DESC
+            ORDER BY MAX(last_seen_at) DESC, MIN(id) DESC
             LIMIT ${PAGE_SIZE} OFFSET ${offset}
         )
         SELECT grp.*, fs.referrer AS first_referrer, fs.landing_page AS first_page
@@ -122,10 +122,10 @@ export async function GET(req: NextRequest) {
             SELECT referrer, landing_page
             FROM tracker_sessions
             WHERE visitor_id = ANY(grp.visitor_ids)
-            ORDER BY started_at ASC
+            ORDER BY started_at ASC, id ASC
             LIMIT 1
         ) fs ON true
-        ORDER BY grp.last_seen_at DESC
+        ORDER BY grp.last_seen_at DESC, grp.id DESC
     `)) as unknown as Array<Record<string, unknown>>;
 
     const data = rows.map((r) => ({

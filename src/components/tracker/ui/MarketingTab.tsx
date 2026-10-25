@@ -40,9 +40,10 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
         to: range.to,
         device: filters.device,
         channel: filters.channel,
+        channelMode: filters.channelMode,
     });
 
-    const isFilterActive = useMemo(() => filters.device !== null || filters.channel !== null, [filters]);
+    const isFilterActive = useMemo(() => filters.device !== null || filters.channel !== null || filters.channelMode !== "all", [filters]);
 
     if (!siteId) return <p className="text-sm text-muted-foreground">트래커가 설정되지 않았습니다.</p>;
 
@@ -79,7 +80,7 @@ export function MarketingTab({ siteId }: { siteId: number | null }) {
                         <InflowChannels channels={data.inflowChannels} />
                         <AdContentTop items={data.adContents} />
                     </div>
-                    <AdPerformanceCard siteId={siteId} range={range} />
+                    <AdPerformanceCard siteId={siteId} range={range} filters={filters} />
                     <DeviceBreakdown devices={data.devices} />
                 </>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import AnimateOnScroll from "./AnimateOnScroll";
 
@@ -33,15 +33,17 @@ const FAQ = [
 
 function FaqItem({ q, a }: { q: string; a: string }) {
     const [open, setOpen] = useState(false);
+    const answerId = useId();
     return (
-        <div className="border border-slate-200 rounded-xl p-6 hover:bg-slate-50 transition-colors cursor-pointer group"
-            onClick={() => setOpen(!open)}>
-            <div className="flex justify-between items-center">
-                <h4 className="font-bold text-slate-900">{q}</h4>
-                <ChevronDown className={`h-5 w-5 text-slate-400 group-hover:text-blue-600 transition-transform ${open ? "rotate-180" : ""}`} />
-            </div>
+        <div className="border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors group">
+            <h4><button type="button" aria-expanded={open} aria-controls={answerId}
+                onClick={() => setOpen(!open)}
+                className="flex w-full justify-between items-center gap-3 rounded-xl p-6 text-left font-bold text-slate-900 focus-visible:outline-2 focus-visible:outline-blue-600">
+                {q}
+                <ChevronDown aria-hidden className={`h-5 w-5 shrink-0 text-slate-400 group-hover:text-blue-600 transition-transform ${open ? "rotate-180" : ""}`} />
+            </button></h4>
             {open && (
-                <p className="mt-4 text-slate-600 leading-relaxed text-sm">{a}</p>
+                <p id={answerId} className="px-6 pb-6 text-slate-600 leading-relaxed text-sm">{a}</p>
             )}
         </div>
     );
