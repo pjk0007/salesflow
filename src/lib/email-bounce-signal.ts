@@ -85,12 +85,17 @@ async function findThreadLog(exec: DbExec, orgIds: string[], logId: number): Pro
     return rows[0] ?? null;
 }
 
-/** 4-4 대체: 받는 주소 = 반송된 주소, 우리 주소 = 보낸 주소, 7일. 두 조직에 걸치면 못 이음 */
+/**
+ * 4-4 대체: 받는 주소 = 반송된 주소, 우리 주소 = 보낸 주소, 7일. 두 조직에 걸치면 못 이음.
+ * 조직이 하나인지는 기간 안 후보 전체로 본다 (UX-193) — 예전에는 최신 10건만 보고 판정해 11번째 이전에 있던 다른 조직
+ * 후보를 놓치고 최신 조직으로 잘못 이었다. 창 함수는 LIMIT 전에 조건에 맞는 모든 줄을 보고 계산된다.
+ */
 async function findFallbackLog(exec: DbExec, orgIds: string[], recipient: string, toAddress: string, receivedAt: Date): Promise<LogRow | null> {
     const until = receivedAt.toISOString();
     const since = new Date(receivedAt.getTime() - BOUNCE_MATCH_DAYS * DAY_MS).toISOString();
     const rows = (await exec.execute(sql`
-        SELECT l.id, l.org_id, r.id AS record_id, l.recipient_email, p.workspace_id
+        SELECT l.id, l.org_id, r.id AS record_id, l.recipient_email, p.workspace_id,
+               min(l.org_id::text) OVER () <> max(l.org_id::text) OVER () AS multi_org
         FROM email_send_logs l
         LEFT JOIN records r ON r.id = l.record_id AND r.org_id = l.org_id
         LEFT JOIN partitions p ON p.id = l.partition_id
@@ -99,12 +104,12 @@ async function findFallbackLog(exec: DbExec, orgIds: string[], recipient: string
           AND l.sent_at <= ${until}::timestamptz AND l.sent_at >= ${since}::timestamptz
           AND lower(btrim(l.recipient_email, ${EMAIL_TRIM_CHARS}::text)) = ${recipient}
           AND lower(COALESCE(l.sender_email, sp.from_email, '')) = ${toAddress}
-        ORDER BY l.sent_at DESC
-        LIMIT 10
-    `)) as unknown as LogRow[];
-    if (rows.length === 0) return null;
-    if (new Set(rows.map((r) => r.org_id)).size > 1) return null;
-    return rows[0];
+        ORDER BY l.sent_at DESC, l.id DESC
+        LIMIT 1
+    `)) as unknown as Array<LogRow & { multi_org: boolean }>;
+    const latest = rows[0];
+    if (!latest || latest.multi_org) return null;
+    return { id: latest.id, org_id: latest.org_id, record_id: latest.record_id, recipient_email: latest.recipient_email, workspace_id: latest.workspace_id };
 }
 
 /**
