@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { PUBLIC_API_CORS_HEADERS as CORS_HEADERS } from "@/lib/public-api-cors";
 import { db, alimtalkConfigs } from "@/lib/db";
 import { and, eq } from "drizzle-orm";
 import { getAlimtalkClient } from "@/lib/nhn-alimtalk";
 import { authenticateExternalAlimtalk } from "@/lib/alimtalk/external-auth";
-
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, x-api-key",
-    "Access-Control-Max-Age": "86400",
-};
 
 export async function OPTIONS() {
     return new NextResponse(null, { status: 204, headers: CORS_HEADERS });

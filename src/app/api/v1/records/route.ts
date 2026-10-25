@@ -1,5 +1,6 @@
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
+import { PUBLIC_API_CORS_HEADERS as CORS_HEADERS } from "@/lib/public-api-cors";
 import { db, records, partitions, workspaces, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getApiTokenFromNextRequest, resolveApiToken, checkTokenAccess } from "@/lib/auth";
@@ -31,24 +32,24 @@ async function verifyPartitionAccess(partitionId: number, orgId: string) {
 export async function GET(req: NextRequest) {
     const tokenInfo = await authenticateExternalRequest(req);
     if (!tokenInfo) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
 
     const searchParams = req.nextUrl.searchParams;
     const partitionId = Number(searchParams.get("partitionId"));
     if (!partitionId) {
-        return NextResponse.json({ success: false, error: "partitionId is required." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "partitionId가 필요합니다." }, { status: 400 });
     }
 
     const hasAccess = await checkTokenAccess(tokenInfo, partitionId, "read");
     if (!hasAccess) {
-        return NextResponse.json({ success: false, error: "Access denied for this partition." }, { status: 403 });
+        return NextResponse.json({ success: false, error: "이 파티션에 접근할 권한이 없습니다." }, { status: 403 });
     }
 
     try {
         const access = await verifyPartitionAccess(partitionId, tokenInfo.orgId);
         if (!access) {
-            return NextResponse.json({ success: false, error: "Partition not found." }, { status: 404 });
+            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
         }
 
         const page = Math.max(1, Number(searchParams.get("page")) || 1);
@@ -117,7 +118,7 @@ export async function GET(req: NextRequest) {
         });
     } catch (error) {
         console.error("External records fetch error:", error);
-        return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }
 
@@ -125,17 +126,17 @@ export async function GET(req: NextRequest) {
 async function handlePost(req: NextRequest) {
     const tokenInfo = await authenticateExternalRequest(req);
     if (!tokenInfo) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
 
     try {
         const { partitionId, data: recordData, event } = await req.json();
 
         if (!partitionId || typeof partitionId !== "number") {
-            return NextResponse.json({ success: false, error: "partitionId is required." }, { status: 400 });
+            return NextResponse.json({ success: false, error: "partitionId가 필요합니다." }, { status: 400 });
         }
         if (!recordData || typeof recordData !== "object") {
-            return NextResponse.json({ success: false, error: "data is required." }, { status: 400 });
+            return NextResponse.json({ success: false, error: "data가 필요합니다." }, { status: 400 });
         }
 
         // event 사전 검증 — record 만들기 전에. 실패 시 record 생성 안 함.
@@ -147,12 +148,12 @@ async function handlePost(req: NextRequest) {
 
         const hasAccess = await checkTokenAccess(tokenInfo, partitionId, "create");
         if (!hasAccess) {
-            return NextResponse.json({ success: false, error: "Access denied for this partition." }, { status: 403 });
+            return NextResponse.json({ success: false, error: "이 파티션에 접근할 권한이 없습니다." }, { status: 403 });
         }
 
         const access = await verifyPartitionAccess(partitionId, tokenInfo.orgId);
         if (!access) {
-            return NextResponse.json({ success: false, error: "Partition not found." }, { status: 404 });
+            return NextResponse.json({ success: false, error: "파티션을 찾을 수 없습니다." }, { status: 404 });
         }
 
         const partition = access.partition;
@@ -172,13 +173,13 @@ async function handlePost(req: NextRequest) {
         if (result.status === "plan_limit") {
             return NextResponse.json({
                 success: false,
-                error: `Record limit (${result.limit}) exceeded. Plan upgrade required.`,
+                error: `레코드 한도(${result.limit}건)를 넘었습니다. 요금제를 올려주세요.`,
             }, { status: 403 });
         }
         if (result.status === "duplicate") {
             return NextResponse.json({
                 success: false,
-                error: `Duplicate data exists. (${result.field}: ${result.value})`,
+                error: `중복된 데이터가 있습니다. (${result.field}: ${result.value})`,
             }, { status: 409 });
         }
 
@@ -197,19 +198,12 @@ async function handlePost(req: NextRequest) {
         return NextResponse.json({ success: true, data: result.record, event: result.extra ?? null }, { status: 201 });
     } catch (error) {
         console.error("External record create error:", error);
-        return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }
 
 // ── CORS ──
 // 외부 사이트(고객사)가 브라우저에서 직접 호출하는 공개 API라 CORS 허용.
-
-const CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "86400",
-};
 
 export async function OPTIONS() {
     return new NextResponse(null, { status: 204, headers: CORS_HEADERS });

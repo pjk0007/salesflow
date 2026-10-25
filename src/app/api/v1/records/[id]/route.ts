@@ -21,13 +21,13 @@ export async function GET(
 ) {
     const tokenInfo = await authenticateExternalRequest(req);
     if (!tokenInfo) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
 
     const { id } = await params;
     const recordId = Number(id);
     if (!recordId) {
-        return NextResponse.json({ success: false, error: "Record ID is required." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "레코드 ID가 필요합니다." }, { status: 400 });
     }
 
     try {
@@ -37,18 +37,18 @@ export async function GET(
             .where(and(eq(records.id, recordId), eq(records.orgId, tokenInfo.orgId)));
 
         if (!record) {
-            return NextResponse.json({ success: false, error: "Record not found." }, { status: 404 });
+            return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
         }
 
         const hasAccess = await checkTokenAccess(tokenInfo, record.partitionId, "read");
         if (!hasAccess) {
-            return NextResponse.json({ success: false, error: "Access denied." }, { status: 403 });
+            return NextResponse.json({ success: false, error: "이 레코드에 접근할 권한이 없습니다." }, { status: 403 });
         }
 
         return NextResponse.json({ success: true, data: record });
     } catch (error) {
         console.error("External record fetch error:", error);
-        return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }
 
@@ -59,19 +59,19 @@ export async function PUT(
 ) {
     const tokenInfo = await authenticateExternalRequest(req);
     if (!tokenInfo) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
 
     const { id } = await params;
     const recordId = Number(id);
     if (!recordId) {
-        return NextResponse.json({ success: false, error: "Record ID is required." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "레코드 ID가 필요합니다." }, { status: 400 });
     }
 
     try {
         const { data: newData, event } = await req.json();
         if (!newData || typeof newData !== "object") {
-            return NextResponse.json({ success: false, error: "data is required." }, { status: 400 });
+            return NextResponse.json({ success: false, error: "data가 필요합니다." }, { status: 400 });
         }
 
         // event는 부수적 이력이므로 검증에 실패해도 data 갱신은 진행한다.
@@ -86,12 +86,12 @@ export async function PUT(
             .where(and(eq(records.id, recordId), eq(records.orgId, tokenInfo.orgId)));
 
         if (!existing) {
-            return NextResponse.json({ success: false, error: "Record not found." }, { status: 404 });
+            return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
         }
 
         const hasAccess = await checkTokenAccess(tokenInfo, existing.partitionId, "update");
         if (!hasAccess) {
-            return NextResponse.json({ success: false, error: "Access denied." }, { status: 403 });
+            return NextResponse.json({ success: false, error: "이 레코드에 접근할 권한이 없습니다." }, { status: 403 });
         }
 
         const mergedData = { ...(existing.data as Record<string, unknown>), ...newData };
@@ -138,7 +138,7 @@ export async function PUT(
         });
     } catch (error) {
         console.error("External record update error:", error);
-        return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }
 
@@ -149,13 +149,13 @@ export async function DELETE(
 ) {
     const tokenInfo = await authenticateExternalRequest(req);
     if (!tokenInfo) {
-        return NextResponse.json({ success: false, error: "Invalid or missing API token." }, { status: 401 });
+        return NextResponse.json({ success: false, error: "API 토큰이 없거나 올바르지 않습니다." }, { status: 401 });
     }
 
     const { id } = await params;
     const recordId = Number(id);
     if (!recordId) {
-        return NextResponse.json({ success: false, error: "Record ID is required." }, { status: 400 });
+        return NextResponse.json({ success: false, error: "레코드 ID가 필요합니다." }, { status: 400 });
     }
 
     try {
@@ -165,12 +165,12 @@ export async function DELETE(
             .where(and(eq(records.id, recordId), eq(records.orgId, tokenInfo.orgId)));
 
         if (!existing) {
-            return NextResponse.json({ success: false, error: "Record not found." }, { status: 404 });
+            return NextResponse.json({ success: false, error: "레코드를 찾을 수 없습니다." }, { status: 404 });
         }
 
         const hasAccess = await checkTokenAccess(tokenInfo, existing.partitionId, "delete");
         if (!hasAccess) {
-            return NextResponse.json({ success: false, error: "Access denied." }, { status: 403 });
+            return NextResponse.json({ success: false, error: "이 레코드에 접근할 권한이 없습니다." }, { status: 403 });
         }
 
         await db.delete(records).where(eq(records.id, recordId));
@@ -183,6 +183,6 @@ export async function DELETE(
         return NextResponse.json({ success: true, message: "Record deleted." });
     } catch (error) {
         console.error("External record delete error:", error);
-        return NextResponse.json({ success: false, error: "Internal server error." }, { status: 500 });
+        return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }
 }
