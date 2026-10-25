@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAlimtalkSenders } from "@/hooks/useAlimtalkSenders";
+import { useAlimtalkConfig } from "@/hooks/useAlimtalkConfig";
 import { useAlimtalkTemplates } from "@/hooks/useAlimtalkTemplates";
 import { useAlimtalkTemplateManage } from "@/hooks/useAlimtalkTemplateManage";
 import { apiRequest, blockingError, defaultFetcher, requestErrorMessage } from "@/lib/swr-fetcher";
@@ -45,6 +46,7 @@ import { toast } from "sonner";
 import TemplateDetailDialog from "./TemplateDetailDialog";
 import TemplatePreview, { type TemplatePreviewProps } from "./TemplatePreview";
 import TestSendDialog from "./TestSendDialog";
+import AlimtalkSetupRequired from "./AlimtalkSetupRequired";
 
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
     TSC01: "outline",       // 생성
@@ -54,8 +56,9 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
     TSC05: "destructive",   // 중단
 };
 
-export default function TemplateList() {
+export default function TemplateList({ onConfigure }: { onConfigure?: () => void }) {
     const router = useRouter();
+    const { isConfigured, isLoading: configLoading } = useAlimtalkConfig();
     const { senders, loadError: sendersError, mutate: mutateSenders } = useAlimtalkSenders();
     const [selectedSenderKey, setSelectedSenderKey] = useState<string>("__all__");
     const isAll = selectedSenderKey === "__all__";
@@ -163,6 +166,8 @@ export default function TemplateList() {
 
     const loadError = sendersError || (isAll ? blockingError(allData, allError) : singleError);
     if (loadError) return <QueryErrorState error={loadError} onRetry={() => Promise.all([mutateSenders(), isAll ? mutateAll() : mutateSingle()])} />;
+    // 키가 없으면 템플릿을 조회하지 않으므로 '등록된 템플릿 없음'이 아니라 설정 필요로 안내한다(UI확인-V6).
+    if (!configLoading && !isConfigured) return <AlimtalkSetupRequired onConfigure={onConfigure} />;
 
     return (
         <div className="space-y-4">

@@ -16,10 +16,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MoreHorizontal, Plus, Star, Trash2, MessageSquare, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import SenderProfileRegisterDialog from "./SenderProfileRegisterDialog";
+import AlimtalkSetupRequired from "./AlimtalkSetupRequired";
 
-export default function SenderProfileList() {
+export default function SenderProfileList({ onConfigure }: { onConfigure?: () => void }) {
     const { senders, isLoading, deleteSender } = useAlimtalkSenders();
-    const { config, setDefaultSender } = useAlimtalkConfig();
+    const { config, setDefaultSender, isConfigured, isLoading: configLoading } = useAlimtalkConfig();
     const [registerOpen, setRegisterOpen] = useState(false);
     // 인증 대기(YSC02) 프로필은 등록 요청부터 다시 하지 않고 인증번호 단계로 이어간다(UX-258)
     const [resumePlusFriendId, setResumePlusFriendId] = useState<string | null>(null);
@@ -45,7 +46,10 @@ export default function SenderProfileList() {
         toast.success("발신프로필이 삭제되었습니다.");
     };
 
-    if (isLoading) {
+    // 키가 없으면 목록을 조회하지 않으므로 '등록된 발신프로필 없음'이 아니라 설정 필요로 안내한다(UI확인-V6).
+    if (!configLoading && !isConfigured) return <AlimtalkSetupRequired onConfigure={onConfigure} />;
+
+    if (isLoading || configLoading) {
         return (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Array.from({ length: 3 }).map((_, i) => (
