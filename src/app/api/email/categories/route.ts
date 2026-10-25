@@ -1,3 +1,4 @@
+import { nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient } from "@/lib/nhn-email";
@@ -18,7 +19,7 @@ export async function GET(req: NextRequest) {
         if (!result.header.isSuccessful || !result.data) {
             return NextResponse.json({
                 success: false,
-                error: result.header.resultMessage || "카테고리 조회에 실패했습니다.",
+                error: nhnEmailFailureMessage(result, "카테고리 조회"),
             }, { status: 500 });
         }
 
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
         if (!result.header.isSuccessful) {
             return NextResponse.json({
                 success: false,
-                error: result.header.resultMessage || "카테고리 생성에 실패했습니다.",
+                error: nhnEmailFailureMessage(result, "카테고리 생성"),
             }, { status: 500 });
         }
 

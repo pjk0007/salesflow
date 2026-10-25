@@ -63,7 +63,7 @@ export default function EmailTemplateList() {
     const handleDelete = async (id: number) => {
         confirm({
             title: "이메일 템플릿 삭제",
-            description: "이 템플릿을 삭제하시겠습니까?",
+            description: "이 템플릿을 삭제하시겠습니까?\n템플릿 연결(자동 발송·후속)에서 쓰고 있으면 삭제되지 않으니 연결을 먼저 바꿔주세요.",
             onConfirm: async () => {
                 const result = await deleteTemplate(id);
                 if (result.success) toast.success("템플릿이 삭제되었습니다.");

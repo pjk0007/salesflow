@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { experimentStateLabel } from "./state-labels";
 import type {
     ArmSummary,
     ExperimentArm,
@@ -289,7 +290,7 @@ export function analyzeExperiment(input: {
             "insufficient_sample",
         ].includes(input.state)
     )
-        blocks.push(`실험 상태 ${input.state} 확인 필요`);
+        blocks.push(`실험 상태 '${experimentStateLabel(input.state)}' 확인 필요`);
     const decision = blocks.length ? "undetermined" : nominal;
     return {
         asOf: asOf.toISOString(),

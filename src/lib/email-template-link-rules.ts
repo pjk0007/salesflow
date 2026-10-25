@@ -23,7 +23,7 @@ function readTemplateId(v: unknown): number | null {
 
 /**
  * 규칙이 가리키는 템플릿 id를 중복 없이 모은다.
- *   emailTemplateId  undefined면 보지 않는다 (수정 API는 이 칸을 받지 않는다). 그 밖에는 반드시 올바른 id
+ *   emailTemplateId  undefined면 보지 않는다 (수정 API에서 바꾸지 않는 경우). 그 밖에는 반드시 올바른 id
  *   followupConfig   null·undefined면 후속 없음. 단계 하나(객체) 또는 단계 목록. 분기의 templateId는 비어 있어도 된다
  *                    (그 분기는 보내지 않는다) — 있으면 올바른 id여야 한다
  */

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { Loader2, Plus, X, Pencil, Trash2, Star } from "lucide-react";
 import { toast } from "sonner";
 
@@ -55,6 +56,7 @@ export default function SignatureManager({
     const [editingId, setEditingId] = useState<number | null>(null);
     const [form, setForm] = useState({ name: "", sig: {} as SignatureData });
     const [saving, setSaving] = useState(false);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
 
     const openNew = () => {
         setEditingId(null);
@@ -93,14 +95,29 @@ export default function SignatureManager({
         }
     };
 
-    const handleDelete = async (id: number) => {
-        try {
-            const result = await deleteSignature(id);
-            if (result.success) toast.success("서명이 삭제되었습니다.");
-            else toast.error(result.error || "삭제에 실패했습니다.");
-        } catch {
-            toast.error("삭제 결과를 확인하지 못했습니다. 목록에서 확인한 뒤 다시 시도해주세요.");
-        }
+    // 지우기 전에 대상과 기본 서명 변경을 알린다. 실패하면 창을 유지해 다시 시도할 수 있다 (UX-151)
+    const handleDelete = (s: EmailSignature) => {
+        // 서버와 같은 규칙: 기본 서명을 지우면 남은 서명 가운데 가장 먼저 만든 것이 기본이 된다 (목록도 만든 순서)
+        const nextDefault = s.isDefault ? signatures.find((other) => other.id !== s.id) : undefined;
+        const defaultNote = !s.isDefault
+            ? ""
+            : nextDefault
+              ? ` 기본 서명이라 지우면 '${nextDefault.name}'이(가) 기본 서명이 되어 이후 메일의 서명이 바뀝니다.`
+              : " 기본 서명이라 지우면 기본 서명이 없어 이후 메일에 서명이 붙지 않습니다.";
+        confirm({
+            title: "서명 삭제",
+            description: `'${s.name}' 서명을 삭제합니다. 되돌릴 수 없습니다.${defaultNote}`,
+            onConfirm: async () => {
+                let result: { success: boolean; error?: string };
+                try {
+                    result = await deleteSignature(s.id);
+                } catch {
+                    throw new Error("서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.");
+                }
+                if (!result.success) throw new Error(result.error || "삭제에 실패했습니다.");
+                toast.success("서명이 삭제되었습니다.");
+            },
+        });
     };
 
     const handleSetDefault = async (id: number) => {
@@ -139,6 +156,7 @@ export default function SignatureManager({
 
     return (
         <>
+            {confirmationDialog}
             <Card>
                 <CardHeader>
                     <div className="flex items-center justify-between">
@@ -180,7 +198,7 @@ export default function SignatureManager({
                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)}>
                                                 <Pencil className="h-4 w-4" />
                                             </Button>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(s.id)}>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDelete(s)} aria-label={`${s.name} 서명 삭제`}>
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </div>

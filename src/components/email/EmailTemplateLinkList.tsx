@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
+import { followupBadgeLabel } from "@/components/email/sender-profiles/utils/ruleSummary";
 import { Switch } from "@/components/ui/switch";
 import {
     Select,
@@ -163,10 +164,9 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                                 중복방지
                                             </Badge>
                                         )}
-                                        {link.followupConfig && (
-                                            <Badge variant="outline">
-                                                후속 {(link.followupConfig as { delayDays: number }).delayDays}일
-                                            </Badge>
+                                        {/* 배열(현재)·객체(예전) 모두 읽는다 — AI 규칙 목록과 같은 배지 (UX-153) */}
+                                        {followupBadgeLabel(link.followupConfig) && (
+                                            <Badge variant="outline">{followupBadgeLabel(link.followupConfig)}</Badge>
                                         )}
                                         <RuleReplyBadge kind="template" ruleId={link.id} />
                                     </div>

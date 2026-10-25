@@ -1,3 +1,4 @@
+import { classifyEmailSubmission, nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { db, emailTemplates } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
@@ -80,7 +81,9 @@ export async function POST(req: NextRequest) {
             receiverList: [{ receiveMailAddr: recipientEmail, receiveType: "MRT0" }],
         });
 
-        if (result.header.isSuccessful) {
+        // 다른 발송 경로와 같은 판정 — NHN이 수신자를 거절해도 성공으로 보이지 않게 수신자별 결과 코드까지 본다 (UX-160)
+        const submission = classifyEmailSubmission(result);
+        if (submission === "sent") {
             return NextResponse.json({
                 success: true,
                 requestId: result.data?.requestId,
@@ -88,7 +91,10 @@ export async function POST(req: NextRequest) {
         } else {
             return NextResponse.json({
                 success: false,
-                error: result.header.resultMessage || "발송에 실패했습니다.",
+                // 헤더 성공인데 수신자 결과도 거절도 없을 때만 '결과 미확인' — 수신자를 거절했으면 그 사유를 보인다
+                error: submission === "unknown" && result.header.isSuccessful && !result.data?.results?.some((r) => r.resultCode !== 0)
+                    ? "테스트 메일 접수 결과를 확인하지 못했습니다. 받은편지함을 확인한 뒤 필요하면 다시 보내주세요."
+                    : nhnEmailFailureMessage(result, "테스트 발송"),
             });
         }
     } catch (error) {

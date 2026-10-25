@@ -1,3 +1,4 @@
+import { classifyEmailSubmission, nhnEmailFailureMessage } from "@/lib/nhn-submit-result";
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { getEmailClient } from "@/lib/nhn-email";
@@ -27,12 +28,13 @@ export async function POST(req: NextRequest) {
             receiverList: [{ receiveMailAddr: fromEmail, receiveType: "MRT0" }],
         });
 
-        if (result.header.isSuccessful) {
+        // 다른 발송 경로와 같은 판정 — 수신자별 결과 코드까지 본다 (UX-160)
+        if (classifyEmailSubmission(result) === "sent") {
             return NextResponse.json({ success: true });
         } else {
             return NextResponse.json({
                 success: false,
-                error: result.header.resultMessage || "발송에 실패했습니다. NHN에 등록된 발신 주소인지 확인해주세요.",
+                error: nhnEmailFailureMessage(result, "확인 메일 발송"),
             });
         }
     } catch (error) {
