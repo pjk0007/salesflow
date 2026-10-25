@@ -90,12 +90,15 @@ export async function POST(req: NextRequest) {
                     });
                 };
 
+                // 사용자가 중지(연결 종료)하면 req.signal이 끊겨 상류 호출도 함께 멈춘다. 공급자 응답 대기 상한은 그대로 2분.
+                const signal = AbortSignal.any([req.signal, AbortSignal.timeout(120000)]);
+
                 try {
                     if (client.provider === "claude") {
                         // 기존 Anthropic 어댑터의 JSON·사용량 변환을 재사용한다.
                         // 이 공급자는 완료한 초안을 한 번의 chunk로 보낸다.
                         try {
-                            const result = await callClaudeEmail(client, systemPrompt, input.prompt, { strict: true });
+                            const result = await callClaudeEmail(client, systemPrompt, input.prompt, { strict: true, signal });
                             Object.assign(usage, result.usage);
                             sendEvent("chunk", { text: JSON.stringify({ subject: result.subject, htmlBody: result.htmlBody }) });
                         } catch (error) {
@@ -103,15 +106,16 @@ export async function POST(req: NextRequest) {
                             throw error;
                         }
                     } else if (client.provider === "deepseek") {
-                        await streamDeepseek(client, systemPrompt, input.prompt, sendEvent, usage);
+                        await streamDeepseek(client, systemPrompt, input.prompt, sendEvent, usage, signal);
                     } else {
-                        await streamGemini(client, systemPrompt, input.prompt, sendEvent, usage);
+                        await streamGemini(client, systemPrompt, input.prompt, sendEvent, usage, signal);
                     }
 
                     await recordUsage();
                     sendEvent("done", { usage });
                 } catch (error) {
-                    console.error("AI email stream error:", error);
+                    // 사용자 중지는 장애가 아니다. 사용량은 아래 규칙대로 공급자가 알려준 토큰이 있을 때만 기록한다.
+                    if (!req.signal.aborted) console.error("AI email stream error:", error);
                     if (usage.promptTokens + usage.completionTokens > 0) {
                         await recordUsage().catch((err) => console.error("AI usage log error:", err));
                     }
@@ -143,7 +147,8 @@ async function streamDeepseek(
     systemPrompt: string,
     userPrompt: string,
     sendEvent: SendEvent,
-    usage: Usage
+    usage: Usage,
+    signal: AbortSignal
 ): Promise<Usage> {
     const response = await fetch("https://api.deepseek.com/chat/completions", {
         method: "POST",
@@ -161,7 +166,7 @@ async function streamDeepseek(
             stream: true,
             stream_options: { include_usage: true },
         }),
-        signal: AbortSignal.timeout(120000),
+        signal,
     });
 
     if (!response.ok) {
@@ -216,7 +221,8 @@ async function streamGemini(
     systemPrompt: string,
     userPrompt: string,
     sendEvent: SendEvent,
-    usage: Usage
+    usage: Usage,
+    signal: AbortSignal
 ): Promise<Usage> {
     const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(client.model)}:streamGenerateContent?alt=sse`,
@@ -228,7 +234,7 @@ async function streamGemini(
                 system_instruction: { parts: [{ text: systemPrompt }] },
                 contents: [{ role: "user", parts: [{ text: userPrompt }] }],
             }),
-            signal: AbortSignal.timeout(120000),
+            signal,
         }
     );
 

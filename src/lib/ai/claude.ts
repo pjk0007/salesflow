@@ -54,16 +54,18 @@ function isRetryableStatus(status: number | undefined): boolean {
 
 // 에러는 래핑하지 않고 원문 그대로 전파한다.
 // APIError.message가 `${status} ${body}` 형태라 상위(search.ts)의 401/403 문자열 검사가 그대로 동작한다.
+// signal이 중지되면 SDK가 APIUserAbortError(status 없음)를 던지므로 재시도하지 않는다.
 async function requestWithRetry(
     client: Anthropic,
-    params: Anthropic.MessageCreateParamsNonStreaming
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    signal?: AbortSignal
 ): Promise<Anthropic.Message> {
     try {
-        return await client.messages.create(params);
+        return await client.messages.create(params, { signal });
     } catch (err) {
         if (err instanceof Anthropic.APIError && isRetryableStatus(err.status)) {
             await new Promise((r) => setTimeout(r, 1000 + Math.random() * 1000));
-            return await client.messages.create(params);
+            return await client.messages.create(params, { signal });
         }
         throw err;
     }
@@ -73,7 +75,8 @@ async function requestWithRetry(
 async function callClaudeMessage(
     client: AiClient,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    signal?: AbortSignal
 ): Promise<ClaudeCallResult & { stopReason: Anthropic.Message["stop_reason"] }> {
     const anthropic = new Anthropic(clientOptions(client.apiKey));
     const message = await requestWithRetry(anthropic, {
@@ -81,7 +84,7 @@ async function callClaudeMessage(
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
-    });
+    }, signal);
 
     return {
         text: extractText(message.content),
@@ -154,9 +157,9 @@ export async function callClaudeEmail(
     client: AiClient,
     systemPrompt: string,
     userPrompt: string,
-    options: { strict?: boolean } = {}
+    options: { strict?: boolean; signal?: AbortSignal } = {}
 ): Promise<GenerateEmailResult> {
-    const { text, usage, truncated, stopReason } = await callClaudeMessage(client, systemPrompt, userPrompt);
+    const { text, usage, truncated, stopReason } = await callClaudeMessage(client, systemPrompt, userPrompt, options.signal);
     let parsed: Record<string, unknown>;
     if (options.strict) {
         // 스트림 완료 계약에서는 잘림·복구 결과를 완성된 초안으로 내보내지 않는다.

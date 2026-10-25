@@ -170,3 +170,43 @@ test("UX-168 Gemini 키는 주소가 아니라 헤더로 보내고, 실패한 �
         assert.equal(calls.filter(c => c.table === "ai_usage_logs").length, 0);
     });
 });
+
+test("UX-168 클라이언트 중지 → 상류 호출이 한 번 끊기고 사용량 기록을 더하지 않는다", async t => {
+    isolateEnv(t, { ANTHROPIC_API_KEY: "fake-anthropic", DEEPSEEK_API_KEY: "fake-deepseek", GEMINI_API_KEY: "fake-gemini" });
+    const { db } = await import("../db");
+    const { generateToken } = await import("../auth");
+    const { POST } = await import("../../app/api/ai/generate-email-stream/route");
+    const token = generateToken({ userId: "00000000-0000-4000-8000-000000000002", orgId: ORG, email: "test@example.test", name: "가상", role: "owner", tokenVersion: 0, membershipId: 71 });
+    for (const model of [undefined, "deepseek-v4-flash", "gemini-3.5-flash-lite"]) {
+        await t.test(model ?? "기본 Claude", async t => {
+            t.mock.method(console, "error", () => {});
+            const { calls } = installFakeDb(t, db, call => {
+                if (isMembershipLookup(call)) return [{ role: "owner", tokenVersion: 0, membershipId: 71 }];
+                if (call.table === "ai_usage_quotas") return [{ id: 1, totalTokens: 0, quotaLimit: 100000 }];
+                return [];
+            });
+            let requests = 0;
+            let aborts = 0;
+            let started!: () => void;
+            const upstreamStarted = new Promise<void>(resolve => { started = resolve; });
+            // 공급자가 응답하지 않는 동안 사용자가 중지한다. 상류는 받은 signal이 끊길 때만 끝난다.
+            t.mock.method(globalThis, "fetch", (input: string | URL | Request, init?: RequestInit) => new Promise<Response>((_, reject) => {
+                requests++;
+                const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+                assert.ok(signal, "상류 호출에 signal이 있어야 한다");
+                signal.addEventListener("abort", () => { aborts++; reject(new DOMException("aborted", "AbortError")); }, { once: true });
+                started();
+            }));
+            const client = new AbortController();
+            const response = await POST(new NextRequest("http://localhost/api/ai/generate-email-stream", { method: "POST", signal: client.signal, headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ prompt: "안내", model }) }));
+            const body = response.text();
+            await upstreamStarted;
+            client.abort();
+            assert.doesNotMatch(await body, /event: done|event: chunk/);
+            assert.equal(requests, 1, "중지 후 재시도하지 않는다");
+            assert.equal(aborts, 1, "상류 abort 1회");
+            assert.equal(calls.filter(c => c.table === "ai_usage_logs").length, 0, "토큰을 쓰기 전 중지는 사용 기록 0");
+            assert.equal(calls.filter(c => c.table === "ai_usage_quotas" && c.op === "update").length, 0, "한도 누적 0");
+        });
+    }
+});
