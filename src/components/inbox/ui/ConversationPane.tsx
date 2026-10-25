@@ -808,7 +808,12 @@ function CustomerInfo({
                           version: tagDraft?.version ?? chat.version,
                       }
                     : {
-                          recordId: recordId ? Number(recordId) : null,
+                          // 숫자만 입력하면 레코드 번호, 그 밖은 화면에 보이는 통합코드로 연결한다.
+                          ...(!recordId.trim()
+                              ? { recordId: null }
+                              : /^\d+$/.test(recordId.trim())
+                                ? { recordId: Number(recordId.trim()) }
+                                : { recordCode: recordId.trim() }),
                           version: recordDraft?.version ?? chat.version,
                       },
             );
@@ -960,13 +965,13 @@ function CustomerInfo({
                     <section className="space-y-3 border-t pt-5">
                         <h3 className="font-semibold">샌드비 CRM 연결</h3>
                         <p className="text-xs leading-relaxed text-muted-foreground">
-                            고객을 확인한 뒤 같은 사업의 레코드 번호로
-                            연결하세요.
+                            고객을 확인한 뒤 같은 사업 레코드의 통합코드(레코드
+                            목록에 보이는 코드)를 입력해 연결하세요. 레코드
+                            번호도 입력할 수 있습니다.
                         </p>
                         <input
-                            type="number"
-                            min={1}
-                            aria-label="CRM 레코드 번호"
+                            maxLength={50}
+                            aria-label="CRM 통합코드 또는 레코드 번호"
                             className="w-full rounded-lg border bg-background p-2 text-xs"
                             disabled={!canRespond}
                             value={recordId}
@@ -976,7 +981,7 @@ function CustomerInfo({
                                     version: old?.version ?? chat.version,
                                 }))
                             }
-                            placeholder="레코드 번호"
+                            placeholder="예: SALES-0012"
                         />
                         <button
                             className="text-xs text-[#635BFF]"

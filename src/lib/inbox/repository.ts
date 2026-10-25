@@ -652,13 +652,38 @@ export async function conversationDetail(
         )),
     };
 }
+
+/** 통합코드를 이 상담 채널과 같은 사업의 레코드 번호로 바꾼다(레코드 번호 연결과 같은 조직·사업 조건). */
+export async function recordIdByCode(actor: Actor, conversationId: string, code: string, exec: DbExec) {
+    const found = await exec
+        .select({ id: records.id })
+        .from(records)
+        .innerJoin(partitions, eq(partitions.id, records.partitionId))
+        .innerJoin(inboxConversations, eq(inboxConversations.id, conversationId))
+        .innerJoin(inboxChannels, eq(inboxChannels.id, inboxConversations.channelId))
+        .where(
+            and(
+                eq(records.orgId, actor.orgId),
+                eq(inboxConversations.orgId, actor.orgId),
+                eq(partitions.workspaceId, inboxChannels.workspaceId),
+                sql`upper(${records.integratedCode}) = upper(${code})`,
+            ),
+        )
+        .limit(2);
+    if (!found.length)
+        throw new InboxError("이 사업에서 해당 통합코드의 CRM 고객을 찾을 수 없습니다. 레코드 화면의 통합코드를 확인해주세요.", 404);
+    if (found.length > 1)
+        throw new InboxError("같은 통합코드의 CRM 고객이 여러 명입니다. 레코드 번호로 연결해주세요.", 409);
+    return found[0].id;
+}
 export async function patchConversation(
     actor: Actor,
     id: string,
     raw: unknown,
     exec: DbExec = db,
 ) {
-    const { version, ...input } = patchInput.parse(raw);
+    const { version, recordCode, ...input } = patchInput.parse(raw);
+    if (recordCode) input.recordId = await recordIdByCode(actor, id, recordCode, exec);
     if (!Object.keys(input).length)
         throw new InboxError("변경할 내용을 선택해주세요.");
     return exec.transaction(async (tx) => {
