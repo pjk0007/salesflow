@@ -2,6 +2,7 @@ import type { CopyConnection, CopyVersion, KnowledgeSnapshot, PolicySnapshot } f
 import { fingerprint, knowledgeSchema, policySchema } from "./rules";
 import { copyTransaction } from "./generation";
 import { CopyActionError } from "./errors";
+import { BLOCK_REASON_MIN_LENGTH } from "./defaults";
 
 async function requireWorkspace(conn: CopyConnection, orgId: string, workspaceId: number) {
     const [workspace] =
@@ -101,8 +102,8 @@ export async function blockVersion(
         reason: string;
     },
 ) {
-    if (input.reason.trim().length < 10)
-        throw new CopyActionError("차단 이유를 10자 이상 적어 주세요.");
+    if (input.reason.trim().length < BLOCK_REASON_MIN_LENGTH)
+        throw new CopyActionError(`차단 이유를 ${BLOCK_REASON_MIN_LENGTH}자 이상 적어 주세요.`);
     return copyTransaction(conn, async () => {
         await conn`SELECT pg_advisory_xact_lock(1760824304,hashtext(${input.orgId}))`;
         const versions =

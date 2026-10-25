@@ -12,7 +12,13 @@ import {
     DialogDescription,
     DialogFooter,
 } from "@/components/ui/dialog";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { BLOCK_REASON_MIN_LENGTH } from "@/lib/ai-copy/defaults";
+import { KST_TIME_ZONE, kstParts } from "@/lib/kst";
 import { useCopyManager } from "../hooks/useCopyManager";
+import { copyNames } from "../utils/names";
+import { VersionSelect } from "./VersionSelect";
 import type { CopyCatalog, CopyPurpose, KnowledgeVersion, PolicyVersion } from "../types";
 import { KnowledgeForm, PolicyForm } from "./VersionForms";
 import { EvaluationManager } from "./EvaluationManager";
@@ -32,16 +38,52 @@ export default function AiCopyManager() {
             name: string;
         } | null>(null),
         [reason, setReason] = useState("");
+    // 쪽 이동·다시 조회 뒤에도 보던 탭을 유지한다(UX-302).
+    const [tab, setTab] = useState("observations");
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     if (isLoading || !user) return <p>권한을 확인하는 중입니다.</p>;
     if (user.role === "member") return <p>AI 품질 관리는 관리자가 사용할 수 있습니다.</p>;
     if (manager.loading) return <p>AI 품질 관리 정보를 불러오는 중입니다.</p>;
     if (manager.error || !manager.catalog || !manager.knowledge)
-        return (
-            <p role="alert">AI 품질 관리 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.</p>
-        );
+        return <QueryErrorState error={manager.error} onRetry={manager.retry} />;
     const { catalog, knowledge, act, pending } = manager;
     const workspaceName = (id: number) =>
         catalog.workspaces.find((w) => w.id === id)?.name ?? `사업 #${id}`;
+    // 되돌리는 기능이 없으므로 사용 종료 전에 영향과 복구 방법을 확인한다(UX-303).
+    const confirmRetire = (kind: "policy" | "knowledge", id: number, name: string) =>
+        confirm({
+            title: kind === "policy" ? "작성 지침 사용 종료" : "지식 사용 종료",
+            description: `${name} · #${id}을(를) 새 발송 연결·비교 평가·자동 준비에서 더 이상 고를 수 없게 됩니다. 이미 준비한 본문과 발송 이력은 그대로입니다.\n되돌리는 기능은 없습니다. 다시 쓰려면 '복제하여 수정'으로 새 버전을 만든 뒤 ${kind === "policy" ? "비교 평가와 승인" : "근거 확인과 승인"}을 다시 거쳐야 합니다.`,
+            confirmLabel: "사용 종료",
+            onConfirm: () =>
+                act(
+                    `/api/ai/${kind === "policy" ? "copy-policies" : "knowledge-versions"}/${id}`,
+                    { action: "retire" },
+                    { success: "새 연결에서 사용 종료했습니다.", rethrow: true },
+                ),
+        });
+    const pageStatus = (
+        page: { validating: boolean; error: unknown; retry: () => void },
+        recent: () => void,
+    ) =>
+        page.error ? (
+            <div
+                className="flex flex-wrap items-center gap-2 rounded-md bg-destructive/10 p-3 text-sm"
+                role="alert"
+            >
+                이 쪽을 불러오지 못했습니다. 아래 목록은 이전에 받은 내용입니다.
+                <Button variant="outline" size="sm" onClick={page.retry}>
+                    다시 시도
+                </Button>
+                <Button variant="ghost" size="sm" onClick={recent}>
+                    최근 버전으로
+                </Button>
+            </div>
+        ) : page.validating ? (
+            <p className="text-sm text-muted-foreground" role="status">
+                불러오는 중...
+            </p>
+        ) : null;
     return (
         <div className="space-y-5">
             <div>
@@ -57,7 +99,8 @@ export default function AiCopyManager() {
                     {manager.actionError}
                 </p>
             )}
-            <Tabs defaultValue="observations">
+            {confirmationDialog}
+            <Tabs value={tab} onValueChange={setTab}>
                 <TabsList className="flex h-auto w-fit flex-wrap">
                     <TabsTrigger value="observations">자동 관찰</TabsTrigger>
                     <TabsTrigger value="policies">작성 지침</TabsTrigger>
@@ -72,6 +115,7 @@ export default function AiCopyManager() {
                 </TabsContent>
                 <TabsContent value="policies" className="space-y-4 pt-3">
                     <Button onClick={() => setEditPolicy("new")}>새 작성 지침</Button>
+                    {pageStatus(manager.catalogPage, () => manager.setCursor(0))}
                     {!catalog.versions.length && (
                         <p className="text-muted-foreground">
                             등록된 작성 지침이 없습니다. 현재 발송은 기존 지침으로 계속하며 생성
@@ -118,7 +162,9 @@ export default function AiCopyManager() {
                             <p className="text-xs text-muted-foreground">
                                 {p.state_reason ?? "상태 변경"} ·{" "}
                                 {p.last_changed_by_name ?? "자동 처리"} ·{" "}
-                                {new Date(p.last_changed_at).toLocaleString("ko-KR")}
+                                {new Date(p.last_changed_at).toLocaleString("ko-KR", {
+                                    timeZone: KST_TIME_ZONE,
+                                })}
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 <Button
@@ -133,11 +179,7 @@ export default function AiCopyManager() {
                                         variant="ghost"
                                         size="sm"
                                         disabled={pending}
-                                        onClick={() =>
-                                            void act(`/api/ai/copy-policies/${p.id}`, {
-                                                action: "retire",
-                                            })
-                                        }
+                                        onClick={() => confirmRetire("policy", p.id, p.name)}
                                     >
                                         새 연결에서 사용 종료
                                     </Button>
@@ -189,6 +231,7 @@ export default function AiCopyManager() {
                 </TabsContent>
                 <TabsContent value="knowledge" className="space-y-4 pt-3">
                     <Button onClick={() => setEditKnowledge("new")}>새 지식 버전</Button>
+                    {pageStatus(manager.knowledgePage, () => manager.setKnowledgeCursor(0))}
                     {!knowledge.versions.length && (
                         <p className="text-muted-foreground">
                             등록된 지식이 없습니다. 사용할 사실과 근거를 추가해 주세요.
@@ -226,9 +269,7 @@ export default function AiCopyManager() {
                                             <span>
                                                 {" "}
                                                 ·{" "}
-                                                {new Date(c.checkedAt).toLocaleDateString(
-                                                    "ko-KR",
-                                                )}{" "}
+                                                {kstParts(new Date(c.checkedAt)).date}{" "}
                                                 확인 · {c.purposes.map(purposeLabel).join(" / ")}
                                             </span>
                                         </li>
@@ -238,7 +279,9 @@ export default function AiCopyManager() {
                             <p className="text-xs text-muted-foreground">
                                 {k.state_reason ?? "상태 변경"} ·{" "}
                                 {k.last_changed_by_name ?? "자동 처리"} ·{" "}
-                                {new Date(k.last_changed_at).toLocaleString("ko-KR")}
+                                {new Date(k.last_changed_at).toLocaleString("ko-KR", {
+                                    timeZone: KST_TIME_ZONE,
+                                })}
                             </p>
                             <div className="flex flex-wrap gap-2">
                                 <Button
@@ -253,11 +296,7 @@ export default function AiCopyManager() {
                                         variant="ghost"
                                         size="sm"
                                         disabled={pending}
-                                        onClick={() =>
-                                            void act(`/api/ai/knowledge-versions/${k.id}`, {
-                                                action: "retire",
-                                            })
-                                        }
+                                        onClick={() => confirmRetire("knowledge", k.id, k.name)}
                                     >
                                         새 연결에서 사용 종료
                                     </Button>
@@ -309,7 +348,6 @@ export default function AiCopyManager() {
                 <TabsContent value="evaluation" className="pt-3">
                     <EvaluationManager
                         catalog={catalog}
-                        knowledge={knowledge.versions}
                         act={act}
                         pending={pending}
                     />
@@ -321,7 +359,7 @@ export default function AiCopyManager() {
                         act={act}
                         pending={pending}
                     />
-                    <BindingHistory />
+                    <BindingHistory catalog={catalog} knowledge={knowledge.versions} />
                 </TabsContent>
                 <TabsContent value="generations" className="pt-3">
                     <GenerationList workspaces={catalog.workspaces} act={act} pending={pending} />
@@ -420,12 +458,15 @@ export default function AiCopyManager() {
                             보존합니다.
                         </DialogDescription>
                     </DialogHeader>
-                    <Field label="차단 이유">
+                    <Field
+                        label="차단 이유"
+                        help={`나중에 이력을 보는 사람이 이해할 수 있도록 ${BLOCK_REASON_MIN_LENGTH}자 이상 적어 주세요(앞뒤 공백 제외). 현재 ${reason.trim().length}자`}
+                    >
                         {(id) => (
                             <textarea
                                 id={id}
                                 className={controlClass}
-                                minLength={10}
+                                minLength={BLOCK_REASON_MIN_LENGTH}
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
                             />
@@ -436,7 +477,7 @@ export default function AiCopyManager() {
                             닫기
                         </Button>
                         <Button
-                            disabled={pending || reason.trim().length < 10}
+                            disabled={pending || reason.trim().length < BLOCK_REASON_MIN_LENGTH}
                             onClick={async () => {
                                 if (!block) return;
                                 const result = await act(
@@ -470,6 +511,12 @@ function BindingForm({
         [ruleId, setRuleId] = useState(0),
         [policyId, setPolicyId] = useState(0),
         [knowledgeId, setKnowledgeId] = useState(0);
+    const names = copyNames({
+        workspaces: catalog.workspaces,
+        rules: catalog.rules,
+        policies: catalog.versions,
+        knowledge,
+    });
     return (
         <div className="space-y-5">
             <p className="text-sm text-muted-foreground">
@@ -553,49 +600,27 @@ function BindingForm({
                 )}
                 <Field label="승인된 작성 지침">
                     {(id) => (
-                        <select
+                        <VersionSelect
                             id={id}
-                            className={controlClass}
-                            required
-                            value={policyId || ""}
-                            onChange={(e) => setPolicyId(Number(e.target.value))}
-                        >
-                            <option value="">선택</option>
-                            {catalog.versions
-                                .filter(
-                                    (p) =>
-                                        p.workspace_id === workspaceId &&
-                                        p.purpose === purpose &&
-                                        p.state === "approved",
-                                )
-                                .map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.name} · #{p.id}
-                                    </option>
-                                ))}
-                        </select>
+                            kind="policy"
+                            workspaceId={workspaceId}
+                            purpose={purpose}
+                            state="approved"
+                            value={policyId}
+                            onChange={setPolicyId}
+                        />
                     )}
                 </Field>
                 <Field label="승인된 지식">
                     {(id) => (
-                        <select
+                        <VersionSelect
                             id={id}
-                            className={controlClass}
-                            required
-                            value={knowledgeId || ""}
-                            onChange={(e) => setKnowledgeId(Number(e.target.value))}
-                        >
-                            <option value="">선택</option>
-                            {knowledge
-                                .filter(
-                                    (k) => k.workspace_id === workspaceId && k.state === "approved",
-                                )
-                                .map((k) => (
-                                    <option key={k.id} value={k.id}>
-                                        {k.name} · #{k.id}
-                                    </option>
-                                ))}
-                        </select>
+                            kind="knowledge"
+                            workspaceId={workspaceId}
+                            state="approved"
+                            value={knowledgeId}
+                            onChange={setKnowledgeId}
+                        />
                     )}
                 </Field>
                 <div>
@@ -616,10 +641,11 @@ function BindingForm({
                             key={`${b.workspace_id}-${b.purpose}-${b.rule_id}`}
                             className="rounded-md border p-3"
                         >
-                            {catalog.workspaces.find((w) => w.id === b.workspace_id)?.name} ·{" "}
-                            {purposeLabel(b.purpose)}
-                            {b.rule_id > 0 && ` · 규칙 #${b.rule_id}`} · 작성 #{b.policy_version_id}{" "}
-                            / 지식 #{b.knowledge_version_id}
+                            {names.workspace(b.workspace_id)} · {purposeLabel(b.purpose)}
+                            {b.rule_id > 0 && ` · ${names.rule(b.rule_id)}`}
+                            <br />
+                            작성 지침 {names.policy(b.policy_version_id)} / 지식{" "}
+                            {names.knowledge(b.knowledge_version_id)}
                         </li>
                     ))}
                 </ul>

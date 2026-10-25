@@ -9,9 +9,9 @@ import type {
     CopyPurpose,
     EvaluationReport,
     EvaluationRow,
-    KnowledgeVersion,
 } from "../types";
 import { controlClass, Field, purposeLabel, stateLabel } from "./Fields";
+import { VersionSelect } from "./VersionSelect";
 type Action = <T>(url: string, body: unknown) => Promise<T | undefined>;
 const percent = (n: number | null | undefined) =>
     n == null ? "미측정" : `${(n * 100).toFixed(1)}%`;
@@ -19,15 +19,15 @@ const seconds = (n: number | null | undefined) =>
     n == null ? "미측정" : `${(n / 1000).toFixed(1)}초`;
 export function EvaluationManager({
     catalog,
-    knowledge,
     act,
     pending,
 }: {
     catalog: CopyCatalog;
-    knowledge: KnowledgeVersion[];
     act: Action;
     pending: boolean;
 }) {
+    // 비교 평가는 서로 다른 두 사업이 필요하다. 사업이 하나뿐이면 왜 막히는지와 다른 길을 먼저 알린다(UX-238).
+    const tooFewWorkspaces = catalog.workspaces.length < 2;
     const [purpose, setPurpose] = useState<CopyPurpose>("visit_ack"),
         [selected, setSelected] = useState<number | null>(null),
         [cursor, setCursor] = useState(0);
@@ -50,6 +50,21 @@ export function EvaluationManager({
         <div className="space-y-6">
             <details className="rounded-md border p-4">
                 <summary className="cursor-pointer font-medium">새 비교 평가 만들기</summary>
+                <div className="mt-4 rounded-md bg-muted p-3 text-sm" role="note">
+                    새 작성 지침은 비교 평가를 통과해야 승인할 수 있습니다. 평가는 서로 다른 두
+                    사업의 후보안과, 서로 다른 관리자 두 명의 독립 평가가 필요합니다.
+                    {tooFewWorkspaces && (
+                        <>
+                            {" "}
+                            <strong>
+                                현재 사업이 {catalog.workspaces.length}개라 비교 평가를 만들 수
+                                없습니다.
+                            </strong>{" "}
+                            사업을 하나 더 추가하거나, 자동 관찰 탭의 자동 후보 준비를 사용해
+                            주세요.
+                        </>
+                    )}
+                </div>
                 <form
                     className="mt-4 space-y-4"
                     onSubmit={async (e) => {
@@ -110,30 +125,16 @@ export function EvaluationManager({
                             </Field>
                             <Field label="승인된 지식">
                                 {(id) => (
-                                    <select
+                                    <VersionSelect
                                         id={id}
-                                        required
-                                        className={controlClass}
-                                        value={pair.knowledgeVersionId || ""}
-                                        onChange={(e) =>
-                                            update(index, {
-                                                knowledgeVersionId: Number(e.target.value),
-                                            })
+                                        kind="knowledge"
+                                        workspaceId={pair.workspaceId}
+                                        state="approved"
+                                        value={pair.knowledgeVersionId}
+                                        onChange={(value) =>
+                                            update(index, { knowledgeVersionId: value })
                                         }
-                                    >
-                                        <option value="">선택</option>
-                                        {knowledge
-                                            .filter(
-                                                (k) =>
-                                                    k.workspace_id === pair.workspaceId &&
-                                                    k.state === "approved",
-                                            )
-                                            .map((k) => (
-                                                <option key={k.id} value={k.id}>
-                                                    {k.name} · #{k.id}
-                                                </option>
-                                            ))}
-                                    </select>
+                                    />
                                 )}
                             </Field>
                             {(["baselinePolicyId", "candidatePolicyId"] as const).map((key) => (
@@ -146,29 +147,16 @@ export function EvaluationManager({
                                     }
                                 >
                                     {(id) => (
-                                        <select
+                                        <VersionSelect
+                                            key={purpose}
                                             id={id}
-                                            required
-                                            className={controlClass}
-                                            value={pair[key] || ""}
-                                            onChange={(e) =>
-                                                update(index, { [key]: Number(e.target.value) })
-                                            }
-                                        >
-                                            <option value="">선택</option>
-                                            {catalog.versions
-                                                .filter(
-                                                    (p) =>
-                                                        p.workspace_id === pair.workspaceId &&
-                                                        p.purpose === purpose &&
-                                                        !["blocked", "retired"].includes(p.state),
-                                                )
-                                                .map((p) => (
-                                                    <option key={p.id} value={p.id}>
-                                                        {p.name} · #{p.id}
-                                                    </option>
-                                                ))}
-                                        </select>
+                                            kind="policy"
+                                            workspaceId={pair.workspaceId}
+                                            purpose={purpose}
+                                            state="usable"
+                                            value={pair[key]}
+                                            onChange={(value) => update(index, { [key]: value })}
+                                        />
                                     )}
                                 </Field>
                             ))}
@@ -179,7 +167,7 @@ export function EvaluationManager({
                         고객에게 발송하지 않으며 AI 사용량은 차감됩니다. 이어서 80건을 두 사람이
                         독립 평가합니다.
                     </p>
-                    <Button disabled={pending} type="submit">
+                    <Button disabled={pending || tooFewWorkspaces} type="submit">
                         400건 가상 평가 시작
                     </Button>
                 </form>

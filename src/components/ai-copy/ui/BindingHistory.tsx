@@ -3,9 +3,23 @@ import { useState } from "react";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { copyRequest } from "../api/copy";
+import { KST_TIME_ZONE } from "@/lib/kst";
 import { purposeLabel } from "./Fields";
-import type { CopyPurpose } from "../types";
-export default function BindingHistory() {
+import { copyNames } from "../utils/names";
+import type { CopyCatalog, CopyPurpose, KnowledgeVersion } from "../types";
+export default function BindingHistory({
+    catalog,
+    knowledge,
+}: {
+    catalog: CopyCatalog;
+    knowledge: KnowledgeVersion[];
+}) {
+    const names = copyNames({
+        workspaces: catalog.workspaces,
+        rules: catalog.rules,
+        policies: catalog.versions,
+        knowledge,
+    });
     const [cursor, setCursor] = useState(0);
     const { data, error } = useSWR<{
         events: {
@@ -35,14 +49,23 @@ export default function BindingHistory() {
                 <ul className="space-y-2 text-sm">
                     {data.events.map((e) => (
                         <li key={e.id} className="rounded-md border p-3">
-                            사업 #{e.workspace_id} · {purposeLabel(e.purpose)} · 규칙 #{e.rule_id}
+                            {names.workspace(e.workspace_id)} · {purposeLabel(e.purpose)}
+                            {e.rule_id > 0 && ` · ${names.rule(e.rule_id)}`}
                             <br />
-                            작성 {e.previous_policy_id ? `#${e.previous_policy_id}` : "기존 지침"} →
-                            #{e.policy_version_id} · 지식{" "}
-                            {e.previous_knowledge_id ? `#${e.previous_knowledge_id}` : "없음"} → #
-                            {e.knowledge_version_id}
+                            작성{" "}
+                            {e.previous_policy_id ? names.policy(e.previous_policy_id) : "기존 지침"}{" "}
+                            → {names.policy(e.policy_version_id)}
                             <br />
-                            {new Date(e.changed_at).toLocaleString("ko-KR")} ·{" "}
+                            지식{" "}
+                            {e.previous_knowledge_id
+                                ? names.knowledge(e.previous_knowledge_id)
+                                : "없음"}{" "}
+                            → {names.knowledge(e.knowledge_version_id)}
+                            <br />
+                            {new Date(e.changed_at).toLocaleString("ko-KR", {
+                                timeZone: KST_TIME_ZONE,
+                            })}{" "}
+                            ·{" "}
                             {e.changed_by_name ?? "자동 처리"} · 이후 새 작업부터 적용
                         </li>
                     ))}
