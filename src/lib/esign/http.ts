@@ -7,6 +7,7 @@ import { artifactHash } from "./storage";
 import { inspectPdfInWorker } from "./pdf-worker";
 import { readEsignRendererAsset } from "./assets";
 import { EsignError, type EsignActor, type EsignRecipientInput, type EsignValue } from "./types";
+import { maskEmail } from "./rules";
 import type { EsignAlimtalkStatus } from "./alimtalk";
 
 export type EsignEngine = { service: EsignService; storage: EsignStorage; delivery: EsignDelivery; kick(): Promise<void> };
@@ -15,11 +16,15 @@ export type EsignHttpDependencies = {
     authorize(request: Request, workspaceId: number, capability: "read" | "respond"): Promise<EsignActor>;
     status(request: Request): Promise<{ enabled: boolean; emailReady: boolean; smsReady: boolean; alimtalkReady?: boolean; alimtalk?: EsignAlimtalkStatus; databaseReady: boolean; storageReady: boolean; issues: string[] }>;
     prefill(request: Request, actor: EsignActor, params: URLSearchParams): Promise<EsignRecipientInput>;
+    /** 조직 수신거부 목록에 있는 주소(입력 그대로). 공통 발송 가드가 막을 주소를 요청 생성 전에 알리기 위함. */
+    unsubscribedEmails?(orgId: string, emails: string[]): Promise<string[]>;
+    /** 서명 요청 안내의 '요청한 곳'(조직 표시명). 실패하면 생략한다. */
+    organizationName?(orgId: string): Promise<string | undefined>;
 };
 const HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
 const result = (data: unknown, status = 200) => Response.json({ success: true, data }, { status, headers: HEADERS });
 function fail(error: unknown) {
-    if (error instanceof EsignError) return Response.json({ success: false, error: error.message, code: error.code }, { status: error.status, headers: HEADERS });
+    if (error instanceof EsignError) return Response.json({ success: false, error: error.message, code: error.code, ...error.details }, { status: error.status, headers: HEADERS });
     if (error instanceof z.ZodError || error instanceof SyntaxError) return Response.json({ success: false, error: "입력 내용을 확인해주세요." }, { status: 400, headers: HEADERS });
     return Response.json({ success: false, error: "전자서명 요청을 처리하지 못했습니다. 잠시 후 다시 확인해주세요." }, { status: 503, headers: HEADERS });
 }
@@ -43,6 +48,37 @@ function requireWorkspace(url: URL, body?: { workspaceId?: unknown }) {
     const id = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : NaN;
     if (!Number.isSafeInteger(id) || id < 1) throw new EsignError("사업을 선택해주세요.");
     return id;
+}
+/**
+ * 발송 채널 준비 확인. 알림톡은 상태 사유를 그대로 쓰고, 공급자 조회 실패는 설정 문제가 아니라 일시 오류(delivery_status_unavailable)로 구분한다.
+ * 서명자에게는 직원 설정 사유를 보여 주지 않는다.
+ */
+async function assertDeliveryReady(delivery: EsignDelivery, channel: "email" | "alimtalk" | "sms", orgId: string, audience: "staff" | "signer") {
+    if (channel === "alimtalk" && delivery.alimtalkStatus) {
+        const status = await delivery.alimtalkStatus(orgId);
+        if (status.ready) return;
+        if (status.unavailable) throw new EsignError(audience === "staff" ? "알림톡 승인 상태를 잠시 확인하지 못했습니다. 설정 문제는 아니니 잠시 후 다시 보내주세요." : "알림톡 발송 상태를 잠시 확인하지 못했습니다. 잠시 후 다시 시도하거나 다른 방법으로 확인 코드를 받아주세요.", 503, "delivery_status_unavailable");
+        throw new EsignError(audience === "staff" ? status.reason || "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : "알림톡 템플릿 승인과 연결이 준비되지 않았습니다. 요청자에게 문의해주세요.", 503, "delivery_unconfigured");
+    }
+    if (await delivery.ready(channel, orgId)) return;
+    if (audience === "signer") throw new EsignError(`${channel === "alimtalk" ? "알림톡 템플릿 승인과 연결" : channel === "sms" ? "SMS 발송 설정" : "이메일 발송 설정"}이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
+    throw new EsignError(channel === "alimtalk" ? "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : `${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
+}
+/**
+ * 이메일 채널 수신자가 조직 수신거부 목록에 있으면 발송 가드가 메일을 막아 서명이 진행되지 않는다. 요청을 만들기 전에 알려 다른 채널을 고르게 한다.
+ * 조회 자체가 실패하면 막지 않는다(발송 시 가드가 실제 사유를 기록한다).
+ */
+async function assertNotUnsubscribed(dependencies: EsignHttpDependencies, orgId: string, recipients: { channels: string[]; email?: unknown }[]) {
+    const emails = recipients.filter(r => r.channels.includes("email") && typeof r.email === "string" && r.email.trim()).map(r => (r.email as string).trim());
+    if (!emails.length || !dependencies.unsubscribedEmails) return;
+    let blocked: string[];
+    try { blocked = await dependencies.unsubscribedEmails(orgId, emails); } catch { return; }
+    if (blocked.length) throw new EsignError(`수신거부 목록에 있는 이메일입니다(${blocked.map(email => maskEmail(email)).join(", ")}). 이메일로는 서명 요청이 전달되지 않으니 알림톡·SMS를 선택하거나 수신거부 내역을 확인해주세요.`, 409, "recipient_unsubscribed");
+}
+/** 목록 공통 쿼리: q(제목·서명자 검색), cursor(다음 페이지), limit(최대 100). */
+function listQuery(url: URL) {
+    const limit = url.searchParams.get("limit");
+    return { query: z.string().max(200).optional().parse(url.searchParams.get("q") ?? undefined), cursor: z.string().max(300).optional().parse(url.searchParams.get("cursor") ?? undefined), limit: limit ? z.coerce.number().int().min(1).max(100).parse(limit) : undefined };
 }
 const kick = (engine: EsignEngine) => { void engine.kick().catch(() => undefined); };
 
@@ -80,7 +116,8 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
             if (action === "otp") {
                 const channel = z.enum(["email", "alimtalk", "sms"]).parse(body.channel), session = await service.publicSession(token);
                 const aggregate = await service.repository.read(session.envelope.id);
-                if (!aggregate || !await delivery.ready(channel, aggregate.envelope.orgId)) throw new EsignError(`${channel === "alimtalk" ? "알림톡 템플릿 승인과 연결" : channel === "sms" ? "SMS 발송 설정" : "이메일 발송 설정"}이 준비되지 않았습니다. 요청자에게 문의해주세요.`, 503, "delivery_unconfigured");
+                if (!aggregate) throw new EsignError("서명 요청을 찾을 수 없습니다.", 404);
+                await assertDeliveryReady(delivery, channel, aggregate.envelope.orgId, "signer");
                 const queued = await service.requestOtp(token, channel); kick(engine);
                 return result(queued);
             }
@@ -129,7 +166,10 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
         if (route[0] === "prefill" && method === "GET") return result(await dependencies.prefill(request, actor, url.searchParams));
         if (route[0] === "documents") {
             const id = route[1], action = route[2];
-            if (!id && method === "GET") return result(await service.repository.documents(actor));
+            if (!id && method === "GET") {
+                const kind = url.searchParams.get("kind");
+                return result(await service.listDocuments(actor, { ...listQuery(url), ...(kind ? { kind: z.enum(["document", "template"]).parse(kind) } : {}) }));
+            }
             if (!id && method === "POST") {
                 if (form) {
                     const file = form.get("file");
@@ -148,18 +188,24 @@ export async function handleEsignRequest(request: Request, dependencies: EsignHt
         }
         if (route[0] === "envelopes") {
             const id = route[1], action = route[2];
-            if (!id && method === "GET") return result(await service.listEnvelopes(actor));
+            if (!id && method === "GET") return result(await service.listEnvelopes(actor, listQuery(url)));
             if (!id && method === "POST") {
                 const input = body as unknown as Parameters<EsignService["createEnvelope"]>[1];
                 const recipients = z.array(z.object({ channels: z.array(z.enum(["email", "alimtalk", "sms"])) }).passthrough()).min(1).max(5).parse(input?.recipients);
-                for (const channel of new Set(recipients.flatMap(r => r.channels))) if (!await delivery.ready(channel, actor.orgId)) throw new EsignError(channel === "alimtalk" ? "알림톡 연결과 전자서명 템플릿 3종 승인을 먼저 완료해주세요." : `${channel === "sms" ? "SMS" : "이메일"} 발송 설정을 먼저 완료해주세요.`, 503, "delivery_unconfigured");
-                const created = await service.createEnvelope(actor, input);
+                for (const channel of new Set(recipients.flatMap(r => r.channels))) await assertDeliveryReady(delivery, channel, actor.orgId, "staff");
+                await assertNotUnsubscribed(dependencies, actor.orgId, recipients);
+                const orgName = await dependencies.organizationName?.(actor.orgId).catch(() => undefined);
+                const created = await service.createEnvelope({ ...actor, ...(orgName ? { orgName } : {}) }, input);
                 const detail = await service.dispatchEnvelope(actor, created.envelope.id); kick(engine); return result(detail, 201);
             }
             if (id && !action && method === "GET") return result(await service.getEnvelope(actor, id));
             if (id && action === "action" && method === "POST") {
-                const input = z.object({ action: z.enum(["cancel", "retry_finalize"]) }).strict().parse(body);
+                const input = z.object({ action: z.enum(["cancel", "retry_finalize", "resend"]), jobId: z.string().uuid().optional(), confirmUnknown: z.boolean().optional() }).strict().parse(body);
                 if (input.action === "cancel") return result(await service.cancelEnvelope(actor, id));
+                if (input.action === "resend") {
+                    const detail = await service.resendInvitation(actor, id, { jobId: z.string().uuid().parse(input.jobId), confirmUnknown: input.confirmUnknown });
+                    kick(engine); return result(detail);
+                }
                 const detail = await service.retryFinalization(actor, id);
                 kick(engine); return result(detail);
             }

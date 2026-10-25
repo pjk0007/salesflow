@@ -5,7 +5,8 @@ import { EsignService } from "./core";
 import { createPostgresEsignSql, PostgresEsignRepository } from "./postgres-repository";
 import { createEsignStorage, localEsignBlobStore, s3EsignBlobStore } from "./storage";
 import { createEsignDelivery } from "./delivery";
-import { selectEsignEmailSender } from "./sender";
+import { selectEsignAlimtalkSenderKey, selectEsignEmailSender } from "./sender";
+import { mergeContactPrefill, recordRecipientFields } from "./prefill";
 import { createEsignAlimtalk, type EsignAlimtalkStatus } from "./alimtalk";
 import { createEsignJobRunner } from "./worker";
 import { EsignError, type EsignActor, type EsignRecipientInput } from "./types";
@@ -55,7 +56,7 @@ function runtime(): Runtime {
             async config(orgId) {
                 const [{ db, alimtalkConfigs }, { and, eq }] = await Promise.all([import("@/lib/db"), import("drizzle-orm")]);
                 const [config] = await db.select().from(alimtalkConfigs).where(and(eq(alimtalkConfigs.orgId, orgId), eq(alimtalkConfigs.isActive, 1))).limit(1);
-                const senderKey = process.env.ESIGN_ALIMTALK_SENDER_KEY || config?.defaultSenderKey;
+                const senderKey = selectEsignAlimtalkSenderKey({ fixedKey: process.env.ESIGN_ALIMTALK_SENDER_KEY, fixedOrgId: process.env.ESIGN_ALIMTALK_SENDER_ORG_ID, orgId, defaultSenderKey: config?.defaultSenderKey });
                 return config && senderKey ? { appKey: config.appKey, secretKey: config.secretKey, senderKey } : null;
             },
         }),
@@ -70,6 +71,8 @@ function runtime(): Runtime {
             return { address: sender.fromEmail, name: sender.fromName, submit: request => client.sendEachMail(request) };
         },
     });
+    if (process.env.ESIGN_ALIMTALK_SENDER_KEY && !process.env.ESIGN_ALIMTALK_SENDER_ORG_ID)
+        console.warn("[esign] ESIGN_ALIMTALK_SENDER_KEY는 ESIGN_ALIMTALK_SENDER_ORG_ID(소유 조직)와 함께 지정해야 그 조직에 적용됩니다. 지금은 키가 기본 채널과 같은 조직에만 적용합니다.");
     const kick = createEsignJobRunner(service, storage, delivery);
     const value: Runtime = { service, storage, delivery, kick, async databaseReady() { const result = await sql.query<{ ready: boolean }>("SELECT to_regclass('esign.envelopes') IS NOT NULL AS ready"); return Boolean(result.rows[0]?.ready); } };
     shared.__sendbEsignRuntime = value;
@@ -115,6 +118,16 @@ export const esignHttpDependencies: EsignHttpDependencies = {
         }
         return { enabled: cfg.enabled, emailReady, smsReady, alimtalkReady: alimtalk.ready, alimtalk, databaseReady, storageReady: cfg.storageReady && cfg.secret.length >= 32, issues };
     },
+    async organizationName(orgId) {
+        const [{ db, organizations }, { eq }] = await Promise.all([import("@/lib/db"), import("drizzle-orm")]);
+        const [org] = await db.select({ name: organizations.name }).from(organizations).where(eq(organizations.id, orgId)).limit(1);
+        return org?.name || undefined;
+    },
+    async unsubscribedEmails(orgId, emails) {
+        const { isOrganizationUnsubscribed } = await import("@/lib/email-unsubscribe");
+        const checked = await Promise.all(emails.map(async email => ({ email, blocked: await isOrganizationUnsubscribed(orgId, email) })));
+        return checked.filter(item => item.blocked).map(item => item.email);
+    },
     async prefill(request, actor: EsignActor, params) {
         const user = await userFrom(request);
         const { db, crmContacts, fieldDefinitions, workspaces } = await import("@/lib/db");
@@ -131,16 +144,16 @@ export const esignHttpDependencies: EsignHttpDependencies = {
             if (access.partition.workspaceId !== actor.workspaceId) throw new EsignError("이 사업의 레코드가 아닙니다.", 404);
             recordData = access.record.data as Record<string, unknown>; fieldTypeId = access.partition.fieldTypeId;
         }
+        // 레코드 값(권한 확인 완료)은 고객 카드의 빈 칸을 채우는 데도 쓴다.
+        let recordFields: Partial<ReturnType<typeof recordRecipientFields>> = {};
+        if (recordData) {
+            if (!fieldTypeId) { const [workspace] = await db.select({ fieldTypeId: workspaces.defaultFieldTypeId }).from(workspaces).where(eq(workspaces.id, actor.workspaceId)).limit(1); fieldTypeId = workspace?.fieldTypeId; }
+            const definitions = await db.select({ key: fieldDefinitions.key, label: fieldDefinitions.label, type: fieldDefinitions.fieldType }).from(fieldDefinitions).where(fieldTypeId ? eq(fieldDefinitions.fieldTypeId, fieldTypeId) : eq(fieldDefinitions.workspaceId, actor.workspaceId));
+            recordFields = recordRecipientFields(definitions, recordData);
+        }
         const [contact] = await db.select({ id: crmContacts.id, name: crmContacts.name, email: crmContacts.email, phone: crmContacts.phone }).from(crmContacts).where(and(eq(crmContacts.orgId, actor.orgId), eq(crmContacts.workspaceId, actor.workspaceId), isNull(crmContacts.archivedAt), contactId ? eq(crmContacts.id, contactId) : eq(crmContacts.recordId, recordId))).limit(1);
-        if (contact) return { contactId: contact.id, ...(recordId ? { recordId } : {}), name: contact.name, ...(contact.email ? { email: contact.email } : {}), ...(contact.phone ? { phone: contact.phone } : {}), channels: [] };
+        if (contact) return { contactId: contact.id, ...(recordId ? { recordId } : {}), ...mergeContactPrefill(contact, recordFields), channels: [] };
         if (!recordData) throw new EsignError("고객을 찾을 수 없습니다.", 404);
-        if (!fieldTypeId) { const [workspace] = await db.select({ fieldTypeId: workspaces.defaultFieldTypeId }).from(workspaces).where(eq(workspaces.id, actor.workspaceId)).limit(1); fieldTypeId = workspace?.fieldTypeId; }
-        const definitions = await db.select({ key: fieldDefinitions.key, label: fieldDefinitions.label, type: fieldDefinitions.fieldType }).from(fieldDefinitions).where(fieldTypeId ? eq(fieldDefinitions.fieldTypeId, fieldTypeId) : eq(fieldDefinitions.workspaceId, actor.workspaceId));
-        const pick = (kind: "name" | "email" | "phone") => {
-            const match = definitions.find(f => kind === "email" ? f.type === "email" : kind === "phone" ? f.type === "phone" : /^(이름|성명|담당자|고객명|name)$/i.test(f.label));
-            const raw = match ? recordData![match.key] : undefined;
-            return typeof raw === "string" ? raw.trim() : undefined;
-        };
-        return { recordId, name: pick("name") || "", email: pick("email"), phone: pick("phone"), channels: [] } as EsignRecipientInput;
+        return { recordId, ...mergeContactPrefill({}, recordFields), channels: [] } as EsignRecipientInput;
     },
 };

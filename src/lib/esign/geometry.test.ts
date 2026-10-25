@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { normalizePdfRotation, pdfImageTransform, validateNormalizedPdfRect, visiblePdfCrop } from "./geometry";
+import { fieldRasterSize, normalizePdfRotation, pdfImageTransform, validateNormalizedPdfRect, visiblePdfCrop } from "./geometry";
 import type { PdfPage } from "./pdf-types";
 
 test("CropBox is clipped to the MediaBox while retaining a nonzero origin", () => {
@@ -37,4 +37,24 @@ test("only finite positive boxes inside the visible page can be composed", () =>
   assert.equal(normalizePdfRotation(450), 90);
   assert.throws(() => normalizePdfRotation(45));
   assert.throws(() => normalizePdfRotation(Infinity));
+});
+
+test("UX-189 입력란 이미지 크기는 고객 화면과 같은 산식이며 31/32픽셀 경계에서 갈린다", () => {
+  const square = { width: 1, height: 1 };
+  // 세로로 가는 칸: sqrt(80000·a)가 32 이상이어야 한다.
+  assert.equal(fieldRasterSize({ width: 0.0129, height: 1 }, square).width, 32);
+  assert.equal(fieldRasterSize({ width: 0.0129, height: 1 }, square).usable, true);
+  assert.equal(fieldRasterSize({ width: 0.0127, height: 1 }, square).width, 31);
+  assert.equal(fieldRasterSize({ width: 0.0127, height: 1 }, square).usable, false);
+  // 가로로 납작한 칸: 너비 600 고정, 높이 floor(600/a)가 32 이상이어야 한다.
+  assert.deepEqual(fieldRasterSize({ width: 18.75, height: 1 }, square), { aspect: 18.75, width: 600, height: 32, usable: true });
+  assert.equal(fieldRasterSize({ width: 18.8, height: 1 }, square).height, 31);
+  assert.equal(fieldRasterSize({ width: 18.8, height: 1 }, square).usable, false);
+  // A4 세로에서 너비 100%·높이 2%(작성 화면 최소값) 서명란은 막히고, 기본 서명란(20%·7%)은 허용된다.
+  const a4 = { width: 595, height: 842 }, a4Landscape = { width: 842, height: 595 };
+  assert.equal(fieldRasterSize(a4, { width: 1, height: 0.02 }).usable, false);
+  assert.equal(fieldRasterSize(a4, { width: 0.2, height: 0.07 }).usable, true);
+  assert.equal(fieldRasterSize(a4Landscape, { width: 0.2, height: 0.07 }).usable, true);
+  assert.equal(fieldRasterSize(a4Landscape, { width: 0.02, height: 1 }).usable, true);
+  assert.equal(fieldRasterSize(a4, { width: 0, height: 0.1 }).usable, false);
 });

@@ -1,6 +1,6 @@
 import postgres from "postgres";
-import type { EsignAggregate, EsignRepository } from "./repository";
-import { EsignError, type EsignActor, type EsignDocument, type EsignEvent, type EsignJob, type EsignRecipient, type EsignEnvelope } from "./types";
+import { decodeListCursor, encodeListCursor, listLimit, normalizedSearch, type EsignAggregate, type EsignListAggregate, type EsignRepository } from "./repository";
+import { EsignError, type EsignActor, type EsignDocument, type EsignEvent, type EsignJob, type EsignListQuery, type EsignRecipient, type EsignEnvelope } from "./types";
 
 /** Adapter boundary also accepts an isolated PostgreSQL-compatible test database. */
 export interface EsignSql {
@@ -20,6 +20,15 @@ export function createPostgresEsignSql(databaseUrl: string, maxConnections = 2):
     return sql;
 }
 type DataRow<T> = { data: T };
+/** ILIKE 부분 일치. 사용자가 입력한 % _ \ 는 글자 그대로 찾는다. */
+function likePattern(query: string | undefined) {
+    const value = normalizedSearch(query);
+    return value ? `%${value.replace(/[\\%_]/g, "\\$&")}%` : null;
+}
+function page<T>(rows: T[], limit: number, total: number, key: (row: T) => { createdAt: string; id: string }) {
+    const items = rows.slice(0, limit), last = items.at(-1);
+    return { items, nextCursor: rows.length > limit && last ? encodeListCursor(key(last)) : null, total };
+}
 async function aggregate(sql: EsignSql, id: string, lock = false): Promise<EsignAggregate | null> {
     const result = await sql.query<DataRow<EsignEnvelope>>(`SELECT data FROM esign.envelopes WHERE id=$1${lock ? " FOR UPDATE" : ""}`, [id]);
     if (!result.rows[0]) return null;
@@ -69,9 +78,16 @@ export class PostgresEsignRepository implements EsignRepository {
         const result = await this.sql.query<DataRow<EsignDocument>>("SELECT data FROM esign.documents WHERE id=$1 AND org_id=$2 AND workspace_id=$3", [id, actor.orgId, actor.workspaceId]);
         return result.rows[0]?.data ?? null;
     }
-    async documents(actor: EsignActor) {
-        const result = await this.sql.query<DataRow<EsignDocument>>("SELECT data FROM esign.documents WHERE org_id=$1 AND workspace_id=$2 ORDER BY created_at DESC,id LIMIT 100", [actor.orgId, actor.workspaceId]);
-        return result.rows.map((r) => r.data);
+    async documents(actor: EsignActor, options: EsignListQuery & { kind?: EsignDocument["kind"] } = {}) {
+        const limit = listLimit(options.limit), cursor = decodeListCursor(options.cursor), search = likePattern(options.query);
+        // 일반 업로드가 템플릿을 밀어내지 않도록 kind도 서버에서 거른다.
+        const filter = "org_id=$1 AND workspace_id=$2 AND ($3::text IS NULL OR data->>'kind'=$3) AND ($4::text IS NULL OR data->>'title' ILIKE $4)";
+        const base = [actor.orgId, actor.workspaceId, options.kind ?? null, search];
+        const [rows, total] = await Promise.all([
+            this.sql.query<DataRow<EsignDocument>>(`SELECT data FROM esign.documents WHERE ${filter} AND ($5::timestamptz IS NULL OR (created_at,id) < ($5::timestamptz,$6::uuid)) ORDER BY created_at DESC,id DESC LIMIT $7`, [...base, cursor?.createdAt ?? null, cursor?.id ?? null, limit + 1]),
+            this.sql.query<{ total: number }>(`SELECT count(*)::int AS total FROM esign.documents WHERE ${filter}`, base),
+        ]);
+        return page(rows.rows.map((r) => r.data), limit, Number(total.rows[0]?.total ?? 0), (d) => d);
     }
     async create(value: EsignAggregate) {
         await this.sql.transaction(async (tx) => {
@@ -80,13 +96,20 @@ export class PostgresEsignRepository implements EsignRepository {
             await saveChildren(tx, value);
         });
     }
-    async list(actor: EsignActor) {
-        // List pages need only envelope/recipient summaries, never encrypted jobs or full audits.
-        const result = await this.sql.query<DataRow<EsignEnvelope>>("SELECT data FROM esign.envelopes WHERE org_id=$1 AND workspace_id=$2 ORDER BY created_at DESC,id DESC LIMIT 100", [actor.orgId, actor.workspaceId]);
-        if (!result.rows.length) return [];
-        const ids = result.rows.map((r) => r.data.id);
-        const recipients = await this.sql.query<DataRow<EsignRecipient>>("SELECT data FROM esign.recipients WHERE envelope_id=ANY($1::uuid[]) ORDER BY (data->>'index')::integer", [ids]);
-        return result.rows.map((row) => ({ envelope: row.data, recipients: recipients.rows.map((r) => r.data).filter((r) => r.envelopeId === row.data.id), events: [], jobs: [] }));
+    async list(actor: EsignActor, options: EsignListQuery = {}) {
+        // List pages need only envelope/recipient summaries, never document snapshots, encrypted jobs or full audits.
+        const limit = listLimit(options.limit), cursor = decodeListCursor(options.cursor), search = likePattern(options.query);
+        const filter = `e.org_id=$1 AND e.workspace_id=$2 AND ($3::text IS NULL OR e.data->>'title' ILIKE $3
+            OR EXISTS(SELECT 1 FROM esign.recipients r WHERE r.envelope_id=e.id AND r.data->>'name' ILIKE $3))`;
+        const base = [actor.orgId, actor.workspaceId, search];
+        const [result, total] = await Promise.all([
+            this.sql.query<DataRow<Omit<EsignEnvelope, "document">>>(`SELECT e.data - 'document' AS data FROM esign.envelopes e WHERE ${filter} AND ($4::timestamptz IS NULL OR (e.created_at,e.id) < ($4::timestamptz,$5::uuid)) ORDER BY e.created_at DESC,e.id DESC LIMIT $6`, [...base, cursor?.createdAt ?? null, cursor?.id ?? null, limit + 1]),
+            this.sql.query<{ total: number }>(`SELECT count(*)::int AS total FROM esign.envelopes e WHERE ${filter}`, base),
+        ]);
+        const rows = result.rows.slice(0, limit), ids = rows.map((r) => r.data.id);
+        const recipients = ids.length ? (await this.sql.query<DataRow<EsignRecipient>>("SELECT data FROM esign.recipients WHERE envelope_id=ANY($1::uuid[]) ORDER BY (data->>'index')::integer", [ids])).rows.map((r) => r.data) : [];
+        const items: EsignListAggregate[] = result.rows.map((row) => ({ envelope: row.data, recipients: recipients.filter((r) => r.envelopeId === row.data.id) }));
+        return page(items, limit, Number(total.rows[0]?.total ?? 0), (a) => a.envelope);
     }
     read(id: string) {
         return this.sql.transaction(async (tx) => {

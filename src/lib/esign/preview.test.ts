@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { PDFDocument } from "pdf-lib";
 import { createEsignPreviewRuntime, handleEsignPreviewRequest, type PreviewMessage } from "./preview";
 import { isEsignPreviewRuntime } from "./preview-config";
-import { EsignError, type EsignDocument, type StaffEsignDetail } from "./types";
+import { EsignError, type EsignDocument, type EsignListPage, type StaffEsignSummary } from "./types";
 
 const actor = { orgId: "11111111-1111-4111-8111-111111111111", userId: "22222222-2222-4222-8222-222222222222", name: "가상 담당자" };
 const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAYAAACp8Z5+AAAAJklEQVR4nGP8z8Dwn4GBgYFxC4hkYGCCUAjAyMDwH6xCUlIKuwoA8JQFBIK0JaYAAAAASUVORK5CYII=";
@@ -26,20 +26,20 @@ test("dev preview uses real handler/worker for seeded invitation, inline OTP, si
         const response = await handleEsignPreviewRequest(new Request(`http://localhost/api/esign-preview${route}`, { method: body ? "POST" : "GET", headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...headers }, ...(body ? { body: JSON.stringify(body) } : {}) }), options);
         const result = await response.json(); assert.equal(response.status, expected, JSON.stringify(result)); return result.data as T;
     }
-    const documents = await api<EsignDocument[]>("/documents?workspaceId=101");
-    assert.equal(documents.length, 1);
+    const documents = await api<EsignListPage<EsignDocument>>("/documents?workspaceId=101&kind=template");
+    assert.equal(documents.items.length, 1); assert.equal(documents.total, 1); assert.equal(documents.nextCursor, null);
     const messages = await api<PreviewMessage[]>("/outbox?workspaceId=101");
     assert.equal(messages.length, 2); assert.equal(messages[0].signUrl, messages[1].signUrl);
     const token = new URL(messages[0].signUrl!, "http://localhost").pathname.split("/").at(-1)!;
     assert.deepEqual(messages.map(m => m.channel).sort(), ["alimtalk", "email"]);
     const code = await api<{ previewCode: string }>(`/public/${token}/otp`, { channel: "alimtalk" }); assert.match(code.previewCode, /^\d{6}$/);
     const verification = await api<{ verificationToken: string }>(`/public/${token}/verify`, { code: code.previewCode });
-    await api(`/public/${token}/sign`, { verificationToken: verification.verificationToken, idempotencyKey: "preview-full-flow", consent: true, values: documents[0].fields.map(f => ({ fieldId: f.id, pngDataUrl: png, ...(f.type === "name" ? { text: "가상 고객" } : f.type === "date" ? { text: "2026-10-18" } : {}) })) });
+    await api(`/public/${token}/sign`, { verificationToken: verification.verificationToken, idempotencyKey: "preview-full-flow", consent: true, values: documents.items[0].fields.map(f => ({ fieldId: f.id, pngDataUrl: png, ...(f.type === "name" ? { text: "가상 고객" } : f.type === "date" ? { text: "2026-10-18" } : {}) })) });
     await app.engine.kick();
-    const details = await api<StaffEsignDetail[]>("/envelopes?workspaceId=101"); assert.equal(details[0].envelope.state, "completed");
+    const details = (await api<EsignListPage<StaffEsignSummary>>("/envelopes?workspaceId=101")).items; assert.equal(details[0].envelope.state, "completed");
     const download = await handleEsignPreviewRequest(new Request(`http://localhost/api/esign-preview/public/${token}/document?final=1`, { headers: { "X-Esign-Verification": verification.verificationToken } }), options);
     assert.equal(download.status, 200); const completed = await PDFDocument.load(await download.arrayBuffer()); assert.equal(completed.getPageCount(), 1);
-    await api("/envelopes?workspaceId=101", { documentId: documents[0].id, title: "금지된 실제 수신자", order: "parallel", expiresAt: new Date(Date.now() + 86400000).toISOString(), recipients: [{ name: "가상 고객", email: "someone@real-company.com", channels: ["email"] }] }, 400);
+    await api("/envelopes?workspaceId=101", { documentId: documents.items[0].id, title: "금지된 실제 수신자", order: "parallel", expiresAt: new Date(Date.now() + 86400000).toISOString(), recipients: [{ name: "가상 고객", email: "someone@real-company.com", channels: ["email"] }] }, 400);
     await api("/documents?workspaceId=999", undefined, 403);
     const otherOrg = await handleEsignPreviewRequest(new Request("http://localhost/api/esign-preview/outbox?workspaceId=101"), { ...options, actor: async () => ({ ...actor, orgId: "33333333-3333-4333-8333-333333333333" }) });
     const foreignMessages = (await otherOrg.json()).data as PreviewMessage[]; assert.ok(foreignMessages.every(item => item.envelopeId !== details[0].envelope.id));

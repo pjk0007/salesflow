@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { EsignAggregate, EsignRepository } from "./repository";
 import { decryptPayload, encryptPayload, equalHash, otpHash, randomOtp, randomToken, secretKey, tokenHash } from "./crypto";
-import { activeEnvelope, artifactInput, assertImageOwnership, maskEmail, maskPhone, MAX_OTP_ATTEMPTS, OTP_COOLDOWN_MS, OTP_TTL_MS, parseDocument, parseEnvelope, recipientWaiting, uniqueImageBudget, validateValues, VERIFY_TTL_MS } from "./rules";
+import { activeEnvelope, artifactInput, assertImageOwnership, assertUsableFields, maskEmail, maskPhone, MAX_OTP_ATTEMPTS, OTP_COOLDOWN_MS, OTP_TTL_MS, parseDocument, parseEnvelope, recipientWaiting, uniqueImageBudget, validateValues, VERIFY_TTL_MS } from "./rules";
 import { ESIGN_PDF_LIMITS } from "./pdf-types";
-import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignActor, type EsignDocumentInput, type EsignEnvelopeInput, type EsignEvent, type EsignJob, type EsignRecipient, type FinalizedArtifact, type PublicEsignSession, type SignatureInput, type StaffEsignDetail } from "./types";
+import { EsignError, type DeliveryOutcome, type DeliveryPayload, type EsignActor, type EsignDocument, type EsignDocumentInput, type EsignListPage, type EsignListQuery, type StaffEsignSummary, type StaffRecipient, type EsignEnvelopeInput, type EsignEvent, type EsignJob, type EsignRecipient, type FinalizedArtifact, type PublicEsignSession, type SignatureInput, type StaffEsignDetail } from "./types";
 
 const at = (date: Date, milliseconds = 0) => new Date(date.getTime() + milliseconds).toISOString();
+const later = (...values: (string | undefined)[]) => values.filter((v): v is string => !!v).sort().at(-1);
+/** 시간대와 무관한 남은 시간 문구. 화면은 retryAt으로 카운트다운한다. */
+const waitText = (until: string, now: Date) => { const seconds = Math.max(1, Math.ceil((new Date(until).getTime() - now.getTime()) / 1000)); return seconds < 60 ? `${seconds}초` : `약 ${Math.ceil(seconds / 60)}분`; };
 const safeError = (message?: string) => (message?.slice(0, 200) || "처리 결과를 확인해주세요.");
 function authorize(actor: EsignActor, value: EsignAggregate) {
     if (actor.orgId !== value.envelope.orgId || actor.workspaceId !== value.envelope.workspaceId)
@@ -51,14 +54,15 @@ function canAuthenticate(value: EsignAggregate, recipient: EsignRecipient, now: 
     if (["finalizing", "completed"].includes(value.envelope.state) && recipient.state === "signed") return;
     throw new EsignError("현재 확인할 수 없는 서명 요청입니다.", value.envelope.state === "expired" ? 410 : 409, value.envelope.state);
 }
+function staffRecipient(r: EsignRecipient): StaffRecipient {
+    const { tokenHash: _token, otpHash: _otp, otpChallenge: _challenge, otpExpiresAt: _otpExpires, otpRetryAt: _retry, otpAttempts: _attempts, verificationHash: _verification, verificationExpiresAt: _verifiedExpiry, submissionKey: _submission, submissionHash: _submissionHash, ...safe } = r;
+    void [_token, _otp, _challenge, _otpExpires, _retry, _attempts, _verification, _verifiedExpiry, _submission, _submissionHash];
+    return structuredClone(safe);
+}
 function detail(value: EsignAggregate): StaffEsignDetail {
     return {
         envelope: structuredClone(value.envelope),
-        recipients: value.recipients.map((r) => {
-            const { tokenHash: _token, otpHash: _otp, otpChallenge: _challenge, otpExpiresAt: _otpExpires, otpRetryAt: _retry, otpAttempts: _attempts, verificationHash: _verification, verificationExpiresAt: _verifiedExpiry, submissionKey: _submission, submissionHash: _submissionHash, ...safe } = r;
-            void [_token, _otp, _challenge, _otpExpires, _retry, _attempts, _verification, _verifiedExpiry, _submission, _submissionHash];
-            return structuredClone(safe);
-        }),
+        recipients: value.recipients.map(staffRecipient),
         jobs: value.jobs.map((j) => { const { encryptedPayload: _payload, leaseId: _lease, ...safe } = j; void [_payload, _lease]; return structuredClone(safe); }),
         events: structuredClone(value.events),
     };
@@ -82,7 +86,7 @@ export class EsignService {
         const document = { ...parseDocument(raw), id: randomUUID(), orgId: actor.orgId, workspaceId: actor.workspaceId, createdBy: actor.userId, version: 1, createdAt: at(this.clock()) };
         await this.repository.saveDocument(document); return document;
     }
-    listDocuments(actor: EsignActor) { return this.repository.documents(actor); }
+    listDocuments(actor: EsignActor, query: EsignListQuery & { kind?: EsignDocument["kind"] } = {}) { return this.repository.documents(actor, query); }
     async getDocument(actor: EsignActor, id: string) {
         const document = await this.repository.document(actor, z.string().uuid().parse(id));
         if (!document) throw new EsignError("문서를 찾을 수 없습니다.", 404, "not_found");
@@ -93,6 +97,7 @@ export class EsignService {
         const current = await this.getDocument(actor, id);
         if (current.version !== patch.version) throw new EsignError("문서가 변경되었습니다. 다시 열어주세요.", 409, "conflict");
         const input = parseDocument({ title: patch.title ?? current.title, kind: patch.kind ?? current.kind, artifact: current.artifact, pages: current.pages, fields: (patch.fields ?? current.fields) as EsignDocumentInput["fields"] });
+        if (patch.fields) assertUsableFields(input.pages, input.fields);
         const next = { ...current, ...input, version: current.version + 1 };
         await this.repository.saveDocument(next, current.version); return next;
     }
@@ -101,6 +106,7 @@ export class EsignService {
         if (!document.fields.length || document.fields.some((f) => f.recipientIndex >= input.recipients.length)) throw new EsignError("문서 입력란의 서명자를 확인해주세요.");
         for (let index = 0; index < input.recipients.length; index++) if (!document.fields.some((f) => f.recipientIndex === index && f.required && ["signature", "seal"].includes(f.type)))
             throw new EsignError("모든 서명자에게 필수 서명 또는 도장 입력란이 필요합니다.");
+        assertUsableFields(document.pages, document.fields);
         const id = randomUUID(), value: EsignAggregate = {
             envelope: { id, orgId: actor.orgId, workspaceId: actor.workspaceId, title: input.title, order: input.order, state: "draft", version: 1, document: structuredClone(document), expiresAt: new Date(input.expiresAt).toISOString(), createdBy: actor.userId, createdAt: at(now), updatedAt: at(now) },
             recipients: [], events: [], jobs: [],
@@ -108,18 +114,18 @@ export class EsignService {
         input.recipients.forEach((rawRecipient, index) => {
             const token = randomToken(), recipient: EsignRecipient = { ...rawRecipient, id: randomUUID(), envelopeId: id, index, state: "pending", tokenHash: tokenHash(token), otpAttempts: 0 };
             value.recipients.push(recipient);
-            for (const channel of recipient.channels) this.job(value, now, { kind: "invitation", state: "blocked", key: `invitation:${recipient.id}:${channel}`, recipientId: recipient.id, channel }, { token, email: recipient.email, phone: recipient.phone, name: recipient.name, title: input.title, expiresAt: value.envelope.expiresAt });
+            for (const channel of recipient.channels) this.job(value, now, { kind: "invitation", state: "blocked", key: `invitation:${recipient.id}:${channel}`, recipientId: recipient.id, channel }, { token, email: recipient.email, phone: recipient.phone, name: recipient.name, title: input.title, expiresAt: value.envelope.expiresAt, ...(actor.orgName?.trim() ? { orgName: actor.orgName.trim().slice(0, 50) } : {}) });
         });
         event(value, "envelope.created", now, { actorId: actor.userId }, { sourceSha256: document.artifact.sha256, documentVersion: document.version });
         await this.repository.create(value); return detail(value);
     }
-    async listEnvelopes(actor: EsignActor) {
-        const now = this.clock();
-        return (await this.repository.list(actor)).map((value) => {
+    async listEnvelopes(actor: EsignActor, query: EsignListQuery = {}): Promise<EsignListPage<StaffEsignSummary>> {
+        const now = this.clock(), listed = await this.repository.list(actor, query);
+        return { ...listed, items: listed.items.map((value) => {
             // Effective status is readable immediately; bounded expiry processing persists its audit/cleanup.
             if (["draft", "pending"].includes(value.envelope.state) && new Date(value.envelope.expiresAt) <= now) value.envelope.state = "expired";
-            return detail(value);
-        });
+            return { envelope: structuredClone(value.envelope), recipients: value.recipients.map(staffRecipient) };
+        }) };
     }
     async expireDue(limit = 5) {
         const now = this.clock(), bounded = Number.isFinite(limit) ? Math.min(10, Math.max(1, Math.trunc(limit))) : 5;
@@ -185,8 +191,11 @@ export class EsignService {
             const r = value.recipients.find((r) => r.id === found.recipientId)!;
             canAuthenticate(value, r, now);
             if (!r.channels.includes(channel)) throw new EsignError("이 서명 요청에 지정되지 않은 채널입니다.", 403);
-            if ((r.otpRetryAt && new Date(r.otpRetryAt) > now) || (r.otpAttempts >= MAX_OTP_ATTEMPTS && r.otpExpiresAt && new Date(r.otpExpiresAt) > now))
-                throw new EsignError("잠시 후 확인 코드를 다시 요청해주세요.", 429, "cooldown");
+            const locked = r.otpAttempts >= MAX_OTP_ATTEMPTS && !!r.otpExpiresAt && new Date(r.otpExpiresAt) > now;
+            if ((r.otpRetryAt && new Date(r.otpRetryAt) > now) || locked) {
+                const retryAt = later(r.otpRetryAt, locked ? r.otpExpiresAt : undefined)!;
+                throw new EsignError(`${locked ? "확인 코드를 여러 번 잘못 입력해 " : ""}${waitText(retryAt, now)} 뒤 확인 코드를 다시 요청할 수 있습니다.`, 429, "cooldown", { retryAt });
+            }
             const challenge = randomUUID(), code = randomOtp();
             r.otpChallenge = challenge; r.otpHash = otpHash(this.secret, r.id, challenge, code);
             r.otpExpiresAt = at(now, OTP_TTL_MS); r.otpRetryAt = at(now, OTP_COOLDOWN_MS); r.otpAttempts = 0;
@@ -201,12 +210,20 @@ export class EsignService {
         const result = await this.repository.mutate(found.envelopeId, (value) => {
             const r = value.recipients.find((r) => r.id === found.recipientId)!;
             canAuthenticate(value, r, now);
-            if (!r.otpHash || !r.otpChallenge || !r.otpExpiresAt || new Date(r.otpExpiresAt) <= now || r.otpAttempts >= MAX_OTP_ATTEMPTS)
-                return { error: "확인 코드가 만료되었습니다. 다시 요청해주세요.", status: 401 } as const;
+            if (!r.otpHash || !r.otpChallenge || !r.otpExpiresAt || new Date(r.otpExpiresAt) <= now)
+                return { error: "확인 코드가 만료되었습니다. 다시 요청해주세요.", status: 401, code: "otp_invalid" } as const;
+            // 횟수 초과는 만료와 다르다: 이 코드가 만료될 때까지 새 코드도 요청할 수 없음을 남은 시간과 함께 알린다.
+            const lockedOut = () => {
+                r.otpRetryAt = later(r.otpRetryAt, r.otpExpiresAt);
+                return { error: `확인 코드를 ${MAX_OTP_ATTEMPTS}번 잘못 입력했습니다. ${waitText(r.otpRetryAt!, now)} 뒤 새 코드를 요청해주세요.`, status: 429, code: "otp_locked", details: { retryAt: r.otpRetryAt, remainingAttempts: 0 } } as const;
+            };
+            if (r.otpAttempts >= MAX_OTP_ATTEMPTS) return lockedOut();
             r.otpAttempts++;
             if (!/^\d{6}$/.test(code) || !equalHash(r.otpHash, otpHash(this.secret, r.id, r.otpChallenge, code))) {
                 event(value, "recipient.otp_failed", now, { recipientId: r.id }, { attempt: r.otpAttempts });
-                return { error: "확인 코드가 일치하지 않습니다.", status: 401 } as const;
+                if (r.otpAttempts >= MAX_OTP_ATTEMPTS) return lockedOut();
+                const remainingAttempts = MAX_OTP_ATTEMPTS - r.otpAttempts;
+                return { error: `확인 코드가 일치하지 않습니다. ${remainingAttempts}번 더 입력할 수 있습니다.`, status: 401, code: "otp_invalid", details: { remainingAttempts } } as const;
             }
             const verificationToken = randomToken();
             r.verificationHash = tokenHash(verificationToken); r.verificationExpiresAt = at(now, VERIFY_TTL_MS);
@@ -215,7 +232,7 @@ export class EsignService {
             event(value, "recipient.verified", now, { recipientId: r.id });
             return { verificationToken, expiresAt: r.verificationExpiresAt };
         });
-        if (result.error) throw new EsignError(result.error, result.status, "otp_invalid");
+        if (result.error) throw new EsignError(result.error, result.status, result.code, result.details);
         return result;
     }
     async submitSignature(token: string, raw: SignatureInput) {
@@ -353,6 +370,34 @@ export class EsignService {
             }
             for (const invitation of value.jobs) if (invitation.kind === "invitation") delete invitation.encryptedPayload;
             event(value, "envelope.completed", now, {}, { sourceSha256: value.envelope.document.artifact.sha256, finalSha256: artifact.sha256 }); return detail(value);
+        });
+    }
+    /** 실패·확인 필요로 끝난 초대 1건을 같은 서명 링크로 다시 보낸다. 확인 필요는 직원이 확인했다고 표시한 뒤에만 허용한다. */
+    async resendInvitation(actor: EsignActor, envelopeId: string, raw: { jobId: string; confirmUnknown?: boolean }) {
+        const input = z.object({ jobId: z.string().uuid(), confirmUnknown: z.boolean().optional() }).strict().parse(raw), now = this.clock();
+        return this.repository.mutate(envelopeId, (value) => {
+            authorize(actor, value);
+            if (value.envelope.state === "pending" && new Date(value.envelope.expiresAt) <= now) throw new EsignError("서명 요청이 만료되었습니다.", 410, "expired");
+            if (value.envelope.state !== "pending") throw new EsignError("서명이 진행 중인 요청에서만 다시 보낼 수 있습니다.", 409, value.envelope.state);
+            const job = value.jobs.find((j) => j.id === input.jobId && j.kind === "invitation");
+            if (!job?.channel) throw new EsignError("발송 기록을 찾을 수 없습니다.", 404, "not_found");
+            const recipient = value.recipients.find((r) => r.id === job.recipientId);
+            if (!recipient || recipient.state !== "pending") throw new EsignError("서명을 마쳤거나 거절한 서명자에게는 다시 보낼 수 없습니다.", 409, "recipient_closed");
+            if (recipientWaiting(value.envelope, value.recipients, recipient)) throw new EsignError("앞 서명자의 서명이 끝나야 이 서명자에게 보낼 수 있습니다.", 409, "waiting");
+            const sameChannel = value.jobs.filter((j) => j.kind === "invitation" && j.recipientId === recipient.id && j.channel === job.channel);
+            // 이미 다시 보낸 작업이 대기 중이면 같은 결과를 돌려준다(중복 클릭·응답 유실).
+            if (sameChannel.some((j) => ["blocked", "pending", "processing"].includes(j.state))) return detail(value);
+            if (!["failed", "unknown"].includes(job.state)) throw new EsignError("실패 또는 확인 필요 상태의 발송만 다시 보낼 수 있습니다.", 409, "not_resendable");
+            // 진행 중 요청에서는 채널마다 가장 최근 초대만 서명 링크(payload)를 들고 있다.
+            if (sameChannel.some((j) => j.createdAt > job.createdAt || (!job.encryptedPayload && !!j.encryptedPayload))) throw new EsignError("가장 최근 발송 기록에서 다시 보내주세요.", 409, "stale_job");
+            if (job.state === "unknown" && input.confirmUnknown !== true) throw new EsignError("접수 여부가 확인되지 않은 발송입니다. 고객이 이미 받았을 수 있으니 확인한 뒤 다시 보내주세요.", 409, "confirm_required");
+            const source = [job, ...value.jobs.filter((j) => j.kind === "invitation" && j.recipientId === recipient.id)].find((j) => j.encryptedPayload);
+            if (!source) throw new EsignError("서명 링크 정보를 찾을 수 없어 다시 보낼 수 없습니다. 요청을 취소하고 새로 만들어주세요.", 409, "payload_missing");
+            const payload = this.decodeJob(source);
+            const next = this.job(value, now, { kind: "invitation", state: "pending", key: `invitation:${recipient.id}:${job.channel}:resend:${sameChannel.length}`, recipientId: recipient.id, channel: job.channel }, payload);
+            if (source.channel === job.channel) delete source.encryptedPayload;
+            event(value, "delivery.resent", now, { actorId: actor.userId, recipientId: recipient.id }, { jobId: next.id, previousJobId: job.id, channel: job.channel, previousState: job.state });
+            return detail(value);
         });
     }
     async retryFinalization(actor: EsignActor, envelopeId: string) {
