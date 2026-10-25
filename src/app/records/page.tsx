@@ -56,7 +56,7 @@ import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { updatePartitionSettings } from "@/components/records/api/partition-settings";
 import { toggleVisibleField } from "@/lib/visible-fields";
 import { importDuplicatePolicy } from "@/components/records/utils/duplicate-policy";
-import { requestErrorMessage } from "@/lib/swr-fetcher";
+import { apiRequest, requestErrorMessage } from "@/lib/swr-fetcher";
 import { useSession } from "@/contexts/SessionContext";
 import { useRecordListQuery } from "@/components/records/hooks/useRecordListQuery";
 import { recordsStorageKey, resolvePartitionSelection } from "@/components/records/utils/list-query";
@@ -279,6 +279,21 @@ export default function RecordsPage() {
     const handleRecordClick = useCallback((record: DbRecord) => {
         setDetailRecord(record);
     }, []);
+
+    // 알림톡 발송 결과의 제외·실패 레코드 열기 — 현재 페이지에 없으면(선택 후 페이지 이동) 단건 조회 (UX-181)
+    const handleOpenRecordById = useCallback(async (recordId: number) => {
+        const loaded = records.find((record) => record.id === recordId);
+        if (loaded) {
+            setDetailRecord(loaded);
+            return;
+        }
+        try {
+            const json = await apiRequest<{ data: DbRecord }>(`/api/records/${recordId}`);
+            setDetailRecord(json.data);
+        } catch (error) {
+            toast.error(requestErrorMessage(error, "레코드를 불러오지 못했습니다."));
+        }
+    }, [records]);
 
     const handleUpdateRecord = useCallback(
         async (id: number, data: Record<string, unknown>) => {
@@ -682,6 +697,7 @@ export default function RecordsPage() {
                     onOpenChange={setAlimtalkDialogOpen}
                     partitionId={partitionId}
                     recordIds={Array.from(selectedIds)}
+                    onEditRecord={handleOpenRecordById}
                 />
             )}
             {partitionId && (

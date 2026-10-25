@@ -7,6 +7,7 @@ import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
 import { processAutoEnrich } from "@/lib/auto-enrich";
 import { broadcastToPartition } from "@/lib/sse";
 import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
+import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 import type { RecordAlertSource } from "@/lib/record-chat-alert/rules";
 
 /**
@@ -14,7 +15,7 @@ import type { RecordAlertSource } from "@/lib/record-chat-alert/rules";
  * 계약 문서: 작업 기록 work/F4/CONTRACTS-F4.md
  *
  * 트랜잭션 안: 중복 정책(거부/허용/병합/교체) → 통합코드 발번(UPDATE … RETURNING) → 분배 번호 → 기본값 병합 → insert
- * 커밋 후 한 번: 자동화(알림톡·이메일·AI 개인화) + 자동 보강 + 구글챗 알림(고객 유입 경로만) + SSE
+ * 커밋 후 한 번: 자동화(알림톡·이메일·AI 개인화) + 자동 보강 + 구글챗 알림(고객 유입 경로만) + 방문자 역매칭 + SSE
  */
 
 /** 생성 단계에 필요한 최소 실행기 — db와 트랜잭션(tx) 둘 다 받는다 */
@@ -68,6 +69,7 @@ export interface RecordCreateEffects {
     processAutoEnrich: typeof processAutoEnrich;
     notifyRecordChatAlert: typeof notifyRecordChatAlert;
     broadcastToPartition: typeof broadcastToPartition;
+    rematchVisitorsByRecord: typeof rematchVisitorsByRecord;
 }
 
 export interface RecordCreateDeps {
@@ -78,7 +80,7 @@ export interface RecordCreateDeps {
 
 const defaultDeps: RecordCreateDeps = {
     db,
-    effects: { dispatchAutoTriggers, processAutoEnrich, notifyRecordChatAlert, broadcastToPartition },
+    effects: { dispatchAutoTriggers, processAutoEnrich, notifyRecordChatAlert, broadcastToPartition, rematchVisitorsByRecord },
     planLimit: async (orgId) => checkPlanLimit(orgId, "records", await getResourceCount(orgId, "records")),
 };
 
@@ -239,6 +241,7 @@ function logEffectFailure(effect: string, record: DbRecord, source: RecordCreate
  * 커밋 후 후처리 — 생성·병합 한 건당 정확히 한 번. 각 단계는 서로 독립이며 실패는 같은 형식으로 기록하고 응답을 막지 않는다.
  * - created: 자동화(on_create) + 자동 보강 + 구글챗 '신규 접수'(고객 유입 경로만) + SSE record:created
  * - merged: 구글챗 '재접수'(고객 유입 경로만) + SSE record:updated (병합은 새 리드가 아니므로 on_create 자동화는 돌리지 않는다)
+ * - 둘 다: 아직 연결되지 않은 트래커 방문자 역매칭(멱등 — 같은 이메일 레코드가 여럿이면 연결하지 않는다, UX-284)
  */
 export function runRecordEffects(
     effects: RecordCreateEffects,
@@ -266,6 +269,13 @@ export function runRecordEffects(
     if (chatSource) {
         guard("구글챗 알림", () => effects.notifyRecordChatAlert({ recordId: record.id, source: chatSource, kind }));
     }
+
+    guard("방문자 역매칭", () => effects.rematchVisitorsByRecord({
+        orgId,
+        workspaceId: record.workspaceId,
+        recordId: record.id,
+        data: record.data as Record<string, unknown>,
+    }));
 
     guard("실시간 갱신", () => effects.broadcastToPartition(
         partitionId,

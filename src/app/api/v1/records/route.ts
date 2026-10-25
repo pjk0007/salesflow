@@ -7,7 +7,6 @@ import { getApiTokenFromNextRequest, resolveApiToken, checkTokenAccess } from "@
 import type { ApiTokenInfo } from "@/lib/auth";
 import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
 import { parseEventInput, insertRecordEvent } from "@/lib/record-events";
-import { rematchVisitorsByRecord } from "@/lib/tracker/match-record";
 
 async function authenticateExternalRequest(req: NextRequest): Promise<ApiTokenInfo | null> {
     const tokenStr = getApiTokenFromNextRequest(req);
@@ -183,14 +182,7 @@ async function handlePost(req: NextRequest) {
             }, { status: 409 });
         }
 
-        // 미연결 트래커 visitor 역매칭 (fire-after-commit, 실패해도 응답엔 영향 없음)
-        rematchVisitorsByRecord({
-            orgId: tokenInfo.orgId,
-            workspaceId: partition.workspaceId,
-            recordId: result.record.id,
-            data: result.record.data as Record<string, unknown>,
-        }).catch((err) => console.error("rematchVisitorsByRecord error:", err));
-
+        // 미연결 트래커 visitor 역매칭은 createRecord 커밋 후처리가 한다(UX-284)
         if (result.status === "merged") {
             return NextResponse.json({ success: true, data: result.record, merged: true, event: result.extra ?? null });
         }

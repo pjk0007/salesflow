@@ -16,7 +16,8 @@ export async function POST(
         return NextResponse.json({ success: false, error: "slug가 필요합니다." }, { status: 400 });
     }
 
-    const reqBody = await req.json();
+    // 잘린 JSON 등 읽을 수 없는 본문은 500이 아니라 아래의 400 안내로 보낸다 (UX-029)
+    const reqBody = await req.json().catch(() => null);
     const submitData = reqBody?.data;
     const visitorId: string | undefined = typeof reqBody?.visitor_id === "string" ? reqBody.visitor_id : undefined;
     // 파싱은 서버에서 한다 — 화이트리스트·clk_ 검증을 클라이언트에 맡기지 않는다.

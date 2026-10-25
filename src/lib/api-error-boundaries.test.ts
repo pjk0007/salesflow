@@ -150,3 +150,23 @@ test("관리자 조회 DB 오류는JSON500, 정상·없는 조직·빈 Meta 이�
         });
     }
 });
+
+test("withAuth: 인증 DB 실패는 JSON500, 잘린 본문 SyntaxError는 JSON400, 본문과 무관한 SyntaxError는 JSON500 (UX-029)", async t => {
+    const { withAuth } = await import("./api-handler");
+    const { NextResponse } = await import("next/server");
+    const echo = withAuth(async req => NextResponse.json({ success: true, data: await req.json() }));
+    const parseStored = withAuth(async () => NextResponse.json({ success: true, data: JSON.parse("{") }));
+
+    await t.test("인증 DB 실패", async t => {
+        const { request } = await fixture(t, { authFailure: true });
+        await expectError(await echo(request("{}")), 500);
+    });
+    await t.test("본문 오류와 정상", async t => {
+        const { request } = await fixture(t);
+        await expectError(await echo(request("{")), 400);
+        await expectError(await parseStored(request(undefined)), 500);
+        const ok = await echo(request(JSON.stringify({ a: 1 })));
+        assert.equal(ok.status, 200);
+        assert.deepEqual((await ok.json()).data, { a: 1 });
+    });
+});
