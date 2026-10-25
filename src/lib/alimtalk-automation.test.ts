@@ -120,3 +120,38 @@ test("UX-177: 반복 — 빈 중단 조건은 계속 반복, 충족 조건은 �
         assert.equal((update?.set as { status: string }).status, c.status);
     });
 });
+
+test("UX-254: 대량 가져오기 알림톡은 연결을 한 번 읽고 5건씩 순차 처리 — 동시 공급자 호출 5건 이하, 발송+실패 = 대상 수", async t => {
+    isolateEnv(t);
+    const { db } = await import("./db");
+    const { processAutoTriggerBatch } = await import("./alimtalk-automation");
+    let linkListQueries = 0, inFlight = 0, maxInFlight = 0, posts = 0;
+    const { calls } = installFakeDb(t, db, (call: FakeCall) => {
+        if (call.op === "select" && call.table === "alimtalk_configs") return [{ appKey: "fake", secretKey: "fake" }];
+        if (call.op === "select" && call.table === "alimtalk_template_links") {
+            if (call.sql.includes('"trigger_type"')) linkListQueries++;
+            return [baseLink];
+        }
+        if (call.op === "insert" && call.table === "alimtalk_send_logs") return (Array.isArray(call.values) ? call.values : [call.values]).map((_, i) => ({ id: 100 + i }));
+        return [];
+    });
+    t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => {
+        if (init?.method !== "POST") return Response.json({ header, template: { templateContent: "가상 본문" } });
+        posts++; inFlight++; maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight--;
+        const { recipientList } = JSON.parse(String(init.body)) as { recipientList: Array<{ recipientNo: string }> };
+        return Response.json({ header, message: { requestId: "fake", sendResults: [{ recipientNo: recipientList[0].recipientNo, recipientSeq: 1, resultCode: 0 }] } });
+    });
+    // 12건 중 2건은 번호 없음 → 공급자 호출 없이 실패 이력
+    const list = Array.from({ length: 12 }, (_, i) => ({ id: 200 + i, orgId: "fake-org", partitionId: 3, data: i < 2 ? {} : { phone: `0100000${String(i).padStart(4, "0")}` } }));
+    const stats = await processAutoTriggerBatch(list as never, { partitionId: 3, orgId: "fake-org" }, { batchDelayMs: 0 });
+    assert.equal(stats.processed, 12);
+    assert.equal(linkListQueries, 1);
+    assert.ok(maxInFlight <= 5, `동시 ${maxInFlight}건`);
+    assert.equal(posts, 10);
+    const failed = calls.filter(c => c.op === "insert" && c.table === "alimtalk_send_logs")
+        .flatMap(c => (Array.isArray(c.values) ? c.values : [c.values]) as Array<{ status: string }>).filter(v => v.status === "failed");
+    assert.equal(failed.length, 2);
+    assert.equal(posts + failed.length, 12);
+});

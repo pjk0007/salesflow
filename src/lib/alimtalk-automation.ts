@@ -216,7 +216,16 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
     const { record, partitionId, triggerType, orgId } = params;
 
     // 해당 파티션의 매칭 triggerType을 가진 active 링크 조회
-    const links = await db
+    const links = await loadActiveLinks(partitionId, triggerType);
+
+    console.log(`[alimtalk] trigger: ${triggerType}, partition: ${partitionId}, record: ${record.id}, links: ${links.length}`);
+    if (links.length === 0) return;
+
+    await processLinksForRecord(links, record, orgId);
+}
+
+async function loadActiveLinks(partitionId: number, triggerType: AutoTriggerParams["triggerType"]) {
+    return db
         .select()
         .from(alimtalkTemplateLinks)
         .where(
@@ -226,10 +235,38 @@ export async function processAutoTrigger(params: AutoTriggerParams): Promise<voi
                 eq(alimtalkTemplateLinks.isActive, 1)
             )
         );
+}
 
-    console.log(`[alimtalk] trigger: ${triggerType}, partition: ${partitionId}, record: ${record.id}, links: ${links.length}`);
-    if (links.length === 0) return;
+/**
+ * 가져오기·예약 등록처럼 한 번에 많은 레코드가 생길 때의 자동 알림톡(UX-254).
+ * 연결은 한 번만 읽고, 레코드는 후속 큐와 같은 5건 병렬 + 1초 간격으로 처리해 공급자 호출이 한꺼번에 몰리지 않게 한다.
+ * 레코드별 판정(조건·중복·쿨다운·실패 사유 기록)은 단건 경로(processLinksForRecord)와 같다.
+ */
+export async function processAutoTriggerBatch(
+    recordList: DbRecord[],
+    ctx: { partitionId: number; orgId: string; triggerType?: AutoTriggerParams["triggerType"] },
+    options: { batchDelayMs?: number } = {},
+): Promise<{ processed: number; failed: number }> {
+    const links = await loadActiveLinks(ctx.partitionId, ctx.triggerType ?? "on_create");
+    const stats = { processed: 0, failed: 0 };
+    if (links.length === 0 || recordList.length === 0) return stats;
+    const delay = options.batchDelayMs ?? BATCH_DELAY_MS;
+    for (let i = 0; i < recordList.length; i += BATCH_SIZE) {
+        const batch = recordList.slice(i, i + BATCH_SIZE);
+        const results = await Promise.allSettled(batch.map((record) => processLinksForRecord(links, record, ctx.orgId)));
+        for (const r of results) {
+            stats.processed++;
+            if (r.status === "rejected") {
+                stats.failed++;
+                console.error("[alimtalk] import batch error:", r.reason);
+            }
+        }
+        if (i + BATCH_SIZE < recordList.length && delay > 0) await new Promise((r) => setTimeout(r, delay));
+    }
+    return stats;
+}
 
+async function processLinksForRecord(links: AlimtalkTemplateLink[], record: DbRecord, orgId: string): Promise<void> {
     const data = record.data as Record<string, unknown>;
 
     for (const link of links) {
