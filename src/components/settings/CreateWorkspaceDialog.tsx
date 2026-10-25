@@ -136,10 +136,11 @@ export default function CreateWorkspaceDialog({
                 {step === "info" ? (
                     <div className="space-y-4">
                         <div className="space-y-1.5">
-                            <Label>
+                            <Label htmlFor="create-workspace-name">
                                 이름 <span className="text-destructive">*</span>
                             </Label>
                             <Input
+                                id="create-workspace-name"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 placeholder="워크스페이스 이름"
@@ -147,8 +148,9 @@ export default function CreateWorkspaceDialog({
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>설명</Label>
+                            <Label htmlFor="create-workspace-description">설명</Label>
                             <Textarea
+                                id="create-workspace-description"
                                 value={description}
                                 onChange={(e) => setDescription(e.target.value)}
                                 placeholder="워크스페이스 설명"
@@ -157,8 +159,8 @@ export default function CreateWorkspaceDialog({
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label>아이콘</Label>
-                            <IconPicker value={icon} onChange={setIcon} />
+                            <Label htmlFor="create-workspace-icon">아이콘</Label>
+                            <IconPicker id="create-workspace-icon" value={icon} onChange={setIcon} />
                         </div>
                     </div>
                 ) : (
