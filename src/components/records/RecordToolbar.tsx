@@ -31,6 +31,7 @@ interface RecordToolbarProps {
     selectedCount: number;
     totalRecords?: number;
     maxDistributionOrder?: number;
+    distributionOrder?: number;
     fields: FieldDefinition[];
     filters: FilterCondition[];
     onFiltersChange: (filters: FilterCondition[]) => void;
@@ -58,6 +59,7 @@ export default function RecordToolbar({
     selectedCount,
     totalRecords,
     maxDistributionOrder,
+    distributionOrder,
     fields,
     filters,
     onFiltersChange,
@@ -134,6 +136,7 @@ export default function RecordToolbar({
             {/* 분배순서 필터 */}
             {maxDistributionOrder && maxDistributionOrder > 0 && (
                 <Select
+                    value={distributionOrder === undefined ? "all" : String(distributionOrder)}
                     onValueChange={(v) =>
                         onDistributionOrderChange(v === "all" ? undefined : Number(v))
                     }
@@ -294,7 +297,7 @@ function TableSettingsPopover({
                         </div>
                         <div className="max-h-64 overflow-y-auto py-1">
                             {allFields.map((f) => {
-                                const isVisible = !visibleFieldKeys || visibleFieldKeys.includes(f.key);
+                                const isVisible = !visibleFieldKeys?.length || visibleFieldKeys.includes(f.key);
                                 return (
                                     <button
                                         key={f.key}

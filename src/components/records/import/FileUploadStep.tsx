@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { decodeCsvText } from "@/lib/csv-text";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import { Upload, AlertCircle } from "lucide-react";
@@ -46,15 +47,20 @@ export default function FileUploadStep({
         onParsed(headers, data, autoMapping);
     };
 
-    const parseFile = (file: File) => {
+    const parseFile = async (file: File) => {
         const name = file.name.toLowerCase();
 
         if (name.endsWith(".csv")) {
-            Papa.parse(file, {
-                header: false,
-                skipEmptyLines: true,
-                complete: (result) => handleRows(result.data as string[][]),
-            });
+            try {
+                const result = Papa.parse<string[]>(decodeCsvText(await file.arrayBuffer()), { header: false, skipEmptyLines: true });
+                if (result.errors.length) {
+                    onError(result.errors.map((error) => ({ row: (error.row ?? 0) + 1, message: "CSV 형식을 확인해주세요." })));
+                    return;
+                }
+                handleRows(result.data);
+            } catch {
+                onError([{ row: 0, message: "CSV를 읽지 못했습니다. UTF-8 또는 한국어 Excel CSV로 저장해주세요." }]);
+            }
             return;
         }
 

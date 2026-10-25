@@ -7,18 +7,15 @@ import { isUniqueViolation } from "@/lib/db/errors";
 
 const UNMASK_KEYS = new Set(["type", "webhookVerifyToken"]);
 
+function maskSecret(value: unknown): unknown {
+    if (typeof value === "string") return value ? (value.length > 8 ? value.substring(0, 4) + "****" : "****") : "";
+    if (Array.isArray(value)) return value.map(maskSecret);
+    if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, maskSecret(item)]));
+    return value;
+}
+
 function maskCredentials(credentials: Record<string, unknown>): Record<string, unknown> {
-    const masked: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(credentials)) {
-        if (UNMASK_KEYS.has(key)) {
-            masked[key] = value;
-        } else if (typeof value === "string" && value.length > 8) {
-            masked[key] = value.substring(0, 4) + "****";
-        } else {
-            masked[key] = value;
-        }
-    }
-    return masked;
+    return Object.fromEntries(Object.entries(credentials).map(([key, value]) => [key, UNMASK_KEYS.has(key) ? value : maskSecret(value)]));
 }
 
 export async function GET(req: NextRequest) {
@@ -49,6 +46,7 @@ export async function GET(req: NextRequest) {
 
         const data = platforms.map((p) => ({
             ...p,
+            status: p.platform === "meta" && !(p.credentials as Record<string, unknown>)?.accessToken ? "disconnected" : p.status,
             credentials: maskCredentials(p.credentials as Record<string, unknown>),
         }));
 
@@ -88,6 +86,7 @@ export async function POST(req: NextRequest) {
                 platform: platform.trim(),
                 name: name.trim(),
                 credentials,
+                status: platform.trim() === "meta" && !credentials.accessToken ? "disconnected" : "connected",
                 createdBy: user.userId,
             })
             .returning();

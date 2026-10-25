@@ -1,6 +1,7 @@
+import { parseCheckboxValue } from "@/lib/checkbox-value";
+import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { formatKstDateTime, kstParts } from "@/lib/kst";
 import { isValidYmd } from "@/lib/tracker/date-range";
-import { recordEqualsSql, recordKstDateSql } from "@/lib/record-filters";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, fieldDefinitions } from "@/lib/db";
 import { eq, and, sql, desc, asc } from "drizzle-orm";
@@ -24,7 +25,7 @@ function formatValue(value: unknown, fieldType: string): string {
             return Number.isNaN(d.getTime()) ? String(value) : formatKstDateTime(d);
         }
         case "checkbox":
-            return Boolean(value) ? "TRUE" : "FALSE";
+            return parseCheckboxValue(value) ? "TRUE" : "FALSE";
         default:
             return String(value);
     }
@@ -88,61 +89,8 @@ export async function GET(
         }
 
         // WHERE 조건
-        const conditions = [eq(records.partitionId, partitionId)];
-
-        if (search) {
-            conditions.push(sql`${records.data}::text ILIKE ${"%" + search + "%"}`);
-        }
-
-        for (const f of filters) {
-            const key = f.field;
-            const val = f.value;
-            switch (f.operator) {
-                case "contains":
-                    conditions.push(sql`${records.data}->>${key} ILIKE ${"%" + val + "%"}`);
-                    break;
-                case "equals":
-                    conditions.push(recordEqualsSql(key, val));
-                    break;
-                case "not_equals":
-                    conditions.push(sql`${records.data}->>${key} != ${String(val)}`);
-                    break;
-                case "gt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric > ${Number(val)}`);
-                    break;
-                case "gte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric >= ${Number(val)}`);
-                    break;
-                case "lt":
-                    conditions.push(sql`(${records.data}->>${key})::numeric < ${Number(val)}`);
-                    break;
-                case "lte":
-                    conditions.push(sql`(${records.data}->>${key})::numeric <= ${Number(val)}`);
-                    break;
-                case "before":
-                    conditions.push(sql`${recordKstDateSql(key)} < ${String(val)}::date`);
-                    break;
-                case "after":
-                    conditions.push(sql`${recordKstDateSql(key)} > ${String(val)}::date`);
-                    break;
-                case "between":
-                    conditions.push(sql`${recordKstDateSql(key)} >= ${String(val)}::date`);
-                    conditions.push(sql`${recordKstDateSql(key)} <= ${String(f.valueTo)}::date`);
-                    break;
-                case "is_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR ${records.data}->>${key} = '')`);
-                    break;
-                case "is_not_empty":
-                    conditions.push(sql`(${records.data}->>${key} IS NOT NULL AND ${records.data}->>${key} != '')`);
-                    break;
-                case "is_true":
-                    conditions.push(sql`(${records.data}->>${key})::boolean = true`);
-                    break;
-                case "is_false":
-                    conditions.push(sql`(${records.data}->>${key} IS NULL OR (${records.data}->>${key})::boolean = false)`);
-                    break;
-            }
-        }
+        const distributionOrder = searchParams.has("distributionOrder") ? Number(searchParams.get("distributionOrder")) : undefined;
+        const conditions = buildRecordConditions(partitionId, { orgId: user.orgId, search, distributionOrder, filters });
 
         const whereClause = and(...conditions);
 
@@ -154,15 +102,17 @@ export async function GET(
             orderBy = sortOrder === "asc" ? asc(records.integratedCode) : desc(records.integratedCode);
         } else if (sortField === "createdAt") {
             orderBy = sortOrder === "asc" ? asc(records.createdAt) : desc(records.createdAt);
+        } else if (sortField === "updatedAt") {
+            orderBy = sortOrder === "asc" ? asc(records.updatedAt) : desc(records.updatedAt);
         } else {
             const fieldDef = allFields.find(f => f.key === sortField);
 
             let jsonField;
             const ft = fieldDef?.fieldType;
             if (ft === "number" || ft === "currency") {
-                jsonField = sql`(${records.data}->>${sortField})::numeric`;
+                jsonField = recordNumberSql(sortField);
             } else if (ft === "date" || ft === "datetime") {
-                jsonField = sql`(${records.data}->>${sortField})::timestamptz`;
+                jsonField = recordDateTimeSql(sortField);
             } else {
                 jsonField = sql`${records.data}->>${sortField}`;
             }
@@ -174,7 +124,7 @@ export async function GET(
             .select()
             .from(records)
             .where(whereClause)
-            .orderBy(orderBy)
+            .orderBy(orderBy, sortOrder === "asc" ? asc(records.id) : desc(records.id))
             .limit(MAX_EXPORT);
 
         // CSV 생성

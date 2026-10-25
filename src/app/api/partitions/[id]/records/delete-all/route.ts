@@ -1,3 +1,4 @@
+import { isCompleteRecordFilter } from "@/lib/record-filter-input";
 import { NextRequest, NextResponse } from "next/server";
 import { db, records } from "@/lib/db";
 import { eq, and } from "drizzle-orm";
@@ -27,8 +28,8 @@ export async function POST(
 
     const body = await req.json().catch(() => ({}));
     const filters: RecordFilter[] = Array.isArray(body?.filters) ? body.filters : [];
-    if (filters.length === 0) {
-        return NextResponse.json({ success: false, error: "삭제 조건을 1개 이상 지정해주세요." }, { status: 400 });
+    if (filters.length === 0 || !filters.every(isCompleteRecordFilter)) {
+        return NextResponse.json({ success: false, error: "완전한 삭제 조건을 1개 이상 지정해주세요." }, { status: 400 });
     }
 
     try {

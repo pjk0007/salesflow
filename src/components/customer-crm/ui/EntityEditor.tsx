@@ -1,4 +1,5 @@
 "use client";
+import { localDateTimeValue } from "@/lib/utils";
 import { AttributesEditor } from "@/components/customer-records/ui/AttributesEditor";
 import { useState } from "react";
 import type { FormEvent, ReactNode } from "react";
@@ -593,17 +594,7 @@ export function EntityEditor({
                                             type="datetime-local"
                                             className={inputClass}
                                             defaultValue={
-                                                task?.dueAt
-                                                    ? new Date(
-                                                          Date.parse(
-                                                              task.dueAt,
-                                                          ) -
-                                                              new Date().getTimezoneOffset() *
-                                                                  60000,
-                                                      )
-                                                          .toISOString()
-                                                          .slice(0, 16)
-                                                    : ""
+                                                localDateTimeValue(task?.dueAt)
                                             }
                                         />
                                     </Field>

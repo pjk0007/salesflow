@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, webForms, webFormFields, records, organizations } from "@/lib/db";
+import { db, webForms, webFormFields, partitions, workspaces } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
-import { assignDistributionOrder } from "@/lib/distribution";
-import { processAutoTrigger } from "@/lib/alimtalk-automation";
-import { processEmailAutoTrigger } from "@/lib/email-automation";
-import { broadcastToPartition } from "@/lib/sse";
-import { applyFieldDefaults } from "@/lib/apply-field-defaults";
 import { linkVisitorByFormSubmit } from "@/lib/tracker/match-record";
 import { parseAttributionParams } from "@/lib/attribution/parse-params";
 import { resolveAttribution } from "@/lib/attribution/resolve-attribution";
-import { notifyRecordChatAlert } from "@/lib/record-chat-alert/notify";
+import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
+import { parseCheckboxValue } from "@/lib/checkbox-value";
 
 export async function POST(
     req: NextRequest,
@@ -27,7 +23,7 @@ export async function POST(
     const attributionParams = parseAttributionParams(
         typeof reqBody?.attribution === "string" ? reqBody.attribution : ""
     );
-    if (!submitData || typeof submitData !== "object") {
+    if (!submitData || typeof submitData !== "object" || Array.isArray(submitData)) {
         return NextResponse.json({ success: false, error: "제출 데이터가 필요합니다." }, { status: 400 });
     }
 
@@ -49,25 +45,32 @@ export async function POST(
             .where(eq(webFormFields.formId, form.id))
             .orderBy(asc(webFormFields.sortOrder));
 
-        // required 검증
+        const fieldIds = new Set(fields.map((field) => String(field.id)));
+        if (Object.keys(submitData).some((id) => !fieldIds.has(id))) {
+            return NextResponse.json({ success: false, error: "질문 구성이 변경되었습니다. 폼을 새로 불러온 뒤 제출해주세요." }, { status: 409 });
+        }
+
+        // required 검증 — 필수 체크박스(동의)는 체크(참)일 때만 통과한다. 해제하면 "false"가 오므로 빈 값 검사만으로는 막지 못한다 (UX-046)
         for (const field of fields) {
             if (field.isRequired) {
                 const val = submitData[String(field.id)];
-                if (val === undefined || val === null || val === "") {
+                if (field.fieldType === "checkbox" ? !parseCheckboxValue(val) : val === undefined || val === null || val === "") {
                     return NextResponse.json({
                         success: false,
-                        error: `"${field.label}" 필드는 필수입니다.`,
+                        error: field.fieldType === "checkbox"
+                            ? `"${field.label}" 항목에 체크해야 제출할 수 있습니다.`
+                            : `"${field.label}" 필드는 필수입니다.`,
                     }, { status: 400 });
                 }
             }
         }
 
-        // linkedFieldKey 기반으로 records.data 구성
+        // linkedFieldKey 기반으로 records.data 구성 (체크박스는 boolean으로 정규화)
         const recordData: Record<string, unknown> = {};
         for (const field of fields) {
             const val = submitData[String(field.id)];
             if (field.linkedFieldKey && val !== undefined && val !== null && val !== "") {
-                recordData[field.linkedFieldKey] = val;
+                recordData[field.linkedFieldKey] = field.fieldType === "checkbox" ? parseCheckboxValue(val) : val;
             }
         }
 
@@ -83,82 +86,41 @@ export async function POST(
             console.error("Attribution resolve error:", err);
         }
 
-        // defaultValues 적용 (빈 필드만)
-        if (form.defaultValues) {
-            for (const dv of form.defaultValues) {
-                if (dv.field && dv.value && !recordData[dv.field]) {
-                    recordData[dv.field] = dv.value;
-                }
-            }
+        // 폼 조직의 파티션일 때만 받는다 — 다른 조직 파티션을 가리키는 폼으로 남의 목록에 리드를 넣지 못하게
+        const [partition] = await db
+            .select({ partition: partitions })
+            .from(partitions)
+            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+            .where(and(eq(partitions.id, form.partitionId), eq(workspaces.orgId, form.orgId)))
+            .then((rows) => rows.map((r) => r.partition));
+        if (!partition) {
+            return NextResponse.json({ success: false, error: "폼을 찾을 수 없습니다." }, { status: 404 });
         }
 
-        // 트랜잭션으로 통합코드 발번 + 레코드 생성
-        const result = await db.transaction(async (tx) => {
-            // 통합코드 생성
-            const [org] = await tx
-                .select()
-                .from(organizations)
-                .where(eq(organizations.id, form.orgId));
+        // 폼 defaultValues는 빈 칸에만 적용 — 다른 유입 경로와 같은 생성 함수(중복 정책·발번·분배·기본값·후처리)를 쓴다 (UX-043)
+        const sourceDefaults: Record<string, unknown> = {};
+        for (const dv of form.defaultValues ?? []) {
+            if (dv.field && dv.value) sourceDefaults[dv.field] = dv.value;
+        }
 
-            const newSeq = org.integratedCodeSeq + 1;
-            const integratedCode = `${org.integratedCodePrefix}-${String(newSeq).padStart(4, "0")}`;
-
-            await tx
-                .update(organizations)
-                .set({ integratedCodeSeq: newSeq })
-                .where(eq(organizations.id, org.id));
-
-            // 분배순서 자동 할당
-            let distributionOrder: number | null = null;
-            let finalData = await applyFieldDefaults(form.partitionId, recordData);
-            const distribution = await assignDistributionOrder(tx, form.partitionId);
-            if (distribution) {
-                distributionOrder = distribution.distributionOrder;
-                finalData = { ...distribution.defaults };
-                for (const [k, v] of Object.entries(recordData)) {
-                    if (v !== undefined && v !== null && v !== "") finalData[k] = v;
-                }
-            }
-
-            // 레코드 생성
-            const [newRecord] = await tx
-                .insert(records)
-                .values({
-                    orgId: form.orgId,
-                    workspaceId: form.workspaceId,
-                    partitionId: form.partitionId,
-                    integratedCode,
-                    distributionOrder,
-                    data: finalData,
-                })
-                .returning();
-
-            return newRecord;
+        const created = await createRecord({
+            orgId: form.orgId,
+            partition: toRecordCreatePartition(partition),
+            data: recordData,
+            sourceDefaults,
+            source: "web_form",
         });
 
-        // 자동 트리거 (fire-and-forget)
-        processAutoTrigger({
-            record: result,
-            partitionId: form.partitionId,
-            triggerType: "on_create",
-            orgId: form.orgId,
-        }).catch((err) => console.error("Auto trigger error:", err));
-
-        processEmailAutoTrigger({
-            record: result,
-            partitionId: form.partitionId,
-            triggerType: "on_create",
-            orgId: form.orgId,
-        }).catch((err) => console.error("Email auto trigger error:", err));
-
-        notifyRecordChatAlert({ recordId: result.id, source: "web_form" })
-            .catch((err) => console.error("Record chat alert error:", err));
-
-        // SSE broadcast
-        broadcastToPartition(form.partitionId, "record:created", {
-            partitionId: form.partitionId,
-            recordId: result.id,
-        });
+        if (created.status === "duplicate") {
+            return NextResponse.json({
+                success: false,
+                error: `이미 접수된 정보입니다. (${created.fieldLabel}: ${created.value})`,
+            }, { status: 409 });
+        }
+        if (created.status === "plan_limit") {
+            throw new Error("웹 폼 제출은 레코드 한도를 강제하지 않는다 — plan_limit가 올 수 없음");
+        }
+        const result = created.record;
 
         // 트래커 visitor 연결 (있을 때만, 실패해도 무시)
         if (visitorId) {
@@ -178,7 +140,7 @@ export async function POST(
             }).catch((err) => console.error("Visitor link error:", err));
         }
 
-        return NextResponse.json({ success: true }, { status: 201 });
+        return NextResponse.json({ success: true }, { status: created.status === "merged" ? 200 : 201 });
     } catch (error) {
         console.error("Form submit error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });

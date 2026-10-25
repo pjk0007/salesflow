@@ -1,50 +1,58 @@
-import { db } from "@/lib/db";
-import { fieldDefinitions, partitions, workspaces, fieldTypes } from "@/lib/db/schema";
+import { fieldDefinitions, partitions, workspaces } from "@/lib/db/schema";
 import { eq, and, isNotNull } from "drizzle-orm";
+import type { RecordDb as Executor } from "@/lib/record-create";
+
+/** 파티션이 쓰는 필드 타입 — 파티션 fieldTypeId → 워크스페이스 defaultFieldTypeId (resolved-fields API와 같은 기준) */
+async function resolvePartitionFieldType(exec: Executor, partitionId: number) {
+    const [partition] = await exec
+        .select({
+            fieldTypeId: partitions.fieldTypeId,
+            wsFieldTypeId: workspaces.defaultFieldTypeId,
+            workspaceId: partitions.workspaceId,
+        })
+        .from(partitions)
+        .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+        .where(eq(partitions.id, partitionId));
+    if (!partition) return null;
+    return { typeId: partition.fieldTypeId || partition.wsFieldTypeId, workspaceId: partition.workspaceId };
+}
 
 /**
- * 파티션의 필드 정의에서 defaultValue가 설정된 필드를 찾아
- * data에 해당 key가 비어있으면 기본값을 적용합니다.
+ * 파티션의 필드 정의에서 defaultValue가 설정된 필드의 기본값 맵을 돌려준다 (레코드 생성 시 빈 칸에만 적용).
+ * 생성 트랜잭션 안에서 부를 수 있도록 실행기(db 또는 tx)를 받는다.
  */
-export async function applyFieldDefaults(
-    partitionId: number,
-    data: Record<string, unknown>
-): Promise<Record<string, unknown>> {
-    try {
-        // 파티션의 fieldTypeId 또는 워크스페이스의 defaultFieldTypeId 조회
-        const [partition] = await db
-            .select({
-                fieldTypeId: partitions.fieldTypeId,
-                wsFieldTypeId: workspaces.defaultFieldTypeId,
-            })
-            .from(partitions)
-            .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
-            .where(eq(partitions.id, partitionId));
+export async function loadFieldDefaults(exec: Executor, partitionId: number): Promise<Record<string, string>> {
+    const resolved = await resolvePartitionFieldType(exec, partitionId);
+    if (!resolved?.typeId) return {};
 
-        if (!partition) return data;
+    const fieldsWithDefaults = await exec
+        .select({ key: fieldDefinitions.key, defaultValue: fieldDefinitions.defaultValue })
+        .from(fieldDefinitions)
+        .where(and(
+            eq(fieldDefinitions.fieldTypeId, resolved.typeId),
+            isNotNull(fieldDefinitions.defaultValue)
+        ));
 
-        const typeId = partition.fieldTypeId || partition.wsFieldTypeId;
-        if (!typeId) return data;
-
-        // defaultValue가 설정된 필드 조회
-        const fieldsWithDefaults = await db
-            .select({ key: fieldDefinitions.key, defaultValue: fieldDefinitions.defaultValue })
-            .from(fieldDefinitions)
-            .where(and(
-                eq(fieldDefinitions.fieldTypeId, typeId),
-                isNotNull(fieldDefinitions.defaultValue)
-            ));
-
-        const result = { ...data };
-        for (const field of fieldsWithDefaults) {
-            if (field.defaultValue && (result[field.key] === undefined || result[field.key] === null || result[field.key] === "")) {
-                result[field.key] = field.defaultValue;
-            }
-        }
-
-        return result;
-    } catch (err) {
-        console.error("applyFieldDefaults error:", err);
-        return data;
+    const defaults: Record<string, string> = {};
+    for (const field of fieldsWithDefaults) {
+        if (field.defaultValue) defaults[field.key] = field.defaultValue;
     }
+    return defaults;
+}
+
+/** 파티션에서 보이는 필드 이름(label). 없으면 key를 그대로 돌려준다 — 중복 거부 문구에 내부 key 대신 쓴다 (UX-066) */
+export async function partitionFieldLabel(exec: Executor, partitionId: number, key: string): Promise<string> {
+    const resolved = await resolvePartitionFieldType(exec, partitionId);
+    if (!resolved) return key;
+    const [field] = await exec
+        .select({ label: fieldDefinitions.label })
+        .from(fieldDefinitions)
+        .where(and(
+            resolved.typeId
+                ? eq(fieldDefinitions.fieldTypeId, resolved.typeId)
+                : eq(fieldDefinitions.workspaceId, resolved.workspaceId),
+            eq(fieldDefinitions.key, key)
+        ))
+        .limit(1);
+    return field?.label || key;
 }

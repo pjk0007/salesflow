@@ -1,7 +1,35 @@
 import { db, recordAutoEnrichRules, records, partitions, fieldDefinitions } from "@/lib/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { getSearchAiClient, generateFieldEnrichment, checkTokenQuota, updateTokenUsage, logAiUsage } from "@/lib/ai";
+import { broadcastToPartition } from "@/lib/sse";
 import type { DbRecord } from "@/lib/db";
+import type { RecordDb as Executor } from "@/lib/record-create";
+
+/** 레코드의 현재 data (삭제됐으면 null) — 규칙마다 최신 값으로 다시 판단한다 */
+export async function loadRecordData(exec: Executor, recordId: number): Promise<Record<string, unknown> | null> {
+    const [row] = await exec.select({ data: records.data }).from(records).where(eq(records.id, recordId)).limit(1);
+    return row ? ((row.data ?? {}) as Record<string, unknown>) : null;
+}
+
+/**
+ * 보강 결과를 DB 쪽에서 병합한다 — 지금 비어 있는 키에만 채우고, 그사이 사람·자동화가 쓴 값은 그대로 둔다 (UX-065).
+ * 생성 시점 사본으로 data 전체를 덮어쓰지 않는다. 레코드가 남아 있어 갱신했으면 true.
+ */
+export async function mergeEnrichedFields(
+    exec: Executor,
+    recordId: number,
+    filled: Record<string, unknown>
+): Promise<boolean> {
+    if (Object.keys(filled).length === 0) return false;
+    const patch = sql`(SELECT jsonb_object_agg(e.key, e.value) FROM jsonb_each(${JSON.stringify(filled)}::jsonb) e
+        WHERE COALESCE(${records.data}->>e.key, '') = '')`;
+    const [row] = await exec
+        .update(records)
+        .set({ data: sql`${records.data} || COALESCE(${patch}, '{}'::jsonb)`, updatedAt: new Date() })
+        .where(eq(records.id, recordId))
+        .returning({ id: records.id });
+    return !!row;
+}
 
 interface AutoEnrichParams {
     record: DbRecord;
@@ -12,7 +40,6 @@ interface AutoEnrichParams {
 
 export async function processAutoEnrich(params: AutoEnrichParams): Promise<void> {
     const { record, partitionId, orgId } = params;
-    const data = (record.data ?? {}) as Record<string, unknown>;
 
     console.log(`[AutoEnrich] Start: record=${record.id}, partition=${partitionId}`);
 
@@ -54,8 +81,16 @@ export async function processAutoEnrich(params: AutoEnrichParams): Promise<void>
 
     const fieldMap = new Map(allFields.map((f) => [f.key, f.label]));
 
+    let changed = false;
     for (const rule of rules) {
         try {
+            // 규칙마다 최신 행에서 시작한다 — 앞 규칙이 채운 값·그사이 사람이 바꾼 값을 기준으로 판단
+            const data = await loadRecordData(db, record.id);
+            if (!data) {
+                console.log(`[AutoEnrich] Record ${record.id} deleted — stop`);
+                break;
+            }
+
             // 2. 검색어 추출
             const searchValue = data[rule.searchField];
             if (!searchValue || typeof searchValue !== "string" || !searchValue.trim()) {
@@ -103,17 +138,12 @@ export async function processAutoEnrich(params: AutoEnrichParams): Promise<void>
                 continue;
             }
 
-            const updatedData = { ...data };
-            for (const key of filledFields) {
-                if (!updatedData[key] || updatedData[key] === "") {
-                    updatedData[key] = result.data[key];
-                }
-            }
-
-            await db
-                .update(records)
-                .set({ data: updatedData, updatedAt: new Date() })
-                .where(eq(records.id, record.id));
+            const merged = await mergeEnrichedFields(
+                db,
+                record.id,
+                Object.fromEntries(filledFields.map((key) => [key, result.data[key]]))
+            );
+            changed ||= merged;
 
             console.log(`[AutoEnrich] Rule ${rule.id}: filled ${filledFields.length} fields`);
 
@@ -133,4 +163,7 @@ export async function processAutoEnrich(params: AutoEnrichParams): Promise<void>
             console.error(`[AutoEnrich] Rule ${rule.id} error:`, err);
         }
     }
+
+    // 보강 결과가 새로고침 없이 목록에 보이도록
+    if (changed) broadcastToPartition(partitionId, "record:updated", { partitionId, recordId: record.id });
 }

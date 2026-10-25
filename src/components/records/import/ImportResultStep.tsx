@@ -87,7 +87,7 @@ export default function ImportResultStep({
             {result !== null && (() => {
                 const hasIssues = result.skippedCount > 0 || result.errors.length > 0;
                 const mergedCount = (result as ImportResult & { mergedCount?: number }).mergedCount || 0;
-                const allSkipped = result.insertedCount === 0 && mergedCount === 0;
+                const allSkipped = result.success && result.insertedCount === 0 && mergedCount === 0;
                 const borderClass = allSkipped
                     ? "border-orange-200 bg-orange-50"
                     : hasIssues
@@ -99,7 +99,7 @@ export default function ImportResultStep({
                     ? "text-yellow-700"
                     : "text-green-700";
                 const label = allSkipped
-                    ? "전부 건너뛰었습니다"
+                    ? "등록된 레코드가 없습니다"
                     : hasIssues
                     ? "가져오기 완료 (일부 건너뜀)"
                     : "가져오기 완료";

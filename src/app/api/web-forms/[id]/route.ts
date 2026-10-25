@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, webForms, webFormFields } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
+import { InvalidFormFields, saveWebFormFields } from "@/lib/web-form-fields";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 
 export async function GET(
@@ -75,8 +76,10 @@ export async function PUT(
             return NextResponse.json({ success: false, error: "폼을 찾을 수 없습니다." }, { status: 404 });
         }
 
+        const { updated, updatedFields } = await db.transaction(async (tx) => {
+            await tx.select({ id: webForms.id }).from(webForms).where(eq(webForms.id, formId)).for("update");
         // 폼 메타데이터 업데이트
-        const [updated] = await db
+        const [updated] = await tx
             .update(webForms)
             .set({
                 ...(name !== undefined && { name }),
@@ -95,40 +98,18 @@ export async function PUT(
             .where(eq(webForms.id, formId))
             .returning();
 
-        // 필드 일괄 업데이트 (있으면)
-        if (Array.isArray(fields)) {
-            // 기존 필드 삭제 후 새로 삽입
-            await db.delete(webFormFields).where(eq(webFormFields.formId, formId));
-
-            if (fields.length > 0) {
-                await db.insert(webFormFields).values(
-                    fields.map((f: any, idx: number) => ({
-                        formId,
-                        label: f.label,
-                        description: f.description || null,
-                        placeholder: f.placeholder || null,
-                        fieldType: f.fieldType || "text",
-                        linkedFieldKey: f.linkedFieldKey || null,
-                        isRequired: f.isRequired ? 1 : 0,
-                        options: f.options || null,
-                        sortOrder: idx,
-                    }))
-                );
-            }
-        }
-
-        // 업데이트된 필드 목록 반환
-        const updatedFields = await db
-            .select()
-            .from(webFormFields)
-            .where(eq(webFormFields.formId, formId))
-            .orderBy(asc(webFormFields.sortOrder));
+            const updatedFields = fields === undefined
+                ? await tx.select().from(webFormFields).where(eq(webFormFields.formId, formId)).orderBy(asc(webFormFields.sortOrder))
+                : await saveWebFormFields(tx, formId, fields);
+            return { updated, updatedFields };
+        });
 
         return NextResponse.json({
             success: true,
             data: { ...updated, fields: updatedFields },
         });
     } catch (error) {
+        if (error instanceof InvalidFormFields) return NextResponse.json({ success: false, error: error.message }, { status: 400 });
         console.error("Web form update error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });
     }

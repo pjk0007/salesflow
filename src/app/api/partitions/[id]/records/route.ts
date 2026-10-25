@@ -1,15 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, records, organizations, fieldDefinitions, memos } from "@/lib/db";
+import { db, records, fieldDefinitions, memos } from "@/lib/db";
 import { eq, and, sql, desc, asc, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
-import { checkPlanLimit, getResourceCount } from "@/lib/billing";
-import { dispatchAutoTriggers } from "@/lib/automation-dispatch";
-import { processAutoEnrich } from "@/lib/auto-enrich";
-import { assignDistributionOrder } from "@/lib/distribution";
-import { broadcastToPartition } from "@/lib/sse";
-import { applyFieldDefaults } from "@/lib/apply-field-defaults";
-import { buildRecordConditions } from "@/lib/record-filters";
+import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
+import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 
 export async function GET(
     req: NextRequest,
@@ -33,8 +28,8 @@ export async function GET(
         }
 
         const searchParams = req.nextUrl.searchParams;
-        const page = Math.max(1, Number(searchParams.get("page")) || 1);
-        const pageSize = Math.min(1000, Math.max(1, Number(searchParams.get("pageSize")) || 50));
+        const requestedPage = Math.max(1, Math.floor(Number(searchParams.get("page")) || 1));
+        const pageSize = Math.min(1000, Math.max(1, Math.floor(Number(searchParams.get("pageSize")) || 50)));
         const search = searchParams.get("search") || "";
         const distributionOrder = searchParams.get("distributionOrder")
             ? Number(searchParams.get("distributionOrder"))
@@ -53,10 +48,9 @@ export async function GET(
             } catch { /* 무시 */ }
         }
 
-        const offset = (page - 1) * pageSize;
 
         // WHERE 조건 구성 (목록/조건삭제 공용 빌더)
-        const conditions = buildRecordConditions(partitionId, { search, distributionOrder, groupBy, groupValue, filters });
+        const conditions = buildRecordConditions(partitionId, { orgId: user.orgId, search, distributionOrder, groupBy, groupValue, filters });
 
         const whereClause = and(...conditions);
 
@@ -89,9 +83,9 @@ export async function GET(
             let jsonField;
             const ft = fieldDef?.fieldType;
             if (ft === "number" || ft === "currency") {
-                jsonField = sql`(${records.data}->>${sortField})::numeric`;
+                jsonField = recordNumberSql(sortField);
             } else if (ft === "date" || ft === "datetime") {
-                jsonField = sql`(${records.data}->>${sortField})::timestamptz`;
+                jsonField = recordDateTimeSql(sortField);
             } else {
                 jsonField = sql`${records.data}->>${sortField}`;
             }
@@ -104,6 +98,8 @@ export async function GET(
             .from(records)
             .where(whereClause);
         const total = totalResult?.value ?? 0;
+        const page = Math.min(requestedPage, Math.max(1, Math.ceil(total / pageSize)));
+        const offset = (page - 1) * pageSize;
 
         // 레코드 목록 (댓글 수 포함)
         const memoCountSq = db
@@ -129,7 +125,7 @@ export async function GET(
             .from(records)
             .leftJoin(memoCountSq, eq(records.id, memoCountSq.recordId))
             .where(whereClause)
-            .orderBy(orderBy)
+            .orderBy(orderBy, sortOrder === "asc" ? asc(records.id) : desc(records.id))
             .limit(pageSize)
             .offset(offset);
 
@@ -173,136 +169,35 @@ export async function POST(
             return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
-        const partition = access.partition;
+        // 생성 공통 경로: 한도 → 중복 정책 → 발번·분배·기본값·insert(한 트랜잭션) → 커밋 후 후처리
+        const result = await createRecord({
+            orgId: user.orgId,
+            partition: toRecordCreatePartition(access.partition),
+            data: recordData,
+            source: "screen",
+            enforcePlanLimit: true,
+            sessionId: req.headers.get("x-session-id") ?? undefined,
+        });
 
-        // 플랜 제한 체크
-        const currentCount = await getResourceCount(user.orgId, "records");
-        const limit = await checkPlanLimit(user.orgId, "records", currentCount);
-        if (!limit.allowed) {
+        if (result.status === "plan_limit") {
             return NextResponse.json({
                 success: false,
-                error: `레코드 한도(${limit.limit}건)를 초과했습니다. 플랜 업그레이드가 필요합니다.`,
+                error: `레코드 한도(${result.limit}건)를 초과했습니다. 플랜 업그레이드가 필요합니다.`,
                 upgradeRequired: true,
             }, { status: 403 });
         }
-
-        // 중복 체크 (duplicateConfig 우선, fallback to duplicateCheckField)
-        const dupConfig = partition.duplicateConfig as { field: string; action: string } | null;
-        const dupField = dupConfig?.field || partition.duplicateCheckField;
-
-        if (dupField) {
-            const checkValue = recordData[dupField];
-            if (checkValue) {
-                const [duplicate] = await db
-                    .select({ id: records.id, data: records.data })
-                    .from(records)
-                    .where(
-                        and(
-                            eq(records.partitionId, partitionId),
-                            sql`${records.data}->>${dupField} = ${String(checkValue)}`
-                        )
-                    )
-                    .limit(1);
-
-                if (duplicate) {
-                    const action = dupConfig?.action || "reject";
-
-                    switch (action) {
-                        case "reject":
-                            return NextResponse.json({
-                                success: false,
-                                error: `중복된 데이터가 존재합니다. (${dupField}: ${checkValue})`,
-                            }, { status: 409 });
-
-                        case "allow":
-                            // 그대로 진행 (중복 허용)
-                            break;
-
-                        case "merge": {
-                            // 기존 레코드에 새 데이터 병합
-                            const mergedData = { ...(duplicate.data as Record<string, unknown>), ...recordData };
-                            const [merged] = await db
-                                .update(records)
-                                .set({ data: mergedData, updatedAt: new Date() })
-                                .where(eq(records.id, duplicate.id))
-                                .returning();
-                            return NextResponse.json({ success: true, data: merged, merged: true });
-                        }
-
-                        case "delete_old":
-                            // 기존 삭제 후 아래 생성 로직 진행
-                            await db.delete(records).where(eq(records.id, duplicate.id));
-                            break;
-                    }
-                }
-            }
+        if (result.status === "duplicate") {
+            return NextResponse.json({
+                success: false,
+                error: `중복된 데이터가 존재합니다. (${result.fieldLabel}: ${result.value})`,
+            }, { status: 409 });
+        }
+        if (result.status === "merged") {
+            // 새 레코드를 만들지 않고 기존 레코드에 합쳤다 — 화면은 merged로 '등록'과 다른 안내를 띄운다
+            return NextResponse.json({ success: true, data: result.record, merged: true });
         }
 
-        // 트랜잭션으로 통합코드 발번 + 레코드 생성
-        const result = await db.transaction(async (tx) => {
-            // 통합코드 생성
-            const [org] = await tx
-                .select()
-                .from(organizations)
-                .where(eq(organizations.id, user.orgId));
-
-            const newSeq = org.integratedCodeSeq + 1;
-            const integratedCode = `${org.integratedCodePrefix}-${String(newSeq).padStart(4, "0")}`;
-
-            await tx
-                .update(organizations)
-                .set({ integratedCodeSeq: newSeq })
-                .where(eq(organizations.id, org.id));
-
-            // 분배순서 자동 할당 (원자적)
-            let distributionOrder: number | null = null;
-            let finalData = await applyFieldDefaults(partitionId, recordData);
-            const distribution = await assignDistributionOrder(tx, partition.id);
-            if (distribution) {
-                distributionOrder = distribution.distributionOrder;
-                // defaults를 recordData에 병합 (빈 필드만)
-                finalData = { ...distribution.defaults };
-                for (const [k, v] of Object.entries(recordData)) {
-                    if (v !== undefined && v !== null && v !== "") finalData[k] = v;
-                }
-            }
-
-            // 레코드 생성
-            const [newRecord] = await tx
-                .insert(records)
-                .values({
-                    orgId: user.orgId,
-                    workspaceId: partition.workspaceId,
-                    partitionId,
-                    integratedCode,
-                    distributionOrder,
-                    data: finalData,
-                })
-                .returning();
-
-            return newRecord;
-        });
-
-        dispatchAutoTriggers({
-            record: result,
-            partitionId,
-            triggerType: "on_create",
-            orgId: user.orgId,
-        });
-
-        processAutoEnrich({
-            record: result,
-            partitionId,
-            triggerType: "on_create",
-            orgId: user.orgId,
-        }).catch((err) => console.error("Auto enrich error:", err));
-
-        broadcastToPartition(partitionId, "record:created", {
-            partitionId,
-            recordId: result.id,
-        }, req.headers.get("x-session-id") as string);
-
-        return NextResponse.json({ success: true, data: result }, { status: 201 });
+        return NextResponse.json({ success: true, data: result.record }, { status: 201 });
     } catch (error) {
         console.error("Record create error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });

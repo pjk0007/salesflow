@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
         );
         const tokenData = await tokenRes.json();
 
-        if (tokenData.error) {
-            return htmlResponse("error", `토큰 교환 실패: ${tokenData.error.message}`);
+        if (!tokenRes.ok || tokenData.error || typeof tokenData.access_token !== "string" || !tokenData.access_token.trim()) {
+            return htmlResponse("error", "Meta 인증에 실패했습니다. 권한을 확인하고 다시 연결해주세요.");
         }
 
         const accessToken = tokenData.access_token;
@@ -79,21 +79,24 @@ export async function GET(req: NextRequest) {
 }
 
 function htmlResponse(status: "success" | "error", message: string) {
+    const payload = JSON.stringify({ type: "meta-oauth-callback", status, message }).replace(/</g, "\\u003c");
+    const safeMessage = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return new Response(
         `<!DOCTYPE html>
 <html>
 <head><title>Meta 연결</title></head>
 <body>
 <script>
+    const payload = ${payload};
     if (window.opener) {
-        window.opener.postMessage({ type: "meta-oauth-callback", status: "${status}", message: "${message}" }, "*");
+        window.opener.postMessage(payload, window.location.origin);
         window.close();
     } else {
-        document.body.innerText = "${message}";
+        document.body.innerText = payload.message;
         setTimeout(() => window.close(), 2000);
     }
 </script>
-<p>${message}</p>
+<p>${safeMessage}</p>
 </body>
 </html>`,
         { headers: { "Content-Type": "text/html" } }

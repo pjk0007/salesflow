@@ -1,3 +1,4 @@
+import { parseCheckboxValue } from "@/lib/checkbox-value";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -70,7 +71,7 @@ export default function InlineEditCell({ field, value, onSave, readOnly }: Inlin
     if (field.fieldType === "checkbox") {
         return (
             <Checkbox
-                checked={Boolean(value)}
+                checked={parseCheckboxValue(value)}
                 onCheckedChange={(checked) => onSave?.(checked)}
             />
         );

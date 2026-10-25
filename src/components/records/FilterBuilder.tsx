@@ -1,3 +1,4 @@
+import { isCompleteRecordFilter } from "@/lib/record-filter-input";
 import { useState } from "react";
 import {
     Popover,
@@ -118,7 +119,7 @@ export default function FilterBuilder({
     };
 
     const handleApply = () => {
-        const valid = draft.filter((c) => c.field !== "");
+        const valid = draft.filter(isCompleteRecordFilter);
         onFiltersChange(valid);
         setOpen(false);
     };

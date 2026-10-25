@@ -1,5 +1,6 @@
 "use client";
 
+import { kstParts } from "@/lib/kst";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import PartitionNav from "@/components/records/PartitionNav";
@@ -181,6 +182,7 @@ export default function RecordsPage() {
         setPartitionId(null);
         setPage(1);
         setSearch("");
+        setDistributionOrder(undefined);
         setSelectedIds(new Set());
         localStorage.setItem("records_last_workspace", String(id));
         localStorage.removeItem("records_last_partition");
@@ -238,6 +240,7 @@ export default function RecordsPage() {
         setPartitionId(id);
         setPage(1);
         setSearch("");
+        setDistributionOrder(undefined);
         localStorage.setItem("records_last_partition", String(id));
         setSelectedIds(new Set());
         setFilters([]);
@@ -247,7 +250,13 @@ export default function RecordsPage() {
 
     const handleSearch = useCallback((keyword: string) => {
         setSearch(keyword);
+        setSelectedIds(new Set());
         setPage(1);
+    }, []);
+
+    const handlePageChange = useCallback((nextPage: number) => {
+        setSelectedIds(new Set());
+        setPage(nextPage);
     }, []);
 
     const handleRecordClick = useCallback((record: DbRecord) => {
@@ -256,16 +265,19 @@ export default function RecordsPage() {
 
     const handleDistributionOrderChange = useCallback((order: number | undefined) => {
         setDistributionOrder(order);
+        setSelectedIds(new Set());
         setPage(1);
     }, []);
 
     const handleFiltersChange = useCallback((newFilters: FilterCondition[]) => {
         setFilters(newFilters);
+        setSelectedIds(new Set());
         setPage(1);
     }, []);
 
     const handleSortChange = useCallback((field: string, order: "asc" | "desc") => {
         setSortField(field);
+        setSelectedIds(new Set());
         setSortOrder(order);
         setPage(1);
     }, []);
@@ -384,6 +396,7 @@ export default function RecordsPage() {
 
     const handleViewModeChange = useCallback((mode: "flat" | "grouped") => {
         setViewMode(mode);
+        setSelectedIds(new Set());
         localStorage.setItem("records_view_mode", mode);
     }, []);
 
@@ -401,11 +414,13 @@ export default function RecordsPage() {
         if (!partitionId || !currentPartition) return;
         // null(전체 표시) 상태에서 처음 토글하면 모든 필드를 명시적으로 풀어둔다
         const currentFields =
-            (currentPartition.visibleFields as string[]) ||
-            fields.map((f) => f.key);
+            currentPartition.visibleFields?.length
+                ? currentPartition.visibleFields
+                : fields.map((f) => f.key);
         const newFields = visible
             ? [...currentFields, fieldKey]
             : currentFields.filter(k => k !== fieldKey);
+        try {
         const res = await fetch(`/api/partitions/${partitionId}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json", "x-session-id": sessionIdRef.current },
@@ -413,6 +428,10 @@ export default function RecordsPage() {
         });
         const json = await res.json();
         if (json.success) mutatePartitions();
+        else toast.error(json.error || "열 표시 설정을 저장하지 못했습니다.");
+        } catch {
+            toast.error("열 표시 설정을 저장하지 못했습니다. 다시 시도해주세요.");
+        }
     }, [partitionId, currentPartition, fields, mutatePartitions]);
 
     // 폴더 목록 (CreatePartitionDialog용)
@@ -441,6 +460,7 @@ export default function RecordsPage() {
         try {
             const blob = await exportCsv({
                 search: search || undefined,
+                distributionOrder,
                 filters: filters.length > 0 ? filters : undefined,
                 sortField,
                 sortOrder,
@@ -448,14 +468,14 @@ export default function RecordsPage() {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `${currentPartition?.name || "records"}_${new Date().toISOString().split("T")[0].replace(/-/g, "")}.csv`;
+            a.download = `${currentPartition?.name || "records"}_${kstParts(new Date()).date.replace(/-/g, "")}.csv`;
             a.click();
             URL.revokeObjectURL(url);
             toast.success("CSV 내보내기가 완료되었습니다.");
         } catch {
             toast.error("CSV 내보내기에 실패했습니다.");
         }
-    }, [exportCsv, search, filters, sortField, sortOrder, currentPartition]);
+    }, [exportCsv, search, distributionOrder, filters, sortField, sortOrder, currentPartition]);
 
     const mobilePartitionNav = useMemo(
         () => (
@@ -531,6 +551,8 @@ export default function RecordsPage() {
                         <>
                             <PartitionHoldBanner partitionId={partitionId} />
                             <RecordToolbar
+                                key={`${workspaceId}:${partitionId}`}
+                                distributionOrder={distributionOrder}
                                 onSearch={handleSearch}
                                 onDistributionOrderChange={handleDistributionOrderChange}
                                 onCreateClick={() => setCreateDialogOpen(true)}
@@ -598,7 +620,7 @@ export default function RecordsPage() {
                                     totalPages={totalPages}
                                     total={total}
                                     pageSize={pageSize}
-                                    onPageChange={setPage}
+                                    onPageChange={handlePageChange}
                                     duplicateHighlight={duplicateHighlight}
                                     onMemoChange={() => mutateRecords()}
                                 />

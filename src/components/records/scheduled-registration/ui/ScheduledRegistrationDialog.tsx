@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useMemo, useRef } from "react";
+import { readScheduledUploadResponse } from "@/components/records/api/import-response";
+import { requestErrorMessage } from "@/lib/swr-fetcher";
+import { decodeCsvText } from "@/lib/csv-text";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import useSWR from "swr";
@@ -266,13 +269,15 @@ function UploadTab({
     const [mapping, setMapping] = useState<Record<string, string>>({});
     const [dupAction, setDupAction] = useState<"skip" | "error">("skip");
     const [uploading, setUploading] = useState(false);
+    const uploadingRef = useRef(false);
+    const [uploadError, setUploadError] = useState("");
     const [progress, setProgress] = useState<{ processed: number; total: number } | null>(null);
     const [isDragging, setIsDragging] = useState(false);
 
     const activeMappings = useMemo(() => Object.entries(mapping).filter(([, v]) => v), [mapping]);
 
     // 헤더만 클라이언트 파싱 (대용량 회피) — 전체 파싱은 서버 담당
-    const readHeader = (f: File) => {
+    const readHeader = async (f: File) => {
         const name = f.name.toLowerCase();
         const buildMapping = (hs: string[]) => {
             const auto: Record<string, string> = {};
@@ -284,12 +289,13 @@ function UploadTab({
             setMapping(auto);
         };
         if (name.endsWith(".csv")) {
-            Papa.parse<string[]>(f, {
-                header: false,
-                preview: 1,
-                skipEmptyLines: true,
-                complete: (r) => buildMapping((r.data[0] as string[]) ?? []),
-            });
+            try {
+                const parsed = Papa.parse<string[]>(decodeCsvText(await f.arrayBuffer()), { header: false, preview: 1, skipEmptyLines: true });
+                buildMapping(parsed.data[0] ?? []);
+            } catch {
+                toast.error("CSV를 읽지 못했습니다. UTF-8 또는 한국어 Excel CSV로 저장해주세요.");
+                return;
+            }
         } else if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
             const reader = new FileReader();
             reader.onload = (e) => {
@@ -311,8 +317,10 @@ function UploadTab({
     };
 
     const handleUpload = async () => {
-        if (!file) return;
+        if (!file || uploadingRef.current) return;
+        uploadingRef.current = true;
         setUploading(true);
+        setUploadError("");
         setProgress(null);
         try {
             const fd = new FormData();
@@ -323,47 +331,18 @@ function UploadTab({
                 body: fd,
             });
 
-            // 검증 실패 등은 일반 JSON 에러로 응답
-            if (!res.ok || !res.body) {
-                const json = await res.json().catch(() => ({}));
-                toast.error(json.error ?? "업로드 실패");
-                return;
-            }
-
-            // 서버가 적재 진행률을 NDJSON으로 스트리밍
-            const reader = res.body.getReader();
-            const decoder = new TextDecoder();
-            let buf = "";
-            let done = false;
-            while (!done) {
-                const { value, done: streamDone } = await reader.read();
-                if (streamDone) break;
-                buf += decoder.decode(value, { stream: true });
-                const lines = buf.split("\n");
-                buf = lines.pop() ?? "";
-                for (const line of lines) {
-                    if (!line.trim()) continue;
-                    const msg = JSON.parse(line);
-                    if (msg.type === "start") {
-                        setProgress({ processed: 0, total: msg.total });
-                    } else if (msg.type === "progress") {
-                        setProgress({ processed: msg.processed, total: msg.total });
-                    } else if (msg.type === "done") {
-                        toast.success(`${msg.inserted.toLocaleString()}건이 예약 등록 대기열에 추가됐습니다.`);
-                        setFile(null);
-                        setHeaders([]);
-                        setMapping({});
-                        onUploaded();
-                        done = true;
-                    } else if (msg.type === "error") {
-                        toast.error(msg.error ?? "적재 중 오류가 발생했습니다.");
-                        done = true;
-                    }
-                }
-            }
-        } catch {
-            toast.error("업로드 중 오류가 발생했습니다.");
+            const inserted = await readScheduledUploadResponse(res, setProgress);
+            toast.success(`${inserted.toLocaleString()}건이 예약 등록 대기열에 추가됐습니다.`);
+            setFile(null);
+            setHeaders([]);
+            setMapping({});
+            onUploaded();
+        } catch (error) {
+            const message = requestErrorMessage(error, "업로드 결과를 확인하지 못했습니다. 대기열에서 반영 여부를 확인한 뒤 다시 시도해주세요.");
+            setUploadError(message);
+            toast.error(message);
         } finally {
+            uploadingRef.current = false;
             setUploading(false);
             setProgress(null);
         }
@@ -383,7 +362,7 @@ function UploadTab({
                     <p className="text-sm text-muted-foreground mt-2">
                         {isDragging ? "여기에 놓아서 업로드하세요" : "CSV·엑셀 파일을 끌어다 놓거나 클릭하여 선택하세요"}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1">CSV, XLSX, XLS · 행 제한 없음</p>
+                    <p className="text-xs text-muted-foreground mt-1">CSV, XLSX, XLS · 최대 100,000행</p>
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -404,9 +383,12 @@ function UploadTab({
                 mapping={mapping}
                 onMappingChange={setMapping}
                 mappableFields={mappableFields}
+                showDuplicateAction={false}
                 duplicateAction={dupAction}
                 onDuplicateActionChange={setDupAction}
             />
+            <p className="text-xs text-muted-foreground">예약 등록 시 파티션의 중복 정책을 적용합니다. 중복 거부 대상은 건너뜁니다.</p>
+            {uploadError && <p role="alert" className="text-sm text-destructive">{uploadError}</p>}
             {uploading && (
                 <div className="space-y-1.5">
                     {progress ? (

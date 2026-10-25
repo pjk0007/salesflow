@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { and } from "drizzle-orm";
+import { and, sql } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { openPglite } from "./db/pglite-harness.test-helper";
-import { buildRecordConditions, type RecordFilter } from "./record-filters";
+import { buildRecordConditions, recordDateTimeSql, type RecordFilter } from "./record-filters";
 
 // UX-061 — 날짜·시간 속성 필터(목록·조건 삭제 공용 빌더)를 실제 PostgreSQL 식으로 검증한다.
 // datetime 값은 UTC ISO로 저장되고, 비교는 KST 날짜 기준이어야 하며 DB 세션 시간대와 무관해야 한다.
@@ -25,12 +25,39 @@ const ROWS: [number, number, Record<string, string>][] = [
 
 async function open() {
     const pg = await openPglite([]);
-    await pg.exec(`CREATE TABLE "records" ("id" integer PRIMARY KEY, "partition_id" integer NOT NULL, "data" jsonb NOT NULL)`);
+    await pg.exec(`CREATE TABLE "records" ("id" integer PRIMARY KEY, "partition_id" integer NOT NULL, "integrated_code" text, "org_id" text, "data" jsonb NOT NULL)`);
     for (const [id, partitionId, data] of ROWS) {
         await pg.query(`INSERT INTO "records" ("id","partition_id","data") VALUES ($1,$2,$3)`, [id, partitionId, JSON.stringify(data)]);
     }
     return pg;
 }
+
+test("UX-060·062 잘못된 조건으로 조건 삭제 범위가 넓어지지 않고 숫자·체크박스 혼합 값도 조회된다", async () => {
+    const pg = await open();
+    try {
+        for (const filter of [{ field: "d", operator: "unknown", value: "x" }, { field: "d", operator: "contains", value: null }, { field: "d", operator: "between", value: "2026-10-18" }]) {
+            const q = whereOf([filter]);
+            assert.equal((await pg.query(`DELETE FROM records WHERE ${q.sql} RETURNING id`, q.params)).rows.length, 0);
+        }
+        const values = [{ n: "3", b: "true" }, { n: "bad", b: "false" }, { n: "", b: "invalid" }, { n: "2.5", b: 1 }, { n: null, b: null }];
+        for (let i = 0; i < values.length; i++) await pg.query("UPDATE records SET data = $2::jsonb WHERE id = $1", [i + 1, JSON.stringify(values[i])]);
+        for (const [filter, ids] of [[{ field: "n", operator: "gt", value: 2 }, [1, 4]], [{ field: "b", operator: "is_true", value: null }, [1, 4]]] as const) {
+            const q = whereOf([filter]);
+            assert.deepEqual((await pg.query<{ id: number }>(`SELECT id FROM records WHERE ${q.sql} ORDER BY id`, q.params)).rows.map((r) => r.id), ids);
+        }
+    } finally { await pg.close(); }
+});
+
+test("UX-063 검색은 통합코드·표시값만 찾고 key·숨은 조사·와일드카드를 검색어로 확장하지 않는다", async () => {
+    const pg = await open();
+    try {
+        await pg.query("UPDATE records SET integrated_code = 'SALES-0012', data = $1::jsonb WHERE id = 1", [JSON.stringify({ companyName: "회사100%", _research: "비공개조사" })]);
+        for (const [search, ids] of [["SALES-0012", [1]], ["회사", [1]], ["%", [1]], ["companyName", []], ["비공개조사", []], ["_", []]] as const) {
+            const q = dialect.sqlToQuery(and(...buildRecordConditions(1, { search }))!);
+            assert.deepEqual((await pg.query<{ id: number }>(`SELECT id FROM records WHERE ${q.sql} ORDER BY id`, q.params)).rows.map((r) => r.id), ids);
+        }
+    } finally { await pg.close(); }
+});
 
 function whereOf(filters: RecordFilter[]) {
     return dialect.sqlToQuery(and(...buildRecordConditions(1, { filters }))!);
@@ -80,3 +107,30 @@ for (const zone of ["UTC", "Asia/Seoul", "America/Los_Angeles"]) {
         }
     });
 }
+
+
+test("UX-060 달력상 무효 날짜와 잘못된 시각이 있어도 필터가 중단되지 않는다", async () => {
+    const pg = await open();
+    try {
+        const invalid = ["2026-02-31", "2026-13-01", "2026-00-01", "0000-01-01", "2026-02-29", "1900-02-29", "2026-01-00", "2026-01-01T25:00:00Z", "2026-01-01T12:65:00Z", "2026-01-01T12:00:70Z", "2026-01-01T12:00:00+99:00", "2026-01-01Tbad"];
+        for (const [i, dt] of invalid.entries()) await pg.query('INSERT INTO records (id, partition_id, data) VALUES ($1,1,$2)', [100+i, JSON.stringify({ dt })]);
+        await pg.query('INSERT INTO records (id, partition_id, data) VALUES (200,1,$1)', [JSON.stringify({ dt: "2000-02-29T15:00:00Z" })]);
+        const q = whereOf([{ field: "dt", operator: "between", value: "1999-01-01", valueTo: "2026-12-31" }]);
+        const result = await pg.query<{ id: number }>(`SELECT id FROM records WHERE ${q.sql} ORDER BY id`, q.params);
+        assert.deepEqual(result.rows.map((r) => r.id), [1,2,3,4,5,6,200]);
+        const sort = dialect.sqlToQuery(sql`SELECT id, ${recordDateTimeSql("dt")} AS value FROM records ORDER BY ${recordDateTimeSql("dt")}, id`);
+        const sorted = await pg.query<{ id: number; value: unknown }>(sort.sql, sort.params);
+        assert.equal(sorted.rows[0].id, 200);
+        assert.ok(sorted.rows.filter((r) => r.id >= 100 && r.id < 200).every((r) => r.value === null));
+    } finally { await pg.close(); }
+});
+
+
+test("UX-042 과거 잘못 연결된 레코드는 파티션이 같아도 다른 조직 목록에서 제외한다", async () => {
+    const pg = await open();
+    try {
+        await pg.exec("UPDATE records SET org_id = CASE WHEN id = 1 THEN 'own' ELSE 'other' END");
+        const where = dialect.sqlToQuery(and(...buildRecordConditions(1, { orgId: "own" }))!);
+        assert.deepEqual((await pg.query<{ id: number }>(`SELECT id FROM records WHERE ${where.sql}`, where.params)).rows.map((r) => r.id), [1]);
+    } finally { await pg.close(); }
+});

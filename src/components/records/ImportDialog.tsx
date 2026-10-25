@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
     Dialog,
     DialogContent,
@@ -13,6 +13,9 @@ import FileUploadStep from "./import/FileUploadStep";
 import FieldMappingStep from "./import/FieldMappingStep";
 import ImportResultStep from "./import/ImportResultStep";
 import type { FieldDefinition, ImportResult } from "@/types";
+
+import { requestErrorMessage } from "@/lib/swr-fetcher";
+import { parseCheckboxValue } from "@/lib/checkbox-value";
 
 const EXCLUDED_TYPES = ["file", "formula", "user_select"];
 
@@ -35,6 +38,8 @@ export default function ImportDialog({
     duplicateCheckField,
     onImport,
 }: ImportDialogProps) {
+    const busyRef = useRef(false);
+    const [importError, setImportError] = useState<string | null>(null);
     const [step, setStep] = useState<1 | 2 | 3>(1);
     const [csvData, setCsvData] = useState<string[][]>([]);
     const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
@@ -56,7 +61,9 @@ export default function ImportDialog({
     );
 
     const handleOpenChange = (open: boolean) => {
+        if (busyRef.current) return;
         if (!open) {
+            setImportError(null);
             setStep(1);
             setCsvData([]);
             setCsvHeaders([]);
@@ -124,12 +131,16 @@ export default function ImportDialog({
     };
 
     const handleImport = async () => {
+        if (busyRef.current) return;
+        busyRef.current = true;
+        setImportError(null);
         setImporting(true);
         setProgress(null);
         try {
             const validationErrors = validateData();
             const errorRows = new Set(validationErrors.map(e => e.row - 1));
 
+            const validRowNumbers = csvData.map((_, i) => i + 1).filter((row) => !errorRows.has(row - 1));
             const importRecords = csvData
                 .map((row, i) => {
                     if (errorRows.has(i)) return null;
@@ -151,7 +162,7 @@ export default function ImportDialog({
                                 record[fieldKey] = Number(val);
                                 break;
                             case "checkbox":
-                                record[fieldKey] = val.toLowerCase() === "true" || val === "1";
+                                record[fieldKey] = parseCheckboxValue(val);
                                 break;
                             default:
                                 record[fieldKey] = val;
@@ -162,22 +173,24 @@ export default function ImportDialog({
                 .filter((r): r is Record<string, unknown> => r !== null);
 
             if (importRecords.length === 0) {
-                setResult({
-                    success: true,
-                    totalCount: csvData.length,
-                    insertedCount: 0,
-                    skippedCount: 0,
-                    errors: validationErrors,
-                });
+                setImportError("가져올 수 있는 행이 없습니다. 오류를 수정해주세요.");
                 return;
             }
 
             const apiResult = await onImport(importRecords, duplicateAction, setProgress);
+            if (!apiResult.success) {
+                setImportError((apiResult as ImportResult & { error?: string }).error || "가져오기에 실패했습니다. 목록을 확인한 뒤 다시 시도해주세요.");
+                return;
+            }
             setResult({
                 ...apiResult,
-                errors: [...validationErrors, ...(apiResult.errors ?? [])],
+                totalCount: csvData.length,
+                errors: [...validationErrors, ...(apiResult.errors ?? []).map((error) => ({ ...error, row: validRowNumbers[error.row - 1] ?? error.row }))],
             });
+        } catch (error) {
+            setImportError(requestErrorMessage(error, "가져오기 결과를 확인하지 못했습니다. 목록에서 반영 여부를 확인한 뒤 다시 시도해주세요."));
         } finally {
+            busyRef.current = false;
             setImporting(false);
             setProgress(null);
         }
@@ -192,8 +205,8 @@ export default function ImportDialog({
                         {step === 1 && "CSV 또는 엑셀 파일을 업로드하세요."}
                         {step === 2 && "파일 컬럼을 필드에 매핑하세요."}
                         {step === 3 && (result
-                            ? (result.insertedCount === 0 && !(result as any).mergedCount
-                                ? "중복으로 인해 등록된 레코드가 없습니다."
+                            ? (result.insertedCount === 0 && !(result as ImportResult & { mergedCount?: number }).mergedCount
+                                ? "등록된 레코드가 없습니다. 아래 결과를 확인해주세요."
                                 : "가져오기가 완료되었습니다.")
                             : "데이터를 확인하고 가져오기를 실행하세요.")}
                     </DialogDescription>
@@ -237,6 +250,8 @@ export default function ImportDialog({
                     />
                 )}
 
+                {importError && <p role="alert" className="text-sm text-destructive">{importError}</p>}
+
                 {importing && (
                     <div className="space-y-1.5">
                         {progress ? (
@@ -272,14 +287,14 @@ export default function ImportDialog({
                     )}
                     {step === 3 && result === null && (
                         <>
-                            <Button variant="outline" onClick={() => setStep(2)}>
+                            <Button variant="outline" disabled={importing} onClick={() => setStep(2)}>
                                 이전
                             </Button>
                             <Button
                                 onClick={handleImport}
-                                disabled={importing || errors.length > 0}
+                                disabled={importing || csvData.length === 0 || new Set(errors.map((error) => error.row)).size >= csvData.length}
                             >
-                                {importing ? "가져오는 중..." : "가져오기"}
+                                {importing ? "가져오는 중..." : errors.length > 0 ? `오류 ${new Set(errors.map((error) => error.row)).size}행 제외하고 가져오기` : "가져오기"}
                             </Button>
                         </>
                     )}
