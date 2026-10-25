@@ -415,8 +415,10 @@ export default function FormBuilder({
                                                 // 실패·형식 오류를 조용히 넘기지 않는다 (UX-048)
                                                 try {
                                                     const res = await fetch("/api/upload", { method: "POST", body: formData });
+                                                    // /api/upload는 { success, data: { url, fileName } }를 돌려준다 — data.url은 없다
                                                     const data = await res.json();
-                                                    if (data.success) onCoverImageUrlChange(data.url);
+                                                    const url = data.success ? data.data?.url : undefined;
+                                                    if (typeof url === "string" && url) onCoverImageUrlChange(url);
                                                     else toast.error(data.error || "이미지를 올리지 못했습니다.");
                                                 } catch {
                                                     toast.error("이미지를 올리지 못했습니다. 연결 상태를 확인한 뒤 다시 시도해주세요.");
