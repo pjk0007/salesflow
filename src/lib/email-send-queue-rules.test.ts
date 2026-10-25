@@ -427,6 +427,12 @@ function walk(over: Partial<QueueWalkLookups> = {}, input: Partial<Parameters<ty
     return walkQueueRow({ data: DATA, links: [LINK], skipLinkIds: [], ...input }, lookups(over));
 }
 
+/** 건너뛴 이유. 줄을 보류(UX-228·259)했으면 "held:까닭" 하나 */
+function walkReasons(w: ReturnType<typeof walkQueueRow>): string[] {
+    if (w.kind === "hold" && w.result.held && "waitReason" in w.result.held) return [`held:${w.result.held.waitReason}`];
+    return skippedReasons(w);
+}
+
 function skippedReasons(w: ReturnType<typeof walkQueueRow>): string[] {
     assert.equal(w.kind, "skip");
     if (w.kind !== "skip") return [];
@@ -464,19 +470,20 @@ test("walkQueueRow: 검사 순서가 processAutoPersonalizedEmail과 같다 (앞
         ["unsubscribed", { isUnsubscribed: () => true }],
         ["replied", { isReplyStopped: () => "replied" }],
         ["no_ai_client", { aiClientReady: () => false }],
-        ["quota_exceeded", { quotaAllowed: false }],
+        // 월 AI 한도는 건너뛰지 않고 줄을 보류한다 (UX-259)
+        ["held:quota_exceeded", { quotaAllowed: false }],
         ["no_email_client", { emailClientReady: false }],
     ];
     for (let i = 0; i < order.length; i++) {
         // i번째 검사 하나만 걸고 나머지는 통과 → 그 이유가 나와야 한다
         const [reason, over] = order[i];
         const data = reason === "invalid_email" ? { email: "not-an-email" } : DATA;
-        assert.deepEqual(skippedReasons(walk(over, { data })), [reason], reason);
+        assert.deepEqual(walkReasons(walk(over, { data })), [reason], reason);
         // 앞 검사와 함께 걸면 앞 이유가 이긴다
         if (i > 0) {
             const [prevReason, prevOver] = order[i - 1];
             const prevData = prevReason === "invalid_email" || reason === "invalid_email" ? { email: "x" } : DATA;
-            const both = skippedReasons(walk({ ...over, ...prevOver }, { data: prevData }));
+            const both = walkReasons(walk({ ...over, ...prevOver }, { data: prevData }));
             assert.deepEqual(both, [prevReason], `${prevReason} before ${reason}`);
         }
     }
@@ -543,7 +550,41 @@ test("walkQueueRow: 쿼터 → 메일 설정 → 발신 주소 순으로, 그 �
     // 앞에서 건너뛰는 줄은 쿼터를 읽지 않는다 (쿼터 확인은 그달 줄을 만들 수 있다)
     assert.deepEqual(skippedReasons(walk({ cooldownActive: true, quotaAllowed: undefined })), ["cooldown"]);
     // 쿼터가 막히면 메일 설정은 읽지 않는다
-    assert.deepEqual(skippedReasons(walk({ quotaAllowed: false, emailClientReady: undefined })), ["quota_exceeded"]);
+    assert.deepEqual(walkReasons(walk({ quotaAllowed: false, emailClientReady: undefined })), ["held:quota_exceeded"]);
+});
+
+test("UX-259: 월 AI 한도면 줄을 닫지 않고 held(사유 표지)로 둔다 — 뒤 규칙은 보지 않는다", () => {
+    const second: QueueWalkLink = { ...LINK, id: 11 };
+    const w = walkQueueRow(
+        { data: DATA, links: [LINK, second], skipLinkIds: [] },
+        lookups({ conditionMet: (l) => l.id !== 10, quotaAllowed: false })
+    );
+    assert.equal(w.kind, "hold");
+    if (w.kind !== "hold") return;
+    // 앞 규칙의 건너뜀은 남기되 줄은 보류 — 예전에는 skipped(quota_exceeded)로 영구 종결했다
+    assert.deepEqual(w.result.outcomes, [{ kind: "skipped", linkId: 10, reason: "condition_not_met" }]);
+    const processed = toProcessedRow(w.result);
+    assert.equal(processed.outcome, "hold");
+    const plan = planQueueRow({ outcome: processed.outcome, attempts: 2, deferral: null, failedLinkIds: [], exhaustedLinkIds: [] });
+    assert.equal(plan.status, "held");
+    assert.equal(plan.attempts, 1, "꺼낼 때 올린 시도 1을 되돌린다 — 한도는 실패가 아니다");
+    const write = toQueueRowWrite(1, plan, describePlan(plan, processed, []));
+    assert.match(write.last_error ?? "", /^held\(quota_exceeded\): .*AI 사용량 한도/);
+});
+
+test("UX-228: 켜진 규칙이 없을 때 꺼진 규칙만 있으면 held, 규칙이 지워졌으면 skip(규칙 없음) 유지", () => {
+    const off = walkQueueRow({ data: DATA, links: [], skipLinkIds: [], rulesInactive: true }, lookups());
+    assert.equal(off.kind, "hold");
+    if (off.kind !== "hold") return;
+    const processed = toProcessedRow(off.result);
+    assert.equal(processed.outcome, "hold");
+    const plan = planQueueRow({ outcome: processed.outcome, attempts: 1, deferral: null, failedLinkIds: [], exhaustedLinkIds: [] });
+    assert.equal(plan.status, "held");
+    assert.match(toQueueRowWrite(1, plan, describePlan(plan, processed, [])).last_error ?? "", /^held\(rules_inactive\): .*규칙을 다시 켜면/);
+    const deleted = walkQueueRow({ data: DATA, links: [], skipLinkIds: [], rulesInactive: false }, lookups());
+    assert.deepEqual(deleted, { kind: "skip", result: { noMatchingRules: true, outcomes: [] } });
+    if (deleted.kind !== "skip") return;
+    assert.equal(planQueueRow({ outcome: toProcessedRow(deleted.result).outcome, attempts: 1, deferral: null, failedLinkIds: [], exhaustedLinkIds: [] }).status, "skipped");
 });
 
 test("walkQueueRow: 원래 함수에서 던질 값(문자열 아닌 받는 값·던지는 조건·객체 아닌 data)은 줄마다 처리", () => {

@@ -289,9 +289,11 @@ export default function ExperimentDetail({
                 {report.canAdopt && ["observing", "decision_ready"].includes(experiment.state) && (
                     <Button
                         disabled={pending}
-                        onClick={() =>
-                            void act(`/api/email/experiments/${id}`, { action: "adopt" })
-                        }
+                        onClick={() => {
+                            // 운영 문구가 바뀌고 실험이 닫히므로 다른 상태 변경처럼 확인 단계를 거친다 (UX-230)
+                            setAction("adopt");
+                            setReason("");
+                        }}
                     >
                         B를 새 작업에 채택
                     </Button>
@@ -302,16 +304,18 @@ export default function ExperimentDetail({
                     className="space-y-3 rounded-md border p-4"
                     onSubmit={async (e) => {
                         e.preventDefault();
-                        const saved = await act(`/api/email/experiments/${id}`, {
-                            action,
-                            reason,
-                            pendingMode,
-                        });
+                        const saved = await act(
+                            `/api/email/experiments/${id}`,
+                            action === "adopt" ? { action } : { action, reason, pendingMode },
+                        );
                         if (saved) setAction(null);
                     }}
                 >
                     <p className="text-sm">
-                        {action === "pause"
+                        {action === "adopt"
+                            ? "B 작성 지침을 이 규칙의 새 AI 첫 메일에 적용하고 실험을 종료합니다. 이미 만든 문구와 보낸 메일은 바뀌지 않습니다. " +
+                              "되돌리려면 AI 품질 관리의 연결 이력에서 A 버전을 다시 연결하세요."
+                            : action === "pause"
                             ? "새 고객의 실험 준비를 중지합니다. 이미 발송한 메일은 계속 관찰합니다."
                             : action === "invalidate"
                               ? "이 실험의 결과를 채택하지 않으며 미발송 실험 작업을 보류합니다."
@@ -336,21 +340,23 @@ export default function ExperimentDetail({
                             )}
                         </Field>
                     )}
-                    <Field label="변경 이유">
-                        {(fieldId) => (
-                            <textarea
-                                id={fieldId}
-                                required
-                                minLength={10}
-                                className={controlClass}
-                                value={reason}
-                                onChange={(e) => setReason(e.target.value)}
-                            />
-                        )}
-                    </Field>
+                    {action !== "adopt" && (
+                        <Field label="변경 이유">
+                            {(fieldId) => (
+                                <textarea
+                                    id={fieldId}
+                                    required
+                                    minLength={10}
+                                    className={controlClass}
+                                    value={reason}
+                                    onChange={(e) => setReason(e.target.value)}
+                                />
+                            )}
+                        </Field>
+                    )}
                     <div className="flex gap-2">
                         <Button disabled={pending} type="submit">
-                            변경 저장
+                            {action === "adopt" ? "B 채택하고 실험 종료" : "변경 저장"}
                         </Button>
                         <Button type="button" variant="outline" onClick={() => setAction(null)}>
                             닫기

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, emailAutoPersonalizedLinks, emailCopyExperiments, products, partitions, workspaces } from "@/lib/db";
-import { eq, and, inArray } from "drizzle-orm";
+import { db, emailAutoPersonalizedLinks, emailCopyExperiments, emailSendQueue, products, partitions, workspaces } from "@/lib/db";
+import { eq, and, inArray, sql } from "drizzle-orm";
+import { reviveOrphanHeldRows } from "@/lib/partition-hold";
+import { wakeSendQueue } from "@/lib/email-send-queue";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { resolveRuleSenderPool } from "@/lib/email-sender-resolver";
 import { fingerprint } from "@/lib/ai-copy/rules";
@@ -149,7 +151,50 @@ export async function PUT(
             .where(eq(emailAutoPersonalizedLinks.id, linkId))
             .returning();
 
-        return NextResponse.json({ success: true, data: updated });
+        // 켜지는 규칙: 꺼 둔 동안 held로 둔 대기 줄을 되살려 원래 순서대로 이어 보낸다 (UX-228).
+        // 실패해도 저장은 끝났다 — 워커가 회차 첫머리에 같은 조건으로 되살린다
+        if (updated && updated.isActive === 1 && existing.isActive !== 1) {
+            try {
+                const revived = await reviveOrphanHeldRows("send_queue", {
+                    scope: { orgId: user.orgId, partitionId: updated.partitionId },
+                });
+                if (revived > 0) wakeSendQueue();
+            } catch (error) {
+                console.error("[auto-personalized] 규칙 켜기 후 대기 줄 되살리기 실패 — 다음 회차에 되살림:", error);
+            }
+        }
+
+        // 꺼지는 규칙: 같은 파티션·트리거에 켜진 규칙이 더 없으면 대기 줄 수를 알려 준다 — 그 줄은 다시 켤 때까지 보류된다 (UX-228)
+        let queueWaiting = 0;
+        if (updated && updated.isActive !== 1 && existing.isActive === 1) {
+            const [stillActive] = await db
+                .select({ id: emailAutoPersonalizedLinks.id })
+                .from(emailAutoPersonalizedLinks)
+                .where(
+                    and(
+                        eq(emailAutoPersonalizedLinks.partitionId, updated.partitionId),
+                        eq(emailAutoPersonalizedLinks.triggerType, updated.triggerType),
+                        eq(emailAutoPersonalizedLinks.isActive, 1)
+                    )
+                )
+                .limit(1);
+            if (!stillActive) {
+                const [row] = await db
+                    .select({ count: sql<number>`count(*)::int` })
+                    .from(emailSendQueue)
+                    .where(
+                        and(
+                            eq(emailSendQueue.orgId, user.orgId),
+                            eq(emailSendQueue.partitionId, updated.partitionId),
+                            eq(emailSendQueue.triggerType, updated.triggerType),
+                            inArray(emailSendQueue.status, ["pending", "processing", "held"])
+                        )
+                    );
+                queueWaiting = Number(row?.count) || 0;
+            }
+        }
+
+        return NextResponse.json({ success: true, data: updated, ...(queueWaiting > 0 ? { queueWaiting } : {}) });
     } catch (error) {
         console.error("Auto personalized link update error:", error);
         return NextResponse.json({ success: false, error: "서버 오류가 발생했습니다." }, { status: 500 });

@@ -22,6 +22,8 @@ export class CopyDeferredError extends Error {
         readonly retryAt: Date,
         readonly reason: string,
         readonly held = false,
+        /** token_quota = 월 AI 사용량 한도. 대기열은 이 줄을 held로 두고 한도가 풀리면 되살린다 (UX-259) */
+        readonly code?: "token_quota",
     ) {
         super(reason);
     }
@@ -198,16 +200,25 @@ export async function generateStoredCopy(
         await conn`UPDATE ai_copy_generation_jobs SET state='held',reason='blocked_version',updated_at=${now.toISOString()} WHERE id=${existing.id} AND state<>'cancelled'`;
         throw new CopyDeferredError(new Date(now.getTime() + 3600_000), "차단된 버전", true);
     }
-    if (existing.state === "held")
-        throw new CopyDeferredError(
-            new Date(now.getTime() + 3600_000),
-            existing.reason ?? "검토 대기",
-            true,
-        );
+    if (existing.state === "held") {
+        const quotaHeld = existing.reason === "token_quota";
+        // 운영 발송 작업의 한도 보류는 한도가 풀리면 이어서 만든다 — 수동 재개(api/ai/generations/[id])와 같은 갱신 (UX-259).
+        // 실험 고정 작업·평가·부하 측정·교체 작업과 그 밖의 보류(차단 버전·검토)는 기존대로 화면에서 처리한다
+        const autoResume = quotaHeld && existing.origin === "operational" && existing.assignment_id === null;
+        if (!autoResume || !(await deps.quota(existing.org_id)))
+            throw new CopyDeferredError(
+                new Date(now.getTime() + 3600_000),
+                quotaHeld ? "AI 사용 한도" : (existing.reason ?? "검토 대기"),
+                true,
+                quotaHeld ? "token_quota" : undefined,
+            );
+        await conn`UPDATE ai_copy_generation_jobs SET state='pending',reason=NULL,eligible_at=${now.toISOString()},retry_at=NULL,updated_at=${now.toISOString()}
+            WHERE id=${existing.id} AND state='held' AND reason='token_quota'`;
+    }
     if (existing.output && existing.state === "ready") return existing.output;
     if (!(await deps.quota(existing.org_id))) {
         await conn`UPDATE ai_copy_generation_jobs SET state='held',reason='token_quota',updated_at=${now.toISOString()} WHERE id=${existing.id} AND state IN ('pending','retry')`;
-        throw new CopyDeferredError(new Date(now.getTime() + 3600_000), "AI 사용 한도", true);
+        throw new CopyDeferredError(new Date(now.getTime() + 3600_000), "AI 사용 한도", true, "token_quota");
     }
     const lease = randomUUID();
     const claimed = await copyTransaction(conn, async () => {

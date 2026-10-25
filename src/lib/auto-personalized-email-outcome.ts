@@ -49,7 +49,27 @@ export interface RecordOutcome {
      * 명단 보류 중이라 규칙을 하나도 돌리지 않았다 (DESIGN-SND 6-2, 대량만). 대기열 줄은 held로 두고 시도 횟수를 쓰지 않는다 —
      * 보류가 풀리면 pending으로 돌아가 원래 순서대로 나간다
      */
-    held?: { holdId: number };
+    held?: { holdId: number } | { waitReason: QueueWaitReason };
+}
+
+/**
+ * 대기열 줄을 명단 보류와 같은 held로 두고, 까닭이 풀리면 워커가 되살리는 경우 (UX-228·259).
+ *   rules_inactive  파티션·트리거에 규칙은 있으나 모두 꺼졌거나 임시저장 — 규칙을 켜면 이어서 보낸다 (삭제됐으면 닫는다)
+ *   quota_exceeded  조직의 월 AI 사용량 한도 — 한도가 풀리면(다음 달·플랜 상향) 이어서 보낸다
+ */
+export type QueueWaitReason = "rules_inactive" | "quota_exceeded";
+
+/** held 줄의 last_error 앞머리. 되살리기(partition-hold.ts reviveOrphanHeldRows)가 이 앞머리로 조건을 고른다 */
+export const QUEUE_WAIT_PREFIX: Record<QueueWaitReason, string> = {
+    rules_inactive: "held(rules_inactive)",
+    quota_exceeded: "held(quota_exceeded)",
+};
+
+/** held 줄의 last_error — 앞머리 + 사람이 읽는 한국어 사유 */
+export function describeQueueWait(reason: QueueWaitReason): string {
+    return reason === "rules_inactive"
+        ? `${QUEUE_WAIT_PREFIX.rules_inactive}: 켜진 AI 자동발송 규칙이 없어 보류 — 규칙을 다시 켜면 이어서 보냅니다`
+        : `${QUEUE_WAIT_PREFIX.quota_exceeded}: 이번 달 AI 사용량 한도에 닿아 보류 — 한도가 풀리면 이어서 보냅니다`;
 }
 
 /** hold = 명단 보류 (대기열 줄을 held로) */
@@ -58,7 +78,7 @@ export type QueueOutcome = "ok" | "skip" | "error" | "defer" | "hold";
 /**
  * 규칙별 결과를 큐 상태 하나로 접는다.
  *
- * 우선순위: 미매칭 → skip, 명단 보류 → hold, 실패 → error, 미룸 → defer, 발송 → ok, 그 밖 → skip.
+ * 우선순위: 미매칭 → skip, 명단 보류·규칙 꺼짐·AI 한도 → hold, 실패 → error, 미룸 → defer, 발송 → ok, 그 밖 → skip.
  * 보류는 규칙을 하나도 돌리지 않았으므로 다른 결과와 섞이지 않는다 (DESIGN-SND 6-2).
  * 발송이 하나라도 있어도 error를 우선한다 — 나머지 규칙을 재시도해야 하고,
  * 이미 보낸 건은 쿨다운(checkCooldown)이 중복 발송을 막는다.
@@ -107,7 +127,11 @@ export function failedLinkIds(result: RecordOutcome): number[] {
 /** 큐의 last_error에 남길 사람이 읽을 수 있는 요약 */
 export function describeOutcome(result: RecordOutcome): string {
     if (result.noMatchingRules) return "no matching rules";
-    if (result.held) return `partition held (hold ${result.held.holdId})`;
+    if (result.held) {
+        return "waitReason" in result.held
+            ? describeQueueWait(result.held.waitReason)
+            : `partition held (hold ${result.held.holdId})`;
+    }
     if (result.outcomes.length === 0) return "no outcomes";
     return result.outcomes
         .map((o) => {

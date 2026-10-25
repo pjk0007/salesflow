@@ -60,7 +60,9 @@ export async function PUT(
         if (triggerType !== undefined) updateData.triggerType = triggerType;
         if (triggerCondition !== undefined) updateData.triggerCondition = triggerCondition;
         if (repeatConfig !== undefined) updateData.repeatConfig = repeatConfig;
-        if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
+        // 수동 발송 연결은 후속을 보내지 않는다 — 수동이 되거나 수동인 연결을 저장하면 후속 설정을 비운다 (UX-229)
+        if ((triggerType ?? link.email_template_links.triggerType) === "manual") updateData.followupConfig = null;
+        else if (followupConfig !== undefined) updateData.followupConfig = followupConfig;
         if (preventDuplicate !== undefined) updateData.preventDuplicate = preventDuplicate ? 1 : 0;
 
         const [updated] = await db

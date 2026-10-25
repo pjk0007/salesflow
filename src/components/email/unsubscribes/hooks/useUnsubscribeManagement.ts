@@ -38,20 +38,22 @@ export function useUnsubscribeManagement(orgId: string, sessionEpoch: number) {
         }
     }
 
-    async function add(email: string, reason: string) {
+    /** 등록 결과 — 실패면 화면 확인창이 그 이유를 그대로 보인다 (UX-234) */
+    async function add(email: string, reason: string): Promise<{ ok: true } | { ok: false; error: string }> {
         setIsAdding(true);
         setAddError(null);
         setAddedEmail(null);
         try {
             const result = await addUnsubscribe(orgId, email, reason);
-            if (!alive.current) return false;
+            if (!alive.current) return { ok: true };
             setAddedEmail(result.email);
             setLookupResults(null);
             await mutate();
-            return true;
+            return { ok: true };
         } catch (error) {
-            if (alive.current) setAddError(error instanceof Error ? error.message : "등록에 실패했습니다.");
-            return false;
+            const message = error instanceof Error ? error.message : "등록에 실패했습니다.";
+            if (alive.current) setAddError(message);
+            return { ok: false, error: message };
         } finally {
             if (alive.current) setIsAdding(false);
         }

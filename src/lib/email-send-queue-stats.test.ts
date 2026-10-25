@@ -7,6 +7,7 @@ import {
     buildSendQueueStats,
     bulkShareOf,
     estimateDrainDate,
+    estimateSharedDrainDates,
     poolCapacitySchedule,
     poolDayCapacity,
     poolRemainingToday,
@@ -329,4 +330,101 @@ test("buildSendQueueStats: 15:00 뒤 오늘 용량은 문의 몫이 풀린 한�
     // 하루 일정(schedule)은 그대로 대량 몫 기준이다 — 경고 분모가 시각에 따라 흔들리지 않게
     assert.equal(afternoon.capacity.schedule[0].cap, 4);
     assert.equal(afternoon.capacity.schedule[0].total, 5);
+});
+
+test("UX-228·259: 보류 줄을 까닭별로 나눈다 — 명단 보류만 held, AI 한도는 heldQuota, 규칙 꺼짐은 합계로만", () => {
+    const stats = buildSendQueueStats({
+        rules: [rule(11, { senderProfileIds: [1] })],
+        groups: [],
+        senders: [sender(1, { dailyLimit: 10 })],
+        now: at("2026-10-05T08:00"),
+        heldGroups: [
+            { partitionId: 1, triggerType: "on_create", count: 4, reason: "partition_hold" },
+            { partitionId: 1, triggerType: "on_create", count: 6, reason: "quota_exceeded" },
+            { partitionId: 9, triggerType: "on_create", count: 2, reason: "rules_inactive" },
+            // 까닭이 없는 예전 모양은 명단 보류로 센다
+            { partitionId: 1, triggerType: "on_create", count: 1 },
+        ],
+    });
+    assert.equal(stats.rules[0].held, 5);
+    assert.equal(stats.rules[0].heldQuota, 6);
+    assert.equal(stats.totals.held, 13);
+    assert.equal(stats.totals.heldQuota, 6);
+    assert.equal(stats.totals.heldRulesInactive, 2);
+    // 보류는 대기량·경고에 섞지 않는다
+    assert.equal(stats.rules[0].pending.total, 0);
+    assert.equal(stats.rules[0].warning, false);
+});
+
+test("UX-194: 접수 결과 확인이 필요한 줄 수를 합계에 싣는다 (없으면 0)", () => {
+    const base = { rules: [], groups: [], senders: [], now: at("2026-10-05T08:00") };
+    assert.equal(buildSendQueueStats(base).totals.needsCheck, 0);
+    assert.equal(buildSendQueueStats({ ...base, needsCheck: 3 }).totals.needsCheck, 3);
+});
+
+// ── UX-195: 같은 발신 주소를 쓰는 여러 명단 ──
+
+test("UX-195: 서로 다른 명단이 한 주소(하루 10)를 나눠 쓰면 먼저 예정된 명단이 오늘, 다음 명단은 내일", () => {
+    const now = at("2026-10-05T16:00"); // 월요일, 문의 몫이 풀린 뒤
+    const stats = buildSendQueueStats({
+        rules: [rule(11, { partitionId: 1, senderProfileIds: [1] }), rule(12, { partitionId: 2, senderProfileIds: [1] })],
+        groups: [
+            group({ partitionId: 1, count: 8, oldestScheduledAt: at("2026-10-05T09:00") }),
+            group({ partitionId: 2, count: 8, oldestScheduledAt: at("2026-10-05T10:00") }),
+        ],
+        senders: [sender(1, { dailyLimit: 10 })],
+        now,
+    });
+    const [a, b] = stats.rules;
+    assert.equal(a.etaDate, "2026-10-05");
+    assert.equal(b.etaDate, "2026-10-06", "합계 16통 > 하루 10통 — 따로 세면 둘 다 오늘이었다");
+    assert.equal(a.sharedPool, true);
+    assert.equal(b.sharedPool, true);
+});
+
+test("UX-195: 주소가 겹치지 않으면 따로 센 것과 같다 (둘 다 오늘, 공유 아님)", () => {
+    const now = at("2026-10-05T16:00");
+    const stats = buildSendQueueStats({
+        rules: [rule(11, { partitionId: 1, senderProfileIds: [1] }), rule(12, { partitionId: 2, senderProfileIds: [2] })],
+        groups: [group({ partitionId: 1, count: 8 }), group({ partitionId: 2, count: 8 })],
+        senders: [sender(1, { dailyLimit: 10 }), sender(2, { dailyLimit: 10 })],
+        now,
+    });
+    assert.deepEqual(stats.rules.map((r) => [r.etaDate, r.sharedPool]), [["2026-10-05", false], ["2026-10-05", false]]);
+});
+
+test("UX-195: 같은 대기 묶음을 규칙 둘이 보면 한 번만 센다 (중복 계수 없음, 공유 아님)", () => {
+    const now = at("2026-10-05T16:00");
+    const stats = buildSendQueueStats({
+        rules: [rule(11, { partitionId: 1, senderProfileIds: [1] }), rule(13, { partitionId: 1, senderProfileIds: [1] })],
+        groups: [group({ partitionId: 1, count: 8 })],
+        senders: [sender(1, { dailyLimit: 10 })],
+        now,
+    });
+    assert.deepEqual(stats.rules.map((r) => [r.etaDate, r.sharedPool]), [["2026-10-05", false], ["2026-10-05", false]]);
+});
+
+test("UX-195: 문의 줄이 먼저 — 늦게 예정된 명단의 문의가 먼저 예정된 명단의 대량보다 앞선다", () => {
+    const now = at("2026-10-05T16:00");
+    const stats = buildSendQueueStats({
+        rules: [rule(11, { partitionId: 1, senderProfileIds: [1] }), rule(12, { partitionId: 2, senderProfileIds: [1] })],
+        groups: [
+            group({ partitionId: 1, priority: 0, count: 8, oldestScheduledAt: at("2026-10-05T09:00") }),
+            group({ partitionId: 2, priority: 1, count: 8, oldestScheduledAt: at("2026-10-05T12:00") }),
+        ],
+        senders: [sender(1, { dailyLimit: 10 })],
+        now,
+    });
+    assert.equal(stats.rules[1].etaDate, "2026-10-05", "문의 8통이 오늘 먼저");
+    assert.equal(stats.rules[0].etaDate, "2026-10-06", "대량은 남은 2통만 오늘, 나머지 내일");
+});
+
+test("UX-195 estimateSharedDrainDates: 겹치지 않는 묶음 하나는 estimateDrainDate와 같다 (주말·웜업 포함)", () => {
+    const now = at("2026-10-09T16:00"); // 금요일
+    const members = [{ ...sender(1, { dailyLimit: 10, weekdaysOnly: true }) }];
+    for (const backlog of [{ inbound: 0, bulk: 5 }, { inbound: 3, bulk: 25 }, { inbound: 0, bulk: 0 }]) {
+        const solo = estimateDrainDate(members, backlog, now);
+        const shared = estimateSharedDrainDates([{ key: "k", members, ...backlog, oldest: null }], now).get("k");
+        assert.equal(shared, solo, JSON.stringify(backlog));
+    }
 });

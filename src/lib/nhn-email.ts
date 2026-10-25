@@ -96,6 +96,13 @@ export { parseNhnDate } from "@/lib/email-status-sync-rules";
 // NHN Cloud Email API 클라이언트
 // ============================================
 
+/**
+ * NHN 이메일 요청 하나의 기본 제한 시간 (헤더·본문 읽기 포함, UX-196). 응답이 오지 않는 연결이 화면 요청·발송 대기열·결과 동기화의
+ * 처리 예산과 작업 잠금을 붙잡지 않게 한다. 넘기면 fetch가 TimeoutError를 던진다 — 조회는 일시 오류로, 발송(POST)은
+ * 접수 여부를 모르는 것으로 기존 경로가 다룬다(자동 재발송하지 않는다). 알림톡(nhn-alimtalk.ts)과 같은 방식이다.
+ */
+export const NHN_EMAIL_TIMEOUT_MS = 15_000;
+
 export class NhnEmailClient {
     private baseUrl = "https://email.api.nhncloudservice.com";
     private appKey: string;
@@ -106,6 +113,11 @@ export class NhnEmailClient {
         this.secretKey = secretKey;
     }
 
+    /** 모든 요청이 같은 제한 시간을 쓴다 (직접 fetch하는 조회 포함) */
+    private timeoutSignal(): AbortSignal {
+        return AbortSignal.timeout(this.options.timeoutMs ?? NHN_EMAIL_TIMEOUT_MS);
+    }
+
     private async request<T = unknown>(
         method: string,
         path: string,
@@ -114,7 +126,7 @@ export class NhnEmailClient {
         const url = `${this.baseUrl}${path.replace("{appKey}", this.appKey)}`;
         const res = await fetch(url, {
             method,
-            ...(this.options.timeoutMs ? { signal: AbortSignal.timeout(this.options.timeoutMs) } : {}),
+            signal: this.timeoutSignal(),
             headers: {
                 "Content-Type": "application/json",
                 "X-Secret-Key": this.secretKey,
@@ -271,6 +283,7 @@ export class NhnEmailClient {
         const url = `${this.baseUrl}/email/v2.1/appKeys/${this.appKey}/sender/update-mails?${qs.toString()}`;
         const res = await fetch(url, {
             method: "GET",
+            signal: this.timeoutSignal(),
             headers: {
                 "Content-Type": "application/json",
                 "X-Secret-Key": this.secretKey,
@@ -315,6 +328,7 @@ export class NhnEmailClient {
         const url = `${this.baseUrl}/email/v2.1/appKeys/${this.appKey}/sender/mails?${qs.toString()}`;
         const res = await fetch(url, {
             method: "GET",
+            signal: this.timeoutSignal(),
             headers: {
                 "Content-Type": "application/json",
                 "X-Secret-Key": this.secretKey,
@@ -384,6 +398,19 @@ interface SignatureData {
     extra?: string;
 }
 
+/**
+ * 서명 웹사이트 칸의 링크 주소 (UX-269). 'company.com'처럼 스킴 없이 적으면 메일 속 링크가 상대 주소가 되어 열리지 않는다 —
+ * https://를 붙인다. http(s)는 그대로(기존 출력과 같다), 그 밖의 스킴(javascript: 등)은 링크로 만들지 않는다(null → 글자만).
+ * 'host:8080/…'처럼 콜론 뒤가 숫자면 포트로 본다. 저장값은 바꾸지 않는다 — 렌더링할 때만 보정한다.
+ */
+export function signatureWebsiteHref(url: string): string | null {
+    const value = url.trim();
+    if (/^https?:\/\//i.test(value)) return url;
+    if (value.startsWith("//")) return `https:${value}`;
+    if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(value)) return null;
+    return `https://${value}`;
+}
+
 function renderSignatureHtml(data: SignatureData): string {
     const lines: string[] = [];
 
@@ -400,7 +427,13 @@ function renderSignatureHtml(data: SignatureData): string {
     if (data.email) lines.push(`Email: <a href="mailto:${escapeHtml(data.email)}" style="color:#0066cc; text-decoration:none;">${escapeHtml(data.email)}</a>`);
     if (data.websites?.length) {
         for (const url of data.websites) {
-            if (url.trim()) lines.push(`<a href="${escapeHtml(url)}" style="color:#0066cc; text-decoration:none;">${escapeHtml(url)}</a>`);
+            if (!url.trim()) continue;
+            const href = signatureWebsiteHref(url);
+            lines.push(
+                href === null
+                    ? escapeHtml(url)
+                    : `<a href="${escapeHtml(href)}" style="color:#0066cc; text-decoration:none;">${escapeHtml(url)}</a>`
+            );
         }
     }
     if (data.extra) lines.push(escapeHtml(data.extra));

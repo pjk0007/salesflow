@@ -9,9 +9,29 @@ export function parseOpenId(raw: string | null | undefined): number | null {
     return id <= 2147483647 ? id : null;
 }
 
+/** 추적 주소 서명 — 용도(purpose)마다 비밀값에서 키를 나눠 쓴다. 오픈 픽셀과 클릭 링크가 같은 방식이다 */
+function trackingSignature(purpose: string, payload: string, secret: string, length: number): string {
+    const key = createHmac("sha256", secret).update(purpose).digest();
+    return createHmac("sha256", key).update(payload).digest("base64url").slice(0, length);
+}
+
 export function openSignature(sendLogId: number, secret: string): string {
-    const key = createHmac("sha256", secret).update("sendb/email-open-pixel/v1").digest();
-    return createHmac("sha256", key).update(`open:${sendLogId}`).digest("base64url").slice(0, 16);
+    return trackingSignature("sendb/email-open-pixel/v1", `open:${sendLogId}`, secret, 16);
+}
+
+/** 클릭 추적 링크 서명 — 발송 id와 도착 주소를 함께 묶는다. 둘 중 하나라도 바꾸면 맞지 않는다 (UX-271) */
+export function clickSignature(sendLogId: number, url: string, secret: string): string {
+    return trackingSignature("sendb/email-click/v1", `click:${sendLogId}:${url}`, secret, 22);
+}
+
+export function verifyClickSignature(
+    sendLogId: number,
+    url: string,
+    signature: string | null | undefined,
+    secret = process.env.JWT_SECRET
+): boolean {
+    if (!secret || !signature || !/^[A-Za-z0-9_-]{22}$/.test(signature)) return false;
+    return timingSafeEqual(Buffer.from(signature), Buffer.from(clickSignature(sendLogId, url, secret)));
 }
 
 export function verifyOpenSignature(sendLogId: number, signature: string | null | undefined, secret = process.env.JWT_SECRET): boolean {

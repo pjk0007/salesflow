@@ -163,6 +163,71 @@ export function estimateDrainDate(
     return null;
 }
 
+/** 대기 묶음(파티션·트리거) 하나 — 같은 발신 주소를 쓰는 묶음끼리 하루 한도를 나눠 쓴다 (estimateSharedDrainDates) */
+export interface SharedDrainUnit {
+    key: string;
+    /** 이 묶음 줄을 보내는 주소 (id로 다른 묶음과 겹침을 안다). 비면 제한 없음(레거시 발신자) */
+    members: ReadonlyArray<PoolMember & { id: number }>;
+    inbound: number;
+    bulk: number;
+    /** 가장 일찍 예정된 줄의 시각(ms) — 대량끼리 먼저 들어온 묶음이 먼저 쓴다 */
+    oldest: number | null;
+}
+
+/**
+ * 같은 발신 주소를 나눠 쓰는 여러 묶음의 예상 소진일 (UX-195). 묶음마다 따로 세면(estimateDrainDate) 서로의 사용을 몰라
+ * 둘 다 "오늘 다 나감"이 될 수 있다. 날마다 주소별 남은 한도를 함께 줄여 가며:
+ *   1) 모든 묶음의 문의 줄 먼저 (워커가 문의를 먼저 꺼낸다), 2) 대량 줄은 먼저 예정된 묶음부터.
+ * 한 묶음 안의 계산은 estimateDrainDate와 같다 (주소가 겹치지 않으면 결과가 같다). 주소 안에서는 앞 주소부터 채운다 —
+ * 실제 고르게 나누기와 순서는 다를 수 있으나 날짜 단위 합계는 같다. 대기가 없으면 null, days일 안에 못 끝나면 null.
+ */
+export function estimateSharedDrainDates(
+    units: readonly SharedDrainUnit[],
+    now: Date,
+    days: number = QUEUE_STATS_DAYS,
+): Map<string, string | null> {
+    const out = new Map<string, string | null>();
+    const today = kstParts(now).date;
+    const state = units.map((u) => ({ u, inbound: Math.max(0, u.inbound), bulk: Math.max(0, u.bulk) }));
+    for (const s of state) if (s.inbound + s.bulk <= 0) out.set(s.u.key, null);
+    const byId = new Map<number, PoolMember>();
+    for (const u of units) for (const m of u.members) byId.set(m.id, m);
+    const order = [...state].sort(
+        (a, b) => (a.u.oldest ?? Infinity) - (b.u.oldest ?? Infinity) || a.u.key.localeCompare(b.u.key),
+    );
+
+    for (let i = 0; i < days && out.size < state.length; i++) {
+        const date = addDaysYmd(today, i);
+        // 주소별 그날 남은 한도. null = 제한 없음
+        const room = new Map<number, number | null>();
+        for (const [id, m] of byId) {
+            room.set(id, i === 0 ? poolRemainingToday([m], now).total : poolDayCapacity([m.limits], date).total);
+        }
+        const take = (s: (typeof state)[number], field: "inbound" | "bulk") => {
+            if (s.u.members.length === 0) {
+                s[field] = 0;
+                return;
+            }
+            for (const m of s.u.members) {
+                if (s[field] <= 0) return;
+                const r = room.get(m.id) ?? 0;
+                if (r === null) {
+                    s[field] = 0;
+                    return;
+                }
+                const n = Math.min(r, s[field]);
+                room.set(m.id, r - n);
+                s[field] -= n;
+            }
+        };
+        for (const s of order) if (!out.has(s.u.key)) take(s, "inbound");
+        for (const s of order) if (!out.has(s.u.key)) take(s, "bulk");
+        for (const s of order) if (!out.has(s.u.key) && s.inbound <= 0 && s.bulk <= 0) out.set(s.u.key, date);
+    }
+    for (const s of state) if (!out.has(s.u.key)) out.set(s.u.key, null);
+    return out;
+}
+
 export interface BacklogLoad {
     /** 제한 없는 묶음 — 용량 "제한 없음", 경고 없음 */
     unlimited: boolean;
@@ -238,6 +303,8 @@ export interface RuleQueueStats {
     pending: PendingCounts;
     /** 명단 보류(held, DESIGN-SND 6-2)로 멈춘 줄. 대기량·3일치 경고에는 넣지 않는다 */
     held: number;
+    /** 월 AI 사용량 한도로 멈춘 줄 (같은 held, UX-259). 한도가 풀리면 원래 순서대로 이어서 나간다 */
+    heldQuota: number;
     /** 가장 일찍 예정된 대기 줄의 시각 (ISO). 대기가 없으면 null */
     oldestScheduledAt: string | null;
     /** 이 규칙이 실제로 쓰는 주소 id (묶음 → 없으면 기본 주소). 비면 레거시 설정 발신자·발신자 없음 */
@@ -253,8 +320,13 @@ export interface RuleQueueStats {
     };
     /** backlogDays의 분모 (대량 몫 하루 평균) */
     dailyCapacity: number | null;
-    /** 지금 쌓인 대기가 다 나가는 한국 날짜 "YYYY-MM-DD". 대기가 없거나 제한 없음이거나 14일 안에 못 끝나면 null */
+    /**
+     * 지금 쌓인 대기가 다 나가는 한국 날짜 "YYYY-MM-DD". 대기가 없거나 제한 없음이거나 14일 안에 못 끝나면 null.
+     * 같은 발신 주소를 쓰는 다른 명단의 대기와 하루 한도를 나눠 센다 (UX-195)
+     */
     etaDate: string | null;
+    /** 이 규칙의 주소를 대기가 있는 다른 명단(파티션·트리거)도 쓴다 — 예상은 그 몫을 나눠 센 값이다 (UX-195) */
+    sharedPool: boolean;
     backlogDays: number | null;
     warning: boolean;
 }
@@ -270,14 +342,23 @@ export interface SendQueueStatsView {
         pending: number;
         inbound: number;
         bulk: number;
-        /** 명단 보류로 멈춘 줄 (대기량에 넣지 않는다) */
+        /** 보류로 멈춘 줄 전부 (대기량에 넣지 않는다) — 명단 보류·AI 한도·규칙 꺼짐 */
         held: number;
+        /** 그중 월 AI 사용량 한도로 멈춘 줄 (UX-259) */
+        heldQuota: number;
+        /** 그중 켜진 규칙이 없어 멈춘 줄 — 꺼진 규칙은 rules에 없으므로 여기로만 보인다 (UX-228) */
+        heldRulesInactive: number;
+        /** 처리 중 멈춰 접수 결과를 확인해야 하는 줄 (자동 재발송하지 않는다, UX-194) */
+        needsCheck: number;
         oldestScheduledAt: string | null;
         /** 경고 규칙 수 */
         warnings: number;
         warningLinkIds: number[];
     };
 }
+
+/** 보류 줄의 까닭 — last_error 앞머리 (auto-personalized-email-outcome.ts QUEUE_WAIT_PREFIX) */
+export type HeldReason = "partition_hold" | "quota_exceeded" | "rules_inactive";
 
 /** 대기열 줄의 trigger_type 해석과 같다 — on_update가 아니면 on_create 규칙이 본다 */
 function normalizeTrigger(t: string): "on_create" | "on_update" {
@@ -308,18 +389,31 @@ export function buildSendQueueStats(input: {
     now: Date;
     days?: number;
     /** 명단 보류(held) 줄을 (파티션, 트리거)로 묶은 수 — 대기량과 따로 센다 (DESIGN-SND 6-2) */
-    heldGroups?: ReadonlyArray<{ partitionId: number; triggerType: string; count: number }>;
+    heldGroups?: ReadonlyArray<{ partitionId: number; triggerType: string; count: number; reason?: HeldReason }>;
+    /** 접수 결과 확인이 필요한 failed 줄 수 (UX-194) */
+    needsCheck?: number;
 }): SendQueueStatsView {
     const { rules, groups, senders, now } = input;
     const days = input.days ?? QUEUE_STATS_DAYS;
     const today = kstParts(now).date;
+    // 까닭이 없는 묶음(예전 호출 모양)은 명단 보류로 본다
     const heldByKey = new Map<string, number>();
+    const quotaByKey = new Map<string, number>();
     let heldTotal = 0;
+    let heldQuota = 0;
+    let heldRulesInactive = 0;
     for (const g of input.heldGroups ?? []) {
         const n = Math.max(0, Math.floor(Number(g.count) || 0));
         const key = `${g.partitionId}|${normalizeTrigger(g.triggerType)}`;
-        heldByKey.set(key, (heldByKey.get(key) ?? 0) + n);
         heldTotal += n;
+        if (g.reason === "quota_exceeded") {
+            quotaByKey.set(key, (quotaByKey.get(key) ?? 0) + n);
+            heldQuota += n;
+        } else if (g.reason === "rules_inactive") {
+            heldRulesInactive += n;
+        } else {
+            heldByKey.set(key, (heldByKey.get(key) ?? 0) + n);
+        }
     }
 
     const byKey = new Map<string, { counts: PendingCounts; oldest: number | null }>();
@@ -335,18 +429,46 @@ export function buildSendQueueStats(input: {
         addGroup(all, g);
     }
 
-    const out: RuleQueueStats[] = rules.map((rule) => {
-        const trigger = normalizeTrigger(rule.triggerType);
-        const entry = byKey.get(`${rule.partitionId}|${trigger}`);
-        const counts = entry ? { ...entry.counts } : emptyCounts();
-
+    // 대기 묶음(파티션·트리거)마다 그 줄을 보내는 주소 — 같은 묶음을 여러 규칙이 보면 한 줄은 한 번만 센다
+    // (한 레코드의 두 번째 규칙 메일은 쿨다운 1시간에 걸린다). 규칙은 id 순이라 첫 규칙의 묶음을 쓴다
+    const membersOf = (rule: QueueStatsRule): QueueStatsSender[] => {
         const ids = linkSenderPool({
             senderProfileId: rule.senderProfileId,
             senderProfileIds: Array.isArray(rule.senderProfileIds) ? (rule.senderProfileIds as number[]) : null,
         });
         const picked = pickSenderCandidates(senders, { mode: "pool", ids, config: null });
+        return Array.isArray(picked) ? picked : [];
+    };
+    const unitByKey = new Map<string, SharedDrainUnit>();
+    for (const rule of rules) {
+        const key = `${rule.partitionId}|${normalizeTrigger(rule.triggerType)}`;
+        if (unitByKey.has(key)) continue;
+        const entry = byKey.get(key);
+        unitByKey.set(key, {
+            key,
+            members: membersOf(rule),
+            inbound: entry?.counts.inbound ?? 0,
+            bulk: entry?.counts.bulk ?? 0,
+            oldest: entry?.oldest ?? null,
+        });
+    }
+    const units = [...unitByKey.values()];
+    const sharedEta = estimateSharedDrainDates(units, now, days);
+    const isShared = (key: string): boolean => {
+        const mine = unitByKey.get(key);
+        if (!mine) return false;
+        const ids = new Set(mine.members.map((m) => m.id));
+        return units.some((u) => u.key !== key && u.inbound + u.bulk > 0 && u.members.some((m) => ids.has(m.id)));
+    };
+
+    const out: RuleQueueStats[] = rules.map((rule) => {
+        const trigger = normalizeTrigger(rule.triggerType);
+        const entry = byKey.get(`${rule.partitionId}|${trigger}`);
+        const counts = entry ? { ...entry.counts } : emptyCounts();
+
         // 프로필이 아닌 발신자(레거시 설정)·발신자 없음 → 카운터가 없어 제한 없음
-        const members: QueueStatsSender[] = Array.isArray(picked) ? picked : [];
+        const members = membersOf(rule);
+        const unitKey = `${rule.partitionId}|${trigger}`;
 
         const schedule = poolCapacitySchedule(
             members.map((m) => m.limits),
@@ -363,6 +485,7 @@ export function buildSendQueueStats(input: {
             triggerType: trigger,
             pending: counts,
             held: heldByKey.get(`${rule.partitionId}|${trigger}`) ?? 0,
+            heldQuota: quotaByKey.get(`${rule.partitionId}|${trigger}`) ?? 0,
             oldestScheduledAt: entry?.oldest != null ? new Date(entry.oldest).toISOString() : null,
             poolProfileIds: members.map((m) => m.id),
             capacity: {
@@ -375,7 +498,8 @@ export function buildSendQueueStats(input: {
                 schedule,
             },
             dailyCapacity: unlimited ? null : load.dailyCapacity,
-            etaDate: unlimited ? null : estimateDrainDate(members, counts, now, days),
+            etaDate: unlimited ? null : (sharedEta.get(unitKey) ?? null),
+            sharedPool: isShared(unitKey),
             backlogDays: unlimited ? null : load.backlogDays,
             warning: !unlimited && load.warning,
         };
@@ -392,6 +516,9 @@ export function buildSendQueueStats(input: {
             inbound: all.counts.inbound,
             bulk: all.counts.bulk,
             held: heldTotal,
+            heldQuota,
+            heldRulesInactive,
+            needsCheck: Math.max(0, Math.floor(Number(input.needsCheck) || 0)),
             oldestScheduledAt: all.oldest !== null ? new Date(all.oldest).toISOString() : null,
             warnings: warned.length,
             warningLinkIds: warned,

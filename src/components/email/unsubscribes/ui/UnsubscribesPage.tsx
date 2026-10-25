@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/common/page-header";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,9 +66,23 @@ function UnsubscribeManager({ orgId, sessionEpoch }: { orgId: string; sessionEpo
     const [reason, setReason] = useState("");
     const pages = Math.max(1, Math.ceil((state.data?.totalCount ?? 0) / 20));
 
-    async function add(event: FormEvent) {
+    const { confirm, confirmationDialog } = useAsyncConfirm();
+    // 조직 전체에 바로 적용되고 화면에서 풀 수 없으므로 주소를 다시 보여 주고 확인을 받는다 (UX-234)
+    function add(event: FormEvent) {
         event.preventDefault();
-        if (await state.add(email, reason)) { setEmail(""); setReason(""); }
+        const target = email.trim();
+        confirm({
+            title: "조직 전체 수신거부 등록",
+            description: `${target} 주소에 조직 전체 수신거부를 적용합니다.\n이 조직의 모든 사업에서 이 주소로 메일을 보내지 않으며, 등록 후에는 해제할 수 없습니다(잘못 등록했다면 개발 담당에게 해제를 요청해야 합니다). 주소가 정확한지 확인해주세요.`,
+            confirmLabel: "수신거부 등록",
+            pendingLabel: "등록 중...",
+            onConfirm: async () => {
+                const result = await state.add(email, reason);
+                if (!result.ok) throw new Error(result.error);
+                setEmail("");
+                setReason("");
+            },
+        });
     }
 
     return (
@@ -112,9 +127,10 @@ function UnsubscribeManager({ orgId, sessionEpoch }: { orgId: string; sessionEpo
             </Card>
 
             {state.data?.canManage && <Card>
-                <CardHeader><CardTitle>관리자 수동 등록</CardTitle><CardDescription>등록 즉시 현재 조직의 모든 사업에 적용됩니다. 정확한 이메일 한 개만 등록하며, 이 화면에서는 해제할 수 없습니다.</CardDescription></CardHeader>
+                <CardHeader><CardTitle>관리자 수동 등록</CardTitle><CardDescription>등록 즉시 현재 조직의 모든 사업에 적용됩니다. 정확한 이메일 한 개만 등록하며, 등록 후에는 해제할 수 없습니다(잘못 등록했다면 개발 담당에게 해제를 요청해야 합니다).</CardDescription></CardHeader>
                 <CardContent>
-                    <form className="space-y-3" onSubmit={(event) => void add(event)}>
+                    {confirmationDialog}
+                    <form className="space-y-3" onSubmit={add}>
                         <div className="space-y-2"><Label htmlFor="unsubscribe-email">수신거부 이메일</Label><Input id="unsubscribe-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} maxLength={200} required placeholder="person@example.com" /></div>
                         <div className="space-y-2"><Label htmlFor="unsubscribe-reason">사유 (선택)</Label><Textarea id="unsubscribe-reason" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} rows={2} /></div>
                         <Button type="submit" variant="destructive" disabled={state.isAdding}>{state.isAdding ? "등록 중..." : "조직 전체 수신거부 등록"}</Button>

@@ -8,8 +8,9 @@ import { useSendQueueStats } from "../hooks/useSendQueueStats";
 import { BACKLOG_WARNING_DAYS, warnedRuleRows } from "../utils/queueStatus";
 
 /**
- * 메일 대시보드의 발송 대기열 카드 — 대기 합계와, 대기가 하루 용량의 3일치를 넘은 규칙 목록.
- * 대기가 없거나 통계를 못 읽었으면 카드를 보이지 않는다.
+ * 메일 대시보드의 발송 대기열 카드 — 대기 합계와, 대기가 하루 용량의 3일치를 넘은 규칙 목록. 보류(AI 한도·꺼진 규칙)와
+ * 접수 결과 확인이 필요한 줄도 함께 알린다 (UX-194·228·259).
+ * 대기·보류·확인 필요가 모두 없거나 통계를 못 읽었으면 카드를 보이지 않는다.
  */
 export default function SendQueueOverviewCard() {
     const { stats } = useSendQueueStats();
@@ -17,7 +18,10 @@ export default function SendQueueOverviewCard() {
     // 경고 규칙이 있을 때만 이름을 찾으러 규칙 목록을 읽는다 (AI 규칙 탭·발송 이력과 같은 SWR 키)
     const { links } = useAutoPersonalizedEmail(warnings > 0 ? "all" : null);
 
-    if (!stats || stats.totals.pending <= 0) return null;
+    const heldQuota = stats?.totals.heldQuota ?? 0;
+    const heldRulesInactive = stats?.totals.heldRulesInactive ?? 0;
+    const needsCheck = stats?.totals.needsCheck ?? 0;
+    if (!stats || (stats.totals.pending <= 0 && heldQuota + heldRulesInactive + needsCheck <= 0)) return null;
     const rows = warnedRuleRows(stats.rules, links, new Date());
     const ruleCount = stats.rules.filter((r) => r.pending.total > 0).length;
 
@@ -54,6 +58,25 @@ export default function SendQueueOverviewCard() {
                                 </Link>
                             </li>
                         ))}
+                    </ul>
+                )}
+                {(heldQuota > 0 || heldRulesInactive > 0 || needsCheck > 0) && (
+                    <ul className="space-y-1 text-xs">
+                        {heldQuota > 0 && (
+                            <li className="text-destructive">
+                                AI 사용량 한도로 보류 {heldQuota.toLocaleString()}통 — 한도가 풀리면(다음 달·플랜 상향) 원래 순서대로 이어서 나갑니다.
+                            </li>
+                        )}
+                        {heldRulesInactive > 0 && (
+                            <li className="text-muted-foreground">
+                                꺼진 규칙의 대기 {heldRulesInactive.toLocaleString()}통 보류 중 — 규칙을 다시 켜면 이어서 나갑니다.
+                            </li>
+                        )}
+                        {needsCheck > 0 && (
+                            <li className="text-destructive">
+                                처리 중 멈춰 접수 결과 확인이 필요한 메일 {needsCheck.toLocaleString()}통 — 중복 발송을 막으려고 자동으로 다시 보내지 않았습니다. 발송 이력에서 결과를 확인해주세요.
+                            </li>
+                        )}
                     </ul>
                 )}
                 {warnings > 0 && (

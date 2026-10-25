@@ -166,7 +166,18 @@ export default function EmailTemplateLinkList({ partitions }: EmailTemplateLinkL
                                         )}
                                         {/* 배열(현재)·객체(예전) 모두 읽는다 — AI 규칙 목록과 같은 배지 (UX-153) */}
                                         {followupBadgeLabel(link.followupConfig) && (
-                                            <Badge variant="outline">{followupBadgeLabel(link.followupConfig)}</Badge>
+                                            link.triggerType === "manual" ? (
+                                                // 예전에 저장된 수동 연결의 후속 설정 — 수동 발송은 후속을 보내지 않는다 (UX-229)
+                                                <Badge
+                                                    variant="outline"
+                                                    className="text-muted-foreground"
+                                                    title="수동 발송 연결은 후속 메일을 보내지 않습니다. 연결을 열어 저장하면 후속 설정이 정리됩니다."
+                                                >
+                                                    후속 미적용(수동)
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline">{followupBadgeLabel(link.followupConfig)}</Badge>
+                                            )
                                         )}
                                         <RuleReplyBadge kind="template" ruleId={link.id} />
                                     </div>

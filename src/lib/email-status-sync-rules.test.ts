@@ -18,6 +18,8 @@ import {
     pairUpdatedMails,
     parseNhnDate,
     resolveStatusSyncConfig,
+    shrinkUpdateSpan,
+    syncWarning,
     splitBudget,
 } from "./email-status-sync-rules";
 
@@ -305,4 +307,32 @@ test("받는 쪽 실패 (F4): SST3·반송 안내로 failed면 후속을 보내�
     assert.equal(isRecipientSideFailure({ ...base, nhnStatusCode: "SST3", deliveryFailSide: "sender" }), false);
     assert.equal(isRecipientSideFailure(base), false);
     assert.equal(isRecipientSideFailure({ ...base, status: "sent", nhnStatusCode: "SST2" }), false);
+});
+
+test("UX-197 shrinkUpdateSpan: 남은 질문으로 다 못 읽는 창은 비율대로 줄이고, 더 못 줄이면 null", () => {
+    const HOUR = 60 * MIN;
+    assert.equal(shrinkUpdateSpan(HOUR, 3, 5), HOUR, "다 읽을 수 있으면 그대로");
+    assert.equal(shrinkUpdateSpan(HOUR, 12, 4), 20 * MIN, "4/12로 줄인다");
+    assert.equal(shrinkUpdateSpan(HOUR, 10_000, 1), MIN, "가장 짧은 길이 아래로는 줄이지 않는다");
+    assert.equal(shrinkUpdateSpan(MIN, 50, 1), null, "이미 가장 짧으면 null — 커서를 옮기지 않는다");
+    assert.equal(shrinkUpdateSpan(HOUR, 5, 0), null, "물을 수 없으면 null");
+    // 초 단위로 내린다
+    assert.equal((shrinkUpdateSpan(HOUR, 7, 3) ?? 1) % 1000, 0);
+});
+
+test("UX-197 nextUpdateWindow: 줄인 길이로 창 끝을 당긴다 (앞 겹침은 그대로)", () => {
+    const now = new Date("2026-10-25T03:00:00Z");
+    const cursor = new Date("2026-10-25T00:00:00Z");
+    const w = nextUpdateWindow(cursor, now, 10 * MIN)!;
+    assert.equal(w.end.getTime(), cursor.getTime() + 10 * MIN);
+    assert.equal(w.start.getTime(), cursor.getTime() - 5 * MIN);
+});
+
+test("UX-260 syncWarning: 실패가 없으면 null, 키 오류는 설정 확인, 그 밖은 일부 실패 안내", () => {
+    assert.equal(syncWarning({ errors: 0 }), null);
+    const auth = syncWarning({ errors: 1, lastFailure: { kind: "auth", text: "NHN 키 확인 필요 (HTTP 401)" } })!;
+    assert.match(auth, /^NHN 키 확인 필요 \(HTTP 401\) — .*appKey·secretKey/);
+    const partial = syncWarning({ errors: 2, lastFailure: { kind: "transient", text: "NHN 조회 일시 오류" } })!;
+    assert.match(partial, /일부가 실패/);
+    assert.match(syncWarning({ errors: 1 })!, /^NHN 조회 일시 오류/);
 });

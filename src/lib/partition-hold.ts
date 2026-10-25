@@ -17,6 +17,7 @@ import { kstParts } from "@/lib/kst";
 import { capForDate, shiftWarmupStart, toLimitSettings, warmupDayIndex } from "@/lib/email-sender-limit-rules";
 import type { SendPurpose } from "@/lib/email-sender-limit-rules";
 import { describeReplyError, pgErrorOf } from "@/lib/email-reply-rules";
+import { QUEUE_WAIT_PREFIX } from "@/lib/auto-personalized-email-outcome";
 
 export interface ActiveHold {
     id: number;
@@ -256,17 +257,54 @@ export type HeldQueueTable = "send_queue" | "followup" | "automation";
  * (풀기는 held 줄만 되살린다 — 그때 processing이던 줄은 못 본다) 주인 없는 held 줄이 남아 영영 나가지 않는다.
  * 각 워커가 자기 대기열을 회차 첫머리에 한 번 정리한다. 되살리는 모양은 releasePartitionHold와 같다 (순서·미룸 사유 그대로).
  * 표가 없으면(0075 전) 아무것도 하지 않는다
+ *
+ * AI 대기열은 같은 held를 쓰는 두 보류도 여기서 되살린다 (UX-228·259, last_error 앞머리 QUEUE_WAIT_PREFIX):
+ *   규칙 꺼짐  그 파티션·트리거에 켜진 규칙이 생겼거나 규칙이 모두 지워졌을 때 (지워졌으면 워커가 '규칙 없음'으로 닫는다)
+ *   AI 한도    quotaOpen(조직)이 true일 때 — 부르는 쪽이 넘긴다. 안 넘기면 되살리지 않는다
+ * 명단 보류는 대량 줄(priority 0)만 막으므로 보류 중인 명단의 문의 줄은 위 조건만 본다. scope를 주면 그 조직·파티션만 본다(규칙 켜기 직후)
  */
-export async function reviveOrphanHeldRows(table: HeldQueueTable): Promise<number> {
+export async function reviveOrphanHeldRows(
+    table: HeldQueueTable,
+    opts: { quotaOpen?: (orgId: string) => Promise<boolean>; scope?: { orgId: string; partitionId: number } } = {}
+): Promise<number> {
     try {
         let rows: unknown[];
         if (table === "send_queue") {
+            const rulesPrefix = `${QUEUE_WAIT_PREFIX.rules_inactive}%`;
+            const quotaPrefix = `${QUEUE_WAIT_PREFIX.quota_exceeded}%`;
+            const scope = opts.scope
+                ? sql`AND q.org_id = ${opts.scope.orgId}::uuid AND q.partition_id = ${opts.scope.partitionId}::int`
+                : sql``;
+            const quotaOrgs: string[] = [];
+            if (opts.quotaOpen) {
+                const held = (await db.execute(sql`
+                    SELECT DISTINCT q.org_id FROM email_send_queue q
+                    WHERE q.status = 'held' AND q.last_error LIKE ${quotaPrefix} ${scope}
+                `)) as unknown as Array<{ org_id: string }>;
+                for (const r of held) if (await opts.quotaOpen(String(r.org_id))) quotaOrgs.push(String(r.org_id));
+            }
             rows = (await db.execute(sql`
                 UPDATE email_send_queue q SET status = 'pending', locked_at = NULL
-                WHERE q.status = 'held'
-                  AND NOT EXISTS (
+                WHERE q.status = 'held' ${scope}
+                  AND (q.priority <> 0 OR NOT EXISTS (
                       SELECT 1 FROM email_partition_holds h
                       WHERE h.partition_id = q.partition_id AND h.org_id = q.org_id AND h.released_at IS NULL
+                  ))
+                  AND (
+                      q.last_error IS NULL OR q.last_error NOT LIKE 'held(%'
+                      OR (q.last_error LIKE ${rulesPrefix} AND (
+                          EXISTS (
+                              SELECT 1 FROM email_auto_personalized_links a
+                              WHERE a.partition_id = q.partition_id AND a.is_active = 1
+                                AND a.trigger_type = CASE WHEN q.trigger_type = 'on_update' THEN 'on_update' ELSE 'on_create' END
+                          )
+                          OR NOT EXISTS (
+                              SELECT 1 FROM email_auto_personalized_links a
+                              WHERE a.partition_id = q.partition_id
+                                AND a.trigger_type = CASE WHEN q.trigger_type = 'on_update' THEN 'on_update' ELSE 'on_create' END
+                          )
+                      ))
+                      OR (q.last_error LIKE ${quotaPrefix} AND q.org_id = ANY(${sql.param(quotaOrgs)}::uuid[]))
                   )
                 RETURNING q.id
             `)) as unknown as unknown[];

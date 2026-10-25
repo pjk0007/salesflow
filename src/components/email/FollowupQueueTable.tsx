@@ -19,6 +19,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -92,7 +93,7 @@ export default function FollowupQueueTable() {
     const [sourceType, setSourceType] = useState<string>("");
     const [searchInput, setSearchInput] = useState("");
     const [search, setSearch] = useState("");
-    const [cancellingId, setCancellingId] = useState<number | null>(null);
+    const { confirm, confirmationDialog } = useAsyncConfirm();
     const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
     useEffect(() => {
@@ -111,18 +112,28 @@ export default function FollowupQueueTable() {
         search: search || undefined,
     });
 
-    const handleCancel = async (id: number) => {
-        setCancellingId(id);
-        const result = await cancelItem(id);
-        setCancellingId(null);
-        // 그사이 발송 처리에 들어간 줄은 취소되지 않는다 — 이유를 보여 준다
-        if (!result?.success) toast.error(result?.error || "취소에 실패했습니다.");
+    // 되돌릴 수 없으므로 대상을 보여 주고 확인을 받는다. 실패하면 창을 연 채 이유를 보인다 (UX-233)
+    const handleCancel = (item: { id: number; recipientEmail?: string | null; stepIndex: number; sourceType: string }) => {
+        const step = item.sourceType === "visit_ack" ? "방문 감사 메일" : `${item.stepIndex + 1}단계 후속 메일`;
+        confirm({
+            title: "후속 메일 취소",
+            description: `${item.recipientEmail ?? "이 고객"}에게 예정된 ${step}을 취소합니다.\n취소한 후속 메일은 다시 예약할 수 없습니다.`,
+            confirmLabel: "후속 취소",
+            pendingLabel: "취소하는 중...",
+            onConfirm: async () => {
+                const result = await cancelItem(item.id);
+                // 그사이 발송 처리에 들어간 줄은 취소되지 않는다 — 이유를 보여 준다
+                if (!result?.success) throw new Error(result?.error || "취소에 실패했습니다.");
+                toast.success("후속 메일을 취소했습니다.");
+            },
+        });
     };
 
     const totalPages = Math.ceil(totalCount / 50);
 
     return (
         <div className="space-y-4">
+            {confirmationDialog}
             {/* Filters */}
             <div className="flex gap-3">
                 <Select value={status} onValueChange={(v) => { setStatus(v === "all" ? "" : v); setPage(1); }}>
@@ -235,8 +246,9 @@ export default function FollowupQueueTable() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="h-7 w-7"
-                                                        disabled={cancellingId === item.id}
-                                                        onClick={() => handleCancel(item.id)}
+                                                        title="후속 취소"
+                                                        aria-label={`${item.recipientEmail ?? "고객"} 후속 메일 취소`}
+                                                        onClick={() => handleCancel(item)}
                                                     >
                                                         <X className="h-4 w-4" />
                                                     </Button>
