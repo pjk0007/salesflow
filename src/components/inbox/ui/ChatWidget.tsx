@@ -493,7 +493,8 @@ export function ChatWidget({
                 data.data.configurationNonce === configuration.nonce)
         ) {
             acknowledgedConfiguration.current = configuration.nonce;
-            parentMessage("sendb:ready", { configurationId: configuration.id });
+            // 사이트의 런처 버튼도 채널 브랜드 색을 따르도록 함께 알린다.
+            parentMessage("sendb:ready", { configurationId: configuration.id, color: config.data?.color });
         } else if (data.error)
             parentMessage("sendb:error", {
                 configurationId: configuration.id,
