@@ -19,7 +19,7 @@ interface FormPreviewProps {
 
 export default function FormPreview({ title, description, fields }: FormPreviewProps) {
     return (
-        <div className="border rounded-lg p-6 bg-background max-w-2xl mx-auto">
+        <div className="border rounded-lg p-4 sm:p-6 bg-background max-w-2xl mx-auto break-words">
             <div className="mb-6">
                 <h2 className="text-xl font-bold">{title || "폼 제목"}</h2>
                 {description && (
@@ -30,7 +30,7 @@ export default function FormPreview({ title, description, fields }: FormPreviewP
             <div className="space-y-4">
                 {fields.length === 0 && (
                     <p className="text-sm text-muted-foreground text-center py-8">
-                        왼쪽에서 필드를 추가하세요
+                        편집기에서 필드를 추가하세요
                     </p>
                 )}
                 {fields.map((field) => (
