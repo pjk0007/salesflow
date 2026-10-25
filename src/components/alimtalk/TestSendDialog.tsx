@@ -8,39 +8,35 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle, XCircle, Loader2 } from "lucide-react";
+import { extractTemplateParameterKeys } from "@/lib/alimtalk-template-utils";
+import { apiRequest, RequestError, requestErrorMessage } from "@/lib/swr-fetcher";
+import type { NhnTemplate } from "@/lib/nhn-alimtalk";
 
 interface TestSendDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    senderKey: string;
-    templateCode: string;
-    templateContent: string;
-}
-
-function extractVariableNames(content: string): string[] {
-    const matches = content.match(/#\{([^}]+)\}/g);
-    if (!matches) return [];
-    return [...new Set(matches.map((m) => m.slice(2, -1)))];
+    /** 본문뿐 아니라 버튼·강조·헤더·아이템의 변수까지 입력받기 위해 템플릿 전체를 받는다. */
+    template: NhnTemplate;
 }
 
 export default function TestSendDialog({
     open,
     onOpenChange,
-    senderKey,
-    templateCode,
-    templateContent,
+    template,
 }: TestSendDialogProps) {
+    const { senderKey, templateCode } = template;
+    const templateContent = template.templateContent ?? "";
     const [recipientNo, setRecipientNo] = useState("");
     const [variables, setVariables] = useState<Record<string, string>>({});
     const [sending, setSending] = useState(false);
     const [result, setResult] = useState<{
-        success: boolean;
+        status: "pending" | "failed" | "unknown";
         requestId?: string;
         error?: string;
     } | null>(null);
 
-    const variableNames = useMemo(() => extractVariableNames(templateContent), [templateContent]);
+    const variableNames = useMemo(() => extractTemplateParameterKeys(template), [template]);
 
     const preview = useMemo(() => {
         let text = templateContent;
@@ -59,7 +55,7 @@ export default function TestSendDialog({
                     ? Object.fromEntries(variableNames.map((n) => [n, variables[n] || ""]))
                     : undefined;
 
-            const res = await fetch("/api/alimtalk/test-send", {
+            const data = await apiRequest<{ data?: { status?: "pending" | "unknown"; requestId?: string } }>("/api/alimtalk/test-send", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -69,14 +65,14 @@ export default function TestSendDialog({
                     templateParameter,
                 }),
             });
-            const data = await res.json();
-            setResult({
-                success: data.success,
-                requestId: data.data?.requestId,
-                error: data.error,
-            });
-        } catch {
-            setResult({ success: false, error: "요청 중 오류가 발생했습니다." });
+            setResult({ status: data.data?.status === "pending" ? "pending" : "unknown", requestId: data.data?.requestId });
+        } catch (error) {
+            // 연결이 끊기거나 지연되면 요청이 이미 나갔을 수 있다 — 실패로 단정하지 않는다.
+            if (error instanceof RequestError && (error.status === 0 || error.status === 408 || error.status >= 500)) {
+                setResult({ status: "unknown" });
+            } else {
+                setResult({ status: "failed", error: requestErrorMessage(error, "발송 요청을 처리하지 못했습니다.") });
+            }
         } finally {
             setSending(false);
         }
@@ -100,15 +96,26 @@ export default function TestSendDialog({
 
                 {result ? (
                     <div className="flex flex-col items-center gap-3 py-4">
-                        {result.success ? (
+                        {result.status === "pending" ? (
                             <>
                                 <CheckCircle className="h-10 w-10 text-green-500" />
-                                <p className="font-medium">발송 성공</p>
+                                <p className="font-medium">발송 접수됨</p>
+                                <p className="text-sm text-muted-foreground text-center">
+                                    공급자가 요청을 접수했습니다. 실제 수신 여부는 카카오톡 처리 후 확정됩니다.
+                                </p>
                                 {result.requestId && (
                                     <p className="text-sm text-muted-foreground">
                                         요청 ID: {result.requestId}
                                     </p>
                                 )}
+                            </>
+                        ) : result.status === "unknown" ? (
+                            <>
+                                <AlertTriangle className="h-10 w-10 text-yellow-500" />
+                                <p className="font-medium">접수 결과 확인 필요</p>
+                                <p className="text-sm text-muted-foreground text-center">
+                                    요청이 이미 전달됐을 수 있습니다. 같은 번호로 다시 보내기 전에 휴대폰 수신 여부를 확인해주세요.
+                                </p>
                             </>
                         ) : (
                             <>

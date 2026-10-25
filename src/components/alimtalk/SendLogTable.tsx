@@ -31,14 +31,15 @@ import { ChevronLeft, ChevronRight, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { AlimtalkSendLog } from "@/lib/db";
 
-const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
+// 대시보드 최근 이력도 같은 표기를 쓴다(UX-174·256).
+export const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" }> = {
     pending: { label: "접수됨", variant: "secondary" },
     unknown: { label: "결과 확인 필요", variant: "destructive" },
     sent: { label: "성공", variant: "default" },
     failed: { label: "실패", variant: "destructive" },
 };
 
-const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
+export const TRIGGER_TYPE_MAP: Record<string, { label: string; variant: "default" | "secondary" | "outline" }> = {
     manual: { label: "수동", variant: "outline" },
     auto: { label: "자동", variant: "default" },
     repeat: { label: "반복", variant: "secondary" },
