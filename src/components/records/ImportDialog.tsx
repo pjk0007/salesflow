@@ -13,6 +13,7 @@ import FileUploadStep from "./import/FileUploadStep";
 import FieldMappingStep from "./import/FieldMappingStep";
 import ImportResultStep from "./import/ImportResultStep";
 import type { FieldDefinition, ImportResult } from "@/types";
+import type { ImportDuplicatePolicy } from "./utils/duplicate-policy";
 
 import { requestErrorMessage } from "@/lib/swr-fetcher";
 import { parseCheckboxValue } from "@/lib/checkbox-value";
@@ -23,7 +24,8 @@ interface ImportDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     fields: FieldDefinition[];
-    duplicateCheckField?: string;
+    /** 파티션 중복 정책 안내(UX-070) */
+    duplicatePolicy?: ImportDuplicatePolicy;
     onImport: (
         records: Array<Record<string, unknown>>,
         duplicateAction: "skip" | "error",
@@ -35,7 +37,7 @@ export default function ImportDialog({
     open,
     onOpenChange,
     fields,
-    duplicateCheckField,
+    duplicatePolicy,
     onImport,
 }: ImportDialogProps) {
     const busyRef = useRef(false);
@@ -235,7 +237,7 @@ export default function ImportDialog({
                         mappableFields={mappableFields}
                         duplicateAction={duplicateAction}
                         onDuplicateActionChange={setDuplicateAction}
-                        duplicateCheckField={duplicateCheckField}
+                        duplicatePolicy={duplicatePolicy}
                     />
                 )}
 

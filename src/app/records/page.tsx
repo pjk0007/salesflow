@@ -55,6 +55,7 @@ import type { DbRecord } from "@/lib/db";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { updatePartitionSettings } from "@/components/records/api/partition-settings";
 import { toggleVisibleField } from "@/lib/visible-fields";
+import { importDuplicatePolicy } from "@/components/records/utils/duplicate-policy";
 import { requestErrorMessage } from "@/lib/swr-fetcher";
 import { useSession } from "@/contexts/SessionContext";
 import { useRecordListQuery } from "@/components/records/hooks/useRecordListQuery";
@@ -695,7 +696,7 @@ export default function RecordsPage() {
                 open={importDialogOpen}
                 onOpenChange={setImportDialogOpen}
                 fields={fields}
-                duplicateCheckField={currentPartition?.duplicateCheckField ?? undefined}
+                duplicatePolicy={importDuplicatePolicy(currentPartition, fields)}
                 onImport={handleBulkImport}
             />
             <ScheduledRegistrationDialog
