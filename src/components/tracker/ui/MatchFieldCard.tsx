@@ -16,11 +16,14 @@ export function MatchFieldCard({
     workspaceId,
     matchField,
     onUpdated,
+    readOnly = false,
 }: {
     siteId: number;
     workspaceId: number;
     matchField: string | null;
     onUpdated: () => void;
+    /** 일반 멤버 — 서버가 변경을 거절하므로 보기만 */
+    readOnly?: boolean;
 }) {
     const [value, setValue] = useState<string | null>(matchField);
     const [saving, setSaving] = useState(false);
@@ -49,14 +52,22 @@ export function MatchFieldCard({
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-                <MatchFieldSelect
-                    workspaceId={workspaceId}
-                    value={value}
-                    onChange={setValue}
-                />
-                <Button onClick={handleSave} disabled={saving || !dirty} size="sm">
-                    {saving ? "저장 중..." : "저장"}
-                </Button>
+                {readOnly ? (
+                    <p className="text-sm">
+                        {matchField ?? <span className="text-muted-foreground">(설정 안 됨)</span>}
+                    </p>
+                ) : (
+                    <>
+                        <MatchFieldSelect
+                            workspaceId={workspaceId}
+                            value={value}
+                            onChange={setValue}
+                        />
+                        <Button onClick={handleSave} disabled={saving || !dirty} size="sm">
+                            {saving ? "저장 중..." : "저장"}
+                        </Button>
+                    </>
+                )}
             </CardContent>
         </Card>
     );

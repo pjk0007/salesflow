@@ -12,6 +12,8 @@ import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 
 interface Props {
     siteId: number;
+    /** 일반 멤버 — 서버가 변경을 거절하므로 보기만 */
+    readOnly?: boolean;
 }
 
 function CopyBtn({ text, title }: { text: string; title?: string }) {
@@ -44,7 +46,7 @@ const FILTERS: Array<{ value: "all" | EventAliasType; label: string }> = [
  * 사이트에서 실제 발생한 SECTION_VIEW/CLICK 이벤트 목록을 표로 보여주고
  * 운영자가 한글 라벨을 매핑할 수 있게 한다.
  */
-export function EventAliasesCard({ siteId }: Props) {
+export function EventAliasesCard({ siteId, readOnly = false }: Props) {
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const { data, isLoading, mutate } = useEventAliases(siteId);
     const [filter, setFilter] = useState<"all" | EventAliasType>("all");
@@ -91,10 +93,10 @@ export function EventAliasesCard({ siteId }: Props) {
                         <Tags className="h-4 w-4 text-muted-foreground" />
                         이벤트 라벨
                     </span>
-                    <Button size="sm" variant="outline" onClick={openCreate}>
+                    {!readOnly && <Button size="sm" variant="outline" onClick={openCreate}>
                         <Plus className="mr-1 h-3.5 w-3.5" />
                         별칭 등록
-                    </Button>
+                    </Button>}
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
@@ -164,7 +166,7 @@ export function EventAliasesCard({ siteId }: Props) {
                                                 {r.occurrences.toLocaleString()}
                                             </td>
                                             <td className="px-2 py-1.5 text-right">
-                                                {r.id ? (
+                                                {readOnly ? null : r.id ? (
                                                     <div className="inline-flex gap-1">
                                                         <Button size="sm" variant="ghost" onClick={() => openEdit(r)} title="편집">
                                                             <Pencil className="h-3.5 w-3.5" />

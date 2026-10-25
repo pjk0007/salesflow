@@ -11,6 +11,8 @@ export type TrackerSite = {
     conversionStage: string | null;
     createdAt: string;
     updatedAt: string;
+    /** 최근 1시간 요청 한도로 버린 수집·식별 요청 (이 서버 기준). 목록 조회에만 실린다 */
+    rateLimited?: { count: number; lastAt: string | null };
 };
 
 /** 방문자 목록 행 — record 단위로 그룹핑된 "사람" 1명 */

@@ -13,10 +13,13 @@ export function DomainEditor({
     siteId,
     domains,
     onUpdated,
+    readOnly = false,
 }: {
     siteId: number;
     domains: string[];
     onUpdated: () => void;
+    /** 일반 멤버 — 서버가 변경을 거절하므로 보기만 */
+    readOnly?: boolean;
 }) {
     const [newDomain, setNewDomain] = useState("");
     const [saving, setSaving] = useState(false);
@@ -72,7 +75,7 @@ export function DomainEditor({
                     {domains.map((d) => (
                         <div key={d} className="flex items-center gap-2 rounded border px-3 py-2">
                             <span className="flex-1 text-sm">{d}</span>
-                            <Button
+                            {!readOnly && <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7"
@@ -80,11 +83,11 @@ export function DomainEditor({
                                 disabled={saving}
                             >
                                 <X className="h-4 w-4" />
-                            </Button>
+                            </Button>}
                         </div>
                     ))}
                 </div>
-                <div className="mt-3 flex gap-2">
+                {!readOnly && <div className="mt-3 flex gap-2">
                     <Input
                         placeholder="example.com"
                         value={newDomain}
@@ -99,7 +102,7 @@ export function DomainEditor({
                     <Button onClick={handleAdd} disabled={saving || !newDomain.trim()}>
                         <Plus className="mr-1 h-4 w-4" /> 추가
                     </Button>
-                </div>
+                </div>}
             </CardContent>
         </Card>
     );
