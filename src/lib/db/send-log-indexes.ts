@@ -19,6 +19,10 @@ export const SEND_LOG_INDEX_LOCK_KEY = 0x5c4edf0a;
 /** schema.ts의 색인 선언과 같은 이름 */
 export const SEND_LOG_INDEXES: ReadonlyArray<{ name: string; ddl: string }> = [
     {
+        name: "email_send_logs_org_partition_sent_id_idx",
+        ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "email_send_logs_org_partition_sent_id_idx" ON "email_send_logs" ("org_id", "partition_id", "sent_at" DESC, "id" DESC)`,
+    },
+    {
         name: "records_org_created_at_idx",
         ddl: `CREATE INDEX CONCURRENTLY IF NOT EXISTS "records_org_created_at_idx" ON "records" ("org_id", "created_at")`,
     },
