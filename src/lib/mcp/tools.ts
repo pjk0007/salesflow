@@ -1,3 +1,4 @@
+import { scopedEmailLogsQuery, type ScopedEmailLog } from "./scoped-email-logs";
 import { kstRecentDaysStart } from "@/lib/kst";
 import { openSignalsForSendLogs, EMPTY_OPEN_SIGNAL } from "@/lib/email-open-signals";
 import { clickSignalsForSendLogs, EMPTY_CLICK_SIGNAL } from "@/lib/email-click-signals";
@@ -314,6 +315,7 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
                 if (!hasAccess) return err("접근 권한이 없습니다.");
             }
 
+            let scopedPartitionIds: number[] | undefined = partitionId ? [partitionId] : undefined;
             const conditions = [eq(emailSendLogs.orgId, tokenInfo.orgId)];
             if (partitionId) conditions.push(eq(emailSendLogs.partitionId, partitionId));
             else {
@@ -321,6 +323,7 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
                 const scope = await tokenAccessiblePartitions(tokenInfo);
                 if (scope) {
                     if (scope.partitionIds.length === 0) return ok({ totalCount: 0, page, pageSize, logs: [] });
+                    scopedPartitionIds = scope.partitionIds;
                     conditions.push(inArray(emailSendLogs.partitionId, scope.partitionIds));
                 }
             }
@@ -329,7 +332,9 @@ export function createMcpToolHandlers(): Record<string, ToolHandler> {
             const whereClause = and(...conditions);
             const [countResult] = await db.select({ count: sql<number>`count(*)::int` }).from(emailSendLogs).where(whereClause);
 
-            const logs = await db.select({
+            const logs = scopedPartitionIds
+                ? await db.execute<ScopedEmailLog>(scopedEmailLogsQuery(tokenInfo.orgId, scopedPartitionIds, page, pageSize, status))
+                : await db.select({
                 id: emailSendLogs.id, recipientEmail: emailSendLogs.recipientEmail,
                 subject: emailSendLogs.subject, status: emailSendLogs.status,
                 triggerType: emailSendLogs.triggerType, sentAt: emailSendLogs.sentAt,
