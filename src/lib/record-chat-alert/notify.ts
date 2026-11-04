@@ -5,6 +5,7 @@ import { chatFixedMessageIdEnabled, chatMessageIdFor, postGoogleChatText, type G
 import { scrubWebhook } from "@/lib/deep-visitor-alert-delivery";
 import { insertRecordEvent } from "@/lib/record-events";
 import { partitionFieldsWhere } from "@/lib/partition-fields";
+import { recordAcquisition, lookupAcquisition } from "@/lib/alert-acquisition/repository";
 import {
     buildRecordAlertText,
     pickAlertFields,
@@ -106,6 +107,8 @@ export async function notifyRecordChatAlert(input: {
     if (!row) return;
 
     const fields = await resolveFields(row.fieldTypeId, row.defaultFieldTypeId, row.workspaceId);
+    const acquisition = await lookupAcquisition(db, tx => recordAcquisition({ orgId: row.orgId,
+        workspaceId: row.workspaceId, recordId: input.recordId, at: new Date() }, tx));
     const text = buildRecordAlertText({
         kind: input.kind ?? "created",
         source: input.source,
@@ -114,6 +117,7 @@ export async function notifyRecordChatAlert(input: {
         integratedCode: row.integratedCode,
         fields: pickAlertFields((row.data as Record<string, unknown>) ?? {}, fields),
         recordUrl: `${baseUrl()}/records?id=${input.recordId}`,
+        acquisition,
     });
 
     const kind = input.kind ?? "created";

@@ -5,6 +5,7 @@ import type { DbExec } from "@/lib/db/tx";
 import { postGoogleChatMessage } from "@/lib/google-chat";
 import { chatAlertRoutes, chatAlertWorkerEnabled, routeFingerprint } from "./config";
 import { alertMessageId, chatAlertMessages } from "./message";
+import { conversationAcquisition, lookupAcquisition } from "@/lib/alert-acquisition/repository";
 
 type Delivery = typeof deliveries.$inferSelect;
 async function claim(exec: DbExec, now: Date) {
@@ -48,9 +49,12 @@ export async function processInboxChatAlerts(options: {
         }
         try {
             const attachments = await exec.select({ name: inboxAttachments.fileName }).from(inboxAttachments).where(eq(inboxAttachments.messageId, row.messageId));
+            const acquisition = await lookupAcquisition(exec, tx => conversationAcquisition({ orgId: source.chat.orgId,
+                workspaceId: source.channel.workspaceId, at: source.message.createdAt }, source.chat, tx));
             const payloads = chatAlertMessages({ id: row.messageId, conversationId: source.chat.id, channelId: source.chat.channelId,
                 name: source.chat.name, channelName: source.channel.name, body: source.message.body, createdAt: source.message.createdAt,
                 medium: source.chat.medium, status: source.chat.status, attachments: attachments.map(file => file.name),
+                acquisition,
             }, options.baseUrl ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://sendb.kr");
             let failed = false;
             for (let part = row.sentParts; part < payloads.length; part++) {

@@ -5,6 +5,7 @@
  * 리드 1건 = 새 메시지 1개. 같은 리드가 다시 접수(중복 병합)되면 그 메시지의 스레드 답글로 붙는다.
  */
 import { chatSafe, clipChars } from "@/lib/chat-text";
+import { acquisitionText, type AlertAcquisition } from "@/lib/alert-acquisition/rules";
 
 export type RecordAlertSource = "web_form" | "api" | "meta_ad";
 export type RecordAlertKind = "created" | "merged";
@@ -67,6 +68,7 @@ export function buildRecordAlertText(input: {
     integratedCode: string | null;
     fields: { label: string; value: string }[];
     recordUrl: string;
+    acquisition?: AlertAcquisition;
 }): string {
     // 사업명·파티션명·통합코드·필드 라벨/값은 사용자 값이다 — 링크·멘션·굵게 문법이 해석되지 않고 맨 URL이 눌리지 않게
     // (깊이·회신 알림과 같은 chatSafe 규칙). 우리가 만든 굵게 머리말과 "샌드비에서 보기" 링크만 꾸밈을 쓴다.
@@ -75,6 +77,7 @@ export function buildRecordAlertText(input: {
     const code = input.integratedCode ? ` · ${safe(input.integratedCode)}` : "";
     const lines = [
         `*[${safe(input.workspaceName)} > ${safe(input.partitionName)}] ${head}* · ${SOURCE_LABELS[input.source]}${code}`,
+        `유입경로: ${safe(acquisitionText(input.acquisition))}`,
         ...input.fields.map((f) => `${safe(f.label)}: ${safe(f.value)}`),
         `<${input.recordUrl}|샌드비에서 보기>`,
     ];

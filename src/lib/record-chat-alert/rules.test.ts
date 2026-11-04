@@ -48,7 +48,7 @@ test("알림 문구: 신규와 재접수", () => {
     };
     assert.equal(
         buildRecordAlertText({ ...base, kind: "created" }),
-        "*[제조 > 설비지원몰 견적 요청] 신규 접수* · 웹폼 · SALES-0001\n회사명: (주)A\n<https://sendb.kr/records?id=7|샌드비에서 보기>"
+        "*[제조 > 설비지원몰 견적 요청] 신규 접수* · 웹폼 · SALES-0001\n유입경로: 유입 미확인 — 판단할 단서 부족\n회사명: (주)A\n<https://sendb.kr/records?id=7|샌드비에서 보기>"
     );
     assert.match(buildRecordAlertText({ ...base, kind: "merged", source: "api", integratedCode: null }), /^\*\[제조 > 설비지원몰 견적 요청\] 재접수\* · 외부 API\n/);
 });
@@ -77,12 +77,13 @@ test("UX-223 고객 입력의 링크·멘션·굵게 문법은 해석되지 않�
         recordUrl: "https://sendb.kr/records?id=7",
     });
     const lines = text.split("\n");
-    assert.equal(lines.length, 5, "고객 값이 줄을 늘리지 않는다");
+    assert.equal(lines.length, 6, "고객 값이 줄을 늘리지 않는다");
     assert.equal(lines[0], "*[＊제조＊ > 견적 ‹users/all›] 신규 접수* · 웹폼 · S＿0001");
-    assert.equal(lines[1], "문의 ＊긴급＊: ‹hxxps://example.test|샌드비에서 보기› ～취소～ ｀코드｀ 줄1");
-    assert.equal(lines[2], "이메일: first_last@example.test", "메일 주소 안의 밑줄은 그대로");
-    assert.equal(lines[3], "홈페이지: hxxps://phish.example/login 🙂");
-    assert.equal(lines[4], "<https://sendb.kr/records?id=7|샌드비에서 보기>", "시스템 링크는 그대로");
+    assert.equal(lines[1], "유입경로: 유입 미확인 — 판단할 단서 부족");
+    assert.equal(lines[2], "문의 ＊긴급＊: ‹hxxps://example.test|샌드비에서 보기› ～취소～ ｀코드｀ 줄1");
+    assert.equal(lines[3], "이메일: first_last@example.test", "메일 주소 안의 밑줄은 그대로");
+    assert.equal(lines[4], "홈페이지: hxxps://phish.example/login 🙂");
+    assert.equal(lines[5], "<https://sendb.kr/records?id=7|샌드비에서 보기>", "시스템 링크는 그대로");
     assert.ok(!text.includes("<users/"));
 });
 

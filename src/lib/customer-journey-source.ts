@@ -5,6 +5,7 @@ import { EMAIL_TRIM_CHARS, type EventInput } from "./deep-visitor-alert-rules";
 import { loadJourneyAudience } from "./customer-journey-audience";
 import type { JourneyCohortMember } from "./customer-journey-priority";
 import { VISIT_ACK_MIN_SECONDS } from "./email-visit-ack-rules";
+import { mailAcquisition, unknownAcquisition } from "./alert-acquisition/rules";
 type Connection = Awaited<ReturnType<typeof queryClient.reserve>>;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BATCH_SIZE = 50;
@@ -14,6 +15,7 @@ export interface CandidateRow {
     org_id: string; workspace_id: number; business_name: string;
     record_id: number; integrated_code: string | null; data: Record<string, unknown> | string;
     recipient_email: string; subject: string | null; sent_at: Date; clicked_at: Date;
+    sender_email?: string | null; click_is_bot?: boolean;
     session_id: number; site_id: number; visitor_id: number; started_at: Date; ended_at: Date | null;
     duration: number | null; page_count: number | null; click_id: string;
     fields: { key: string; label: string; field_type: string }[];
@@ -25,7 +27,7 @@ export async function loadCandidates(conn: Connection, workspaceId: number, now:
     return conn<CandidateRow[]>`
         SELECT l.id AS send_log_id, w.org_id, w.id AS workspace_id, w.name AS business_name,
                r.id AS record_id, r.integrated_code, r.data,
-               l.recipient_email, l.subject, l.sent_at, c.clicked_at,
+               l.recipient_email, l.subject, l.sent_at, l.sender_email, c.clicked_at, c.is_bot AS click_is_bot,
                s.id AS session_id, s.site_id, s.visitor_id, s.started_at, s.ended_at, s.duration, s.page_count, s.click_id,
                -- 필드는 resolved-fields와 같은 단일 규칙: 파티션 타입 → 워크스페이스 기본 타입, 둘 다 없을 때만 워크스페이스 직속 필드.
                -- 타입이 있는데 직속 필드를 함께 읽으면 현재 CRM에 없는 이전 필드가 연락처·ICP 근거에 섞인다 (UX-216)
@@ -91,6 +93,10 @@ export function cardInput(row: CandidateRow, baseUrl: string): JourneyCardInput 
         recordId: row.record_id, integratedCode: row.integrated_code, businessName: row.business_name,
         recipientEmail: row.recipient_email, subject: row.subject,
         sentAt: new Date(row.sent_at), clickedAt: new Date(row.clicked_at),
+        acquisition: row.click_is_bot === false && new Date(row.sent_at) <= new Date(row.clicked_at)
+            && new Date(row.clicked_at).getTime() >= new Date(row.started_at).getTime() - 30 * 60_000
+            && new Date(row.clicked_at).getTime() <= new Date(row.started_at).getTime() + 30_000
+            ? mailAcquisition(row.sender_email, true, true) : unknownAcquisition("유효한 메일 클릭과 이번 방문의 직접 연결은 미확인"),
         session: { id: row.session_id, siteId: row.site_id, visitorId: row.visitor_id,
             startedAt: new Date(row.started_at), endedAt: row.ended_at ? new Date(row.ended_at) : null,
             duration: row.duration, pageCount: row.page_count, clickId: row.click_id },
