@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
 import { defangUrls } from "@/lib/chat-text";
+import { acquisitionText, type AlertAcquisition } from "@/lib/alert-acquisition/rules";
 
 export interface ChatAlertMessage {
     id: number; conversationId: string; channelId: number;
     name: string; channelName: string; body: string; createdAt: Date;
     medium: string; status: string; attachments: string[];
+    acquisition?: AlertAcquisition;
 }
 const html = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 // Bound the encoded card rather than truncating the source message. Keep Unicode characters intact.
@@ -34,6 +36,7 @@ export function chatAlertMessages(message: ChatAlertMessage, baseUrl: string) {
             header: { title: html(name), subtitle: `${html(message.channelName)} · ${message.medium === "email" ? "이메일" : "웹 상담"}` },
             sections: [{ widgets: [
                 { textParagraph: { text: html(chunk || "(첨부 파일 메시지)").replace(/\n/g, "<br>") } },
+                ...(index === 0 ? [{ textParagraph: { text: `<b>유입경로</b><br>${html(defangUrls(acquisitionText(message.acquisition)))}` } }] : []),
                 ...(index === chunks.length - 1 && attachments.length ? [{ textParagraph: { text: `<b>첨부 ${attachments.length}개</b><br>${attachments.map(html).join("<br>")}<br>파일은 상담 화면에서 확인해 주세요.` } }] : []),
                 { textParagraph: { text: message.createdAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }) } },
                 { buttonList: { buttons: [{ text: "샌드비에서 상담 열기", onClick: { openLink: { url } } }] } },

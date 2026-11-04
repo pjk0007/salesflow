@@ -6,6 +6,7 @@ import { classifyJourneyPriority, MIN_JOURNEY_SECONDS, type JourneyAudience, typ
 import { FOLLOWUP_LABELS, type LeadFollowup } from "../components/lead-followup/types";
 import { journeyPriorityLabel } from "../components/lead-followup/utils/labels";
 import { measuredSessionSeconds } from "./tracker-session-duration";
+import { acquisitionText, type AlertAcquisition } from "./alert-acquisition/rules";
 
 export const MIN_JOURNEY_CHAT_SECONDS = 60;
 
@@ -24,6 +25,7 @@ export interface JourneyCardInput {
     baseUrl: string;
     audience?: JourneyAudience;
     cohort?: readonly JourneyCohortMember[];
+    acquisition?: AlertAcquisition;
 }
 
 export interface JourneyCardSummary {
@@ -150,7 +152,8 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date, notificatio
     const priorityLabel = journeyPriorityLabel(priority);
     const prefix = priority.tier === "normal" ? "" : priority.tier === "urgent" ? `🔴 ${priorityLabel} | ` : `🟠 ${priorityLabel} | `;
     const phoneText = summary.phones.join(" · ") || "CRM에 등록된 연락처 없음";
-    const text = `${prefix}${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}\n연락처: ${phoneText}`;
+    const inflow = acquisitionText(input.acquisition);
+    const text = `${prefix}${summary.company} · ${summary.person} | ${outcome} | 체류 ${durationLabel(summary.totalSeconds)}\n연락처: ${phoneText}\n유입경로: ${clean(inflow, 300)}`;
     const ownerNote = notification ? notification.state === "tag" ? `담당자: ${clean(notification.ownerName)} · 확인 요청`
         : notification.state === "handled" ? `담당자: ${clean(notification.ownerName)} · 후속 대응 상태에 따라 추가 태그 생략`
         : `담당자: ${clean(notification.ownerName)} · 최근 24시간 내 확인 요청이 있어 재태그 생략` : "담당자 태그 연결 없음 · CRM에서 담당자 확인 필요";
@@ -168,6 +171,7 @@ export function buildJourneyCard(input: JourneyCardInput, now: Date, notificatio
                         ...(priority.tier === "urgent" ? [paragraph(html(ownerNote))] : []),
                     ] }] : []),
                     { header: "누가 · 어떤 메일에서 왔나", widgets: [
+                        paragraph(`<b>유입경로</b><br>${html(clean(inflow, 300))}`),
                         paragraph(`<b>연락처: ${html(phoneText)}</b>`),
                         paragraph(`${html(clean(input.recipientEmail))}<br>메일: ${html(clean(input.subject || "제목 없음"))}<br>링크 클릭 ${formatKstShort(input.clickedAt)} · 방문 ${formatKstShort(input.session.startedAt)}<br>메일 열람 여부: 수집하지 않음 · 링크 클릭 확인`),
                     ] },
@@ -195,6 +199,7 @@ export const journeyPreviewText = (input: JourneyCardInput, now: Date): string =
     const s = summarizeJourney(input, now);
     return clipChars([`[샌드비 고객 여정 · 예시 / 가상 고객]`, `${s.company} · ${s.person}`, `사업: ${input.businessName}`,
         `연락처: ${s.phones.join(" · ") || "CRM에 등록된 연락처 없음"}`,
+        `유입경로: ${acquisitionText(input.acquisition)}`,
         `상태: ${s.completed ? "완료" : "이탈 추정"} · ${s.stage}`, `체류: ${durationLabel(s.totalSeconds)}`,
         "", "방문 순서 (페이지 시간은 추정)", ...s.pages.map((p) => `• ${p.title} · ${durationLabel(p.seconds)}`),
         "", "관심 영역 (측정값)", ...s.sections.map((p) => `• ${p.label} · ${durationLabel(p.seconds)}`),
