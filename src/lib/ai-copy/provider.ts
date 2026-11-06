@@ -19,6 +19,12 @@ export class CopyProviderError extends Error {
 const tokenCount = (value: unknown): number | null =>
     typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 
+/**
+ * Claude 5 계열(opus/sonnet/haiku/fable-5…)은 temperature 를 받지 않는다 — 보내면 400 "`temperature` is deprecated
+ * for this model" 로 모든 요청이 실패한다. 그 모델에는 빼고 보낸다. 4.x 이하는 그대로 보낸다.
+ */
+export const acceptsTemperature = (model: string) => !/^claude-(?:opus|sonnet|haiku|fable)-5(?:[-.]|$)/.test(model);
+
 /** 한 호출은 한 과금 시도다. SDK·공급자 내부 재시도를 끄고 작업 계층에서 재시도한다. */
 export async function callCopyProvider(
     policy: Pick<PolicySnapshot, "provider" | "model" | "parameters">,
@@ -35,7 +41,7 @@ export async function callCopyProvider(
                 {
                     model: policy.model,
                     max_tokens: policy.parameters.maxOutputTokens,
-                    temperature: policy.parameters.temperature,
+                    ...(acceptsTemperature(policy.model) ? { temperature: policy.parameters.temperature } : {}),
                     system: prompt.system,
                     messages: [{ role: "user", content: prompt.user }],
                 },
