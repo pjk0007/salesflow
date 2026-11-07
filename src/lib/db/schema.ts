@@ -31,6 +31,7 @@ export * from "./inbox-google-schema";
 export * from "./customer-platform-schema";
 export * from "./customer-sales-schema";
 export * from "./customer-activity-schema";
+export * from "./customer-relationship-schema";
 export * from "./inbox-files-schema";
 export * from "./platform-webhook-schema";
 export * from "./customer-ai-schema";

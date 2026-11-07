@@ -9,7 +9,7 @@ export default function Page() {
         <WorkspaceLayout>
             {user && (
                 <Suspense>
-                    <CustomerCrmPage role={user.role} />
+                    <CustomerCrmPage role={user.role} userId={user.id} />
                 </Suspense>
             )}
         </WorkspaceLayout>

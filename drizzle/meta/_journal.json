@@ -813,6 +813,13 @@
       "when": 1792778400000,
       "tag": "0122_record_chat_alerts",
       "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1793210400000,
+      "tag": "0127_crm_relationship_care",
+      "breakpoints": true
     }
   ]
 }

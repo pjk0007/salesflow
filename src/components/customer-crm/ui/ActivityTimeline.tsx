@@ -123,6 +123,22 @@ export function ActivityTimeline({
                                                           "메일 발송 실패",
                                                       "email.uncertain":
                                                           "메일 발송 확인 필요",
+                                                      "relationship.business_card":
+                                                          "명함 등록",
+                                                      "relationship.started":
+                                                          "관계 관리 시작",
+                                                      "relationship.updated":
+                                                          "관계 관리 설정 변경",
+                                                      "relationship.sent":
+                                                          "인사 보냄",
+                                                      "relationship.logged":
+                                                          "연락 기록",
+                                                      "relationship.reply":
+                                                          "답장 받음",
+                                                      "relationship.snooze":
+                                                          "인사 미룸",
+                                                      "relationship.skip":
+                                                          "이번 주기 건너뜀",
                                                   } as Record<string, string>
                                               )[row.name] ?? row.name)}{" "}
                                         <span className="text-xs text-muted-foreground">
@@ -133,6 +149,7 @@ export function ActivityTimeline({
                                                     deal: "딜",
                                                     task: "업무",
                                                     conversation: "상담",
+                                                    relationship: "관계 관리",
                                                 } as Record<string, string>
                                             )[row.source] ?? row.source}
                                         </span>
