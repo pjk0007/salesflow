@@ -12,6 +12,7 @@ import {
     ListTodo,
     Settings2,
     Archive,
+    HeartHandshake,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { InboxBootstrap } from "@/components/inbox/types";
@@ -28,6 +29,8 @@ import type {
 } from "../types";
 import { EntityEditor } from "./EntityEditor";
 import { ActivityTimeline } from "./ActivityTimeline";
+import { RelationshipToday } from "@/components/relationship-care/ui/RelationshipToday";
+import { RelationshipPanel } from "@/components/relationship-care/ui/RelationshipPanel";
 const names: Record<Resource, string> = {
     deals: "딜",
     tasks: "할 일",
@@ -35,18 +38,25 @@ const names: Record<Resource, string> = {
     companies: "회사",
     pipelines: "파이프라인",
 };
-export function CustomerCrmPage({ role }: { role: string }) {
+type View = Resource | "care";
+export function CustomerCrmPage({
+    role,
+    userId,
+}: {
+    role: string;
+    userId: string;
+}) {
     void role;
     const params = useSearchParams(),
         bootstrap = useSWR<InboxBootstrap>("/api/inbox", crmRequest);
     const [chosen, setWorkspace] = useState<number | null>(
             Number(params.get("workspaceId")) || null,
         ),
-        [resource, setResource] = useState<Resource>(
-            ["deals", "tasks", "contacts", "companies", "pipelines"].includes(
+        [view, setView] = useState<View>(
+            ["care", "deals", "tasks", "contacts", "companies", "pipelines"].includes(
                 params.get("resource") ?? "",
             )
-                ? (params.get("resource") as Resource)
+                ? (params.get("resource") as View)
                 : "contacts",
         ),
         [query, setQuery] = useState(params.get("q") ?? ""),
@@ -62,6 +72,9 @@ export function CustomerCrmPage({ role }: { role: string }) {
         ),
         [editor, setEditor] = useState<Editor | null>(null);
     const workspaceId = chosen ?? bootstrap.data?.workspaces[0]?.id ?? null;
+    // 오늘의 인사(care)는 별도 화면이다. 목록 조회·추가 버튼은 고객 기준으로 둔다.
+    const resource: Resource = view === "care" ? "contacts" : view;
+    const setResource = (next: View) => setView(next);
     const { respond: canRespond, manage: canManage } = workspaceAbilities(
         bootstrap.data,
         workspaceId,
@@ -75,7 +88,7 @@ export function CustomerCrmPage({ role }: { role: string }) {
             archived: "all",
         });
     const current = useCrmList<Pipeline | Deal | Task | Contact | Company>(
-        workspaceId,
+        view === "care" ? null : workspaceId,
         resource,
         {
             q: query,
@@ -163,7 +176,19 @@ export function CustomerCrmPage({ role }: { role: string }) {
             setPending((ids) => ids.filter((id) => id !== item.id));
         }
     }
+    async function openContact(contactId: string) {
+        if (!workspaceId) return;
+        try {
+            const value = await crmRequest<{ item: Contact }>(
+                `/api/customer-crm/contacts/${contactId}?workspaceId=${workspaceId}`,
+            );
+            setEditor({ resource: "contacts", item: value.item });
+        } catch (e) {
+            toast.error((e as Error).message);
+        }
+    }
     const menus = [
+        { id: "care" as const, icon: HeartHandshake, label: "오늘의 인사" },
         { id: "contacts" as const, icon: UserRound },
         { id: "companies" as const, icon: Building2 },
         { id: "deals" as const, icon: BriefcaseBusiness },
@@ -240,15 +265,15 @@ export function CustomerCrmPage({ role }: { role: string }) {
                 {menus.map((m) => (
                     <button
                         key={m.id}
-                        aria-pressed={resource === m.id}
-                        className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm ${resource === m.id ? "bg-violet-100 font-medium text-violet-800" : "text-muted-foreground"}`}
+                        aria-pressed={view === m.id}
+                        className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm ${view === m.id ? "bg-violet-100 font-medium text-violet-800" : "text-muted-foreground"}`}
                         onClick={() => {
                             setResource(m.id);
                             setQuery("");
                         }}
                     >
                         <m.icon size={16} />
-                        {names[m.id]}
+                        {m.id === "care" ? "오늘의 인사" : names[m.id]}
                     </button>
                 ))}
             </nav>
@@ -272,6 +297,14 @@ export function CustomerCrmPage({ role }: { role: string }) {
                         ? "고객 관리를 불러오는 중…"
                         : "고객 관리를 사용할 사업을 먼저 만들어주세요."}
                 </p>
+            ) : view === "care" ? (
+                <div className="min-h-0 flex-1 overflow-auto">
+                    <RelationshipToday
+                        workspaceId={workspaceId}
+                        canRespond={canRespond}
+                        onOpenContact={(id) => void openContact(id)}
+                    />
+                </div>
             ) : (
                 <>
                     <div className="flex flex-wrap items-center justify-between gap-3 p-5">
@@ -690,6 +723,19 @@ export function CustomerCrmPage({ role }: { role: string }) {
                                 }}
                             />
                         )}
+                    {editor.item && editor.resource === "contacts" && (
+                        <RelationshipPanel
+                            key={editor.item.id}
+                            workspaceId={workspaceId}
+                            contactId={editor.item.id}
+                            userId={userId}
+                            members={bootstrap.data?.members ?? []}
+                            canRespond={
+                                canRespond &&
+                                !(editor.item as Contact).archivedAt
+                            }
+                        />
+                    )}
                     {editor.item &&
                         (editor.resource === "deals" ||
                             editor.resource === "contacts") && (

@@ -189,6 +189,31 @@ export async function callClaudeEmail(
     };
 }
 
+/** 이미지 1장 + 지시문 단발 호출(명함 글자 인식). 이미지는 요청에만 쓰고 저장하지 않는다. */
+export async function callClaudeVision(
+    client: AiClient,
+    systemPrompt: string,
+    userPrompt: string,
+    image: { mediaType: "image/jpeg" | "image/png" | "image/webp"; base64: string },
+): Promise<{ content: string; usage: TokenUsage }> {
+    const anthropic = new Anthropic(clientOptions(client.apiKey));
+    const message = await requestWithRetry(anthropic, {
+        model: client.model,
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: [
+            {
+                role: "user",
+                content: [
+                    { type: "image", source: { type: "base64", media_type: image.mediaType, data: image.base64 } },
+                    { type: "text", text: userPrompt },
+                ],
+            },
+        ],
+    });
+    return { content: extractText(message.content), usage: toUsage(message.usage) };
+}
+
 export async function callClaudeJson(
     client: AiClient,
     systemPrompt: string,
