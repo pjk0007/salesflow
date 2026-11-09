@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import {
     callExternalEngine,
+    engineSubject,
     externalEngineFor,
     signEngineRequest,
 } from "./external-engine";
@@ -83,4 +84,10 @@ test("엔진 오류와 빈 답변은 답변으로 보내지 않는다", async ()
             fetch: reply({ decision: "answer", text: "  ", handoff: null }),
         }),
     );
+});
+
+test("회원 연결이 있는 대화만 회원 ID 를 보낸다", () => {
+    assert.deepEqual(engineSubject("c-1", "firebase-uid"), { subjectId: "firebase-uid" });
+    assert.deepEqual(engineSubject("c-1", null), { visitorId: "c-1" });
+    assert.deepEqual(engineSubject("c-1", undefined), { visitorId: "c-1" });
 });

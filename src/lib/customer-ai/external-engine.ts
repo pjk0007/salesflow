@@ -18,7 +18,7 @@ import type { DbExec } from "@/lib/db/tx";
  * - CUSTOMER_AI_ENGINE_SECRET: 서명 비밀값. 엔진의 ENGINE_PLATFORMS 와 같은 값
  * - CUSTOMER_AI_ENGINE_WORKSPACES: 사업 ID 목록 (쉼표)
  *
- * subjectId 는 본인 인증으로 연결된 대화의 회원 외부 ID 만 보낸다. 입력한 이메일이나 트래커 식별은 쓰지 않는다.
+ * subjectId 는 본인 인증으로 연결된 대화의 회원 외부 ID 만 보낸다(engineSubject). 입력한 이메일이나 트래커 식별은 쓰지 않는다.
  */
 export const ENGINE_PLATFORM = "sendb";
 const ENGINE_TIMEOUT_MS = 65000;
@@ -119,10 +119,7 @@ export async function buildEngineRequest(
     exec: DbExec,
 ): Promise<EngineRequest> {
     const [identity] = await exec
-        .select({
-            identifiedAt: chats.identifiedAt,
-            externalId: crmContacts.externalId,
-        })
+        .select({ externalId: crmContacts.externalId })
         .from(chats)
         .leftJoin(crmContacts, eq(crmContacts.id, chats.contactId))
         .where(eq(chats.id, job.conversationId));
@@ -150,7 +147,20 @@ export async function buildEngineRequest(
             text: m.body.slice(0, MAX_TEXT),
         })),
     };
-    return identity?.identifiedAt && identity.externalId
-        ? { ...base, subjectId: identity.externalId }
-        : { ...base, visitorId: job.conversationId };
+    return { ...base, ...engineSubject(job.conversationId, identity?.externalId) };
+}
+
+/**
+ * 웹 상담의 contactId 는 본인 인증(identity token)으로만 채워진다. 이 값이 있으면 회원이다.
+ * identifiedAt 은 익명 대화를 회원에 합칠 때만 찍히므로 로그인 후 바로 시작한 대화에서는 비어 있다 —
+ * 이것으로 판단하면 회원이 전부 방문자가 된다.
+ * 이메일·과거 가져오기 대화는 queueSupportJob 이 받지 않아 여기까지 오지 않는다.
+ */
+export function engineSubject(
+    conversationId: string,
+    externalId: string | null | undefined,
+): { subjectId: string } | { visitorId: string } {
+    return externalId
+        ? { subjectId: externalId }
+        : { visitorId: conversationId };
 }
