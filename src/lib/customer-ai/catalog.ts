@@ -31,6 +31,7 @@ import {
     type AiSettingsSnapshot,
     type AiSource,
 } from "./rules";
+import { externalEngineFor } from "./external-engine";
 export const aiWorkerEnabled = () =>
     process.env.NODE_ENV === "production" &&
     process.env.CUSTOMER_AI_WORKER === "on";
@@ -206,6 +207,7 @@ export async function saveSupportSettings(
         }
         if (
             input.mode !== "manual" &&
+            !externalEngineFor(workspaceId) &&
             (!input.knowledgeVersionId || !getAiClient(input.model))
         )
             throw new InboxError(

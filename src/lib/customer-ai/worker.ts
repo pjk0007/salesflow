@@ -18,6 +18,11 @@ import { recordSupportUsage } from "./usage";
 import { aiWorkerEnabled } from "./catalog";
 import { supportDeps } from "./runtime";
 import {
+    buildEngineRequest,
+    callExternalEngine,
+    externalEngineFor,
+} from "./external-engine";
+import {
     humanIntent,
     parseAiJson,
     validateGroundedAnswer,
@@ -287,9 +292,11 @@ export async function processSupportJob(
                 exec,
                 deps.now(),
             );
+        const engine = externalEngineFor(job.workspaceId);
         if (
-            !job.sources.length ||
-            !(await freshSupportJob(job, exec, false, true))
+            !engine &&
+            (!job.sources.length ||
+                !(await freshSupportJob(job, exec, false, true)))
         )
             return finish(
                 job,
@@ -309,7 +316,7 @@ export async function processSupportJob(
                 setWhere: sql`${daily.jobs}<${job.settingsSnapshot.maxJobsPerDay}`,
             })
             .returning();
-        if (!allowed || !(await deps.quota(job.orgId)))
+        if (!allowed || (!engine && !(await deps.quota(job.orgId))))
             return finish(
                 job,
                 {
@@ -318,6 +325,22 @@ export async function processSupportJob(
                 exec,
                 deps.now(),
             );
+        if (engine) {
+            const result = await callExternalEngine(
+                engine,
+                await buildEngineRequest(job, exec),
+            );
+            const [current] = await exec
+                .select({ state: jobs.state, leaseId: jobs.leaseId })
+                .from(jobs)
+                .where(eq(jobs.id, job.id));
+            if (
+                current?.state !== "generating" ||
+                current.leaseId !== job.leaseId
+            )
+                return null;
+            return finish(job, result, exec, deps.now());
+        }
         const generated = await stage(
                 job,
                 "answer",

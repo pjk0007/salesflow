@@ -32,6 +32,7 @@ import {
     teamMemberPredicate,
 } from "@/lib/inbox-routing/assignment";
 import { getSupportSettings, chatKnowledge } from "./catalog";
+import { externalEngineFor } from "./external-engine";
 import {
     retrieveSources,
     humanIntent,
@@ -401,7 +402,8 @@ export async function freshSupportJob(
             return false;
         }
     }
-    if (!requireKnowledge) return true;
+    // 외부 엔진은 sendb 지식을 쓰지 않는다
+    if (!requireKnowledge || externalEngineFor(workspaceId)) return true;
     const facts = await chatKnowledge(
         job.orgId,
         workspaceId,
