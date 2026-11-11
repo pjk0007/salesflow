@@ -581,13 +581,13 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                         <Button variant="outline" size="sm" asChild>
                             <Link href="/leads/stats">
                                 <BarChart3 className="mr-1 h-4 w-4" />
-                                리드 통계
+                                리드통계
                             </Link>
                         </Button>
                     }
                 />
             )}
-            <div className={cn("flex overflow-hidden", category === "lead" ? "h-[calc(100vh-3.5rem-45px)]" : "h-[calc(100vh-3.5rem)]")}>
+            <div className={cn("flex overflow-hidden", category === "lead" ? "h-[calc(100vh-3.5rem-3rem)]" : "h-[calc(100vh-3.5rem)]")}>
                 {/* 좌측: 파티션 네비게이션 (데스크톱 전용) */}
                 <div className="hidden md:flex">
                     <PartitionNav

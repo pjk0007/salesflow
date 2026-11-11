@@ -28,7 +28,7 @@ export function LeadStatusSettings({ workspaceId }: { workspaceId: number }) {
         <div className="space-y-2">
             <Label>리드 대응상태</Label>
             <p className="text-xs text-muted-foreground">
-                리드 관리 화면에 보일 상태를 고릅니다. 끈 상태의 리드는 &apos;기타 상태&apos; 묶음에 보입니다.
+                리드관리 화면에 보일 상태를 고릅니다. 끈 상태의 리드는 &apos;기타 상태&apos; 묶음에 보입니다.
             </p>
             <div className="divide-y rounded-md border">
                 {settings.map((s) => (

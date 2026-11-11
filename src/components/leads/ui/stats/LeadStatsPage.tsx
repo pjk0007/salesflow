@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Info } from "lucide-react";
+import { format } from "date-fns";
+import { Info, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { LEAD_STATUS_COLORS } from "@/lib/leads/statuses";
@@ -30,14 +33,14 @@ const hourText = (v: number | null): [string, string] =>
 /** 기간 고르기 — 묶음 버튼 */
 function RangePills({ value, onChange }: { value: string; onChange: (v: string) => void }) {
     return (
-        <div className="flex items-center gap-0.5 rounded-md bg-muted p-1">
+        <div className="flex h-9 items-center gap-0.5 rounded-md bg-muted p-1">
             {RANGES.map((r) => (
                 <button
                     key={r.value}
                     type="button"
                     onClick={() => onChange(r.value)}
                     className={cn(
-                        "rounded px-3 py-1 text-xs transition-colors",
+                        "flex h-7 items-center rounded px-3 text-xs transition-colors",
                         value === r.value ? "bg-background font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
                     )}
                 >
@@ -51,26 +54,63 @@ function RangePills({ value, onChange }: { value: string; onChange: (v: string) 
 /** 리드 통계 — 사업(워크스페이스)별 유입·전환·응답 KPI */
 export function LeadStatsPage() {
     const [workspaceId, setWorkspaceId] = useState<number | null>(null);
+    // 빠른 기간(30일 등) 또는 직접 고른 날짜 — 날짜를 고르면 빠른 기간 선택은 풀린다
     const [range, setRange] = useState("90");
-    const { stats, isLoading } = useLeadStats(workspaceId, range === "all" ? null : Number(range));
+    const [custom, setCustom] = useState<{ from?: Date; to?: Date }>({});
+    const isCustom = range === "custom" && custom.from && custom.to;
+    const { stats, isLoading } = useLeadStats(
+        workspaceId,
+        isCustom
+            ? { from: format(custom.from!, "yyyy-MM-dd"), to: format(custom.to!, "yyyy-MM-dd") }
+            : { days: range === "all" || range === "custom" ? null : Number(range) },
+    );
     const t = stats?.totals;
     const c = stats?.conversion;
     const r = stats?.response;
     const [respValue, respUnit] = hourText(r?.medianFirstResponseHours ?? null);
 
     return (
-        <div className="flex min-h-0 flex-1 flex-col bg-muted/40">
-            <div className="bg-background">
-                <LeadWorkspaceTabs value={workspaceId} onChange={setWorkspaceId} countKind="all" />
-            </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+            <LeadWorkspaceTabs value={workspaceId} onChange={setWorkspaceId} />
             <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="space-y-3 px-4 py-4">
-                    <div className="flex flex-wrap items-end justify-between gap-3">
-                        <div>
-                            <h1 className="text-2xl font-semibold tracking-tight">리드 통계</h1>
-                            <p className="mt-0.5 text-xs text-muted-foreground">유입부터 전환까지, 사업별 리드 성과</p>
+                <div className="space-y-3 px-8 py-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <h1 className="text-2xl font-semibold tracking-tight">리드통계</h1>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <RangePills
+                                value={range}
+                                onChange={(v) => {
+                                    setRange(v);
+                                    setCustom({});
+                                }}
+                            />
+                            <DateRangePicker
+                                from={custom.from}
+                                to={custom.to}
+                                maxDate={new Date()}
+                                placeholder="날짜 직접 선택"
+                                align="end"
+                                triggerClassName={cn("bg-background", isCustom && "border-primary/40 text-primary")}
+                                onChange={({ from, to }) => {
+                                    setCustom({ from, to });
+                                    setRange("custom");
+                                }}
+                            />
+                            {isCustom && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-muted-foreground"
+                                    onClick={() => {
+                                        setCustom({});
+                                        setRange("90");
+                                    }}
+                                >
+                                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                    초기화
+                                </Button>
+                            )}
                         </div>
-                        <RangePills value={range} onChange={setRange} />
                     </div>
 
                     {isLoading || !stats ? (

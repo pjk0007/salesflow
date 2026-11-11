@@ -119,7 +119,7 @@ export default function PartitionNav({
     };
 
     const targetCategory = category === "lead" ? "cold" : "lead";
-    const targetLabel = targetCategory === "lead" ? "리드 관리" : "레코드";
+    const targetLabel = targetCategory === "lead" ? "리드관리" : "레코드";
     const movePartitionCategory = async (partitionId: number, name: string) => {
         const res = await fetch(`/api/partitions/${partitionId}`, {
             method: "PATCH",
@@ -211,7 +211,8 @@ export default function PartitionNav({
 
             {/* 생성 버튼 */}
             {workspaceId && (
-                <div className="flex gap-1 px-3 py-2 border-b">
+                // 오른쪽 툴바(검색·상태 탭) 줄과 높이를 맞춘다: p-3 + 36px 컨트롤 + 선 1px
+                <div className="flex h-[61px] shrink-0 items-center gap-1 px-3 border-b">
                     <Button
                         variant="ghost"
                         size="sm"

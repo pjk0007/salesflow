@@ -161,7 +161,7 @@ export async function PATCH(
         // 레코드(메일 발송용) ↔ 리드 관리 페이지 이동 — 어느 메뉴에 보일지가 바뀌므로 관리자만
         if (category !== undefined) {
             if (user.role === "member") {
-                return NextResponse.json({ success: false, error: "레코드/리드 관리 이동은 관리자만 할 수 있습니다." }, { status: 403 });
+                return NextResponse.json({ success: false, error: "레코드/리드관리 이동은 관리자만 할 수 있습니다." }, { status: 403 });
             }
             if (category !== "cold" && category !== "lead") {
                 return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });

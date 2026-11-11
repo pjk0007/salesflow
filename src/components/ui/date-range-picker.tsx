@@ -16,9 +16,11 @@ interface DateRangePickerProps {
     placeholder?: string;
     maxDate?: Date;
     triggerClassName?: string;
+    /** 달력이 버튼 어느 쪽 끝에 맞춰 열릴지 (end: 버튼 오른쪽 끝) */
+    align?: "start" | "center" | "end";
 }
 
-export function DateRangePicker({ from, to, onChange, placeholder = "기간 선택", maxDate, triggerClassName }: DateRangePickerProps) {
+export function DateRangePicker({ from, to, onChange, placeholder = "기간 선택", maxDate, triggerClassName, align = "start" }: DateRangePickerProps) {
     const [open, setOpen] = useState(false);
     const [draft, setDraft] = useState<DateRange | undefined>(undefined);
     // "start" = 시작일 선택 대기, "end" = 종료일 선택 대기
@@ -62,7 +64,7 @@ export function DateRangePicker({ from, to, onChange, placeholder = "기간 선�
                     {label}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
+            <PopoverContent className="w-auto p-0" align={align}>
                 <Calendar
                     mode="range"
                     locale={ko}

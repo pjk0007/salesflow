@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { db, memos, partitions, recordEvents, records } from "@/lib/db";
 
 const CONVERTED = "전환";
@@ -6,7 +6,7 @@ const CLOSED = "종료";
 const DAY = 24 * 60 * 60 * 1000;
 
 export interface LeadStats {
-    range: { days: number | null; from: string | null };
+    range: { from: string | null; to: string | null };
     totals: { leads: number; converted: number; closed: number; open: number; conversionRate: number | null };
     statusCounts: Array<{ status: string; count: number }>;
     monthly: Array<{ month: string; leads: number; converted: number }>;
@@ -44,9 +44,13 @@ function monthKey(d: Date) {
     return `${k.getUTCFullYear()}-${String(k.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** 워크스페이스 리드(리드 관리 파티션) 통계 — days가 있으면 최근 N일에 들어온 리드만 */
-export async function getLeadStats(orgId: string, workspaceId: number, days: number | null): Promise<LeadStats> {
-    const from = days ? new Date(Date.now() - days * DAY) : null;
+/** 워크스페이스 리드(리드 관리 파티션) 통계 — from~to(포함) 사이에 들어온 리드만, 없으면 전체 */
+export async function getLeadStats(
+    orgId: string,
+    workspaceId: number,
+    period: { from: Date | null; to: Date | null },
+): Promise<LeadStats> {
+    const { from, to } = period;
 
     const leadPartitions = await db
         .select({ id: partitions.id, name: partitions.name })
@@ -55,7 +59,7 @@ export async function getLeadStats(orgId: string, workspaceId: number, days: num
     const partitionIds = leadPartitions.map((p) => p.id);
 
     const empty: LeadStats = {
-        range: { days, from: from?.toISOString() ?? null },
+        range: { from: from?.toISOString() ?? null, to: to?.toISOString() ?? null },
         totals: { leads: 0, converted: 0, closed: 0, open: 0, conversionRate: null },
         statusCounts: [],
         monthly: [],
@@ -80,6 +84,7 @@ export async function getLeadStats(orgId: string, workspaceId: number, days: num
                 eq(records.orgId, orgId),
                 inArray(records.partitionId, partitionIds),
                 from ? gte(records.registeredAt, from) : undefined,
+                to ? lt(records.registeredAt, to) : undefined,
             ),
         );
     if (leadRows.length === 0) return empty;
@@ -181,7 +186,7 @@ export async function getLeadStats(orgId: string, workspaceId: number, days: num
 
     const decided = converted.length + closed;
     return {
-        range: { days, from: from?.toISOString() ?? null },
+        range: { from: from?.toISOString() ?? null, to: to?.toISOString() ?? null },
         totals: {
             leads: leadRows.length,
             converted: converted.length,
