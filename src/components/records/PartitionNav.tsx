@@ -55,6 +55,8 @@ interface PartitionNavProps {
     category?: "cold" | "lead";
     /** 오른쪽 가장자리를 끌어 너비 조정 (데스크톱) — 너비는 브라우저에 기억 */
     resizable?: boolean;
+    /** 워크스페이스 선택창 숨김 (리드 관리는 윗줄 탭 사용) */
+    hideWorkspaceSelect?: boolean;
     /** 외부에서 root에 클래스 덮어쓰기 (모바일 사이드바 통합용) */
     className?: string;
 }
@@ -77,11 +79,15 @@ export default function PartitionNav({
     onMutatePartitions,
     category,
     resizable,
+    hideWorkspaceSelect,
     className,
 }: PartitionNavProps) {
     const { width, handleProps } = useResizableWidth("partition-nav-width", 240, 180, 560);
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
-    const { fieldTypes: types } = useFieldTypes();
+    const { fieldTypes: allTypes } = useFieldTypes();
+    // 이 페이지(레코드/리드 관리)에 맞는 속성 타입만 고를 수 있게
+    const types = allTypes.filter((t) => (t.category ?? "cold") === (category === "lead" ? "lead" : "cold"));
+    const allTypeName = (id: number | null) => (id ? allTypes.find((t) => t.id === id)?.name ?? null : null);
     const [openFolders, setOpenFolders] = useState<Set<number>>(new Set());
     // 발송 실패가 많아 보류된 명단 — 이름 옆 빨간 점 (DESIGN-SND 10절)
     const { byPartition: holdByPartition } = usePartitionHolds();
@@ -142,10 +148,8 @@ export default function PartitionNav({
         toast.success(`파티션 ID ${id} 복사됨`);
     };
 
-    const getTypeName = (fieldTypeId: number | null) => {
-        if (!fieldTypeId) return null;
-        return types.find((t) => t.id === fieldTypeId)?.name ?? null;
-    };
+    // 이름 표시는 전체 타입에서 찾는다 (구분과 상관없이 지금 쓰는 타입 이름이 보이게)
+    const getTypeName = allTypeName;
     const selectedWorkspace = workspaces.find((w) => w.id === workspaceId);
     const defaultTypeName = selectedWorkspace?.defaultFieldTypeId
         ? getTypeName(selectedWorkspace.defaultFieldTypeId as number)
@@ -174,7 +178,8 @@ export default function PartitionNav({
                     className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize hover:bg-primary/20 active:bg-primary/30"
                 />
             )}
-            {/* 워크스페이스 선택 */}
+            {/* 워크스페이스 선택 — 리드 관리는 페이지 윗줄 탭으로 고른다 */}
+            {!hideWorkspaceSelect && (
             <div className="p-3 border-b">
                 {wsLoading ? (
                     <Skeleton className="h-9 w-full" />
@@ -202,6 +207,7 @@ export default function PartitionNav({
                     </Select>
                 )}
             </div>
+            )}
 
             {/* 생성 버튼 */}
             {workspaceId && (

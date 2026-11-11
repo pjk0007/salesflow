@@ -60,6 +60,29 @@ function AttachmentList({ items, onRemove }: { items: MemoAttachmentItem[]; onRe
     );
 }
 
+/** 댓글 종류 고르기 — 입력창 안 작은 버튼 + 드롭다운 */
+function KindPicker({ value, onChange }: { value: string | null; onChange: (v: MemoKindValue) => void }) {
+    const current = memoKindOf(value) ?? memoKindOf("etc")!;
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground outline-none hover:bg-accent">
+                <current.icon className="h-3.5 w-3.5" />
+                {current.label}
+                <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-32">
+                {MEMO_KIND_OPTIONS.map((k) => (
+                    <DropdownMenuItem key={k.value} onClick={() => onChange(k.value)}>
+                        <k.icon className="h-4 w-4" />
+                        {k.label}
+                        {current.value === k.value && <Check className="ml-auto h-4 w-4" />}
+                    </DropdownMenuItem>
+                ))}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
 function CommentItem({
     memo,
     canEdit,
@@ -68,17 +91,18 @@ function CommentItem({
 }: {
     memo: MemoItem;
     canEdit: boolean;
-    onUpdate: (content: string) => Promise<void>;
+    onUpdate: (content: string, kind: string | null) => Promise<void>;
     onDelete: () => Promise<void>;
 }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(memo.content);
+    const [draftKind, setDraftKind] = useState<string | null>(memo.kind ?? null);
     const kind = memoKindOf(memo.kind);
 
     const save = async () => {
         if (!draft.trim()) return;
         try {
-            await onUpdate(draft);
+            await onUpdate(draft, draftKind);
             setEditing(false);
         } catch (e) {
             toast.error((e as Error).message || "수정에 실패했습니다.");
@@ -114,7 +138,9 @@ function CommentItem({
                             rows={3}
                             autoFocus
                         />
-                        <div className="flex justify-end gap-1">
+                        <div className="flex items-center justify-end gap-1">
+                            <KindPicker value={draftKind} onChange={setDraftKind} />
+                            <span className="flex-1" />
                             <Button size="icon" variant="ghost" className="size-7" onClick={() => setEditing(false)} aria-label="취소">
                                 <X className="h-3.5 w-3.5" />
                             </Button>
@@ -137,6 +163,7 @@ function CommentItem({
                         aria-label="수정"
                         onClick={() => {
                             setDraft(memo.content);
+                            setDraftKind(memo.kind ?? null);
                             setEditing(true);
                         }}
                     >
@@ -182,7 +209,7 @@ export function LeadCommentList({ recordId }: { recordId: number }) {
                             key={memo.id}
                             memo={memo}
                             canEdit={!!user && canEditMemo(memo, { userId: user.id, role: user.role })}
-                            onUpdate={(content) => updateMemo(memo.id, content)}
+                            onUpdate={(content, kind) => updateMemo(memo.id, content, kind)}
                             onDelete={() => deleteMemo(memo.id)}
                         />
                     ))}
@@ -203,7 +230,6 @@ export function LeadCommentComposer({ recordId, onAdded }: { recordId: number; o
     const [dragging, setDragging] = useState(false);
     const [sending, setSending] = useState(false);
     const fileInput = useRef<HTMLInputElement>(null);
-    const current = memoKindOf(kind)!;
 
     const upload = async (list: FileList | File[] | null) => {
         const picked = Array.from(list ?? []);
@@ -324,22 +350,7 @@ export function LeadCommentComposer({ recordId, onAdded }: { recordId: number; o
                             e.target.value = "";
                         }}
                     />
-                    <DropdownMenu>
-                        <DropdownMenuTrigger className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground outline-none hover:bg-accent">
-                            <current.icon className="h-3.5 w-3.5" />
-                            {current.label}
-                            <ChevronDown className="h-3 w-3" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="min-w-32">
-                            {MEMO_KIND_OPTIONS.map((k) => (
-                                <DropdownMenuItem key={k.value} onClick={() => setKind(k.value)}>
-                                    <k.icon className="h-4 w-4" />
-                                    {k.label}
-                                    {kind === k.value && <Check className="ml-auto h-4 w-4" />}
-                                </DropdownMenuItem>
-                            ))}
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <KindPicker value={kind} onChange={setKind} />
                     <DatePicker
                         value={nextContact}
                         onChange={setNextContact}

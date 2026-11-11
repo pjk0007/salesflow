@@ -4,6 +4,7 @@ import { eq, and } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireRecordAccess } from "@/lib/partition-access";
 import { canDeleteMemo, canEditMemo, MEMO_DELETE_FORBIDDEN } from "@/lib/memo-permissions";
+import { MEMO_KINDS } from "@/lib/leads/memo-input";
 
 // DELETE: 메모 삭제
 export async function DELETE(
@@ -69,9 +70,12 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 요청입니다." }, { status: 400 });
     }
 
-    const { content } = await req.json();
+    const { content, kind } = await req.json();
     if (!content || typeof content !== "string" || !content.trim()) {
         return NextResponse.json({ success: false, error: "내용을 입력해주세요." }, { status: 400 });
+    }
+    if (kind !== undefined && kind !== null && !(MEMO_KINDS as readonly string[]).includes(kind)) {
+        return NextResponse.json({ success: false, error: "잘못된 댓글 종류입니다." }, { status: 400 });
     }
 
     const access = await requireRecordAccess(user, recordId, "read");
@@ -92,7 +96,7 @@ export async function PATCH(
 
     const [updated] = await db
         .update(memos)
-        .set({ content: content.trim() })
+        .set({ content: content.trim(), ...(kind !== undefined ? { kind } : {}) })
         .where(eq(memos.id, memoIdNum))
         .returning();
 

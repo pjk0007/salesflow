@@ -110,6 +110,8 @@ export const fieldTypes = pgTable("field_types", {
     name: varchar("name", { length: 100 }).notNull(),
     description: text("description"),
     icon: varchar("icon", { length: 50 }),
+    // cold: 레코드 파티션용, lead: 리드 관리 파티션용 (0134) — 설정에서 탭을 나눠 보여준다
+    category: varchar("category", { length: 20 }).default("cold").notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 }, (table) => ({

@@ -74,6 +74,8 @@ export interface FieldTypeDefinition {
   name: string;
   description: string | null;
   icon: string | null;
+  /** cold: 레코드용, lead: 리드 관리용 */
+  category?: "cold" | "lead";
 }
 
 // 필드 정의 (클라이언트용)

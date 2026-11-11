@@ -4,6 +4,9 @@ import { recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import PartitionNav from "@/components/records/PartitionNav";
 import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
 import type { ReactNode } from "react";
@@ -49,6 +52,7 @@ import { usePartitions } from "@/hooks/usePartitions";
 import { useFields } from "@/hooks/useFields";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { LeadBoard } from "@/components/leads/ui/LeadBoard";
+import { LeadWorkspaceTabs } from "@/components/leads/ui/LeadWorkspaceTabs";
 import { useRecords } from "@/hooks/useRecords";
 import { useSSE } from "@/hooks/useSSE";
 import { mutate as globalMutate } from "swr";
@@ -539,6 +543,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                 onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
                 onMutatePartitions={mutatePartitions}
                 category={category}
+                hideWorkspaceSelect={category === "lead"}
                 className="w-full border-r-0 bg-transparent"
             />
         ),
@@ -568,7 +573,21 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                 subtitle={currentPartition?.name ?? null}
                 closeOnChange={partitionId}
             />
-            <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
+            {category === "lead" && (
+                <LeadWorkspaceTabs
+                    value={workspaceId}
+                    onChange={handleWorkspaceChange}
+                    right={
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href="/leads/stats">
+                                <BarChart3 className="mr-1 h-4 w-4" />
+                                리드 통계
+                            </Link>
+                        </Button>
+                    }
+                />
+            )}
+            <div className={cn("flex overflow-hidden", category === "lead" ? "h-[calc(100vh-3.5rem-45px)]" : "h-[calc(100vh-3.5rem)]")}>
                 {/* 좌측: 파티션 네비게이션 (데스크톱 전용) */}
                 <div className="hidden md:flex">
                     <PartitionNav
@@ -589,6 +608,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                         onMutatePartitions={mutatePartitions}
                         category={category}
                         resizable
+                        hideWorkspaceSelect={category === "lead"}
                     />
                 </div>
 

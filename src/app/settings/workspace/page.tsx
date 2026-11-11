@@ -55,7 +55,11 @@ function WorkspaceSettingsContent() {
                         </TabsTrigger>
                         <TabsTrigger value="field-types">
                             <ListTree className="mr-2 h-4 w-4" />
-                            속성 타입 관리
+                            레코드 속성 타입
+                        </TabsTrigger>
+                        <TabsTrigger value="lead-field-types">
+                            <ListTree className="mr-2 h-4 w-4" />
+                            리드 속성 타입
                         </TabsTrigger>
 <TabsTrigger value="automation">
                             <Sparkles className="mr-2 h-4 w-4" />
@@ -68,7 +72,11 @@ function WorkspaceSettingsContent() {
                     </TabsContent>
 
                     <TabsContent value="field-types" className="mt-6">
-                        <FieldTypeManagementTab />
+                        <FieldTypeManagementTab category="cold" />
+                    </TabsContent>
+
+                    <TabsContent value="lead-field-types" className="mt-6">
+                        <FieldTypeManagementTab key="lead" category="lead" />
                     </TabsContent>
 
 <TabsContent value="automation" className="mt-6">

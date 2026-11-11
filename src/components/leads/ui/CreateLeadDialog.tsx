@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import type { FieldDefinition } from "@/types";
 import { createLead } from "../api";
-import { resolveBaseSlots } from "../utils/lead-fields";
+import { AUTO_FILLED_KEYS, resolveBaseSlots } from "../utils/lead-fields";
 
 interface CreateLeadDialogProps {
     open: boolean;
@@ -64,7 +64,8 @@ function FieldInput({
 export function CreateLeadDialog({ open, onOpenChange, partitionId, fields, onCreated }: CreateLeadDialogProps) {
     const slots = useMemo(() => resolveBaseSlots(fields), [fields]);
     const slotKeys = useMemo(() => new Set(slots.map((s) => s.key)), [slots]);
-    const extraOptions = fields.filter((f) => !slotKeys.has(f.key) && !f.isSystem);
+    // 캠페인·광고 소재 등은 웹폼·메타 광고가 자동으로 채우는 유입 정보라 직접 넣는 항목에서 뺀다
+    const extraOptions = fields.filter((f) => !slotKeys.has(f.key) && !f.isSystem && !AUTO_FILLED_KEYS.has(f.key));
 
     const statusSlot = slots.find((s) => s.id === "status");
     const defaultStatus = statusSlot?.field?.options?.[0] ?? "";

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { FieldDefinition } from "@/types";
 import type { LeadRecord } from "../types";
-import { extraFields, formatDate, formatDateTime, summarizeLead } from "../utils/lead-fields";
+import { AUTO_FILLED_KEYS, extraFields, formatDate, formatDateTime, summarizeLead } from "../utils/lead-fields";
 import { LeadCommentComposer, LeadCommentList } from "./LeadComments";
 import { InflowBadge } from "./InflowBadge";
 import { LeadActivitySection } from "./LeadActivitySection";
@@ -58,6 +58,13 @@ export function LeadDetailPanel({
     const [full, setFull] = useState(false);
     const lead = summarizeLead(record, fields);
     const extras = extraFields(record, fields);
+    // 웹폼 유입 추적·메타 광고가 남긴 캠페인·광고 소재
+    const attribution = [...AUTO_FILLED_KEYS]
+        .map((key) => ({
+            label: fields.find((f) => f.key === key)?.label ?? (key === "campaignName" ? "캠페인" : "광고 소재"),
+            value: String((record.data as Record<string, unknown>)?.[key] ?? "").trim(),
+        }))
+        .filter((a) => a.value);
 
     return (
         <>
@@ -123,8 +130,13 @@ export function LeadDetailPanel({
                         </PropRow>
 
                         <PropRow icon={Route} label="유입경로">
-                            <div className="pt-0.5">
+                            <div className="space-y-1 pt-0.5">
                                 <InflowBadge inflow={record.inflow} />
+                                {attribution.length > 0 && (
+                                    <div className="text-xs text-muted-foreground">
+                                        {attribution.map((a) => `${a.label} ${a.value}`).join(" · ")}
+                                    </div>
+                                )}
                             </div>
                         </PropRow>
 

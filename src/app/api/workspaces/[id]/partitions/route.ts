@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, folders, partitions } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
-import { ensureLeadBaseFields } from "@/lib/leads/base-fields";
+import { ensureLeadFieldType } from "@/lib/leads/lead-field-type";
 import { filterAccessiblePartitions, loadOrgScopes, requireWorkspaceCreateAccess } from "@/lib/partition-access";
 
 export async function GET(
@@ -162,14 +162,8 @@ export async function POST(
                 folderId: partitions.folderId,
             });
 
-        // 리드 관리에서 만든 파티션은 리드 기본 칸을 갖춘다
-        if (category === "lead") {
-            const [ws] = await db
-                .select({ defaultFieldTypeId: workspaces.defaultFieldTypeId })
-                .from(workspaces)
-                .where(eq(workspaces.id, workspaceId));
-            await ensureLeadBaseFields(fieldTypeId || ws?.defaultFieldTypeId);
-        }
+        // 리드 관리에서 만든 파티션은 리드 전용 속성 타입 + 리드 기본 칸을 갖춘다
+        if (category === "lead") await ensureLeadFieldType(created.id);
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error) {

@@ -4,7 +4,7 @@ import { eq, and, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { normalizeScheduledConfig } from "@/lib/scheduled-registration";
-import { ensureLeadBaseFields } from "@/lib/leads/base-fields";
+import { ensureLeadFieldType } from "@/lib/leads/lead-field-type";
 
 export async function GET(
     req: NextRequest,
@@ -73,6 +73,7 @@ export async function PATCH(
             return NextResponse.json({ success: false, error: access.error }, { status: access.status });
         }
 
+        let moveToLead = false;
         const updateData: Record<string, unknown> = { updatedAt: new Date() };
 
         if (name !== undefined) {
@@ -168,7 +169,8 @@ export async function PATCH(
             updateData.category = category;
             // 리드 관리로 옮기면 대응상태·연락처·이메일·요청사항·유입경로 칸이 없을 때 채운다
             if (category === "lead") {
-                await ensureLeadBaseFields(access.partition.fieldTypeId ?? access.workspace.defaultFieldTypeId);
+                // 레코드와 같은 속성 타입이면 리드 전용 타입으로 옮긴다 — 저장(아래 update) 뒤에 실행
+                moveToLead = true;
             }
         }
 
@@ -198,6 +200,7 @@ export async function PATCH(
             .set(updateData)
             .where(eq(partitions.id, partitionId))
             .returning();
+        if (moveToLead) await ensureLeadFieldType(partitionId);
 
         return NextResponse.json({ success: true, data: updated });
     } catch (error) {

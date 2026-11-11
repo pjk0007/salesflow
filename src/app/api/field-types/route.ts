@@ -28,7 +28,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "접근 권한이 없습니다." }, { status: 403 });
     }
 
-    const { name, description, icon } = await req.json();
+    const { name, description, icon, category } = await req.json();
+    if (category !== undefined && category !== "cold" && category !== "lead") {
+        return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
+    }
     if (!name?.trim()) {
         return NextResponse.json({ success: false, error: "타입 이름을 입력해주세요." }, { status: 400 });
     }
@@ -41,6 +44,7 @@ export async function POST(req: NextRequest) {
                 name: name.trim(),
                 description: description?.trim() || null,
                 icon: icon || null,
+                category: category ?? "cold",
             })
             .returning({ id: fieldTypes.id, name: fieldTypes.name });
 

@@ -9,6 +9,8 @@ const EMAIL_KEYS = ["email"];
 const REQUEST_KEYS = ["note", "memo", "inquiry", "message"];
 const REQUEST_LABELS = ["요청사항", "문의 내용", "문의내용"];
 export const STATUS_KEY = "status";
+/** 웹폼 유입 추적·메타 리드 광고가 자동으로 채우는 칸 (src/lib/attribution, meta-lead-record) */
+export const AUTO_FILLED_KEYS = new Set(["campaignName", "adName"]);
 const SOURCE_KEYS = ["source"];
 
 /** 리드 추가 창의 기본 항목 — 파티션에 같은 뜻의 칸이 있으면 그 key를 쓴다 */
@@ -32,6 +34,7 @@ export const SUMMARY_KEYS = new Set([
     ...SOURCE_KEYS,
     STATUS_KEY,
     "nextContactAt",
+    ...AUTO_FILLED_KEYS,
 ]);
 
 /** 기본 항목마다 실제로 저장할 key와 필드 정의 */
