@@ -9,6 +9,7 @@ import { missingRequiredFields, requiredFieldMessage } from "@/lib/required-fiel
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { duplicateKeyOf, findDuplicateValues } from "@/lib/record-duplicates";
 import { resolveLeadInflows, type LeadInflow } from "@/lib/leads/inflow";
+import { importantLeadCondition } from "@/lib/leads/important";
 
 export async function GET(
     req: NextRequest,
@@ -55,6 +56,8 @@ export async function GET(
 
         // WHERE 조건 구성 (목록/조건삭제 공용 빌더)
         const conditions = buildRecordConditions(partitionId, { orgId: user.orgId, search, distributionOrder, groupBy, groupValue, filters });
+        // 리드 관리 "중요" 탭 — 오늘 연락할 리드 + 연락일이 지났는데 그 뒤 댓글이 없는 리드
+        if (searchParams.get("important") === "1") conditions.push(importantLeadCondition());
 
         const whereClause = and(...conditions);
 

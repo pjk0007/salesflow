@@ -33,3 +33,7 @@ export async function deleteLeads(ids: number[]) {
         }),
     );
 }
+
+export async function fetchLead(recordId: number) {
+    return json<import("../types").LeadRecord>(await fetch(`/api/records/${recordId}`));
+}

@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { CircleDot, Maximize2, Minimize2, Route, Trash2, X } from "lucide-react";
+import { CalendarClock, CircleDot, Maximize2, Minimize2, Route, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { FieldDefinition } from "@/types";
 import type { LeadRecord } from "../types";
-import { extraFields, formatDateTime, summarizeLead } from "../utils/lead-fields";
+import { extraFields, formatDate, formatDateTime, summarizeLead } from "../utils/lead-fields";
 import { LeadCommentComposer, LeadCommentList } from "./LeadComments";
 import { InflowBadge } from "./InflowBadge";
 import { LeadActivitySection } from "./LeadActivitySection";
@@ -113,6 +113,14 @@ export function LeadDetailPanel({
                                 </div>
                             </PropRow>
                         )}
+
+                        <PropRow icon={CalendarClock} label="다음 연락일">
+                            <div className="pt-0.5 text-sm">
+                                {typeof record.data?.nextContactAt === "string" && record.data.nextContactAt
+                                    ? formatDate(record.data.nextContactAt)
+                                    : <span className="text-muted-foreground">없음 · 댓글에서 정할 수 있어요</span>}
+                            </div>
+                        </PropRow>
 
                         <PropRow icon={Route} label="유입경로">
                             <div className="pt-0.5">

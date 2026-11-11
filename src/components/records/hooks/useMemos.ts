@@ -1,12 +1,30 @@
 import useSWR from "swr";
 import { defaultFetcher } from "@/lib/swr-fetcher";
 
+export interface MemoAttachmentItem {
+    url: string;
+    name: string;
+    type: string;
+    size: number;
+}
+
 export interface MemoItem {
     id: number;
     content: string;
     createdAt: string;
     createdBy: string | null;
     userName: string | null;
+    /** 리드 댓글 종류 call|mail|meeting|sms|etc (없으면 일반 메모) */
+    kind?: string | null;
+    attachments?: MemoAttachmentItem[] | null;
+    nextContactAt?: string | null;
+}
+
+export interface NewMemoInput {
+    content: string;
+    kind?: string | null;
+    attachments?: MemoAttachmentItem[];
+    nextContactAt?: string | null;
 }
 
 interface MemosResponse {
@@ -22,11 +40,12 @@ export function useMemos(recordId: number | null) {
         defaultFetcher
     );
 
-    const addMemo = async (content: string) => {
+    const addMemo = async (input: string | NewMemoInput) => {
+        const body = typeof input === "string" ? { content: input } : input;
         const res = await fetch(`/api/records/${recordId}/memos`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ content }),
+            body: JSON.stringify(body),
         });
         const json = await res.json();
         if (!json.success) throw new Error(json.error);

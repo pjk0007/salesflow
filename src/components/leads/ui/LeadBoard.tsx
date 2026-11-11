@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import DeleteConfirmDialog from "@/components/records/DeleteConfirmDialog";
 import { useRecords } from "@/hooks/useRecords";
 import type { FieldDefinition, FilterCondition } from "@/types";
-import { deleteLeads, updateLead } from "../api";
+import { deleteLeads, fetchLead, updateLead } from "../api";
 import type { LeadRecord } from "../types";
 import { STATUS_KEY } from "../utils/lead-fields";
 import { useLeadStatuses } from "../hooks/useLeadStatuses";
@@ -27,6 +27,7 @@ interface LeadBoardProps {
 }
 
 const ALL = "__all__";
+const IMPORTANT = "__important__";
 
 /** 리드 관리 오른쪽 영역 — 상태 탭 · 검색 · 표 · 오른쪽 상세 패널. 파티션이 바뀌면 key로 새로 그린다 */
 export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) {
@@ -65,7 +66,7 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
 
     // 상태 탭 하나를 볼 때만 쓰는 목록
     const filters = useMemo<FilterCondition[]>(
-        () => (tab === ALL ? [] : [{ field: STATUS_KEY, operator: "equals", value: tab }]),
+        () => (tab === ALL || tab === IMPORTANT ? [] : [{ field: STATUS_KEY, operator: "equals", value: tab }]),
         [tab],
     );
     const single = useRecords({
@@ -77,7 +78,10 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
         sortField: "registeredAt",
         sortOrder: "desc",
         leadExtras: true,
+        important: tab === IMPORTANT,
     });
+    // 중요 탭 숫자 칩 — 오늘 연락할 리드 + 연락일 지났는데 댓글 없는 리드
+    const importantCount = useRecords({ partitionId, page: 1, pageSize: 1, important: true });
     const allCount = useRecords({ partitionId, page: 1, pageSize: 1, search: search || undefined });
 
     const changeStatus = async (status: string) => {
@@ -135,6 +139,14 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                 >
                     <TabsList>
                         <TabsTrigger value={ALL}>전체</TabsTrigger>
+                        <TabsTrigger value={IMPORTANT} className="gap-1.5">
+                            중요
+                            {importantCount.total > 0 && (
+                                <span className="rounded-full bg-rose-600 px-1.5 text-[10px] leading-4 text-white">
+                                    {importantCount.total}
+                                </span>
+                            )}
+                        </TabsTrigger>
                         {statusOptions.map((s) => (
                             <TabsTrigger key={s} value={s}>
                                 {s}
@@ -199,7 +211,7 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                     page={page}
                     totalPages={single.totalPages}
                     onPageChange={setPage}
-                    hideStatus
+                    hideStatus={tab !== IMPORTANT}
                 />
             )}
 
@@ -213,7 +225,14 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                     onClose={() => setSelected(null)}
                     onStatusChange={changeStatus}
                     onDelete={() => setDeleteIds([selected.id])}
-                    onCommentAdded={refreshAll}
+                    onCommentAdded={async () => {
+                        refreshAll();
+                        // 댓글에서 다음 연락일을 정했을 수 있어 열린 리드를 다시 읽는다 (유입경로 등 표 전용 값은 유지)
+                        const result = await fetchLead(selected.id);
+                        if (result.success && result.data) {
+                            setSelected((prev) => (prev && prev.id === result.data!.id ? { ...prev, data: result.data!.data } : prev));
+                        }
+                    }}
                 />
             )}
             <CreateLeadDialog

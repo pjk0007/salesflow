@@ -31,6 +31,7 @@ export const SUMMARY_KEYS = new Set([
     ...REQUEST_KEYS,
     ...SOURCE_KEYS,
     STATUS_KEY,
+    "nextContactAt",
 ]);
 
 /** 기본 항목마다 실제로 저장할 key와 필드 정의 */
