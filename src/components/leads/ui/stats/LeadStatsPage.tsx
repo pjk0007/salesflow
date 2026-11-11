@@ -64,7 +64,7 @@ export function LeadStatsPage() {
                 <LeadWorkspaceTabs value={workspaceId} onChange={setWorkspaceId} countKind="all" />
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto">
-                <div className="mx-auto max-w-7xl space-y-4 p-6">
+                <div className="space-y-3 px-4 py-4">
                     <div className="flex flex-wrap items-end justify-between gap-3">
                         <div>
                             <h1 className="text-2xl font-semibold tracking-tight">리드 통계</h1>
@@ -74,14 +74,14 @@ export function LeadStatsPage() {
                     </div>
 
                     {isLoading || !stats ? (
-                        <div className="grid gap-4 lg:grid-cols-3">
+                        <div className="grid gap-3 lg:grid-cols-3">
                             {Array.from({ length: 6 }).map((_, i) => (
                                 <Skeleton key={i} className="h-44 rounded-lg" />
                             ))}
                         </div>
                     ) : (
                         <>
-                            <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="grid gap-3 lg:grid-cols-3">
                                 <StatCard title="리드 스냅샷" className="lg:col-span-2">
                                     <BigNumber value={t!.leads.toLocaleString()} unit="건 유입" />
                                     <div className="mt-5">
@@ -99,11 +99,11 @@ export function LeadStatsPage() {
                                 </StatCard>
                             </div>
 
-                            <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="grid gap-3 lg:grid-cols-3">
                                 <StatCard title="월별 유입" className="lg:col-span-2">
                                     <MonthlyChart data={stats.monthly} />
                                 </StatCard>
-                                <div className="grid gap-4">
+                                <div className="grid gap-3">
                                     <StatCard title="전환까지 걸린 기간">
                                         <BigNumber
                                             value={dayText(c!.medianDays)}
@@ -125,7 +125,7 @@ export function LeadStatsPage() {
                                 </div>
                             </div>
 
-                            <div className="grid gap-4 lg:grid-cols-3">
+                            <div className="grid gap-3 lg:grid-cols-3">
                                 <StatCard title="전환까지 거친 연락 · 리드당 평균">
                                     <KindList
                                         format={(v) => `${v.toFixed(1)}회`}

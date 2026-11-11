@@ -974,6 +974,13 @@
       "when": 1794409106000,
       "tag": "0136_rename_workspace_equipment_mall",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1794409195000,
+      "tag": "0137_rename_field_type_equipment_mall",
+      "breakpoints": true
     }
   ]
 }

@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
 
-/** 통계 카드 — 테두리·그림자 없이 흰 바탕, 작은 라운드 (페이지 바탕은 옅은 회색) */
+/** 통계 카드 — 아주 연한 테두리, 그림자 없음, 작은 라운드 (페이지 바탕은 옅은 회색) */
 export function StatCard({ title, action, className, children }: { title?: string; action?: React.ReactNode; className?: string; children: React.ReactNode }) {
     return (
-        <section className={cn("rounded-lg bg-card p-5", className)}>
+        <section className={cn("rounded-lg border border-border/40 bg-card p-5", className)}>
             {(title || action) && (
                 <div className="mb-4 flex items-center justify-between gap-2">
                     {title && <h2 className="text-sm font-medium text-foreground/80">{title}</h2>}

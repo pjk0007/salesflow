@@ -17,8 +17,8 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
     {
         group: "리드관리",
         items: [
-            { href: "/leads", label: "리드 관리", icon: Users },
             { href: "/leads/stats", label: "리드 통계", icon: TrendingUp },
+            { href: "/leads", label: "리드 관리", icon: Users },
         ],
     },
     {
