@@ -24,6 +24,10 @@ export interface Meeting {
     transcript: string | null;
     summary: string | null;
     audioUrl: string | null;
+    /** 처음 기록한 리드 */
+    recordId: number;
+    /** 이 미팅이 보이는 리드 전체 (처음 기록한 리드 + 함께 참석한 같은 기업 담당자) */
+    linkedRecordIds: number[];
     createdBy: string | null;
     createdByName: string | null;
     createdAt: string;

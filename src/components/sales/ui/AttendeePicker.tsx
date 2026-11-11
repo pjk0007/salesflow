@@ -9,6 +9,16 @@ import { useSalesMembers } from "../hooks/useSalesMembers";
 const personLabel = (d: Record<string, unknown>) =>
     [String(d.name ?? d.contactName ?? "").trim(), String(d.contactTitle ?? "").trim()].filter(Boolean).join(" ");
 
+/** 이 기업 담당자 (지금 리드가 맨 앞) — 참석자 이름표와 그 사람의 리드 id */
+export function useCompanyPeople(recordId: number, leadData: Record<string, unknown>) {
+    const { related } = useRelatedLeads(recordId);
+    const people = [
+        { label: personLabel(leadData), recordId },
+        ...related.map((r) => ({ label: personLabel((r.data ?? {}) as Record<string, unknown>), recordId: r.id })),
+    ];
+    return people.filter((p, i, a) => p.label && a.findIndex((x) => x.label === p.label) === i);
+}
+
 /** 미팅 참석자 — 우리 구성원과 이 기업 담당자 중에서 여러 명 고른다 (저장은 "이름 직책, …" 글자) */
 export function AttendeePicker({
     recordId,
@@ -23,10 +33,7 @@ export function AttendeePicker({
     onChange: (v: string[]) => void;
 }) {
     const { members } = useSalesMembers();
-    const { related } = useRelatedLeads(recordId);
-    const companyPeople = [personLabel(leadData), ...related.map((r) => personLabel((r.data ?? {}) as Record<string, unknown>))].filter(
-        (v, i, a) => v && a.indexOf(v) === i,
-    );
+    const companyPeople = useCompanyPeople(recordId, leadData).map((p) => p.label);
     const toggle = (label: string) => onChange(value.includes(label) ? value.filter((v) => v !== label) : [...value, label]);
 
     return (

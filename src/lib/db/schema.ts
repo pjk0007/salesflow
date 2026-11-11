@@ -386,6 +386,24 @@ export const salesMeetings = pgTable(
     })
 );
 
+/** 미팅에 함께 참석한 다른 리드 (0142) — 처음 기록한 리드는 sales_meetings.record_id */
+export const salesMeetingRecords = pgTable(
+    "sales_meeting_records",
+    {
+        meetingId: integer("meeting_id")
+            .references(() => salesMeetings.id, { onDelete: "cascade" })
+            .notNull(),
+        recordId: integer("record_id")
+            .references(() => records.id, { onDelete: "cascade" })
+            .notNull(),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        pk: primaryKey({ columns: [table.meetingId, table.recordId] }),
+        recordIdx: index("sales_meeting_records_record_idx").on(table.recordId),
+    })
+);
+
 export const salesActionItems = pgTable(
     "sales_action_items",
     {

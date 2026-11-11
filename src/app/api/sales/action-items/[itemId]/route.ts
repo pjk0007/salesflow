@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, salesActionItems } from "@/lib/db";
-import { dueDateToTimestamp, syncNextContact } from "@/lib/sales/meetings";
+import { dueDateToTimestamp, syncAfterItemChange } from "@/lib/sales/meetings";
 import { fail, ok, recordGuard, salesHandler } from "@/lib/sales/http";
 
 async function loadItem(orgId: string, id: number) {
@@ -28,7 +28,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ it
         if (b.ownerId !== undefined) set.ownerId = typeof b.ownerId === "string" && b.ownerId ? b.ownerId : null;
         if (b.dueDate !== undefined) set.dueAt = dueDateToTimestamp(typeof b.dueDate === "string" ? b.dueDate : null);
         const [updated] = await db.update(salesActionItems).set(set).where(eq(salesActionItems.id, item.id)).returning();
-        await syncNextContact(item.recordId);
+        await syncAfterItemChange(item);
         return ok(updated);
     });
 }
@@ -41,7 +41,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         const g = await recordGuard(user, item.recordId, "read");
         if (g.error) return g.error;
         await db.delete(salesActionItems).where(eq(salesActionItems.id, item.id));
-        await syncNextContact(item.recordId);
+        await syncAfterItemChange(item);
         return ok(null);
     });
 }

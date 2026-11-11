@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus, Sparkles, X } from "lucide-react";
+import { Loader2, Paperclip, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -14,8 +14,9 @@ import { analyzeMeeting, createMeeting, transcribeRecording, updateMeeting } fro
 import { useSalesMembers } from "../hooks/useSalesMembers";
 import type { DraftActionItem, Meeting } from "../types";
 import { OwnerSelect } from "./OwnerSelect";
-import { AttendeePicker } from "./AttendeePicker";
+import { AttendeePicker, useCompanyPeople } from "./AttendeePicker";
 import { cn } from "@/lib/utils";
+import { isTranscriptDocument, readTranscriptFile } from "../utils/read-transcript-file";
 
 const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 const kstDate = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -35,6 +36,7 @@ interface MeetingDialogProps {
 export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, leadData }: MeetingDialogProps) {
     const { user } = useSession();
     const { members } = useSalesMembers();
+    const companyPeople = useCompanyPeople(recordId, leadData);
     const editing = !!meeting;
     const [date, setDate] = useState(meeting ? kstDate(meeting.metAt) : todayKst());
     const [title, setTitle] = useState(meeting?.title ?? "");
@@ -57,8 +59,28 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, 
 
     const transcribe = async (file: File | undefined) => {
         if (!file) return;
+        // 전사본 문서(txt·docx·pdf)는 글만 읽어서 바로 요약
+        if (isTranscriptDocument(file)) {
+            setTranscribing(true);
+            let text = "";
+            try {
+                text = (await readTranscriptFile(file)).trim();
+            } catch {
+                toast.error("파일 내용을 읽지 못했어요.");
+                return;
+            } finally {
+                setTranscribing(false);
+            }
+            if (!text) {
+                toast.error("파일에 글이 없어요. (스캔한 PDF는 읽을 수 없어요)");
+                return;
+            }
+            setTranscript(text);
+            await analyze(text);
+            return;
+        }
         if (!file.type.startsWith("audio/") && !file.type.startsWith("video/") && !/\.(m4a|mp3|wav|aac|flac|ogg|webm)$/i.test(file.name)) {
-            toast.error("녹음 파일(mp3·m4a·wav 등)만 올릴 수 있어요.");
+            toast.error("녹음 파일(mp3·m4a·wav)이나 전사본(txt·docx·pdf)만 올릴 수 있어요.");
             return;
         }
         setTranscribing(true);
@@ -81,7 +103,7 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, 
     const analyze = async (text: string = transcript) => {
         setAnalyzing(true);
         try {
-            const result = await analyzeMeeting({ transcript: text, notes, meetingDate: date });
+            const result = await analyzeMeeting({ transcript: text, notes, meetingDate: date, recordId: meeting?.recordId ?? recordId });
             if (!result.success || !result.data) {
                 toast.error(result.error || "요약하지 못했습니다.");
                 return;
@@ -111,6 +133,8 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, 
                 summary,
                 audioUrl,
                 actionItems: items.filter((i) => i.content.trim()),
+                // 참석자로 고른 같은 기업 담당자 리드에도 이 미팅이 보이게 연결 (할 일은 하나)
+                linkedRecordIds: companyPeople.filter((p) => attendees.includes(p.label)).map((p) => p.recordId),
             };
             const result = editing ? await updateMeeting(meeting!.id, payload) : await createMeeting(recordId, payload);
             if (!result.success) {
@@ -153,12 +177,30 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, 
                     <div className="space-y-1.5">
                         <div className="flex h-6 items-center justify-between">
                             <Label className="text-xs text-muted-foreground">녹음/전사본</Label>
-                            {transcript.trim() && !busy && (
-                                <Button type="button" variant="ghost" size="xs" onClick={() => analyze()}>
-                                    <Sparkles className="mr-1 h-3.5 w-3.5" />
-                                    {summary ? "다시 요약" : "AI 요약"}
+                            <div className="flex items-center gap-1">
+                                <Button type="button" variant="ghost" size="xs" disabled={busy} asChild>
+                                    <label className={cn(!busy && "cursor-pointer")}>
+                                        <Paperclip className="mr-1 h-3.5 w-3.5" />
+                                        파일 올리기
+                                        <input
+                                            type="file"
+                                            className="hidden"
+                                            accept="audio/*,video/*,.m4a,.mp3,.wav,.aac,.flac,.ogg,.webm,.txt,.md,.srt,.vtt,.docx,.pdf"
+                                            disabled={busy}
+                                            onChange={(e) => {
+                                                transcribe(e.target.files?.[0]);
+                                                e.target.value = "";
+                                            }}
+                                        />
+                                    </label>
                                 </Button>
-                            )}
+                                {transcript.trim() && !busy && (
+                                    <Button type="button" variant="ghost" size="xs" onClick={() => analyze()}>
+                                        <Sparkles className="mr-1 h-3.5 w-3.5" />
+                                        {summary ? "다시 요약" : "AI 요약"}
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                         {/* 녹음 파일은 여기로 끌어다 놓기, 전사본 글은 붙여넣기 */}
                         <div
@@ -179,15 +221,23 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, 
                             <Textarea
                                 value={transcript}
                                 onChange={(e) => setTranscript(e.target.value)}
+                                // 전사본을 붙여넣으면 바로 요약·액션플랜까지 (이미 요약이 있으면 "다시 요약"으로)
+                                onPaste={(e) => {
+                                    const pasted = e.clipboardData.getData("text");
+                                    if (pasted.trim().length < 30 || summary.trim() || busy) return;
+                                    const el = e.currentTarget;
+                                    const next = transcript.slice(0, el.selectionStart) + pasted + transcript.slice(el.selectionEnd);
+                                    setTimeout(() => analyze(next), 0);
+                                }}
                                 rows={6}
                                 disabled={transcribing}
-                                placeholder="녹음 파일(mp3·m4a·wav)을 여기로 끌어다 놓으면 자동으로 글로 바꾸고 요약해요. 전사본 글을 붙여넣어도 돼요."
-                                className={cn("text-xs", dragging && "border-dashed border-primary bg-primary/5")}
+                                placeholder="녹음 파일(mp3·m4a·wav)이나 전사본(txt·docx·pdf)을 끌어다 놓거나, 전사본 글을 붙여넣기"
+                                className={cn("h-40 resize-none overflow-y-auto text-xs [field-sizing:fixed] scrollbar-thin", dragging && "border-dashed border-primary bg-primary/5")}
                             />
                             {(transcribing || analyzing) && (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-background/85 text-sm text-muted-foreground">
                                     <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                                    {transcribing ? "녹음을 글로 바꾸는 중… (몇 분 걸릴 수 있어요)" : "요약과 액션플랜을 만드는 중…"}
+                                    {transcribing ? "파일을 글로 바꾸는 중…" : "요약과 액션플랜을 만드는 중…"}
                                 </div>
                             )}
                         </div>

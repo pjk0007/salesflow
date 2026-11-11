@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db, salesMeetings } from "@/lib/db";
-import { parseMeetingInput, syncNextContact } from "@/lib/sales/meetings";
+import { parseMeetingInput, setMeetingLinks, syncMeetingRecords, syncNextContact } from "@/lib/sales/meetings";
+import { salesMeetingRecords } from "@/lib/db";
 import { fail, ok, recordGuard, salesHandler } from "@/lib/sales/http";
 
 async function loadMeeting(orgId: string, id: number) {
@@ -34,6 +35,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ me
             })
             .where(eq(salesMeetings.id, meeting.id))
             .returning();
+        if (v.linkedRecordIds) {
+            await setMeetingLinks(user.orgId, meeting.id, meeting.recordId, v.linkedRecordIds);
+            await syncMeetingRecords(meeting.id);
+        }
         return ok(updated);
     });
 }
@@ -46,8 +51,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ m
         const g = await recordGuard(user, meeting.recordId, "read");
         if (g.error) return g.error;
         if (meeting.createdBy !== user.userId) return fail("본인이 쓴 미팅 기록만 삭제할 수 있습니다.", 403);
+        const links = await db.select({ recordId: salesMeetingRecords.recordId }).from(salesMeetingRecords).where(eq(salesMeetingRecords.meetingId, meeting.id));
         await db.delete(salesMeetings).where(eq(salesMeetings.id, meeting.id));
-        await syncNextContact(meeting.recordId);
+        for (const id of new Set([meeting.recordId, ...links.map((l) => l.recordId)])) await syncNextContact(id);
         return ok(null);
     });
 }

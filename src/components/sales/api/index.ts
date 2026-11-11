@@ -17,7 +17,7 @@ export const transcribeRecording = async (file: File) => {
     return json<{ audioUrl: string; transcript: string }>(await fetch("/api/sales/transcribe", { method: "POST", body: form }));
 };
 
-export const analyzeMeeting = async (input: { transcript: string; notes: string; meetingDate: string }) =>
+export const analyzeMeeting = async (input: { transcript: string; notes: string; meetingDate: string; recordId?: number }) =>
     json<{ summary: string; actionItems: Array<{ content: string; dueDate: string | null; ownerName: string | null }> }>(
         await send("/api/sales/analyze", "POST", input),
     );
@@ -31,6 +31,8 @@ export interface MeetingPayload {
     summary: string;
     audioUrl: string | null;
     actionItems: DraftActionItem[];
+    /** 함께 참석한 같은 기업 담당자 리드 (없으면 연결을 그대로 둔다) */
+    linkedRecordIds?: number[];
 }
 
 export const createMeeting = async (recordId: number, input: MeetingPayload) =>

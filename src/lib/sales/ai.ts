@@ -23,6 +23,8 @@ async function withAi<T>(orgId: string, userId: string, purpose: string, client:
 }
 
 // ─── 녹음 전사 (Gemini — 음성을 직접 듣는다) ───────────────────────────
+/** 미팅 요약·액션플랜 모델 (SALES_MEETING_MODEL 환경변수로 바꿀 수 있다) */
+export const MEETING_MODEL = "claude-sonnet-5-5";
 const GEMINI_AUDIO_MODEL = "gemini-3.5-flash-lite";
 export const AUDIO_MAX_BYTES = 100 * 1024 * 1024;
 export const AUDIO_TYPES = ["audio/mpeg", "audio/mp3", "audio/mp4", "audio/m4a", "audio/x-m4a", "audio/wav", "audio/x-wav", "audio/webm", "audio/ogg", "audio/aac", "audio/flac", "video/mp4"];
@@ -100,8 +102,18 @@ const ANALYZE_SYSTEM = `당신은 B2B 영업팀의 미팅 기록을 정리하는
 미팅 전사본과 메모를 읽고 다음 JSON만 출력합니다.
 {"summary": "핵심 요약(불릿 3~6개, 줄바꿈으로 구분, 각 줄은 '- '로 시작)",
  "actionItems": [{"content": "우리 쪽이 할 일 한 문장", "dueDate": "YYYY-MM-DD 또는 null", "ownerName": "담당자 이름 또는 null"}]}
-규칙:
-- 액션플랜은 우리 회사가 해야 할 다음 행동만 적습니다 (견적서 발송, 자료 전달, 후속 미팅 일정 잡기 등). 최대 6개.
+
+전사본은 음성 인식 결과라 오타·끊긴 문장이 많습니다. 낱말보다 앞뒤 문맥으로 뜻을 파악합니다.
+
+액션플랜 규칙:
+- 화자 구분이 없을 수 있습니다. "고객사"로 주어진 회사가 상대방이고, 우리는 그 회사에 영업하는 쪽입니다. 문맥으로 누가 한 말인지 판단합니다.
+- 우리 쪽이 "~해서 보내드리겠다", "~정리해서 드리겠다", "내부적으로 검토해보겠다", "다시 연락드리겠다"처럼 하겠다고 한 말은 빠짐없이 할 일로 적습니다.
+  고객이 요청했고 우리가 받아들인 일, 양쪽이 다음 단계로 합의한 일도 적습니다. 마무리 부분의 정리 발언을 특히 잘 봅니다.
+- 미팅에서 이야기만 나온 주제·아이디어·시장 전략을 할 일로 만들지 않습니다.
+- 한 줄은 바로 실행할 수 있는 구체적 행동으로 씁니다: 무엇을 + 누구에게/어떻게 + 끝나는 모습.
+  예) "사례 자료 정리" (X) → "사례 자료 정리해서 고객사에 메일로 발송" (O)
+  예) "로봇 적용 가능성 검토" (X) → "고객사 요청 건 내부 검토 회의 진행 후 결과 회신" (O)
+- 같은 일을 쪼개거나 겹치게 쓰지 않습니다. 보통 1~4개, 최대 5개.
 - 기한은 반드시 주어진 "달력" 목록에서 골라 적습니다. 대화에 나온 요일과 같은 요일인 날짜를 고르고, 언급이 없으면 null.
   "이번 주 X요일"은 미팅 날짜와 같은 주(월~일), "다음 주 X요일"은 그다음 주(월~일), 그냥 "X요일"은 미팅 날짜 이후 가장 가까운 X요일입니다.
 - 담당자는 주어진 팀원 이름 중에서만 고르고, 알 수 없으면 null.
@@ -110,9 +122,11 @@ const ANALYZE_SYSTEM = `당신은 B2B 영업팀의 미팅 기록을 정리하는
 export async function analyzeMeeting(
     orgId: string,
     userId: string,
-    input: { transcript: string; notes: string; meetingDate: string; today: string; members: string[] },
+    input: { transcript: string; notes: string; meetingDate: string; today: string; members: string[]; customerCompany?: string; ourCompany?: string },
 ) {
-    const client = getAiClient();
+    // 미팅 정리는 긴 전사본에서 합의된 후속 행동을 골라내야 해서 기본(작은) 모델보다 큰 모델을 쓴다
+    const base = getAiClient();
+    const client = base?.provider === "claude" ? { ...base, model: process.env.SALES_MEETING_MODEL || MEETING_MODEL } : base;
     return withAi<MeetingAnalysis>(orgId, userId, "sales_meeting_analyze", client, async (c) => {
         // 요일을 같이 줘야 "다음 주 화요일" 같은 말을 정확한 날짜로 바꾼다
         // 한국 시간 정오 = 같은 날 UTC 03시라 getUTCDay가 그 날의 요일
@@ -123,7 +137,7 @@ export async function analyzeMeeting(
             const d = new Date(base + i * 86_400_000 + 9 * 3_600_000).toISOString().slice(0, 10);
             return `${d}(${weekday(d)})`;
         }).join(", ");
-        const prompt = `오늘: ${input.today} (${weekday(input.today)}요일)\n미팅 날짜: ${input.meetingDate} (${weekday(input.meetingDate)}요일)\n달력: ${calendar}\n팀원: ${input.members.join(", ") || "(없음)"}\n\n[메모]\n${input.notes || "(없음)"}\n\n[전사본]\n${input.transcript.slice(0, 60000)}`;
+        const prompt = `오늘: ${input.today} (${weekday(input.today)}요일)\n미팅 날짜: ${input.meetingDate} (${weekday(input.meetingDate)}요일)\n달력: ${calendar}\n고객사: ${input.customerCompany || "(알 수 없음)"}\n우리 회사: ${input.ourCompany || "(알 수 없음)"}\n팀원: ${input.members.join(", ") || "(없음)"}\n\n[메모]\n${input.notes || "(없음)"}\n\n[전사본]\n${input.transcript.slice(0, 60000)}`;
         const { content, usage } = await callClaudeJson(c, ANALYZE_SYSTEM, prompt);
         const parsed = extractJson(content, /\{[\s\S]*"summary"[\s\S]*\}/) as Partial<MeetingAnalysis>;
         const items = Array.isArray(parsed.actionItems) ? parsed.actionItems : [];
@@ -132,7 +146,7 @@ export async function analyzeMeeting(
                 summary: typeof parsed.summary === "string" ? parsed.summary.trim() : "",
                 actionItems: items
                     .filter((i) => i && typeof i.content === "string" && i.content.trim())
-                    .slice(0, 6)
+                    .slice(0, 5)
                     .map((i) => ({
                         content: i.content.trim(),
                         dueDate: typeof i.dueDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(i.dueDate) ? i.dueDate : null,

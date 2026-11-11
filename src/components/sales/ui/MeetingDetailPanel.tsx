@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, Pencil, Trash2, Users, X } from "lucide-react";
+import { CalendarDays, ChevronDown, Loader2, Pencil, Sparkles, Trash2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/contexts/SessionContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { deleteMeeting, updateMeeting } from "../api";
+import { addActionItem, analyzeMeeting, deleteMeeting, updateMeeting } from "../api";
+import { useSalesMembers } from "../hooks/useSalesMembers";
 import { useMeetings } from "../hooks/useMeetings";
 import type { ActionItem, Meeting } from "../types";
 import { ActionRow, AddActionForm } from "./ActionItems";
@@ -114,9 +115,40 @@ function MeetingDetailBody({
     const { user } = useSession();
     const [summary, setSummary] = useState(meeting.summary ?? "");
     const [saving, setSaving] = useState(false);
+    const [analyzing, setAnalyzing] = useState(false);
+    const { members } = useSalesMembers();
     const dirty = summary !== (meeting.summary ?? "");
+    const kstYmd = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 
-    const saveSummary = async () => {
+    // 전사본으로 요약·액션플랜 만들기 — 요약은 저장하고, 액션플랜은 이 미팅 할 일로 바로 넣는다
+    const analyze = async () => {
+        if (!meeting.transcript?.trim()) return;
+        setAnalyzing(true);
+        try {
+            const r = await analyzeMeeting({ transcript: meeting.transcript, notes: meeting.notes ?? "", meetingDate: kstYmd(meeting.metAt), recordId: meeting.recordId });
+            if (!r.success || !r.data) {
+                toast.error(r.error || "요약하지 못했습니다.");
+                return;
+            }
+            await saveSummary(r.data.summary);
+            const exists = new Set(items.map((i) => i.content.trim()));
+            for (const a of r.data.actionItems) {
+                if (exists.has(a.content.trim())) continue;
+                await addActionItem({
+                    recordId,
+                    meetingId: meeting.id,
+                    content: a.content,
+                    ownerId: members.find((m) => m.name === a.ownerName)?.id ?? user?.id ?? null,
+                    dueDate: a.dueDate ?? null,
+                });
+            }
+            onChanged();
+        } finally {
+            setAnalyzing(false);
+        }
+    };
+
+    const saveSummary = async (text: string = summary) => {
         setSaving(true);
         try {
             const r = await updateMeeting(meeting.id, {
@@ -125,7 +157,7 @@ function MeetingDetailBody({
                 attendees: meeting.attendees ?? "",
                 notes: meeting.notes ?? "",
                 transcript: meeting.transcript ?? "",
-                summary,
+                summary: text,
                 audioUrl: meeting.audioUrl,
                 actionItems: [],
             });
@@ -194,10 +226,17 @@ function MeetingDetailBody({
                     <section className="space-y-1.5">
                         <div className="flex h-6 items-center justify-between">
                             <h3 className="text-xs font-semibold text-muted-foreground">요약</h3>
-                            {dirty && (
-                                <Button size="xs" disabled={saving} onClick={saveSummary}>
+                            {dirty ? (
+                                <Button size="xs" disabled={saving} onClick={() => saveSummary()}>
                                     저장
                                 </Button>
+                            ) : (
+                                meeting.transcript?.trim() && (
+                                    <Button size="xs" variant="ghost" disabled={analyzing} onClick={analyze}>
+                                        {analyzing ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Sparkles className="mr-1 h-3 w-3" />}
+                                        {analyzing ? "요약 중…" : meeting.summary ? "다시 요약" : "AI 요약"}
+                                    </Button>
+                                )
                             )}
                         </div>
                         <Textarea

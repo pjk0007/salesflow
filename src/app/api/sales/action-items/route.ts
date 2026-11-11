@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db, salesActionItems } from "@/lib/db";
-import { dueDateToTimestamp, syncNextContact } from "@/lib/sales/meetings";
+import { dueDateToTimestamp, syncAfterItemChange } from "@/lib/sales/meetings";
 import { fail, ok, recordGuard, salesHandler } from "@/lib/sales/http";
 
 // POST: 액션플랜 하나 추가 {recordId, content, ownerId?, dueDate?, meetingId?}
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
                 createdBy: user.userId,
             })
             .returning();
-        await syncNextContact(recordId);
+        await syncAfterItemChange(item);
         return ok(item, 201);
     });
 }
