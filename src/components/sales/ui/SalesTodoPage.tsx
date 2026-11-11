@@ -172,7 +172,7 @@ export function SalesTodoPage() {
                         </div>
                         {view === "todo" && (
                             <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                                완료한 것도 보기
+                                완료한 할 일 보기
                                 <Switch checked={includeDone} onCheckedChange={setIncludeDone} />
                             </label>
                         )}

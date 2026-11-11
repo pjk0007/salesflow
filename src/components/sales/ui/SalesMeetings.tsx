@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, Plus, Users } from "lucide-react";
+import { CalendarDays, Plus, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 import { ActionRow, AddActionForm } from "./ActionItems";
 import { useMeetings } from "../hooks/useMeetings";
 import type { ActionItem, Meeting } from "../types";
@@ -96,30 +96,21 @@ export function SalesMeetings({
 
             {/* 할 일 — 미팅 액션플랜과 따로 만든 할 일을 기한 순으로 (어디서 체크해도 같이 바뀐다) */}
             <section className="space-y-1 border-t pt-4">
-                <h3 className="text-xs font-semibold text-muted-foreground">
-                    할 일 <span className="font-normal">{openItems.length}</span>
-                </h3>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold text-muted-foreground">
+                        할 일 <span className="font-normal">{openItems.length}</span>
+                    </h3>
+                    <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                        완료한 할 일 보기
+                        <Switch checked={showDone} onCheckedChange={setShowDone} />
+                    </label>
+                </div>
                 <ul className="space-y-0.5">
-                    {openItems.map((i) => (
+                    {[...openItems, ...(showDone ? doneItems : [])].map((i) => (
                         <ActionRow key={i.id} item={i} onChanged={refresh} meetingLabel={i.meetingId ? meetingLabelOf(meetingById.get(i.meetingId)!) : null} />
                     ))}
                 </ul>
                 <AddActionForm recordId={recordId} onChanged={refresh} />
-                {doneItems.length > 0 && (
-                    <div className="pt-1">
-                        <button type="button" onClick={() => setShowDone((v) => !v)} className="flex items-center gap-1 px-1.5 text-xs text-muted-foreground hover:text-foreground">
-                            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showDone && "rotate-180")} />
-                            완료한 할 일 {doneItems.length}개
-                        </button>
-                        {showDone && (
-                            <ul className="mt-1 space-y-0.5">
-                                {doneItems.map((i) => (
-                                    <ActionRow key={i.id} item={i} onChanged={refresh} meetingLabel={i.meetingId ? meetingLabelOf(meetingById.get(i.meetingId)!) : null} />
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                )}
             </section>
 
             {dialog.open && (
