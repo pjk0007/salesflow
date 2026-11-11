@@ -88,7 +88,7 @@ export async function PATCH(
     }
 
     try {
-        const { name, description, icon, codePrefix, defaultFieldTypeId, replyToEmail, hidden, leadStatuses } = await req.json();
+        const { name, description, icon, codePrefix, defaultFieldTypeId, replyToEmail, hidden, leadStatuses, displayNo } = await req.json();
         if (leadStatuses !== undefined && !isValidLeadStatusSettings(leadStatuses)) {
             return NextResponse.json({ success: false, error: "대응상태 설정이 올바르지 않습니다." }, { status: 400 });
         }
@@ -163,6 +163,17 @@ export async function PATCH(
                 ...(existing.settings ?? {}),
                 leadStatuses: leadStatuses.map((s: { label: string; enabled: boolean }) => ({ label: s.label.trim(), enabled: s.enabled })),
             };
+        }
+        // 사업부 번호 ("1-디하"의 1) — 숫자만, 빈 값이면 지운다
+        if (displayNo !== undefined) {
+            const no = String(displayNo ?? "").trim();
+            if (no && !/^\d{1,3}$/.test(no)) {
+                return NextResponse.json({ success: false, error: "번호는 숫자만 넣을 수 있습니다." }, { status: 400 });
+            }
+            const base = { ...(existing.settings ?? {}), ...((updateData.settings as object) ?? {}) } as Record<string, unknown>;
+            if (no) base.displayNo = no;
+            else delete base.displayNo;
+            updateData.settings = base;
         }
 
         // MX 조회는 저장과 함께 시작한다 — 저장을 기다리게 하거나 막지 않는다 (조회 실패는 "unknown")

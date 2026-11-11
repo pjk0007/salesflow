@@ -245,6 +245,7 @@ export interface WorkspaceSettings {
     defaultVisibleFields?: string[];
     duplicateCheckField?: string;
     leadStatuses?: { label: string; enabled: boolean }[];
+    displayNo?: string;
 }
 
 // 워크스페이스 상세 (API 응답)

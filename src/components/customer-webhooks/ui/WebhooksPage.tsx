@@ -14,6 +14,7 @@ import {
     nextSelfRotation,
     type SelfRotation,
 } from "../utils/self-rotation";
+import { workspaceLabel } from "@/lib/workspace-label";
 export function WebhooksPage({ role }: { role: string }) {
     void role;
     const params = useSearchParams(),
@@ -168,7 +169,7 @@ export function WebhooksPage({ role }: { role: string }) {
                     >
                         {bootstrap.data?.workspaces.map((w) => (
                             <option key={w.id} value={w.id}>
-                                {w.name}
+                                {workspaceLabel(w)}
                             </option>
                         ))}
                     </select>

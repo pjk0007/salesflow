@@ -36,6 +36,8 @@ src/components/{feature-name}/
 - 카드·패널에는 그림자를 넣지 않는다. 테두리는 아주 연하게(`border-border/40`)만 쓰고, 바탕색 차이(페이지 옅은 회색 + 카드 흰색)로 구분한다. 라운드는 `rounded-lg` 이하로 쓴다 (`rounded-xl`·`rounded-2xl` 금지).
 - 테두리 버튼(`variant="outline"`)은 카드와 같은 `border-border/40`, 입력창·셀렉트·텍스트영역은 조금 더 진한 `border-border/70`을 쓴다. 둘 다 그림자 없음. 필터처럼 값을 고르면 옆에 "초기화" 버튼을 둔다.
 - 모달은 머리·아래 버튼을 고정하고 가운데만 스크롤한다(`flex flex-col p-0` + 본문 `overflow-y-auto scrollbar-thin`). 스크롤바가 창 둥근 모서리 밖으로 나가지 않게 한다.
+- 누를 수 있는 것(버튼·링크·탭·메뉴·행 클릭)에는 손가락 커서가 나와야 한다. 버튼·role 요소는 globals.css에서 자동, `div`·`tr`에 onClick을 달면 `cursor-pointer`를 붙인다.
+- 담당자·사업부처럼 칸 안에서 고르는 선택은 테두리 없이 두고, 마우스를 올렸을 때만 연회색(`hover:bg-muted`) 바탕을 보인다.
 - 삭제처럼 되돌릴 수 없는 확인 버튼은 `variant="destructive"`(빨간색)를 쓴다. `AlertDialogAction`에 `bg-destructive` 클래스를 붙이지 말고 `variant`로 지정한다.
 
 ## 커밋 규칙

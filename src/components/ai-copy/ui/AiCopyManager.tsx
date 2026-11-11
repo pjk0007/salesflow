@@ -27,6 +27,7 @@ import { PriceSettings } from "./PriceSettings";
 import BindingHistory from "./BindingHistory";
 import AutomaticObservations from "./AutomaticObservations";
 import { controlClass, Field, purposeLabel, stateLabel } from "./Fields";
+import { workspaceLabel } from "@/lib/workspace-label";
 export default function AiCopyManager() {
     const { user, isLoading } = useSession();
     const manager = useCopyManager(!!user && user.role !== "member");
@@ -576,7 +577,7 @@ function BindingForm({
                             <option value="">선택</option>
                             {catalog.workspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </option>
                             ))}
                         </select>

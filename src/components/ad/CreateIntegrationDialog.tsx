@@ -29,6 +29,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { AdLeadIntegrationInfo, FieldDefinition } from "@/types";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -447,7 +448,7 @@ export default function CreateIntegrationDialog({
                                     <SelectContent>
                                         {workspaces.map((w) => (
                                             <SelectItem key={w.id} value={String(w.id)}>
-                                                {w.name}
+                                                {workspaceLabel(w)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

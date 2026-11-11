@@ -2,6 +2,7 @@
 
 import { Check, ChevronDown } from "lucide-react";
 import { MemberAvatar } from "./MemberAvatar";
+import { INLINE_CHEVRON, INLINE_TRIGGER } from "./inline-styles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useSalesMembers } from "../hooks/useSalesMembers";
@@ -27,8 +28,8 @@ export function OwnerSelect({
         <DropdownMenu>
             <DropdownMenuTrigger
                 className={cn(
-                    "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none hover:bg-accent",
-                    block && "w-full",
+                    // block(상세 패널)은 사업부 등 다른 칸과 같은 공통 모양, 작은 칸은 글자만 작게
+                    block ? INLINE_TRIGGER : "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs outline-none hover:bg-muted",
                     name ? "text-foreground" : "text-muted-foreground",
                     className,
                 )}
@@ -36,9 +37,13 @@ export function OwnerSelect({
                 {/* 글자 크기에 맞춘 프로필 — 작은 칸은 14px, 상세 패널(block)은 18px */}
                 {name ? <MemberAvatar name={name} className={block ? "size-[18px]" : "size-3.5"} /> : null}
                 <span className="truncate">{name ?? placeholder}</span>
-                <ChevronDown className="ml-auto h-3 w-3 shrink-0" />
+                <ChevronDown className={block ? INLINE_CHEVRON : "ml-auto h-3 w-3 shrink-0"} />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="max-h-72 min-w-40 overflow-y-auto">
+            {/* 상세 패널(block)에서는 드롭다운도 칸 너비 그대로 */}
+            <DropdownMenuContent
+                align="start"
+                className={cn("max-h-72 overflow-y-auto", block ? "w-[var(--radix-dropdown-menu-trigger-width)]" : "min-w-40")}
+            >
                 {members.map((m) => (
                     <DropdownMenuItem key={m.id} onClick={() => onChange(m.id)}>
                         <MemberAvatar name={m.name} className="size-4" />

@@ -15,7 +15,6 @@ import { Badge } from "@/components/ui/badge";
 import { Building2, UserRound, Home, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import IconPicker from "@/components/ui/icon-picker";
 import { FIELD_TEMPLATES } from "@/lib/field-templates";
 import type { CreateWorkspaceInput } from "@/types";
 
@@ -161,10 +160,6 @@ export default function CreateWorkspaceDialog({
                             />
                         </div>
 
-                        <div className="space-y-1.5">
-                            <Label htmlFor="create-workspace-icon">아이콘</Label>
-                            <IconPicker id="create-workspace-icon" value={icon} onChange={setIcon} />
-                        </div>
                     </div>
                 ) : (
                     <div className="space-y-4">

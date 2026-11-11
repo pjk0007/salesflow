@@ -30,6 +30,7 @@ import { Search, Users, UserCheck, Eye, Settings, BarChart3, Megaphone, Activity
 import type { TrackerSite } from "../types";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { useSession } from "@/contexts/SessionContext";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const WORKSPACE_STORAGE_KEY = "tracker_last_workspace";
 
@@ -92,7 +93,7 @@ export function VisitorListPage() {
             <SelectContent>
                 {workspaces.map((w) => (
                     <SelectItem key={w.id} value={String(w.id)}>
-                        {w.name}
+                        {workspaceLabel(w)}
                     </SelectItem>
                 ))}
             </SelectContent>

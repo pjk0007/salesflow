@@ -39,6 +39,7 @@ import { Loader2, Plus, Pencil, Trash2, Search, ArrowRight } from "lucide-react"
 import { toast } from "sonner";
 import type { RecordAutoEnrichRule } from "@/lib/db";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 export default function AutoEnrichTab() {
     const { workspaces, loadError: workspacesError, mutate: mutateWorkspaces } = useWorkspaces();
@@ -185,7 +186,7 @@ export default function AutoEnrichTab() {
                             setDialogOpen(false); resetForm();
                         }}>
                             <SelectTrigger className="w-full max-w-[300px]"><SelectValue placeholder="워크스페이스를 선택하세요" /></SelectTrigger>
-                            <SelectContent>{workspaces.map((workspace) => <SelectItem key={workspace.id} value={String(workspace.id)}>{workspace.name}</SelectItem>)}</SelectContent>
+                            <SelectContent>{workspaces.map((workspace) => <SelectItem key={workspace.id} value={String(workspace.id)}>{workspaceLabel(workspace)}</SelectItem>)}</SelectContent>
                         </Select>
                     </div>
                     {/* 파티션 선택 */}

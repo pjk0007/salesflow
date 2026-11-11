@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { controlClass, Field } from "@/components/ai-copy/ui/Fields";
 import type { CopyCatalog, KnowledgeVersion } from "@/components/ai-copy/types";
 import { plannedSamplePerArm } from "@/lib/email-experiments/sample-size";
+import { workspaceLabel } from "@/lib/workspace-label";
 export default function ExperimentForm({
     catalog,
     knowledge,
@@ -104,7 +105,7 @@ export default function ExperimentForm({
                             <option value="">선택</option>
                             {catalog.workspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </option>
                             ))}
                         </select>

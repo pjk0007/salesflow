@@ -62,16 +62,26 @@ function ActionRow({ item, onChanged }: { item: ActionItem; onChanged: () => voi
 
 function MeetingCard({ recordId, meeting, items, onEdit, onChanged }: { recordId: number; meeting: Meeting; items: ActionItem[]; onEdit: () => void; onChanged: () => void }) {
     const { user } = useSession();
+    const [open, setOpen] = useState(false);
     const [showTranscript, setShowTranscript] = useState(false);
     const [adding, setAdding] = useState("");
     const mine = meeting.createdBy === user?.id;
+    const openCount = items.filter((i) => !i.doneAt).length;
 
     return (
-        <article className="rounded-lg border border-border/40 p-4">
-            <header className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
+        <article className="rounded-lg border border-border/40">
+            {/* 기본은 이 줄만 — 누르면 요약·액션플랜이 펼쳐진다 */}
+            <div
+                role="button"
+                tabIndex={0}
+                aria-expanded={open}
+                onClick={() => setOpen((v) => !v)}
+                onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && e.target === e.currentTarget && setOpen((v) => !v)}
+                className="group flex cursor-pointer items-start gap-2 rounded-lg p-4 hover:bg-muted/40"
+            >
+                <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 text-sm font-semibold">
-                        <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                        <CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
                         {dot(kstDate(meeting.metAt))}
                         {meeting.title && <span className="truncate font-medium">{meeting.title}</span>}
                     </div>
@@ -83,80 +93,88 @@ function MeetingCard({ recordId, meeting, items, onEdit, onChanged }: { recordId
                             </span>
                         )}
                         <span>작성 {meeting.createdByName ?? "알 수 없음"}</span>
+                        {!open && openCount > 0 && <span>할 일 {openCount}</span>}
                     </div>
                 </div>
-                {mine && (
-                    <div className="flex shrink-0">
-                        <Button size="icon" variant="ghost" className="size-7" onClick={onEdit} aria-label="고치기">
-                            <Pencil className="h-3.5 w-3.5" />
+                <ChevronDown className={cn("mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")} />
+            </div>
+
+            {open && (
+                <div className="space-y-3 px-4 pb-4">
+                    {/* 수정·삭제는 펼친 안쪽에 — 접기 화살표와 떨어뜨려 잘못 누르지 않게 */}
+                    <div className="flex justify-end gap-1">
+                        <Button size="xs" variant="ghost" onClick={onEdit}>
+                            <Pencil className="mr-1 h-3 w-3" />
+                            수정
                         </Button>
-                        <Button
-                            size="icon"
-                            variant="ghost"
-                            className="size-7 text-muted-foreground hover:text-destructive"
-                            aria-label="삭제"
-                            onClick={async () => {
-                                const r = await deleteMeeting(meeting.id);
-                                if (!r.success) toast.error(r.error || "삭제하지 못했습니다.");
+                        {mine && (
+                            <Button
+                                size="xs"
+                                variant="ghost"
+                                className="text-muted-foreground hover:text-destructive"
+                                onClick={async () => {
+                                    const r = await deleteMeeting(meeting.id);
+                                    if (!r.success) toast.error(r.error || "삭제하지 못했습니다.");
+                                    onChanged();
+                                }}
+                            >
+                                <Trash2 className="mr-1 h-3 w-3" />
+                                삭제
+                            </Button>
+                        )}
+                    </div>
+                    {meeting.summary && <p className="whitespace-pre-wrap text-sm leading-relaxed">{meeting.summary}</p>}
+                    {meeting.notes && <p className="whitespace-pre-wrap text-sm text-muted-foreground">{meeting.notes}</p>}
+
+                    <div>
+                        <div className="text-xs font-semibold text-muted-foreground">액션플랜</div>
+                        <ul className="mt-1 space-y-0.5">
+                            {items.map((i) => (
+                                <ActionRow key={i.id} item={i} onChanged={onChanged} />
+                            ))}
+                        </ul>
+                        <form
+                            className="mt-1 flex items-center gap-1.5 px-1.5"
+                            onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!adding.trim()) return;
+                                const r = await addActionItem({ recordId, content: adding, ownerId: user?.id ?? null, dueDate: null, meetingId: meeting.id });
+                                if (!r.success) toast.error(r.error || "추가하지 못했습니다.");
+                                setAdding("");
                                 onChanged();
                             }}
                         >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                            <Plus className="h-3.5 w-3.5 text-muted-foreground" />
+                            <input
+                                value={adding}
+                                onChange={(e) => setAdding(e.target.value)}
+                                placeholder="할 일 추가 (Enter)"
+                                className="h-7 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            />
+                        </form>
                     </div>
-                )}
-            </header>
 
-            {meeting.summary && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed">{meeting.summary}</p>}
-            {meeting.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{meeting.notes}</p>}
-
-            <div className="mt-3">
-                <div className="text-xs font-semibold text-muted-foreground">액션플랜</div>
-                <ul className="mt-1 space-y-0.5">
-                    {items.map((i) => (
-                        <ActionRow key={i.id} item={i} onChanged={onChanged} />
-                    ))}
-                </ul>
-                <form
-                    className="mt-1 flex items-center gap-1.5 px-1.5"
-                    onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!adding.trim()) return;
-                        const r = await addActionItem({ recordId, content: adding, ownerId: user?.id ?? null, dueDate: null, meetingId: meeting.id });
-                        if (!r.success) toast.error(r.error || "추가하지 못했습니다.");
-                        setAdding("");
-                        onChanged();
-                    }}
-                >
-                    <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-                    <input
-                        value={adding}
-                        onChange={(e) => setAdding(e.target.value)}
-                        placeholder="할 일 추가 (Enter)"
-                        className="h-7 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                    />
-                </form>
-            </div>
-
-            {meeting.transcript && (
-                <div className="mt-3">
-                    <button
-                        type="button"
-                        onClick={() => setShowTranscript((v) => !v)}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-                    >
-                        {showTranscript ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                        전사본 {showTranscript ? "접기" : "보기"}
-                    </button>
-                    {showTranscript && (
-                        <pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 font-sans text-xs leading-relaxed">
-                            {meeting.transcript}
-                        </pre>
-                    )}
-                    {meeting.audioUrl && (
-                        <audio controls src={meeting.audioUrl} className="mt-2 h-9 w-full">
-                            <track kind="captions" />
-                        </audio>
+                    {meeting.transcript && (
+                        <div>
+                            <button
+                                type="button"
+                                onClick={() => setShowTranscript((v) => !v)}
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                            >
+                                {showTranscript ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                녹음/전사본 {showTranscript ? "접기" : "보기"}
+                            </button>
+                            {showTranscript && (
+                                <pre className="mt-2 max-h-80 overflow-y-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 font-sans text-xs leading-relaxed scrollbar-thin">
+                                    {meeting.transcript}
+                                </pre>
+                            )}
+                            {meeting.audioUrl && (
+                                <audio controls src={meeting.audioUrl} className="mt-2 h-9 w-full">
+                                    <track kind="captions" />
+                                </audio>
+                            )}
+                        </div>
                     )}
                 </div>
             )}
@@ -165,7 +183,7 @@ function MeetingCard({ recordId, meeting, items, onEdit, onChanged }: { recordId
 }
 
 /** 상세 패널 "미팅" 탭 — 미팅 기록(최신순)과 미팅 없이 만든 할 일 */
-export function SalesMeetings({ recordId, onChanged }: { recordId: number; onChanged?: () => void }) {
+export function SalesMeetings({ recordId, onChanged, leadData = {} }: { recordId: number; onChanged?: () => void; leadData?: Record<string, unknown> }) {
     const { meetings, actionItems, isLoading, mutate } = useMeetings(recordId);
     const [dialog, setDialog] = useState<{ open: boolean; meeting: Meeting | null }>({ open: false, meeting: null });
     const refresh = () => {
@@ -223,6 +241,7 @@ export function SalesMeetings({ recordId, onChanged }: { recordId: number; onCha
                     recordId={recordId}
                     meeting={dialog.meeting}
                     onSaved={refresh}
+                    leadData={leadData}
                 />
             )}
         </section>

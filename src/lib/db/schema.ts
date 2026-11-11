@@ -136,6 +136,8 @@ export const workspaces = pgTable("workspaces", {
         duplicateCheckField?: string;
         /** 리드 관리 대응상태 — 순서와 켜고 끄기 (src/lib/leads/statuses.ts) */
         leadStatuses?: { label: string; enabled: boolean }[];
+        /** 사업부 번호 — 화면에 "1-디하"처럼 붙인다 (src/lib/workspace-label.ts) */
+        displayNo?: string;
     }>(),
     // 답장 받을 주소 (DESIGN-3, 마이그레이션 0073). 발송에 쓰지 않는다 — NHN이 Reply-To 사용자 지정 헤더를 거절해(2026-10-04)
     // 발송 경로·설정 화면에서 뺐다. 칸은 남겨 둔다 (지우는 마이그레이션 없음). 답장은 보낸 주소로 간다

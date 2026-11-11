@@ -19,6 +19,7 @@ import { copyRequest } from "../api/copy";
 import { controlClass, Field, plainTextFromHtml, purposeLabel } from "./Fields";
 import type { PolicySnapshot } from "../types";
 import { experimentHref } from "@/components/email-experiments/experiment-href";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 interface Cycle {
     id: number;
@@ -212,7 +213,7 @@ export default function CopyAutomationPanel({
                         >
                             {workspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </option>
                             ))}
                         </select>

@@ -21,6 +21,8 @@ interface DatePickerProps {
     clearable?: boolean;
     /** 트리거 아이콘 왼쪽 여백 등 기본 모양을 빼고 triggerClassName만 쓴다 (입력창 안 작은 버튼용) */
     compact?: boolean;
+    /** 달력이 버튼 어느 쪽 끝에 맞춰 열릴지 */
+    align?: "start" | "center" | "end";
 }
 
 export function DatePicker({
@@ -32,6 +34,7 @@ export function DatePicker({
     disabled,
     clearable,
     compact,
+    align = "start",
 }: DatePickerProps) {
     const [open, setOpen] = useState(false);
 
@@ -60,7 +63,8 @@ export function DatePicker({
                     variant="outline"
                     disabled={disabled}
                     className={cn(
-                        compact ? "justify-start font-normal" : "w-full justify-start font-normal",
+                        // 입력창 자리에 쓰므로 테두리도 입력창과 같은 진하기
+                        compact ? "justify-start font-normal" : "w-full justify-start border-border/70 font-normal",
                         !display && "text-muted-foreground",
                         triggerClassName,
                     )}
@@ -69,7 +73,7 @@ export function DatePicker({
                     {display ? <span className="truncate">{display}</span> : <span>{placeholder}</span>}
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className={cn("w-auto p-0", className)} align="start">
+            <PopoverContent className={cn("w-auto p-0", className)} align={align}>
                 <Calendar
                     mode="single"
                     selected={date ?? undefined}

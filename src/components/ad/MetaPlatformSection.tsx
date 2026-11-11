@@ -62,6 +62,7 @@ import {
 import useSWR from "swr";
 import { apiRequest, defaultFetcher, requestErrorMessage } from "@/lib/swr-fetcher";
 import type { AdPlatformInfo, AdLeadIntegrationInfo } from "@/types";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
     disconnected: { label: "연결 대기", className: "bg-gray-100 text-gray-700" },
@@ -530,7 +531,7 @@ function MetaConnected({
                                                 <SelectContent>
                                                     <SelectItem value="none">미지정</SelectItem>
                                                     {workspaces.map((ws) => (
-                                                        <SelectItem key={ws.id} value={String(ws.id)}>{ws.name}</SelectItem>
+                                                        <SelectItem key={ws.id} value={String(ws.id)}>{workspaceLabel(ws)}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>

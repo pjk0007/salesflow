@@ -13,6 +13,7 @@ import { useAsyncConfirm } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkflowEditor } from "./WorkflowEditor";
 import { WorkflowRuns } from "./WorkflowRuns";
+import { workspaceLabel } from "@/lib/workspace-label";
 export function WorkflowsPage({ role }: { role: string }) {
     void role;
     const params = useSearchParams(),
@@ -134,7 +135,7 @@ export function WorkflowsPage({ role }: { role: string }) {
                     >
                         {bootstrap.data?.workspaces.map((w) => (
                             <option key={w.id} value={w.id}>
-                                {w.name}
+                                {workspaceLabel(w)}
                             </option>
                         ))}
                     </select>
@@ -217,7 +218,7 @@ export function WorkflowsPage({ role }: { role: string }) {
                                 }}
                             >
                                 <strong className="block text-sm">
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </strong>
                                 <span className="mt-1 block text-xs text-muted-foreground">
                                     {w.enabled ? "게시·활성" : "중단 또는 초안"}{" "}

@@ -74,13 +74,31 @@ export async function linkLeads(orgId: string, recordIds: number[], companyName:
     return { groupId: target, count: all.size };
 }
 
-export async function unlinkLead(orgId: string, recordId: number) {
+/** 같은 기업 묶음에서 빼기 — newCompanyName을 주면 그 이름으로, 없으면 묶기 전 이름으로 되돌린다 */
+export async function unlinkLead(orgId: string, recordId: number, newCompanyName?: string | null) {
     const [r] = await db.select({ data: records.data }).from(records).where(and(eq(records.id, recordId), eq(records.orgId, orgId)));
     if (!r) return;
     // 묶을 때 바꾼 기업명을 원래대로
     const data = { ...(r.data as Record<string, unknown>) };
     delete data.leadGroupId;
-    if (typeof data.originalCompanyName === "string") data.companyName = data.originalCompanyName;
+    if (newCompanyName) data.companyName = newCompanyName;
+    else if (typeof data.originalCompanyName === "string") data.companyName = data.originalCompanyName;
     delete data.originalCompanyName;
     await db.update(records).set({ data, updatedAt: new Date() }).where(eq(records.id, recordId));
+}
+
+/** 회사 주소는 같은 기업 공통 — 이 리드와 같은 기업 담당자 모두에 같은 주소를 넣는다 */
+export async function setCompanyAddress(orgId: string, recordId: number, address: string) {
+    const related = await findRelatedLeads(orgId, recordId);
+    const ids = [recordId, ...related.map((r) => r.id)];
+    const rows = await db.select({ id: records.id, data: records.data }).from(records).where(and(eq(records.orgId, orgId), inArray(records.id, ids)));
+    await db.transaction(async (tx) => {
+        for (const r of rows) {
+            const data = { ...(r.data as Record<string, unknown>) };
+            if (address) data.address = address;
+            else delete data.address;
+            await tx.update(records).set({ data, updatedAt: new Date() }).where(eq(records.id, r.id));
+        }
+    });
+    return { count: rows.length };
 }

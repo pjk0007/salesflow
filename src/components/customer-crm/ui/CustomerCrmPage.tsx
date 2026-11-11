@@ -31,6 +31,7 @@ import { EntityEditor } from "./EntityEditor";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { RelationshipToday } from "@/components/relationship-care/ui/RelationshipToday";
 import { RelationshipPanel } from "@/components/relationship-care/ui/RelationshipPanel";
+import { workspaceLabel } from "@/lib/workspace-label";
 const names: Record<Resource, string> = {
     deals: "딜",
     tasks: "할 일",
@@ -252,7 +253,7 @@ export function CustomerCrmPage({
                     >
                         {bootstrap.data?.workspaces.map((w) => (
                             <option key={w.id} value={w.id}>
-                                {w.name}
+                                {workspaceLabel(w)}
                             </option>
                         ))}
                     </select>

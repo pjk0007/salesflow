@@ -90,3 +90,22 @@ export async function salesPartitionFor(workspaceId: number) {
     return created.id;
 }
 
+
+/** 사업부별 영업 리드 수 — 등록 사업부 + 추가로 고른 사업부(data.workspaceIds) 모두 센다 */
+export async function salesWorkspaceCounts(user: User) {
+    const parts = await visibleSalesPartitions(user);
+    if (parts.length === 0) return [];
+    const rows = await db.execute<{ workspace_id: number; leads: number }>(sql`
+        SELECT ws_id AS workspace_id, count(DISTINCT id)::int AS leads
+        FROM (
+            SELECT r.id, r.workspace_id AS ws_id FROM records r
+            WHERE r.org_id = ${user.orgId} AND r.partition_id IN (${sql.join(parts.map((p) => sql`${p.id}`), sql`, `)})
+            UNION ALL
+            SELECT r.id, (jsonb_array_elements_text(r.data->'workspaceIds'))::int AS ws_id FROM records r
+            WHERE r.org_id = ${user.orgId} AND r.partition_id IN (${sql.join(parts.map((p) => sql`${p.id}`), sql`, `)})
+              AND jsonb_typeof(r.data->'workspaceIds') = 'array'
+        ) t
+        GROUP BY ws_id
+    `);
+    return Array.from(rows).map((r) => ({ workspaceId: r.workspace_id, leads: r.leads }));
+}

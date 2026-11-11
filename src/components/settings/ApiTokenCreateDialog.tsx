@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
 import { Plus, X, Loader2 } from "lucide-react";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 type ScopeType = "org" | "workspace" | "folder" | "partition";
 
@@ -315,7 +316,7 @@ export default function ApiTokenCreateDialog({
                                                 <SelectContent>
                                                     {workspaces.map((ws) => (
                                                         <SelectItem key={ws.id} value={String(ws.id)}>
-                                                            {ws.name}
+                                                            {workspaceLabel(ws)}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
@@ -338,7 +339,7 @@ export default function ApiTokenCreateDialog({
                                                     <SelectContent>
                                                         {workspaces.map((ws) => (
                                                             <SelectItem key={ws.id} value={String(ws.id)}>
-                                                                {ws.name}
+                                                                {workspaceLabel(ws)}
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>

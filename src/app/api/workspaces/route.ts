@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces } from "@/lib/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { checkPlanLimit, getResourceCount } from "@/lib/billing";
 
@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
                 icon: workspaces.icon,
                 defaultFieldTypeId: workspaces.defaultFieldTypeId,
                 hiddenAt: workspaces.hiddenAt,
+                displayNo: sql<string | null>`${workspaces.settings}->>'displayNo'`,
             })
             .from(workspaces)
             .where(eq(workspaces.orgId, user.orgId))

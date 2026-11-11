@@ -17,6 +17,7 @@ import {
     switchPurpose,
     targetFromInput,
 } from "../utils/policy-form";
+import { workspaceLabel } from "@/lib/workspace-label";
 // 확인일은 KST 날짜로 고르고 KST 자정 순간으로 저장한다 — 다시 열거나 복제할 때도 KST 날짜로 읽어야 하루씩 밀리지 않는다.
 const today = () => kstParts(new Date()).date;
 type Workspaces = { id: number; name: string }[];
@@ -42,7 +43,7 @@ function BusinessField({
                     <option value="">사업 선택</option>
                     {workspaces.map((w) => (
                         <option key={w.id} value={w.id}>
-                            {w.name}
+                            {workspaceLabel(w)}
                         </option>
                     ))}
                 </select>

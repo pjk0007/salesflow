@@ -11,7 +11,7 @@ import { LeadCommentComposer, LeadCommentList } from "./LeadComments";
 import { InflowBadge } from "./InflowBadge";
 import { LeadActivitySection } from "./LeadActivitySection";
 import { StatusBadge } from "./StatusBadge";
-import { Field, PropRow } from "./DetailParts";
+import { EditableField, Field, PropRow } from "./DetailParts";
 import { SalesLeadBody } from "@/components/sales/ui/SalesLeadBody";
 
 interface LeadDetailPanelProps {
@@ -31,6 +31,8 @@ interface LeadDetailPanelProps {
     onOpenRelated?: (record: LeadRecord) => void;
     onCloseRelated?: () => void;
     onSecondaryFieldChange?: (key: string, value: unknown) => void;
+    /** 서버가 돌려준 리드로 열린 리드를 바꾼다 (사업부 변경 등) */
+    onRecordUpdate?: (r: Partial<LeadRecord> & { id: number }) => void;
 }
 
 /** 표에서 리드를 누르면 오른쪽에서 열리는 상세 (genius-hub-erp 사이드 피크 구조) */
@@ -49,11 +51,15 @@ export function LeadDetailPanel({
     onOpenRelated,
     onCloseRelated,
     onSecondaryFieldChange,
+    onRecordUpdate,
 }: LeadDetailPanelProps) {
     const split = mode === "sales" && !!secondary;
     const [full, setFull] = useState(false);
     const sales = mode === "sales";
     const lead = summarizeLead(record, fields);
+    // 연락처는 사업부마다 칸 이름이 달라(phone/contact) 이미 쓰는 칸에 저장
+    const recData = (record.data ?? {}) as Record<string, unknown>;
+    const phoneKey = recData.phone === undefined && recData.contact !== undefined ? "contact" : "phone";
     const extras = extraFields(record, fields);
     // 웹폼 유입 추적·메타 광고가 남긴 캠페인·광고 소재
     const attribution = [...AUTO_FILLED_KEYS]
@@ -72,7 +78,8 @@ export function LeadDetailPanel({
                     (full
                         ? "inset-0"
                         : split
-                          ? "inset-y-0 right-0 w-[min(1520px,96vw)] border-l"
+                          ? // 같은 기업 담당자를 열면 화면 전체 — 왼쪽 절반 지금 리드, 오른쪽 절반 같은 기업 담당자
+                            "inset-0"
                           : "inset-y-0 right-0 w-[46%] min-w-[520px] max-w-[760px] border-l")
                 }
             >
@@ -114,6 +121,7 @@ export function LeadDetailPanel({
                                     onChanged={onCommentAdded}
                                     onOpenRelated={onOpenRelated}
                                     activeRelatedId={secondary?.id ?? null}
+                                    onWorkspacesChanged={(r) => onRecordUpdate?.(r as Partial<LeadRecord> & { id: number })}
                                 />
                             ) : (
                                 <>
@@ -128,6 +136,8 @@ export function LeadDetailPanel({
                                         </div>
                                     </div>
 
+                                    {/* 대응상태·다음 연락일·유입경로는 한 묶음으로 촘촘하게 */}
+                                    <div className="space-y-2.5">
                                     {statusOptions.length > 0 && (
                                         <PropRow icon={CircleDot} label="대응상태">
                                             <div className="flex flex-wrap gap-1.5">
@@ -167,10 +177,15 @@ export function LeadDetailPanel({
                                             )}
                                         </div>
                                     </PropRow>
+                                    </div>
 
                                     <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4">
-                                        <Field label="연락처" value={lead.phone} />
-                                        <Field label="이메일" value={lead.email} />
+                                        <EditableField
+                                            label="연락처"
+                                            value={lead.phone}
+                                            onSave={(v) => onFieldChange?.(phoneKey, v)}
+                                        />
+                                        <EditableField label="이메일" value={lead.email} onSave={(v) => onFieldChange?.("email", v)} />
                                         <Field label="요청사항" value={lead.request} wide />
                                     </div>
 
@@ -218,6 +233,7 @@ export function LeadDetailPanel({
                                     onChanged={onCommentAdded}
                                     onOpenRelated={onOpenRelated}
                                     activeRelatedId={secondary.id}
+                                    onWorkspacesChanged={(r) => onRecordUpdate?.(r as Partial<LeadRecord> & { id: number })}
                                 />
                             </div>
                         </ScrollArea>

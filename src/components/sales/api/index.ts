@@ -55,4 +55,16 @@ export const linkLeads = async (recordIds: number[], companyName: string) =>
 export const createSalesLead = async (workspaceIds: number[], data: Record<string, unknown>) =>
     json(await send("/api/sales/leads", "POST", { workspaceIds, data }));
 
-export const unlinkLead = async (recordId: number) => json(await send(`/api/records/${recordId}/related`, "DELETE"));
+export const unlinkLead = async (recordId: number, companyName?: string) =>
+    json(await send(`/api/records/${recordId}/related`, "DELETE", companyName ? { companyName } : {}));
+
+export const saveCompanyAddress = async (recordId: number, address: string) =>
+    json<{ count: number }>(await send("/api/sales/company", "POST", { recordId, address }));
+
+export const unlinkLeads = async (recordIds: number[]) =>
+    json<{ done: number; skipped: number }>(await send("/api/sales/unlink", "POST", { recordIds }));
+
+export const setLeadWorkspaces = async (recordId: number, workspaceIds: number[]) =>
+    json<{ id: number; workspaceId: number; partitionId: number; data: Record<string, unknown> }>(
+        await send(`/api/sales/leads/${recordId}/workspaces`, "PUT", { workspaceIds }),
+    );

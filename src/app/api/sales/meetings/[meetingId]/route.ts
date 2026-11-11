@@ -11,14 +11,13 @@ async function loadMeeting(orgId: string, id: number) {
     return m ?? null;
 }
 
-// PATCH: 미팅 기록 수정 (작성자 본인)
+// PATCH: 미팅 기록 수정 — 리드를 볼 수 있는 사람 누구나 (삭제는 작성자만)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ meetingId: string }> }) {
     return salesHandler(req, async (user) => {
         const meeting = await loadMeeting(user.orgId, Number((await params).meetingId));
         if (!meeting) return fail("미팅 기록을 찾을 수 없습니다.", 404);
         const g = await recordGuard(user, meeting.recordId, "read");
         if (g.error) return g.error;
-        if (meeting.createdBy !== user.userId) return fail("본인이 쓴 미팅 기록만 수정할 수 있습니다.", 403);
         const parsed = parseMeetingInput(await req.json());
         if (!parsed.ok) return fail(parsed.error);
         const v = parsed.value;

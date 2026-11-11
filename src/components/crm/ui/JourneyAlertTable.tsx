@@ -23,6 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ChevronLeft, ChevronRight, Search, ExternalLink } from "lucide-react";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
     pending: { label: "대기", variant: "secondary" },
@@ -119,7 +120,7 @@ export default function JourneyAlertTable() {
                         size="sm"
                         onClick={() => { setWorkspaceId(ws.id); setPage(1); }}
                     >
-                        {ws.name}
+                        {workspaceLabel(ws)}
                     </Button>
                 ))}
             </div>

@@ -20,7 +20,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
 import { LeadStatusSettings } from "./LeadStatusSettings";
 import { useFieldTypes } from "@/hooks/useFieldTypes";
-import IconPicker, { getIconComponent } from "@/components/ui/icon-picker";
+import { workspaceLabel } from "@/lib/workspace-label";
 import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
 import DeleteWorkspaceDialog from "./DeleteWorkspaceDialog";
 
@@ -32,8 +32,8 @@ export default function WorkspaceSettingsTab() {
 
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
-    const [icon, setIcon] = useState("");
     const [codePrefix, setCodePrefix] = useState("");
+    const [displayNo, setDisplayNo] = useState("");
     const [defaultFieldTypeId, setDefaultFieldTypeId] = useState<string>("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isTogglingHidden, setIsTogglingHidden] = useState(false);
@@ -54,8 +54,8 @@ export default function WorkspaceSettingsTab() {
         if (workspace) {
             setName(workspace.name);
             setDescription(workspace.description ?? "");
-            setIcon(workspace.icon ?? "");
             setCodePrefix(workspace.codePrefix ?? "");
+            setDisplayNo(workspace.settings?.displayNo ?? "");
             setDefaultFieldTypeId(workspace.defaultFieldTypeId ? String(workspace.defaultFieldTypeId) : "");
         }
     }, [workspace]);
@@ -75,8 +75,8 @@ export default function WorkspaceSettingsTab() {
                 body: JSON.stringify({
                     name: name.trim(),
                     description: description.trim() || null,
-                    icon: icon.trim() || null,
                     codePrefix: codePrefix.trim() || null,
+                    displayNo: displayNo.trim(),
                     defaultFieldTypeId: defaultFieldTypeId ? Number(defaultFieldTypeId) : null,
                 }),
             });
@@ -166,11 +166,7 @@ export default function WorkspaceSettingsTab() {
         >
             <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                    {ws.icon && (() => {
-                        const Icon = getIconComponent(ws.icon);
-                        return Icon ? <Icon className="h-4 w-4 text-muted-foreground shrink-0" /> : null;
-                    })()}
-                    <div className={cn("font-medium truncate", ws.hiddenAt && "text-muted-foreground")}>{ws.name}</div>
+                    <div className={cn("font-medium truncate", ws.hiddenAt && "text-muted-foreground")}>{workspaceLabel(ws)}</div>
                     {ws.hiddenAt && <EyeOff className="h-3.5 w-3.5 text-muted-foreground shrink-0 ml-auto" />}
                 </div>
                 <div className="text-sm text-muted-foreground truncate mt-1">
@@ -233,6 +229,18 @@ export default function WorkspaceSettingsTab() {
                     ) : (
                         <div className="space-y-4 max-w-lg">
                             <div className="space-y-1.5">
+                                <Label>번호</Label>
+                                <Input
+                                    value={displayNo}
+                                    onChange={(e) => setDisplayNo(e.target.value.replace(/[^0-9]/g, "").slice(0, 3))}
+                                    placeholder="예: 1"
+                                    className="w-24"
+                                />
+                                <p className="text-xs text-muted-foreground">
+                                    사업부 넘버링이에요. 화면에 &quot;{displayNo || "번호"}-{name || "이름"}&quot;처럼 붙고, 번호 순으로 정렬돼요.
+                                </p>
+                            </div>
+                            <div className="space-y-1.5">
                                 <Label>
                                     이름 <span className="text-destructive">*</span>
                                 </Label>
@@ -251,11 +259,6 @@ export default function WorkspaceSettingsTab() {
                                     placeholder="워크스페이스 설명"
                                     rows={3}
                                 />
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label>아이콘</Label>
-                                <IconPicker value={icon} onChange={setIcon} />
                             </div>
 
                             <div className="space-y-1.5">

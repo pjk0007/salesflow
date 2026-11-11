@@ -5,8 +5,8 @@ import type { LeadRecord } from "@/components/leads/types";
 export const SALES_LEADS_KEY = "/api/sales/leads?";
 
 /** 영업 리드 목록 — workspaceId 없으면 전체 사업부 */
-export function useSalesLeads(p: { enabled: boolean; workspaceId: number | null; mine: boolean; search: string; page: number }) {
-    const qs = new URLSearchParams({ page: String(p.page), pageSize: "50" });
+export function useSalesLeads(p: { enabled: boolean; workspaceId: number | null; mine: boolean; search: string; page: number; pageSize?: number }) {
+    const qs = new URLSearchParams({ page: String(p.page), pageSize: String(p.pageSize ?? 50) });
     if (p.workspaceId) qs.set("workspaceId", String(p.workspaceId));
     if (p.mine) qs.set("mine", "1");
     if (p.search) qs.set("search", p.search);

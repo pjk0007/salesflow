@@ -15,6 +15,7 @@ import { KIND_OPTIONS, MATCH_LABELS, formatKstDateTime, ruleStepText } from "../
 import { ReplyKindBadge } from "./ReplyKindBadge";
 import { ReplySyncBanner } from "./ReplySyncBanner";
 import { ReplyDetailSheet } from "./ReplyDetailSheet";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const PAGE_SIZE = 50;
 
@@ -135,7 +136,7 @@ export default function RepliesTab() {
                             <SelectItem value="all">전체 사업</SelectItem>
                             {workspaces.map((w) => (
                                 <SelectItem key={w.id} value={String(w.id)}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </SelectItem>
                             ))}
                         </SelectContent>

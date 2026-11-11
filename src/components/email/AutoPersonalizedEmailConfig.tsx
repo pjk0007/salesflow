@@ -29,6 +29,7 @@ import { RuleReplyBadge } from "@/components/email/replies/ui/RuleReplyBadge";
 import { useSendHealth } from "@/components/email/send-health/hooks/useSendHealth";
 import RuleHealthBadges from "@/components/email/send-health/ui/RuleHealthBadges";
 import { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const FORMAT_OPTIONS = [
     { value: "plain", label: "간결한 텍스트" },
@@ -231,7 +232,7 @@ export default function AutoPersonalizedEmailConfig({
                                     <SelectItem value="all">전체 워크스페이스</SelectItem>
                                     {workspaces.map((ws) => (
                                         <SelectItem key={ws.id} value={ws.id.toString()}>
-                                            {ws.name}
+                                            {workspaceLabel(ws)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

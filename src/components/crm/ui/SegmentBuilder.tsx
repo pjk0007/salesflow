@@ -15,6 +15,7 @@ import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { Search, ExternalLink, Users, ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { format } from "date-fns";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 function durationLabel(sec: number | null) {
     if (sec == null) return "-";
@@ -289,7 +290,7 @@ export default function SegmentBuilder() {
                     <SelectContent position="popper" className="min-w-[var(--radix-select-trigger-width)]">
                         <SelectItem value="all">전체 서비스</SelectItem>
                         {workspaces.map((ws) => (
-                            <SelectItem key={ws.id} value={ws.id.toString()}>{ws.name}</SelectItem>
+                            <SelectItem key={ws.id} value={ws.id.toString()}>{workspaceLabel(ws)}</SelectItem>
                         ))}
                     </SelectContent>
                 </Select>

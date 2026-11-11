@@ -13,6 +13,7 @@ import type {
 import { controlClass, Field, plainTextFromHtml, purposeLabel, stateLabel } from "./Fields";
 import { VersionSelect } from "./VersionSelect";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { workspaceLabel } from "@/lib/workspace-label";
 type Action = <T>(
     url: string,
     body: unknown,
@@ -122,7 +123,7 @@ export function EvaluationManager({
                                         <option value="">선택</option>
                                         {catalog.workspaces.map((w) => (
                                             <option key={w.id} value={w.id}>
-                                                {w.name}
+                                                {workspaceLabel(w)}
                                             </option>
                                         ))}
                                     </select>

@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
-import { getIconComponent } from "@/components/ui/icon-picker";
+import { workspaceLabel } from "@/lib/workspace-label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useFieldTypes } from "@/hooks/useFieldTypes";
@@ -193,17 +193,11 @@ export default function PartitionNav({
                             <SelectValue placeholder="워크스페이스 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                            {workspaces.map((ws) => {
-                                const Icon = ws.icon ? getIconComponent(ws.icon) : null;
-                                return (
-                                    <SelectItem key={ws.id} value={String(ws.id)}>
-                                        <span className="flex items-center gap-2">
-                                            {Icon && <Icon className="h-4 w-4 text-muted-foreground shrink-0" />}
-                                            {ws.name}
-                                        </span>
-                                    </SelectItem>
-                                );
-                            })}
+                            {workspaces.map((ws) => (
+                                <SelectItem key={ws.id} value={String(ws.id)}>
+                                    {workspaceLabel(ws)}
+                                </SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                 )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link2, Plus, Search, Trash2 } from "lucide-react";
+import { Link2, Link2Off, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,9 @@ import { BusinessCardButton } from "@/components/sales/ui/BusinessCardButton";
 import type { CardFields } from "@/components/sales/types";
 import { useSalesLeads, SALES_LEADS_KEY } from "@/components/sales/hooks/useSalesLeads";
 import { LinkCompanyDialog } from "@/components/sales/ui/LinkCompanyDialog";
+import { unlinkLeads } from "@/components/sales/api";
+import { useWorkspaces } from "@/hooks/useWorkspaces";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 interface LeadBoardProps {
     workspaceId: number | null;
@@ -104,7 +107,10 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
     const importantCount = useRecords({ partitionId: sales ? null : partitionId, page: 1, pageSize: 1, important: true });
     const allCount = useRecords({ partitionId: sales ? null : partitionId, page: 1, pageSize: 1, search: search || undefined });
     // 영업관리: 모든 사업부를 가로지르는 목록 (사업부 탭이면 그 사업부만)
-    const salesList = useSalesLeads({ enabled: sales, workspaceId, mine: tab === MINE, search, page });
+    // 영업관리 '전체'는 사업부별로 묶어 보여줘서 한 번에 넉넉히 불러온다
+    const salesAll = sales && workspaceId === null;
+    const salesList = useSalesLeads({ enabled: sales, workspaceId, mine: tab === MINE, search, page: salesAll ? 1 : page, pageSize: salesAll ? 200 : 50 });
+    const { workspaces: allWorkspaces } = useWorkspaces();
     const list = sales ? salesList : single;
 
     const changeStatus = (status: string) => changeField(STATUS_KEY, status);
@@ -137,6 +143,25 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
     };
 
     const [linkOpen, setLinkOpen] = useState(false);
+    // 체크한 것 중 같은 기업으로 '묶은' 리드 수 — 이게 있어야 빼기 버튼을 보인다
+    const checkedLinked = (list.records as LeadRecord[]).filter(
+        (r) => checkedIds.has(r.id) && typeof (r.data as Record<string, unknown>)?.leadGroupId === "string",
+    ).length;
+    const unlinkChecked = async () => {
+        const result = await unlinkLeads([...checkedIds]);
+        if (!result.success) {
+            toast.error(result.error || "빼지 못했습니다.");
+            return;
+        }
+        const { done = 0, skipped = 0 } = result.data ?? {};
+        toast.success(
+            skipped > 0
+                ? `${done}명을 같은 기업에서 뺐어요. ${skipped}명은 원래 기업명이 같아서 빼지 않았어요 (상세에서 기업명을 바꾸면 떨어져요).`
+                : `${done}명을 같은 기업에서 뺐어요. 기업명은 원래대로 돌렸어요.`,
+        );
+        setCheckedIds(new Set());
+        refreshAll();
+    };
 
     const confirmDelete = async () => {
         if (!deleteIds) return;
@@ -213,6 +238,12 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                             <Button variant="ghost" size="sm" onClick={() => setCheckedIds(new Set())}>
                                 선택 해제
                             </Button>
+                            {sales && checkedLinked > 0 && (
+                                <Button variant="outline" size="sm" onClick={unlinkChecked}>
+                                    <Link2Off className="mr-1 h-4 w-4" />
+                                    같은 기업에서 빼기
+                                </Button>
+                            )}
                             {sales && checkedIds.size >= 2 && (
                                 <Button variant="outline" size="sm" onClick={() => setLinkOpen(true)}>
                                     <Link2 className="mr-1 h-4 w-4" />
@@ -275,6 +306,34 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                         <div className="py-16 text-center text-sm text-muted-foreground">리드가 없습니다.</div>
                     )}
                 </div>
+            ) : salesAll ? (
+                // 영업관리 전체: 사업부별 묶음 (여러 사업부에 걸친 리드는 각 사업부에 다 보인다)
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    {allWorkspaces.map((ws) => {
+                        const rows = (list.records as LeadRecord[]).filter((r) => {
+                            const ids = (r.data as Record<string, unknown>)?.workspaceIds;
+                            return r.workspaceId === ws.id || (Array.isArray(ids) && ids.includes(ws.id));
+                        });
+                        if (rows.length === 0) return null;
+                        return (
+                            <section key={ws.id} className="border-b">
+                                <div className="flex items-center gap-2 border-b bg-muted/30 px-3 py-2 text-sm">
+                                    <span className="font-medium">{workspaceLabel(ws)}</span>
+                                    <span className="text-muted-foreground">{rows.length}명</span>
+                                </div>
+                                <LeadTable {...tableProps} records={rows} isLoading={false} hideStatus embedded />
+                            </section>
+                        );
+                    })}
+                    {!list.isLoading && list.records.length === 0 && (
+                        <div className="py-16 text-center text-sm text-muted-foreground">영업 리드가 없습니다.</div>
+                    )}
+                    {list.total > list.records.length && (
+                        <p className="py-3 text-center text-xs text-muted-foreground">
+                            최근 {list.records.length}명만 보여요. 사업부 탭이나 검색으로 좁혀 보세요.
+                        </p>
+                    )}
+                </div>
             ) : (
                 <LeadTable
                     {...tableProps}
@@ -302,6 +361,10 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                     onOpenRelated={setSecondary}
                     onCloseRelated={() => setSecondary(null)}
                     onSecondaryFieldChange={changeSecondaryField}
+                    onRecordUpdate={(r) => {
+                        setSelected((prev) => (prev && prev.id === r.id ? { ...prev, ...r } : prev));
+                        setSecondary((prev) => (prev && prev.id === r.id ? { ...prev, ...r } : prev));
+                    }}
                     onStatusChange={changeStatus}
                     onFieldChange={changeField}
                     mode={mode}

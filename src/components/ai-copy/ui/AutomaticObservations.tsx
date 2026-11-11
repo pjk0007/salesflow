@@ -6,6 +6,7 @@ import { copyRequest } from "../api/copy";
 import type { CopyObservations } from "@/lib/ai-copy/observations";
 import { Field, controlClass, purposeLabel } from "./Fields";
 import CopyAutomationPanel from "./CopyAutomationPanel";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const percent = (value: number | null) =>
     value === null ? "관찰 중" : `${(value * 100).toFixed(1)}%`;
@@ -67,7 +68,7 @@ export default function AutomaticObservations({
                             <option value={0}>전체 사업</option>
                             {workspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </option>
                             ))}
                         </select>

@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { useAdAccounts } from "@/hooks/useAdAccounts";
 import { useAdPlatforms } from "@/hooks/useAdPlatforms";
 import type { AdPlatformType, AdAccountStatus } from "@/types";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 const PLATFORM_LABELS: Record<AdPlatformType, string> = {
     meta: "Meta",
@@ -137,7 +138,7 @@ export default function AdAccountList() {
                                                     <SelectItem value="none">미지정</SelectItem>
                                                     {workspaces.map((ws) => (
                                                         <SelectItem key={ws.id} value={String(ws.id)}>
-                                                            {ws.name}
+                                                            {workspaceLabel(ws)}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>

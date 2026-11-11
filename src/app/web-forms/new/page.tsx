@@ -23,6 +23,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { AI_MODELS, DEFAULT_MODEL_ID } from "@/lib/ai/models";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 export default function NewWebFormPage() {
     const router = useRouter();
@@ -143,7 +144,7 @@ export default function NewWebFormPage() {
                                     <SelectContent>
                                         {workspaces.map((ws) => (
                                             <SelectItem key={ws.id} value={String(ws.id)}>
-                                                {ws.name}
+                                                {workspaceLabel(ws)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

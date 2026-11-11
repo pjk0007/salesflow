@@ -15,6 +15,7 @@ import {
     stateLabel,
 } from "./Fields";
 import ReplacementForm from "./ReplacementForm";
+import { workspaceLabel } from "@/lib/workspace-label";
 type Action = <T>(
     url: string,
     body: unknown,
@@ -62,7 +63,7 @@ export function GenerationList({
                             <option value={0}>전체 사업</option>
                             {workspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </option>
                             ))}
                         </select>

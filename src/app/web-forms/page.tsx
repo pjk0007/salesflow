@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Link2, Trash2, Eye, EyeOff } from "lucide-react";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
+import { workspaceLabel } from "@/lib/workspace-label";
 
 export default function WebFormsPage() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
@@ -120,7 +121,7 @@ export default function WebFormsPage() {
                                 <SelectContent>
                                     {workspaces.map((ws) => (
                                         <SelectItem key={ws.id} value={String(ws.id)}>
-                                            {ws.name}
+                                            {workspaceLabel(ws)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

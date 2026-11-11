@@ -171,3 +171,25 @@
         border-radius: 9999px;
     }
 }
+
+/* 누를 수 있는 것에는 손가락 커서 — 버튼·링크·탭·메뉴·체크박스 등 (Tailwind 4는 버튼 기본 커서가 화살표) */
+@layer base {
+    button:not(:disabled),
+    [role="button"]:not([aria-disabled="true"]),
+    [role="tab"],
+    [role="menuitem"]:not([data-disabled]),
+    [role="menuitemcheckbox"]:not([data-disabled]),
+    [role="option"]:not([data-disabled]),
+    [role="radio"],
+    [role="checkbox"],
+    [role="switch"],
+    a[href],
+    summary,
+    label[for],
+    select,
+    input[type="checkbox"],
+    input[type="radio"],
+    input[type="file"] {
+        cursor: pointer;
+    }
+}

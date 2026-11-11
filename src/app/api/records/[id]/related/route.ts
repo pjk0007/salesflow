@@ -18,7 +18,9 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
         const recordId = Number((await params).id);
         const g = await recordGuard(user, recordId, "update");
         if (g.error) return g.error;
-        await unlinkLead(user.orgId, recordId);
+        const body = (await req.json().catch(() => ({}))) as { companyName?: unknown };
+        const name = typeof body.companyName === "string" ? body.companyName.trim().slice(0, 200) : "";
+        await unlinkLead(user.orgId, recordId, name || null);
         return ok(null);
     });
 }

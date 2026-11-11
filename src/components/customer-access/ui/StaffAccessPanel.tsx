@@ -8,6 +8,7 @@ import {
 } from "@/lib/customer-access/rules";
 import type { InboxBootstrap } from "@/components/inbox/types";
 import { toast } from "sonner";
+import { workspaceLabel } from "@/lib/workspace-label";
 export function StaffAccessPanel({
     bootstrap,
     initialWorkspaceId,
@@ -55,7 +56,7 @@ export function StaffAccessPanel({
                     </option>
                     {bootstrap.workspaces.map((w) => (
                         <option key={w.id} value={w.id}>
-                            {w.name}
+                            {workspaceLabel(w)}
                         </option>
                     ))}
                 </select>

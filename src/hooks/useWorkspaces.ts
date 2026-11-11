@@ -1,6 +1,7 @@
 import useSWR from "swr";
 import type { ApiResponse, CreateWorkspaceInput } from "@/types";
 import { blockingError, defaultFetcher } from "@/lib/swr-fetcher";
+import { sortByDisplayNo } from "@/lib/workspace-label";
 
 interface WorkspaceItem {
     id: number;
@@ -9,6 +10,8 @@ interface WorkspaceItem {
     icon: string | null;
     defaultFieldTypeId: number | null;
     hiddenAt: string | null;
+    /** 사업부 번호 ("1-디하"의 1) */
+    displayNo?: string | null;
 }
 
 
@@ -42,7 +45,8 @@ export function useWorkspaces() {
 
     return {
         // 선택 목록용 — 숨긴 워크스페이스는 뺀다. 설정 화면처럼 전부 다뤄야 하면 allWorkspaces
-        workspaces: allWorkspaces.filter((w) => !w.hiddenAt),
+        // 번호 순으로 (번호 없는 사업부는 뒤)
+        workspaces: sortByDisplayNo(allWorkspaces.filter((w) => !w.hiddenAt)),
         allWorkspaces,
         isLoading,
         error,

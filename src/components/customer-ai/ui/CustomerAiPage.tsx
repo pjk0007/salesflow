@@ -8,6 +8,7 @@ import type { SupportCatalog, SupportSettings } from "../types";
 import type { InboxBootstrap } from "@/components/inbox/types";
 import { KnowledgeManager } from "./KnowledgeManager";
 import { SupportSettingsForm } from "./SupportSettingsForm";
+import { workspaceLabel } from "@/lib/workspace-label";
 export function CustomerAiPage({ role }: { role: string }) {
     void role;
     const params = useSearchParams(),
@@ -54,7 +55,7 @@ export function CustomerAiPage({ role }: { role: string }) {
                     >
                         {bootstrap.data?.workspaces.map((w) => (
                             <option key={w.id} value={w.id}>
-                                {w.name}
+                                {workspaceLabel(w)}
                             </option>
                         ))}
                     </select>

@@ -36,7 +36,7 @@ function SalesCells({ record }: { record: LeadRecord }) {
             </td>
             <td className={CELL}>
                 {next ? (
-                    <div className="flex items-start gap-1.5">
+                    <div className="flex items-center gap-1.5">
                         {due && (
                             <span className={cn("shrink-0 rounded px-1 text-[11px] tabular-nums", overdue ? "bg-rose-100 text-rose-700" : "bg-muted text-muted-foreground")}>
                                 {due.slice(5).replace("-", "/")}
@@ -235,7 +235,7 @@ export function LeadTable({
                                         <td className={cn(CELL, "truncate")}>
                                             {lead.contactName || "-"}
                                             {sales && (record.data as Record<string, unknown>)?.contactTitle ? (
-                                                <span className="text-muted-foreground"> / {String((record.data as Record<string, unknown>).contactTitle)}</span>
+                                                <span className="text-muted-foreground"> · {String((record.data as Record<string, unknown>).contactTitle)}</span>
                                             ) : null}
                                         </td>
                                         <td className={cn(CELL, "truncate")}>{lead.phone || "-"}</td>

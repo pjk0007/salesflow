@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { FileAudio, Loader2, Plus, Sparkles, X } from "lucide-react";
+import { useState } from "react";
+import { Loader2, Plus, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -14,6 +14,8 @@ import { analyzeMeeting, createMeeting, transcribeRecording, updateMeeting } fro
 import { useSalesMembers } from "../hooks/useSalesMembers";
 import type { DraftActionItem, Meeting } from "../types";
 import { OwnerSelect } from "./OwnerSelect";
+import { AttendeePicker } from "./AttendeePicker";
+import { cn } from "@/lib/utils";
 
 const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 const kstDate = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -25,17 +27,26 @@ interface MeetingDialogProps {
     /** 있으면 수정 (액션플랜은 미팅 기록 화면에서 따로 고친다) */
     meeting?: Meeting | null;
     onSaved: () => void;
+    /** 지금 리드 정보 — 참석자 고르기의 "이 기업 담당자" 맨 앞 */
+    leadData: Record<string, unknown>;
 }
 
 /** 미팅 기록 쓰기 — 녹음 올리기(자동 전사) 또는 전사본 붙여넣기 → AI 요약·액션플랜 → 확인 후 저장 */
-export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved }: MeetingDialogProps) {
+export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved, leadData }: MeetingDialogProps) {
     const { user } = useSession();
     const { members } = useSalesMembers();
     const editing = !!meeting;
     const [date, setDate] = useState(meeting ? kstDate(meeting.metAt) : todayKst());
     const [title, setTitle] = useState(meeting?.title ?? "");
-    const [attendees, setAttendees] = useState(meeting?.attendees ?? "");
-    const [notes, setNotes] = useState(meeting?.notes ?? "");
+    const [attendees, setAttendees] = useState<string[]>(
+        (meeting?.attendees ?? "")
+            .split(",")
+            .map((v) => v.trim())
+            .filter(Boolean),
+    );
+    // 메모 칸은 없앴다 — 예전 미팅의 메모는 그대로 보존
+    const notes = meeting?.notes ?? "";
+    const [dragging, setDragging] = useState(false);
     const [transcript, setTranscript] = useState(meeting?.transcript ?? "");
     const [summary, setSummary] = useState(meeting?.summary ?? "");
     const [audioUrl, setAudioUrl] = useState<string | null>(meeting?.audioUrl ?? null);
@@ -43,29 +54,34 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved }
     const [transcribing, setTranscribing] = useState(false);
     const [analyzing, setAnalyzing] = useState(false);
     const [saving, setSaving] = useState(false);
-    const fileInput = useRef<HTMLInputElement>(null);
 
     const transcribe = async (file: File | undefined) => {
         if (!file) return;
+        if (!file.type.startsWith("audio/") && !file.type.startsWith("video/") && !/\.(m4a|mp3|wav|aac|flac|ogg|webm)$/i.test(file.name)) {
+            toast.error("녹음 파일(mp3·m4a·wav 등)만 올릴 수 있어요.");
+            return;
+        }
         setTranscribing(true);
+        let result: Awaited<ReturnType<typeof transcribeRecording>>;
         try {
-            const result = await transcribeRecording(file);
+            result = await transcribeRecording(file);
             if (!result.success || !result.data) {
                 toast.error(result.error || "녹음을 글로 바꾸지 못했습니다.");
                 return;
             }
             setAudioUrl(result.data.audioUrl);
             setTranscript(result.data.transcript);
-            toast.success("녹음을 글로 바꿨어요. 내용 확인 후 AI 요약을 눌러보세요.");
         } finally {
             setTranscribing(false);
         }
+        // 전사가 끝나면 바로 요약·액션플랜까지
+        await analyze(result.data!.transcript);
     };
 
-    const analyze = async () => {
+    const analyze = async (text: string = transcript) => {
         setAnalyzing(true);
         try {
-            const result = await analyzeMeeting({ transcript, notes, meetingDate: date });
+            const result = await analyzeMeeting({ transcript: text, notes, meetingDate: date });
             if (!result.success || !result.data) {
                 toast.error(result.error || "요약하지 못했습니다.");
                 return;
@@ -89,7 +105,7 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved }
             const payload = {
                 metAt: `${date}T09:00:00+09:00`,
                 title,
-                attendees,
+                attendees: attendees.join(", "),
                 notes,
                 transcript,
                 summary,
@@ -119,50 +135,62 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved }
                 </DialogHeader>
 
                 <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5 scrollbar-thin">
-                    <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                    <div className="space-y-1.5">
+                        <Label className="text-xs text-muted-foreground">제목</Label>
+                        <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 1차 도입 미팅" />
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
                         <div className="space-y-1.5">
                             <Label className="text-xs text-muted-foreground">미팅 날짜</Label>
                             <DatePicker value={date} onChange={(v) => setDate(v || todayKst())} />
                         </div>
                         <div className="space-y-1.5">
-                            <Label className="text-xs text-muted-foreground">제목</Label>
-                            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="예: 1차 도입 미팅" />
+                            <Label className="text-xs text-muted-foreground">참석자</Label>
+                            <AttendeePicker recordId={recordId} leadData={leadData} value={attendees} onChange={setAttendees} />
                         </div>
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">참석자</Label>
-                        <Input value={attendees} onChange={(e) => setAttendees(e.target.value)} placeholder="예: 김OO 대표, 이OO 팀장 / 우리: 주희" />
-                    </div>
-                    <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">메모</Label>
-                        <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} placeholder="미팅에서 느낀 점, 분위기, 기억할 내용" />
                     </div>
 
                     <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                            <Label className="text-xs text-muted-foreground">녹음 전사본</Label>
-                            <Button type="button" variant="ghost" size="sm" disabled={busy} onClick={() => fileInput.current?.click()}>
-                                {transcribing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <FileAudio className="mr-1 h-4 w-4" />}
-                                {transcribing ? "녹음을 글로 바꾸는 중… (몇 분 걸릴 수 있어요)" : audioUrl ? "다른 녹음 올리기" : "녹음 파일 올리기"}
-                            </Button>
-                            <input
-                                ref={fileInput}
-                                type="file"
-                                accept="audio/*,video/mp4,.m4a,.mp3,.wav"
-                                className="hidden"
-                                onChange={(e) => {
-                                    transcribe(e.target.files?.[0]);
-                                    e.target.value = "";
-                                }}
-                            />
+                        <div className="flex h-6 items-center justify-between">
+                            <Label className="text-xs text-muted-foreground">녹음/전사본</Label>
+                            {transcript.trim() && !busy && (
+                                <Button type="button" variant="ghost" size="xs" onClick={() => analyze()}>
+                                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                                    {summary ? "다시 요약" : "AI 요약"}
+                                </Button>
+                            )}
                         </div>
-                        <Textarea
-                            value={transcript}
-                            onChange={(e) => setTranscript(e.target.value)}
-                            rows={6}
-                            placeholder="녹음 파일을 올리면 자동으로 채워져요. 클로바노트 등에서 뽑은 전사본을 붙여넣어도 돼요."
-                            className="text-xs"
-                        />
+                        {/* 녹음 파일은 여기로 끌어다 놓기, 전사본 글은 붙여넣기 */}
+                        <div
+                            className="relative"
+                            onDragOver={(e) => {
+                                if (!e.dataTransfer.types.includes("Files")) return;
+                                e.preventDefault();
+                                setDragging(true);
+                            }}
+                            onDragLeave={() => setDragging(false)}
+                            onDrop={(e) => {
+                                if (!e.dataTransfer.files.length) return;
+                                e.preventDefault();
+                                setDragging(false);
+                                transcribe(e.dataTransfer.files[0]);
+                            }}
+                        >
+                            <Textarea
+                                value={transcript}
+                                onChange={(e) => setTranscript(e.target.value)}
+                                rows={6}
+                                disabled={transcribing}
+                                placeholder="녹음 파일(mp3·m4a·wav)을 여기로 끌어다 놓으면 자동으로 글로 바꾸고 요약해요. 전사본 글을 붙여넣어도 돼요."
+                                className={cn("text-xs", dragging && "border-dashed border-primary bg-primary/5")}
+                            />
+                            {(transcribing || analyzing) && (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-md bg-background/85 text-sm text-muted-foreground">
+                                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                    {transcribing ? "녹음을 글로 바꾸는 중… (몇 분 걸릴 수 있어요)" : "요약과 액션플랜을 만드는 중…"}
+                                </div>
+                            )}
+                        </div>
                         {audioUrl && (
                             <audio controls src={audioUrl} className="mt-1 h-9 w-full">
                                 <track kind="captions" />
@@ -170,16 +198,9 @@ export function MeetingDialog({ open, onOpenChange, recordId, meeting, onSaved }
                         )}
                     </div>
 
-                    <div className="flex justify-end">
-                        <Button type="button" variant="outline" size="sm" disabled={busy || (!transcript.trim() && !notes.trim())} onClick={analyze}>
-                            {analyzing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Sparkles className="mr-1 h-4 w-4" />}
-                            AI로 요약·액션플랜 만들기
-                        </Button>
-                    </div>
-
                     <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">요약</Label>
-                        <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} placeholder="- 핵심 내용" />
+                        <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={5} placeholder="녹음/전사본 기준으로 자동 생성되며 수정이 가능해요." />
                     </div>
 
                     {!editing && (

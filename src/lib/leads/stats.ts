@@ -219,16 +219,16 @@ export async function getLeadStats(
 
 /** 리드 파티션이 있는 워크스페이스 + 리드 수 (리드 관리 상단 탭) */
 export async function getLeadWorkspaces(orgId: string) {
-    const rows = await db.execute<{ id: number; name: string; icon: string | null; leads: number; new_leads: number }>(sql`
-        SELECT w.id, w.name, w.icon,
+    const rows = await db.execute<{ id: number; name: string; icon: string | null; display_no: string | null; leads: number; new_leads: number }>(sql`
+        SELECT w.id, w.name, w.icon, w.settings->>'displayNo' AS display_no,
                count(r.id)::int AS leads,
                count(r.id) FILTER (WHERE coalesce(r.data->>'status', '') IN ('', '신규'))::int AS new_leads
         FROM workspaces w
         JOIN partitions p ON p.workspace_id = w.id AND p.category = 'lead'
         LEFT JOIN records r ON r.partition_id = p.id
         WHERE w.org_id = ${orgId} AND w.hidden_at IS NULL
-        GROUP BY w.id, w.name, w.icon
+        GROUP BY w.id, w.name, w.icon, w.settings
         ORDER BY w.id
     `);
-    return Array.from(rows).map((r) => ({ id: r.id, name: r.name, icon: r.icon, leads: r.leads, newLeads: r.new_leads }));
+    return Array.from(rows).map((r) => ({ id: r.id, name: r.name, icon: r.icon, displayNo: r.display_no, leads: r.leads, newLeads: r.new_leads }));
 }
