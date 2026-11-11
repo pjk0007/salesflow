@@ -40,7 +40,7 @@ export function SegmentFilter({ value, onChange }: Props) {
                 value={value.device ?? ALL}
                 onValueChange={(v) => onChange({ ...value, device: v === ALL ? null : (v as SegmentFilters["device"]) })}
             >
-                <SelectTrigger className="h-8 w-32 text-xs">
+                <SelectTrigger className="h-9 w-32 text-xs">
                     <SelectValue placeholder="디바이스" />
                 </SelectTrigger>
                 <SelectContent>
@@ -62,7 +62,7 @@ export function SegmentFilter({ value, onChange }: Props) {
                     onChange({ ...value, channel: nextChannel, channelMode: nextMode });
                 }}
             >
-                <SelectTrigger className="h-8 w-36 text-xs">
+                <SelectTrigger className="h-9 w-36 text-xs">
                     <SelectValue placeholder="유입 채널" />
                 </SelectTrigger>
                 <SelectContent>

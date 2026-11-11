@@ -524,7 +524,7 @@ function MetaConnected({
                                                 value={account.workspaceId ? String(account.workspaceId) : "none"}
                                                 onValueChange={(v) => handleWorkspaceChange(account.id, v)}
                                             >
-                                                <SelectTrigger className="w-40 h-8">
+                                                <SelectTrigger className="w-40 h-9">
                                                     <SelectValue placeholder="선택" />
                                                 </SelectTrigger>
                                                 <SelectContent>

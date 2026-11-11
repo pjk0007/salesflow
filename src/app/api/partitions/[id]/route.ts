@@ -4,6 +4,7 @@ import { eq, and, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { normalizeScheduledConfig } from "@/lib/scheduled-registration";
+import { ensureLeadBaseFields } from "@/lib/leads/base-fields";
 
 export async function GET(
     req: NextRequest,
@@ -59,7 +60,7 @@ export async function PATCH(
         return NextResponse.json({ success: false, error: "잘못된 파티션 ID입니다." }, { status: 400 });
     }
 
-    const { name, folderId, fieldTypeId, visibleFields, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig, scheduledRegistrationConfig, chatSpaceId } = await req.json();
+    const { name, folderId, fieldTypeId, visibleFields, useDistributionOrder, maxDistributionOrder, distributionDefaults, duplicateConfig, scheduledRegistrationConfig, chatSpaceId, category } = await req.json();
 
     // name-only 업데이트가 아닌 경우에도 지원
     if (name !== undefined && (!name || !String(name).trim())) {
@@ -153,6 +154,21 @@ export async function PATCH(
                     return NextResponse.json({ success: false, error: "구글챗 스페이스를 찾을 수 없습니다." }, { status: 400 });
                 }
                 updateData.chatSpaceId = space.id;
+            }
+        }
+
+        // 레코드(메일 발송용) ↔ 리드 관리 페이지 이동 — 어느 메뉴에 보일지가 바뀌므로 관리자만
+        if (category !== undefined) {
+            if (user.role === "member") {
+                return NextResponse.json({ success: false, error: "레코드/리드 관리 이동은 관리자만 할 수 있습니다." }, { status: 403 });
+            }
+            if (category !== "cold" && category !== "lead") {
+                return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
+            }
+            updateData.category = category;
+            // 리드 관리로 옮기면 대응상태·연락처·이메일·요청사항·유입경로 칸이 없을 때 채운다
+            if (category === "lead") {
+                await ensureLeadBaseFields(access.partition.fieldTypeId ?? access.workspace.defaultFieldTypeId);
             }
         }
 

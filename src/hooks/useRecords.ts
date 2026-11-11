@@ -14,6 +14,8 @@ interface UseRecordsParams {
     sortOrder?: "asc" | "desc";
     filters?: FilterCondition[];
     sessionId?: string;
+    /** 리드 관리 표용 — 레코드마다 마지막 메모(latestMemo)와 유입경로(inflow)를 같이 받는다 */
+    leadExtras?: boolean;
 }
 
 interface RecordsResponse {
@@ -36,6 +38,7 @@ function buildQueryString(params: UseRecordsParams): string {
     if (params.sortOrder) qs.set("sortOrder", params.sortOrder);
     if (params.filters && params.filters.length > 0)
         qs.set("filters", JSON.stringify(params.filters));
+    if (params.leadExtras) qs.set("leadExtras", "1");
     return qs.toString();
 }
 

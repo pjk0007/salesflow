@@ -29,7 +29,7 @@ export function PageSelector({ popularPaths, current, onChange }: Props) {
                     else onChange({ type: "page_url", pathPrefix: v });
                 }}
             >
-                <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectTrigger className="h-9 w-44 text-xs">
                     <SelectValue placeholder="인기 페이지 선택" />
                 </SelectTrigger>
                 <SelectContent>

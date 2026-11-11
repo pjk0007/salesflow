@@ -5,6 +5,7 @@ import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireAdmin } from "@/lib/auth-admin";
 import { normalizeReplyToInput } from "@/lib/reply-to-rules";
 import { lookupEmailMx } from "@/lib/email-mx-lookup";
+import { isValidLeadStatusSettings } from "@/lib/leads/statuses";
 
 /**
  * 응답에 싣는 칸. replyToEmail = 답장 받을 주소 (DESIGN-3). 칸과 API는 남아 있지만 발송에 쓰지 않는다 —
@@ -87,7 +88,10 @@ export async function PATCH(
     }
 
     try {
-        const { name, description, icon, codePrefix, defaultFieldTypeId, replyToEmail, hidden } = await req.json();
+        const { name, description, icon, codePrefix, defaultFieldTypeId, replyToEmail, hidden, leadStatuses } = await req.json();
+        if (leadStatuses !== undefined && !isValidLeadStatusSettings(leadStatuses)) {
+            return NextResponse.json({ success: false, error: "대응상태 설정이 올바르지 않습니다." }, { status: 400 });
+        }
 
         if (name !== undefined && !name.trim()) {
             return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
@@ -153,6 +157,12 @@ export async function PATCH(
             } else if (!hidden) {
                 updateData.hiddenAt = null;
             }
+        }
+        if (leadStatuses !== undefined) {
+            updateData.settings = {
+                ...(existing.settings ?? {}),
+                leadStatuses: leadStatuses.map((s: { label: string; enabled: boolean }) => ({ label: s.label.trim(), enabled: s.enabled })),
+            };
         }
 
         // MX 조회는 저장과 함께 시작한다 — 저장을 기다리게 하거나 막지 않는다 (조회 실패는 "unknown")

@@ -80,7 +80,7 @@ export default function EmailTemplateList() {
                     <h3 className="text-lg font-medium whitespace-nowrap">이메일 템플릿</h3>
                     {categories.length > 0 && (
                         <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setPage(1); }}>
-                            <SelectTrigger className="w-40 h-8 text-sm">
+                            <SelectTrigger className="w-40 h-9 text-sm">
                                 <SelectValue placeholder="카테고리" />
                             </SelectTrigger>
                             <SelectContent>

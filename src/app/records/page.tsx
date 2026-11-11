@@ -48,6 +48,7 @@ import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { usePartitions } from "@/hooks/usePartitions";
 import { useFields } from "@/hooks/useFields";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
+import { LeadBoard } from "@/components/leads/ui/LeadBoard";
 import { useRecords } from "@/hooks/useRecords";
 import { useSSE } from "@/hooks/useSSE";
 import { mutate as globalMutate } from "swr";
@@ -64,8 +65,21 @@ import { recordsStorageKey, resolvePartitionSelection, resolveWorkspaceSelection
 import PartitionHoldBanner from "@/components/email/send-health/ui/PartitionHoldBanner";
 
 export default function RecordsPage() {
+    return <RecordsPageInner category="cold" />;
+}
+
+/** 레코드(cold)와 리드 관리(lead)가 같이 쓰는 화면 — 리드 관리는 오른쪽에 LeadBoard를 쓴다 */
+export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "lead" }) {
     const { user } = useSession();
     const orgId = user?.orgId ?? null;
+    // 레코드와 리드 관리가 마지막 선택을 따로 기억한다
+    const storageKey = useCallback(
+        (kind: "workspace" | "partition", org: string | null | undefined) => {
+            const key = recordsStorageKey(kind, org);
+            return category === "lead" ? key.replace(/^records_/, "leads_") : key;
+        },
+        [category],
+    );
     const [workspaceId, setWorkspaceId] = useState<number | null>(null);
     const [partitionId, setPartitionId] = useState<number | null>(null);
     // 조직별로 저장한 마지막 워크스페이스·파티션을 복원한 조직 — 복원 전에는 자동 선택하지 않는다
@@ -132,7 +146,7 @@ export default function RecordsPage() {
         deleteFolder,
         loadError: partitionsError,
         mutate: mutatePartitions,
-    } = usePartitions(workspaceId);
+    } = usePartitions(workspaceId, category);
     const { fields: workspaceFields } = useFields(workspaceId);
     const { fields: resolvedFields } = useResolvedFields(partitionId);
     const fields = resolvedFields.length > 0 ? resolvedFields : workspaceFields;
@@ -184,13 +198,13 @@ export default function RecordsPage() {
     // 조직이 정해지면 그 조직에서 마지막으로 본 워크스페이스·파티션을 복원한다(UX-082)
     useEffect(() => {
         if (!orgId || restoredOrgId === orgId) return;
-        const savedWorkspace = localStorage.getItem(recordsStorageKey("workspace", orgId));
-        const savedPartition = localStorage.getItem(recordsStorageKey("partition", orgId));
+        const savedWorkspace = localStorage.getItem(storageKey("workspace", orgId));
+        const savedPartition = localStorage.getItem(storageKey("partition", orgId));
         setWorkspaceId(savedWorkspace ? Number(savedWorkspace) : null);
         setPartitionId(savedPartition ? Number(savedPartition) : null);
         resetListQuery();
         setRestoredOrgId(orgId);
-    }, [orgId, restoredOrgId, resetListQuery]);
+    }, [orgId, restoredOrgId, resetListQuery, storageKey]);
 
     // 워크스페이스 자동 선택 (저장된 값 검증 또는 첫 번째). 저장값이 없을 뿐이면 마지막 파티션은 유지한다
     useEffect(() => {
@@ -198,18 +212,18 @@ export default function RecordsPage() {
         const next = resolveWorkspaceSelection(workspaces.map((w) => w.id), workspaceId);
         if (!next) return;
         setWorkspaceId(next.workspaceId);
-        localStorage.setItem(recordsStorageKey("workspace", restoredOrgId), String(next.workspaceId));
+        localStorage.setItem(storageKey("workspace", restoredOrgId), String(next.workspaceId));
         if (!next.keepPartition) setPartitionId(null);
-    }, [workspaces, workspaceId, restoredOrgId]);
+    }, [workspaces, workspaceId, restoredOrgId, storageKey]);
 
     // 워크스페이스 변경 시 파티션 초기화
     const handleWorkspaceChange = useCallback((id: number) => {
         setWorkspaceId(id);
         setPartitionId(null);
         resetListQuery();
-        localStorage.setItem(recordsStorageKey("workspace", orgId), String(id));
-        localStorage.removeItem(recordsStorageKey("partition", orgId));
-    }, [resetListQuery, orgId]);
+        localStorage.setItem(storageKey("workspace", orgId), String(id));
+        localStorage.removeItem(storageKey("partition", orgId));
+    }, [resetListQuery, orgId, storageKey]);
 
     // URL ?id= 로 진입 시 해당 레코드 자동 열기 (트래커 → 레코드 점프 등)
     const deeplinkHandledRef = useRef(false);
@@ -238,8 +252,8 @@ export default function RecordsPage() {
                 // 해당 레코드의 워크스페이스/파티션으로 전환
                 setWorkspaceId(rec.workspaceId);
                 setPartitionId(rec.partitionId);
-                localStorage.setItem(recordsStorageKey("workspace", orgId), String(rec.workspaceId));
-                localStorage.setItem(recordsStorageKey("partition", orgId), String(rec.partitionId));
+                localStorage.setItem(storageKey("workspace", orgId), String(rec.workspaceId));
+                localStorage.setItem(storageKey("partition", orgId), String(rec.partitionId));
                 setDetailRecord(rec);
             } catch {
                 toast.error("레코드를 불러오지 못했습니다.");
@@ -247,14 +261,14 @@ export default function RecordsPage() {
                 setDeeplinkPending(false);
             }
         })();
-    }, [restoredOrgId, orgId]);
+    }, [restoredOrgId, orgId, storageKey]);
 
     // 파티션 변경 시 초기화
     const handlePartitionSelect = useCallback((id: number) => {
         setPartitionId(id);
         resetListQuery();
-        localStorage.setItem(recordsStorageKey("partition", orgId), String(id));
-    }, [resetListQuery, orgId]);
+        localStorage.setItem(storageKey("partition", orgId), String(id));
+    }, [resetListQuery, orgId, storageKey]);
 
     // 선택한(복원한) 파티션이 현재 트리에 없으면(삭제됨·다른 조직) 첫 파티션으로, 미선택이면 첫 파티션 자동 선택
     useEffect(() => {
@@ -263,11 +277,11 @@ export default function RecordsPage() {
         if (next === partitionId) return;
         if (next === null) {
             setPartitionId(null);
-            localStorage.removeItem(recordsStorageKey("partition", orgId));
+            localStorage.removeItem(storageKey("partition", orgId));
         } else {
             handlePartitionSelect(next);
         }
-    }, [partitionId, partitionTree, deeplinkPending, handlePartitionSelect, orgId]);
+    }, [partitionId, partitionTree, deeplinkPending, handlePartitionSelect, orgId, storageKey]);
 
     const {
         setSearch: handleSearch,
@@ -524,6 +538,7 @@ export default function RecordsPage() {
                 onMovePartition={handleMovePartition}
                 onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
                 onMutatePartitions={mutatePartitions}
+                category={category}
                 className="w-full border-r-0 bg-transparent"
             />
         ),
@@ -537,6 +552,7 @@ export default function RecordsPage() {
             handleDeleteFolder,
             handleMovePartition,
             mutatePartitions,
+            category,
         ],
     );
 
@@ -571,12 +587,22 @@ export default function RecordsPage() {
                         onMovePartition={handleMovePartition}
                         onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
                         onMutatePartitions={mutatePartitions}
+                        category={category}
+                        resizable
                     />
                 </div>
 
                 {/* 우측: 레코드 영역 */}
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                    {partitionId ? (
+                    {partitionId && category === "lead" ? (
+                        // 리드 관리: 내보내기·가져오기·예약등록 없는 리드 전용 화면
+                        <LeadBoard
+                            key={partitionId}
+                            workspaceId={workspaceId}
+                            partitionId={partitionId}
+                            fields={fields}
+                        />
+                    ) : partitionId ? (
                         <>
                             <PartitionHoldBanner partitionId={partitionId} />
                             <RecordToolbar
@@ -677,7 +703,7 @@ export default function RecordsPage() {
                             <div className="text-center text-muted-foreground">
                                 <p className="text-lg mb-1">파티션을 선택해주세요</p>
                                 <p className="text-sm">
-                                    왼쪽 메뉴에서 파티션을 선택하면 레코드가 표시됩니다.
+                                    왼쪽 메뉴에서 파티션을 선택하면 {category === "lead" ? "리드가" : "레코드가"} 표시됩니다.
                                 </p>
                             </div>
                         </div>
@@ -754,12 +780,12 @@ export default function RecordsPage() {
                 open={createPartitionOpen}
                 onOpenChange={setCreatePartitionOpen}
                 folders={folderList}
-                onSubmit={createPartition}
+                onSubmit={(input) => createPartition({ ...input, category })}
             />
             <CreateFolderDialog
                 open={createFolderOpen}
                 onOpenChange={setCreateFolderOpen}
-                onSubmit={createFolder}
+                onSubmit={(input) => createFolder({ ...input, category })}
             />
             <RenameDialog
                 open={renameTarget !== null}

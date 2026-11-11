@@ -9,9 +9,12 @@ export interface PartitionTree {
 }
 
 
-export function usePartitions(workspaceId: number | null) {
+export function usePartitions(workspaceId: number | null, category?: "cold" | "lead") {
+    const url = workspaceId
+        ? `/api/workspaces/${workspaceId}/partitions${category ? `?category=${category}` : ""}`
+        : null;
     const { data, error, isLoading, mutate } = useSWR<ApiResponse<PartitionTree>>(
-        workspaceId ? `/api/workspaces/${workspaceId}/partitions` : null,
+        url,
         defaultFetcher
     );
 

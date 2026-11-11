@@ -372,7 +372,7 @@ function EditAiAutoPageContent() {
                                 value={String(currentPartitionId)}
                                 onValueChange={(v) => handlePartitionSelectChange(Number(v))}
                             >
-                                <SelectTrigger className="w-65 max-w-full h-8 text-sm">
+                                <SelectTrigger className="w-65 max-w-full h-9 text-sm">
                                     <SelectValue placeholder="DB 선택" />
                                 </SelectTrigger>
                                 <SelectContent>

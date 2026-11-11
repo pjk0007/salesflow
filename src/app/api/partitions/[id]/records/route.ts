@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, records, fieldDefinitions, memos } from "@/lib/db";
-import { eq, and, sql, desc, asc, count } from "drizzle-orm";
+import { eq, and, sql, desc, asc, count, inArray } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { createRecord, toRecordCreatePartition } from "@/lib/record-create";
@@ -8,6 +8,7 @@ import { partitionFieldsWhere } from "@/lib/partition-fields";
 import { missingRequiredFields, requiredFieldMessage } from "@/lib/required-fields";
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { duplicateKeyOf, findDuplicateValues } from "@/lib/record-duplicates";
+import { resolveLeadInflows, type LeadInflow } from "@/lib/leads/inflow";
 
 export async function GET(
     req: NextRequest,
@@ -134,7 +135,7 @@ export async function GET(
 
         // 중복 행 색상 표시: 파티션 전체 기준으로 이 페이지 행의 중복 여부(UX-081). 설정이 켜진 파티션만 조회한다
         const dc = access.partition.duplicateConfig;
-        let rows: (typeof data[number] & { isDuplicate?: boolean })[] = data;
+        let rows: (typeof data[number] & { isDuplicate?: boolean; latestMemo?: string | null; inflow?: LeadInflow })[] = data;
         if (dc?.highlightEnabled && dc.field && data.length > 0) {
             const duplicates = await findDuplicateValues(db, {
                 orgId: user.orgId,
@@ -146,6 +147,20 @@ export async function GET(
                 const key = duplicateKeyOf(r.data, dc.field);
                 return { ...r, isDuplicate: key !== "" && duplicates.has(key) };
             });
+        }
+        // 리드 관리 표 전용 — 마지막 메모(최근 댓글)와 유입경로를 같이 붙인다
+        if (searchParams.get("leadExtras") === "1" && data.length > 0) {
+            const ids = data.map((r) => r.id);
+            const [latest, inflows] = await Promise.all([
+                db
+                    .selectDistinctOn([memos.recordId], { recordId: memos.recordId, content: memos.content })
+                    .from(memos)
+                    .where(inArray(memos.recordId, ids))
+                    .orderBy(memos.recordId, desc(memos.createdAt)),
+                resolveLeadInflows(user.orgId, access.partition.workspaceId, data),
+            ]);
+            const byRecord = new Map(latest.map((m) => [m.recordId, m.content]));
+            rows = rows.map((r) => ({ ...r, latestMemo: byRecord.get(r.id) ?? null, inflow: inflows.get(r.id) }));
         }
 
         return NextResponse.json({

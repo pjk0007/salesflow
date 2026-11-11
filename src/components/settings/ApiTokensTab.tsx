@@ -257,7 +257,7 @@ export default function ApiTokensTab() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        <AlertDialogAction onClick={handleDelete} variant="destructive">
                             삭제
                         </AlertDialogAction>
                     </AlertDialogFooter>

@@ -904,6 +904,48 @@
       "when": 1793210400000,
       "tag": "0127_crm_relationship_care",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1794390074000,
+      "tag": "0121_partition_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 130,
+      "version": "7",
+      "when": 1794400836000,
+      "tag": "0128_lead_partitions_update",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1794401337000,
+      "tag": "0129_folder_category",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1794405229000,
+      "tag": "0130_lead_base_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1794406668000,
+      "tag": "0131_lead_partition_121",
+      "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1794407029000,
+      "tag": "0132_memo_kind_attachments",
+      "breakpoints": true
     }
   ]
 }

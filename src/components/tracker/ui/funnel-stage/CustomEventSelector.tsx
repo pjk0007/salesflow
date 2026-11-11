@@ -29,7 +29,7 @@ export function CustomEventSelector({ customEvents, current, onChange }: Props) 
                     else onChange({ type: "custom_event", eventName: v });
                 }}
             >
-                <SelectTrigger className="h-8 w-52 text-xs">
+                <SelectTrigger className="h-9 w-52 text-xs">
                     <SelectValue placeholder="이벤트 선택" />
                 </SelectTrigger>
                 <SelectContent>

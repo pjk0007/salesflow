@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, folders, partitions } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
+import { ensureLeadBaseFields } from "@/lib/leads/base-fields";
 import { filterAccessiblePartitions, loadOrgScopes, requireWorkspaceCreateAccess } from "@/lib/partition-access";
 
 export async function GET(
@@ -30,18 +31,29 @@ export async function GET(
             return NextResponse.json({ success: false, error: "워크스페이스를 찾을 수 없습니다." }, { status: 404 });
         }
 
+        // 레코드/리드 관리 구분 — 주면 그 페이지의 폴더·파티션만 준다
+        const categoryFilter = req.nextUrl.searchParams.get("category");
+
         // 폴더 목록
+        const folderConditions = [eq(folders.workspaceId, workspaceId)];
+        if (categoryFilter) {
+            folderConditions.push(eq(folders.category, categoryFilter));
+        }
         const folderList = await db
             .select()
             .from(folders)
-            .where(eq(folders.workspaceId, workspaceId))
+            .where(and(...folderConditions))
             .orderBy(asc(folders.displayOrder), asc(folders.id));
 
         // 파티션 목록
+        const partitionConditions = [eq(partitions.workspaceId, workspaceId)];
+        if (categoryFilter) {
+            partitionConditions.push(eq(partitions.category, categoryFilter));
+        }
         const allPartitions = await db
             .select()
             .from(partitions)
-            .where(eq(partitions.workspaceId, workspaceId))
+            .where(and(...partitionConditions))
             .orderBy(asc(partitions.displayOrder), asc(partitions.id));
 
         // 그룹핑 전에 걸러야 폴더 안팎을 따로 손보지 않는다
@@ -76,8 +88,10 @@ export async function GET(
                 partitions: partitionList.filter((p) => p.folderId === folder.id),
             }));
 
-        // 미분류 파티션 (folderId가 null)
-        const ungrouped = partitionList.filter((p) => p.folderId === null);
+        // 미분류 파티션 — folderId가 없거나, 다른 페이지 폴더에 들어 있는 파티션
+        // (예: 레코드 폴더 안에 있다가 리드 관리로 옮긴 파티션은 여기서 미분류로 보인다)
+        const visibleFolderIds = new Set(folderList.map((f) => f.id));
+        const ungrouped = partitionList.filter((p) => p.folderId === null || !visibleFolderIds.has(p.folderId));
 
         return NextResponse.json({
             success: true,
@@ -112,7 +126,7 @@ export async function POST(
         return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
-    const { name, folderId, fieldTypeId } = await req.json();
+    const { name, folderId, fieldTypeId, category } = await req.json();
     if (!name || !name.trim()) {
         return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
     }
@@ -139,6 +153,7 @@ export async function POST(
                 name: name.trim(),
                 folderId: folderId || null,
                 fieldTypeId: fieldTypeId || null,
+                category: category || "cold",
                 visibleFields,
             })
             .returning({
@@ -146,6 +161,15 @@ export async function POST(
                 name: partitions.name,
                 folderId: partitions.folderId,
             });
+
+        // 리드 관리에서 만든 파티션은 리드 기본 칸을 갖춘다
+        if (category === "lead") {
+            const [ws] = await db
+                .select({ defaultFieldTypeId: workspaces.defaultFieldTypeId })
+                .from(workspaces)
+                .where(eq(workspaces.id, workspaceId));
+            await ensureLeadBaseFields(fieldTypeId || ws?.defaultFieldTypeId);
+        }
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error) {

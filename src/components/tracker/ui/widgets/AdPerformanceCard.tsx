@@ -80,7 +80,7 @@ export function AdPerformanceCard({ siteId, range, filters }: Props) {
                         value={funnelId != null ? String(funnelId) : "__default__"}
                         onValueChange={(v) => setFunnelId(v === "__default__" ? null : Number(v))}
                     >
-                        <SelectTrigger className="h-8 w-52 text-xs">
+                        <SelectTrigger className="h-9 w-52 text-xs">
                             <SelectValue placeholder="전환 기준 퍼널" />
                         </SelectTrigger>
                         <SelectContent>

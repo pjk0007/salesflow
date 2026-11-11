@@ -79,7 +79,7 @@ export function FunnelStageEditor({ index, stage, options, onChange, onMoveUp, o
             <div className="ml-8 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                     <Select value={stage.match.type} onValueChange={(v) => updateMatch(defaultMatchFor(v as StageMatch["type"]))}>
-                        <SelectTrigger className="h-8 w-36 min-w-0 text-xs [&>span]:truncate">
+                        <SelectTrigger className="h-9 w-36 min-w-0 text-xs [&>span]:truncate">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

@@ -26,6 +26,13 @@ src/components/{feature-name}/
 - 있으면 그걸 쓴다. 없을 때만 새로 만든다.
 - 중복 코드를 만들지 않는다.
 
+## UI 규칙
+
+- 버튼·입력창·셀렉트 높이는 `h-9`(36px)로 통일한다. `Button`의 `default`/`sm`, `Input`, `SelectTrigger`는 모두 h-9다.
+- 한 줄에 같이 놓이는 버튼·입력창·셀렉트에 높이 클래스(`h-8`, `h-10` 등)를 따로 붙이지 않는다. 더 작은 컨트롤이 꼭 필요하면 `size="xs"`/`"icon-xs"`를 쓰고 같은 줄의 다른 컨트롤도 맞춘다.
+- 정사각 아이콘 버튼은 `size="icon"`(36px) 계열을 쓴다.
+- 삭제처럼 되돌릴 수 없는 확인 버튼은 `variant="destructive"`(빨간색)를 쓴다. `AlertDialogAction`에 `bg-destructive` 클래스를 붙이지 말고 `variant`로 지정한다.
+
 ## 커밋 규칙
 
 - 커밋 전에 사용자에게 확인을 받는다.

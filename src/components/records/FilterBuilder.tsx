@@ -147,7 +147,7 @@ export default function FilterBuilder({
                     value={condition.value ? String(condition.value) : ""}
                     onValueChange={(v) => updateCondition(index, { value: v })}
                 >
-                    <SelectTrigger className="h-8 flex-1">
+                    <SelectTrigger className="h-9 flex-1">
                         <SelectValue placeholder="선택" />
                     </SelectTrigger>
                     <SelectContent>
@@ -166,7 +166,7 @@ export default function FilterBuilder({
                 <div className="flex items-center gap-1 flex-1">
                     <Input
                         type="date"
-                        className="h-8 text-xs"
+                        className="h-9 text-xs"
                         value={condition.value ? String(condition.value) : ""}
                         onChange={(e) =>
                             updateCondition(index, { value: e.target.value })
@@ -175,7 +175,7 @@ export default function FilterBuilder({
                     <span className="text-xs text-muted-foreground">~</span>
                     <Input
                         type="date"
-                        className="h-8 text-xs"
+                        className="h-9 text-xs"
                         value={condition.valueTo ? String(condition.valueTo) : ""}
                         onChange={(e) =>
                             updateCondition(index, { valueTo: e.target.value })
@@ -189,7 +189,7 @@ export default function FilterBuilder({
             return (
                 <Input
                     type="date"
-                    className="h-8 flex-1 text-xs"
+                    className="h-9 flex-1 text-xs"
                     value={condition.value ? String(condition.value) : ""}
                     onChange={(e) =>
                         updateCondition(index, { value: e.target.value })
@@ -202,7 +202,7 @@ export default function FilterBuilder({
             return (
                 <Input
                     type="number"
-                    className="h-8 flex-1"
+                    className="h-9 flex-1"
                     placeholder="값"
                     value={condition.value !== null ? String(condition.value) : ""}
                     onChange={(e) =>
@@ -217,7 +217,7 @@ export default function FilterBuilder({
         // text
         return (
             <Input
-                className="h-8 flex-1"
+                className="h-9 flex-1"
                 placeholder="값"
                 value={condition.value !== null ? String(condition.value) : ""}
                 onChange={(e) =>
@@ -264,7 +264,7 @@ export default function FilterBuilder({
                                         handleFieldChange(index, v)
                                     }
                                 >
-                                    <SelectTrigger className="h-8 w-[140px]">
+                                    <SelectTrigger className="h-9 w-[140px]">
                                         <SelectValue placeholder="필드" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -290,7 +290,7 @@ export default function FilterBuilder({
                                         })
                                     }
                                 >
-                                    <SelectTrigger className="h-8 w-[100px]">
+                                    <SelectTrigger className="h-9 w-[100px]">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>

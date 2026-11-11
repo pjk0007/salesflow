@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/tooltip";
 import { OrgSwitcher } from "@/components/OrgSwitcher";
 
-import { navItems, bottomNavItems } from "./navigation";
+import { navGroups, navItems, bottomNavItems, type NavItem } from "./navigation";
 
 function NavLinks({
     collapsed,
@@ -34,7 +34,7 @@ function NavLinks({
     const pathname = usePathname();
     const { user } = useSession();
 
-    function renderItem(item: (typeof navItems)[number]) {
+    function renderItem(item: NavItem) {
         const isActive =
             item.href === "/"
                 ? pathname === "/"
@@ -75,7 +75,17 @@ function NavLinks({
 
     return (
         <nav className="flex flex-1 flex-col gap-1 p-3">
-            {navItems.map(renderItem)}
+            {navGroups.map((g, i) => (
+                <div key={g.group ?? `top-${i}`} className={cn("flex flex-col gap-1", i > 0 && "mt-3")}>
+                    {g.group &&
+                        (collapsed ? (
+                            <div className="mx-2 border-t" />
+                        ) : (
+                            <div className="px-3 pb-0.5 text-xs font-medium text-muted-foreground">{g.group}</div>
+                        ))}
+                    {g.items.map(renderItem)}
+                </div>
+            ))}
             {user?.role !== "member" && (
                 <>
                     <div className="mt-auto border-t pt-2" />

@@ -198,7 +198,7 @@ function TreeRow({
                                     if (v === "full" || v === "edit" || v === "read") onChangeLevel(v);
                                 }}
                             >
-                                <SelectTrigger className="h-8 w-[150px] text-xs">
+                                <SelectTrigger className="h-9 w-[150px] text-xs">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>

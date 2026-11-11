@@ -22,9 +22,12 @@ export async function POST(
         return NextResponse.json({ success: false, error: access.error }, { status: access.status });
     }
 
-    const { name } = await req.json();
+    const { name, category } = await req.json();
     if (!name || !name.trim()) {
         return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
+    }
+    if (category !== undefined && category !== "cold" && category !== "lead") {
+        return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
     }
 
     try {
@@ -33,6 +36,7 @@ export async function POST(
             .values({
                 workspaceId,
                 name: name.trim(),
+                category: category ?? "cold",
             })
             .returning({
                 id: folders.id,

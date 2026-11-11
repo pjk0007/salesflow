@@ -215,7 +215,7 @@ export function ReplyDetailSheet({
                                 </Button>
                                 <div className="flex items-center gap-1">
                                     <Select value={nextKind} onValueChange={setNextKind}>
-                                        <SelectTrigger className="h-8 w-[140px]">
+                                        <SelectTrigger className="h-9 w-[140px]">
                                             <SelectValue placeholder="분류 고치기" />
                                         </SelectTrigger>
                                         <SelectContent>

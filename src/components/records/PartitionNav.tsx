@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput, ListTree, Copy } from "lucide-react";
+import { useResizableWidth } from "@/components/records/hooks/useResizableWidth";
+import { ChevronRight, FolderOpen, FileText, Plus, MoreHorizontal, Pencil, Trash2, Settings2, FolderInput, ListTree, Copy, ArrowRightLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -50,6 +51,10 @@ interface PartitionNavProps {
     onMovePartition?: (partitionId: number, folderId: number | null) => void;
     onMutatePartitions?: () => void;
     onDistributionSettings?: (id: number, name: string) => void;
+    /** 지금 보고 있는 페이지 — cold: 레코드, lead: 리드 관리. 주면 반대쪽으로 옮기는 메뉴가 생긴다 */
+    category?: "cold" | "lead";
+    /** 오른쪽 가장자리를 끌어 너비 조정 (데스크톱) — 너비는 브라우저에 기억 */
+    resizable?: boolean;
     /** 외부에서 root에 클래스 덮어쓰기 (모바일 사이드바 통합용) */
     className?: string;
 }
@@ -70,8 +75,11 @@ export default function PartitionNav({
     onMovePartition,
     onDistributionSettings,
     onMutatePartitions,
+    category,
+    resizable,
     className,
 }: PartitionNavProps) {
+    const { width, handleProps } = useResizableWidth("partition-nav-width", 240, 180, 560);
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
     const { fieldTypes: types } = useFieldTypes();
     const [openFolders, setOpenFolders] = useState<Set<number>>(new Set());
@@ -104,6 +112,30 @@ export default function PartitionNav({
         }
     };
 
+    const targetCategory = category === "lead" ? "cold" : "lead";
+    const targetLabel = targetCategory === "lead" ? "리드 관리" : "레코드";
+    const movePartitionCategory = async (partitionId: number, name: string) => {
+        const res = await fetch(`/api/partitions/${partitionId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: targetCategory }),
+        });
+        const result = await res.json();
+        if (result.success) {
+            toast.success(`"${name}" 파티션을 ${targetLabel} 페이지로 옮겼습니다.`);
+            onMutatePartitions?.();
+        } else {
+            toast.error(result.error || "이동에 실패했습니다.");
+        }
+    };
+    const categoryMoveItem = (pt: { id: number; name: string }) =>
+        category ? (
+            <DropdownMenuItem onClick={() => movePartitionCategory(pt.id, pt.name)}>
+                <ArrowRightLeft className="h-3.5 w-3.5 mr-2" />
+                {targetLabel}로 옮기기
+            </DropdownMenuItem>
+        ) : null;
+
     // 외부 연동(V1 API의 partitionId)에 쓰는 ID — DB 안 보고 바로 복사
     const copyPartitionId = async (id: number) => {
         await navigator.clipboard.writeText(String(id));
@@ -129,7 +161,19 @@ export default function PartitionNav({
     };
 
     return (
-        <div className={cn("w-60 border-r bg-muted/30 flex flex-col", className)}>
+        <div
+            className={cn("relative w-60 border-r bg-muted/30 flex flex-col", className)}
+            style={resizable ? { width } : undefined}
+        >
+            {resizable && (
+                <div
+                    {...handleProps}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="메뉴 너비 조절"
+                    className="absolute inset-y-0 -right-1 z-20 w-2 cursor-col-resize hover:bg-primary/20 active:bg-primary/30"
+                />
+            )}
             {/* 워크스페이스 선택 */}
             <div className="p-3 border-b">
                 {wsLoading ? (
@@ -263,9 +307,11 @@ export default function PartitionNav({
                                                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                                 <span className="truncate">{pt.name}</span>
                                                 {holdDot(pt.id)}
-                                                <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
-                                                    {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
-                                                </Badge>
+                                                {category !== "lead" && (
+                                                    <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
+                                                        {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
+                                                    </Badge>
+                                                )}
                                             </Button>
                                             <DropdownMenu>
                                                 <DropdownMenuTrigger asChild>
@@ -279,7 +325,7 @@ export default function PartitionNav({
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
                                                     <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                                        ID {pt.id} · 속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
+                                                        ID {pt.id}{category !== "lead" && (<> · 속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge></>)}
                                                     </div>
                                                     <DropdownMenuSeparator />
                                                     <DropdownMenuItem onClick={() => copyPartitionId(pt.id)}>
@@ -309,7 +355,8 @@ export default function PartitionNav({
                                                             </DropdownMenuSubContent>
                                                         </DropdownMenuSub>
                                                     )}
-                                                    {types.length > 0 && (
+                                                    {categoryMoveItem(pt)}
+                                                    {types.length > 0 && category !== "lead" && (
                                                         <DropdownMenuSub>
                                                             <DropdownMenuSubTrigger>
                                                                 <ListTree className="h-3.5 w-3.5 mr-2" />
@@ -364,9 +411,11 @@ export default function PartitionNav({
                                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                                     <span className="truncate">{pt.name}</span>
                                     {holdDot(pt.id)}
-                                    <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
-                                        {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
-                                    </Badge>
+                                    {category !== "lead" && (
+                                        <Badge variant="outline" className="ml-auto text-[10px] px-1.5 py-0 shrink-0 font-normal text-muted-foreground">
+                                            {getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}
+                                        </Badge>
+                                    )}
                                 </Button>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
@@ -380,7 +429,7 @@ export default function PartitionNav({
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
                                         <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                                            ID {pt.id} · 속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge>
+                                            ID {pt.id}{category !== "lead" && (<> · 속성 타입: <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0">{getTypeName(pt.fieldTypeId) || defaultTypeName || "미설정"}</Badge></>)}
                                         </div>
                                         <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={() => copyPartitionId(pt.id)}>
@@ -407,7 +456,8 @@ export default function PartitionNav({
                                                 </DropdownMenuSubContent>
                                             </DropdownMenuSub>
                                         )}
-                                        {types.length > 0 && (
+                                        {categoryMoveItem(pt)}
+                                        {types.length > 0 && category !== "lead" && (
                                             <DropdownMenuSub>
                                                 <DropdownMenuSubTrigger>
                                                     <ListTree className="h-3.5 w-3.5 mr-2" />

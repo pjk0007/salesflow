@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { useWorkspaceSettings } from "@/hooks/useWorkspaceSettings";
+import { LeadStatusSettings } from "./LeadStatusSettings";
 import { useFieldTypes } from "@/hooks/useFieldTypes";
 import IconPicker, { getIconComponent } from "@/components/ui/icon-picker";
 import CreateWorkspaceDialog from "./CreateWorkspaceDialog";
@@ -293,6 +294,8 @@ export default function WorkspaceSettingsTab() {
                                     숨긴 워크스페이스입니다. 레코드·웹폼 등 선택 목록에서만 빠지고, 데이터와 자동 발송·트래커·연동은 그대로 동작합니다.
                                 </p>
                             )}
+
+                            <LeadStatusSettings workspaceId={selectedId} />
 
                             <div className="flex gap-2">
                                 <Button onClick={handleSave} disabled={isSubmitting}>

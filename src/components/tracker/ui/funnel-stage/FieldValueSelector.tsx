@@ -52,7 +52,7 @@ export function FieldValueSelector({ eventTypes, current, onChange }: Props) {
                     if (opt) onChange({ type: "record_field", field: opt.field, value: opt.label });
                 }}
             >
-                <SelectTrigger className="h-8 w-44 min-w-0 text-xs [&>span]:truncate">
+                <SelectTrigger className="h-9 w-44 min-w-0 text-xs [&>span]:truncate">
                     <SelectValue placeholder="값 선택" />
                 </SelectTrigger>
                 <SelectContent>

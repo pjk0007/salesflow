@@ -164,6 +164,15 @@ export function buildRecordConditions(
                 // 검증기에 연산자가 추가돼도 SQL 구현이 빠지면 삭제 범위를 넓히지 않는다.
                 conditions.push(sql`false`);
                 break;
+            case "not_in": {
+                // 값이 있으면서 목록에 없는 것 (리드 관리 "기타 상태" 묶음)
+                const list = Array.isArray(val) ? val.map(String) : [];
+                conditions.push(sql`(${records.data}->>${key} IS NOT NULL AND ${records.data}->>${key} != '')`);
+                if (list.length > 0) {
+                    conditions.push(sql`${records.data}->>${key} NOT IN (${sql.join(list.map((v) => sql`${v}`), sql`, `)})`);
+                }
+                break;
+            }
         }
     }
 

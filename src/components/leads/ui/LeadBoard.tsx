@@ -1,0 +1,234 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Plus, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { useSWRConfig } from "swr";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import DeleteConfirmDialog from "@/components/records/DeleteConfirmDialog";
+import { useRecords } from "@/hooks/useRecords";
+import type { FieldDefinition, FilterCondition } from "@/types";
+import { deleteLeads, updateLead } from "../api";
+import type { LeadRecord } from "../types";
+import { STATUS_KEY } from "../utils/lead-fields";
+import { useLeadStatuses } from "../hooks/useLeadStatuses";
+import { LEAD_STATUS_COLORS } from "@/lib/leads/statuses";
+import { CreateLeadDialog } from "./CreateLeadDialog";
+import { LeadDetailPanel } from "./LeadDetailPanel";
+import { LeadStatusGroup } from "./LeadStatusGroup";
+import { LeadTable } from "./LeadTable";
+
+interface LeadBoardProps {
+    workspaceId: number | null;
+    partitionId: number;
+    fields: FieldDefinition[];
+}
+
+const ALL = "__all__";
+
+/** 리드 관리 오른쪽 영역 — 상태 탭 · 검색 · 표 · 오른쪽 상세 패널. 파티션이 바뀌면 key로 새로 그린다 */
+export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) {
+    const statusField = fields.find((f) => f.key === STATUS_KEY && f.fieldType === "select");
+    // 상태 목록·순서는 워크스페이스 설정(리드 대응상태)을 따른다
+    const { enabled: statusOptions } = useLeadStatuses(workspaceId, statusField?.options ?? []);
+    const statusColors = useMemo(
+        () => ({ ...LEAD_STATUS_COLORS, ...(statusField?.optionColors ?? {}) }),
+        [statusField],
+    );
+
+    const [tab, setTab] = useState(ALL);
+    const [searchInput, setSearchInput] = useState("");
+    const [search, setSearch] = useState("");
+    const [page, setPage] = useState(1);
+    const [selected, setSelected] = useState<LeadRecord | null>(null);
+    const [checkedIds, setCheckedIds] = useState<Set<number>>(new Set());
+    const [deleteIds, setDeleteIds] = useState<number[] | null>(null);
+    const [createOpen, setCreateOpen] = useState(false);
+
+    // 검색은 입력이 멈춘 뒤 0.3초에
+    useEffect(() => {
+        const t = setTimeout(() => {
+            setSearch(searchInput.trim());
+            setPage(1);
+        }, 300);
+        return () => clearTimeout(t);
+    }, [searchInput]);
+
+    // 상태 묶음마다 따로 불러오므로 이 파티션의 목록을 한꺼번에 새로고침
+    const { mutate } = useSWRConfig();
+    const refreshAll = useCallback(() => {
+        const prefix = `/api/partitions/${partitionId}/records?`;
+        mutate((key) => typeof key === "string" && key.startsWith(prefix));
+    }, [mutate, partitionId]);
+
+    // 상태 탭 하나를 볼 때만 쓰는 목록
+    const filters = useMemo<FilterCondition[]>(
+        () => (tab === ALL ? [] : [{ field: STATUS_KEY, operator: "equals", value: tab }]),
+        [tab],
+    );
+    const single = useRecords({
+        partitionId: tab === ALL ? null : partitionId,
+        page,
+        pageSize: 50,
+        search: search || undefined,
+        filters,
+        sortField: "registeredAt",
+        sortOrder: "desc",
+        leadExtras: true,
+    });
+    const allCount = useRecords({ partitionId, page: 1, pageSize: 1, search: search || undefined });
+
+    const changeStatus = async (status: string) => {
+        if (!selected) return;
+        const prev = selected;
+        setSelected({ ...prev, data: { ...(prev.data as Record<string, unknown>), [STATUS_KEY]: status } });
+        const result = await updateLead(prev.id, { [STATUS_KEY]: status });
+        if (!result.success) {
+            setSelected(prev);
+            toast.error(result.error || "상태 변경에 실패했습니다.");
+            return;
+        }
+        refreshAll();
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteIds) return;
+        const result = await deleteLeads(deleteIds);
+        if (!result.success) {
+            toast.error(result.error || "삭제에 실패했습니다.");
+            return;
+        }
+        toast.success(`리드 ${deleteIds.length}건을 삭제했습니다.`);
+        if (selected && deleteIds.includes(selected.id)) setSelected(null);
+        setCheckedIds(new Set());
+        setDeleteIds(null);
+        refreshAll();
+    };
+
+    const tableProps = {
+        fields,
+        statusColors,
+        selectedId: selected?.id ?? null,
+        onSelect: setSelected,
+        checkedIds,
+        onCheckedChange: setCheckedIds,
+    };
+    // 켜진 상태들 → 목록에 없는 상태(기타) → 미지정
+    const groups: Array<{ key: string; status: string; exclude?: string[] }> = [
+        ...statusOptions.map((s) => ({ key: s, status: s })),
+        { key: "__other__", status: "", exclude: statusOptions },
+        { key: "__none__", status: "" },
+    ];
+
+    return (
+        <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-3">
+                <Tabs
+                    value={tab}
+                    onValueChange={(v) => {
+                        setTab(v);
+                        setPage(1);
+                        setCheckedIds(new Set());
+                    }}
+                >
+                    <TabsList>
+                        <TabsTrigger value={ALL}>전체</TabsTrigger>
+                        {statusOptions.map((s) => (
+                            <TabsTrigger key={s} value={s}>
+                                {s}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+                <div className="flex items-center gap-2">
+                    {checkedIds.size > 0 ? (
+                        <>
+                            <span className="text-sm">{checkedIds.size}건 선택</span>
+                            <Button variant="ghost" size="sm" onClick={() => setCheckedIds(new Set())}>
+                                선택 해제
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => setDeleteIds([...checkedIds])}>
+                                <Trash2 className="mr-1 h-4 w-4" />
+                                삭제
+                            </Button>
+                        </>
+                    ) : (
+                        <span className="text-sm text-muted-foreground">
+                            전체 {(tab === ALL ? allCount.total : single.total).toLocaleString()}건
+                        </span>
+                    )}
+                    <div className="relative">
+                        <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            placeholder="기업명 · 이름 · 연락처 검색"
+                            className="h-9 w-64 pl-8"
+                        />
+                    </div>
+                    <Button size="sm" onClick={() => setCreateOpen(true)}>
+                        <Plus className="mr-1 h-4 w-4" />
+                        리드 추가
+                    </Button>
+                </div>
+            </div>
+
+            {tab === ALL ? (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                    {groups.map((g) => (
+                        <LeadStatusGroup
+                            key={g.key}
+                            partitionId={partitionId}
+                            status={g.status}
+                            exclude={g.exclude}
+                            search={search}
+                            {...tableProps}
+                        />
+                    ))}
+                    {!allCount.isLoading && allCount.total === 0 && (
+                        <div className="py-16 text-center text-sm text-muted-foreground">리드가 없습니다.</div>
+                    )}
+                </div>
+            ) : (
+                <LeadTable
+                    {...tableProps}
+                    records={single.records as LeadRecord[]}
+                    isLoading={single.isLoading}
+                    page={page}
+                    totalPages={single.totalPages}
+                    onPageChange={setPage}
+                    hideStatus
+                />
+            )}
+
+            {selected && (
+                <LeadDetailPanel
+                    key={selected.id}
+                    record={selected}
+                    fields={fields}
+                    statusOptions={statusOptions}
+                    statusColors={statusColors}
+                    onClose={() => setSelected(null)}
+                    onStatusChange={changeStatus}
+                    onDelete={() => setDeleteIds([selected.id])}
+                    onCommentAdded={refreshAll}
+                />
+            )}
+            <CreateLeadDialog
+                open={createOpen}
+                onOpenChange={setCreateOpen}
+                partitionId={partitionId}
+                fields={fields}
+                onCreated={refreshAll}
+            />
+            <DeleteConfirmDialog
+                open={deleteIds !== null}
+                onOpenChange={(v) => !v && setDeleteIds(null)}
+                count={deleteIds?.length ?? 0}
+                onConfirm={confirmDelete}
+            />
+        </div>
+    );
+}

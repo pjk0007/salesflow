@@ -1,19 +1,49 @@
-import { Home, Table2, MessageSquare, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban } from "lucide-react";
+import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3 } from "lucide-react";
 
-export const navItems = [
-    { href: "/", label: "홈", icon: Home },
-    { href: "/records", label: "레코드", icon: Table2 },
-    { href: "/inbox", label: "고객 상담", icon: MessageSquare },
-    { href: "/customer-crm", label: "고객 관리", icon: Building2 },
-    { href: "/alimtalk", label: "알림톡", icon: MessageSquare },
-    { href: "/email", label: "이메일", icon: Mail },
-    { href: "/email/unsubscribes", label: "수신거부 목록", icon: Ban },
-    { href: "/esign", label: "전자서명", icon: FileSignature },
-    { href: "/products", label: "제품 관리", icon: Package },
-    { href: "/web-forms", label: "웹 폼", icon: FileText },
-    { href: "/tracker", label: "트래커", icon: Activity },
-    { href: "/logs", label: "발송 이력", icon: History },
+export type NavItem = { href: string; label: string; icon: typeof Home };
+
+/** 사이드바 메뉴 묶음 (genius-hub-erp처럼 그룹 제목 + 메뉴). group이 없으면 제목 없이 */
+export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
+    { items: [{ href: "/", label: "홈", icon: Home }] },
+    {
+        group: "리드젠",
+        items: [
+            { href: "/records", label: "레코드", icon: Table2 },
+            { href: "/email", label: "이메일", icon: Mail },
+            { href: "/email/unsubscribes", label: "수신거부 목록", icon: Ban },
+            { href: "/web-forms", label: "웹 폼", icon: FileText },
+        ],
+    },
+    {
+        group: "리드 관리",
+        items: [{ href: "/leads", label: "리드 관리", icon: Users }],
+    },
+    {
+        group: "고객 관리",
+        items: [
+            { href: "/inbox", label: "고객 상담", icon: MessageSquare },
+            { href: "/alimtalk", label: "알림톡", icon: MessageCircle },
+            { href: "/customer-crm", label: "고객 관리", icon: Building2 },
+        ],
+    },
+    {
+        group: "행동 분석",
+        items: [
+            { href: "/tracker", label: "트래커", icon: Activity },
+            { href: "/logs", label: "발송 이력", icon: History },
+            { href: "/crm", label: "CRM 관리", icon: BarChart3 },
+        ],
+    },
+    {
+        group: "기타",
+        items: [
+            { href: "/esign", label: "전자서명", icon: FileSignature },
+            { href: "/products", label: "제품 관리", icon: Package },
+        ],
+    },
 ];
+
+export const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
 export const bottomNavItems = [
     { href: "/settings/workspace", label: "워크스페이스", icon: Layers },

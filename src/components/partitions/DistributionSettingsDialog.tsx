@@ -270,7 +270,7 @@ export default function DistributionSettingsDialog({
                                                                     updateDefault(order, idx, "field", v)
                                                                 }
                                                             >
-                                                                <SelectTrigger className="w-36 h-8 text-sm">
+                                                                <SelectTrigger className="w-36 h-9 text-sm">
                                                                     <SelectValue placeholder="필드" />
                                                                 </SelectTrigger>
                                                                 <SelectContent>
@@ -298,7 +298,7 @@ export default function DistributionSettingsDialog({
                                                                         )
                                                                     }
                                                                 >
-                                                                    <SelectTrigger className="flex-1 h-8 text-sm">
+                                                                    <SelectTrigger className="flex-1 h-9 text-sm">
                                                                         <SelectValue placeholder="값" />
                                                                     </SelectTrigger>
                                                                     <SelectContent>

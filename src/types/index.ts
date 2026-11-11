@@ -110,13 +110,14 @@ export type FilterOperator =
     | "gt" | "gte" | "lt" | "lte"
     | "before" | "after" | "between"
     | "is_empty" | "is_not_empty"
-    | "is_true" | "is_false";
+    | "is_true" | "is_false"
+    | "not_in";
 
 // 필터 조건
 export interface FilterCondition {
     field: string;
     operator: FilterOperator;
-    value: string | number | boolean | null;
+    value: string | number | boolean | null | string[];  // not_in은 배열
     valueTo?: string | number;  // between용
 }
 
@@ -241,6 +242,7 @@ export interface DuplicateConfig {
 export interface WorkspaceSettings {
     defaultVisibleFields?: string[];
     duplicateCheckField?: string;
+    leadStatuses?: { label: string; enabled: boolean }[];
 }
 
 // 워크스페이스 상세 (API 응답)
@@ -276,11 +278,13 @@ export interface CreatePartitionInput {
     name: string;
     folderId?: number | null;
     fieldTypeId?: number;
+    category?: "cold" | "lead";
 }
 
 // 폴더 생성 입력
 export interface CreateFolderInput {
     name: string;
+    category?: "cold" | "lead";
 }
 
 // 필드 생성 입력

@@ -174,7 +174,7 @@ export function DateTimePicker({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="h-8 text-xs text-muted-foreground"
+                            className="h-9 text-xs text-muted-foreground"
                             onClick={() => {
                                 onChange(null);
                                 setOpen(false);

@@ -51,6 +51,7 @@ export default function AutoPersonalizedEmailConfig({
     partitions,
 }: AutoPersonalizedEmailConfigProps) {
     const router = useRouter();
+    const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | "all">("all");
     const [selectedPartitionId, setSelectedPartitionId] = useState<number | "all">("all");
     const [deleteTarget, setDeleteTarget] = useState<AutoPersonalizedLink | null>(null);
     // 활성 전환 요청 중인 규칙 — 같은 행 중복 조작을 막는다 (UX-148)
@@ -59,8 +60,25 @@ export default function AutoPersonalizedEmailConfig({
     const [testTarget, setTestTarget] = useState<AutoPersonalizedLink | null>(null);
     const [followupTestTarget, setFollowupTestTarget] = useState<AutoPersonalizedLink | null>(null);
 
-    const { links, isLoading, createLink, updateLink, deleteLink, loadError, mutate } =
+    // 워크스페이스 목록 추출
+    const workspaces = Array.from(
+        new Map(partitions.map((p) => [p.workspaceId, p.name.match(/^\[(.+?)\]/)?.[1] || `WS ${p.workspaceId}`])).entries()
+    ).map(([id, name]) => ({ id, name }));
+    const hasMultipleWorkspaces = workspaces.length > 1;
+
+    // 워크스페이스 필터 적용된 파티션 목록
+    const filteredPartitions = selectedWorkspaceId === "all"
+        ? partitions
+        : partitions.filter((p) => p.workspaceId === selectedWorkspaceId);
+
+    const { links: allLinks, isLoading, createLink, updateLink, deleteLink, loadError, mutate } =
         useAutoPersonalizedEmail(selectedPartitionId);
+
+    // 워크스페이스 필터 적용
+    const filteredPartitionIds = new Set(filteredPartitions.map((p) => p.id));
+    const links = selectedWorkspaceId === "all"
+        ? allLinks
+        : allLinks.filter((l) => l.partitionId && filteredPartitionIds.has(l.partitionId));
     // 복제할 때 지워진 발신 프로필을 묶음에서 빼려고 지금 프로필 목록을 본다
     const { profiles: senderProfiles, isLoading: senderProfilesLoading, loadFailed: senderProfilesLoadFailed } =
         useSenderProfiles();
@@ -198,6 +216,27 @@ export default function AutoPersonalizedEmailConfig({
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <CardTitle className="whitespace-nowrap">AI 개인화 이메일 자동 발송</CardTitle>
                     <div className="flex flex-wrap items-center gap-2">
+                        {hasMultipleWorkspaces && (
+                            <Select
+                                value={String(selectedWorkspaceId)}
+                                onValueChange={(v) => {
+                                    setSelectedWorkspaceId(v === "all" ? "all" : Number(v));
+                                    setSelectedPartitionId("all");
+                                }}
+                            >
+                                <SelectTrigger className="w-full sm:w-45">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">전체 워크스페이스</SelectItem>
+                                    {workspaces.map((ws) => (
+                                        <SelectItem key={ws.id} value={ws.id.toString()}>
+                                            {ws.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                         <Select
                             value={String(selectedPartitionId)}
                             onValueChange={(v) => setSelectedPartitionId(v === "all" ? "all" : Number(v))}
@@ -206,8 +245,8 @@ export default function AutoPersonalizedEmailConfig({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">전체</SelectItem>
-                                {partitions.map((p) => (
+                                <SelectItem value="all">전체 파티션</SelectItem>
+                                {filteredPartitions.map((p) => (
                                     <SelectItem key={p.id} value={p.id.toString()}>
                                         {p.name}
                                     </SelectItem>

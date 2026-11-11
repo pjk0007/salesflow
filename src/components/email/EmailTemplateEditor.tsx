@@ -482,7 +482,7 @@ export default function EmailTemplateEditor({ template, onSave, onCancel }: Emai
                                     value={categoryId ? String(categoryId) : "none"}
                                     onValueChange={(v) => setCategoryId(v === "none" ? null : Number(v))}
                                 >
-                                    <SelectTrigger className="h-8 text-sm">
+                                    <SelectTrigger className="h-9 text-sm">
                                         <SelectValue placeholder="미분류" />
                                     </SelectTrigger>
                                     <SelectContent>

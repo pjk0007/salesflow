@@ -80,7 +80,7 @@ export function EngagementCard({ siteId, range, filters }: Props) {
                     value={page ?? ALL_PAGES}
                     onValueChange={(v) => setPage(v === ALL_PAGES ? null : v)}
                 >
-                    <SelectTrigger className="h-8 w-64 text-xs">
+                    <SelectTrigger className="h-9 w-64 text-xs">
                         <SelectValue placeholder="페이지 선택" />
                     </SelectTrigger>
                     <SelectContent>

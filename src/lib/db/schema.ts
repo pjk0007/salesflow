@@ -132,6 +132,8 @@ export const workspaces = pgTable("workspaces", {
     settings: jsonb("settings").$type<{
         defaultVisibleFields?: string[];
         duplicateCheckField?: string;
+        /** 리드 관리 대응상태 — 순서와 켜고 끄기 (src/lib/leads/statuses.ts) */
+        leadStatuses?: { label: string; enabled: boolean }[];
     }>(),
     // 답장 받을 주소 (DESIGN-3, 마이그레이션 0073). 발송에 쓰지 않는다 — NHN이 Reply-To 사용자 지정 헤더를 거절해(2026-10-04)
     // 발송 경로·설정 화면에서 뺐다. 칸은 남겨 둔다 (지우는 마이그레이션 없음). 답장은 보낸 주소로 간다
@@ -198,6 +200,8 @@ export const folders = pgTable("folders", {
         .notNull(),
     name: varchar("name", { length: 100 }).notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
+    // cold: 레코드 페이지 폴더, lead: 리드 관리 페이지 폴더
+    category: varchar("category", { length: 20 }).default("cold").notNull(),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
     updatedAt: timestamptz("updated_at").defaultNow().notNull(),
 });
@@ -213,6 +217,7 @@ export const partitions = pgTable("partitions", {
     name: varchar("name", { length: 100 }).notNull(),
     folderId: integer("folder_id"),
     fieldTypeId: integer("field_type_id"),
+    category: varchar("category", { length: 20 }).default("cold").notNull(),
     displayOrder: integer("display_order").default(0).notNull(),
     visibleFields: jsonb("visible_fields").$type<string[]>(),
     // 분배순서 설정
@@ -341,8 +346,19 @@ export const memos = pgTable("memos", {
         .notNull(),
     content: text("content").notNull(),
     createdBy: uuid("created_by").references(() => users.id),
+    // 리드 댓글 (0132): 종류 call|mail|meeting|sms|etc, 첨부파일, 이 댓글에서 정한 다음 연락일
+    kind: varchar("kind", { length: 20 }),
+    attachments: jsonb("attachments").$type<MemoAttachment[]>(),
+    nextContactAt: timestamptz("next_contact_at"),
     createdAt: timestamptz("created_at").defaultNow().notNull(),
 });
+
+export interface MemoAttachment {
+    url: string;
+    name: string;
+    type: string;
+    size: number;
+}
 
 // ============================================
 // 권한

@@ -4,24 +4,25 @@ import { NextRequest } from "next/server";
 import { installFakeDb, isolateEnv, isMembershipLookup } from "./auth-fake-db.test-helper";
 import { canDeleteMemo, MEMO_DELETE_FORBIDDEN } from "./memo-permissions";
 
-// UX-059 — 메모 삭제는 작성자 본인 또는 관리자만. 다른 사람 메모는 member가 지울 수 없다.
+// 메모 삭제는 작성자 본인만 (2026-11-11 변경, 예전 UX-059는 관리자도 허용). 관리자도 남의 메모는 못 지운다.
 
 const ORG = "00000000-0000-4000-8000-000000000059";
 const AUTHOR = "00000000-0000-4000-8000-0000000000a1";
 const OTHER = "00000000-0000-4000-8000-0000000000b2";
 
-test("canDeleteMemo: 관리자는 모두, member는 본인 메모만, 작성자 없는 메모는 관리자만", () => {
+test("canDeleteMemo: 역할과 관계없이 본인 메모만", () => {
     assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: AUTHOR, role: "member" }), true);
     assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: OTHER, role: "member" }), false);
-    assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: OTHER, role: "admin" }), true);
-    assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: OTHER, role: "owner" }), true);
+    assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: OTHER, role: "admin" }), false);
+    assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: OTHER, role: "owner" }), false);
+    assert.equal(canDeleteMemo({ createdBy: AUTHOR }, { userId: AUTHOR, role: "admin" }), true);
     assert.equal(canDeleteMemo({ createdBy: null }, { userId: OTHER, role: "member" }), false);
 });
 
 for (const [name, role, userId, expected] of [
     ["다른 사람 메모를 member가 삭제 → 403, 삭제 없음", "member", OTHER, 403],
     ["본인 메모를 member가 삭제 → 200", "member", AUTHOR, 200],
-    ["다른 사람 메모를 admin이 삭제 → 200", "admin", OTHER, 200],
+    ["다른 사람 메모를 admin이 삭제 → 403", "admin", OTHER, 403],
 ] as const) {
     test(`메모 삭제 API: ${name}`, async (t) => {
         isolateEnv(t);

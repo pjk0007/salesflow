@@ -375,7 +375,7 @@ export default function AutoEnrichTab() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>취소</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>삭제</AlertDialogAction>
+                        <AlertDialogAction variant="destructive" onClick={handleDelete}>삭제</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>

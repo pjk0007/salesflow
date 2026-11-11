@@ -389,7 +389,7 @@ export default function ProfileTab() {
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>취소</AlertDialogCancel>
-                                            <AlertDialogAction onClick={handleDeleteCard}>
+                                            <AlertDialogAction variant="destructive" onClick={handleDeleteCard}>
                                                 삭제
                                             </AlertDialogAction>
                                         </AlertDialogFooter>

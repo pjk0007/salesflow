@@ -120,7 +120,7 @@ export default function EmailTestSendDialog({
                                         {varName}
                                     </span>
                                     <Input
-                                        className="h-8 text-sm"
+                                        className="h-9 text-sm"
                                         placeholder="값 입력"
                                         value={variables[varName] || ""}
                                         onChange={(e) => setVariable(varName, e.target.value)}
