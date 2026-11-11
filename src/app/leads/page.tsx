@@ -1,6 +1,6 @@
 "use client";
 
-import { RecordsPageInner } from "@/app/records/page";
+import { RecordsPageInner } from "@/components/records/ui/RecordsWorkspace";
 
 export default function LeadsPage() {
     return <RecordsPageInner category="lead" />;
