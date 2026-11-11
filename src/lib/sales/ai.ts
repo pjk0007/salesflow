@@ -143,3 +143,23 @@ export async function analyzeMeeting(
         };
     });
 }
+
+// ─── 추천 연락 문구 (Claude) ─────────────────────────────────────────
+const DRAFT_SYSTEM = `당신은 B2B 영업 담당자를 돕는 비서입니다. 고객에게 보낼 짧은 연락 문구(문자·카톡용) 초안을 씁니다.
+- 3~5문장, 존댓말, 자연스럽고 부담 없는 톤. 과장·광고 문구 금지.
+- 메모와 지난 미팅 내용 중 상대가 관심 가질 만한 것을 한 가지 자연스럽게 언급합니다(없으면 생략).
+- 이름 자리에는 받는 분 이름과 직책을 씁니다. 보내는 사람 서명은 넣지 않습니다.
+- 문구만 출력합니다.`;
+
+export async function draftSuggestionMessage(
+    orgId: string,
+    userId: string,
+    input: { action: string; reason: string; company: string; person: string; memo: string; lastMeeting: string },
+) {
+    const client = getAiClient();
+    return withAi<string>(orgId, userId, "sales_suggestion_draft", client, async (c) => {
+        const prompt = `할 일: ${input.action}\n이유: ${input.reason}\n기업: ${input.company}\n받는 분: ${input.person || "(이름 없음)"}\n메모: ${input.memo || "(없음)"}\n지난 미팅: ${input.lastMeeting || "(없음)"}`;
+        const { content, usage } = await callClaudeJson(c, DRAFT_SYSTEM, prompt);
+        return { data: content.trim(), usage };
+    });
+}

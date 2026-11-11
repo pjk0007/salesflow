@@ -109,3 +109,32 @@ export async function salesWorkspaceCounts(user: User) {
     `);
     return Array.from(rows).map((r) => ({ workspaceId: r.workspace_id, leads: r.leads }));
 }
+
+/** 영업 리드의 기업 목록 (같은 기업 이름 규칙으로 묶어 대표 이름·인원) — 기업 옮기기에서 고른다 */
+export async function listSalesCompanies(user: User) {
+    const parts = await visibleSalesPartitions(user);
+    if (parts.length === 0) return [];
+    const rows = await db
+        .select({
+            name: sql<string>`trim(coalesce(${records.data}->>'companyName', ${records.data}->>'companyname', ''))`,
+            address: sql<string>`trim(coalesce(${records.data}->>'address', ''))`,
+            workspaceId: records.workspaceId,
+            workspaceIds: sql<unknown>`${records.data}->'workspaceIds'`,
+        })
+        .from(records)
+        .where(and(eq(records.orgId, user.orgId), inArray(records.partitionId, parts.map((p) => p.id))));
+    const by = new Map<string, { name: string; count: number; address: string; workspaceIds: Set<number> }>();
+    for (const r of rows) {
+        if (!r.name) continue;
+        const key = r.name.toLowerCase().replace(/\(주\)|㈜|주식회사|\s/g, "");
+        const g = by.get(key) ?? { name: r.name, count: 0, address: "", workspaceIds: new Set<number>() };
+        g.count++;
+        if (!g.address && r.address) g.address = r.address;
+        if (r.workspaceId) g.workspaceIds.add(r.workspaceId);
+        if (Array.isArray(r.workspaceIds)) for (const w of r.workspaceIds) if (Number(w)) g.workspaceIds.add(Number(w));
+        by.set(key, g);
+    }
+    return [...by.values()]
+        .map((g) => ({ ...g, workspaceIds: [...g.workspaceIds] }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+}

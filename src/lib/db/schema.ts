@@ -399,12 +399,33 @@ export const salesActionItems = pgTable(
         ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
         dueAt: timestamptz("due_at"),
         doneAt: timestamptz("done_at"),
+        // 추천 할 일 (0141): suggested = 규칙이 만든 추천, open = 할 일. 추천은 rule_key·reason·draft를 가진다
+        status: varchar("status", { length: 20 }).default("open").notNull(),
+        ruleKey: varchar("rule_key", { length: 60 }),
+        reason: text("reason"),
+        draft: text("draft"),
+        dismissedAt: timestamptz("dismissed_at"),
         createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },
     (table) => ({
         recordIdx: index("sales_action_items_record_idx").on(table.recordId),
+    })
+);
+
+export const salesRules = pgTable(
+    "sales_rules",
+    {
+        id: serial("id").primaryKey(),
+        orgId: uuid("org_id").notNull(),
+        kind: varchar("kind", { length: 40 }).notNull(),
+        enabled: boolean("enabled").default(true).notNull(),
+        params: jsonb("params").$type<Record<string, unknown>>().default({}).notNull(),
+        updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        orgKindUnique: unique("sales_rules_org_kind_unique").on(table.orgId, table.kind),
     })
 );
 

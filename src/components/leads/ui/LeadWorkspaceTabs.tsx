@@ -15,12 +15,14 @@ interface LeadWorkspaceTabsProps {
     /** 보여줄 사업부를 직접 정한다 (영업관리: 리드 있는 사업부 + 추가한 사업부) */
     items?: Array<{ id: number; name: string; displayNo?: string | null }>;
     right?: React.ReactNode;
+    /** 탭 오른쪽 클릭 (영업관리: 추가한 사업부 탭 제거) */
+    onTabContextMenu?: (workspaceId: number, e: React.MouseEvent) => void;
     /** lead: 리드 파티션이 있는 사업만, all: 숨기지 않은 모든 사업 (영업관리) */
     source?: "lead" | "all";
 }
 
 /** 리드 관리·리드 통계 맨 윗줄 사업(워크스페이스) 탭 — 리드 파티션이 있는 사업만 */
-export function LeadWorkspaceTabs({ value, onChange, right, source = "lead", allTab, items }: LeadWorkspaceTabsProps) {
+export function LeadWorkspaceTabs({ value, onChange, right, source = "lead", allTab, items, onTabContextMenu }: LeadWorkspaceTabsProps) {
     const lead = useLeadWorkspaces();
     const all = useWorkspaces();
     const workspaces =
@@ -60,6 +62,14 @@ export function LeadWorkspaceTabs({ value, onChange, right, source = "lead", all
                                   key={ws.id}
                                   type="button"
                                   onClick={() => onChange(ws.id)}
+                                  onContextMenu={
+                                      onTabContextMenu
+                                          ? (e) => {
+                                                e.preventDefault();
+                                                onTabContextMenu(ws.id, e);
+                                            }
+                                          : undefined
+                                  }
                                   className={cn(
                                       "flex shrink-0 items-center gap-1.5 border-b-2 px-3 text-sm transition-colors",
                                       active

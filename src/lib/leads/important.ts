@@ -44,6 +44,7 @@ export function importantSalesCondition() {
                 SELECT 1 FROM ${salesActionItems}
                 WHERE ${salesActionItems.recordId} = ${records.id}
                   AND ${salesActionItems.doneAt} IS NULL
+                  AND ${salesActionItems.status} = 'open'
                   AND (${salesActionItems.dueAt} AT TIME ZONE 'Asia/Seoul')::date <= ${today}
             )
         )

@@ -14,6 +14,7 @@ import { updateActionItem } from "../api";
 import { MemberAvatar } from "./MemberAvatar";
 import { OwnerSelect } from "./OwnerSelect";
 import { SalesLeadPanel } from "./SalesLeadPanel";
+import { SalesSuggestions } from "./SalesSuggestions";
 
 interface Todo {
     id: number;
@@ -77,6 +78,16 @@ export function SalesTodoPage() {
     const [mineOnly, setMineOnly] = useState(false);
     const [includeDone, setIncludeDone] = useState(false);
     const [openRecordId, setOpenRecordId] = useState<number | null>(null);
+    const [view, setView] = useState<"todo" | "suggest">("todo");
+    // 추천 개수 칩 (추천 탭을 열 때 규칙을 다시 돌린다)
+    const { data: suggestData, mutate: mutateSuggest } = useSWR<{ success: boolean; data: unknown[] }>(
+        "/api/sales/suggestions?refresh=1",
+        defaultFetcher,
+        {
+            revalidateOnFocus: false,
+        },
+    );
+    const suggestCount = suggestData?.data?.length ?? 0;
     const closePanel = useCallback(() => setOpenRecordId(null), []);
     const { data, isLoading, mutate } = useSWR<{ success: boolean; data: Todo[] }>(
         `/api/sales/todos${includeDone ? "?done=1" : ""}`,
@@ -109,62 +120,116 @@ export function SalesTodoPage() {
     return (
         <WorkspaceLayout>
             <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-                <div className="flex h-12 shrink-0 items-center justify-between gap-3 border-b px-4">
-                    <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                {/* 위쪽: [할 일 | 추천] 탭 + [전체 | 내 것] */}
+                <div className="flex h-12 shrink-0 items-stretch justify-between gap-3 border-b px-4">
+                    <div className="-mb-px flex gap-1">
                         {(
                             [
-                                [false, "전체"],
-                                [true, "내 할 일"],
+                                ["todo", "할 일"],
+                                ["suggest", "추천"],
                             ] as const
                         ).map(([v, label]) => (
                             <button
-                                key={label}
+                                key={v}
                                 type="button"
-                                onClick={() => setMineOnly(v)}
+                                onClick={() => setView(v)}
                                 className={cn(
-                                    "flex h-7 items-center rounded px-3 text-xs transition-colors",
-                                    mineOnly === v ? "bg-background font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
+                                    "flex items-center gap-1.5 border-b-2 px-3 text-sm transition-colors",
+                                    view === v
+                                        ? "border-primary font-semibold text-foreground"
+                                        : "border-transparent text-muted-foreground hover:text-foreground",
                                 )}
                             >
                                 {label}
+                                {v === "suggest" && suggestCount > 0 && (
+                                    <span className="rounded-full bg-rose-600 px-1.5 text-[10px] leading-4 text-white">{suggestCount}</span>
+                                )}
                             </button>
                         ))}
                     </div>
-                    <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                        완료한 것도 보기
-                        <Switch checked={includeDone} onCheckedChange={setIncludeDone} />
-                    </label>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1 rounded-md bg-muted p-1">
+                            {(
+                                [
+                                    [false, "전체"],
+                                    [true, view === "suggest" ? "내 것만" : "내 할 일"],
+                                ] as const
+                            ).map(([v, label]) => (
+                                <button
+                                    key={label}
+                                    type="button"
+                                    onClick={() => setMineOnly(v)}
+                                    className={cn(
+                                        "flex h-7 items-center rounded px-3 text-xs transition-colors",
+                                        mineOnly === v
+                                            ? "bg-background font-semibold text-foreground"
+                                            : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                        {view === "todo" && (
+                            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+                                완료한 것도 보기
+                                <Switch checked={includeDone} onCheckedChange={setIncludeDone} />
+                            </label>
+                        )}
+                    </div>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                    {isLoading ? (
-                        <p className="p-6 text-sm text-muted-foreground">불러오는 중…</p>
-                    ) : groups.length === 0 ? (
-                        <p className="py-16 text-center text-sm text-muted-foreground">할 일이 없어요. 영업리드의 미팅 기록에서 액션플랜을 만들면 여기에 모여요.</p>
-                    ) : (
-                        groups.map((g) => {
-                            const overdue = countOverdue(g.items);
-                            return (
-                                <section key={g.ownerId ?? "none"} className="border-b">
-                                    <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-sm">
-                                        {g.ownerId ? <MemberAvatar name={g.ownerName} className="size-4" /> : null}
-                                        <span className="font-medium">
-                                            {g.ownerName}
-                                            {g.ownerId === user?.id && <span className="ml-1 text-xs text-muted-foreground">(나)</span>}
-                                        </span>
-                                        <span className="text-muted-foreground">{g.items.length}건</span>
-                                        {overdue > 0 && <span className="rounded bg-rose-100 px-1.5 text-[11px] text-rose-700">기한 지남 {overdue}</span>}
-                                    </div>
-                                    <ul>
-                                        {g.items.map((t) => (
-                                            <TodoRow key={t.id} todo={t} onChanged={() => mutate()} onOpen={() => setOpenRecordId(t.recordId)} />
-                                        ))}
-                                    </ul>
-                                </section>
-                            );
-                        })
-                    )}
-                </div>
+                {view === "suggest" ? (
+                    <SalesSuggestions
+                        mineOnly={mineOnly}
+                        onOpenLead={setOpenRecordId}
+                        onChanged={() => {
+                            mutate();
+                            mutateSuggest();
+                        }}
+                    />
+                ) : (
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                        {isLoading ? (
+                            <p className="p-6 text-sm text-muted-foreground">불러오는 중…</p>
+                        ) : groups.length === 0 ? (
+                            <p className="py-16 text-center text-sm text-muted-foreground">
+                                할 일이 없어요. 영업리드의 미팅 기록에서 액션플랜을 만들면 여기에 모여요.
+                            </p>
+                        ) : (
+                            groups.map((g) => {
+                                const overdue = countOverdue(g.items);
+                                return (
+                                    <section key={g.ownerId ?? "none"} className="border-b">
+                                        <div className="flex items-center gap-2 border-b bg-muted/30 px-4 py-2 text-sm">
+                                            {g.ownerId ? <MemberAvatar name={g.ownerName} className="size-4" /> : null}
+                                            <span className="font-medium">
+                                                {g.ownerName}
+                                                {g.ownerId === user?.id && <span className="ml-1 text-xs text-muted-foreground">(나)</span>}
+                                            </span>
+                                            <span className="text-muted-foreground">{g.items.length}건</span>
+                                            {overdue > 0 && (
+                                                <span className="rounded bg-rose-100 px-1.5 text-[11px] text-rose-700">
+                                                    기한 지남 {overdue}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <ul>
+                                            {g.items.map((t) => (
+                                                <TodoRow
+                                                    key={t.id}
+                                                    todo={t}
+                                                    onChanged={() => mutate()}
+                                                    onOpen={() => setOpenRecordId(t.recordId)}
+                                                />
+                                            ))}
+                                        </ul>
+                                    </section>
+                                );
+                            })
+                        )}
+                    </div>
+                )}
             </div>
             {openRecordId && <SalesLeadPanel recordId={openRecordId} onClose={closePanel} onChanged={() => mutate()} />}
         </WorkspaceLayout>

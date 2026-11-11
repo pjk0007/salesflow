@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, records, salesActionItems, salesMeetings, users } from "@/lib/db";
 
 export interface ActionItemInput {
@@ -97,7 +97,8 @@ export async function listActionItems(recordIds: number[]) {
         })
         .from(salesActionItems)
         .leftJoin(users, eq(users.id, salesActionItems.ownerId))
-        .where(inArray(salesActionItems.recordId, recordIds))
+        // 추천(suggested)은 빼고 실제 할 일만
+        .where(and(inArray(salesActionItems.recordId, recordIds), eq(salesActionItems.status, "open")))
         .orderBy(asc(salesActionItems.doneAt), asc(salesActionItems.dueAt), asc(salesActionItems.id));
 }
 
@@ -106,7 +107,7 @@ export async function syncNextContact(recordId: number) {
     const open = await db
         .select({ dueAt: salesActionItems.dueAt, doneAt: salesActionItems.doneAt })
         .from(salesActionItems)
-        .where(eq(salesActionItems.recordId, recordId));
+        .where(and(eq(salesActionItems.recordId, recordId), eq(salesActionItems.status, "open")));
     const due = open
         .filter((i) => !i.doneAt && i.dueAt)
         .map((i) => i.dueAt!.getTime())

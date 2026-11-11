@@ -29,6 +29,7 @@ export async function listSalesTodos(user: User, opts: { includeDone: boolean })
             and(
                 eq(salesActionItems.orgId, user.orgId),
                 inArray(records.partitionId, parts.map((p) => p.id)),
+                eq(salesActionItems.status, "open"),
                 opts.includeDone ? undefined : isNull(salesActionItems.doneAt),
             ),
         )

@@ -61,10 +61,17 @@ export const unlinkLead = async (recordId: number, companyName?: string) =>
 export const saveCompanyAddress = async (recordId: number, address: string) =>
     json<{ count: number }>(await send("/api/sales/company", "POST", { recordId, address }));
 
-export const unlinkLeads = async (recordIds: number[]) =>
-    json<{ done: number; skipped: number }>(await send("/api/sales/unlink", "POST", { recordIds }));
+export const unlinkLeads = async (recordIds: number[], companyName?: string) =>
+    json<{ done: number; skipped: number }>(await send("/api/sales/unlink", "POST", companyName ? { recordIds, companyName } : { recordIds }));
 
 export const setLeadWorkspaces = async (recordId: number, workspaceIds: number[]) =>
     json<{ id: number; workspaceId: number; partitionId: number; data: Record<string, unknown> }>(
         await send(`/api/sales/leads/${recordId}/workspaces`, "PUT", { workspaceIds }),
     );
+
+export const bulkCreateSalesLeads = async (input: {
+    workspaceIds: number[];
+    ownerId: string | null;
+    records: Array<Record<string, unknown>>;
+    duplicateAction: "skip" | "error";
+}) => (await send("/api/sales/leads/bulk", "POST", input)).json() as Promise<import("@/types").ImportResult & { error?: string }>;

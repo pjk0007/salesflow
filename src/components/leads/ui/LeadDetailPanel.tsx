@@ -13,6 +13,7 @@ import { LeadActivitySection } from "./LeadActivitySection";
 import { StatusBadge } from "./StatusBadge";
 import { EditableField, Field, PropRow } from "./DetailParts";
 import { SalesLeadBody } from "@/components/sales/ui/SalesLeadBody";
+import { MeetingDetailColumn } from "@/components/sales/ui/MeetingDetailPanel";
 
 interface LeadDetailPanelProps {
     record: LeadRecord;
@@ -53,7 +54,17 @@ export function LeadDetailPanel({
     onSecondaryFieldChange,
     onRecordUpdate,
 }: LeadDetailPanelProps) {
-    const split = mode === "sales" && !!secondary;
+    // 오른쪽 절반: 같은 기업 담당자 또는 미팅 상세 (둘 중 하나)
+    const [meetingDetail, setMeetingDetail] = useState<{ recordId: number; meetingId: number; leadData: Record<string, unknown> } | null>(null);
+    const split = mode === "sales" && (!!secondary || !!meetingDetail);
+    const openMeeting = (from: LeadRecord) => (recordId: number, meetingId: number) => {
+        onCloseRelated?.();
+        setMeetingDetail({ recordId, meetingId, leadData: (from.data ?? {}) as Record<string, unknown> });
+    };
+    const openRelated = (r: LeadRecord) => {
+        setMeetingDetail(null);
+        onOpenRelated?.(r);
+    };
     const [full, setFull] = useState(false);
     const sales = mode === "sales";
     const lead = summarizeLead(record, fields);
@@ -119,9 +130,10 @@ export function LeadDetailPanel({
                                     fields={fields}
                                     onFieldChange={(k, v) => onFieldChange?.(k, v)}
                                     onChanged={onCommentAdded}
-                                    onOpenRelated={onOpenRelated}
+                                    onOpenRelated={openRelated}
                                     activeRelatedId={secondary?.id ?? null}
                                     onWorkspacesChanged={(r) => onRecordUpdate?.(r as Partial<LeadRecord> & { id: number })}
+                                    onOpenMeeting={openMeeting(record)}
                                 />
                             ) : (
                                 <>
@@ -215,7 +227,17 @@ export function LeadDetailPanel({
                 </div>
 
                 {/* 오른쪽: 연관 리드 (genius-hub-erp 과거 리드 상세처럼 나란히) */}
-                {split && secondary && (
+                {split && meetingDetail && (
+                    <MeetingDetailColumn
+                        key={meetingDetail.meetingId}
+                        recordId={meetingDetail.recordId}
+                        meetingId={meetingDetail.meetingId}
+                        leadData={meetingDetail.leadData}
+                        onClose={() => setMeetingDetail(null)}
+                        onChanged={onCommentAdded}
+                    />
+                )}
+                {split && secondary && !meetingDetail && (
                     <div className="flex min-w-0 flex-1 flex-col">
                         <div className="flex h-14 shrink-0 items-center justify-between border-b px-2">
                             <span className="px-2 text-xs font-semibold text-muted-foreground">같은 기업 담당자</span>
@@ -231,9 +253,10 @@ export function LeadDetailPanel({
                                     fields={fields}
                                     onFieldChange={(k, v) => onSecondaryFieldChange?.(k, v)}
                                     onChanged={onCommentAdded}
-                                    onOpenRelated={onOpenRelated}
+                                    onOpenRelated={openRelated}
                                     activeRelatedId={secondary.id}
                                     onWorkspacesChanged={(r) => onRecordUpdate?.(r as Partial<LeadRecord> & { id: number })}
+                                    onOpenMeeting={openMeeting(secondary)}
                                 />
                             </div>
                         </ScrollArea>

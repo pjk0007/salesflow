@@ -20,6 +20,7 @@ import { OwnerSelect } from "@/components/sales/ui/OwnerSelect";
 import type { CardFields } from "@/components/sales/types";
 import { createSalesLead } from "@/components/sales/api";
 import { WorkspaceChips } from "@/components/sales/ui/WorkspaceChips";
+import { CompanyCombobox } from "@/components/sales/ui/CompanyCombobox";
 
 interface CreateLeadDialogProps {
     open: boolean;
@@ -161,25 +162,38 @@ export function CreateLeadDialog({ open, onOpenChange, partitionId, fields, onCr
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto px-6 py-5 scrollbar-thin sm:grid-cols-2">
                     {sales && (
                         <div className="space-y-1.5 sm:col-span-2">
-                            <Label className="text-xs text-muted-foreground">사업부 (여러 개 고를 수 있어요)</Label>
+                            <Label className="text-xs text-muted-foreground">사업부 (다중선택)</Label>
                             <WorkspaceChips value={salesWorkspaces} onChange={setSalesWorkspaces} />
                         </div>
                     )}
                     {sales && (
                         <div className="space-y-1.5">
                             <Label className="text-xs text-muted-foreground">담당자</Label>
-                            <OwnerSelect value={ownerId} onChange={setOwnerId} className="-ml-2 text-sm" />
+                            <OwnerSelect value={ownerId} onChange={setOwnerId} field />
                         </div>
                     )}
                     {slots.map((slot) => (
                         <div key={slot.id} className={cn("space-y-1.5", (slot.id === "request" || slot.id === "memo" || slot.id === "address") && "sm:col-span-2")}>
                             <Label className="text-xs text-muted-foreground">{slot.label}</Label>
-                            <FieldInput
-                                field={slot.field}
-                                multiline={slot.id === "request" || slot.id === "memo"}
-                                value={valueOf(slot.key)}
-                                onChange={(v) => set(slot.key, v)}
-                            />
+                            {sales && slot.id === "company" ? (
+                                <CompanyCombobox
+                                    value={valueOf(slot.key)}
+                                    onChange={(v) => set(slot.key, v)}
+                                    workspaceIds={salesWorkspaces}
+                                    onPick={(c) => {
+                                        set(slot.key, c.name);
+                                        const addressKey = slots.find((s) => s.id === "address")?.key;
+                                        if (addressKey && c.address) set(addressKey, c.address);
+                                    }}
+                                />
+                            ) : (
+                                <FieldInput
+                                    field={slot.field}
+                                    multiline={slot.id === "request" || slot.id === "memo"}
+                                    value={valueOf(slot.key)}
+                                    onChange={(v) => set(slot.key, v)}
+                                />
+                            )}
                         </div>
                     ))}
                     {addedKeys.map((key) => {

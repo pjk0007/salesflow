@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { scanBusinessCard } from "../api";
 import type { CardFields } from "../types";
 
-/** 명함 사진(촬영·선택) → 글자 인식 → onScanned로 리드 추가 창을 채운다 */
-export function BusinessCardButton({ onScanned }: { onScanned: (fields: CardFields) => void }) {
+/** 명함 사진(촬영·선택) → 글자 인식. 한 장이면 리드 추가 창을 채우고, 여러 장이면 한꺼번에 검토하는 창(onMany) */
+export function BusinessCardButton({ onScanned, onMany }: { onScanned: (fields: CardFields) => void; onMany?: (files: File[]) => void }) {
     const input = useRef<HTMLInputElement>(null);
     const [busy, setBusy] = useState(false);
 
@@ -38,11 +38,13 @@ export function BusinessCardButton({ onScanned }: { onScanned: (fields: CardFiel
                 ref={input}
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
-                capture="environment"
+                multiple
                 className="hidden"
                 onChange={(e) => {
-                    pick(e.target.files?.[0]);
+                    const files = Array.from(e.target.files ?? []);
                     e.target.value = "";
+                    if (files.length > 1 && onMany) onMany(files);
+                    else pick(files[0]);
                 }}
             />
         </>

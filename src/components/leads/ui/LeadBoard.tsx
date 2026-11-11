@@ -24,7 +24,10 @@ import { BusinessCardButton } from "@/components/sales/ui/BusinessCardButton";
 import type { CardFields } from "@/components/sales/types";
 import { useSalesLeads, SALES_LEADS_KEY } from "@/components/sales/hooks/useSalesLeads";
 import { LinkCompanyDialog } from "@/components/sales/ui/LinkCompanyDialog";
-import { unlinkLeads } from "@/components/sales/api";
+import { BulkCardDialog } from "@/components/sales/ui/BulkCardDialog";
+import { SalesImportButton } from "@/components/sales/ui/SalesImportButton";
+import { UnlinkCompanyDialog } from "@/components/sales/ui/UnlinkCompanyDialog";
+import { companyKey } from "../utils/lead-fields";
 import { useWorkspaces } from "@/hooks/useWorkspaces";
 import { workspaceLabel } from "@/lib/workspace-label";
 
@@ -45,6 +48,8 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
     const sales = mode === "sales";
     const { user } = useSession();
     const [cardPrefill, setCardPrefill] = useState<CardFields | null>(null);
+    // 명함 여러 장을 한꺼번에 고른 경우
+    const [bulkCards, setBulkCards] = useState<File[] | null>(null);
     // 영업관리: 상세 오른쪽에 나란히 여는 연관 리드
     const [secondary, setSecondary] = useState<LeadRecord | null>(null);
     const statusField = fields.find((f) => f.key === STATUS_KEY && f.fieldType === "select");
@@ -143,25 +148,18 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
     };
 
     const [linkOpen, setLinkOpen] = useState(false);
-    // 체크한 것 중 같은 기업으로 '묶은' 리드 수 — 이게 있어야 빼기 버튼을 보인다
-    const checkedLinked = (list.records as LeadRecord[]).filter(
-        (r) => checkedIds.has(r.id) && typeof (r.data as Record<string, unknown>)?.leadGroupId === "string",
-    ).length;
-    const unlinkChecked = async () => {
-        const result = await unlinkLeads([...checkedIds]);
-        if (!result.success) {
-            toast.error(result.error || "빼지 못했습니다.");
-            return;
-        }
-        const { done = 0, skipped = 0 } = result.data ?? {};
-        toast.success(
-            skipped > 0
-                ? `${done}명을 같은 기업에서 뺐어요. ${skipped}명은 원래 기업명이 같아서 빼지 않았어요 (상세에서 기업명을 바꾸면 떨어져요).`
-                : `${done}명을 같은 기업에서 뺐어요. 기업명은 원래대로 돌렸어요.`,
-        );
-        setCheckedIds(new Set());
-        refreshAll();
-    };
+    // 체크한 것 중 같은 기업에 묶인 리드 (직접 묶었거나, 같은 기업명이 2명 이상)
+    const companyCounts = new Map<string, number>();
+    for (const r of list.records as LeadRecord[]) {
+        const k = companyKey((r.data as Record<string, unknown>)?.companyName ?? (r.data as Record<string, unknown>)?.companyname);
+        if (k) companyCounts.set(k, (companyCounts.get(k) ?? 0) + 1);
+    }
+    const checkedGrouped = (list.records as LeadRecord[]).filter((r) => {
+        if (!checkedIds.has(r.id)) return false;
+        const d = (r.data ?? {}) as Record<string, unknown>;
+        return (typeof d.leadGroupId === "string" && !!d.leadGroupId) || (companyCounts.get(companyKey(d.companyName ?? d.companyname)) ?? 0) > 1;
+    });
+    const [unlinkOpen, setUnlinkOpen] = useState(false);
 
     const confirmDelete = async () => {
         if (!deleteIds) return;
@@ -238,10 +236,10 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                             <Button variant="ghost" size="sm" onClick={() => setCheckedIds(new Set())}>
                                 선택 해제
                             </Button>
-                            {sales && checkedLinked > 0 && (
-                                <Button variant="outline" size="sm" onClick={unlinkChecked}>
+                            {sales && checkedGrouped.length > 0 && (
+                                <Button variant="outline" size="sm" onClick={() => setUnlinkOpen(true)}>
                                     <Link2Off className="mr-1 h-4 w-4" />
-                                    같은 기업에서 빼기
+                                    묶인 기업에서 빼기
                                 </Button>
                             )}
                             {sales && checkedIds.size >= 2 && (
@@ -275,8 +273,10 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                                 setCardPrefill(fields);
                                 setCreateOpen(true);
                             }}
+                            onMany={setBulkCards}
                         />
                     )}
+                    {sales && <SalesImportButton workspaceId={workspaceId} onImported={refreshAll} />}
                     <Button
                         size="sm"
                         onClick={() => {
@@ -390,6 +390,25 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                 workspaceId={workspaceId}
                 onCreated={refreshAll}
             />
+            {sales && bulkCards && (
+                <BulkCardDialog files={bulkCards} workspaceId={workspaceId} onOpenChange={(v) => !v && setBulkCards(null)} onDone={refreshAll} />
+            )}
+            {sales && unlinkOpen && checkedGrouped.length > 0 && (
+                <UnlinkCompanyDialog
+                    recordIds={checkedGrouped.map((r) => r.id)}
+                    currentName={String((checkedGrouped[0].data as Record<string, unknown>)?.companyName ?? "")}
+                    originalName={
+                        checkedGrouped.length === 1 && typeof (checkedGrouped[0].data as Record<string, unknown>)?.originalCompanyName === "string"
+                            ? String((checkedGrouped[0].data as Record<string, unknown>).originalCompanyName)
+                            : null
+                    }
+                    onOpenChange={setUnlinkOpen}
+                    onDone={() => {
+                        setCheckedIds(new Set());
+                        refreshAll();
+                    }}
+                />
+            )}
             {sales && linkOpen && (
                 <LinkCompanyDialog
                     leads={list.records.filter((r) => checkedIds.has(r.id)) as LeadRecord[]}

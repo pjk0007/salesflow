@@ -31,10 +31,12 @@ interface SalesLeadBodyProps {
     activeRelatedId?: number | null;
     /** 사업부를 바꾼 뒤 서버가 돌려준 리드 (등록 사업부가 바뀌면 workspaceId도 바뀐다) */
     onWorkspacesChanged?: (r: { id: number; workspaceId: number; partitionId: number; data: Record<string, unknown> }) => void;
+    /** 미팅 상세 보기 — 오른쪽 절반에 연다 */
+    onOpenMeeting?: (recordId: number, meetingId: number) => void;
 }
 
 /** 영업관리 상세 — 기업·이름/직책, 담당자, 연락처, 메모, 연관 리드, 미팅 히스토리 */
-export function SalesLeadBody({ record, fields, onFieldChange, onChanged, onOpenRelated, activeRelatedId, onWorkspacesChanged }: SalesLeadBodyProps) {
+export function SalesLeadBody({ record, fields, onFieldChange, onChanged, onOpenRelated, activeRelatedId, onWorkspacesChanged, onOpenMeeting }: SalesLeadBodyProps) {
     const lead = summarizeLead(record, fields);
     const data = d(record);
     const ownerId = typeof data.owner === "string" ? data.owner : null;
@@ -121,7 +123,7 @@ export function SalesLeadBody({ record, fields, onFieldChange, onChanged, onOpen
                             className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                             onClick={() => setUnlinkOpen(true)}
                         >
-                            <Link2Off className="h-3.5 w-3.5" /> 연결 해제
+                            <Link2Off className="h-3.5 w-3.5" /> 묶인 기업에서 빼기
                         </button>
                     )}
                 </div>
@@ -154,12 +156,12 @@ export function SalesLeadBody({ record, fields, onFieldChange, onChanged, onOpen
             </section>
 
             <div className="border-t pt-4">
-                <SalesMeetings recordId={record.id} onChanged={onChanged} leadData={data} />
+                <SalesMeetings recordId={record.id} onChanged={onChanged} leadData={data} onOpenDetail={(id) => onOpenMeeting?.(record.id, id)} />
             </div>
 
             {unlinkOpen && (
                 <UnlinkCompanyDialog
-                    recordId={record.id}
+                    recordIds={[record.id]}
                     currentName={text(data.companyName ?? data.companyname)}
                     originalName={typeof data.originalCompanyName === "string" ? data.originalCompanyName : null}
                     onOpenChange={setUnlinkOpen}
