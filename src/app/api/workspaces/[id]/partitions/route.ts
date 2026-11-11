@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, workspaces, folders, partitions } from "@/lib/db";
 import { eq, and, asc } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
-import { ensureLeadFieldType } from "@/lib/leads/lead-field-type";
+import { ensureCategoryFieldType } from "@/lib/leads/lead-field-type";
+import { isPartitionCategory } from "@/lib/partition-category";
 import { filterAccessiblePartitions, loadOrgScopes, requireWorkspaceCreateAccess } from "@/lib/partition-access";
 
 export async function GET(
@@ -127,6 +128,9 @@ export async function POST(
     }
 
     const { name, folderId, fieldTypeId, category } = await req.json();
+    if (category !== undefined && category !== null && !isPartitionCategory(category)) {
+        return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
+    }
     if (!name || !name.trim()) {
         return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
     }
@@ -163,7 +167,7 @@ export async function POST(
             });
 
         // 리드 관리에서 만든 파티션은 리드 전용 속성 타입 + 리드 기본 칸을 갖춘다
-        if (category === "lead") await ensureLeadFieldType(created.id);
+        if (category === "lead" || category === "sales") await ensureCategoryFieldType(created.id, category);
 
         return NextResponse.json({ success: true, data: created }, { status: 201 });
     } catch (error) {

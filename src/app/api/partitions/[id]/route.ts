@@ -4,7 +4,8 @@ import { eq, and, count } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requirePartitionAccess } from "@/lib/partition-access";
 import { normalizeScheduledConfig } from "@/lib/scheduled-registration";
-import { ensureLeadFieldType } from "@/lib/leads/lead-field-type";
+import { ensureCategoryFieldType } from "@/lib/leads/lead-field-type";
+import { isPartitionCategory } from "@/lib/partition-category";
 
 export async function GET(
     req: NextRequest,
@@ -163,12 +164,12 @@ export async function PATCH(
             if (user.role === "member") {
                 return NextResponse.json({ success: false, error: "레코드/리드관리 이동은 관리자만 할 수 있습니다." }, { status: 403 });
             }
-            if (category !== "cold" && category !== "lead") {
+            if (!isPartitionCategory(category)) {
                 return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
             }
             updateData.category = category;
             // 리드 관리로 옮기면 대응상태·연락처·이메일·요청사항·유입경로 칸이 없을 때 채운다
-            if (category === "lead") {
+            if (category === "lead" || category === "sales") {
                 // 레코드와 같은 속성 타입이면 리드 전용 타입으로 옮긴다 — 저장(아래 update) 뒤에 실행
                 moveToLead = true;
             }
@@ -200,7 +201,7 @@ export async function PATCH(
             .set(updateData)
             .where(eq(partitions.id, partitionId))
             .returning();
-        if (moveToLead) await ensureLeadFieldType(partitionId);
+        if (moveToLead) await ensureCategoryFieldType(partitionId, category === "sales" ? "sales" : "lead");
 
         return NextResponse.json({ success: true, data: updated });
     } catch (error) {

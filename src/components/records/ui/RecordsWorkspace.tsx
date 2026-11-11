@@ -69,14 +69,14 @@ import { recordsStorageKey, resolvePartitionSelection, resolveWorkspaceSelection
 import PartitionHoldBanner from "@/components/email/send-health/ui/PartitionHoldBanner";
 
 /** 레코드(cold)와 리드 관리(lead)가 같이 쓰는 화면 — 리드 관리는 오른쪽에 LeadBoard를 쓴다 */
-export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "lead" }) {
+export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "lead" | "sales" }) {
     const { user } = useSession();
     const orgId = user?.orgId ?? null;
     // 레코드와 리드 관리가 마지막 선택을 따로 기억한다
     const storageKey = useCallback(
         (kind: "workspace" | "partition", org: string | null | undefined) => {
             const key = recordsStorageKey(kind, org);
-            return category === "lead" ? key.replace(/^records_/, "leads_") : key;
+            return category === "cold" ? key : key.replace(/^records_/, `${category === "sales" ? "sales" : "leads"}_`);
         },
         [category],
     );
@@ -539,7 +539,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                 onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
                 onMutatePartitions={mutatePartitions}
                 category={category}
-                hideWorkspaceSelect={category === "lead"}
+                hideWorkspaceSelect={category !== "cold"}
                 className="w-full border-r-0 bg-transparent"
             />
         ),
@@ -569,11 +569,12 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                 subtitle={currentPartition?.name ?? null}
                 closeOnChange={partitionId}
             />
-            {category === "lead" && (
+            {category !== "cold" && (
                 <LeadWorkspaceTabs
                     value={workspaceId}
                     onChange={handleWorkspaceChange}
-                    right={
+                    source={category === "sales" ? "all" : "lead"}
+                    right={category === "sales" ? undefined :
                         <Button variant="outline" size="sm" asChild>
                             <Link href="/leads/stats">
                                 <BarChart3 className="mr-1 h-4 w-4" />
@@ -583,7 +584,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                     }
                 />
             )}
-            <div className={cn("flex overflow-hidden", category === "lead" ? "h-[calc(100vh-3.5rem-3rem)]" : "h-[calc(100vh-3.5rem)]")}>
+            <div className={cn("flex overflow-hidden", category !== "cold" ? "h-[calc(100vh-3.5rem-3rem)]" : "h-[calc(100vh-3.5rem)]")}>
                 {/* 좌측: 파티션 네비게이션 (데스크톱 전용) */}
                 <div className="hidden md:flex">
                     <PartitionNav
@@ -604,20 +605,38 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                         onMutatePartitions={mutatePartitions}
                         category={category}
                         resizable
-                        hideWorkspaceSelect={category === "lead"}
+                        hideWorkspaceSelect={category !== "cold"}
                     />
                 </div>
 
                 {/* 우측: 레코드 영역 */}
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
-                    {partitionId && category === "lead" ? (
-                        // 리드 관리: 내보내기·가져오기·예약등록 없는 리드 전용 화면
+                    {partitionId && category !== "cold" ? (
+                        // 리드관리·영업관리: 내보내기·가져오기·예약등록 없는 전용 화면
                         <LeadBoard
                             key={partitionId}
                             workspaceId={workspaceId}
                             partitionId={partitionId}
                             fields={fields}
+                            mode={category === "sales" ? "sales" : "lead"}
                         />
+                    ) : category === "sales" && workspaceId && partitionTree && partitionTree.folders.every((f) => f.partitions.length === 0) && partitionTree.ungrouped.length === 0 ? (
+                        // 이 사업에 아직 영업 리드함이 없으면 바로 만들 수 있게
+                        <div className="flex flex-1 items-center justify-center p-12">
+                            <div className="text-center">
+                                <p className="text-lg font-medium">이 사업에는 아직 영업 리드함이 없어요</p>
+                                <p className="mt-1 text-sm text-muted-foreground">만들면 명함 등록·미팅 기록을 바로 쓸 수 있어요.</p>
+                                <Button
+                                    className="mt-4"
+                                    onClick={async () => {
+                                        const result = await createPartition({ name: "영업 리드", category: "sales" });
+                                        if (!result.success) toast.error(result.error || "만들지 못했습니다.");
+                                    }}
+                                >
+                                    영업 리드함 만들기
+                                </Button>
+                            </div>
+                        </div>
                     ) : partitionId ? (
                         <>
                             <PartitionHoldBanner partitionId={partitionId} />
@@ -719,7 +738,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                             <div className="text-center text-muted-foreground">
                                 <p className="text-lg mb-1">파티션을 선택해주세요</p>
                                 <p className="text-sm">
-                                    왼쪽 메뉴에서 파티션을 선택하면 {category === "lead" ? "리드가" : "레코드가"} 표시됩니다.
+                                    왼쪽 메뉴에서 파티션을 선택하면 {category === "cold" ? "레코드가" : "리드가"} 표시됩니다.
                                 </p>
                             </div>
                         </div>

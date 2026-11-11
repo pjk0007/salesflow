@@ -1,0 +1,92 @@
+import { and, count, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { db, partitions, records, workspaces } from "@/lib/db";
+import { filterAccessiblePartitions, loadOrgScopes } from "@/lib/partition-access";
+import { ensureCategoryFieldType } from "@/lib/leads/lead-field-type";
+import { salesExtrasFor } from "./extras";
+import type { OrgRole } from "@/types";
+
+type User = { userId: string; orgId: string; role: OrgRole };
+
+/** 사용자가 볼 수 있는 영업 파티션 (관리자는 전부) */
+export async function visibleSalesPartitions(user: User) {
+    const parts = await db
+        .select({ id: partitions.id, folderId: partitions.folderId, workspaceId: partitions.workspaceId })
+        .from(partitions)
+        .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+        .where(and(eq(workspaces.orgId, user.orgId), eq(partitions.category, "sales")));
+    if (user.role !== "member") return parts;
+    const orgScopes = await loadOrgScopes(user.orgId);
+    return filterAccessiblePartitions({ user, partitions: parts, permission: "read", orgScopes });
+}
+
+/**
+ * 영업 리드 목록 — 사업부 탭(workspaceId)이면 그 사업부에 등록됐거나 사업부 목록(data.workspaceIds)에 그 사업부가 있는 리드,
+ * 없으면 전체. mine이면 내 담당만.
+ */
+export async function listSalesLeads(
+    user: User,
+    opts: { workspaceId: number | null; mine: boolean; search: string; page: number; pageSize: number },
+) {
+    const parts = await visibleSalesPartitions(user);
+    if (parts.length === 0) return { data: [], total: 0, page: opts.page, pageSize: opts.pageSize, totalPages: 0 };
+    const conds = [eq(records.orgId, user.orgId), inArray(records.partitionId, parts.map((p) => p.id))];
+    if (opts.workspaceId) {
+        conds.push(
+            or(
+                eq(records.workspaceId, opts.workspaceId),
+                sql`coalesce(${records.data}->'workspaceIds', '[]'::jsonb) @> ${JSON.stringify([opts.workspaceId])}::jsonb`,
+            )!,
+        );
+    }
+    if (opts.mine) conds.push(sql`${records.data}->>'owner' = ${user.userId}`);
+    if (opts.search) conds.push(sql`${records.data}::text ILIKE ${"%" + opts.search + "%"}`);
+    const where = and(...conds);
+    const [{ value: total }] = await db.select({ value: count() }).from(records).where(where);
+    const rows = await db
+        .select({
+            id: records.id,
+            orgId: records.orgId,
+            workspaceId: records.workspaceId,
+            partitionId: records.partitionId,
+            integratedCode: records.integratedCode,
+            data: records.data,
+            distributionOrder: records.distributionOrder,
+            registeredAt: records.registeredAt,
+            createdAt: records.createdAt,
+            updatedAt: records.updatedAt,
+        })
+        .from(records)
+        .where(where)
+        .orderBy(desc(records.registeredAt), desc(records.id))
+        .limit(opts.pageSize)
+        .offset((opts.page - 1) * opts.pageSize);
+    const extras = await salesExtrasFor(
+        rows.map((r) => r.id),
+        rows,
+    );
+    return {
+        data: rows.map((r) => ({ ...r, sales: extras.get(r.id) })),
+        total,
+        page: opts.page,
+        pageSize: opts.pageSize,
+        totalPages: Math.ceil(total / opts.pageSize),
+    };
+}
+
+/** 사업부의 영업 리드함 — 없으면 만든다 */
+export async function salesPartitionFor(workspaceId: number) {
+    const [existing] = await db
+        .select({ id: partitions.id })
+        .from(partitions)
+        .where(and(eq(partitions.workspaceId, workspaceId), eq(partitions.category, "sales")))
+        .orderBy(partitions.id)
+        .limit(1);
+    if (existing) return existing.id;
+    const [created] = await db
+        .insert(partitions)
+        .values({ workspaceId, name: "영업 리드", category: "sales", visibleFields: [], folderId: null })
+        .returning({ id: partitions.id });
+    await ensureCategoryFieldType(created.id, "sales");
+    return created.id;
+}
+

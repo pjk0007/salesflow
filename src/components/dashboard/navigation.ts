@@ -1,4 +1,4 @@
-import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3, TrendingUp } from "lucide-react";
+import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3, TrendingUp, Briefcase } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: typeof Home };
 
@@ -20,6 +20,10 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
             { href: "/leads/stats", label: "리드통계", icon: TrendingUp },
             { href: "/leads", label: "리드관리", icon: Users },
         ],
+    },
+    {
+        group: "영업관리",
+        items: [{ href: "/sales", label: "영업관리", icon: Briefcase }],
     },
     {
         group: "고객관리",

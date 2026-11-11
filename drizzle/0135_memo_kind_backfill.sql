@@ -3,7 +3,7 @@
 -- 이미 종류가 있는 댓글은 건드리지 않는다. 화면에서 고쳐 쓸 수 있다.
 UPDATE memos m
 SET kind = CASE
-    WHEN m.content ~* '미팅|방문|대면|화상|줌|zoom|구글 ?밋|meet' THEN 'meeting'
+    WHEN m.content ~* '미팅|방문|대면|화상|줌 ?(미팅|회의)|zoom|구글 ?밋|meet' THEN 'meeting'
     WHEN m.content ~* '통화|전화|부재|수신 ?거부|안 ?받|연결 ?안' THEN 'call'
     WHEN m.content ~* '문자|카톡|카카오|알림톡|sms|메시지' THEN 'sms'
     WHEN m.content ~* '메일|e-?mail|회신|견적서 ?발송|자료 ?발송' THEN 'mail'

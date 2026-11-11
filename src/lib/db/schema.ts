@@ -355,6 +355,57 @@ export const memos = pgTable("memos", {
     createdAt: timestamptz("created_at").defaultNow().notNull(),
 });
 
+// ============================================
+// 영업관리 — 미팅 기록·액션플랜 (0138). 영업 리드는 records(파티션 category = 'sales')
+// ============================================
+export const salesMeetings = pgTable(
+    "sales_meetings",
+    {
+        id: serial("id").primaryKey(),
+        orgId: uuid("org_id").notNull(),
+        recordId: integer("record_id")
+            .references(() => records.id, { onDelete: "cascade" })
+            .notNull(),
+        metAt: timestamptz("met_at").notNull(),
+        title: varchar("title", { length: 200 }),
+        attendees: text("attendees"),
+        notes: text("notes"),
+        /** 녹음 전사본 (붙여넣기 또는 자동 전사) */
+        transcript: text("transcript"),
+        /** AI 요약 (사람이 고쳐 저장) */
+        summary: text("summary"),
+        audioUrl: text("audio_url"),
+        createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+        updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        recordIdx: index("sales_meetings_record_idx").on(table.recordId, table.metAt),
+    })
+);
+
+export const salesActionItems = pgTable(
+    "sales_action_items",
+    {
+        id: serial("id").primaryKey(),
+        orgId: uuid("org_id").notNull(),
+        recordId: integer("record_id")
+            .references(() => records.id, { onDelete: "cascade" })
+            .notNull(),
+        meetingId: integer("meeting_id").references(() => salesMeetings.id, { onDelete: "cascade" }),
+        content: text("content").notNull(),
+        ownerId: uuid("owner_id").references(() => users.id, { onDelete: "set null" }),
+        dueAt: timestamptz("due_at"),
+        doneAt: timestamptz("done_at"),
+        createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+        createdAt: timestamptz("created_at").defaultNow().notNull(),
+        updatedAt: timestamptz("updated_at").defaultNow().notNull(),
+    },
+    (table) => ({
+        recordIdx: index("sales_action_items_record_idx").on(table.recordId),
+    })
+);
+
 export interface MemoAttachment {
     url: string;
     name: string;

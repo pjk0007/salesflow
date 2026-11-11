@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { memos, records } from "@/lib/db";
+import { memos, records, salesActionItems } from "@/lib/db";
 
 /** 중요 탭에서 빼는 상태 — 이미 끝난 리드 */
 export const IMPORTANT_EXCLUDED_STATUSES = ["종료", "전환"];
@@ -27,6 +27,24 @@ export function importantLeadCondition() {
                     WHERE ${memos.recordId} = ${records.id}
                       AND (${memos.createdAt} AT TIME ZONE 'Asia/Seoul')::date >= ${nextDate}
                 )
+            )
+        )
+    )`;
+}
+
+/** 영업관리 "중요" — 리드 조건 + 기한이 오늘이거나 지난, 아직 안 끝난 액션플랜이 있는 리드 */
+export function importantSalesCondition() {
+    const today = sql`(now() AT TIME ZONE 'Asia/Seoul')::date`;
+    const excluded = sql.join(IMPORTANT_EXCLUDED_STATUSES.map((s) => sql`${s}`), sql`, `);
+    return sql`(
+        ${importantLeadCondition()}
+        OR (
+            coalesce(${records.data}->>'status', '') NOT IN (${excluded})
+            AND EXISTS (
+                SELECT 1 FROM ${salesActionItems}
+                WHERE ${salesActionItems.recordId} = ${records.id}
+                  AND ${salesActionItems.doneAt} IS NULL
+                  AND (${salesActionItems.dueAt} AT TIME ZONE 'Asia/Seoul')::date <= ${today}
             )
         )
     )`;

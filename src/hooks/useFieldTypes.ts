@@ -13,7 +13,7 @@ export function useFieldTypes() {
         defaultFetcher
     );
 
-    const createType = async (input: { name: string; description?: string; icon?: string; category?: "cold" | "lead" }) => {
+    const createType = async (input: { name: string; description?: string; icon?: string; category?: "cold" | "lead" | "sales" }) => {
         const res = await fetch("/api/field-types", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

@@ -52,7 +52,7 @@ interface PartitionNavProps {
     onMutatePartitions?: () => void;
     onDistributionSettings?: (id: number, name: string) => void;
     /** 지금 보고 있는 페이지 — cold: 레코드, lead: 리드 관리. 주면 반대쪽으로 옮기는 메뉴가 생긴다 */
-    category?: "cold" | "lead";
+    category?: "cold" | "lead" | "sales";
     /** 오른쪽 가장자리를 끌어 너비 조정 (데스크톱) — 너비는 브라우저에 기억 */
     resizable?: boolean;
     /** 워크스페이스 선택창 숨김 (리드 관리는 윗줄 탭 사용) */
@@ -86,7 +86,7 @@ export default function PartitionNav({
     const { workspaces, isLoading: wsLoading } = useWorkspaces();
     const { fieldTypes: allTypes } = useFieldTypes();
     // 이 페이지(레코드/리드 관리)에 맞는 속성 타입만 고를 수 있게
-    const types = allTypes.filter((t) => (t.category ?? "cold") === (category === "lead" ? "lead" : "cold"));
+    const types = allTypes.filter((t) => (t.category ?? "cold") === (category ?? "cold"));
     const allTypeName = (id: number | null) => (id ? allTypes.find((t) => t.id === id)?.name ?? null : null);
     const [openFolders, setOpenFolders] = useState<Set<number>>(new Set());
     // 발송 실패가 많아 보류된 명단 — 이름 옆 빨간 점 (DESIGN-SND 10절)
@@ -134,8 +134,9 @@ export default function PartitionNav({
             toast.error(result.error || "이동에 실패했습니다.");
         }
     };
+    // 레코드 ↔ 리드관리만 옮긴다 (영업관리는 명함·직접 등록으로만)
     const categoryMoveItem = (pt: { id: number; name: string }) =>
-        category ? (
+        category && category !== "sales" ? (
             <DropdownMenuItem onClick={() => movePartitionCategory(pt.id, pt.name)}>
                 <ArrowRightLeft className="h-3.5 w-3.5 mr-2" />
                 {targetLabel}로 옮기기

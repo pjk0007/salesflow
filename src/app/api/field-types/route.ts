@@ -3,6 +3,7 @@ import { db, fieldTypes } from "@/lib/db";
 import { eq } from "drizzle-orm";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { isUniqueViolation } from "@/lib/db/errors";
+import { isPartitionCategory } from "@/lib/partition-category";
 
 export async function GET(req: NextRequest) {
     const user = await getActiveUserFromNextRequest(req);
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { name, description, icon, category } = await req.json();
-    if (category !== undefined && category !== "cold" && category !== "lead") {
+    if (category !== undefined && !isPartitionCategory(category)) {
         return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
     }
     if (!name?.trim()) {

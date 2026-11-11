@@ -26,8 +26,20 @@ const BASE_FIELDS: Array<{
     { keys: ["source"], add: { key: "source", label: "유입경로", fieldType: "text" } },
 ];
 
-/** 리드 파티션이 쓰는 속성 타입에 기본 칸이 없으면 채운다 */
-export async function ensureLeadBaseFields(fieldTypeId: number | null | undefined) {
+/** 영업관리 칸 — 모든 사업이 같은 칸을 쓴다 (상태·요청사항·유입경로 없음) */
+const SALES_FIELDS: typeof BASE_FIELDS = [
+    { keys: ["companyName", "companyname"], add: { key: "companyName", label: "기업명", fieldType: "text" } },
+    { keys: ["contactName", "name"], add: { key: "name", label: "이름", fieldType: "text" } },
+    { keys: ["contactTitle", "title", "position"], add: { key: "contactTitle", label: "직책", fieldType: "text" } },
+    { keys: ["phone", "contact"], add: { key: "phone", label: "연락처", fieldType: "phone" } },
+    { keys: ["email"], add: { key: "email", label: "이메일", fieldType: "email" } },
+    { keys: ["address"], add: { key: "address", label: "회사 주소", fieldType: "text" } },
+    { keys: ["owner"], add: { key: "owner", label: "담당자", fieldType: "user_select" } },
+    { keys: ["profileNote"], add: { key: "profileNote", label: "메모", fieldType: "textarea" } },
+];
+
+/** 리드(영업) 파티션이 쓰는 속성 타입에 기본 칸이 없으면 채운다 */
+export async function ensureLeadBaseFields(fieldTypeId: number | null | undefined, opts: { sales?: boolean } = {}) {
     if (!fieldTypeId) return;
     const existing = await db
         .select({ key: fieldDefinitions.key, label: fieldDefinitions.label })
@@ -35,7 +47,7 @@ export async function ensureLeadBaseFields(fieldTypeId: number | null | undefine
         .where(eq(fieldDefinitions.fieldTypeId, fieldTypeId));
     const keys = new Set(existing.map((f) => f.key));
     const labels = new Set(existing.map((f) => f.label.trim()));
-    const missing = BASE_FIELDS.filter(
+    const missing = (opts.sales ? SALES_FIELDS : BASE_FIELDS).filter(
         (b) => !b.keys.some((k) => keys.has(k)) && !(b.labels ?? []).some((l) => labels.has(l)),
     );
     if (missing.length === 0) return;

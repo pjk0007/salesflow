@@ -34,7 +34,8 @@ src/components/{feature-name}/
 - 브라우저 기본 UI를 쓰지 않는다. 날짜는 `<input type="date">` 대신 `DatePicker`(`src/components/ui/date-picker.tsx`, 달력 팝오버), 선택은 `<select>` 대신 `Select` 또는 `DropdownMenu`, 확인창은 `window.confirm`/`alert` 대신 `AlertDialog`·`AsyncAlertDialog`를 쓴다. 디자인된 컴포넌트가 없으면 `src/components/ui/`에 먼저 만들고 쓴다.
 - 입력창 안의 작은 도구 버튼(종류 선택·날짜 지정 등)은 genius-hub-erp처럼 테두리 없는 `h-7 px-2 text-xs hover:bg-accent` 트리거 + 디자인된 드롭다운/달력으로 만든다.
 - 카드·패널에는 그림자를 넣지 않는다. 테두리는 아주 연하게(`border-border/40`)만 쓰고, 바탕색 차이(페이지 옅은 회색 + 카드 흰색)로 구분한다. 라운드는 `rounded-lg` 이하로 쓴다 (`rounded-xl`·`rounded-2xl` 금지).
-- 테두리 있는 버튼(`variant="outline"`)도 테두리는 연하게(`border-border/60`), 그림자 없이 쓴다. 필터처럼 값을 고르면 옆에 "초기화" 버튼을 둔다.
+- 테두리 버튼(`variant="outline"`)은 카드와 같은 `border-border/40`, 입력창·셀렉트·텍스트영역은 조금 더 진한 `border-border/70`을 쓴다. 둘 다 그림자 없음. 필터처럼 값을 고르면 옆에 "초기화" 버튼을 둔다.
+- 모달은 머리·아래 버튼을 고정하고 가운데만 스크롤한다(`flex flex-col p-0` + 본문 `overflow-y-auto scrollbar-thin`). 스크롤바가 창 둥근 모서리 밖으로 나가지 않게 한다.
 - 삭제처럼 되돌릴 수 없는 확인 버튼은 `variant="destructive"`(빨간색)를 쓴다. `AlertDialogAction`에 `bg-destructive` 클래스를 붙이지 말고 `variant`로 지정한다.
 
 ## 커밋 규칙

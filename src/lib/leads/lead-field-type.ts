@@ -6,11 +6,16 @@ import { ensureLeadBaseFields } from "./base-fields";
 const SKIP_KEYS = new Set(["CouponExpiration"]);
 
 /**
- * 리드 파티션이 레코드(콜드) 파티션과 같은 속성 타입을 쓰면 워크스페이스의 "<워크스페이스> 리드" 타입으로 옮긴다.
- * 그 타입이 없으면 지금 타입의 칸을 복사해 만든다. 끝나면 리드 기본 칸을 채운다.
- * drizzle/0133_lead_field_types.sql 과 같은 규칙.
+ * 리드 파티션이 다른 구분(레코드 등) 파티션과 같은 속성 타입을 쓰면 워크스페이스의 "<워크스페이스> 리드" 타입으로 옮긴다.
+ * 그 타입이 없으면 지금 타입의 칸을 복사해 만든다. 영업 파티션은 조직 공통 "영업 리드" 타입(아래).
+ * 끝나면 기본 칸을 채운다. drizzle/0133_lead_field_types.sql 과 같은 규칙.
  */
 export async function ensureLeadFieldType(partitionId: number) {
+    return ensureCategoryFieldType(partitionId, "lead");
+}
+
+export async function ensureCategoryFieldType(partitionId: number, category: "lead" | "sales") {
+    if (category === "sales") return ensureSalesFieldType(partitionId);
     const [row] = await db
         .select({
             id: partitions.id,
@@ -34,7 +39,7 @@ export async function ensureLeadFieldType(partitionId: number) {
         .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
         .where(
             and(
-                ne(partitions.category, "lead"),
+                ne(partitions.category, category),
                 ne(partitions.id, partitionId),
                 or(
                     eq(partitions.fieldTypeId, sourceType),
@@ -57,7 +62,7 @@ export async function ensureLeadFieldType(partitionId: number) {
         if (!target) {
             [target] = await tx
                 .insert(fieldTypes)
-                .values({ orgId: row.orgId, name: typeName, description: "리드 관리 전용 속성 타입 — 레코드(콜드)와 분리", category: "lead" })
+                .values({ orgId: row.orgId, name: typeName, description: "리드관리 전용 속성 타입 — 레코드(콜드)와 분리", category: "lead" })
                 .returning({ id: fieldTypes.id });
         }
         const [source, existing] = await Promise.all([
@@ -82,4 +87,29 @@ export async function ensureLeadFieldType(partitionId: number) {
         return target.id;
     });
     await ensureLeadBaseFields(targetId);
+}
+
+/** 영업관리 공통 속성 타입 이름 — 조직에 하나, 모든 사업이 같이 쓴다 */
+export const SALES_FIELD_TYPE_NAME = "영업 리드";
+
+/** 영업 파티션은 조직 공통 "영업 리드" 타입을 쓴다 (없으면 만들고 영업 칸을 채운다) */
+async function ensureSalesFieldType(partitionId: number) {
+    const [row] = await db
+        .select({ orgId: workspaces.orgId })
+        .from(partitions)
+        .innerJoin(workspaces, eq(workspaces.id, partitions.workspaceId))
+        .where(eq(partitions.id, partitionId));
+    if (!row) return;
+    let [type] = await db
+        .select({ id: fieldTypes.id })
+        .from(fieldTypes)
+        .where(and(eq(fieldTypes.orgId, row.orgId), eq(fieldTypes.name, SALES_FIELD_TYPE_NAME)));
+    if (!type) {
+        [type] = await db
+            .insert(fieldTypes)
+            .values({ orgId: row.orgId, name: SALES_FIELD_TYPE_NAME, description: "영업관리 공통 속성 타입 — 모든 사업이 같이 쓴다", category: "sales" })
+            .returning({ id: fieldTypes.id });
+    }
+    await db.update(partitions).set({ fieldTypeId: type.id, updatedAt: sql`now()` }).where(eq(partitions.id, partitionId));
+    await ensureLeadBaseFields(type.id, { sales: true });
 }

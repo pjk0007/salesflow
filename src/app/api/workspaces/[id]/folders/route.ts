@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, folders } from "@/lib/db";
 import { getActiveUserFromNextRequest } from "@/lib/auth";
 import { requireWorkspaceCreateAccess } from "@/lib/partition-access";
+import { isPartitionCategory } from "@/lib/partition-category";
 
 export async function POST(
     req: NextRequest,
@@ -26,7 +27,7 @@ export async function POST(
     if (!name || !name.trim()) {
         return NextResponse.json({ success: false, error: "이름을 입력해주세요." }, { status: 400 });
     }
-    if (category !== undefined && category !== "cold" && category !== "lead") {
+    if (category !== undefined && !isPartitionCategory(category)) {
         return NextResponse.json({ success: false, error: "잘못된 구분입니다." }, { status: 400 });
     }
 

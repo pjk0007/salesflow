@@ -9,7 +9,8 @@ import { missingRequiredFields, requiredFieldMessage } from "@/lib/required-fiel
 import { buildRecordConditions, recordNumberSql, recordDateTimeSql } from "@/lib/record-filters";
 import { duplicateKeyOf, findDuplicateValues } from "@/lib/record-duplicates";
 import { resolveLeadInflows, type LeadInflow } from "@/lib/leads/inflow";
-import { importantLeadCondition } from "@/lib/leads/important";
+import { importantLeadCondition, importantSalesCondition } from "@/lib/leads/important";
+import { salesExtrasFor, type SalesExtras } from "@/lib/sales/extras";
 
 export async function GET(
     req: NextRequest,
@@ -57,7 +58,9 @@ export async function GET(
         // WHERE 조건 구성 (목록/조건삭제 공용 빌더)
         const conditions = buildRecordConditions(partitionId, { orgId: user.orgId, search, distributionOrder, groupBy, groupValue, filters });
         // 리드 관리 "중요" 탭 — 오늘 연락할 리드 + 연락일이 지났는데 그 뒤 댓글이 없는 리드
-        if (searchParams.get("important") === "1") conditions.push(importantLeadCondition());
+        if (searchParams.get("important") === "1") {
+            conditions.push(access.partition.category === "sales" ? importantSalesCondition() : importantLeadCondition());
+        }
 
         const whereClause = and(...conditions);
 
@@ -138,7 +141,7 @@ export async function GET(
 
         // 중복 행 색상 표시: 파티션 전체 기준으로 이 페이지 행의 중복 여부(UX-081). 설정이 켜진 파티션만 조회한다
         const dc = access.partition.duplicateConfig;
-        let rows: (typeof data[number] & { isDuplicate?: boolean; latestMemo?: string | null; inflow?: LeadInflow })[] = data;
+        let rows: (typeof data[number] & { isDuplicate?: boolean; latestMemo?: string | null; inflow?: LeadInflow; sales?: SalesExtras })[] = data;
         if (dc?.highlightEnabled && dc.field && data.length > 0) {
             const duplicates = await findDuplicateValues(db, {
                 orgId: user.orgId,
@@ -164,6 +167,11 @@ export async function GET(
             ]);
             const byRecord = new Map(latest.map((m) => [m.recordId, m.content]));
             rows = rows.map((r) => ({ ...r, latestMemo: byRecord.get(r.id) ?? null, inflow: inflows.get(r.id) }));
+            // 영업관리: 다음 할 일·최근 미팅·우리 담당자 이름
+            if (access.partition.category === "sales") {
+                const extras = await salesExtrasFor(ids, data);
+                rows = rows.map((r) => ({ ...r, sales: extras.get(r.id) }));
+            }
         }
 
         return NextResponse.json({

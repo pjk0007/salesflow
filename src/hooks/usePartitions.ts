@@ -9,7 +9,7 @@ export interface PartitionTree {
 }
 
 
-export function usePartitions(workspaceId: number | null, category?: "cold" | "lead") {
+export function usePartitions(workspaceId: number | null, category?: "cold" | "lead" | "sales") {
     const url = workspaceId
         ? `/api/workspaces/${workspaceId}/partitions${category ? `?category=${category}` : ""}`
         : null;

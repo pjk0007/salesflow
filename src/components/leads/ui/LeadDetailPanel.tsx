@@ -11,6 +11,8 @@ import { LeadCommentComposer, LeadCommentList } from "./LeadComments";
 import { InflowBadge } from "./InflowBadge";
 import { LeadActivitySection } from "./LeadActivitySection";
 import { StatusBadge } from "./StatusBadge";
+import { Field, PropRow } from "./DetailParts";
+import { SalesLeadBody } from "@/components/sales/ui/SalesLeadBody";
 
 interface LeadDetailPanelProps {
     record: LeadRecord;
@@ -19,29 +21,16 @@ interface LeadDetailPanelProps {
     statusColors?: Record<string, string> | null;
     onClose: () => void;
     onStatusChange: (status: string) => void;
+    /** 칸 하나 바로 저장 (우리 담당자 등) */
+    onFieldChange?: (key: string, value: unknown) => void;
+    mode?: "lead" | "sales";
     onDelete: () => void;
     onCommentAdded: () => void;
-}
-
-function PropRow({ icon: Icon, label, children }: { icon: React.ComponentType<{ className?: string }>; label: string; children: React.ReactNode }) {
-    return (
-        <div className="flex items-start gap-3">
-            <div className="flex w-24 shrink-0 items-center gap-1.5 pt-1 text-xs text-muted-foreground">
-                <Icon className="h-3.5 w-3.5" />
-                {label}
-            </div>
-            <div className="min-w-0 flex-1">{children}</div>
-        </div>
-    );
-}
-
-function Field({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
-    return (
-        <div className={wide ? "col-span-2" : undefined}>
-            <div className="text-xs font-semibold text-muted-foreground">{label}</div>
-            <div className="mt-1.5 whitespace-pre-wrap break-words text-sm">{value || "-"}</div>
-        </div>
-    );
+    /** 영업관리: 연관 리드를 누르면 오른쪽에 나란히 여는 두 번째 리드 */
+    secondary?: LeadRecord | null;
+    onOpenRelated?: (record: LeadRecord) => void;
+    onCloseRelated?: () => void;
+    onSecondaryFieldChange?: (key: string, value: unknown) => void;
 }
 
 /** 표에서 리드를 누르면 오른쪽에서 열리는 상세 (genius-hub-erp 사이드 피크 구조) */
@@ -52,10 +41,18 @@ export function LeadDetailPanel({
     statusColors,
     onClose,
     onStatusChange,
+    onFieldChange,
+    mode = "lead",
     onDelete,
     onCommentAdded,
+    secondary,
+    onOpenRelated,
+    onCloseRelated,
+    onSecondaryFieldChange,
 }: LeadDetailPanelProps) {
+    const split = mode === "sales" && !!secondary;
     const [full, setFull] = useState(false);
+    const sales = mode === "sales";
     const lead = summarizeLead(record, fields);
     const extras = extraFields(record, fields);
     // 웹폼 유입 추적·메타 광고가 남긴 캠페인·광고 소재
@@ -71,100 +68,161 @@ export function LeadDetailPanel({
             <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
             <div
                 className={
-                    "fixed z-50 flex flex-col bg-background shadow-2xl " +
-                    (full ? "inset-0" : "inset-y-0 right-0 w-[46%] min-w-[520px] max-w-[760px] border-l")
+                    "fixed z-50 flex bg-background shadow-2xl " +
+                    (full
+                        ? "inset-0"
+                        : split
+                          ? "inset-y-0 right-0 w-[min(1520px,96vw)] border-l"
+                          : "inset-y-0 right-0 w-[46%] min-w-[520px] max-w-[760px] border-l")
                 }
             >
-                <div className="flex h-14 shrink-0 items-center justify-between border-b px-2">
-                    <Button variant="ghost" size="icon" className="size-8" onClick={onClose} aria-label="닫기">
-                        <X className="h-4 w-4" />
-                    </Button>
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-destructive" onClick={onDelete} aria-label="삭제">
-                            <Trash2 className="h-4 w-4" />
+                {/* 왼쪽(또는 혼자): 지금 고른 리드 */}
+                <div className={"flex min-w-0 flex-1 flex-col" + (split ? " border-r" : "")}>
+                    <div className="flex h-14 shrink-0 items-center justify-between border-b px-2">
+                        <Button variant="ghost" size="icon" className="size-8" onClick={onClose} aria-label="닫기">
+                            <X className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="size-8" onClick={() => setFull((v) => !v)} aria-label="크게 보기">
-                            {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                        </Button>
-                    </div>
-                </div>
-
-                <ScrollArea className="min-h-0 flex-1">
-                    <div className="mx-auto max-w-3xl space-y-6 p-6">
-                        <div className="flex items-start justify-between gap-4">
-                            <div className="min-w-0">
-                                <h2 className="truncate text-xl font-semibold">{lead.company || "(기업명 없음)"}</h2>
-                                <p className="mt-0.5 text-sm text-muted-foreground">{lead.contactName || "-"}</p>
-                            </div>
-                            <div className="shrink-0 text-right">
-                                <div className="text-xs text-muted-foreground">등록일시</div>
-                                <div className="text-sm">{formatDateTime(record.registeredAt)}</div>
-                            </div>
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8 text-muted-foreground hover:text-destructive"
+                                onClick={onDelete}
+                                aria-label="삭제"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-8"
+                                onClick={() => setFull((v) => !v)}
+                                aria-label="크게 보기"
+                            >
+                                {full ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                            </Button>
                         </div>
+                    </div>
 
-                        {statusOptions.length > 0 && (
-                            <PropRow icon={CircleDot} label="대응상태">
-                                <div className="flex flex-wrap gap-1.5">
-                                    {(lead.status && !statusOptions.includes(lead.status)
-                                        ? [...statusOptions, lead.status]
-                                        : statusOptions
-                                    ).map((s) => (
-                                        <StatusBadge
-                                            key={s}
-                                            status={s}
-                                            colors={statusColors}
-                                            active={lead.status === s}
-                                            onClick={() => lead.status !== s && onStatusChange(s)}
-                                        />
-                                    ))}
-                                </div>
-                            </PropRow>
-                        )}
-
-                        <PropRow icon={CalendarClock} label="다음 연락일">
-                            <div className="pt-0.5 text-sm">
-                                {typeof record.data?.nextContactAt === "string" && record.data.nextContactAt
-                                    ? formatDate(record.data.nextContactAt)
-                                    : <span className="text-muted-foreground">없음 · 댓글에서 정할 수 있어요</span>}
-                            </div>
-                        </PropRow>
-
-                        <PropRow icon={Route} label="유입경로">
-                            <div className="space-y-1 pt-0.5">
-                                <InflowBadge inflow={record.inflow} />
-                                {attribution.length > 0 && (
-                                    <div className="text-xs text-muted-foreground">
-                                        {attribution.map((a) => `${a.label} ${a.value}`).join(" · ")}
+                    <ScrollArea className="min-h-0 flex-1">
+                        <div className="mx-auto max-w-3xl space-y-6 p-6">
+                            {sales ? (
+                                <SalesLeadBody
+                                    record={record}
+                                    fields={fields}
+                                    onFieldChange={(k, v) => onFieldChange?.(k, v)}
+                                    onChanged={onCommentAdded}
+                                    onOpenRelated={onOpenRelated}
+                                    activeRelatedId={secondary?.id ?? null}
+                                />
+                            ) : (
+                                <>
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="min-w-0">
+                                            <h2 className="truncate text-xl font-semibold">{lead.company || "(기업명 없음)"}</h2>
+                                            <p className="mt-0.5 text-sm text-muted-foreground">{lead.contactName || "-"}</p>
+                                        </div>
+                                        <div className="shrink-0 text-right">
+                                            <div className="text-xs text-muted-foreground">등록일시</div>
+                                            <div className="text-sm">{formatDateTime(record.registeredAt)}</div>
+                                        </div>
                                     </div>
-                                )}
-                            </div>
-                        </PropRow>
 
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4">
-                            <Field label="연락처" value={lead.phone} />
-                            <Field label="이메일" value={lead.email} />
-                            <Field label="요청사항" value={lead.request} wide />
+                                    {statusOptions.length > 0 && (
+                                        <PropRow icon={CircleDot} label="대응상태">
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {(lead.status && !statusOptions.includes(lead.status)
+                                                    ? [...statusOptions, lead.status]
+                                                    : statusOptions
+                                                ).map((s) => (
+                                                    <StatusBadge
+                                                        key={s}
+                                                        status={s}
+                                                        colors={statusColors}
+                                                        active={lead.status === s}
+                                                        onClick={() => lead.status !== s && onStatusChange(s)}
+                                                    />
+                                                ))}
+                                            </div>
+                                        </PropRow>
+                                    )}
+
+                                    <PropRow icon={CalendarClock} label="다음 연락일">
+                                        <div className="pt-0.5 text-sm">
+                                            {typeof record.data?.nextContactAt === "string" && record.data.nextContactAt ? (
+                                                formatDate(record.data.nextContactAt)
+                                            ) : (
+                                                <span className="text-muted-foreground">없음 · 댓글에서 정할 수 있어요</span>
+                                            )}
+                                        </div>
+                                    </PropRow>
+
+                                    <PropRow icon={Route} label="유입경로">
+                                        <div className="space-y-1 pt-0.5">
+                                            <InflowBadge inflow={record.inflow} />
+                                            {attribution.length > 0 && (
+                                                <div className="text-xs text-muted-foreground">
+                                                    {attribution.map((a) => `${a.label} ${a.value}`).join(" · ")}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </PropRow>
+
+                                    <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4">
+                                        <Field label="연락처" value={lead.phone} />
+                                        <Field label="이메일" value={lead.email} />
+                                        <Field label="요청사항" value={lead.request} wide />
+                                    </div>
+
+                                    {extras.length > 0 && (
+                                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4">
+                                            {extras.map((f) => (
+                                                <Field key={f.key} label={f.label} value={f.value} wide={f.value.length > 40} />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <LeadActivitySection recordId={record.id} />
+
+                                    <LeadCommentList recordId={record.id} />
+                                </>
+                            )}
                         </div>
+                    </ScrollArea>
 
-                        {extras.length > 0 && (
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t pt-4">
-                                {extras.map((f) => (
-                                    <Field key={f.key} label={f.label} value={f.value} wide={f.value.length > 40} />
-                                ))}
+                    {!sales && (
+                        <div className="border-t p-3">
+                            <div className="mx-auto max-w-3xl">
+                                <LeadCommentComposer recordId={record.id} onAdded={onCommentAdded} />
                             </div>
-                        )}
-
-                        <LeadActivitySection recordId={record.id} />
-
-                        <LeadCommentList recordId={record.id} />
-                    </div>
-                </ScrollArea>
-
-                <div className="border-t p-3">
-                    <div className="mx-auto max-w-3xl">
-                        <LeadCommentComposer recordId={record.id} onAdded={onCommentAdded} />
-                    </div>
+                        </div>
+                    )}
                 </div>
+
+                {/* 오른쪽: 연관 리드 (genius-hub-erp 과거 리드 상세처럼 나란히) */}
+                {split && secondary && (
+                    <div className="flex min-w-0 flex-1 flex-col">
+                        <div className="flex h-14 shrink-0 items-center justify-between border-b px-2">
+                            <span className="px-2 text-xs font-semibold text-muted-foreground">같은 기업 담당자</span>
+                            <Button variant="ghost" size="icon" className="size-8" onClick={onCloseRelated} aria-label="같은 기업 담당자 닫기">
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                        <ScrollArea className="min-h-0 flex-1">
+                            <div className="mx-auto max-w-3xl p-6">
+                                <SalesLeadBody
+                                    key={secondary.id}
+                                    record={secondary}
+                                    fields={fields}
+                                    onFieldChange={(k, v) => onSecondaryFieldChange?.(k, v)}
+                                    onChanged={onCommentAdded}
+                                    onOpenRelated={onOpenRelated}
+                                    activeRelatedId={secondary.id}
+                                />
+                            </div>
+                        </ScrollArea>
+                    </div>
+                )}
             </div>
         </>
     );

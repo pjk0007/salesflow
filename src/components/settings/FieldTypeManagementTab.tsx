@@ -129,7 +129,7 @@ function SortableFieldRow({
 }
 
 /** category: 레코드용(cold)·리드용(lead) 속성 타입 중 이 탭에 보일 것 */
-export default function FieldTypeManagementTab({ category = "cold" }: { category?: "cold" | "lead" }) {
+export default function FieldTypeManagementTab({ category = "cold" }: { category?: "cold" | "lead" | "sales" }) {
     const { fieldTypes: allTypes, createType, updateType, deleteType, loadError: typesError, mutate: mutateTypes } = useFieldTypes();
     const types = useMemo(() => allTypes.filter((t) => (t.category ?? "cold") === category), [allTypes, category]);
     const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null);

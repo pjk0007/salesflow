@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Link2, Plus, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useSWRConfig } from "swr";
 import { Button } from "@/components/ui/button";
@@ -19,18 +19,31 @@ import { CreateLeadDialog } from "./CreateLeadDialog";
 import { LeadDetailPanel } from "./LeadDetailPanel";
 import { LeadStatusGroup } from "./LeadStatusGroup";
 import { LeadTable } from "./LeadTable";
+import { useSession } from "@/contexts/SessionContext";
+import { BusinessCardButton } from "@/components/sales/ui/BusinessCardButton";
+import type { CardFields } from "@/components/sales/types";
+import { useSalesLeads, SALES_LEADS_KEY } from "@/components/sales/hooks/useSalesLeads";
+import { LinkCompanyDialog } from "@/components/sales/ui/LinkCompanyDialog";
 
 interface LeadBoardProps {
     workspaceId: number | null;
     partitionId: number;
     fields: FieldDefinition[];
+    /** sales: 영업관리 — 명함 등록·우리 담당자·미팅 기록이 붙는다 */
+    mode?: "lead" | "sales";
 }
 
 const ALL = "__all__";
 const IMPORTANT = "__important__";
+const MINE = "__mine__";
 
 /** 리드 관리 오른쪽 영역 — 상태 탭 · 검색 · 표 · 오른쪽 상세 패널. 파티션이 바뀌면 key로 새로 그린다 */
-export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) {
+export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: LeadBoardProps) {
+    const sales = mode === "sales";
+    const { user } = useSession();
+    const [cardPrefill, setCardPrefill] = useState<CardFields | null>(null);
+    // 영업관리: 상세 오른쪽에 나란히 여는 연관 리드
+    const [secondary, setSecondary] = useState<LeadRecord | null>(null);
     const statusField = fields.find((f) => f.key === STATUS_KEY && f.fieldType === "select");
     // 상태 목록·순서는 워크스페이스 설정(리드 대응상태)을 따른다
     const { enabled: statusOptions } = useLeadStatuses(workspaceId, statusField?.options ?? []);
@@ -60,17 +73,24 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
     // 상태 묶음마다 따로 불러오므로 이 파티션의 목록을 한꺼번에 새로고침
     const { mutate } = useSWRConfig();
     const refreshAll = useCallback(() => {
-        const prefix = `/api/partitions/${partitionId}/records?`;
+        const prefix = sales ? SALES_LEADS_KEY : `/api/partitions/${partitionId}/records?`;
         mutate((key) => typeof key === "string" && key.startsWith(prefix));
-    }, [mutate, partitionId]);
+        // 같은 기업 담당자 목록도 같이 새로
+        if (sales) mutate((key) => typeof key === "string" && key.endsWith("/related"));
+    }, [mutate, partitionId, sales]);
 
     // 상태 탭 하나를 볼 때만 쓰는 목록
     const filters = useMemo<FilterCondition[]>(
-        () => (tab === ALL || tab === IMPORTANT ? [] : [{ field: STATUS_KEY, operator: "equals", value: tab }]),
-        [tab],
+        () =>
+            tab === ALL || tab === IMPORTANT
+                ? []
+                : tab === MINE
+                  ? [{ field: "owner", operator: "equals", value: user?.id ?? "" }]
+                  : [{ field: STATUS_KEY, operator: "equals", value: tab }],
+        [tab, user?.id],
     );
     const single = useRecords({
-        partitionId: tab === ALL ? null : partitionId,
+        partitionId: sales || tab === ALL ? null : partitionId,
         page,
         pageSize: 50,
         search: search || undefined,
@@ -81,14 +101,20 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
         important: tab === IMPORTANT,
     });
     // 중요 탭 숫자 칩 — 오늘 연락할 리드 + 연락일 지났는데 댓글 없는 리드
-    const importantCount = useRecords({ partitionId, page: 1, pageSize: 1, important: true });
-    const allCount = useRecords({ partitionId, page: 1, pageSize: 1, search: search || undefined });
+    const importantCount = useRecords({ partitionId: sales ? null : partitionId, page: 1, pageSize: 1, important: true });
+    const allCount = useRecords({ partitionId: sales ? null : partitionId, page: 1, pageSize: 1, search: search || undefined });
+    // 영업관리: 모든 사업부를 가로지르는 목록 (사업부 탭이면 그 사업부만)
+    const salesList = useSalesLeads({ enabled: sales, workspaceId, mine: tab === MINE, search, page });
+    const list = sales ? salesList : single;
 
-    const changeStatus = async (status: string) => {
+    const changeStatus = (status: string) => changeField(STATUS_KEY, status);
+
+    /** 열린 리드의 칸 하나 바로 저장 (대응상태·우리 담당자 등) */
+    const changeField = async (key: string, value: unknown) => {
         if (!selected) return;
         const prev = selected;
-        setSelected({ ...prev, data: { ...(prev.data as Record<string, unknown>), [STATUS_KEY]: status } });
-        const result = await updateLead(prev.id, { [STATUS_KEY]: status });
+        setSelected({ ...prev, data: { ...(prev.data as Record<string, unknown>), [key]: value } });
+        const result = await updateLead(prev.id, { [key]: value });
         if (!result.success) {
             setSelected(prev);
             toast.error(result.error || "상태 변경에 실패했습니다.");
@@ -96,6 +122,21 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
         }
         refreshAll();
     };
+
+    const changeSecondaryField = async (key: string, value: unknown) => {
+        if (!secondary) return;
+        const prev = secondary;
+        setSecondary({ ...prev, data: { ...(prev.data as Record<string, unknown>), [key]: value } });
+        const result = await updateLead(prev.id, { [key]: value });
+        if (!result.success) {
+            setSecondary(prev);
+            toast.error(result.error || "저장하지 못했습니다.");
+            return;
+        }
+        refreshAll();
+    };
+
+    const [linkOpen, setLinkOpen] = useState(false);
 
     const confirmDelete = async () => {
         if (!deleteIds) return;
@@ -114,8 +155,12 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
     const tableProps = {
         fields,
         statusColors,
+        mode,
         selectedId: selected?.id ?? null,
-        onSelect: setSelected,
+        onSelect: (r: LeadRecord) => {
+            setSelected(r);
+            setSecondary(null);
+        },
         checkedIds,
         onCheckedChange: setCheckedIds,
     };
@@ -139,19 +184,26 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                 >
                     <TabsList>
                         <TabsTrigger value={ALL}>전체</TabsTrigger>
-                        <TabsTrigger value={IMPORTANT} className="gap-1.5">
-                            중요
-                            {importantCount.total > 0 && (
-                                <span className="rounded-full bg-rose-600 px-1.5 text-[10px] leading-4 text-white">
-                                    {importantCount.total}
-                                </span>
-                            )}
-                        </TabsTrigger>
-                        {statusOptions.map((s) => (
-                            <TabsTrigger key={s} value={s}>
-                                {s}
-                            </TabsTrigger>
-                        ))}
+                        {sales ? (
+                            // 영업관리는 상태 없이 전체 / 내 담당만
+                            <TabsTrigger value={MINE}>내 담당</TabsTrigger>
+                        ) : (
+                            <>
+                                <TabsTrigger value={IMPORTANT} className="gap-1.5">
+                                    중요
+                                    {importantCount.total > 0 && (
+                                        <span className="rounded-full bg-rose-600 px-1.5 text-[10px] leading-4 text-white">
+                                            {importantCount.total}
+                                        </span>
+                                    )}
+                                </TabsTrigger>
+                                {statusOptions.map((s) => (
+                                    <TabsTrigger key={s} value={s}>
+                                        {s}
+                                    </TabsTrigger>
+                                ))}
+                            </>
+                        )}
                     </TabsList>
                 </Tabs>
                 <div className="flex items-center gap-2">
@@ -161,6 +213,12 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                             <Button variant="ghost" size="sm" onClick={() => setCheckedIds(new Set())}>
                                 선택 해제
                             </Button>
+                            {sales && checkedIds.size >= 2 && (
+                                <Button variant="outline" size="sm" onClick={() => setLinkOpen(true)}>
+                                    <Link2 className="mr-1 h-4 w-4" />
+                                    같은 기업으로 묶기
+                                </Button>
+                            )}
                             <Button variant="destructive" size="sm" onClick={() => setDeleteIds([...checkedIds])}>
                                 <Trash2 className="mr-1 h-4 w-4" />
                                 삭제
@@ -168,7 +226,7 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                         </>
                     ) : (
                         <span className="text-sm text-muted-foreground">
-                            전체 {(tab === ALL ? allCount.total : single.total).toLocaleString()}건
+                            전체 {(tab === ALL && !sales ? allCount.total : list.total).toLocaleString()}건
                         </span>
                     )}
                     <div className="relative">
@@ -180,14 +238,28 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                             className="h-9 w-64 pl-8"
                         />
                     </div>
-                    <Button size="sm" onClick={() => setCreateOpen(true)}>
+                    {sales && (
+                        <BusinessCardButton
+                            onScanned={(fields) => {
+                                setCardPrefill(fields);
+                                setCreateOpen(true);
+                            }}
+                        />
+                    )}
+                    <Button
+                        size="sm"
+                        onClick={() => {
+                            setCardPrefill(null);
+                            setCreateOpen(true);
+                        }}
+                    >
                         <Plus className="mr-1 h-4 w-4" />
-                        리드 추가
+                        {sales ? "직접 추가" : "리드 추가"}
                     </Button>
                 </div>
             </div>
 
-            {tab === ALL ? (
+            {tab === ALL && !sales ? (
                 <div className="min-h-0 flex-1 overflow-y-auto">
                     {groups.map((g) => (
                         <LeadStatusGroup
@@ -206,12 +278,12 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
             ) : (
                 <LeadTable
                     {...tableProps}
-                    records={single.records as LeadRecord[]}
-                    isLoading={single.isLoading}
+                    records={list.records as LeadRecord[]}
+                    isLoading={list.isLoading}
                     page={page}
-                    totalPages={single.totalPages}
+                    totalPages={list.totalPages}
                     onPageChange={setPage}
-                    hideStatus={tab !== IMPORTANT}
+                    hideStatus={sales || tab !== IMPORTANT}
                 />
             )}
 
@@ -222,8 +294,17 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                     fields={fields}
                     statusOptions={statusOptions}
                     statusColors={statusColors}
-                    onClose={() => setSelected(null)}
+                    onClose={() => {
+                        setSelected(null);
+                        setSecondary(null);
+                    }}
+                    secondary={secondary}
+                    onOpenRelated={setSecondary}
+                    onCloseRelated={() => setSecondary(null)}
+                    onSecondaryFieldChange={changeSecondaryField}
                     onStatusChange={changeStatus}
+                    onFieldChange={changeField}
+                    mode={mode}
                     onDelete={() => setDeleteIds([selected.id])}
                     onCommentAdded={async () => {
                         refreshAll();
@@ -236,12 +317,26 @@ export function LeadBoard({ workspaceId, partitionId, fields }: LeadBoardProps) 
                 />
             )}
             <CreateLeadDialog
+                key={cardPrefill ? "card" : "manual"}
                 open={createOpen}
                 onOpenChange={setCreateOpen}
                 partitionId={partitionId}
                 fields={fields}
+                mode={mode}
+                prefill={cardPrefill}
+                workspaceId={workspaceId}
                 onCreated={refreshAll}
             />
+            {sales && linkOpen && (
+                <LinkCompanyDialog
+                    leads={list.records.filter((r) => checkedIds.has(r.id)) as LeadRecord[]}
+                    onOpenChange={setLinkOpen}
+                    onLinked={() => {
+                        setCheckedIds(new Set());
+                        refreshAll();
+                    }}
+                />
+            )}
             <DeleteConfirmDialog
                 open={deleteIds !== null}
                 onOpenChange={(v) => !v && setDeleteIds(null)}

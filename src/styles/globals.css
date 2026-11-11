@@ -154,3 +154,20 @@
         transform: none !important;
     }
 }
+
+/* 얇은 스크롤바 — 모달·패널 안쪽 스크롤에 쓴다 (둥근 모서리 안에서 가늘게) */
+@utility scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+    &::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+        background: color-mix(in oklch, var(--muted-foreground) 35%, transparent);
+        border-radius: 9999px;
+    }
+}

@@ -26,6 +26,7 @@ interface LeadStatusGroupProps {
     onSelect: (record: LeadRecord) => void;
     checkedIds: Set<number>;
     onCheckedChange: (ids: Set<number>) => void;
+    mode?: "lead" | "sales";
 }
 
 /** "전체" 탭의 대응상태별 묶음 하나 — 접고 펼 수 있고 20건씩 더 본다 */

@@ -981,6 +981,20 @@
       "when": 1794409195000,
       "tag": "0137_rename_field_type_equipment_mall",
       "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1794412886000,
+      "tag": "0138_sales_meetings",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1794413082000,
+      "tag": "0139_memo_kind_fix_zoom",
+      "breakpoints": true
     }
   ]
 }

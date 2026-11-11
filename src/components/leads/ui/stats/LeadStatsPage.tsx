@@ -166,13 +166,13 @@ export function LeadStatsPage() {
                             </div>
 
                             <div className="grid gap-3 lg:grid-cols-3">
-                                <StatCard title="전환까지 거친 연락 · 리드당 평균">
+                                <StatCard title={`전환까지 거친 연락 · 리드 1건당 평균 (전환 ${t!.converted}건 기준)`}>
                                     <KindList
                                         format={(v) => `${v.toFixed(1)}회`}
                                         items={stats.touchesBeforeConversion.map((k) => ({ kind: k.kind, value: k.average }))}
                                     />
                                 </StatCard>
-                                <StatCard title="댓글 종류">
+                                <StatCard title="연락 유형별 횟수">
                                     <KindList format={(v) => `${v}건`} items={stats.memoKinds.map((k) => ({ kind: k.kind, value: k.count }))} />
                                 </StatCard>
                                 <StatCard title="대응상태">

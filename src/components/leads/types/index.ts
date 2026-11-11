@@ -1,5 +1,6 @@
 import type { DbRecord } from "@/lib/db";
 import type { LeadInflow } from "@/lib/leads/inflow";
+import type { SalesExtras } from "@/lib/sales/extras";
 
 export type { LeadInflow };
 
@@ -8,6 +9,8 @@ export type LeadRecord = DbRecord & {
     memoCount?: number;
     latestMemo?: string | null;
     inflow?: LeadInflow;
+    /** 영업관리 표 전용 */
+    sales?: SalesExtras;
 };
 
 /** 사업부마다 칸 이름이 달라서 공통 항목으로 뽑아 쓴 값 */

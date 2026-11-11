@@ -75,7 +75,7 @@ export interface FieldTypeDefinition {
   description: string | null;
   icon: string | null;
   /** cold: 레코드용, lead: 리드 관리용 */
-  category?: "cold" | "lead";
+  category?: "cold" | "lead" | "sales";
 }
 
 // 필드 정의 (클라이언트용)
@@ -280,13 +280,13 @@ export interface CreatePartitionInput {
     name: string;
     folderId?: number | null;
     fieldTypeId?: number;
-    category?: "cold" | "lead";
+    category?: "cold" | "lead" | "sales";
 }
 
 // 폴더 생성 입력
 export interface CreateFolderInput {
     name: string;
-    category?: "cold" | "lead";
+    category?: "cold" | "lead" | "sales";
 }
 
 // 필드 생성 입력

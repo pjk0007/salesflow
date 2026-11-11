@@ -34,13 +34,30 @@ export const SUMMARY_KEYS = new Set([
     ...SOURCE_KEYS,
     STATUS_KEY,
     "nextContactAt",
+    "owner",
+    "contactTitle",
+    "profileNote",
+    "address",
+    "leadGroupId",
     ...AUTO_FILLED_KEYS,
 ]);
 
 /** 기본 항목마다 실제로 저장할 key와 필드 정의 */
-export function resolveBaseSlots(fields: FieldDefinition[]) {
+/** 영업관리 리드 추가 창 — 모든 사업 같은 칸 (상태·요청사항·유입경로 없음) */
+const SALES_SLOTS = [
+    { id: "company", label: "기업명", keys: COMPANY_KEYS },
+    { id: "contactName", label: "이름", keys: CONTACT_KEYS },
+    { id: "contactTitle", label: "직책", keys: ["contactTitle", "title", "position"] },
+    { id: "phone", label: "연락처", keys: PHONE_KEYS },
+    { id: "email", label: "이메일", keys: EMAIL_KEYS },
+    { id: "address", label: "회사 주소", keys: ["address"] },
+    { id: "memo", label: "메모", keys: ["profileNote"] },
+] as const;
+
+export function resolveBaseSlots(fields: FieldDefinition[], mode: "lead" | "sales" = "lead") {
     const byKey = new Map(fields.map((f) => [f.key, f]));
-    return BASE_SLOTS.map((slot) => {
+    const list: ReadonlyArray<{ id: string; label: string; keys: readonly string[] }> = mode === "sales" ? SALES_SLOTS : BASE_SLOTS;
+    return list.map((slot) => {
         const candidates: string[] = slot.id === "request" ? requestKeys(fields) : [...slot.keys];
         const key = candidates.find((k) => byKey.has(k)) ?? candidates[0];
         return { id: slot.id, label: slot.label, key, field: byKey.get(key) ?? null };
@@ -122,4 +139,41 @@ export function groupByDate(rows: LeadRecord[]): Array<{ date: string; rows: Lea
         else groups.push({ date, rows: [r] });
     }
     return groups;
+}
+
+/** 같은 기업 판단용 이름 — (주)·㈜·주식회사·띄어쓰기를 빼고 소문자 (서버 src/lib/sales/related.ts와 같은 규칙) */
+export function companyKey(name: unknown): string {
+    return String(name ?? "")
+        .toLowerCase()
+        .replace(/\(주\)|㈜|주식회사|\s/g, "");
+}
+
+/**
+ * 영업관리 표 — 같은 기업(또는 직접 묶은 연관 리드)끼리 묶는다. 묶음 순서는 처음 나온 순서(최신순).
+ * date 자리에 기업 이름을 넣어 표 첫 칸에 보여준다.
+ */
+export function groupByCompany(rows: LeadRecord[]): Array<{ date: string; rows: LeadRecord[] }> {
+    const keyOf = (r: LeadRecord) => {
+        const d = (r.data ?? {}) as Record<string, unknown>;
+        if (typeof d.leadGroupId === "string" && d.leadGroupId) return `g:${d.leadGroupId}`;
+        const k = companyKey(d.companyName ?? d.companyname);
+        return k ? `c:${k}` : `r:${r.id}`;
+    };
+    // 직접 묶은 그룹과 같은 기업명이 섞이면 한 묶음으로 보이게, 기업명 → 그룹 키를 먼저 잇는다
+    const alias = new Map<string, string>();
+    for (const r of rows) {
+        const d = (r.data ?? {}) as Record<string, unknown>;
+        const k = companyKey(d.companyName ?? d.companyname);
+        if (k && typeof d.leadGroupId === "string" && d.leadGroupId && !alias.has(`c:${k}`)) alias.set(`c:${k}`, `g:${d.leadGroupId}`);
+    }
+    const groups = new Map<string, { date: string; rows: LeadRecord[] }>();
+    for (const r of rows) {
+        const raw = keyOf(r);
+        const key = alias.get(raw) ?? raw;
+        const d = (r.data ?? {}) as Record<string, unknown>;
+        const g = groups.get(key) ?? { date: String(d.companyName ?? d.companyname ?? "").trim() || "(기업명 없음)", rows: [] };
+        g.rows.push(r);
+        groups.set(key, g);
+    }
+    return [...groups.values()];
 }
