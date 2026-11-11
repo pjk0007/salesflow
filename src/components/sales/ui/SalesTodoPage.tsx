@@ -44,38 +44,49 @@ function TodoRow({ todo, onChanged, onOpen }: { todo: Todo; onChanged: () => voi
         if (!r.success) toast.error(r.error || "저장하지 못했습니다.");
         onChanged();
     };
+    // 고치는 칸(체크·내용 글자·담당·기한) 바깥은 어디를 눌러도 리드 상세 패널이 열린다.
+    // 드롭다운·달력은 화면 위 다른 층에 떠도 React에서는 이 줄 안이라 클릭이 줄까지 올라오지 않게 막는다.
+    const stop = (e: React.MouseEvent) => e.stopPropagation();
     return (
-        <li className="flex items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0 hover:bg-muted/40">
-            <Checkbox checked={!!todo.doneAt} onCheckedChange={(v) => patch({ done: v === true })} aria-label="완료" />
+        <li onClick={onOpen} className="flex cursor-pointer items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0 hover:bg-muted/40">
+            <span onClick={stop} className="flex">
+                <Checkbox checked={!!todo.doneAt} onCheckedChange={(v) => patch({ done: v === true })} aria-label="완료" />
+            </span>
             <div className="min-w-0 flex-1">
-                {/* 할 일 내용은 눌러서 바로 고치고, 아래 기업·담당자를 누르면 그 리드 상세 패널이 열린다 */}
-                <InlineEdit
-                    value={todo.content}
-                    onSave={async (v) => {
-                        if (v) await patch({ content: v });
-                        else toast.error("할 일을 입력해주세요.");
-                    }}
-                    className={cn("-ml-2 min-h-0 py-0.5", todo.doneAt && "text-muted-foreground line-through")}
-                />
-                <button type="button" onClick={onOpen} className="block max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground hover:underline">
+                {/* 할 일 글자만 눌러서 고친다 */}
+                {/* 줄 전체 너비 칸이지만, 글자(또는 고치는 입력칸)를 누를 때만 막고 빈 곳은 패널을 연다 */}
+                <span onClick={(e) => e.target !== e.currentTarget && e.stopPropagation()} className="flex">
+                    <InlineEdit
+                        value={todo.content}
+                        onSave={async (v) => {
+                            if (v) await patch({ content: v });
+                            else toast.error("할 일을 입력해주세요.");
+                        }}
+                        className={cn("-ml-2 min-h-0 py-0.5", todo.doneAt && "text-muted-foreground line-through")}
+                        triggerClassName="w-auto max-w-full"
+                    />
+                </span>
+                <div className="truncate text-xs text-muted-foreground">
                     {todo.company || "(기업명 없음)"}
                     {todo.personName && ` · ${[todo.personName, todo.personTitle].filter(Boolean).join(" · ")}`}
-                </button>
+                </div>
             </div>
-            <OwnerSelect value={todo.ownerId} onChange={(id) => patch({ ownerId: id })} className="w-28 shrink-0" />
-            <DatePicker
-                value={due}
-                onChange={(v) => patch({ dueDate: v || null })}
-                placeholder="기한"
-                clearable
-                compact
-                align="end"
-                triggerClassName={cn(
-                    "h-7 w-28 shrink-0 gap-1.5 border-0 px-2 text-xs shadow-none hover:bg-muted",
-                    overdue && "text-rose-600",
-                    isToday && "font-semibold text-amber-600",
-                )}
-            />
+            <span onClick={stop} className="flex shrink-0 items-center gap-3">
+                <OwnerSelect value={todo.ownerId} onChange={(id) => patch({ ownerId: id })} className="w-28 shrink-0" />
+                <DatePicker
+                    value={due}
+                    onChange={(v) => patch({ dueDate: v || null })}
+                    placeholder="기한"
+                    clearable
+                    compact
+                    align="end"
+                    triggerClassName={cn(
+                        "h-7 w-28 shrink-0 gap-1.5 border-0 px-2 text-xs shadow-none hover:bg-muted",
+                        overdue && "text-rose-600",
+                        isToday && "font-semibold text-amber-600",
+                    )}
+                />
+            </span>
         </li>
     );
 }

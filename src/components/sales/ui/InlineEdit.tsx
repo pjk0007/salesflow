@@ -29,12 +29,15 @@ export function InlineEdit({
     placeholder = "비어있음",
     multiline,
     className,
+    triggerClassName,
 }: {
     value: string;
     onSave: (v: string) => void | Promise<void>;
     placeholder?: string;
     multiline?: boolean;
     className?: string;
+    /** 고치기 전 글자 모양에만 (예: 글자 너비만큼만 누를 수 있게) */
+    triggerClassName?: string;
 }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(value);
@@ -67,7 +70,7 @@ export function InlineEdit({
                     setDraft(value);
                     setEditing(true);
                 }}
-                className={cn(INLINE_TRIGGER, !value && "text-muted-foreground", multiline && "items-start whitespace-pre-wrap", className)}
+                className={cn(INLINE_TRIGGER, !value && "text-muted-foreground", multiline && "items-start whitespace-pre-wrap", className, triggerClassName)}
             >
                 {value || placeholder}
             </button>
