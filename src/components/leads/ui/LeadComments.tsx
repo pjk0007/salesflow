@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/contexts/SessionContext";
 import { useMemos, type MemoAttachmentItem, type MemoItem } from "@/components/records/hooks/useMemos";
@@ -339,22 +340,14 @@ export function LeadCommentComposer({ recordId, onAdded }: { recordId: number; o
                             ))}
                         </DropdownMenuContent>
                     </DropdownMenu>
-                    <label className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-accent" title="다음 연락일">
-                        <NextContactIcon className="h-3.5 w-3.5" />
-                        <span className={cn(!nextContact && "sr-only")}>다음 연락</span>
-                        <input
-                            type="date"
-                            value={nextContact}
-                            onChange={(e) => setNextContact(e.target.value)}
-                            className={cn("bg-transparent text-xs outline-none", !nextContact && "w-[7.5rem]")}
-                            aria-label="다음 연락일"
-                        />
-                        {nextContact && (
-                            <button type="button" onClick={() => setNextContact("")} aria-label="다음 연락일 지우기">
-                                <X className="h-3 w-3" />
-                            </button>
-                        )}
-                    </label>
+                    <DatePicker
+                        value={nextContact}
+                        onChange={setNextContact}
+                        placeholder="다음 연락 지정"
+                        clearable
+                        compact
+                        triggerClassName="h-7 w-auto gap-1.5 border-0 px-2 text-xs shadow-none hover:bg-accent"
+                    />
                 </div>
                 <Button size="icon" className="size-8 shrink-0 rounded-full" disabled={!canSubmit} onClick={submit} aria-label="등록">
                     <ArrowUp className="h-4 w-4" />

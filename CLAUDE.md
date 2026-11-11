@@ -31,6 +31,8 @@ src/components/{feature-name}/
 - 버튼·입력창·셀렉트 높이는 `h-9`(36px)로 통일한다. `Button`의 `default`/`sm`, `Input`, `SelectTrigger`는 모두 h-9다.
 - 한 줄에 같이 놓이는 버튼·입력창·셀렉트에 높이 클래스(`h-8`, `h-10` 등)를 따로 붙이지 않는다. 더 작은 컨트롤이 꼭 필요하면 `size="xs"`/`"icon-xs"`를 쓰고 같은 줄의 다른 컨트롤도 맞춘다.
 - 정사각 아이콘 버튼은 `size="icon"`(36px) 계열을 쓴다.
+- 브라우저 기본 UI를 쓰지 않는다. 날짜는 `<input type="date">` 대신 `DatePicker`(`src/components/ui/date-picker.tsx`, 달력 팝오버), 선택은 `<select>` 대신 `Select` 또는 `DropdownMenu`, 확인창은 `window.confirm`/`alert` 대신 `AlertDialog`·`AsyncAlertDialog`를 쓴다. 디자인된 컴포넌트가 없으면 `src/components/ui/`에 먼저 만들고 쓴다.
+- 입력창 안의 작은 도구 버튼(종류 선택·날짜 지정 등)은 genius-hub-erp처럼 테두리 없는 `h-7 px-2 text-xs hover:bg-accent` 트리거 + 디자인된 드롭다운/달력으로 만든다.
 - 삭제처럼 되돌릴 수 없는 확인 버튼은 `variant="destructive"`(빨간색)를 쓴다. `AlertDialogAction`에 `bg-destructive` 클래스를 붙이지 말고 `variant`로 지정한다.
 
 ## 커밋 규칙

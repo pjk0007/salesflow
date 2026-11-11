@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { format, parse, isValid } from "date-fns";
 import { ko } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,6 +17,10 @@ interface DatePickerProps {
     className?: string;
     triggerClassName?: string;
     disabled?: boolean;
+    /** 값이 있을 때 달력 아래에 "지우기" 버튼 */
+    clearable?: boolean;
+    /** 트리거 아이콘 왼쪽 여백 등 기본 모양을 빼고 triggerClassName만 쓴다 (입력창 안 작은 버튼용) */
+    compact?: boolean;
 }
 
 export function DatePicker({
@@ -26,6 +30,8 @@ export function DatePicker({
     className,
     triggerClassName,
     disabled,
+    clearable,
+    compact,
 }: DatePickerProps) {
     const [open, setOpen] = useState(false);
 
@@ -54,12 +60,12 @@ export function DatePicker({
                     variant="outline"
                     disabled={disabled}
                     className={cn(
-                        "w-full justify-start font-normal",
+                        compact ? "justify-start font-normal" : "w-full justify-start font-normal",
                         !display && "text-muted-foreground",
                         triggerClassName,
                     )}
                 >
-                    <CalendarIcon className="mr-2 h-4 w-4 shrink-0 opacity-60" />
+                    <CalendarIcon className={cn("shrink-0 opacity-60", compact ? "h-3.5 w-3.5" : "mr-2 h-4 w-4")} />
                     {display ? <span className="truncate">{display}</span> : <span>{placeholder}</span>}
                 </Button>
             </PopoverTrigger>
@@ -72,6 +78,22 @@ export function DatePicker({
                     captionLayout="dropdown"
                     autoFocus
                 />
+                {clearable && display && (
+                    <div className="border-t p-1">
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="w-full justify-center text-muted-foreground"
+                            onClick={() => {
+                                onChange("");
+                                setOpen(false);
+                            }}
+                        >
+                            <X className="h-3.5 w-3.5" /> 지우기
+                        </Button>
+                    </div>
+                )}
             </PopoverContent>
         </Popover>
     );
