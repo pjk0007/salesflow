@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { addActionItem, deleteActionItem, updateActionItem } from "../api";
 import type { ActionItem } from "../types";
 import { OwnerSelect } from "./OwnerSelect";
+import { InlineEdit } from "./InlineEdit";
 
 const kstDate = (iso: string) => new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10);
 const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -27,7 +28,14 @@ export function ActionRow({ item, onChanged, meetingLabel }: { item: ActionItem;
         <li className="group flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-muted/50">
             <Checkbox checked={!!item.doneAt} onCheckedChange={(v) => patch({ done: v === true })} aria-label="완료" />
             <span className="min-w-0 flex-1">
-                <span className={cn("block text-sm", item.doneAt && "text-muted-foreground line-through")}>{item.content}</span>
+                <InlineEdit
+                    value={item.content}
+                    onSave={async (v) => {
+                        if (v) await patch({ content: v });
+                        else toast.error("할 일을 입력해주세요.");
+                    }}
+                    className={cn("min-h-0 px-1 py-0.5", item.doneAt && "text-muted-foreground line-through")}
+                />
                 {meetingLabel && <span className="block truncate text-[11px] text-muted-foreground">{meetingLabel}</span>}
             </span>
             {/* 담당·기한 칸 너비를 고정해 줄마다 위치가 맞게 */}

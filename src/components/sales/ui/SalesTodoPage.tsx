@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { updateActionItem } from "../api";
 import { MemberAvatar } from "./MemberAvatar";
 import { OwnerSelect } from "./OwnerSelect";
+import { InlineEdit } from "./InlineEdit";
 import { SalesLeadPanel } from "./SalesLeadPanel";
 import { SalesSuggestions } from "./SalesSuggestions";
 
@@ -46,14 +47,21 @@ function TodoRow({ todo, onChanged, onOpen }: { todo: Todo; onChanged: () => voi
     return (
         <li className="flex items-center gap-3 border-b border-border/40 px-4 py-2.5 last:border-b-0 hover:bg-muted/40">
             <Checkbox checked={!!todo.doneAt} onCheckedChange={(v) => patch({ done: v === true })} aria-label="완료" />
-            {/* 내용을 누르면 그 리드 상세 패널이 열린다 */}
-            <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-                <div className={cn("truncate text-sm", todo.doneAt && "text-muted-foreground line-through")}>{todo.content}</div>
-                <div className="truncate text-xs text-muted-foreground">
+            <div className="min-w-0 flex-1">
+                {/* 할 일 내용은 눌러서 바로 고치고, 아래 기업·담당자를 누르면 그 리드 상세 패널이 열린다 */}
+                <InlineEdit
+                    value={todo.content}
+                    onSave={async (v) => {
+                        if (v) await patch({ content: v });
+                        else toast.error("할 일을 입력해주세요.");
+                    }}
+                    className={cn("-ml-2 min-h-0 py-0.5", todo.doneAt && "text-muted-foreground line-through")}
+                />
+                <button type="button" onClick={onOpen} className="block max-w-full truncate text-left text-xs text-muted-foreground hover:text-foreground hover:underline">
                     {todo.company || "(기업명 없음)"}
                     {todo.personName && ` · ${[todo.personName, todo.personTitle].filter(Boolean).join(" · ")}`}
-                </div>
-            </button>
+                </button>
+            </div>
             <OwnerSelect value={todo.ownerId} onChange={(id) => patch({ ownerId: id })} className="w-28 shrink-0" />
             <DatePicker
                 value={due}
