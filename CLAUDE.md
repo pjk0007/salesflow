@@ -1,6 +1,6 @@
 # Salesflow (Sendb) - Claude Code Guidelines
 
-작업 환경·브랜치·배포·DB 규칙은 먼저 루트 `AGENTS.md`를 따른다. 기본 작업 대상은 `dev` / `sendb-dev` / `sendb-dev-db`이며 `main`은 운영 브랜치다.
+작업 환경·배포 규칙은 먼저 루트 `AGENTS.md`를 따른다. 기준 브랜치는 `main`(운영 배포 브랜치)이다. `dev` 브랜치는 따로 맞춰 두지 않는다.
 
 ## 폴더 구조 규칙
 
@@ -50,7 +50,7 @@ src/components/{feature-name}/
 ## 기술 스택
 
 - Next.js 16 (App Router, Turbopack)
-- PostgreSQL + Drizzle ORM
+- PostgreSQL + Drizzle ORM (마이그레이션: `drizzle/`에 SQL, `meta/_journal.json`에 등록)
 - Tailwind CSS 4 + Radix UI
 - SWR (데이터 페칭)
 - Sonner (토스트)
@@ -61,9 +61,3 @@ src/components/{feature-name}/
 - 인증: `getUserFromNextRequest(req)` → `{ userId, orgId, email, name, role }`
 - 관리자 체크: `user.role === "member"` 이면 403
 - 에러 메시지는 한국어
-
-## DB
-
-- 로컬: `postgresql://jaehun@localhost:5432/salesflow`
-- 개발: CloudType `sendb-dev-db`의 기존 개발 설정을 사용한다. 운영 DB에는 읽기 전용으로도 접근하지 않는다.
-- 마이그레이션: `drizzle/` 디렉토리에 SQL, `meta/_journal.json`에 등록
