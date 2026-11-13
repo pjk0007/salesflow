@@ -22,8 +22,20 @@ export function statsWhere(orgId: string, query: StatsQuery): SQL {
         AND (${query.workspaceId}::int IS NULL OR workspace_id=${query.workspaceId}::int)`;
 }
 
+/** 고른 메일들(쉼표로 이은 "종류:번호") 중 하나인 행 */
+export function campaignIn(campaign: string): SQL {
+    return sql`campaign_kind||':'||campaign_id = ANY(string_to_array(${campaign}, ','))`;
+}
+
+/** 전체(total 행) 또는 고른 메일들(campaign 행 — 후속 단계 행을 모두 더한다) */
+export function scopeGrain(query: StatsQuery): SQL {
+    return query.campaign
+        ? sql`grain='campaign' AND ${campaignIn(query.campaign)}`
+        : sql`grain='total'`;
+}
+
 export async function totalCounts(orgId: string, query: StatsQuery): Promise<StatCounts> {
-    const [row] = await readRows<StatCounts>(sql`SELECT ${sumColumns} FROM email_stats_daily WHERE ${statsWhere(orgId, query)} AND grain='total'`);
+    const [row] = await readRows<StatCounts>(sql`SELECT ${sumColumns} FROM email_stats_daily WHERE ${statsWhere(orgId, query)} AND ${scopeGrain(query)}`);
     return row;
 }
 

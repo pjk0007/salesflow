@@ -16,6 +16,10 @@ for (const [changes, error] of failures) test(`B12: 잘못된 검색 조건 ${JS
     assert.deepEqual(parseStatsQuery(query(changes), NOW), { ok: false, error });
 });
 test("B12: 성공 union의 기본 축, 빈 workspace, 포함 일수", () => {
-    assert.deepEqual(parseStatsQuery(query({ workspaceId: "" }), NOW), { ok: true, view: "compare", from: "2026-09-22", to: "2026-10-21", days: 30, workspaceId: null, axis: "campaign" });
-    assert.deepEqual(parseStatsQuery(query({ workspaceId: "7", axis: "sender", from: "2025-10-21" }), NOW), { ok: true, view: "compare", from: "2025-10-21", to: "2026-10-21", days: 366, workspaceId: 7, axis: "sender" });
+    assert.deepEqual(parseStatsQuery(query({ workspaceId: "" }), NOW), { ok: true, view: "compare", from: "2026-09-22", to: "2026-10-21", days: 30, workspaceId: null, campaign: null, axis: "campaign" });
+    assert.deepEqual(parseStatsQuery(query({ workspaceId: "7", axis: "sender", from: "2025-10-21" }), NOW), { ok: true, view: "compare", from: "2025-10-21", to: "2026-10-21", days: 366, workspaceId: 7, campaign: null, axis: "sender" });
+    assert.equal((parseStatsQuery(query({ campaign: "ai:3" }), NOW) as { campaign: string }).campaign, "ai:3");
+    assert.equal(parseStatsQuery(query({ campaign: "x;drop" }), NOW).ok, false);
+    assert.equal((parseStatsQuery(query({ campaign: "ai:3,template:25" }), NOW) as { campaign: string }).campaign, "ai:3,template:25");
+    assert.equal(parseStatsQuery(query({ campaign: "ai:3," }), NOW).ok, false);
 });

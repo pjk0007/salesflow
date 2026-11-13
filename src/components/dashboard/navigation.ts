@@ -8,6 +8,7 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
     {
         group: "리드젠",
         items: [
+            { href: "/leadgen/stats", label: "리드젠통계", icon: TrendingUp },
             { href: "/records", label: "레코드", icon: Table2 },
             { href: "/email", label: "이메일", icon: Mail },
             { href: "/email/unsubscribes", label: "수신거부 목록", icon: Ban },
@@ -24,7 +25,7 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
     {
         group: "영업관리",
         items: [
-            { href: "/sales", label: "영업리드", icon: Briefcase },
+            { href: "/sales", label: "영업고객", icon: Briefcase },
             { href: "/sales/todo", label: "영업ToDo", icon: ListTodo },
         ],
     },
@@ -67,6 +68,7 @@ const routeLabels: Record<string, string> = {
     "/customer-imports": "고객 가져오기",
     "/customer-webhooks": "고객 웹훅",
     "/customer-workflows": "고객 자동화",
+    "/leadgen": "리드젠",
     "/settings": "설정",
     "/admin": "관리자",
 };

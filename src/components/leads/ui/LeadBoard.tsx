@@ -168,7 +168,7 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
             toast.error(result.error || "삭제에 실패했습니다.");
             return;
         }
-        toast.success(`리드 ${deleteIds.length}건을 삭제했습니다.`);
+        toast.success(sales ? `영업고객 ${deleteIds.length}명을 삭제했습니다.` : `리드 ${deleteIds.length}건을 삭제했습니다.`);
         if (selected && deleteIds.includes(selected.id)) setSelected(null);
         setCheckedIds(new Set());
         setDeleteIds(null);
@@ -326,7 +326,7 @@ export function LeadBoard({ workspaceId, partitionId, fields, mode = "lead" }: L
                         );
                     })}
                     {!list.isLoading && list.records.length === 0 && (
-                        <div className="py-16 text-center text-sm text-muted-foreground">영업 리드가 없습니다.</div>
+                        <div className="py-16 text-center text-sm text-muted-foreground">영업고객이 없습니다.</div>
                     )}
                     {list.total > list.records.length && (
                         <p className="py-3 text-center text-xs text-muted-foreground">

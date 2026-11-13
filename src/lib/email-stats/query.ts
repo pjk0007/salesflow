@@ -9,11 +9,14 @@ export type StatsQueryResult = {
     to: string;
     days: number;
     workspaceId: number | null;
+    campaign: string | null;
     axis: CompareAxis;
 } | {
     ok: false;
     error: string;
 };
+/** 메일 하나 또는 여러 개(쉼표로, 30개까지 — 한 묶음으로 더한다) */
+const CAMPAIGN = /^(ai|template|manual):\d{1,9}(,(ai|template|manual):\d{1,9}){0,29}$/;
 const AXES: readonly string[] = ["campaign", "step", "partition", "sender", "domain", "trigger", "date"];
 /** 형식만 검증한다. workspaceId의 조직 소속 검증은 호출하는 라우트 책임이다. */
 export function parseStatsQuery(sp: URLSearchParams, now: Date): StatsQueryResult {
@@ -36,5 +39,8 @@ export function parseStatsQuery(sp: URLSearchParams, now: Date): StatsQueryResul
     const workspaceId = workspace === null || workspace === "" ? null : Number(workspace);
     if (workspaceId !== null && (!/^\d+$/.test(workspace!) || !Number.isSafeInteger(workspaceId) || workspaceId <= 0))
         return { ok: false, error: "워크스페이스를 확인해 주세요." };
-    return { ok: true, view, from, to, days, workspaceId, axis: axis as CompareAxis };
+    const campaign = sp.get("campaign") || null;
+    if (campaign !== null && !CAMPAIGN.test(campaign))
+        return { ok: false, error: "메일을 확인해 주세요." };
+    return { ok: true, view, from, to, days, workspaceId, campaign, axis: axis as CompareAxis };
 }

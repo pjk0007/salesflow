@@ -137,7 +137,7 @@ export function CreateLeadDialog({ open, onOpenChange, partitionId, fields, onCr
                 toast.error(result.error || "리드 추가에 실패했습니다.");
                 return;
             }
-            toast.success(sales ? "영업 리드를 추가했습니다." : "리드를 추가했습니다.");
+            toast.success(sales ? "영업고객을 추가했습니다." : "리드를 추가했습니다.");
             reset();
             onOpenChange(false);
             onCreated();
@@ -157,7 +157,7 @@ export function CreateLeadDialog({ open, onOpenChange, partitionId, fields, onCr
             {/* 머리·아래 버튼은 고정, 가운데만 스크롤 — 스크롤바가 창 둥근 모서리 밖으로 나가지 않게 */}
             <DialogContent className="flex max-h-[88vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
                 <DialogHeader className="border-b px-6 py-4">
-                    <DialogTitle>{sales ? (prefill ? "명함으로 영업 리드 추가" : "영업 리드 추가") : "리드 추가"}</DialogTitle>
+                    <DialogTitle>{sales ? (prefill ? "명함으로 영업고객 추가" : "영업고객 추가") : "리드 추가"}</DialogTitle>
                 </DialogHeader>
                 <div className="grid min-h-0 flex-1 grid-cols-1 gap-x-4 gap-y-3 overflow-y-auto px-6 py-5 scrollbar-thin sm:grid-cols-2">
                     {sales && (

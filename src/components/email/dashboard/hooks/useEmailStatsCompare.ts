@@ -5,7 +5,9 @@ import { fetchStats, statsUrl, STATS_SWR } from "../api/emailStatsApi";
 import { AXIS_OPTIONS, compareColumns, compareRowModel, sortRows, type SortKey } from "../utils/compare";
 
 export function useEmailStatsCompare(query: StatsQuery) {
-    const [axis, setAxis] = useState<CompareAxis>("campaign");
+    const [picked, setPicked] = useState<CompareAxis>("campaign");
+    // 메일 하나를 골랐으면 그 메일의 후속 단계별로만 본다
+    const axis: CompareAxis = query.campaign ? "step" : picked;
     const [sort, setSort] = useState<{
         key: SortKey;
         direction: "asc" | "desc";
@@ -14,8 +16,8 @@ export function useEmailStatsCompare(query: StatsQuery) {
     const columns = compareColumns(axis, data?.connections ?? { reply: false, site: false, journey: false });
     return {
         axis,
-        axes: AXIS_OPTIONS,
-        handleAxis: (value: string) => setAxis(value as CompareAxis),
+        axes: query.campaign ? AXIS_OPTIONS.filter((a) => a.value === "step") : AXIS_OPTIONS,
+        handleAxis: (value: string) => setPicked(value as CompareAxis),
         isLoading,
         error,
         isEmpty: data?.total.counts.accepted === 0,

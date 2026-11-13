@@ -6,6 +6,8 @@ export function statsUrl(view: "kpi" | "trend" | "compare", query: StatsQuery, a
     const params = new URLSearchParams({ view, from: query.from, to: query.to });
     if (query.workspaceId !== null)
         params.set("workspaceId", String(query.workspaceId));
+    if (query.campaign)
+        params.set("campaign", query.campaign);
     if (axis)
         params.set("axis", axis);
     return `${STATS_URL}?${params}`;

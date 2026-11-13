@@ -1,5 +1,6 @@
 import type { CompareAxis, CompareRow, StatsEnvelope, StatRates } from "../types";
 import { countText, rateText } from "./format";
+import { OPEN_NOTICE_TITLE } from "../../opens/utils/openRate";
 export type SortKey = "label" | "accepted" | "visited" | keyof StatRates;
 
 export function sortRows(rows: CompareRow[], key: SortKey, direction: "asc" | "desc") {
@@ -31,7 +32,7 @@ export function compareColumns(axis: CompareAxis, connections: StatsEnvelope["co
     if (axis === "sender" || axis === "domain")
         columns.push({ key: "senderSideRate", label: "발신 쪽 실패율", tooltip: "발신 쪽 실패 ÷ 결과 확정" });
     columns.push(
-        { key: "openRate", label: "오픈율", tooltip: "사람 오픈·클릭 ÷ 오픈 추적 성공 발송" },
+        { key: "openRate", label: "오픈율", tooltip: `사람 오픈·클릭 ÷ 오픈 추적 성공 발송\n${OPEN_NOTICE_TITLE}` },
         { key: "clickRate", label: "클릭률", tooltip: "사람 클릭 ÷ 성공" },
         { key: "ctor", label: "CTOR", tooltip: "오픈 중 클릭 ÷ 오픈" },
         {
@@ -69,6 +70,6 @@ export const AXIS_OPTIONS: Array<{
     value: CompareAxis;
     label: string;
 }> = [
-        { value: "campaign", label: "캠페인" }, { value: "step", label: "후속 단계" }, { value: "partition", label: "명단" },
-        { value: "sender", label: "발신 주소" }, { value: "domain", label: "발신 도메인" }, { value: "trigger", label: "발송 유형" }, { value: "date", label: "날짜" },
+        { value: "campaign", label: "메일" }, { value: "step", label: "후속 단계" }, { value: "partition", label: "명단" },
+        { value: "trigger", label: "발송 유형" }, { value: "date", label: "날짜" },
     ];

@@ -5,7 +5,7 @@ const root = new URL("../", import.meta.url);
 test("B25: 대시보드 TSX는 렌더만 하고 새 파일은 200줄 이하", () => {
     const ui = new URL("ui/", root);
     const files = readdirSync(ui).filter(file => file.endsWith(".tsx"));
-    assert.equal(files.length, 12);
+    assert.equal(files.length, 9);
     for (const file of files) {
         const text = readFileSync(new URL(file, ui), "utf8");
         assert.doesNotMatch(text, /\buse(State|Effect|Memo|Callback|Reducer|Ref)\b|useSWR|\bfetch\(|Math\.|toFixed|toLocaleString/);

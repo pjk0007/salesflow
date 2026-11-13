@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
         const b = (await req.json()) as { recordIds?: unknown; companyName?: unknown };
         const companyName = typeof b.companyName === "string" ? b.companyName.trim().slice(0, 200) : "";
         const ids = Array.isArray(b.recordIds) ? [...new Set(b.recordIds.map(Number).filter((n) => n > 0))] : [];
-        if (ids.length === 0) return fail("뺄 리드를 골라주세요.");
+        if (ids.length === 0) return fail("뺄 영업고객을 골라주세요.");
         for (const id of ids) {
             const g = await recordGuard(user, id, "update");
             if (g.error) return g.error;

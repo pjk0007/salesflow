@@ -213,7 +213,7 @@ export function SalesTodoPage() {
                             <p className="p-6 text-sm text-muted-foreground">불러오는 중…</p>
                         ) : groups.length === 0 ? (
                             <p className="py-16 text-center text-sm text-muted-foreground">
-                                할 일이 없어요. 영업리드의 미팅 기록에서 액션플랜을 만들면 여기에 모여요.
+                                할 일이 없어요. 영업고객의 미팅 기록에서 액션플랜을 만들면 여기에 모여요.
                             </p>
                         ) : (
                             groups.map((g) => {

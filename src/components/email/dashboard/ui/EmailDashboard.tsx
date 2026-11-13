@@ -4,22 +4,12 @@ import SendHealthBanner from "../../send-health/ui/SendHealthBanner";
 import SendHealthCard from "../../send-health/ui/SendHealthCard";
 import SendQueueOverviewCard from "../../sender-profiles/ui/SendQueueOverviewCard";
 import { KeyLeadsCard } from "../../KeyLeadsCard";
-import { OpenRateNotice } from "../../opens/ui/OpenRateNotice";
-import { useDashboardFilters } from "../hooks/useDashboardFilters";
-import { DashboardToolbar } from "./DashboardToolbar";
-import { KpiGrid } from "./KpiGrid";
-import { TrendPanel } from "./TrendPanel";
-import { CompareTable } from "./CompareTable";
 import { DashboardLinks } from "./DashboardLinks";
+
+/** 이메일 대시보드 — 발송 상태·대기열·핵심 리드. 발송 통계(지표·추세·비교)는 리드젠통계 화면에서 본다 */
 export default function EmailDashboard({ onTabChange }: { onTabChange?: (tab: string) => void }) {
-    const filters = useDashboardFilters();
     return <div className="space-y-6">
         <SendHealthBanner />
-        <DashboardToolbar filters={filters} />
-        <KpiGrid query={filters.query} />
-        <OpenRateNotice />
-        <TrendPanel query={filters.query} />
-        <CompareTable query={filters.query} />
         <SendQueueOverviewCard />
         <SendHealthCard />
         <KeyLeadsCard />

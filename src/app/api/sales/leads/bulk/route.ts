@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
         const wsIds = Array.isArray(b.workspaceIds) ? [...new Set(b.workspaceIds.map(Number).filter((n) => n > 0))] : [];
         if (wsIds.length === 0) return fail("사업부를 하나 이상 골라주세요.");
         const rows = Array.isArray(b.records) ? b.records : [];
-        if (rows.length === 0) return fail("추가할 리드가 없습니다.");
+        if (rows.length === 0) return fail("추가할 영업고객이 없습니다.");
         if (rows.length > MAX_ROWS) return fail(`한 번에 ${MAX_ROWS}명까지 추가할 수 있습니다.`);
         const valid = await db.select({ id: workspaces.id }).from(workspaces).where(and(eq(workspaces.orgId, user.orgId), inArray(workspaces.id, wsIds)));
         if (valid.length !== wsIds.length) return fail("사업부를 찾을 수 없습니다.", 404);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
@@ -9,13 +9,6 @@ import { usePartitions } from "@/hooks/usePartitions";
 import { useWebForms } from "@/hooks/useWebForms";
 import EmbedCodeDialog from "@/components/web-forms/EmbedCodeDialog";
 import { Button } from "@/components/ui/button";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import {
     Card,
     CardContent,
@@ -28,7 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { Plus, Pencil, Link2, Trash2, Eye, EyeOff } from "lucide-react";
 import { useAsyncConfirm } from "@/components/ui/alert-dialog";
-import { workspaceLabel } from "@/lib/workspace-label";
+import { LeadWorkspaceTabs } from "@/components/leads/ui/LeadWorkspaceTabs";
 
 export default function WebFormsPage() {
     const { confirm, confirmationDialog } = useAsyncConfirm();
@@ -42,13 +35,6 @@ export default function WebFormsPage() {
 
     // 임베드 다이얼로그
     const [embedSlug, setEmbedSlug] = useState<string | null>(null);
-
-    // 첫 번째 워크스페이스 자동 선택
-    useEffect(() => {
-        if (!workspaceId && workspaces.length > 0) {
-            setWorkspaceId(workspaces[0].id);
-        }
-    }, [workspaces, workspaceId]);
 
     const allPartitions = partitionTree
         ? [
@@ -106,27 +92,12 @@ export default function WebFormsPage() {
     return (
         <WorkspaceLayout>
             {confirmationDialog}
+            {/* 사업부 탭 — 첫 탭이 자동으로 골라진다 */}
+            <LeadWorkspaceTabs value={workspaceId} onChange={setWorkspaceId} source="all" prefKey="web-forms" />
             <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold">웹 폼</h1>
                     <div className="flex items-center gap-3">
-                        {workspaces.length > 1 && (
-                            <Select
-                                value={workspaceId ? String(workspaceId) : ""}
-                                onValueChange={(v) => setWorkspaceId(Number(v))}
-                            >
-                                <SelectTrigger className="w-[180px]">
-                                    <SelectValue placeholder="워크스페이스" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {workspaces.map((ws) => (
-                                        <SelectItem key={ws.id} value={String(ws.id)}>
-                                            {workspaceLabel(ws)}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
                         <Button asChild>
                             <Link href="/web-forms/new">
                                 <Plus className="h-4 w-4 mr-1" /> 새 폼 만들기

@@ -3,7 +3,7 @@ import type { CompareAxis, CompareData, CompareRow, StatCounts, StatsQuery, Tren
 import { addDaysYmd } from "../kst";
 import { coverageStatus, deriveRates, emptyCounts, isMaturing, sumCounts } from "./metrics";
 import { comparisonNames } from "./names";
-import { readRows, statsEnvelope, statsWhere, sumColumns, totalCounts } from "./read-shared";
+import { campaignIn, readRows, scopeGrain, statsEnvelope, statsWhere, sumColumns, totalCounts } from "./read-shared";
 const AXES: Record<CompareAxis, {
     grain: string;
     key: string;
@@ -22,7 +22,7 @@ export async function readTrend(orgId: string, query: StatsQuery, now = new Date
         statsEnvelope(orgId, query),
         readRows<StatCounts & {
             date: string;
-        }>(sql`SELECT stat_date::text AS date,${sumColumns} FROM email_stats_daily WHERE ${statsWhere(orgId, query)} AND grain='total'
+        }>(sql`SELECT stat_date::text AS date,${sumColumns} FROM email_stats_daily WHERE ${statsWhere(orgId, query)} AND ${scopeGrain(query)}
             GROUP BY stat_date ORDER BY stat_date`),
     ]);
     const map = new Map(rows.map(({ date, ...counts }) => [date, counts]));
@@ -42,13 +42,15 @@ export async function readTrend(orgId: string, query: StatsQuery, now = new Date
 
 export async function readCompare(orgId: string, query: StatsQuery, axis: CompareAxis): Promise<CompareData> {
     const spec = AXES[axis];
+    // 메일 하나를 골랐으면 메일 단위로 쌓인 축(메일·후속 단계)만 그 메일로 좁힌다. 합계도 그 메일 기준
+    const campaignFilter = query.campaign && spec.grain === "campaign" ? sql`AND ${campaignIn(query.campaign)}` : sql``;
     const [envelope, groups, total] = await Promise.all([
         statsEnvelope(orgId, query),
         readRows<StatCounts & {
             key: string;
         }>(sql`SELECT ${sql.raw(spec.key)} AS key,${sumColumns} FROM email_stats_daily WHERE ${statsWhere(orgId, query)} AND
-            grain=${spec.grain} GROUP BY 1 ORDER BY sum(accepted) DESC,1`),
-        totalCounts(orgId, query),
+            grain=${spec.grain} ${campaignFilter} GROUP BY 1 ORDER BY sum(accepted) DESC,1`),
+        totalCounts(orgId, spec.grain === "campaign" ? query : { ...query, campaign: null }),
     ]);
     const shown = groups.slice(0, 500);
     const names = await comparisonNames(orgId, axis, shown.map((row) => row.key));

@@ -1,12 +1,31 @@
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/utils";
 
 /** 통계 카드 — 아주 연한 테두리, 그림자 없음, 작은 라운드 (페이지 바탕은 옅은 회색) */
-export function StatCard({ title, action, className, children }: { title?: string; action?: React.ReactNode; className?: string; children: React.ReactNode }) {
+export function StatCard({
+    title,
+    info,
+    action,
+    className,
+    children,
+}: {
+    title?: string;
+    /** 제목 옆 i 아이콘 툴팁 */
+    info?: string;
+    action?: React.ReactNode;
+    className?: string;
+    children: React.ReactNode;
+}) {
     return (
         <section className={cn("rounded-lg border border-border/40 bg-card p-5", className)}>
             {(title || action) && (
                 <div className="mb-4 flex items-center justify-between gap-2">
-                    {title && <h2 className="text-sm font-medium text-foreground/80">{title}</h2>}
+                    {title && (
+                        <h2 className="flex items-center gap-1.5 text-sm font-medium text-foreground/80">
+                            {title}
+                            {info && <InfoTip text={info} />}
+                        </h2>
+                    )}
                     {action}
                 </div>
             )}

@@ -1016,6 +1016,13 @@
       "when": 1794418355000,
       "tag": "0142_sales_meeting_records",
       "breakpoints": true
+    },
+    {
+      "idx": 145,
+      "version": "7",
+      "when": 1794418415000,
+      "tag": "0143_user_preferences",
+      "breakpoints": true
     }
   ]
 }

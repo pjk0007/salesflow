@@ -92,7 +92,7 @@ export function BulkCardDialog({
                 toast.error(result.error || "추가하지 못했습니다.");
                 return;
             }
-            toast.success(`명함 ${result.insertedCount}장을 영업 리드로 추가했어요.${result.skippedCount ? ` (이미 있는 이메일 ${result.skippedCount}건 건너뜀)` : ""}`);
+            toast.success(`명함 ${result.insertedCount}장을 영업고객으로 추가했어요.${result.skippedCount ? ` (이미 있는 이메일 ${result.skippedCount}건 건너뜀)` : ""}`);
             onOpenChange(false);
             onDone();
         } finally {

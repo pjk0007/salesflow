@@ -14,7 +14,7 @@ import { WorkspaceChips } from "./WorkspaceChips";
 
 /**
  * 엑셀·CSV로 영업 리드 한 번에 추가 — ① 사업부·담당자 고르기 → ② 레코드 가져오기와 같은 창(파일 → 칸 맞추기 → 결과)
- * 같은 이메일의 영업 리드가 이미 있으면 건너뛰거나 오류로 센다.
+ * 같은 이메일의 영업고객이 이미 있으면 건너뛰거나 오류로 센다.
  */
 export function SalesImportButton({ workspaceId, onImported }: { workspaceId: number | null; onImported: () => void }) {
     const { user } = useSession();
@@ -32,7 +32,7 @@ export function SalesImportButton({ workspaceId, onImported }: { workspaceId: nu
             <Dialog open={step === "setup"} onOpenChange={(v) => !v && setStep("none")}>
                 <DialogContent className="sm:max-w-md">
                     <DialogHeader>
-                        <DialogTitle>파일로 영업 리드 추가</DialogTitle>
+                        <DialogTitle>파일로 영업고객 추가</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4">
                         <div className="space-y-1.5">
@@ -68,7 +68,7 @@ export function SalesImportButton({ workspaceId, onImported }: { workspaceId: nu
                     fieldLabel: "이메일",
                     action: "reject",
                     askSkipOrError: true,
-                    notice: "같은 이메일의 영업 리드가 이미 있으면 건너뛰거나 오류로 표시해요.",
+                    notice: "같은 이메일의 영업고객이 이미 있으면 건너뛰거나 오류로 표시해요.",
                 }}
                 onImport={(rows, duplicateAction) => bulkCreateSalesLeads({ workspaceIds, ownerId, records: rows, duplicateAction })}
             />

@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 import type { KpiData, KpiKey, StatCounts, StatsQuery } from "@/components/email/dashboard/types";
-import { statsEnvelope, readRows, sumColumns, statsWhere } from "./read-shared";
+import { statsEnvelope, readRows, sumColumns, statsWhere, scopeGrain } from "./read-shared";
 import { coverageStatus, deltaPct, deriveRates, emptyCounts } from "./metrics";
 
 export async function readKpi(orgId: string, query: StatsQuery): Promise<KpiData> {
@@ -10,7 +10,7 @@ export async function readKpi(orgId: string, query: StatsQuery): Promise<KpiData
             current: boolean;
         }>(sql`SELECT stat_date>=${query.from}::date AS current, ${sumColumns}
             FROM email_stats_daily WHERE ${statsWhere(orgId, { ...query, from: envelope.comparison.from })}
-            AND grain='total' GROUP BY 1`),
+            AND ${scopeGrain(query)} GROUP BY 1`),
         readRows<{
             current: boolean;
             total: number;
@@ -51,7 +51,8 @@ export async function readKpi(orgId: string, query: StatsQuery): Promise<KpiData
         clickRate: ratio(count.clicked, count.sent),
         visits: envelope.connections.site ? count.visited : null,
         replyRate: envelope.connections.reply ? ratio(count.seqReplied, count.firstSent) : null,
-        keyLeads: envelope.connections.journey ? keyLeads : null,
+        // 핵심 리드는 메일별로 나눌 수 없다
+        keyLeads: envelope.connections.journey && !query.campaign ? keyLeads : null,
         unsubscribeRate: ratio(count.unsubscribed, count.sent),
     });
     const a = values(current, lead?.total ?? 0), b = values(previous, previousLead?.total ?? 0);

@@ -4,9 +4,6 @@ import { recordExportFileName, RECORD_EXPORT_LIMIT } from "@/lib/record-export";
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import WorkspaceLayout, { QueryErrorState } from "@/components/layouts/WorkspaceLayout";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { BarChart3 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import PartitionNav from "@/components/records/PartitionNav";
 import { useMobileSheet, useMobileSubtitle, useBreadcrumbOverrides } from "@/components/dashboard/breadcrumb-context";
 import type { ReactNode } from "react";
@@ -52,6 +49,9 @@ import { usePartitions } from "@/hooks/usePartitions";
 import { useFields } from "@/hooks/useFields";
 import { useResolvedFields } from "@/hooks/useResolvedFields";
 import { LeadBoard } from "@/components/leads/ui/LeadBoard";
+import { LeadTabRemoveDialog } from "@/components/leads/ui/LeadTabRemoveDialog";
+import { createLeadBox } from "@/components/leads/api";
+import { useLeadWorkspaces } from "@/components/leads/hooks/useLeadWorkspaces";
 import { LeadWorkspaceTabs } from "@/components/leads/ui/LeadWorkspaceTabs";
 import { useRecords } from "@/hooks/useRecords";
 import { useSSE } from "@/hooks/useSSE";
@@ -128,6 +128,10 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
         name: string;
     } | null>(null);
     const [distributionSettingsPartitionId, setDistributionSettingsPartitionId] = useState<number | null>(null);
+    // 리드관리 사업부 탭 오른쪽 클릭 메뉴
+    // 리드관리 탭 오른쪽 클릭 "리드함 삭제" 확인창
+    const [removingTab, setRemovingTab] = useState<number | null>(null);
+    const leadWorkspaces = useLeadWorkspaces();
 
     const sessionIdRef = useRef(
         typeof crypto !== "undefined" ? crypto.randomUUID() : Math.random().toString(36).slice(2)
@@ -539,7 +543,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                 onDistributionSettings={(id) => setDistributionSettingsPartitionId(id)}
                 onMutatePartitions={mutatePartitions}
                 category={category}
-                hideWorkspaceSelect={category !== "cold"}
+                hideWorkspaceSelect
                 className="w-full border-r-0 bg-transparent"
             />
         ),
@@ -569,22 +573,35 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                 subtitle={currentPartition?.name ?? null}
                 closeOnChange={partitionId}
             />
-            {category !== "cold" && (
-                <LeadWorkspaceTabs
-                    value={workspaceId}
-                    onChange={handleWorkspaceChange}
-                    source={category === "sales" ? "all" : "lead"}
-                    right={category === "sales" ? undefined :
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href="/leads/stats">
-                                <BarChart3 className="mr-1 h-4 w-4" />
-                                리드통계
-                            </Link>
-                        </Button>
-                    }
-                />
+            <LeadWorkspaceTabs
+                value={workspaceId}
+                onChange={handleWorkspaceChange}
+                source={category === "lead" ? "lead" : "all"}
+                prefKey={category === "lead" ? "leads" : category === "cold" ? "records" : undefined}
+                // 리드관리: 리드함이 없는 사업부를 고르면 리드함을 만든다 (모두의 탭에 생긴다)
+                onCreate={
+                    category === "lead"
+                        ? async (id) => {
+                              const result = await createLeadBox(id);
+                              if (!result.success) {
+                                  toast.error(result.error || "사업부를 추가하지 못했습니다.");
+                                  return false;
+                              }
+                              await leadWorkspaces.mutate();
+                              return true;
+                          }
+                        : undefined
+                }
+                menuItems={
+                    category === "lead" && user?.role !== "member"
+                        ? (id) => [{ label: "리드함 삭제", destructive: true, onSelect: () => setRemovingTab(id) }]
+                        : undefined
+                }
+            />
+            {category === "lead" && (
+                <LeadTabRemoveDialog workspaceId={removingTab} onClose={() => setRemovingTab(null)} onRemoved={() => mutatePartitions()} />
             )}
-            <div className={cn("flex overflow-hidden", category !== "cold" ? "h-[calc(100vh-3.5rem-3rem)]" : "h-[calc(100vh-3.5rem)]")}>
+            <div className="flex h-[calc(100vh-3.5rem-3rem)] overflow-hidden">
                 {/* 좌측: 파티션 네비게이션 (데스크톱 전용) */}
                 <div className="hidden md:flex">
                     <PartitionNav
@@ -605,7 +622,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                         onMutatePartitions={mutatePartitions}
                         category={category}
                         resizable
-                        hideWorkspaceSelect={category !== "cold"}
+                        hideWorkspaceSelect
                     />
                 </div>
 
@@ -624,7 +641,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                         // 이 사업에 아직 영업 리드함이 없으면 바로 만들 수 있게
                         <div className="flex flex-1 items-center justify-center p-12">
                             <div className="text-center">
-                                <p className="text-lg font-medium">이 사업에는 아직 영업 리드함이 없어요</p>
+                                <p className="text-lg font-medium">이 사업에는 아직 영업고객함이 없어요</p>
                                 <p className="mt-1 text-sm text-muted-foreground">만들면 명함 등록·미팅 기록을 바로 쓸 수 있어요.</p>
                                 <Button
                                     className="mt-4"
@@ -633,7 +650,7 @@ export function RecordsPageInner({ category = "cold" }: { category?: "cold" | "l
                                         if (!result.success) toast.error(result.error || "만들지 못했습니다.");
                                     }}
                                 >
-                                    영업 리드함 만들기
+                                    영업고객함 만들기
                                 </Button>
                             </div>
                         </div>

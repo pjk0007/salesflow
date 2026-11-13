@@ -19,7 +19,7 @@ export function SalesLeadPanel({ recordId, onClose, onChanged }: { recordId: num
             if (!alive) return;
             if (r.success && r.data) setRecord(r.data);
             else {
-                toast.error(r.error || "리드를 불러오지 못했습니다.");
+                toast.error(r.error || "영업고객을 불러오지 못했습니다.");
                 onClose();
             }
         });

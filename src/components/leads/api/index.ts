@@ -37,3 +37,19 @@ export async function deleteLeads(ids: number[]) {
 export async function fetchLead(recordId: number) {
     return json<import("../types").LeadRecord>(await fetch(`/api/records/${recordId}`));
 }
+
+/** 리드함이 없는 사업부에 리드함("문의")을 만든다 — 그 사업부가 모두의 리드관리 탭에 생긴다 */
+export async function createLeadBox(workspaceId: number) {
+    return json(
+        await fetch(`/api/workspaces/${workspaceId}/partitions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: "문의", category: "lead" }),
+        }),
+    );
+}
+
+/** 비어 있는 리드함을 지워 사업부를 리드관리에서 뺀다 (리드가 있으면 서버가 막는다) */
+export async function removeLeadBox(workspaceId: number) {
+    return json(await fetch(`/api/leads/workspaces/${workspaceId}`, { method: "DELETE" }).catch(() => new Response("{}")));
+}

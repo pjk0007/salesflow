@@ -21,6 +21,18 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { FormulaConfig } from "@/types";
+
+/** 사업부 탭 내 설정 — 순서, 숨긴 탭, 기본 목록 밖에서 꺼낸 탭 (사업부 id) */
+export interface TabPrefs {
+    order?: number[];
+    hidden?: number[];
+    added?: number[];
+}
+/** users.preferences — 사람별 화면 설정 */
+export interface UserPreferences {
+    /** 화면 key(예: "leadgen-stats") → 사업부 탭 설정 */
+    tabs?: Record<string, TabPrefs>;
+}
 export * from "./ai-copy-schema";
 export * from "./email-stats-schema";
 export * from "./email-experiment-schema";
@@ -91,6 +103,8 @@ export const users = pgTable(
         phone: varchar("phone", { length: 20 }),
         isActive: integer("is_active").default(1).notNull(),
         isSuperAdmin: integer("is_super_admin").default(0).notNull(),
+        /** 사람별 화면 설정 — tabs: 화면 key → 사업부 탭 순서·숨김·꺼낸 탭 */
+        preferences: jsonb("preferences").$type<UserPreferences>().default({}).notNull(),
         createdAt: timestamptz("created_at").defaultNow().notNull(),
         updatedAt: timestamptz("updated_at").defaultNow().notNull(),
     },

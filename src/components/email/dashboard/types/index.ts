@@ -18,6 +18,8 @@ export interface StatsQuery {
     from: string;
     to: string;
     workspaceId: number | null;
+    /** 메일(캠페인)만 — "ai:3"·"template:25"처럼 종류:번호, 여러 개면 쉼표로 이어 한 묶음으로 더한다. 없으면 전체 */
+    campaign?: string | null;
 }
 export interface StatsEnvelope {
     range: {

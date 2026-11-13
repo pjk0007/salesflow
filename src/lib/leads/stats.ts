@@ -29,7 +29,17 @@ export interface LeadStats {
     /** 전체 댓글 종류 분포 (댓글의 종류 태그 기준) */
     memoKinds: Array<{ kind: string; count: number }>;
     partitions: Array<{ id: number; name: string; leads: number; converted: number }>;
+    /**
+     * 코호트 — 들어온 달마다, 들어온 뒤 N일 안에 전환된 비율.
+     * 아직 N일이 안 지난 리드는 빼고 센다 (eligible = N일이 지난 리드 수)
+     */
+    cohorts: Array<{ month: string; leads: number; cells: Array<{ days: number; eligible: number; converted: number }> }>;
+    /** 들어온 지 30일이 지난 리드 중 30일 안에 전환된 수 — 기간끼리 공정하게 비교하려고 */
+    within30d: { eligible: number; converted: number };
 }
+
+/** 코호트 표 칸 — 들어온 뒤 며칠 안 */
+export const COHORT_DAYS = [7, 14, 30, 60, 90] as const;
 
 function median(values: number[]): number | null {
     if (values.length === 0) return null;
@@ -68,6 +78,8 @@ export async function getLeadStats(
         touchesBeforeConversion: [],
         memoKinds: [],
         partitions: leadPartitions.map((p) => ({ ...p, leads: 0, converted: 0 })),
+        cohorts: [],
+        within30d: { eligible: 0, converted: 0 },
     };
     if (partitionIds.length === 0) return empty;
 
@@ -138,6 +150,9 @@ export async function getLeadStats(
     let fromHistory = 0;
     let inferred = 0;
     const touchTotals = new Map<string, number>();
+    // 코호트 — 리드마다 들어온 달, 지난 일수, 전환까지 일수(모르면 null)
+    const now = Date.now();
+    const cohortRows: Array<{ month: string; age: number; days: number | null }> = [];
 
     for (const r of leadRows) {
         bump(monthKey(r.registeredAt), "leads");
@@ -149,7 +164,10 @@ export async function getLeadStats(
                 if (h <= 24) within24h += 1;
             }
         }
-        if (r.status !== CONVERTED) continue;
+        if (r.status !== CONVERTED) {
+            cohortRows.push({ month: monthKey(r.registeredAt), age: (now - r.registeredAt.getTime()) / DAY, days: null });
+            continue;
+        }
         // 전환일: 상태 변경 기록 → 없으면 마지막 댓글 시각으로 추정
         let at = convertedAt.get(r.id) ?? null;
         if (at) fromHistory += 1;
@@ -161,13 +179,29 @@ export async function getLeadStats(
         if (at) {
             const d = (at.getTime() - r.registeredAt.getTime()) / DAY;
             if (d >= 0) conversionDays.push(d);
+            cohortRows.push({ month: monthKey(r.registeredAt), age: (now - r.registeredAt.getTime()) / DAY, days: Math.max(0, d) });
             for (const m of list) {
                 if (m.createdAt.getTime() > at.getTime()) continue;
                 const kind = m.kind ?? "etc";
                 touchTotals.set(kind, (touchTotals.get(kind) ?? 0) + 1);
             }
+        } else {
+            // 전환일을 모르면 몇 일 안에 전환됐는지 셀 수 없다 — 분모에만 넣는다
+            cohortRows.push({ month: monthKey(r.registeredAt), age: (now - r.registeredAt.getTime()) / DAY, days: null });
         }
     }
+
+    const cohortMap = new Map<string, typeof cohortRows>();
+    for (const c of cohortRows) cohortMap.set(c.month, [...(cohortMap.get(c.month) ?? []), c]);
+    const within = (list: typeof cohortRows, n: number) => {
+        const eligible = list.filter((c) => c.age >= n);
+        return { days: n, eligible: eligible.length, converted: eligible.filter((c) => c.days !== null && c.days <= n).length };
+    };
+    const cohorts = [...cohortMap]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .slice(-12)
+        .map(([month, list]) => ({ month, leads: list.length, cells: COHORT_DAYS.map((n) => within(list, n)) }));
+    const w30 = within(cohortRows, 30);
 
     // 댓글에 달린 종류 태그 기준 (종류 없는 댓글은 기타)
     const kindCounts = new Map<string, number>();
@@ -214,6 +248,8 @@ export async function getLeadStats(
         partitions: leadPartitions
             .map((p) => ({ ...p, ...(perPartition.get(p.id) ?? { leads: 0, converted: 0 }) }))
             .sort((a, b) => b.leads - a.leads),
+        cohorts,
+        within30d: { eligible: w30.eligible, converted: w30.converted },
     };
 }
 
