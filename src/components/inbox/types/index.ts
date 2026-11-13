@@ -11,7 +11,6 @@ export interface InboxChannel {
     color: string;
     allowedOrigins: string[];
     enabled: boolean;
-    replyGuardEnabled?: boolean;
     messengerSettings?: import("@/lib/customer-messenger/rules").MessengerSettings;
 }
 export interface Conversation {
@@ -21,6 +20,12 @@ export interface Conversation {
     historyOnly?: boolean;
     importMetadata?: Record<string, unknown> | null;
     aiState: "auto" | "human";
+    /** AI 상담 중 (AI 자동답변 모드이고 아직 사람에게 넘어오지 않음) — 직원은 보기만 한다 */
+    aiAnswering?: boolean;
+    /** 고객이 상담창에서 나가기로 종료함 */
+    customerLeft?: boolean;
+    /** 보류 끝나는 시각 (ISO) */
+    snoozedUntil?: string | null;
     aiHandoffReason: string | null;
     version: number;
     contactId: string | null;
@@ -102,7 +107,8 @@ export type ConversationFilter =
     | "priority"
     | "history"
     | "mentioned"
-    | "myTeams";
+    | "myTeams"
+    | "ai";
 /** 검색어가 있을 때만 상태별 검색 결과 건수(searchOpen 등)가 함께 온다. */
 export type InboxCounts = Record<ConversationFilter, number> &
     Partial<Record<"searchOpen" | "searchSnoozed" | "searchClosed", number>>;

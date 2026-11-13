@@ -397,6 +397,12 @@
                 scheduleRefresh(state);
                 emit("ready");
             }
+            // 상담창에서 "나가기"를 하면 빈 토큰이 온다 — 저장한 방문 세션을 지워 다음엔 새 상담으로 시작한다
+            if (data.type === "sendb:session" && !state.identityToken && data.token === "") {
+                store(state.storageKey, null);
+                store(state.readStorageKey, null);
+                state.readId = 0;
+            }
             if (
                 data.type === "sendb:session" &&
                 !state.identityToken &&

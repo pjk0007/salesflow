@@ -11,7 +11,6 @@ import type { DbExec } from "@/lib/db/tx";
 import { AI_MODELS } from "@/lib/ai/models";
 import { callCopyProvider, CopyProviderError } from "@/lib/ai-copy/provider";
 import { sendSystemReply } from "@/lib/inbox/repository";
-import { activeReplyWriter } from "@/lib/inbox-reply-guard/repository";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { supportConversation, freshSupportJob, handoffSupport } from "./queue";
 import { recordSupportUsage } from "./usage";
@@ -158,13 +157,8 @@ async function finish(
     now: Date,
 ) {
     return exec.transaction(async (tx) => {
-        const { chat } = await supportConversation(
-            job.conversationId,
-            tx,
-            true,
-        );
-        const humanWriting =
-            job.mode === "reply" && (await activeReplyWriter(tx, chat, now));
+        // 상담 행을 잠가 두고 판단한다
+        await supportConversation(job.conversationId, tx, true);
         const [fresh] = await tx
             .select()
             .from(jobs)
@@ -208,7 +202,7 @@ async function finish(
                     result.reason,
                     job.settingsSnapshot,
                 );
-                if (changed && job.mode === "reply" && !humanWriting)
+                if (changed && job.mode === "reply")
                     await sendSystemReply(
                         tx,
                         job.conversationId,
@@ -223,15 +217,14 @@ async function finish(
                     state: "ready",
                     answer: result.answer!,
                     citations: result.citations!,
-                    reason: humanWriting
-                        ? "상담원이 답변을 작성 중이어서 자동 전송을 보류했습니다. 생성한 초안을 확인해주세요."
-                        : null,
+                    reason: null,
                     leaseId: null,
                     leaseUntil: null,
                     updatedAt: now,
                 })
                 .where(eq(jobs.id, job.id));
-            if (job.mode === "reply" && !humanWriting)
+            // 직원이 이미 답했으면(aiState human) 위 freshSupportJob에서 걸러진다
+            if (job.mode === "reply")
                 await sendSystemReply(
                     tx,
                     job.conversationId,

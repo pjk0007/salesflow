@@ -8,6 +8,7 @@ import {
     visitorDetail,
     sendVisitorMessage,
     authenticatedCustomer,
+    leaveVisitorConversation,
 } from "@/lib/inbox/repository";
 import { recordCustomerEvent } from "@/lib/customer-platform/repository";
 import { linkVisitorIdentity } from "@/lib/inbox/link-identity";
@@ -64,6 +65,8 @@ export async function POST(req: NextRequest, ctx: Context) {
         if (input.action === "identify")
             return linkVisitorIdentity(key, visitorToken(req), input);
         if (input.action === "session") return startVisitorSession(key, input);
+        if (input.action === "leave")
+            return leaveVisitorConversation(key, visitorToken(req), selectedConversation(req.nextUrl.searchParams));
         if (input.action === "profile")
             return updateVisitorProfile(key, visitorToken(req), input);
         if (input.action === "track") {

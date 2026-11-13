@@ -1,4 +1,5 @@
 import { queueCustomerReplyNotice } from "@/lib/customer-messenger/queue";
+import { aiWorkerEnabled } from "@/lib/customer-ai/catalog";
 import { isResponder } from "@/lib/inbox-responders/repository";
 import {
     activeCustomerActor,
@@ -29,7 +30,7 @@ import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { lockWorkflowWorkspace } from "@/lib/customer-workflows/repository";
 import { readableCustomerConversation } from "@/lib/inbox-customer-history/visibility";
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq, gt, ilike, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, ilike, inArray, isNull, lt, or, sql, type SQL } from "drizzle-orm";
 import {
     db,
     inboxChannels,
@@ -65,8 +66,6 @@ import {
 } from "./rules";
 
 import { InboxError } from "./errors";
-import { enforceReplyGuard } from "@/lib/inbox-reply-guard/repository";
-import type { SendbReplyGuardContext } from "../../../sdk/reply-guard-types";
 export { InboxError } from "./errors";
 import { verifyCustomerIdentity } from "@/lib/customer-platform/identity";
 import { appendActivity } from "@/lib/customer-platform/activities";
@@ -85,13 +84,21 @@ import { appendInboxAudit, type AuditChanges } from "./audit";
 type Actor = Pick<JWTPayload, "orgId" | "userId" | "name" | "role">;
 const hash = (token: string) =>
     createHash("sha256").update(token).digest("hex");
+/** AI 상담 중 — 사업 AI가 자동답변(reply) 모드이고 아직 사람에게 넘어가지 않은 상담 (직원 답장·상담원 연결 전) */
+const aiAnswering = sql<boolean>`(${inboxConversations.aiState} <> 'human' AND NOT ${inboxConversations.historyOnly} AND EXISTS (SELECT 1 FROM customer_ai_settings s JOIN inbox_channels ch ON ch.workspace_id = s.workspace_id WHERE ch.id = "inbox_conversations"."channel_id" AND s.mode = 'reply'))`;
+/** 고객이 상담창에서 "나가기"로 종료한 상담 (마지막 상태 변경이 customer.left).
+ * 하위 질의 안에서는 drizzle이 칼럼을 표 이름 없이 쓰므로("id") 바깥 상담 표를 직접 적는다 */
+const customerLeft = sql<boolean>`coalesce(${inboxConversations.status} = 'closed' AND (SELECT e.action FROM inbox_audit_events e WHERE e.conversation_id = "inbox_conversations"."id" AND e.changes->'status' IS NOT NULL ORDER BY e.created_at DESC LIMIT 1) = 'customer.left', false)`;
 const conversationColumns = {
+    aiAnswering,
+    customerLeft,
     medium: inboxConversations.medium,
     historyOnly: inboxConversations.historyOnly,
     importMetadata: inboxConversations.importMetadata,
     version: inboxConversations.version,
     aiState: inboxConversations.aiState,
     aiHandoffReason: inboxConversations.aiHandoffReason,
+    snoozedUntil: inboxConversations.snoozedUntil,
     id: inboxConversations.id,
     channelId: inboxConversations.channelId,
     name: inboxConversations.name,
@@ -320,6 +327,8 @@ export async function listConversations(
                 eq(inboxConversations.channelId, channelId),
                 isNull(inboxConversations.mergedIntoId),
                 eq(inboxConversations.historyOnly, input.filter === "history"),
+                // AI 상담 중인 문의는 "AI 상담"에서만 보이고, 사람에게 넘어오면 다른 목록에 들어온다
+                input.filter === "ai" ? aiAnswering : input.filter === "history" ? undefined : sql`NOT ${aiAnswering}`,
                 conversationSearch(input.q),
                 teamFilter(input.teamId),
                 input.filter === "myTeams"
@@ -417,12 +426,13 @@ export async function conversationCounts(
     const live = (condition?: SQL) =>
         sql`NOT ${inboxConversations.historyOnly}${searching && statusCondition ? sql` AND ${statusCondition}` : sql``}${condition ? sql` AND ${condition}` : sql``}`;
     const counted = (condition?: SQL) =>
-        sql<number>`count(*) FILTER (WHERE ${live(condition)})`.mapWith(Number);
+        sql<number>`count(*) FILTER (WHERE ${live(condition)} AND NOT ${aiAnswering})`.mapWith(Number);
     const byStatus = (value: "open" | "snoozed" | "closed") =>
         sql<number>`count(*) FILTER (WHERE NOT ${inboxConversations.historyOnly} AND ${inboxConversations.status} = ${value})`.mapWith(Number);
     const counts = await exec
             .select({
                 all: counted(),
+                ai: sql<number>`count(*) FILTER (WHERE ${live()} AND ${aiAnswering})`.mapWith(Number),
                 myTeams: counted(myTeamPredicate(actor.userId)),
                 history:
                     sql<number>`count(*) FILTER (WHERE ${inboxConversations.historyOnly})`.mapWith(
@@ -812,6 +822,14 @@ export async function patchConversation(
                   }
                 : {}),
             ...(input.tags ? { tags: [...new Set(input.tags)] } : {}),
+            // 보류 시각은 보류일 때만 남기고, 진행·종료로 바꾸면 비운다
+            ...((input.status ?? chat.status) !== "snoozed"
+                ? input.status || input.snoozedUntil !== undefined
+                    ? { snoozedUntil: null }
+                    : {}
+                : input.status === "snoozed" || input.snoozedUntil !== undefined
+                  ? { snoozedUntil: input.snoozedUntil ?? null }
+                  : {}),
         };
         const changes: AuditChanges = {};
         for (const key of Object.keys(
@@ -868,6 +886,85 @@ export async function patchConversation(
     });
 }
 
+/**
+ * 같은 고객과 새 대화 열기 — 지난 상담이 끝났어도 우리가 먼저 다시 이야기할 때.
+ * 회원 고객: 새 대화를 "현재 문의"로 만든다. 비회원: 고객 브라우저가 기억하는 연결(token)을 새 대화로 옮긴다.
+ * 비회원이 상담창에서 나가기를 했으면 그 연결이 끊겨 열 수 없다. 직원 첫 메시지가 고객에게 새 답변으로 보인다.
+ */
+export async function startStaffConversation(actor: Actor, id: string, exec: DbExec = db) {
+    return exec.transaction(async (tx) => {
+        const chat = await ownedConversation(actor, id, tx);
+        const channel = await requireCustomerChannel(actor, chat.channelId, "respond", tx);
+        if (!(await isResponder(tx, channel.workspaceId, actor.userId)))
+            throw new InboxError("이 사업의 상담권한이 켜진 직원만 상담을 새로 열 수 있습니다.", 403);
+        if (chat.medium !== "web") throw new InboxError("사이트 상담만 새로 열 수 있습니다.", 409);
+        const [source] = await tx
+            .select({ tokenHash: inboxConversations.tokenHash, pageUrl: inboxConversations.pageUrl, isCurrent: inboxConversations.isCurrent })
+            .from(inboxConversations)
+            .where(eq(inboxConversations.id, chat.id))
+            .for("update");
+        let values: typeof inboxConversations.$inferInsert;
+        if (chat.contactId) {
+            const [contact] = await tx
+                .select({ id: crmContacts.id, name: crmContacts.name, email: crmContacts.email, recordId: crmContacts.recordId })
+                .from(crmContacts)
+                .where(eq(crmContacts.id, chat.contactId));
+            if (!contact) throw new InboxError("고객 정보를 찾을 수 없습니다.", 404);
+            // 지금 열려 있는 대화는 "지난 대화"로 돌리고 새 대화를 현재로 만든다
+            await tx
+                .update(inboxConversations)
+                .set({ isCurrent: false })
+                .where(
+                    and(
+                        eq(inboxConversations.channelId, chat.channelId),
+                        eq(inboxConversations.contactId, contact.id),
+                        eq(inboxConversations.isCurrent, true),
+                        eq(inboxConversations.historyOnly, false),
+                        eq(inboxConversations.medium, "web"),
+                        isNull(inboxConversations.mergedIntoId),
+                    ),
+                );
+            values = {
+                channelId: chat.channelId,
+                orgId: actor.orgId,
+                contactId: contact.id,
+                tokenHash: hash(randomBytes(32).toString("hex")),
+                name: contact.name,
+                email: contact.email,
+                recordId: contact.recordId,
+            };
+        } else {
+            if (chat.customerLeft)
+                throw new InboxError("고객이 상담창에서 나가 연결이 끊겼어요. 비회원 고객이라 다시 연락할 방법이 없어요.", 409);
+            // 고객 브라우저가 가진 연결을 새 대화로 옮긴다 (지난 대화는 고객 화면에서 더 이상 보이지 않는다)
+            await tx
+                .update(inboxConversations)
+                .set({ tokenHash: hash(randomBytes(32).toString("hex")) })
+                .where(eq(inboxConversations.id, chat.id));
+            values = {
+                channelId: chat.channelId,
+                orgId: actor.orgId,
+                tokenHash: source.tokenHash,
+                name: chat.name,
+                email: chat.email,
+                pageUrl: source.pageUrl,
+                recordId: chat.recordId,
+            };
+        }
+        const [created] = await tx
+            .insert(inboxConversations)
+            .values({ ...values, assigneeId: actor.userId, aiState: "human" })
+            .returning({ id: inboxConversations.id });
+        await enqueuePlatformEvent(tx, {
+            orgId: actor.orgId,
+            workspaceId: channel.workspaceId,
+            key: `conversation:${created.id}:created`,
+            type: "conversation.created",
+            data: { conversationId: created.id, channelId: chat.channelId, contactId: chat.contactId, name: chat.name, email: chat.email },
+        });
+        return { id: created.id };
+    });
+}
 export async function markRead(
     actor: Actor,
     id: string,
@@ -901,7 +998,6 @@ export async function appendMessage(
         sourceAttachmentCount?: number;
         emailReply?: EmailReplySelection;
         mentionedUserIds?: string[];
-        replyGuard?: SendbReplyGuardContext;
     },
     scope: FileScope,
 ) {
@@ -1008,8 +1104,6 @@ export async function appendMessage(
         }
         if (message.kind === "reply" && locked.status === "closed")
             throw new InboxError("상담을 다시 연 뒤 답변해주세요.");
-        if (message.kind === "reply")
-            await enforceReplyGuard(tx, locked, message);
         if (message.kind === "customer" && locked.medium === "web") {
             const recent = await tx
                 .select({ id: inboxMessages.id })
@@ -1679,9 +1773,32 @@ export async function visitorDetail(
                           ),
                       )
                 : [];
+        // AI가 답장을 만드는 중이면 고객 화면에 "입력 중" 점 세 개를 보여준다.
+        // AI 작업기가 이 사업에서 돌고 있을 때만, 2분 안에 들어온 요청만 (멈춘 작업 때문에 점이 계속 남지 않게)
+        const [typingChannel] =
+            chat.id && chat.aiState !== "human" && !chat.historyOnly
+                ? await tx.select({ workspaceId: inboxChannels.workspaceId }).from(inboxChannels).where(eq(inboxChannels.id, chat.channelId))
+                : [];
+        const [typing] =
+            // 개발 서버는 AI 작업기를 따로 띄워 시험하므로 표시는 켠다 (2분 제한은 그대로)
+            typingChannel && (aiWorkerEnabled(typingChannel.workspaceId) || process.env.NODE_ENV !== "production")
+                ? await tx
+                      .select({ id: customerAiJobs.id })
+                      .from(customerAiJobs)
+                      .where(
+                          and(
+                              eq(customerAiJobs.conversationId, chat.id),
+                              eq(customerAiJobs.mode, "reply"),
+                              inArray(customerAiJobs.state, ["queued", "generating"]),
+                              gt(customerAiJobs.createdAt, new Date(Date.now() - 120_000)),
+                          ),
+                      )
+                      .limit(1)
+                : [];
         // 방문자에게는 직원 식별자·내부 메모·CRM 연결 정보를 내보내지 않는다.
         return {
             conversationId: chat.id,
+            aiTyping: !!typing,
             readRevision: read?.readRevision ?? 0,
             status: chat.status,
             historyOnly: chat.historyOnly,
@@ -1704,6 +1821,37 @@ export async function visitorDetail(
                 })),
             })),
         };
+    });
+}
+/** 고객이 상담창에서 "나가기" — 진행 중인 상담을 종료한다. 다시 메시지를 보내면 새로 열린다 */
+export async function leaveVisitorConversation(
+    key: string,
+    token: string,
+    conversationId?: string,
+    exec: DbExec = db,
+) {
+    return exec.transaction(async (tx) => {
+        const chat = await visitorConversation(key, token, tx, false, conversationId);
+        if (!chat.id || chat.readOnly || chat.status === "closed") return { left: true };
+        const [locked] = await tx
+            .select({ status: inboxConversations.status, version: inboxConversations.version })
+            .from(inboxConversations)
+            .where(eq(inboxConversations.id, chat.id))
+            .for("update");
+        if (!locked || locked.status === "closed") return { left: true };
+        await tx
+            .update(inboxConversations)
+            .set({ status: "closed", version: locked.version + 1 })
+            .where(eq(inboxConversations.id, chat.id));
+        await appendInboxAudit(tx, {
+            orgId: chat.orgId,
+            channelId: chat.channelId,
+            conversationId: chat.id,
+            actorName: chat.name,
+            action: "customer.left",
+            changes: { status: { before: locked.status, after: "closed" } },
+        });
+        return { left: true };
     });
 }
 export async function sendVisitorMessage(

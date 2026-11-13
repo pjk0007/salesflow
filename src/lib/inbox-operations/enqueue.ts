@@ -17,6 +17,14 @@ import {
     inboxResponders as responders,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
+/** AI 자동답변 모드인 사업의 상담이고 아직 사람에게 넘어가지 않았는지 */
+async function aiAnswering(exec: DbExec, chat: Chat) {
+    if (chat.aiState === "human" || chat.historyOnly) return false;
+    const rows = await exec.execute(
+        sql`SELECT 1 FROM customer_ai_settings s JOIN inbox_channels ch ON ch.workspace_id = s.workspace_id WHERE ch.id = ${chat.channelId} AND s.mode = 'reply' LIMIT 1`,
+    );
+    return rows.length > 0;
+}
 import { defaultPolicy, policyInput } from "./rules";
 import { businessMilliseconds, addBusinessMilliseconds } from "./calendar";
 type Chat = typeof chats.$inferSelect;
@@ -618,6 +626,8 @@ export async function onOperationsEvent(
             );
         if (!message) return;
         if (message.kind === "customer") {
+            // AI가 상담 중이면 알림을 보내지 않는다. 상담원 연결(ai.handoff)이 되면 그때 알림이 간다
+            if (!(await aiAnswering(exec, chat)))
             await notifyOperations(
                 exec,
                 chat,

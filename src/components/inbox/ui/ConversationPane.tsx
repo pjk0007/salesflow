@@ -3,7 +3,7 @@ import { ConversationServiceStatus } from "@/components/inbox-operations/ui/Conv
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, Check, Clock, LockKeyhole, PanelRightClose, PanelRightOpen, Send, Star } from "lucide-react";
+import { ArrowLeft, Check, LockKeyhole, PanelRight, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
 import { inboxRequest, inboxWrite } from "../api";
@@ -23,6 +23,9 @@ import { NoteMentions } from "@/components/inbox-collaboration/ui/NoteMentions";
 import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTargetCard";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 import { TeamAssignment } from "@/components/inbox-routing/ui/TeamAssignment";
+import { SnoozeMenu } from "./SnoozeMenu";
+import { Hint } from "@/components/ui/hint";
+import { NewConversationButton } from "./NewConversationButton";
 import { FollowConversation } from "@/components/inbox-follow/ui/FollowConversation";
 import { useFollow } from "@/components/inbox-follow/hooks/useFollow";
 import { MacroPicker } from "@/components/inbox-macros/ui/MacroPicker";
@@ -49,6 +52,7 @@ export function ConversationPane({
     patch,
     refresh,
     onBack,
+    onOpenConversation,
     focusMessageId,
     onDismissMention,
     presenceAgents,
@@ -64,6 +68,8 @@ export function ConversationPane({
     patch: (value: unknown) => Promise<void>;
     refresh: () => Promise<unknown>;
     onBack: () => void;
+    /** 같은 고객과 새 대화를 열었을 때 그 대화로 이동 */
+    onOpenConversation?: (id: string) => void;
     focusMessageId?: number | null;
     onDismissMention: () => void;
     presenceAgents: InboxPresence["agents"];
@@ -91,9 +97,10 @@ export function ConversationPane({
     // 오른쪽 고객 정보 패널 열림 — 사람마다 브라우저에 기억
     const [infoOpen, setInfoOpenState] = useState(() => {
         try {
-            return typeof window === "undefined" || localStorage.getItem("inbox.customerInfo") !== "closed";
+            // 기본은 닫힘 — 헤더 오른쪽 끝 버튼으로 연다
+            return typeof window !== "undefined" && localStorage.getItem("inbox.customerInfo") === "open";
         } catch {
-            return true;
+            return false;
         }
     });
     const setInfoOpen = (open: boolean) => {
@@ -154,6 +161,8 @@ export function ConversationPane({
     // 이 사업의 상담 담당자(상담 설정 › 상담 담당자에서 상담권한을 켠 직원)만 답장한다
     const responder = !!bootstrap.members.find((m) => m.id === userId)?.workspaceIds.includes(workspaceId ?? -1);
     const joined = responder && (chat.assigneeId === userId || followInfo.following);
+    // 비회원 고객이 나가기로 끝낸 상담 — 그 브라우저와 연결이 끊겨 다시 열어도 고객에게 닿지 않는다
+    const unreachable = !!chat.customerLeft && !chat.contactId;
     const [editor, setEditor] = useState<Editor | null>(null);
     const macro = useMacroPicker({ workspaceId, editor });
     const [dragging, setDragging] = useState(false);
@@ -392,59 +401,61 @@ ${body}` : body, key);
                     <div className="flex shrink-0 gap-2">
                         {!chat.historyOnly && canRespond && (
                             <>
+                                {chat.medium !== "email" && !unreachable && (
+                                    <NewConversationButton
+                                        conversationId={chat.id}
+                                        customerName={chat.name}
+                                        available={!unreachable}
+                                        onOpened={(id) => onOpenConversation?.(id)}
+                                    />
+                                )}
                                 {chat.status !== "closed" ? (
                                     <>
-                                        <button
-                                            title="상담 보류"
+                                        <SnoozeMenu
+                                            status={chat.status}
+                                            snoozedUntil={chat.snoozedUntil}
                                             disabled={changing}
-                                            aria-label="상담 보류"
-                                            onClick={() =>
-                                                change({
-                                                    status:
-                                                        chat.status ===
-                                                        "snoozed"
-                                                            ? "open"
-                                                            : "snoozed",
-                                                })
-                                            }
-                                            className="rounded-xl border p-2"
-                                        >
-                                            <Clock size={17} />
-                                        </button>
-                                        <button
-                                            onClick={() =>
-                                                change({ status: "closed" })
-                                            }
-                                            disabled={changing}
-                                            className="flex items-center gap-1 whitespace-nowrap rounded-xl bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"
-                                        >
-                                            <Check size={16} />
-                                            종료
-                                        </button>
+                                            onSnooze={(until) => void change({ status: "snoozed", snoozedUntil: until.toISOString() })}
+                                            onResume={() => void change({ status: "open" })}
+                                        />
+                                        <Hint label="종료">
+                                            <button
+                                                aria-label="상담 종료"
+                                                onClick={() =>
+                                                    change({ status: "closed" })
+                                                }
+                                                disabled={changing}
+                                                className="flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground hover:bg-muted disabled:opacity-50"
+                                            >
+                                                <Check size={18} />
+                                            </button>
+                                        </Hint>
                                     </>
-                                ) : (
-                                    <button
-                                        className="whitespace-nowrap rounded-xl border px-3 py-2 text-sm"
-                                        onClick={() =>
-                                            change({ status: "open" })
-                                        }
-                                        disabled={changing}
-                                    >
-                                        다시 열기
-                                    </button>
+                                ) : unreachable ? null : (
+                                    <Hint label="종료한 상담을 다시 진행중으로 열어 이어서 답장해요">
+                                        <button
+                                            className="whitespace-nowrap rounded-xl border px-3 py-2 text-sm"
+                                            onClick={() =>
+                                                change({ status: "open" })
+                                            }
+                                            disabled={changing}
+                                        >
+                                            다시 열기
+                                        </button>
+                                    </Hint>
                                 )}
                             </>
                         )}
-                        {!infoOpen && (
+                        <Hint label={infoOpen ? "고객 정보 닫기" : "고객 정보 열기"}>
                             <button
-                                title="고객 정보 열기"
-                                aria-label="고객 정보 열기"
-                                onClick={() => setInfoOpen(true)}
-                                className="hidden rounded-lg p-2 text-muted-foreground hover:bg-muted lg:block"
+                                aria-label={infoOpen ? "고객 정보 닫기" : "고객 정보 열기"}
+                                aria-pressed={infoOpen}
+                                onClick={() => setInfoOpen(!infoOpen)}
+                                className={`hidden h-9 w-9 items-center justify-center rounded-full hover:bg-muted lg:flex ${infoOpen ? "text-foreground" : "text-muted-foreground"}`}
                             >
-                                <PanelRightOpen size={17} />
+                                <PanelRight size={17} />
                             </button>
-                        )}
+                        </Hint>
                     </div>
                 </header>
                 {!canRespond && (
@@ -557,12 +568,24 @@ ${body}` : body, key);
                     <div ref={end} />
                 </div>
                 <ConversationPresence agents={presenceAgents} userId={userId} />
-                {!chat.historyOnly && canRespond && !responder && (
+                {!chat.historyOnly && chat.customerLeft && (
+                    <p role="status" className="m-4 shrink-0 rounded-lg border border-border/40 bg-muted/40 p-4 text-sm text-muted-foreground">
+                        {unreachable
+                            ? "고객이 상담창에서 나가 상담이 종료됐어요. 비회원 고객이라 다시 연락할 방법이 없어요."
+                            : "고객이 상담창에서 나가 상담이 종료됐어요. 다시 이야기하려면 위의 새 대화 버튼을 눌러주세요."}
+                    </p>
+                )}
+                {!chat.historyOnly && chat.aiAnswering && !chat.customerLeft && chat.status !== "closed" && (
+                    <p role="status" className="m-4 shrink-0 rounded-lg border border-border/40 bg-muted/40 p-4 text-sm text-muted-foreground">
+                        AI가 상담 중이에요. 고객이 상담원 연결을 요청하면 알림으로 알려드리고 답장할 수 있어요.
+                    </p>
+                )}
+                {!chat.historyOnly && !chat.aiAnswering && canRespond && !responder && (
                     <p role="status" className="m-4 shrink-0 rounded-lg border border-border/40 bg-muted/40 p-4 text-sm text-muted-foreground">
                         이 사업의 상담권한이 없어 답장할 수 없어요. 상담 설정 › 상담 담당자에서 켤 수 있어요.
                     </p>
                 )}
-                {!chat.historyOnly && canRespond && responder && !joined && !followInfo.loading && (
+                {!chat.historyOnly && !chat.aiAnswering && !chat.customerLeft && canRespond && responder && !joined && !followInfo.loading && (
                     <FollowConversation
                         busy={changing || followBusy}
                         onFollow={async () => {
@@ -579,7 +602,7 @@ ${body}` : body, key);
                         }}
                     />
                 )}
-                {!chat.historyOnly && canRespond && joined && (
+                {!chat.historyOnly && !chat.aiAnswering && !chat.customerLeft && canRespond && joined && (
                     <>
                         {chat.medium !== "email" && (
                             <SupportDraftPanel
@@ -783,16 +806,8 @@ ${body}` : body, key);
                 </details>
             </section>
             <aside className={`hidden w-[320px] shrink-0 overflow-y-auto border-l bg-muted/10 ${infoOpen ? "lg:block" : ""}`}>
-                <div className="flex h-14 items-center justify-between border-b pl-5 pr-3 text-sm font-semibold">
+                <div className="flex h-14 items-center border-b px-5 text-sm font-semibold">
                     고객 정보
-                    <button
-                        title="고객 정보 닫기"
-                        aria-label="고객 정보 닫기"
-                        onClick={() => setInfoOpen(false)}
-                        className="rounded-lg p-2 font-normal text-muted-foreground hover:bg-muted"
-                    >
-                        <PanelRightClose size={17} />
-                    </button>
                 </div>
                 <CustomerInfo
                     chat={chat}

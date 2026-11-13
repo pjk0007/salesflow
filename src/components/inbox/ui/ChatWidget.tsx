@@ -6,6 +6,7 @@ import {
     ArrowLeft,
     ArrowUp,
     Home,
+    LogOut,
     MessageCircle,
     Plus,
     RotateCcw,
@@ -25,6 +26,8 @@ import { draftSessionKey } from "../utils/session";
 import { useJourneyAttachment } from "@/components/inbox-journey/hooks/useJourneyAttachment";
 import { useCustomerConversations } from "@/components/customer-conversations/hooks/useCustomerConversations";
 import { CustomerConversationList } from "@/components/customer-conversations/ui/CustomerConversationList";
+import { VisitorThreadList } from "@/components/customer-conversations/ui/VisitorThreadList";
+import { useVisitorThreads } from "@/components/customer-conversations/hooks/useVisitorThreads";
 import {
     customerConversationTimestamp,
     isReadOnlyCustomerConversation,
@@ -61,6 +64,11 @@ export function ChatWidget({
         [parentOrigin],
     );
     const [isHome, setIsHome] = useState(true);
+    // 비회원: 대화 메뉴의 진행 중 대화 목록
+    const [threadList, setThreadList] = useState(false);
+    // 헤더 오른쪽 "나가기" — 확인창을 띄우고, 나가면 상담을 종료하고 홈으로
+    const [leaveOpen, setLeaveOpen] = useState(false);
+    const [leaving, setLeaving] = useState(false);
     const { confirm, confirmationDialog } = useAsyncConfirm();
     const [token, setToken] = useState(""),
         [ready, setReady] = useState(false),
@@ -119,6 +127,37 @@ export function ChatWidget({
         id: string;
         draft: ReplyContactDraft;
     } | null>(null);
+    /** 방문 고객 세션을 비운다 — 다음 메시지는 새 상담으로 시작한다 ("새 문의 시작"·"나가기") */
+    function resetVisitorSession() {
+        generation.current++;
+        attachments.reset();
+        drafts.current.clear();
+        deferredDraft.current = null;
+        setHasDeferredDraft(false);
+        setDraftKey("current");
+        pending.current = null;
+        handoffPending.current = null;
+        setText("");
+        setSuggestedText("");
+        setToken("");
+        setOlder([]);
+        setCanLoad(true);
+        if (managed) parentMessage("sendb:session", { token: "" });
+        try {
+            localStorage.removeItem(storageKey);
+        } catch {}
+    }
+    /** 비회원 대화 목록에서 다른 대화로 옮긴다 */
+    function openVisitorThread(next: string) {
+        resetVisitorSession();
+        setToken(next);
+        if (managed) parentMessage("sendb:session", { token: next });
+        try {
+            localStorage.setItem(storageKey, next);
+        } catch {}
+        setThreadList(false);
+        setIsHome(false);
+    }
     async function ensureSession(currentGeneration: number) {
         if (token) return token;
         const result = await inboxRequest<{ token: string }>(baseUrl, {
@@ -238,6 +277,11 @@ export function ChatWidget({
         scroll = useRef<HTMLDivElement>(null),
         follow = useRef(true);
     const storageKey = `sendb-chat:${channelKey}`;
+    const threads = useVisitorThreads(storageKey, baseUrl, !history.enabled);
+    // 이 브라우저가 연 비회원 대화를 목록에 기억한다
+    useEffect(() => {
+        if (token && !token.includes(".")) threads.add(token);
+    }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
     const config = useSWR<{
         name: string;
         greeting: string;
@@ -898,13 +942,70 @@ export function ChatWidget({
         : (data.data?.messages.filter(
               (message) => message.kind === "reply" && message.id > readId,
           ).length ?? 0);
+    // 비회원의 지금 상담이 이미 종료됨 — 홈에 "이어가기" 대신 새 상담으로 보여준다
+    const closedVisitorChat =
+        !history.enabled && !token.includes(".") && detailResolved && data.data?.status === "closed";
     function showConversations() {
         if (navigationBusy) return;
         if (history.enabled) changeConversation("list");
-        else setIsHome(false);
+        else {
+            void threads.refresh();
+            setThreadList(true);
+            setIsHome(false);
+        }
     }
     return (
-        <div className="flex h-dvh flex-col bg-white font-sans text-gray-900">
+        <div className="relative flex h-dvh flex-col bg-white font-sans text-gray-900">
+            {leaveOpen && (
+                <div role="dialog" aria-modal="true" aria-labelledby="leave-title" className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 p-6">
+                    <div className="w-full max-w-sm rounded-2xl bg-white p-6 text-center">
+                        <h2 id="leave-title" className="text-base font-bold">채팅을 나가시나요?</h2>
+                        <p className="mt-2 text-sm leading-6 text-gray-600">
+                            나가면 이 상담이 종료돼요. 아직 답변을 기다리는 중이라면 답변을 받을 수 없어요.
+                        </p>
+                        <div className="mt-5 grid grid-cols-2 gap-2">
+                            <button
+                                type="button"
+                                autoFocus
+                                disabled={leaving}
+                                onClick={() => setLeaveOpen(false)}
+                                className="rounded-xl bg-gray-100 py-3 text-sm font-semibold text-gray-900 disabled:opacity-50"
+                            >
+                                취소
+                            </button>
+                            <button
+                                type="button"
+                                disabled={leaving}
+                                onClick={async () => {
+                                    setLeaving(true);
+                                    try {
+                                        await inboxRequest(selectedUrl, {
+                                            method: "POST",
+                                            headers: { Authorization: `Bearer ${token}` },
+                                            body: JSON.stringify({ action: "leave" }),
+                                        });
+                                        setLeaveOpen(false);
+                                        setIsHome(true);
+                                        // 비회원은 이 브라우저의 상담을 끊어, 홈에 "상담 시작하기"가 나오고 대화 목록도 비게 한다
+                                        if (!token.includes(".")) {
+                                            threads.remove(token);
+                                            resetVisitorSession();
+                                        } else await data.mutate();
+                                    } catch (e) {
+                                        setError((e as Error).message);
+                                        setLeaveOpen(false);
+                                    } finally {
+                                        setLeaving(false);
+                                    }
+                                }}
+                                className="rounded-xl bg-red-500 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                            >
+                                {leaving ? "나가는 중…" : "나가기"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {isHome ? (
                 <MessengerHome
                     brand={brand}
@@ -920,18 +1021,25 @@ export function ChatWidget({
                         !history.enabled &&
                         !!token &&
                         detailResolved &&
-                        messages.length > 0
+                        messages.length > 0 &&
+                        !closedVisitorChat
                     }
                     unread={unreadCount}
                     hasConversations={
                         history.enabled
                             ? history.rows.length > 0
-                            : !!token && detailResolved && messages.length > 0
+                            : threads.rows.length > 0 || (!!token && detailResolved && messages.length > 0 && !closedVisitorChat)
                     }
                     onStart={() => {
                         if (navigationBusy) return;
                         if (history.enabled) changeConversation("new");
-                        else setIsHome(false);
+                        else {
+                            // 진행 중인 대화가 있어도 "상담 새로 열기"는 새 대화로 시작한다 (지난 대화는 대화 목록에 남는다).
+                            // 종료된 상담(나가기 등)이 남아 있어도 새로 시작한다
+                            if (closedVisitorChat || (token && messages.length > 0)) resetVisitorSession();
+                            setThreadList(false);
+                            setIsHome(false);
+                        }
                     }}
                     onConversations={showConversations}
                 />
@@ -941,26 +1049,18 @@ export function ChatWidget({
                         <button
                             type="button"
                             aria-label="상담 홈으로"
-                            onClick={() => setIsHome(true)}
+                            onClick={() => {
+                                setThreadList(false);
+                                setIsHome(true);
+                            }}
                             className="rounded-xl p-2 text-gray-500 hover:bg-gray-50"
                         >
                             <ArrowLeft size={20} aria-hidden="true" />
                         </button>
                         <div className="min-w-0 flex-1">
-                            <h1 className="truncate text-sm font-semibold">
+                            <h1 className="truncate text-base font-semibold">
                                 <BrandMark brand={brand} name={config.data?.name ?? "고객 상담"} />
                             </h1>
-                            <p className="mt-1 text-xs text-gray-400">
-                                {isList
-                                    ? "남긴 문의와 답변"
-                                    : readOnly
-                                      ? "이전 상담 · 읽기 전용"
-                                      : !isNew && detailResolved && data.data?.aiState === "human"
-                                        ? "담당자 상담 · 연결 요청 접수"
-                                        : config.data?.messengerSettings?.aiAvailable
-                                          ? "AI 상담원 · 24시간 안내"
-                                          : "담당자에게 문의를 남겨주세요"}
-                            </p>
                         </div>
                         {history.enabled && (
                             <button
@@ -972,6 +1072,25 @@ export function ChatWidget({
                                 style={{ color }}
                             >
                                 <Plus size={20} aria-hidden="true" />
+                            </button>
+                        )}
+                        {/* 대화 화면에서는 항상 보인다. 진행 중인 상담이 있을 때만 확인창을 띄우고, 아니면 바로 홈으로 */}
+                        {!isList && !threadList && (
+                            <button
+                                type="button"
+                                aria-label="채팅 나가기"
+                                title="채팅 나가기"
+                                disabled={navigationBusy}
+                                onClick={() => {
+                                    if (!readOnly && !isNew && !!data.data?.conversationId && data.data.status !== "closed") setLeaveOpen(true);
+                                    else {
+                                        if (closedVisitorChat) resetVisitorSession();
+                                        setIsHome(true);
+                                    }
+                                }}
+                                className="rounded-xl p-2 text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                <LogOut size={20} aria-hidden="true" />
                             </button>
                         )}
                     </header>
@@ -1007,6 +1126,19 @@ export function ChatWidget({
                                 else if (conversationUuid.test(draftKey))
                                     history.open(draftKey);
                                 else history.reset();
+                            }}
+                        />
+                    ) : threadList && !history.enabled ? (
+                        <VisitorThreadList
+                            rows={threads.rows}
+                            loading={threads.loading}
+                            color={color}
+                            current={token}
+                            onOpen={(t) => (t === token ? (setThreadList(false), setIsHome(false)) : openVisitorThread(t))}
+                            onNew={() => {
+                                if (token && messages.length > 0) resetVisitorSession();
+                                setThreadList(false);
+                                setIsHome(false);
                             }}
                         />
                     ) : (
@@ -1143,22 +1275,7 @@ export function ChatWidget({
                                                     confirmLabel: "새 문의 시작",
                                                     onConfirm: async () => {
                                                         if (expectedGeneration !== generation.current) return;
-                                                        generation.current++;
-                                                        attachments.reset();
-                                                        drafts.current.clear();
-                                                        deferredDraft.current = null;
-                                                        setHasDeferredDraft(false);
-                                                        setDraftKey("current");
-                                                        pending.current = null;
-                                                        handoffPending.current = null;
-                                                        setText("");
-                                                        setSuggestedText("");
-                                                        setToken("");
-                                                        setOlder([]);
-                                                        setCanLoad(true);
-                                                        try {
-                                                            localStorage.removeItem(storageKey);
-                                                        } catch {}
+                                                        resetVisitorSession();
                                                     },
                                                 });
                                             }}
@@ -1300,7 +1417,7 @@ export function ChatWidget({
                                             </p>
                                             {m.body && (
                                                 <div
-                                                    className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
+                                                    className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-[15px] leading-[1.6] ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
                                                     style={
                                                         m.kind === "customer"
                                                             ? {
@@ -1325,6 +1442,18 @@ export function ChatWidget({
                                         </div>
                                     </div>
                                 ))}
+                                {/* AI가 답장을 만드는 동안 점 세 개가 움직인다 */}
+                                {!isNew && data.data?.aiTyping && (
+                                    <div role="status" aria-label="답변을 작성하고 있어요" className="flex w-fit items-center gap-1 rounded-2xl rounded-tl-md bg-gray-100 px-4 py-3.5">
+                                        {[0, 150, 300].map((delay) => (
+                                            <span
+                                                key={delay}
+                                                className="h-2 w-2 animate-bounce rounded-full bg-gray-400"
+                                                style={{ animationDelay: `${delay}ms` }}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
                                 <div ref={end} />
                             </div>
                             {!isNew &&
@@ -1405,7 +1534,7 @@ export function ChatWidget({
                                 </div>
                             ) : (
                                 <form
-                                    className="shrink-0 border-t border-gray-100 p-4"
+                                    className="shrink-0 px-3 pb-3 pt-1"
                                     onSubmit={(e) => {
                                         e.preventDefault();
                                         void send();
@@ -1509,7 +1638,7 @@ export function ChatWidget({
                                                     void send();
                                                 }
                                             }}
-                                            className="block w-full resize-none bg-transparent text-sm outline-none placeholder:text-gray-400"
+                                            className="block w-full resize-none bg-transparent text-[15px] outline-none placeholder:text-gray-400"
                                         />
                                         <div className="mt-1 flex items-center justify-between">
                                             <AttachmentPicker
@@ -1556,6 +1685,7 @@ export function ChatWidget({
                     )}
                 </>
             )}
+            {isHome && (
             <nav
                 aria-label="상담창 메뉴"
                 className="grid shrink-0 grid-cols-2 border-t border-gray-100 bg-white p-2"
@@ -1592,6 +1722,7 @@ export function ChatWidget({
                     대화
                 </button>
             </nav>
+            )}
         </div>
     );
 }

@@ -29,10 +29,16 @@ export function statementTimeoutMs(raw = process.env.DATABASE_STATEMENT_TIMEOUT_
     return Number.isSafeInteger(n) && n <= 3_600_000 ? n : 60_000;
 }
 
-export const queryClient = postgres(connectionString, {
-    max: poolMax(),
-    connection: { statement_timeout: statementTimeoutMs() },
-});
+// 개발 서버는 코드를 고칠 때마다 이 파일을 다시 읽어 풀을 새로 만든다. 예전 풀이 닫히지 않아 DB 연결 한도(too many clients)에
+// 걸리므로, 개발 중에는 한 풀을 globalThis에 두고 다시 쓴다. 운영은 한 번만 읽으므로 그대로다
+const cached = globalThis as typeof globalThis & { __sendbQueryClient?: ReturnType<typeof postgres> };
+export const queryClient =
+    cached.__sendbQueryClient ??
+    postgres(connectionString, {
+        max: poolMax(),
+        connection: { statement_timeout: statementTimeoutMs() },
+    });
+if (process.env.NODE_ENV !== "production") cached.__sendbQueryClient = queryClient;
 export const db = drizzle(queryClient, { schema });
 
 export * from "./schema";

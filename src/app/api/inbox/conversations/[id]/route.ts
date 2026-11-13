@@ -5,6 +5,7 @@ import {
     markRead,
     patchConversation,
     sendAgentMessage,
+    startStaffConversation,
 } from "@/lib/inbox/repository";
 import { handleInbox, inboxActor, jsonBody } from "@/lib/inbox/http";
 type Context = { params: Promise<{ id: string }> };
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest, ctx: Context) {
             );
             return { read: true };
         }
+        if (body.action === "new-conversation") return startStaffConversation(actor, id);
         return sendAgentMessage(actor, id, body);
     });
 }

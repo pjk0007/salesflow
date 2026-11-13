@@ -156,8 +156,8 @@ export function MessengerHome({
                 >
                     {loading
                         ? "상담을 준비하고 있어요…"
-                        : returning
-                          ? "상담 이어가기"
+                        : returning || hasConversations
+                          ? "상담 새로 열기"
                           : "상담 시작하기"}
                 </button>
                 <p className="mt-3 text-center text-xs leading-5 text-gray-400">

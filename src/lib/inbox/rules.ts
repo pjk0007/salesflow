@@ -2,7 +2,6 @@ import { z } from "zod";
 import { messengerSettingsSchema } from "@/lib/customer-messenger/rules";
 import { emailReplySelection } from "@/lib/inbox-email/recipients";
 import { mentionIdsInput } from "@/lib/inbox-collaboration/rules";
-import { replyGuardContext } from "@/lib/inbox-reply-guard/rules";
 
 export const messageInput = z
     .object({
@@ -30,7 +29,6 @@ export const replyInput = messageInput
         aiDraftId: z.string().uuid().optional(),
         emailReply: emailReplySelection.optional(),
         mentionedUserIds: mentionIdsInput.default([]),
-        replyGuard: replyGuardContext.optional(),
     })
     .refine(
         (v) => !v.aiDraftId || v.kind === "reply",
@@ -40,10 +38,7 @@ export const replyInput = messageInput
         (v) => !v.mentionedUserIds.length || v.kind === "note",
         "팀원 멘션은 내부 메모에서만 사용할 수 있습니다.",
     )
-    .refine(
-        (v) => !v.replyGuard || v.kind === "reply",
-        "답변 잠금은 고객 답변에서만 사용할 수 있습니다.",
-    );
+    ;
 export const sessionInput = z.object({
     name: z.string().trim().min(1).max(100).optional(),
     email: z.union([z.email(), z.literal("")]).optional(),
@@ -66,6 +61,8 @@ export const patchInput = z
         priority: z.boolean().optional(),
         version: z.number().int().positive().optional(),
         aiState: z.enum(["auto", "human"]).optional(),
+        /** 보류할 때 언제까지 (ISO). 보류가 아니면 무시하고 비운다 */
+        snoozedUntil: z.coerce.date().nullable().optional(),
     })
     .strict()
     .refine((v) => !(v.recordCode && v.recordId !== undefined), {
@@ -84,6 +81,7 @@ export const conversationFiltersInput = z.object({
             "history",
             "mentioned",
             "myTeams",
+            "ai",
         ])
         .default("all"),
     teamId: z

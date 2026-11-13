@@ -15,6 +15,7 @@ import {
     UserRound,
     Clock,
     CheckCheck,
+    Bot,
 } from "lucide-react";
 import { useInbox } from "../hooks/useInbox";
 import { useInboxSearch } from "../hooks/useInboxSearch";
@@ -130,6 +131,7 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         { id: "mine", label: "내 상담", icon: UserRound },
         { id: "unassigned", label: "담당자 없음", icon: Archive },
         { id: "priority", label: "중요 상담", icon: Star },
+        { id: "ai", label: "AI 상담", icon: Bot },
         { id: "history", label: "이전 상담 기록", icon: Archive },
         { id: "mentioned", label: "나를 멘션한 상담", icon: MessageCircle },
     ];
@@ -493,6 +495,12 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                 ]);
                             }}
                             onBack={() => setSelected(null)}
+                            onOpenConversation={(id) => {
+                                setStatus("open");
+                                setFilter("all");
+                                setSelected(id);
+                                void list.mutate();
+                            }}
                         />
                     ) : selected ? (
                         <div className="m-auto p-10 text-sm text-muted-foreground">

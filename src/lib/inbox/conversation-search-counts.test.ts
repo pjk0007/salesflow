@@ -14,6 +14,7 @@ test("UX-115 검색어가 있으면 현재 상태 결과와 함께 상태별 검
     const pg = await openPglite([
         schema.workspaces, schema.users, schema.organizationMembers, schema.inboxChannels, schema.inboxConversations,
         schema.inboxReads, schema.inboxMessages, schema.inboxTeamMembers, schema.inboxMessageMentions,
+        schema.customerAiSettings, schema.inboxAuditEvents,
     ]);
     try {
         await insertRow(pg, "workspaces", { id: 1, org_id: ORG, name: "사업" });

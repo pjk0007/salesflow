@@ -47,6 +47,8 @@ export async function register() {
         startGoogleMailScheduler();
         const {startOperationsScheduler}=await import("@/lib/inbox-operations/worker");
         startOperationsScheduler();
+        const { startSnoozeScheduler } = await import("@/lib/inbox/snooze-worker");
+        startSnoozeScheduler();
         const { startInboxChatAlertScheduler } = await import("@/lib/inbox-chat-alerts/worker");
         startInboxChatAlertScheduler();
     }

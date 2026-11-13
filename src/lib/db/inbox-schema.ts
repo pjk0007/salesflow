@@ -144,6 +144,8 @@ export const inboxConversations = pgTable(
         version: integer("version").notNull().default(1),
         aiState: varchar("ai_state", { length: 16 }).notNull().default("auto"),
         aiHandoffReason: varchar("ai_handoff_reason", { length: 300 }),
+        /** 보류 끝나는 시각 — 지나면 진행중으로 되돌린다 (src/lib/inbox/snooze-worker.ts) */
+        snoozedUntil: time("snoozed_until"),
         createdAt: time("created_at").notNull().defaultNow(),
     },
     (t) => [

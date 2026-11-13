@@ -111,6 +111,8 @@ export function InboxAudit({ url }: { url: string }) {
                             {row.actorName}
                             {row.action === "customer.reopened"
                                 ? " · 재문의로 상담 재개"
+                                : row.action === "customer.left"
+                                  ? " · 고객이 상담창에서 나감"
                                 : row.action === "identity.linked"
                                   ? " · 비회원 상담 연결"
                                   : row.action === "visitor.profile.updated"

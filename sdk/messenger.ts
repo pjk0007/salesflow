@@ -27,6 +27,8 @@ export interface SendbCustomerMessages {
     readRevision: number;
     status: "open" | "snoozed" | "closed";
     aiState: "auto" | "human";
+    /** AI가 답장을 만드는 중 — 화면에 "입력 중" 표시 */
+    aiTyping?: boolean;
     profile: { name: string; email: string | null; identified: boolean };
     hasOlder: boolean;
     /** Imported public history is read-only even if its original status was open. */
