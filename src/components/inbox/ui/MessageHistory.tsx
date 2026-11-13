@@ -1,4 +1,5 @@
 "use client";
+import { FormattedText } from "./FormattedText";
 import { Fragment, memo } from "react";
 import { LockKeyhole } from "lucide-react";
 import type { ChatMessage } from "../types";
@@ -61,11 +62,11 @@ export const MessageHistory = memo(function MessageHistory({ messages, historyOn
                         </p>
                     )}
                     {m.body && (
-                        <p
+                        <div
                             className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tl-md bg-muted" : m.kind === "note" ? "border border-amber-200 bg-amber-50 text-amber-950" : "rounded-tr-md bg-[#635BFF] text-white"}`}
                         >
-                            {m.body}
-                        </p>
+                            <FormattedText text={m.body} />
+                        </div>
                     )}
                     {m.kind === "note" &&
                         !!m.mentions?.length && (

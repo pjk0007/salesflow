@@ -193,3 +193,31 @@
         cursor: pointer;
     }
 }
+
+/* 상담 답장 서식 입력창 (src/components/inbox-composer/ui/RichTextInput.tsx) */
+.rich-input {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 60px;
+}
+.rich-input p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}
+.rich-input ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+}
+.rich-input code {
+  border-radius: 0.25rem;
+  background: var(--muted);
+  padding: 0.05rem 0.3rem;
+  font-size: 0.85em;
+}
+.rich-input a {
+  color: #635bff;
+  text-decoration: underline;
+}

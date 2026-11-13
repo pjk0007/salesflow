@@ -1,23 +1,26 @@
 "use client";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { SettingsSection } from "./SettingsSection";
+import { MessengerPreview } from "@/components/customer-messenger/ui/MessengerPreview";
+import { workspaceLabel } from "@/lib/workspace-label";
 import { MessengerSettingsFields } from "@/components/customer-messenger/ui/MessengerSettingsFields";
 import { defaultMessengerSettings } from "@/lib/customer-messenger/rules";
 import { InboxAudit } from "./InboxAudit";
 import { AttachmentUsage } from "./AttachmentUsage";
 import { useState } from "react";
-import { Copy, ExternalLink, X } from "lucide-react";
+import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import type { InboxBootstrap, InboxChannel } from "../types";
 import { inboxWrite } from "../api";
 export function ChannelSettings({
     bootstrap,
     channel,
-    onClose,
+    initialWorkspaceId,
     onSaved,
 }: {
     bootstrap: InboxBootstrap;
     channel?: InboxChannel;
-    onClose: () => void;
+    /** 새 상담창: 미리 골라 둘 사업부 */
+    initialWorkspaceId?: number | null;
     onSaved: (channel: InboxChannel) => void;
 }) {
     const availableWorkspaces = channel
@@ -28,7 +31,10 @@ export function ChannelSettings({
                   !bootstrap.channels.some((c) => c.workspaceId === w.id),
           );
     const [workspaceId, setWorkspace] = useState(
-        channel?.workspaceId ?? availableWorkspaces[0]?.id ?? 0,
+        channel?.workspaceId ??
+            availableWorkspaces.find((w) => w.id === initialWorkspaceId)?.id ??
+            availableWorkspaces[0]?.id ??
+            0,
     );
     const [name, setName] = useState(channel?.name ?? "고객 상담");
     const [greeting, setGreeting] = useState(
@@ -50,26 +56,13 @@ export function ChannelSettings({
         : "";
     const field = "w-full rounded-xl border bg-background px-3 py-2 text-sm";
     return (
-        <Sheet open onOpenChange={(next) => !next && onClose()}>
-            <SheetContent
-                side="right"
-                showCloseButton={false}
-                aria-describedby={undefined}
-                className="block h-full w-full overflow-auto bg-background p-7 shadow-2xl sm:max-w-lg"
-            >
-                <header className="mb-6 flex items-center justify-between">
-                    <div>
-                        <SheetTitle className="text-xl font-semibold">
-                            사이트 상담창
-                        </SheetTitle>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            사이트에 설치하면 문의가 수신함으로 들어옵니다.
-                        </p>
-                    </div>
-                    <button aria-label="설정 닫기" onClick={onClose}>
-                        <X size={20} />
-                    </button>
-                </header>
+        <SettingsSection
+            title={channel ? "사이트 상담창" : "새 상담창 만들기"}
+            description="사이트에 설치하면 문의가 상담톡으로 들어옵니다."
+        >
+            {/* 왼쪽 설정, 오른쪽 저장 전 미리보기 */}
+            <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="min-w-0">
                 {workspaceId > 0 && (
                     <a
                         className="mb-5 block text-sm text-[#635BFF]"
@@ -141,7 +134,7 @@ export function ChannelSettings({
                             )}
                             {availableWorkspaces.map((w) => (
                                 <option key={w.id} value={w.id}>
-                                    {w.name}
+                                    {workspaceLabel(w)}
                                 </option>
                             ))}
                         </select>
@@ -261,7 +254,13 @@ export function ChannelSettings({
                         )}
                     </div>
                 )}
-            </SheetContent>
-        </Sheet>
+            </div>
+            <aside className="hidden xl:block">
+                <div className="sticky top-0">
+                    <MessengerPreview name={name} greeting={greeting} color={color} settings={messengerSettings} />
+                </div>
+            </aside>
+            </div>
+        </SettingsSection>
     );
 }

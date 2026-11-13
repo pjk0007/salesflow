@@ -3,13 +3,13 @@ import { ConversationServiceStatus } from "@/components/inbox-operations/ui/Conv
 import { MAX_FILE_BYTES } from "@/lib/inbox/file-rules";
 import { workspaceAbilities } from "@/components/customer-access/utils/abilities";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, Check, Clock, LockKeyhole, Send, Star } from "lucide-react";
+import { ArrowLeft, Check, Clock, LockKeyhole, PanelRightClose, PanelRightOpen, Send, Star } from "lucide-react";
 import { toast } from "sonner";
 import type { ChatMessage, Conversation, InboxBootstrap } from "../types";
 import { inboxRequest, inboxWrite } from "../api";
 import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
 import type { StaffDraftSession } from "../hooks/staff-draft-session";
-import { AttachmentDrafts } from "./AttachmentDrafts";
+import { AttachmentDrafts, AttachmentPicker } from "./AttachmentDrafts";
 import { MessageHistory } from "./MessageHistory";
 import { inboxDraftStorageKey } from "../utils/draft-storage";
 import { InboxAudit } from "./InboxAudit";
@@ -23,10 +23,13 @@ import { NoteMentions } from "@/components/inbox-collaboration/ui/NoteMentions";
 import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTargetCard";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 import { TeamAssignment } from "@/components/inbox-routing/ui/TeamAssignment";
-import { ClaimConversation } from "@/components/inbox-routing/ui/ClaimConversation";
+import { FollowConversation } from "@/components/inbox-follow/ui/FollowConversation";
+import { useFollow } from "@/components/inbox-follow/hooks/useFollow";
+import { MacroPicker } from "@/components/inbox-macros/ui/MacroPicker";
+import { useMacroPicker } from "@/components/inbox-macros/hooks/useMacroPicker";
+import { RichTextInput } from "@/components/inbox-composer/ui/RichTextInput";
+import type { Editor } from "@tiptap/react";
 import { ConversationPresence } from "@/components/inbox-presence/ui/ConversationPresence";
-import { useReplyGuard } from "@/components/inbox-reply-guard/hooks/useReplyGuard";
-import { ReplyGuardStatus } from "@/components/inbox-reply-guard/ui/ReplyGuardStatus";
 import type {
     AgentActivity,
     InboxPresence,
@@ -85,6 +88,20 @@ export function ConversationPane({
         bootstrap.mentionMembers ?? bootstrap.members,
         workspaceId,
     );
+    // 오른쪽 고객 정보 패널 열림 — 사람마다 브라우저에 기억
+    const [infoOpen, setInfoOpenState] = useState(() => {
+        try {
+            return typeof window === "undefined" || localStorage.getItem("inbox.customerInfo") !== "closed";
+        } catch {
+            return true;
+        }
+    });
+    const setInfoOpen = (open: boolean) => {
+        setInfoOpenState(open);
+        try {
+            localStorage.setItem("inbox.customerInfo", open ? "open" : "closed");
+        } catch {}
+    };
     const [kind, setKind] = useState<"reply" | "note">("reply"),
         [savedDrafts] = useState<Record<string, string>>(() => {
             try {
@@ -126,21 +143,22 @@ export function ConversationPane({
     const draftKey = `${chat.id}:${kind}`,
         text = drafts[draftKey] ?? "";
     const busy = sharedDrafts.pending[draftKey]?.busy ?? false;
-    const guard = useReplyGuard(
-        chat.channelId,
-        chat.id,
-        chat.replyRevision,
-        userId,
-        !!bootstrap.channels.find((c) => c.id === chat.channelId)
-            ?.replyGuardEnabled,
-        kind === "reply" && chat.status !== "closed",
-        canRespond && !chat.historyOnly,
-    );
     useEffect(() => {
         onActivity(null);
         return () => onActivity(null);
     }, [kind, onActivity]);
     const attachments = useAttachmentDrafts(draftKey, draftSession);
+    // 담당자이거나 팔로우한 대화방에서만 답장을 쓴다
+    const followInfo = useFollow(chat.historyOnly ? null : chat.id);
+    const [followBusy, setFollowBusy] = useState(false);
+    // 이 사업의 상담 담당자(상담 설정 › 상담 담당자에서 상담권한을 켠 직원)만 답장한다
+    const responder = !!bootstrap.members.find((m) => m.id === userId)?.workspaceIds.includes(workspaceId ?? -1);
+    const joined = responder && (chat.assigneeId === userId || followInfo.following);
+    const [editor, setEditor] = useState<Editor | null>(null);
+    const macro = useMacroPicker({ workspaceId, editor });
+    const [dragging, setDragging] = useState(false);
+    const composerLocked =
+        busy || (kind === "reply" && chat.status === "closed");
     const replyCompleted = sharedDrafts.completed[`${chat.id}:reply`] ?? 0;
     const noteCompleted = sharedDrafts.completed[`${chat.id}:note`] ?? 0;
     const completion = useRef({ reply: replyCompleted, note: noteCompleted });
@@ -232,14 +250,6 @@ ${body}` : body, key);
     async function send() {
         if (!canRespond || !draftSession.capture().isCurrent()) return;
         if ((!text.trim() && !attachments.files.length) || busy) return;
-        if (kind === "reply" && !guard.canSend) {
-            toast.error(
-                "확인된 작성 권한과 최신 대화가 필요합니다. 초안을 유지하고 작성 상태를 확인해주세요.",
-            );
-            void guard.refresh();
-            return;
-        }
-        const replyGuard = kind === "reply" ? guard.context() : undefined;
         if (
             chat.medium === "email" &&
             kind === "reply" &&
@@ -307,7 +317,6 @@ ${body}` : body, key);
                     ...(mentionIds.length
                         ? { mentionedUserIds: mentionIds }
                         : {}),
-                    ...(replyGuard ? { replyGuard } : {}),
                 }),
             });
             operation.assertCurrent();
@@ -330,14 +339,12 @@ ${body}` : body, key);
                 void refresh().catch(() => {
                     if (mounted.current) toast.info("메시지는 저장됐습니다. 최신 상담 정보를 다시 불러와주세요.");
                 });
-                void guard.refresh();
             }
         } catch (e) {
             if (operation.isCurrent()) {
                 draftSession.requestFailed(e);
                 if (operation.isCurrent() && mounted.current) {
                     toast.error((e as Error).message);
-                    void guard.refresh();
                 }
             }
         } finally {
@@ -351,7 +358,7 @@ ${body}` : body, key);
     return (
         <div className="flex min-h-0 min-w-0 flex-1">
             <section className="flex min-w-0 flex-1 flex-col bg-background">
-                <header className="flex h-[76px] shrink-0 items-center justify-between gap-3 border-b px-5">
+                <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b px-5">
                     <div className="flex min-w-0 items-center gap-3">
                         <button
                             aria-label="상담 목록으로"
@@ -360,22 +367,9 @@ ${body}` : body, key);
                         >
                             <ArrowLeft size={20} />
                         </button>
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-violet-100 font-semibold text-violet-700">
-                            {chat.name.slice(0, 1)}
-                        </div>
-                        <div className="min-w-0">
-                            <h2 className="truncate font-semibold">
-                                {chat.name}
-                            </h2>
-                            <p className="truncate text-xs text-muted-foreground">
-                                {chat.historyOnly
-                                    ? "이전 상담"
-                                    : chat.medium === "email"
-                                      ? "이메일 상담"
-                                      : "사이트 상담"}{" "}
-                                · {statusNames[chat.status]}
-                            </p>
-                        </div>
+                        <h2 className="min-w-0 truncate font-semibold">
+                            {chat.name}
+                        </h2>
                         <button
                             disabled={changing || chat.historyOnly || !canRespond}
                             aria-label={
@@ -440,6 +434,16 @@ ${body}` : body, key);
                                     </button>
                                 )}
                             </>
+                        )}
+                        {!infoOpen && (
+                            <button
+                                title="고객 정보 열기"
+                                aria-label="고객 정보 열기"
+                                onClick={() => setInfoOpen(true)}
+                                className="hidden rounded-lg p-2 text-muted-foreground hover:bg-muted lg:block"
+                            >
+                                <PanelRightOpen size={17} />
+                            </button>
                         )}
                     </div>
                 </header>
@@ -514,7 +518,7 @@ ${body}` : body, key);
                                     el.clientHeight <
                                 100;
                     }}
-                    className="min-h-[160px] flex-1 space-y-4 overflow-y-auto px-5 py-5 lg:min-h-0"
+                    className="min-h-[160px] flex-1 space-y-4 overflow-y-auto px-5 py-5 lg:min-h-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                     role="log"
                     aria-label="상담 메시지"
                 >
@@ -553,13 +557,29 @@ ${body}` : body, key);
                     <div ref={end} />
                 </div>
                 <ConversationPresence agents={presenceAgents} userId={userId} />
-                {!chat.historyOnly && canRespond && !chat.assigneeId && (
-                    <ClaimConversation
-                        busy={changing}
-                        onClaim={() => void change({ assigneeId: userId })}
+                {!chat.historyOnly && canRespond && !responder && (
+                    <p role="status" className="m-4 shrink-0 rounded-lg border border-border/40 bg-muted/40 p-4 text-sm text-muted-foreground">
+                        이 사업의 상담권한이 없어 답장할 수 없어요. 상담 설정 › 상담 담당자에서 켤 수 있어요.
+                    </p>
+                )}
+                {!chat.historyOnly && canRespond && responder && !joined && !followInfo.loading && (
+                    <FollowConversation
+                        busy={changing || followBusy}
+                        onFollow={async () => {
+                            // 담당자가 없으면 팔로우하면서 내가 담당자가 된다
+                            if (!chat.assigneeId) return void change({ assigneeId: userId });
+                            setFollowBusy(true);
+                            try {
+                                await followInfo.set(true);
+                            } catch (e) {
+                                toast.error((e as Error).message);
+                            } finally {
+                                setFollowBusy(false);
+                            }
+                        }}
                     />
                 )}
-                {!chat.historyOnly && canRespond && !!chat.assigneeId && (
+                {!chat.historyOnly && canRespond && joined && (
                     <>
                         {chat.medium !== "email" && (
                             <SupportDraftPanel
@@ -599,8 +619,30 @@ ${body}` : body, key);
                                 e.preventDefault();
                                 void send();
                             }}
-                            className={`m-4 shrink-0 rounded-2xl border p-3 ${kind === "note" ? "border-amber-200 bg-amber-50/60" : "bg-background shadow-sm"}`}
+                            onDragOver={(e) => {
+                                if (!e.dataTransfer.types.includes("Files")) return;
+                                e.preventDefault();
+                                setDragging(true);
+                            }}
+                            onDragLeave={(e) => {
+                                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+                            }}
+                            onDrop={(e) => {
+                                if (!e.dataTransfer.files.length) return;
+                                e.preventDefault();
+                                setDragging(false);
+                                if (composerLocked) return;
+                                try {
+                                    attachments.select(e.dataTransfer.files);
+                                } catch (error) {
+                                    toast.error((error as Error).message);
+                                }
+                            }}
+                            className={`relative m-4 shrink-0 rounded-lg border p-3 transition-colors ${dragging ? "border-dashed border-violet-400 bg-violet-50/60" : kind === "note" ? "border-amber-200 bg-amber-50/60" : "border-border/70 bg-background"}`}
                         >
+                            {macro.open && (
+                                <MacroPicker items={macro.items} active={macro.active} onHover={macro.setActive} onPick={macro.pick} />
+                            )}
                             <div className="mb-2 flex gap-1 text-xs">
                                 <button
                                     type="button"
@@ -626,62 +668,39 @@ ${body}` : body, key);
                                     disabled={busy}
                                 />
                             )}
-                            {kind === "reply" && (
-                                <ReplyGuardStatus
-                                    guard={guard}
-                                    refresh={refresh}
-                                    hasDraft={
-                                        !!text.trim() ||
-                                        !!attachments.files.length
-                                    }
-                                />
-                            )}
                             {kind === "note" && (
                                 <NoteMentions
                                     state={noteMentions}
                                     busy={busy}
                                 />
                             )}
-                            <textarea
-                                aria-label={
-                                    kind === "note"
-                                        ? "내부 메모 입력"
-                                        : "고객 답변 입력"
-                                }
+                            <RichTextInput
+                                key={draftKey}
+                                ariaLabel={kind === "note" ? "내부 메모 입력" : "고객 답변 입력"}
                                 value={text}
-                                onChange={(e) => {
-                                    updateDraft(e.target.value);
-                                    onActivity(
-                                        e.target.value.trim() ? kind : null,
-                                    );
+                                onEditor={setEditor}
+                                onChange={(value) => {
+                                    updateDraft(value);
+                                    onActivity(value.trim() ? kind : null);
                                 }}
                                 onBlur={() => onActivity(null)}
                                 onKeyDown={(e) => {
-                                    if (
-                                        e.key === "Enter" &&
-                                        (e.ctrlKey || e.metaKey) &&
-                                        !e.nativeEvent.isComposing
-                                    ) {
-                                        e.preventDefault();
+                                    if (macro.onKeyDown(e)) return true;
+                                    if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.isComposing) {
                                         void send();
+                                        return true;
                                     }
+                                    return false;
                                 }}
-                                disabled={
-                                    busy ||
-                                    (kind === "reply" &&
-                                        (chat.status === "closed" ||
-                                            (guard.required && !guard.mine)))
-                                }
-                                maxLength={5000}
-                                rows={3}
+                                disabled={composerLocked}
                                 placeholder={
                                     kind === "note"
-                                        ? "팀원만 볼 수 있는 메모를 남겨주세요."
+                                        ? "팀원만 볼 수 있는 메모를 남겨주세요. (Ctrl / ⌘ + Enter로 저장)"
                                         : chat.status === "closed"
                                           ? "종료된 상담입니다. 다시 열면 답변할 수 있어요."
-                                          : "고객에게 보낼 메시지를 입력하세요."
+                                          : "고객에게 보낼 메시지를 입력하세요. (#으로 매크로 · Ctrl / ⌘ + Enter로 전송)"
                                 }
-                                className="w-full resize-none bg-transparent text-sm outline-none"
+                                className="max-h-60 min-h-[60px] overflow-y-auto"
                             />
                             {kind === "reply" && aiDraftId && (
                                 <p className="mb-2 text-xs text-muted-foreground">
@@ -703,13 +722,9 @@ ${body}` : body, key);
                                 </p>
                             )}
                             <AttachmentDrafts
+                                picker={false}
                                 files={attachments.files}
-                                busy={
-                                    busy ||
-                                    (kind === "reply" &&
-                                        (chat.status === "closed" ||
-                                            (guard.required && !guard.mine)))
-                                }
+                                busy={composerLocked}
                                 progress={attachments.progress}
                                 onSelect={attachments.select}
                                 onRemove={(id) =>
@@ -725,30 +740,32 @@ ${body}` : body, key);
                                 </p>
                             )}
                             <div className="flex items-center justify-between">
-                                <span className="text-[10px] text-muted-foreground">
-                                    {kind === "note"
-                                        ? "고객에게 보이지 않습니다"
-                                        : "Ctrl / ⌘ + Enter로 전송"}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <AttachmentPicker
+                                        busy={composerLocked}
+                                        full={attachments.files.length >= 5}
+                                        onSelect={attachments.select}
+                                        onError={(message) => toast.error(message)}
+                                    />
+                                    {kind === "note" && (
+                                        <span className="text-[10px] text-muted-foreground">
+                                            고객에게 보이지 않습니다
+                                        </span>
+                                    )}
+                                </div>
                                 <button
+                                    aria-label={busy ? "전송 중" : kind === "note" ? "메모 저장" : chat.medium === "email" ? "메일 발송 예약" : "답변 전송"}
+                                    title={kind === "note" ? "메모 저장" : chat.medium === "email" ? "메일 발송 예약" : "답변 전송"}
                                     disabled={
                                         busy ||
                                         (!text.trim() &&
                                             !attachments.files.length) ||
                                         (kind === "reply" &&
-                                            (chat.status === "closed" ||
-                                                !guard.canSend))
+                                            chat.status === "closed")
                                     }
-                                    className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-white disabled:opacity-40 ${kind === "note" ? "bg-amber-700" : "bg-[#635BFF]"}`}
+                                    className={`flex h-9 w-9 items-center justify-center rounded-lg text-white disabled:opacity-40 ${kind === "note" ? "bg-amber-700" : "bg-[#635BFF]"}`}
                                 >
-                                    <Send size={13} />
-                                    {busy
-                                        ? "전송 중…"
-                                        : kind === "note"
-                                          ? "메모 저장"
-                                          : chat.medium === "email"
-                                            ? "메일 발송 예약"
-                                            : "답변 전송"}
+                                    <Send size={16} />
                                 </button>
                             </div>
                         </form>
@@ -765,9 +782,17 @@ ${body}` : body, key);
                     />
                 </details>
             </section>
-            <aside className="hidden w-[320px] shrink-0 overflow-y-auto border-l bg-muted/10 lg:block">
-                <div className="flex h-[76px] items-center border-b px-5 text-sm font-semibold">
+            <aside className={`hidden w-[320px] shrink-0 overflow-y-auto border-l bg-muted/10 ${infoOpen ? "lg:block" : ""}`}>
+                <div className="flex h-14 items-center justify-between border-b pl-5 pr-3 text-sm font-semibold">
                     고객 정보
+                    <button
+                        title="고객 정보 닫기"
+                        aria-label="고객 정보 닫기"
+                        onClick={() => setInfoOpen(false)}
+                        className="rounded-lg p-2 font-normal text-muted-foreground hover:bg-muted"
+                    >
+                        <PanelRightClose size={17} />
+                    </button>
                 </div>
                 <CustomerInfo
                     chat={chat}

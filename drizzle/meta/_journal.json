@@ -1023,6 +1023,27 @@
       "when": 1794418415000,
       "tag": "0143_user_preferences",
       "breakpoints": true
+    },
+    {
+      "idx": 146,
+      "version": "7",
+      "when": 1794418416000,
+      "tag": "0144_assign_replied_conversations",
+      "breakpoints": true
+    },
+    {
+      "idx": 147,
+      "version": "7",
+      "when": 1794418417000,
+      "tag": "0145_inbox_followers_macros",
+      "breakpoints": true
+    },
+    {
+      "idx": 148,
+      "version": "7",
+      "when": 1794418418000,
+      "tag": "0146_inbox_responders",
+      "breakpoints": true
     }
   ]
 }

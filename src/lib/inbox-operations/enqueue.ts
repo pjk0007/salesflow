@@ -13,6 +13,8 @@ import {
     inboxResponseObligations as obligations,
     inboxEmailDeliveries as deliveries,
     platformEvents,
+    inboxConversationFollowers as followers,
+    inboxResponders as responders,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import { defaultPolicy, policyInput } from "./rules";
@@ -52,9 +54,31 @@ export async function operationsRecipients(
             ),
         );
     const recipient = target ?? chat.assigneeId;
-    return recipient && rows.some((u) => u.id === recipient)
-        ? rows.filter((u) => u.id === recipient)
-        : rows.filter((u) => u.inTeam || u.manager);
+    // 대상을 콕 집은 알림(배정 알림 등)이 아니면 대화방 팔로워에게도 보낸다
+    const followed = target
+        ? new Set<string>()
+        : new Set(
+              (
+                  await exec
+                      .select({ userId: followers.userId })
+                      .from(followers)
+                      .where(eq(followers.conversationId, chat.id))
+              ).map((f) => f.userId),
+          );
+    if (recipient && rows.some((u) => u.id === recipient))
+        return rows.filter((u) => u.id === recipient || followed.has(u.id));
+    // 담당자가 없으면 이 사업의 상담 담당자(상담 설정 › 상담 담당자)와 팔로워에게. 담당자를 아무도 안 켰으면 예전처럼
+    const responderIds = new Set(
+        (
+            await exec
+                .select({ userId: responders.userId })
+                .from(responders)
+                .where(sql`${responders.workspaceId} = (SELECT workspace_id FROM inbox_channels WHERE id=${chat.channelId})`)
+        ).map((r) => r.userId),
+    );
+    return responderIds.size
+        ? rows.filter((u) => responderIds.has(u.id) || followed.has(u.id))
+        : rows.filter((u) => u.inTeam || u.manager || followed.has(u.id));
 }
 export async function notifyOperations(
     exec: DbExec,

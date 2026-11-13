@@ -1,4 +1,5 @@
 import type { SendbClient } from "../../../sdk/server";
+import { toPlainText } from "@/lib/rich-text/format";
 import type { SendbEmailClaim } from "../../../sdk/email-types";
 import type { SendbEmailFile } from "../../../sdk/email-types";
 import {
@@ -125,7 +126,8 @@ export function gmailReplyRaw(
         "Content-Type: text/plain; charset=UTF-8",
         "Content-Transfer-Encoding: base64",
         "",
-        wrap(item.body),
+        // 메일은 글자로만 보내므로 서식 표시(**, [글자](주소))를 걷어낸다
+        wrap(toPlainText(item.body)),
         "",
     ];
     if (!files.length)

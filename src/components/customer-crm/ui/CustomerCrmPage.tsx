@@ -31,7 +31,7 @@ import { EntityEditor } from "./EntityEditor";
 import { ActivityTimeline } from "./ActivityTimeline";
 import { RelationshipToday } from "@/components/relationship-care/ui/RelationshipToday";
 import { RelationshipPanel } from "@/components/relationship-care/ui/RelationshipPanel";
-import { workspaceLabel } from "@/lib/workspace-label";
+import { sortByDisplayNo, workspaceLabel } from "@/lib/workspace-label";
 import { LeadWorkspaceTabs } from "@/components/leads/ui/LeadWorkspaceTabs";
 const names: Record<Resource, string> = {
     deals: "딜",
@@ -77,7 +77,15 @@ export function CustomerCrmPage({
                   : "active",
         ),
         [editor, setEditor] = useState<Editor | null>(null);
-    const workspaceId = chosen ?? bootstrap.data?.workspaces[0]?.id ?? null;
+    // 처음엔 번호가 가장 앞인 사업부 (탭 순서와 같게)
+    const workspaceItems = (bootstrap.data?.workspaces ?? []).map((w) => ({ id: w.id, name: w.name, displayNo: w.displayNo }));
+    const contactWorkspaces = useSWR<number[]>(contactsOnly ? "/api/customer-crm/contact-workspaces" : null, crmRequest);
+    // 처음엔 연락처가 있는 사업부 중 번호가 가장 앞인 곳 (없으면 아무 사업부)
+    const workspaceId =
+        chosen ??
+        sortByDisplayNo(workspaceItems.filter((w) => !contactsOnly || contactWorkspaces.data?.includes(w.id)))[0]?.id ??
+        sortByDisplayNo(workspaceItems)[0]?.id ??
+        null;
     // 오늘의 인사(care)는 별도 화면이다. 목록 조회·추가 버튼은 고객 기준으로 둔다.
     const resource: Resource = view === "care" ? "contacts" : view;
     const setResource = (next: View) => setView(next);
@@ -210,8 +218,11 @@ export function CustomerCrmPage({
                     </header>
                     <LeadWorkspaceTabs
                         value={workspaceId}
-                        items={bootstrap.data?.workspaces.map((w) => ({ id: w.id, name: w.name }))}
-                        loading={!bootstrap.data}
+                        // 기본 탭은 연락처가 있는 사업부만, 나머지는 "사업부 추가"로 꺼낸다
+                        items={contactWorkspaces.data ? workspaceItems.filter((w) => contactWorkspaces.data!.includes(w.id)) : undefined}
+                        pool={workspaceItems}
+                        prefKey="customer-contacts"
+                        loading={!bootstrap.data || !contactWorkspaces.data}
                         onChange={(id) => {
                             setWorkspace(id);
                             setEditor(null);

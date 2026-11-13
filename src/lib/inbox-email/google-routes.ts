@@ -91,7 +91,7 @@ export async function googleControlPost(req: NextRequest, c: Context) {
 }
 export async function googleCallbackGet(req: NextRequest) {
     const rawState = req.nextUrl.searchParams.get("state") ?? "";
-    let target = "/inbox?emailConnection=failed",
+    let target = "/inbox/settings?emailConnection=failed",
         returnOrigin = req.nextUrl.origin;
     try {
         const cfg = googleMailConfig();
@@ -112,9 +112,9 @@ export async function googleCallbackGet(req: NextRequest) {
                 code: req.nextUrl.searchParams.get("code") ?? undefined,
                 error: req.nextUrl.searchParams.get("error") ?? undefined,
             });
-        target = `/inbox?channelId=${result.channelId}&emailConnection=${result.result}`;
+        target = `/inbox/settings?channelId=${result.channelId}&emailConnection=${result.result}`;
     } catch (error) {
-        target = `/inbox?${callbackFailureQuery(error)}`;
+        target = `/inbox/settings?${callbackFailureQuery(error)}`;
     }
     const response = NextResponse.redirect(new URL(target, returnOrigin), 303);
     response.headers.set("Cache-Control", "no-store");

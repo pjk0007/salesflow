@@ -40,6 +40,8 @@ interface LeadWorkspaceTabsProps {
     onCreate?: (workspaceId: number) => Promise<boolean>;
     /** 오른쪽 클릭 메뉴에 더할 항목 */
     menuItems?: (workspaceId: number) => TabMenuItem[];
+    /** "사업부 추가"에서 고를 수 있는 사업부 (없으면 조직의 모든 사업부) */
+    pool?: TabItem[];
 }
 
 const tabClass = (active: boolean) =>
@@ -80,11 +82,17 @@ function SortableTab({ ws, active, onClick, onContextMenu }: { ws: TabItem; acti
 }
 
 /** 화면 맨 윗줄 사업(워크스페이스) 탭 — 리드관리·리드통계·리드젠통계·영업고객·레코드·웹 폼 */
-export function LeadWorkspaceTabs({ value, onChange, right, source = "lead", allTab, items, loading, prefKey, onCreate, menuItems }: LeadWorkspaceTabsProps) {
+export function LeadWorkspaceTabs({ value, onChange, right, source = "lead", allTab, items, loading, prefKey, onCreate, menuItems, pool: poolProp }: LeadWorkspaceTabsProps) {
     const lead = useLeadWorkspaces();
     const all = useWorkspaces();
-    const pool: TabItem[] = all.workspaces.map((w) => ({ id: w.id, name: w.name, displayNo: w.displayNo ?? null }));
-    const base: TabItem[] = items ?? (source === "all" ? pool : lead.workspaces);
+    const orgPool: TabItem[] = all.workspaces.map((w) => ({ id: w.id, name: w.name, displayNo: w.displayNo ?? null }));
+    const pool: TabItem[] = poolProp
+        ? poolProp.map((w) => (w.displayNo ? w : { ...w, displayNo: orgPool.find((p) => p.id === w.id)?.displayNo ?? null }))
+        : orgPool;
+    // 번호 없이 넘어온 사업부는 워크스페이스 설정의 번호를 붙인다 (모든 화면이 같은 "1-디하" 표시)
+    const base: TabItem[] = (items ?? (source === "all" ? pool : lead.workspaces)).map((w) =>
+        w.displayNo ? w : { ...w, displayNo: orgPool.find((p) => p.id === w.id)?.displayNo ?? null },
+    );
     const isLoading = loading || (items ? false : source === "all" ? all.isLoading : lead.isLoading);
 
     // 내 설정 — 숨긴 탭은 빼고, 꺼낸 탭은 더한다. 끌어서 바꾼 순서(draft)는 저장 전까지 이 화면에만
@@ -177,6 +185,8 @@ export function LeadWorkspaceTabs({ value, onChange, right, source = "lead", all
     const contextMenu = (id: number) =>
         prefKey || menuItems
             ? (e: React.MouseEvent) => {
+                  // 숨길 수도 없고 더한 항목도 없으면(마지막 탭) 빈 메뉴를 띄우지 않는다
+                  if (!canHide && !(menuItems?.(id).length ?? 0)) return;
                   e.preventDefault();
                   setMenu({ id, x: e.clientX, y: e.clientY });
               }

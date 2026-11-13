@@ -2,7 +2,6 @@ import {
     requireCustomerConversation,
     customerStaffActor,
     requireCustomerAccess,
-    customerAccessPredicate,
 } from "@/lib/customer-access/access";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -13,8 +12,6 @@ import {
     inboxMessages as messages,
     inboxAttachments,
     customerAiJobs as jobs,
-    users,
-    organizationMembers,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { SalesActor } from "@/lib/customer-platform/sales-repository";
@@ -23,14 +20,6 @@ import { activeReplyWriter } from "@/lib/inbox-reply-guard/repository";
 import { appendInboxAudit } from "@/lib/inbox/audit";
 import { enqueuePlatformEvent } from "@/lib/customer-platform/outbox";
 import { InboxError } from "@/lib/inbox/errors";
-import { claimCapacity, hasCapacity } from "@/lib/inbox-capacity/limits";
-import { teamAssignmentHours } from "@/lib/inbox-routing/hours";
-import { agentAvailablePredicate } from "@/lib/inbox-presence/repository";
-import {
-    assignmentTeam,
-    chooseTeamAssignee,
-    teamMemberPredicate,
-} from "@/lib/inbox-routing/assignment";
 import { getSupportSettings, chatKnowledge } from "./catalog";
 import {
     retrieveSources,
@@ -85,69 +74,8 @@ export async function handoffSupport(
         exec = tx;
         const { chat, workspaceId } = await supportConversation(id, exec, true);
         if (chat.aiState === "human") return false;
-        let assigneeId = chat.assigneeId;
-        const team =
-            attention && !assigneeId && chat.teamId
-                ? await assignmentTeam(
-                      exec,
-                      chat.orgId,
-                      chat.channelId,
-                      chat.teamId,
-                      false,
-                  )
-                : null;
-        const withinHours =
-            !team || (await teamAssignmentHours(exec, team))?.open !== false;
-        if (
-            attention &&
-            !assigneeId &&
-            config.handoffAssigneeId &&
-            withinHours
-        ) {
-            const [person] = await exec
-                .select({ id: users.id })
-                .from(users)
-                .innerJoin(
-                    organizationMembers,
-                    eq(organizationMembers.userId, users.id),
-                )
-                .where(
-                    and(
-                        eq(users.id, config.handoffAssigneeId),
-                        eq(users.isActive, 1),
-                        eq(organizationMembers.organizationId, chat.orgId),
-                        hasCapacity(chat.channelId, users.id, chat.id),
-                        team?.requireAvailable
-                            ? agentAvailablePredicate(chat.channelId, users.id)
-                            : undefined,
-                        chat.teamId
-                            ? teamMemberPredicate(chat.teamId, sql`${users.id}`)
-                            : undefined,
-                        customerAccessPredicate(
-                            chat.orgId,
-                            users.id,
-                            sql`${workspaceId}`,
-                            "respond",
-                        ),
-                    ),
-                );
-            assigneeId =
-                person &&
-                (await claimCapacity(
-                    exec,
-                    chat.channelId,
-                    person.id,
-                    chat.id,
-                )) &&
-                (!team ||
-                    (await teamAssignmentHours(exec, team))?.open !== false)
-                    ? person.id
-                    : null;
-        }
-        if (attention && !assigneeId && chat.teamId) {
-            if (team)
-                assigneeId = await chooseTeamAssignee(exec, team, chat.id);
-        }
+        // 자동 배정은 없앴다 — 사람에게 넘겨도 담당자는 그대로 두고, 직원이 팔로우해서 맡는다
+        const assigneeId = chat.assigneeId;
         await exec
             .update(chats)
             .set({

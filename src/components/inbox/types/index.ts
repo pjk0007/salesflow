@@ -88,6 +88,7 @@ export interface InboxBootstrap {
     workspaces: {
         id: number;
         name: string;
+        displayNo?: string | null;
         role: "none" | "viewer" | "agent" | "manager";
         abilities: { read: boolean; respond: boolean; manage: boolean };
     }[];

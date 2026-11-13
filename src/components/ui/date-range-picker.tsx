@@ -31,23 +31,20 @@ export function DateRangePicker({ from, to, onChange, placeholder = "기간 선�
     // 위 "2026년 11월"을 누르면 달력 왼쪽에 연도·월 목록
     const [jumpOpen, setJumpOpen] = useState(false);
 
-    const handleSelect = (range: DateRange | undefined) => {
-        if (phase === "start") {
+    // 달력이 계산한 범위 대신 누른 날짜로 정한다 — 시작일을 한 번 더 누르면 달력은 "선택 해제"로 보지만, 우리는 그날 하루로 본다
+    const handleSelect = (_range: DateRange | undefined, day: Date) => {
+        if (phase === "start" || !draft?.from) {
             // 첫 클릭: 시작일만 잡고 대기
-            const picked = range?.from ?? range?.to;
-            if (picked) {
-                setDraft({ from: picked, to: picked });
-                setPhase("end");
-            }
-        } else {
-            // 두 번째 클릭: 종료일 확정하고 닫기
-            if (range?.from) {
-                const finalTo = range.to ?? range.from;
-                setDraft({ from: range.from, to: finalTo });
-                onChange({ from: range.from, to: finalTo });
-                setOpen(false);
-            }
+            setDraft({ from: day, to: day });
+            setPhase("end");
+            return;
         }
+        // 두 번째 클릭: 종료일 확정하고 닫기 (같은 날이면 하루, 시작일보다 앞이면 서로 바꾼다)
+        const start = draft.from;
+        const range = day < start ? { from: day, to: start } : { from: start, to: day };
+        setDraft(range);
+        onChange(range);
+        setOpen(false);
     };
 
     // 오늘: 날짜를 고르지 않고 달력만 이번 달로

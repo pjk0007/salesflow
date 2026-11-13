@@ -1,4 +1,5 @@
 import { queueCustomerReplyNotice } from "@/lib/customer-messenger/queue";
+import { isResponder } from "@/lib/inbox-responders/repository";
 import {
     activeCustomerActor,
     customerStaffActor,
@@ -48,6 +49,7 @@ import {
     inboxEmailDeliveries,
     customerAiJobs,
     customerWorkspaceAccess,
+    inboxResponders,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
 import type { JWTPayload } from "@/types";
@@ -71,7 +73,6 @@ import { appendActivity } from "@/lib/customer-platform/activities";
 import { visibleTeams } from "@/lib/inbox-routing/repository";
 import {
     assignmentTeam,
-    chooseTeamAssignee,
     teamMemberPredicate,
 } from "@/lib/inbox-routing/assignment";
 import {
@@ -143,6 +144,8 @@ export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
             .select({
                 id: workspaces.id,
                 name: workspaces.name,
+                // 사업부 번호 ("1-디하") — 워크스페이스 설정의 displayNo
+                displayNo: sql<string | null>`${workspaces.settings}->>'displayNo'`,
                 assignedRole: customerWorkspaceAccess.role,
             })
             .from(workspaces)
@@ -178,25 +181,24 @@ export async function bootstrapInbox(actor: Actor, exec: DbExec = db) {
             actor.role === "member" ? (assignedRole ?? "none") : "manager";
         return { ...w, role, abilities: customerAbilities(role) };
     });
+    // 담당자로 고를 수 있는 사람 = 상담 설정 › 상담 담당자에서 상담권한을 켠 직원
+    const responderRows = await exec
+        .select({ userId: inboxResponders.userId, workspaceId: inboxResponders.workspaceId })
+        .from(inboxResponders)
+        .where(eq(inboxResponders.orgId, actor.orgId));
     return {
         channels,
         teams: await visibleTeams(actor, exec),
         members: members
-            .map(({ role, ...m }) => ({
-                ...m,
-                workspaceIds: visibleSpaces
-                    .filter(
-                        (w) =>
-                            role !== "member" ||
-                            assignments.some(
-                                (a) =>
-                                    a.userId === m.id &&
-                                    a.workspaceId === w.id &&
-                                    ["agent", "manager"].includes(a.role),
-                            ),
-                    )
-                    .map((w) => w.id),
-            }))
+            .map(({ role, ...m }) => {
+                void role;
+                return {
+                    ...m,
+                    workspaceIds: visibleSpaces
+                        .filter((w) => responderRows.some((r) => r.userId === m.id && r.workspaceId === w.id))
+                        .map((w) => w.id),
+                };
+            })
             .filter((m) => m.workspaceIds.length),
         workspaces: visibleSpaces,
         mentionMembers: members
@@ -726,8 +728,6 @@ export async function patchConversation(
                 chat.channelId,
                 nextTeamId,
             ))!;
-            if (teamChanged && input.assigneeId === undefined)
-                input.assigneeId = await chooseTeamAssignee(tx, team, chat.id);
             if (input.assigneeId) {
                 const [eligible] = await tx
                     .select({ id: users.id })
@@ -771,6 +771,8 @@ export async function patchConversation(
                 );
             if (!member)
                 throw new InboxError("이 조직의 활성 팀원을 선택해주세요.");
+            if (!(await isResponder(tx, channel.workspaceId, input.assigneeId)))
+                throw new InboxError("이 사업의 상담권한이 켜진 직원만 담당자로 지정할 수 있습니다. 상담 설정 › 상담 담당자에서 켜주세요.", 409);
         }
         if (input.recordId) {
             const [record] = await tx
@@ -1200,6 +1202,8 @@ export async function appendMessage(
                             : locked.preview,
                     lastMessageAt: sql`greatest(${inboxConversations.lastMessageAt},${inserted.createdAt.toISOString()}::timestamptz)`,
                     replyRevision: locked.replyRevision + 1,
+                    // 직원이 직접 답하면 AI 자동답변은 멈춘다 (사람과 AI가 겹쳐 답하지 않게)
+                    ...(message.kind === "reply" && message.authorId ? { aiState: "human" } : {}),
                     ...(message.kind === "customer"
                         ? {
                               status: newCustomer ? "open" : locked.status,

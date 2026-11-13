@@ -1,4 +1,5 @@
 "use client";
+import { FormattedText } from "./FormattedText";
 import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import {
@@ -1298,7 +1299,7 @@ export function ChatWidget({
                                                 </time>
                                             </p>
                                             {m.body && (
-                                                <p
+                                                <div
                                                     className={`whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.kind === "customer" ? "rounded-tr-md text-white" : "rounded-tl-md bg-gray-100"}`}
                                                     style={
                                                         m.kind === "customer"
@@ -1309,8 +1310,8 @@ export function ChatWidget({
                                                             : {}
                                                     }
                                                 >
-                                                    {m.body}
-                                                </p>
+                                                    <FormattedText text={m.body} />
+                                                </div>
                                             )}
                                             <AttachmentList
                                                 files={m.attachments}

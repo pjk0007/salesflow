@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { SettingsSection } from "@/components/inbox/ui/SettingsSection";
 import { GoogleConnectionPanel } from "./GoogleConnectionPanel";
 import { MailboxGoogleAccount } from "./MailboxGoogleAccount";
 import { MailboxName } from "./MailboxName";
@@ -9,28 +10,17 @@ import { toast } from "sonner";
 import { useEmailMailboxes } from "../hooks/useEmailMailboxes";
 import { createEmailMailbox } from "../api";
 import { connectionResultMessage } from "../utils/connection-result";
-export function EmailMailboxSettings({
-    workspaceId,
-    onClose: close,
-}: {
-    workspaceId: number;
-    onClose: () => void;
-}) {
+export function EmailMailboxSettings({ workspaceId }: { workspaceId: number }) {
     const params = useSearchParams(),
         router = useRouter(),
         pathname = usePathname();
     const connectionResult = params.get("emailConnection");
-    // 닫으면 승인 결과 쿼리를 지워 다시 열거나 새로고침할 때 지난 결과가 반복되지 않게 한다.
-    const onClose = () => {
-        if (connectionResult) {
-            const next = new URLSearchParams(params.toString());
-            next.delete("emailConnection");
-            const query = next.toString();
-            router.replace(query ? `${pathname}?${query}` : pathname, {
-                scroll: false,
-            });
-        }
-        close();
+    // 결과 안내를 닫으면 승인 결과 쿼리를 지워 새로고침할 때 지난 결과가 반복되지 않게 한다.
+    const dismissResult = () => {
+        const next = new URLSearchParams(params.toString());
+        next.delete("emailConnection");
+        const query = next.toString();
+        router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
     };
     const { data, error, mutate } = useEmailMailboxes(workspaceId);
     const [address, setAddress] = useState(""),
@@ -49,26 +39,16 @@ export function EmailMailboxSettings({
         }
     };
     return (
-        <div
-            className="fixed inset-0 z-50 flex justify-end bg-black/30"
-            onClick={onClose}
+        <SettingsSection
+            title="이메일 연결"
+            description="등록한 메일함의 문의를 같은 상담톡에서 받고 답장합니다."
         >
-            <section
-                role="dialog"
-                aria-modal="true"
-                aria-label="이메일 상담 연결"
-                className="h-full w-full max-w-lg space-y-6 overflow-auto bg-background p-7"
-                onClick={(e) => e.stopPropagation()}
-            >
-                <header className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">이메일 상담 연결</h2>
-                    <button aria-label="메일 설정 닫기" onClick={onClose}>
-                        닫기
-                    </button>
-                </header>
                 {connectionResult && (
-                    <p role="status" className="rounded border p-3 text-sm">
+                    <p role="status" className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-muted/40 p-3 text-sm">
                         {connectionResultMessage(connectionResult)}
+                        <button type="button" className="shrink-0 text-xs text-muted-foreground underline" onClick={dismissResult}>
+                            닫기
+                        </button>
                     </p>
                 )}
                 <p className="text-sm text-muted-foreground">
@@ -198,7 +178,6 @@ export function EmailMailboxSettings({
                         필요합니다.
                     </p>
                 </form>
-            </section>
-        </div>
+        </SettingsSection>
     );
 }

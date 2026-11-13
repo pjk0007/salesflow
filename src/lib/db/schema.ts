@@ -42,6 +42,7 @@ export * from "./customer-messenger-schema";
 export * from "./inbox-presence-schema";
 export * from "./inbox-reply-guard-schema";
 export * from "./inbox-customer-history-schema";
+export * from "./inbox-collab-schema";
 export * from "./inbox-email-schema";
 export * from "./inbox-google-schema";
 export * from "./customer-platform-schema";

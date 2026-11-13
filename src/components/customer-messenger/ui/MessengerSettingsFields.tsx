@@ -49,7 +49,7 @@ export function MessengerSettingsFields({
             </label>
             <p className="text-xs leading-5 text-muted-foreground">
                 설치 도메인과 같은 사이트의 HTTPS 주소만 고객에게 보여줍니다.
-                고객센터 운영시간은 ‘상담통계’의 업무시간·응대 목표 설정을 사용합니다.
+                고객센터 운영시간은 ‘상담 설정’의 업무시간·응대 목표를 사용합니다.
             </p>
             <label className="flex items-start gap-3 leading-5">
                 <input

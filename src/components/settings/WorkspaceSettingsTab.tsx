@@ -186,7 +186,7 @@ export default function WorkspaceSettingsTab() {
         <div className="space-y-6">
             {/* 카드 그리드 */}
             <div>
-                <Label className="mb-3 block">워크스페이스 목록</Label>
+                <Label className="mb-3 block">사업부 목록</Label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {visibleWorkspaces.map(renderCard)}
                     <Card

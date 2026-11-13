@@ -6,9 +6,8 @@ import WorkspaceLayout from "@/components/layouts/WorkspaceLayout";
 import { PageContainer } from "@/components/common/page-container";
 import { PageHeader } from "@/components/common/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Layers, ListTree, Sparkles } from "lucide-react";
+import { ListTree, Sparkles } from "lucide-react";
 import { useSession } from "@/contexts/SessionContext";
-import WorkspaceSettingsTab from "@/components/settings/WorkspaceSettingsTab";
 import FieldTypeManagementTab from "@/components/settings/FieldTypeManagementTab";
 import AutoEnrichTab from "@/components/settings/AutoEnrichTab";
 
@@ -16,7 +15,7 @@ function WorkspaceSettingsContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { user } = useSession();
-    const tabFromQuery = searchParams.get("tab") || "workspace";
+    const tabFromQuery = searchParams.get("tab") || "field-types";
     const [activeTab, setActiveTab] = useState(tabFromQuery);
 
     useEffect(() => {
@@ -24,6 +23,11 @@ function WorkspaceSettingsContent() {
             router.push("/");
         }
     }, [user, router]);
+
+    // 사업부(워크스페이스) 관리는 "사업부 관리" 페이지로 옮겼다
+    useEffect(() => {
+        if (searchParams.get("tab") === "workspace") router.replace("/settings/business");
+    }, [searchParams, router]);
 
     useEffect(() => {
         const tab = searchParams.get("tab");
@@ -44,15 +48,11 @@ function WorkspaceSettingsContent() {
             <PageContainer>
                 <PageHeader
                     title="워크스페이스 설정"
-                    description="워크스페이스와 속성을 관리합니다."
+                    description="레코드·리드 속성과 자동화를 관리합니다. 사업부는 사업부 관리에서 정해요."
                 />
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
                     <TabsList variant="line" className="w-full justify-start">
-                        <TabsTrigger value="workspace">
-                            <Layers className="mr-2 h-4 w-4" />
-                            워크스페이스 관리
-                        </TabsTrigger>
                         <TabsTrigger value="field-types">
                             <ListTree className="mr-2 h-4 w-4" />
                             레코드 속성 타입
@@ -66,10 +66,6 @@ function WorkspaceSettingsContent() {
                             자동화
                         </TabsTrigger>
                     </TabsList>
-
-                    <TabsContent value="workspace" className="mt-6">
-                        <WorkspaceSettingsTab />
-                    </TabsContent>
 
                     <TabsContent value="field-types" className="mt-6">
                         <FieldTypeManagementTab category="cold" />

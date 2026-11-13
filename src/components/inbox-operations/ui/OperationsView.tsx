@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InfoTip } from "@/components/ui/info-tip";
 import { Button } from "@/components/ui/button";
 import { useOperationsReport } from "../hooks/useOperations";
@@ -8,7 +7,6 @@ import { useStatsFilters, type StatsFilters } from "../hooks/useStatsFilters";
 import { durationText, operationTime } from "../utils/display";
 import { COUNT_METRICS, TREND_METRICS } from "../utils/metrics";
 import type { OpenSupportConversation } from "../types";
-import { OperationsSettingsEditor } from "./OperationsSettingsEditor";
 import { StatsDateBar, StatsMediumBar } from "./StatsFilterBar";
 import { StatsCompare } from "./StatsCompare";
 import { CountCard, TrendMetricCard } from "./TrendMetricCard";
@@ -260,45 +258,28 @@ function Report({
         </div>
     );
 }
-/** 응대 성과 · 업무시간·응대 목표 (상담통계 화면 본문) — 리드관리처럼 탭으로 고른다 */
+/** 상담통계 화면 본문 — 응대 성과 (업무시간·응대 목표는 상담 설정으로 옮김) */
 export function OperationsView({
     channelId,
-    canManage,
     onSelect,
 }: {
     channelId: number;
-    canManage: boolean;
     onSelect: OpenSupportConversation;
 }) {
-    const [tab, setTab] = useState("report");
     const f = useStatsFilters();
     // 기간·매체가 바뀌면 응대별 목록 페이지는 처음부터
     const filterKey = JSON.stringify([f.query, f.groups?.map((g) => g.query)]);
     return (
-        <div className="space-y-4">
+        <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
-                <Tabs value={tab} onValueChange={setTab}>
-                    <TabsList aria-label="상담 통계 메뉴">
-                        <TabsTrigger value="report">응대 성과</TabsTrigger>
-                        <TabsTrigger value="settings">업무시간·응대 목표</TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                {tab === "report" && <StatsDateBar f={f} />}
+                <h1 className="text-2xl font-semibold tracking-tight">상담통계</h1>
+                <StatsDateBar f={f} />
             </div>
-            {tab === "report" ? (
-                <>
-                    <div className="flex flex-wrap items-end justify-between gap-3">
-                        <StatsMediumBar f={f} />
-                        {!f.groups && <p className="text-xs text-muted-foreground">{f.periodText}</p>}
-                    </div>
-                    <Report key={filterKey} channelId={channelId} f={f} onSelect={onSelect} />
-                </>
-            ) : (
-                <OperationsSettingsEditor
-                    channelId={channelId}
-                    canManage={canManage}
-                />
-            )}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <StatsMediumBar f={f} />
+                {!f.groups && <p className="text-xs text-muted-foreground">{f.periodText}</p>}
+            </div>
+            <Report key={filterKey} channelId={channelId} f={f} onSelect={onSelect} />
         </div>
     );
 }

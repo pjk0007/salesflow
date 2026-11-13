@@ -49,7 +49,5 @@ export async function register() {
         startOperationsScheduler();
         const { startInboxChatAlertScheduler } = await import("@/lib/inbox-chat-alerts/worker");
         startInboxChatAlertScheduler();
-        const {startRoutingScheduler}=await import("@/lib/inbox-capacity/dispatcher");
-        startRoutingScheduler();
     }
 }

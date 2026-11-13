@@ -8,9 +8,12 @@ const days = ["일", "월", "화", "수", "목", "금", "토"];
 export function OperationsSettingsEditor({
     channelId,
     canManage,
+    section,
 }: {
     channelId: number;
     canManage: boolean;
+    /** hours: 업무시간·휴무일·밖 안내, goals: 응대 목표 — 저장은 둘 다 같은 운영 설정에 한다 */
+    section: "hours" | "goals";
 }) {
     const { data, error, mutate } = useOperationsSettings(channelId),
         [draft, setDraft] = useState<{
@@ -64,25 +67,21 @@ export function OperationsSettingsEditor({
                         setHolidays(null);
                         await mutate();
                         toast.success(
-                            "운영 설정을 저장했습니다. 자동 배정은 다음 판단부터, 응대 계산은 새 응대부터 적용합니다.",
+                            section === "hours" ? "업무시간을 저장했습니다." : "응대 목표를 저장했습니다. 새 응대부터 적용합니다.",
                         );
                     })
                     .catch((e) => toast.error((e as Error).message))
                     .finally(() => setBusy(false));
             }}
         >
-            <p className="rounded-lg bg-muted p-3 text-sm">
-                업무시간·휴무일은 고객 안내, 응대 시간 계산과 선택한 팀의 자동
-                배정에 사용합니다. 응대 계산은 새로 시작하는 응대부터 적용하며
-                진행 중·과거 응대의 기준은 유지합니다. 업무시간 배정 옵션을 켠
-                팀의 대기 상담은 다음 배정 판단부터 최신 달력을 사용합니다.
-            </p>
+
             {!canManage && <p>설정 변경은 관리자에게 요청해주세요.</p>}
             <fieldset
                 disabled={!canManage || busy}
                 className="space-y-5 disabled:opacity-70"
             >
-                <legend className="mb-3 font-semibold">업무시간</legend>
+                {section === "hours" && (
+                <>
                 <label className="block text-sm">
                     시간대{" "}
                     <input
@@ -300,8 +299,10 @@ export function OperationsSettingsEditor({
                         onChange={(e) => edit({ awayMessage: e.target.value })}
                     />
                 </label>
-                <div className="space-y-3 border-t pt-4">
-                    <h3 className="font-semibold">응대 목표</h3>
+                </>
+                )}
+                {section === "goals" && (
+                <div className="space-y-3">
                     <label className="flex items-center gap-2">
                         <input
                             type="checkbox"
@@ -362,8 +363,9 @@ export function OperationsSettingsEditor({
                         응답으로 집계합니다.
                     </p>
                 </div>
+                )}
             </fieldset>
-            {!data.workerEnabled && (
+            {section === "goals" && !data.workerEnabled && (
                 <p role="status" className="rounded border p-3 text-sm">
                     자동 초과 알림은 서버에서 꺼져 있습니다. 목표·성과는
                     화면에서 확인할 수 있고, 관리자가 자동 검사를 켜면 알림도
@@ -376,7 +378,7 @@ export function OperationsSettingsEditor({
                         disabled={busy}
                         className="rounded bg-violet-600 px-4 py-2 text-white"
                     >
-                        {busy ? "저장 중…" : "운영 설정 저장"}
+                        {busy ? "저장 중…" : "저장"}
                     </button>
                     <button
                         type="button"

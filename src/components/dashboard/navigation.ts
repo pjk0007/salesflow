@@ -1,4 +1,4 @@
-import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3, TrendingUp, Briefcase, ListTodo, Contact, Bot } from "lucide-react";
+import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3, TrendingUp, Briefcase, ListTodo, Contact, Bot, Settings2, Store } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: typeof Home };
 
@@ -34,6 +34,7 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
         items: [
             { href: "/inbox", label: "고객 상담", icon: MessageSquare },
             { href: "/inbox/stats", label: "상담통계", icon: TrendingUp },
+            { href: "/inbox/settings", label: "상담 설정", icon: Settings2 },
             { href: "/customer-contacts", label: "고객 연락처", icon: Contact },
             { href: "/customer-ai", label: "AI 응대", icon: Bot },
             { href: "/alimtalk", label: "알림톡", icon: MessageCircle },
@@ -60,6 +61,7 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
 export const navItems: NavItem[] = navGroups.flatMap((g) => g.items);
 
 export const bottomNavItems = [
+    { href: "/settings/business", label: "사업부 관리", icon: Store },
     { href: "/settings/workspace", label: "워크스페이스", icon: Layers },
     { href: "/settings/billing", label: "요금제", icon: CreditCard },
     { href: "/settings/organization", label: "조직 설정", icon: Building2 },
