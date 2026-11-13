@@ -59,11 +59,16 @@ export function SupportNotifications({
         <>
             <button
                 onClick={() => setOpen(true)}
-                className="flex items-center gap-1 rounded-xl border px-3 py-2 text-xs"
+                className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                 aria-label={`상담 알림 ${count}개`}
+                title="상담 알림"
             >
-                <Bell size={14} />
-                알림 {count > 99 ? "99+" : count}
+                <Bell size={18} />
+                {count > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-white">
+                        {count > 99 ? "99+" : count}
+                    </span>
+                )}
             </button>
             {open && (
                 <Sheet open onOpenChange={(next) => !next && setOpen(false)}>

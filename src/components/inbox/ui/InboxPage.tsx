@@ -4,11 +4,9 @@ import { workspaceAbilities } from "@/components/customer-access/utils/abilities
 import { TeamSettings } from "@/components/inbox-routing/ui/TeamSettings";
 import { useAgentPresence } from "@/components/inbox-presence/hooks/useAgentPresence";
 import { ReplyGuardSettings } from "@/components/inbox-reply-guard/ui/ReplyGuardSettings";
-import { AgentStatus } from "@/components/inbox-presence/ui/AgentStatus";
 import { CapacitySettings } from "@/components/inbox-capacity/ui/CapacitySettings";
 import { useEffect, useState } from "react";
 import { SupportNotifications } from "@/components/inbox-operations/ui/SupportNotifications";
-import { OperationsPanel } from "@/components/inbox-operations/ui/OperationsPanel";
 import type { OpenSupportConversation } from "@/components/inbox-operations/types";
 import {
     Archive,
@@ -29,6 +27,7 @@ import { useStaffDraftSession, type SubscribeSessionInvalidation } from "../hook
 import { EmailMailboxSettings } from "@/components/inbox-email/ui/EmailMailboxSettings";
 import { useEmailMailboxes } from "@/components/inbox-email/hooks/useEmailMailboxes";
 import { ChannelSettings } from "./ChannelSettings";
+import { InboxChannelTabs } from "./InboxChannelTabs";
 import { ConversationPane, statusNames } from "./ConversationPane";
 import type { ConversationFilter, ConversationStatus } from "../types";
 import { toast } from "sonner";
@@ -84,7 +83,6 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         [query, setQuery] = useState("");
     void role;
     const [accessOpen, setAccessOpen] = useState(false);
-    const [operationsOpen, setOperationsOpen] = useState(false);
     const [teamsOpen, setTeamsOpen] = useState(false);
     const [capacityOpen, setCapacityOpen] = useState(false);
     const [replyGuardOpen, setReplyGuardOpen] = useState(false);
@@ -173,58 +171,12 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
         <div className="flex h-full min-h-[600px] flex-col bg-background">
             {/* 좁은 화면에서 상담을 열면 대화 공간을 위해 페이지 머리를 접는다(목록으로 돌아오면 다시 보임) */}
             <header className={`min-h-16 shrink-0 flex-wrap items-center gap-2 border-b px-5 py-3 ${selected ? "hidden lg:flex" : "flex"}`}>
-                <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#635BFF] text-white">
-                        <MessageCircle size={19} />
-                    </div>
-                    <div>
-                        <h1 className="text-lg font-semibold">고객 상담</h1>
-                        <p className="text-xs text-muted-foreground">
-                            고객과의 대화, 한곳에서 이어가세요.
-                        </p>
-                    </div>
-                </div>
-                <SupportNotifications
-                    onSelect={openSupport}
-                    channels={bootstrap?.channels ?? []}
-                    initialOpen={params.get("notifications") === "open"}
-                />
-                {channel && (
-                    <AgentStatus
-                        key={`${channel.id}:${userId}`}
-                        presence={presence}
-                        userId={userId}
-                        canRespond={abilities.respond}
-                    />
-                )}
-                {channel && (
-                    <button
-                        className="rounded-xl border px-3 py-2 text-xs"
-                        onClick={() => setOperationsOpen(true)}
-                    >
-                        운영·성과
-                    </button>
-                )}
-                {channel && (
-                    <a
-                        className="rounded-xl border px-3 py-2 text-xs"
-                        href={`/customer-crm?workspaceId=${channel.workspaceId}`}
-                    >
-                        고객 연락처
-                    </a>
-                )}
-                {channel && (
-                    <a
-                        className="rounded-xl border px-3 py-2 text-xs"
-                        href={`/customer-ai?workspaceId=${channel.workspaceId}`}
-                    >
-                        AI 응대
-                    </a>
-                )}
+                <h1 className="text-lg font-semibold">상담톡</h1>
+                <div className="ml-auto" />
                 {(abilities.manage ||
                     canSetChannel ||
                     bootstrap?.canManageAccess) && (
-                    <details className="relative ml-auto">
+                    <details className="relative">
                         <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl border px-3 py-2 text-xs">
                             <Settings2 size={14} /> 상담 설정
                         </summary>
@@ -284,7 +236,24 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                         </div>
                     </details>
                 )}
+                <SupportNotifications
+                    onSelect={openSupport}
+                    channels={bootstrap?.channels ?? []}
+                    initialOpen={params.get("notifications") === "open"}
+                />
             </header>
+            {bootstrap && channel && (
+                <div className={selected ? "hidden lg:block" : undefined}>
+                    <InboxChannelTabs
+                        bootstrap={bootstrap}
+                        channelId={channelId}
+                        onChange={(next) => {
+                            setChannel(next);
+                            setSelected(null);
+                        }}
+                    />
+                </div>
+            )}
             {(reconnectCount > 0 || mailWorkerStopped || mailboxes.error) && (
                 <p role="alert" className="border-b bg-amber-50 px-5 py-3 text-sm text-amber-900">
                     {reconnectCount > 0 ? `이 사업의 Google 메일함 ${reconnectCount}개를 다시 연결해야 새 문의와 답장을 처리할 수 있습니다.`
@@ -347,23 +316,8 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                 <div className="flex min-h-0 flex-1">
                     <nav
                         aria-label="상담함"
-                        className={`w-[195px] shrink-0 border-r bg-muted/20 p-3 ${selected ? "hidden lg:block" : "hidden md:block"}`}
+                        className={`w-[195px] shrink-0 overflow-y-auto border-r bg-muted/20 p-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${selected ? "hidden lg:block" : "hidden md:block"}`}
                     >
-                        <select
-                            aria-label="상담 채널"
-                            className="mb-5 w-full rounded-xl border bg-background px-2 py-3 text-sm font-semibold"
-                            value={channelId ?? ""}
-                            onChange={(e) => {
-                                setChannel(Number(e.target.value));
-                                setSelected(null);
-                            }}
-                        >
-                            {bootstrap.channels.map((c) => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name}
-                                </option>
-                            ))}
-                        </select>
                         <p className="mb-2 px-3 text-[10px] font-semibold tracking-widest text-muted-foreground">
                             INBOX
                         </p>
@@ -460,21 +414,6 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                                     {count(filter)}
                                 </span>
                             </div>
-                            <select
-                                aria-label="모바일 상담 채널"
-                                className="w-full rounded-lg border p-2 text-xs md:hidden"
-                                value={channelId ?? ""}
-                                onChange={(e) => {
-                                    setChannel(Number(e.target.value));
-                                    setSelected(null);
-                                }}
-                            >
-                                {bootstrap.channels.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                            </select>
                             <label className="flex items-center gap-2 rounded-xl bg-muted/60 px-3 py-2">
                                 <Search
                                     size={14}
@@ -718,16 +657,6 @@ export function InboxPage({ userId, orgId = "", role, subscribeSessionInvalidati
                     initialWorkspaceId={channel?.workspaceId}
                     onClose={() => setAccessOpen(false)}
                     onSaved={() => initial.bootstrap.mutate()}
-                />
-            )}
-            {operationsOpen && channel && (
-                <OperationsPanel
-                    key={channel.id}
-                    channelId={channel.id}
-                    name={channel.name}
-                    canManage={abilities.manage}
-                    onClose={() => setOperationsOpen(false)}
-                    onSelect={openSupport}
                 />
             )}
             {capacityOpen && channel && abilities.manage && (

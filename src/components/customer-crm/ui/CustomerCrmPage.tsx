@@ -32,6 +32,7 @@ import { ActivityTimeline } from "./ActivityTimeline";
 import { RelationshipToday } from "@/components/relationship-care/ui/RelationshipToday";
 import { RelationshipPanel } from "@/components/relationship-care/ui/RelationshipPanel";
 import { workspaceLabel } from "@/lib/workspace-label";
+import { LeadWorkspaceTabs } from "@/components/leads/ui/LeadWorkspaceTabs";
 const names: Record<Resource, string> = {
     deals: "딜",
     tasks: "할 일",
@@ -43,9 +44,12 @@ type View = Resource | "care";
 export function CustomerCrmPage({
     role,
     userId,
+    contactsOnly = false,
 }: {
     role: string;
     userId: string;
+    /** 고객 연락처 메뉴: 사업부 탭 + 고객 목록만 (회사·딜·할 일·파이프라인 없이) */
+    contactsOnly?: boolean;
 }) {
     void role;
     const params = useSearchParams(),
@@ -54,9 +58,10 @@ export function CustomerCrmPage({
             Number(params.get("workspaceId")) || null,
         ),
         [view, setView] = useState<View>(
-            ["care", "deals", "tasks", "contacts", "companies", "pipelines"].includes(
-                params.get("resource") ?? "",
-            )
+            !contactsOnly &&
+                ["care", "deals", "tasks", "contacts", "companies", "pipelines"].includes(
+                    params.get("resource") ?? "",
+                )
                 ? (params.get("resource") as View)
                 : "contacts",
         ),
@@ -198,7 +203,24 @@ export function CustomerCrmPage({
     ];
     return (
         <main className="flex h-full min-h-[650px] flex-col">
-            <header className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
+            {contactsOnly && (
+                <>
+                    <header className="flex min-h-16 shrink-0 items-center border-b px-5 py-3">
+                        <h1 className="text-lg font-semibold">고객 연락처</h1>
+                    </header>
+                    <LeadWorkspaceTabs
+                        value={workspaceId}
+                        items={bootstrap.data?.workspaces.map((w) => ({ id: w.id, name: w.name }))}
+                        loading={!bootstrap.data}
+                        onChange={(id) => {
+                            setWorkspace(id);
+                            setEditor(null);
+                            setQuery("");
+                        }}
+                    />
+                </>
+            )}
+            <header hidden={contactsOnly} className="flex flex-wrap items-center justify-between gap-4 border-b p-5">
                 <div>
                     <h1 className="text-xl font-semibold">고객 관리</h1>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -260,6 +282,7 @@ export function CustomerCrmPage({
                 </label>
             </header>
             <nav
+                hidden={contactsOnly}
                 aria-label="고객 관리 메뉴"
                 className="flex gap-2 overflow-x-auto border-b px-5 py-3"
             >

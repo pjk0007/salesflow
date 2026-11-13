@@ -1,4 +1,4 @@
-import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3, TrendingUp, Briefcase, ListTodo } from "lucide-react";
+import { Home, Table2, MessageSquare, MessageCircle, Mail, Package, FileText, FileSignature, Building2, CreditCard, Layers, History, Activity, Ban, Users, BarChart3, TrendingUp, Briefcase, ListTodo, Contact, Bot } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: typeof Home };
 
@@ -33,6 +33,9 @@ export const navGroups: Array<{ group?: string; items: NavItem[] }> = [
         group: "고객관리",
         items: [
             { href: "/inbox", label: "고객 상담", icon: MessageSquare },
+            { href: "/inbox/stats", label: "상담통계", icon: TrendingUp },
+            { href: "/customer-contacts", label: "고객 연락처", icon: Contact },
+            { href: "/customer-ai", label: "AI 응대", icon: Bot },
             { href: "/alimtalk", label: "알림톡", icon: MessageCircle },
             { href: "/customer-crm", label: "고객 관리", icon: Building2 },
         ],
@@ -64,7 +67,6 @@ export const bottomNavItems = [
 
 const routeLabels: Record<string, string> = {
     ...Object.fromEntries([...navItems, ...bottomNavItems].map(({ href, label }) => [href, label])),
-    "/customer-ai": "상담 AI",
     "/customer-imports": "고객 가져오기",
     "/customer-webhooks": "고객 웹훅",
     "/customer-workflows": "고객 자동화",

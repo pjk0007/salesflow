@@ -250,7 +250,7 @@ export async function saveTeam(
                 .configured
         )
             throw new InboxError(
-                "운영·성과에서 이 사업의 업무시간을 먼저 저장해주세요.",
+                "상담통계의 업무시간·응대 목표에서 이 사업의 업무시간을 먼저 저장해주세요.",
                 409,
             );
         const [duplicate] = await tx

@@ -1,5 +1,5 @@
 import { customerAccessPredicate } from "@/lib/customer-access/access";
-import { and, eq, isNull, inArray, desc, sql, lte } from "drizzle-orm";
+import { and, eq, ne, isNull, inArray, desc, sql, lte } from "drizzle-orm";
 import {
     inboxConversations as chats,
     inboxMessages as messages,
@@ -669,6 +669,26 @@ export async function onOperationsEvent(
     const changes = data.changes as
         | Record<string, { before?: unknown; after?: unknown }>
         | undefined;
+    if (
+        changes?.assigneeId &&
+        changes.assigneeId.after !== changes.assigneeId.before &&
+        typeof changes.assigneeId.after === "string"
+    ) {
+        // 담당자가 정해지면 다른 직원들에게 쌓인 이 상담의 미확인 알림은 정리한다(멘션은 유지).
+        // 이후 고객 메시지 알림은 operationsRecipients가 담당자에게만 보낸다.
+        await exec
+            .update(notices)
+            .set({ readAt: new Date() })
+            .where(
+                and(
+                    eq(notices.orgId, chat.orgId),
+                    eq(notices.conversationId, chat.id),
+                    ne(notices.userId, changes.assigneeId.after),
+                    sql`${notices.type}<>'mentioned'`,
+                    isNull(notices.readAt),
+                ),
+            );
+    }
     if (
         changes?.assigneeId &&
         changes.assigneeId.after !== changes.assigneeId.before &&

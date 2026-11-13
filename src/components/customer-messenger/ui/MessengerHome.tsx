@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, ChevronRight, MessageCircle } from "lucide-react";
+import { ChevronRight, MessageCircle } from "lucide-react";
 import { BrandMark } from "./BrandMark";
 import { WelcomeProcess } from "./WelcomeProcess";
 import type { MessengerBrand, PublicMessengerSettings } from "../types";
@@ -151,17 +151,14 @@ export function MessengerHome({
                     type="button"
                     disabled={busy || loading}
                     onClick={onStart}
-                    className="flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
                     style={{ backgroundColor: color }}
                 >
                     {loading
                         ? "상담을 준비하고 있어요…"
                         : returning
                           ? "상담 이어가기"
-                          : settings?.aiAvailable
-                            ? "AI 상담원과 대화하기"
-                            : "문의하기"}
-                    <ArrowRight size={17} aria-hidden="true" />
+                          : "상담 시작하기"}
                 </button>
                 <p className="mt-3 text-center text-xs leading-5 text-gray-400">
                     {settings?.enabled && settings.consultationUrl ? (

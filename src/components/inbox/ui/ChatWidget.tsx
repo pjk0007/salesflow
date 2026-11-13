@@ -18,7 +18,7 @@ import { MessengerHome } from "@/components/customer-messenger/ui/MessengerHome"
 import { inboxRequest, InboxRequestError } from "../api";
 import type { SendbCustomerMessages } from "../../../../sdk/messenger";
 import { useAttachmentDrafts } from "../hooks/useAttachmentDrafts";
-import { AttachmentDrafts } from "./AttachmentDrafts";
+import { AttachmentDrafts, AttachmentPicker } from "./AttachmentDrafts";
 import { AttachmentList } from "./AttachmentList";
 import { draftSessionKey } from "../utils/session";
 import { useJourneyAttachment } from "@/components/inbox-journey/hooks/useJourneyAttachment";
@@ -223,6 +223,7 @@ export function ChatWidget({
         }
     }
     const attachments = useAttachmentDrafts(`${channelKey}:${draftKey}`);
+    const [dragging, setDragging] = useState(false);
     const moveAttachments = useRef(attachments.moveTo);
     moveAttachments.current = attachments.moveTo;
     const resetAttachments = attachments.reset;
@@ -1439,58 +1440,8 @@ export function ChatWidget({
                                             </button>
                                         </div>
                                     )}
-                                    <div className="flex items-end gap-2 rounded-2xl border border-gray-200 p-3">
-                                        <textarea
-                                            aria-label="문의 메시지"
-                                            disabled={
-                                                busy || linking || !canWrite
-                                            }
-                                            value={text}
-                                            maxLength={5000}
-                                            onChange={(e) =>
-                                                setText(e.target.value)
-                                            }
-                                            placeholder="메시지를 입력해주세요"
-                                            rows={2}
-                                            onKeyDown={(e) => {
-                                                if (
-                                                    e.key === "Enter" &&
-                                                    (e.ctrlKey || e.metaKey) &&
-                                                    !e.nativeEvent.isComposing
-                                                ) {
-                                                    e.preventDefault();
-                                                    void send();
-                                                }
-                                            }}
-                                            className="min-w-0 flex-1 resize-none text-sm outline-none"
-                                        />
-                                        <button
-                                            aria-label="문의 보내기"
-                                            disabled={
-                                                busy ||
-                                                linking ||
-                                                inquiryPending ||
-                                                !canWrite ||
-                                                (!text.trim() &&
-                                                    !attachments.files
-                                                        .length) ||
-                                                !config.data ||
-                                                detailAccessDenied
-                                            }
-                                            className="rounded-xl p-2.5 text-white disabled:opacity-40"
-                                            style={{ backgroundColor: color }}
-                                        >
-                                            {busy ? (
-                                                <RotateCcw
-                                                    size={17}
-                                                    className="animate-spin"
-                                                />
-                                            ) : (
-                                                <ArrowUp size={17} />
-                                            )}
-                                        </button>
-                                    </div>
                                     <AttachmentDrafts
+                                        picker={false}
                                         files={attachments.files}
                                         busy={
                                             busy ||
@@ -1507,6 +1458,97 @@ export function ChatWidget({
                                         }
                                         onError={setError}
                                     />
+                                    <div
+                                        className={`mt-2 rounded-xl border bg-gray-100 px-3 pb-2 pt-3 transition-colors first:mt-0 ${dragging ? "border-dashed border-gray-400 bg-gray-200/70" : "border-transparent"}`}
+                                        onDragOver={(e) => {
+                                            if (!e.dataTransfer.types.includes("Files")) return;
+                                            e.preventDefault();
+                                            setDragging(true);
+                                        }}
+                                        onDragLeave={(e) => {
+                                            if (!e.currentTarget.contains(e.relatedTarget as Node | null))
+                                                setDragging(false);
+                                        }}
+                                        onDrop={(e) => {
+                                            if (!e.dataTransfer.files.length) return;
+                                            e.preventDefault();
+                                            setDragging(false);
+                                            if (busy || linking || !canWrite || !config.data) return;
+                                            try {
+                                                attachments.select(e.dataTransfer.files);
+                                            } catch (error) {
+                                                setError((error as Error).message);
+                                            }
+                                        }}
+                                    >
+                                        <textarea
+                                            aria-label="문의 메시지"
+                                            disabled={
+                                                busy || linking || !canWrite
+                                            }
+                                            value={text}
+                                            maxLength={5000}
+                                            onChange={(e) =>
+                                                setText(e.target.value)
+                                            }
+                                            placeholder={
+                                                dragging
+                                                    ? "여기에 파일을 놓으면 첨부돼요"
+                                                    : "메시지를 입력해주세요"
+                                            }
+                                            rows={2}
+                                            onKeyDown={(e) => {
+                                                // Enter 전송, Shift+Enter 줄바꿈, 한글 조합 중 Enter는 무시
+                                                if (
+                                                    e.key === "Enter" &&
+                                                    !e.shiftKey &&
+                                                    !e.nativeEvent.isComposing
+                                                ) {
+                                                    e.preventDefault();
+                                                    void send();
+                                                }
+                                            }}
+                                            className="block w-full resize-none bg-transparent text-sm outline-none placeholder:text-gray-400"
+                                        />
+                                        <div className="mt-1 flex items-center justify-between">
+                                            <AttachmentPicker
+                                                busy={
+                                                    busy ||
+                                                    linking ||
+                                                    !canWrite ||
+                                                    !config.data
+                                                }
+                                                full={attachments.files.length >= 5}
+                                                onSelect={attachments.select}
+                                                onError={setError}
+                                            />
+                                            <button
+                                                aria-label="문의 보내기"
+                                                disabled={
+                                                    busy ||
+                                                    linking ||
+                                                    inquiryPending ||
+                                                    !canWrite ||
+                                                    (!text.trim() &&
+                                                        !attachments.files
+                                                            .length) ||
+                                                    !config.data ||
+                                                    detailAccessDenied
+                                                }
+                                                className="flex h-9 w-9 items-center justify-center rounded-lg text-white disabled:opacity-40"
+                                                style={{ backgroundColor: color }}
+                                            >
+                                                {busy ? (
+                                                    <RotateCcw
+                                                        size={17}
+                                                        className="animate-spin"
+                                                    />
+                                                ) : (
+                                                    <ArrowUp size={17} />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
                                 </form>
                             )}
                         </>

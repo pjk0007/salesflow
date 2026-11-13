@@ -23,6 +23,7 @@ import { NoteMentions } from "@/components/inbox-collaboration/ui/NoteMentions";
 import { MentionTargetCard } from "@/components/inbox-collaboration/ui/MentionTargetCard";
 import { SupportDraftPanel } from "@/components/customer-ai/ui/SupportDraftPanel";
 import { TeamAssignment } from "@/components/inbox-routing/ui/TeamAssignment";
+import { ClaimConversation } from "@/components/inbox-routing/ui/ClaimConversation";
 import { ConversationPresence } from "@/components/inbox-presence/ui/ConversationPresence";
 import { useReplyGuard } from "@/components/inbox-reply-guard/hooks/useReplyGuard";
 import { ReplyGuardStatus } from "@/components/inbox-reply-guard/ui/ReplyGuardStatus";
@@ -552,7 +553,13 @@ ${body}` : body, key);
                     <div ref={end} />
                 </div>
                 <ConversationPresence agents={presenceAgents} userId={userId} />
-                {!chat.historyOnly && canRespond && (
+                {!chat.historyOnly && canRespond && !chat.assigneeId && (
+                    <ClaimConversation
+                        busy={changing}
+                        onClaim={() => void change({ assigneeId: userId })}
+                    />
+                )}
+                {!chat.historyOnly && canRespond && !!chat.assigneeId && (
                     <>
                         {chat.medium !== "email" && (
                             <SupportDraftPanel

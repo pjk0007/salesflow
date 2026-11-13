@@ -136,7 +136,7 @@ export function DesktopSidebar({
                 </div>
             )}
 
-            <div className="flex flex-1 flex-col overflow-y-auto">
+            <div className="flex flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <NavLinks collapsed={collapsed} />
             </div>
 
@@ -205,7 +205,7 @@ export function MobileSidebar() {
                 <div className="border-b px-3 py-2">
                     <OrgSwitcher />
                 </div>
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto"><NavLinks onNavigate={() => setOpen(false)} /></div>
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"><NavLinks onNavigate={() => setOpen(false)} /></div>
             </SheetContent>
         </Sheet>
     );
