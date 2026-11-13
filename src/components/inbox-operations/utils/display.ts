@@ -29,3 +29,15 @@ export function dayString(at: Date, zone = "Asia/Seoul") {
     );
     return `${p.year}-${p.month}-${p.day}`;
 }
+/** 큰 숫자용 시간 조각 — "3분 8초", "20시간 2분", "2일 4시간" */
+export function durationParts(ms: number): Array<{ value: number; unit: string }> {
+    const s = Math.round(ms / 1000);
+    if (s < 60) return [{ value: s, unit: "초" }];
+    if (s < 3600) return [{ value: Math.floor(s / 60), unit: "분" }, { value: s % 60, unit: "초" }].filter((p, i) => i === 0 || p.value);
+    const m = Math.round(s / 60);
+    if (m < 1440) return [{ value: Math.floor(m / 60), unit: "시간" }, { value: m % 60, unit: "분" }].filter((p, i) => i === 0 || p.value);
+    const h = Math.round(m / 60);
+    return [{ value: Math.floor(h / 24), unit: "일" }, { value: h % 24, unit: "시간" }].filter((p, i) => i === 0 || p.value);
+}
+export const durationShort = (ms: number | null) =>
+    ms === null ? "—" : durationParts(ms).map((p) => `${p.value}${p.unit}`).join(" ");

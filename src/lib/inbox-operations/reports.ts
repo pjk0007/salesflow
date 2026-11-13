@@ -7,6 +7,7 @@ import {
     inboxConversations as chats,
     crmContacts,
     inboxMessages as messages,
+    inboxAuditEvents as audits,
     users,
 } from "@/lib/db";
 import type { DbExec } from "@/lib/db/tx";
@@ -67,6 +68,19 @@ export async function operationsReport(
             sql`${cases.closedAt} IS NULL AND ${cases.pausedAt} IS NOT NULL`,
         ),
         aiFirst: count(sql`${cases.firstResponder}='ai'`),
+        // 평균 응답 시간 — 첫 답변·추가 답변을 모두 합친 답변 소요시간 평균
+        responseSamples: sql<number>`coalesce(sum((SELECT count(${obligations.elapsedMs}) FROM ${obligations} WHERE ${obligations.caseId}=${cases.id})),0)`.mapWith(
+            Number,
+        ),
+        responseAvgMs: sql<
+            number | null
+        >`sum((SELECT sum(${obligations.elapsedMs}) FROM ${obligations} WHERE ${obligations.caseId}=${cases.id}))/nullif(sum((SELECT count(${obligations.elapsedMs}) FROM ${obligations} WHERE ${obligations.caseId}=${cases.id})),0)`.mapWith(
+            Number,
+        ),
+        // 담당자 이관 — 응대 중에 담당자가 다른 사람으로 바뀐 응대 (처음 배정은 제외)
+        transferred: count(
+            sql`EXISTS(SELECT 1 FROM ${audits} WHERE ${audits.conversationId}=${cases.conversationId} AND ${audits.createdAt}>=${cases.startedAt} AND ${audits.createdAt}<coalesce(${cases.closedAt},${now.toISOString()}::timestamptz) AND ${audits.changes}->'assigneeId'->>'before' IS NOT NULL AND ${audits.changes}->'assigneeId'->>'after' IS NOT NULL AND ${audits.changes}->'assigneeId'->>'before'<>${audits.changes}->'assigneeId'->>'after')`,
+        ),
     };
     const base = () =>
         exec

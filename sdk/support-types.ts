@@ -53,6 +53,12 @@ export interface SendbOperationsStats {
     resolutionMissed: number;
     paused: number;
     aiFirst: number;
+    /** 첫 답변·추가 답변 소요시간 표본 수 */
+    responseSamples: number;
+    /** 첫 답변·추가 답변 소요시간 평균 */
+    responseAvgMs: number | null;
+    /** 응대 중 담당자가 다른 사람으로 바뀐 응대 수 */
+    transferred: number;
 }
 export interface SendbOperationsReport {
     period: {
